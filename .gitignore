@@ -1,0 +1,34 @@
+# Build artifacts
+/target/
+/node_modules/
+/dist/
+
+# Environment (secrets — never commit)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials / secrets
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+
+# Claude Code session data (keep .claude/settings.json, agents, etc.)
+.claude/session-state.md
+.claude/agent-output/
+
+# Installer packages
+/installers/
