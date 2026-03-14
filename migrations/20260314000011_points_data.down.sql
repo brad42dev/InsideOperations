@@ -1,0 +1,10 @@
+DROP MATERIALIZED VIEW IF EXISTS points_history_1d;
+DROP MATERIALIZED VIEW IF EXISTS points_history_1h;
+DROP MATERIALIZED VIEW IF EXISTS points_history_15m;
+DROP MATERIALIZED VIEW IF EXISTS points_history_5m;
+DROP MATERIALIZED VIEW IF EXISTS points_history_1m;
+DROP TABLE IF EXISTS points_in_use;
+DROP TABLE IF EXISTS points_history_raw;
+DROP TABLE IF EXISTS points_current;
+DROP TABLE IF EXISTS points_metadata_versions;
+DROP TABLE IF EXISTS points_metadata;

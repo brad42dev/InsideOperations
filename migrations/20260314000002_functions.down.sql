@@ -1,0 +1,12 @@
+DROP FUNCTION IF EXISTS prevent_eula_acceptance_modify();
+DROP FUNCTION IF EXISTS prevent_eula_version_content_edit();
+DROP FUNCTION IF EXISTS prevent_eula_version_delete();
+DROP FUNCTION IF EXISTS get_next_point_metadata_version(UUID);
+DROP FUNCTION IF EXISTS get_effective_point_metadata(UUID, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS backfill_upsert_history(UUID[], DOUBLE PRECISION[], VARCHAR(20)[], TIMESTAMPTZ[]);
+DROP FUNCTION IF EXISTS upsert_point_from_source(UUID, VARCHAR(255), TEXT, VARCHAR(50), VARCHAR(50), DOUBLE PRECISION, DOUBLE PRECISION, JSONB);
+DROP FUNCTION IF EXISTS handle_point_activation_change();
+DROP FUNCTION IF EXISTS sync_point_metadata_from_version();
+DROP FUNCTION IF EXISTS prevent_point_deletion();
+DROP FUNCTION IF EXISTS log_audit_trail();
+DROP FUNCTION IF EXISTS update_updated_at_column();

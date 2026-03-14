@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS push_subscriptions;
+DROP TABLE IF EXISTS alert_channels;
+DROP TABLE IF EXISTS alert_escalations;
+DROP TABLE IF EXISTS alert_deliveries;
+DROP TABLE IF EXISTS alerts;
+DROP TABLE IF EXISTS alert_templates;
+DROP TABLE IF EXISTS alert_rosters;
+DROP TYPE IF EXISTS alert_status;
+DROP TYPE IF EXISTS alert_severity;
