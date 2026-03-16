@@ -31,9 +31,9 @@ export default function GraphicBrowser({ currentGraphicId, onSelect, onClose }: 
   const panelRef = useRef<HTMLDivElement>(null)
 
   const { data: result, isLoading, isError } = useQuery({
-    queryKey: ['graphics-list', 'process'],
+    queryKey: ['graphics-list'],
     queryFn: async () => {
-      const res = await graphicsApi.list('process')
+      const res = await graphicsApi.list()
       if (!res.success) throw new Error(res.error.message)
       return res.data
     },
