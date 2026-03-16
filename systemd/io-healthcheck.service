@@ -1,0 +1,10 @@
+[Unit]
+Description=Inside/Operations Health Check
+After=io.target
+
+[Service]
+Type=oneshot
+User=io
+ExecStart=/opt/io/scripts/healthcheck.sh
+StandardOutput=journal
+StandardError=journal

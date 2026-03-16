@@ -1,0 +1,44 @@
+[package]
+name = "auth-service"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "auth-service"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+dotenvy.workspace = true
+anyhow.workspace = true
+sqlx.workspace = true
+io-error = { path = "../../crates/io-error" }
+io-health = { path = "../../crates/io-health" }
+io-observability = { path = "../../crates/io-observability" }
+io-models = { path = "../../crates/io-models" }
+io-auth = { path = "../../crates/io-auth" }
+io-db = { path = "../../crates/io-db" }
+io-validate = { path = "../../crates/io-validate" }
+uuid.workspace = true
+chrono.workspace = true
+rand.workspace = true
+sha2.workspace = true
+dashmap.workspace = true
+once_cell.workspace = true
+rhai.workspace = true
+totp-rs.workspace = true
+argon2.workspace = true
+base32.workspace = true
+openidconnect.workspace = true
+ldap3.workspace = true
+reqwest.workspace = true
+base64.workspace = true
+samael.workspace = true
+urlencoding.workspace = true
+metrics.workspace = true

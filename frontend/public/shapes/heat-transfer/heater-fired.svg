@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g class="io-shape" data-category="heat-transfer" data-name="Fired Heater">
+    <!-- Furnace body circle -->
+    <circle cx="50" cy="52" r="32" fill="white" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Process coil inside (U-shape) -->
+    <path d="M36,42 L36,62 Q36,68 42,68 L58,68 Q64,68 64,62 L64,42"
+          fill="none" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Burner flame lines at bottom (3 flame tips) -->
+    <line x1="44" y1="75" x2="42" y2="84" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="50" y1="75" x2="50" y2="86" stroke="#8a8a8a" stroke-width="1.5"/>
+    <line x1="56" y1="75" x2="58" y2="84" stroke="#8a8a8a" stroke-width="1.5"/>
+    <!-- Coil inlet nozzle top left -->
+    <line x1="36" y1="20" x2="36" y2="5" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Coil outlet nozzle top right -->
+    <line x1="64" y1="20" x2="64" y2="5" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Stack top -->
+    <line x1="50" y1="20" x2="50" y2="5" stroke="#8a8a8a" stroke-width="2" stroke-dasharray="3,2"/>
+  </g>
+</svg>

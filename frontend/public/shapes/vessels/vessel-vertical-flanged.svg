@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g class="io-shape" data-category="vessels" data-name="Vertical Vessel Flanged">
+    <!-- Cylindrical body -->
+    <rect x="32" y="22" width="36" height="56" fill="white" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Domed top -->
+    <ellipse cx="50" cy="22" rx="18" ry="7" fill="white" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Domed bottom -->
+    <ellipse cx="50" cy="78" rx="18" ry="7" fill="white" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Top flange lines -->
+    <line x1="28" y1="16" x2="72" y2="16" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Top nozzle -->
+    <line x1="50" y1="16" x2="50" y2="5" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Bottom flange lines -->
+    <line x1="28" y1="84" x2="72" y2="84" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Bottom nozzle -->
+    <line x1="50" y1="84" x2="50" y2="95" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Side nozzle (inlet) -->
+    <line x1="32" y1="42" x2="15" y2="42" stroke="#8a8a8a" stroke-width="2"/>
+    <!-- Side nozzle (outlet) -->
+    <line x1="68" y1="62" x2="85" y2="62" stroke="#8a8a8a" stroke-width="2"/>
+  </g>
+</svg>

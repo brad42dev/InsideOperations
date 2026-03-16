@@ -1,0 +1,18 @@
+{
+  "id": "part-actuator-diaphragm",
+  "name": "Diaphragm Actuator",
+  "category": "parts",
+  "description": "Pneumatic diaphragm actuator — spring-and-diaphragm or double-acting",
+  "tags": ["actuator", "diaphragm", "pneumatic", "spring"],
+  "recognition_class": "DIAPHRAGM_ACTUATOR",
+  "connection_points": [
+    { "id": "signal", "x": 50, "y": 0,   "type": "signal" },
+    { "id": "stem",   "x": 50, "y": 100, "type": "shaft" }
+  ],
+  "text_zones": [],
+  "state_classes": {
+    "energized":   "io-state-running",
+    "de-energized": "io-state-stopped",
+    "fault":       "io-state-fault"
+  }
+}

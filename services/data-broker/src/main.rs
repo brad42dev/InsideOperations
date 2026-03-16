@@ -1,0 +1,205 @@
+use axum::{routing::get, Router};
+use cache::ShadowCache;
+use dashmap::DashMap;
+use registry::SubscriptionRegistry;
+use state::AppState;
+use std::{net::SocketAddr, sync::Arc};
+use tower_http::catch_panic::CatchPanicLayer;
+use tracing::info;
+
+mod cache;
+mod config;
+mod fanout;
+mod notify;
+mod registry;
+mod staleness;
+mod state;
+mod uds;
+mod ws;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
+
+    let obs = io_observability::init(io_observability::ObservabilityConfig {
+        service_name: "data-broker",
+        service_version: env!("CARGO_PKG_VERSION"),
+        log_level: "info",
+        metrics_enabled: true,
+        tracing_enabled: false,
+    })?;
+
+    info!(service = "data-broker", "Starting up");
+
+    let cfg = Arc::new(config::Config::from_env()?);
+
+    // Connect to the database.
+    let db = io_db::create_pool(&cfg.database_url).await?;
+    info!("Database pool established");
+
+    // Build shadow cache and warm from points_current.
+    let shadow_cache = Arc::new(ShadowCache::new());
+    warm_cache(&shadow_cache, &db).await;
+
+    let registry = Arc::new(SubscriptionRegistry::new());
+    let connections: Arc<DashMap<_, _>> = Arc::new(DashMap::new());
+
+    let state = AppState {
+        config: Arc::clone(&cfg),
+        cache: Arc::clone(&shadow_cache),
+        registry: Arc::clone(&registry),
+        connections: Arc::clone(&connections),
+        http_client: reqwest::Client::new(),
+    };
+
+    // Spawn UDS server.
+    {
+        let sock = cfg.opc_broker_sock.clone();
+        let c = Arc::clone(&shadow_cache);
+        let r = Arc::clone(&registry);
+        let cx = Arc::clone(&connections);
+        tokio::spawn(uds::run_uds_server(sock, c, r, cx));
+    }
+
+    // Spawn NOTIFY/LISTEN fallback.
+    {
+        let db2 = db.clone();
+        let c = Arc::clone(&shadow_cache);
+        let r = Arc::clone(&registry);
+        let cx = Arc::clone(&connections);
+        tokio::spawn(notify::run_notify_listener(db2, c, r, cx));
+    }
+
+    // Spawn staleness sweeper.
+    {
+        let c = Arc::clone(&shadow_cache);
+        let r = Arc::clone(&registry);
+        let cx = Arc::clone(&connections);
+        tokio::spawn(staleness::run_staleness_sweeper(
+            cfg.stale_threshold_secs,
+            cfg.staleness_sweep_secs,
+            c,
+            r,
+            cx,
+        ));
+    }
+
+    // Spawn ping task — sends Ping to every connected client on schedule.
+    {
+        let cx = Arc::clone(&connections);
+        let interval_secs = cfg.ping_interval_secs;
+        tokio::spawn(async move {
+            let interval = tokio::time::Duration::from_secs(interval_secs);
+            loop {
+                tokio::time::sleep(interval).await;
+                let mut dead = Vec::new();
+                for entry in cx.iter() {
+                    if entry
+                        .value()
+                        .try_send(io_bus::WsServerMessage::Ping)
+                        .is_err()
+                    {
+                        dead.push(*entry.key());
+                    }
+                }
+                for client_id in dead {
+                    cx.remove(&client_id);
+                }
+            }
+        });
+    }
+
+    // Build axum router.
+    let health = io_health::HealthRegistry::new("data-broker", env!("CARGO_PKG_VERSION"));
+    health.mark_startup_complete();
+
+    // The WebSocket route needs AppState; health/metrics routes have no state.
+    // Build with_state first, then nest stateless routers.
+    let app = Router::new()
+        .route("/ws", get(ws::ws_handler))
+        .with_state(state)
+        .merge(health.into_router())
+        .merge(obs.metrics_router())
+        .layer(CatchPanicLayer::new());
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
+    info!(service = "data-broker", addr = %addr, "Listening");
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    use tokio::signal;
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    tracing::info!("shutdown signal received, draining in-flight requests…");
+}
+
+/// Read all rows from `points_current` and populate the shadow cache.
+async fn warm_cache(cache: &ShadowCache, db: &io_db::DbPool) {
+    use sqlx::Row;
+
+    let result = sqlx::query(
+        "SELECT point_id, value, quality, timestamp FROM points_current",
+    )
+    .fetch_all(db)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            let entries: Vec<_> = rows
+                .into_iter()
+                .filter_map(|row| {
+                    let point_id: uuid::Uuid = row.try_get("point_id").ok()?;
+                    let value: Option<f64> = row.try_get("value").ok()?;
+                    let value = value?;
+                    let quality: Option<String> = row.try_get("quality").ok().flatten();
+                    let quality = quality.unwrap_or_else(|| "bad".to_string());
+                    let timestamp: Option<chrono::DateTime<chrono::Utc>> =
+                        row.try_get("timestamp").ok().flatten();
+                    let timestamp = timestamp.unwrap_or_else(chrono::Utc::now);
+                    Some((
+                        point_id,
+                        cache::CachedValue {
+                            value,
+                            quality,
+                            timestamp,
+                            stale: false,
+                        },
+                    ))
+                })
+                .collect();
+
+            let count = entries.len();
+            cache.warm(entries);
+            info!(count, "Shadow cache warmed from points_current");
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "Failed to warm shadow cache from points_current — starting empty"
+            );
+        }
+    }
+}

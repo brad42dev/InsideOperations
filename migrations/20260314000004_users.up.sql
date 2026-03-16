@@ -17,6 +17,17 @@ CREATE TABLE users (
     last_login_at TIMESTAMPTZ,
     mfa_enabled BOOLEAN NOT NULL DEFAULT false,
     mfa_enrollment_deadline TIMESTAMPTZ,
+    totp_secret TEXT,
+    locked_until TIMESTAMPTZ,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    failed_login_count INTEGER NOT NULL DEFAULT 0,
+    deleted_at TIMESTAMPTZ,
+    avatar_url TEXT,
+    timezone VARCHAR(100),
+    locale VARCHAR(20),
+    eula_accepted BOOLEAN NOT NULL DEFAULT false,
+    eula_accepted_at TIMESTAMPTZ,
+    display_name VARCHAR(255) GENERATED ALWAYS AS (COALESCE(full_name, username)) STORED,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

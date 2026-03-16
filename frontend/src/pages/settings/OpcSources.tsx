@@ -1,0 +1,1272 @@
+import React, { useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  pointSourcesApi,
+  PointSource,
+  CreatePointSourceRequest,
+  UpdatePointSourceRequest,
+} from '../../api/points'
+import { opcCertsApi, OpcServerCert } from '../../api/opcCerts'
+import SupplementalConnectorsTab from './SupplementalConnectorsTab'
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 10px',
+  background: 'var(--io-surface-sunken)',
+  border: '1px solid var(--io-border)',
+  borderRadius: 'var(--io-radius)',
+  color: 'var(--io-text-primary)',
+  fontSize: '13px',
+  outline: 'none',
+  boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '12px',
+  fontWeight: 500,
+  color: 'var(--io-text-secondary)',
+  marginBottom: '5px',
+}
+
+const btnPrimary: React.CSSProperties = {
+  padding: '8px 16px',
+  background: 'var(--io-accent)',
+  color: '#09090b',
+  border: 'none',
+  borderRadius: 'var(--io-radius)',
+  fontSize: '13px',
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const btnSecondary: React.CSSProperties = {
+  padding: '8px 16px',
+  background: 'transparent',
+  color: 'var(--io-text-secondary)',
+  border: '1px solid var(--io-border)',
+  borderRadius: 'var(--io-radius)',
+  fontSize: '13px',
+  cursor: 'pointer',
+}
+
+const cellStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  fontSize: '13px',
+  color: 'var(--io-text-secondary)',
+  verticalAlign: 'middle',
+}
+
+// ---------------------------------------------------------------------------
+// Status badge
+// ---------------------------------------------------------------------------
+
+const STATUS_COLORS: Record<string, string> = {
+  active: 'var(--io-success)',
+  inactive: 'var(--io-text-muted)',
+  connecting: 'var(--io-warning)',
+  error: 'var(--io-danger)',
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const color = STATUS_COLORS[status] ?? 'var(--io-text-muted)'
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '5px',
+        padding: '2px 8px',
+        borderRadius: '9999px',
+        fontSize: '11px',
+        fontWeight: 600,
+        background: `${color}20`,
+        color,
+        border: `1px solid ${color}40`,
+        textTransform: 'capitalize',
+      }}
+    >
+      <span
+        style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '50%',
+          background: color,
+          flexShrink: 0,
+        }}
+      />
+      {status}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Modal wrapper
+// ---------------------------------------------------------------------------
+
+function ModalContent({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Dialog.Portal>
+      <Dialog.Overlay
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100 }}
+      />
+      <Dialog.Content
+        aria-describedby={undefined}
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%,-50%)',
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: '10px',
+          padding: '24px',
+          width: '520px',
+          maxWidth: '95vw',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          zIndex: 101,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '20px',
+          }}
+        >
+          <Dialog.Title
+            style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+          >
+            {title}
+          </Dialog.Title>
+          <Dialog.Close asChild>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--io-text-muted)',
+                cursor: 'pointer',
+                fontSize: '18px',
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </Dialog.Close>
+        </div>
+        {children}
+      </Dialog.Content>
+    </Dialog.Portal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Source form fields (shared between create and edit)
+// ---------------------------------------------------------------------------
+
+interface SourceFormState {
+  name: string
+  endpoint_url: string
+  security_policy: string
+  security_mode: string
+  username: string
+  password: string
+  enabled: boolean
+}
+
+const SECURITY_POLICIES = ['None', 'Basic256Sha256', 'Aes256Sha256RsaPss']
+const SECURITY_MODES = ['None', 'Sign', 'SignAndEncrypt']
+
+function SourceFormFields({
+  form,
+  onChange,
+  showEnabled,
+}: {
+  form: SourceFormState
+  onChange: (patch: Partial<SourceFormState>) => void
+  showEnabled?: boolean
+}) {
+  const field = (
+    label: string,
+    key: keyof SourceFormState,
+    type = 'text',
+    placeholder?: string,
+    required?: boolean,
+  ) => (
+    <div>
+      <label style={labelStyle}>
+        {label}
+        {required && ' *'}
+      </label>
+      <input
+        type={type}
+        style={inputStyle}
+        value={form[key] as string}
+        onChange={(e) => onChange({ [key]: e.target.value })}
+        placeholder={placeholder}
+        required={required}
+        autoComplete="off"
+      />
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {field('Name', 'name', 'text', 'OPC-Unit3-Primary', true)}
+      {field('Endpoint URL', 'endpoint_url', 'text', 'opc.tcp://hostname:4840', true)}
+
+      <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Security Policy</label>
+          <select
+            style={{ ...inputStyle, cursor: 'pointer' }}
+            value={form.security_policy}
+            onChange={(e) => onChange({ security_policy: e.target.value })}
+          >
+            {SECURITY_POLICIES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Security Mode</label>
+          <select
+            style={{ ...inputStyle, cursor: 'pointer' }}
+            value={form.security_mode}
+            onChange={(e) => onChange({ security_mode: e.target.value })}
+          >
+            {SECURITY_MODES.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {field('Username', 'username', 'text', 'Optional')}
+      {field('Password', 'password', 'password', 'Optional')}
+
+      {showEnabled && (
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            color: 'var(--io-text-primary)',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={form.enabled}
+            onChange={(e) => onChange({ enabled: e.target.checked })}
+            style={{ accentColor: 'var(--io-accent)' }}
+          />
+          Enabled
+        </label>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Create dialog
+// ---------------------------------------------------------------------------
+
+function CreateSourceDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+}) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState<SourceFormState>({
+    name: '',
+    endpoint_url: '',
+    security_policy: 'None',
+    security_mode: 'None',
+    username: '',
+    password: '',
+    enabled: true,
+  })
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (req: CreatePointSourceRequest) => pointSourcesApi.create(req),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setError(result.error.message)
+        return
+      }
+      qc.invalidateQueries({ queryKey: ['point-sources'] })
+      onOpenChange(false)
+      setForm({
+        name: '',
+        endpoint_url: '',
+        security_policy: 'None',
+        security_mode: 'None',
+        username: '',
+        password: '',
+        enabled: true,
+      })
+      setError(null)
+    },
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    const req: CreatePointSourceRequest = {
+      name: form.name,
+      endpoint_url: form.endpoint_url,
+      source_type: 'opc_ua',
+      security_policy: form.security_policy || undefined,
+      security_mode: form.security_mode || undefined,
+      username: form.username || undefined,
+      password: form.password || undefined,
+    }
+    mutation.mutate(req)
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <ModalContent title="Add OPC UA Source">
+        {error && (
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: 'var(--io-radius)',
+              background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              color: 'var(--io-danger)',
+              fontSize: '13px',
+              marginBottom: '16px',
+            }}
+          >
+            {error}
+          </div>
+        )}
+        <form onSubmit={handleSubmit}>
+          <SourceFormFields form={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+            <Dialog.Close asChild>
+              <button type="button" style={btnSecondary}>
+                Cancel
+              </button>
+            </Dialog.Close>
+            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Adding…' : 'Add Source'}
+            </button>
+          </div>
+        </form>
+      </ModalContent>
+    </Dialog.Root>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Edit dialog
+// ---------------------------------------------------------------------------
+
+function EditSourceDialog({
+  source,
+  open,
+  onOpenChange,
+}: {
+  source: PointSource | null
+  open: boolean
+  onOpenChange: (v: boolean) => void
+}) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState<SourceFormState>({
+    name: source?.name ?? '',
+    endpoint_url: source?.endpoint_url ?? '',
+    security_policy: source?.security_policy ?? 'None',
+    security_mode: source?.security_mode ?? 'None',
+    username: source?.username ?? '',
+    password: '',
+    enabled: source?.enabled ?? true,
+  })
+  const [error, setError] = useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (source) {
+      setForm({
+        name: source.name,
+        endpoint_url: source.endpoint_url,
+        security_policy: source.security_policy ?? 'None',
+        security_mode: source.security_mode ?? 'None',
+        username: source.username ?? '',
+        password: '',
+        enabled: source.enabled,
+      })
+    }
+  }, [source])
+
+  const mutation = useMutation({
+    mutationFn: (req: UpdatePointSourceRequest) => pointSourcesApi.update(source!.id, req),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setError(result.error.message)
+        return
+      }
+      qc.invalidateQueries({ queryKey: ['point-sources'] })
+      onOpenChange(false)
+      setError(null)
+    },
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    const req: UpdatePointSourceRequest = {
+      name: form.name,
+      endpoint_url: form.endpoint_url,
+      security_policy: form.security_policy,
+      security_mode: form.security_mode,
+      username: form.username || undefined,
+      password: form.password || undefined,
+      enabled: form.enabled,
+    }
+    mutation.mutate(req)
+  }
+
+  if (!source) return null
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <ModalContent title={`Edit: ${source.name}`}>
+        {error && (
+          <div
+            style={{
+              padding: '10px 12px',
+              borderRadius: 'var(--io-radius)',
+              background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              color: 'var(--io-danger)',
+              fontSize: '13px',
+              marginBottom: '16px',
+            }}
+          >
+            {error}
+          </div>
+        )}
+        <form onSubmit={handleSubmit}>
+          <SourceFormFields
+            form={form}
+            onChange={(p) => setForm((f) => ({ ...f, ...p }))}
+            showEnabled
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+            <Dialog.Close asChild>
+              <button type="button" style={btnSecondary}>
+                Cancel
+              </button>
+            </Dialog.Close>
+            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </ModalContent>
+    </Dialog.Root>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// OPC Server Certificate tab
+// ---------------------------------------------------------------------------
+
+const CERT_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  trusted:  { bg: 'rgba(34,197,94,0.12)',  text: '#22C55E', label: 'Trusted'  },
+  pending:  { bg: 'rgba(234,179,8,0.12)',   text: '#EAB308', label: 'Pending'  },
+  rejected: { bg: 'rgba(239,68,68,0.12)',   text: '#EF4444', label: 'Rejected' },
+}
+
+function CertStatusBadge({ status }: { status: string }) {
+  const s = CERT_STATUS_COLORS[status] ?? CERT_STATUS_COLORS.pending
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 10px',
+        borderRadius: 99,
+        background: s.bg,
+        color: s.text,
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      {s.label}
+    </span>
+  )
+}
+
+function ServerCertCard({
+  cert,
+  onTrust,
+  onReject,
+  onDelete,
+  loading,
+}: {
+  cert: OpcServerCert
+  onTrust: () => void
+  onReject: () => void
+  onDelete: () => void
+  loading: boolean
+}) {
+  const formatDate = (d: string | null) =>
+    d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
+
+  const btnStyle = (variant: 'primary' | 'danger' | 'ghost'): React.CSSProperties => ({
+    padding: '5px 12px',
+    borderRadius: 6,
+    border: variant === 'ghost' ? '1px solid var(--io-border)' : 'none',
+    background:
+      variant === 'primary' ? 'var(--io-accent)' :
+      variant === 'danger'  ? '#EF4444' : 'transparent',
+    color:
+      variant === 'ghost' ? 'var(--io-text-secondary)' : '#fff',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: loading ? 'not-allowed' : 'pointer',
+    opacity: loading ? 0.6 : 1,
+  })
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--io-border)',
+        borderRadius: 8,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        background: 'var(--io-surface-secondary)',
+      }}
+    >
+      {/* Header row: fingerprint + status badge */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, justifyContent: 'space-between' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: 'var(--io-text-muted)', marginBottom: 3 }}>SHA-256 Fingerprint</div>
+          <div
+            style={{
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: 'var(--io-text-secondary)',
+              wordBreak: 'break-all',
+              lineHeight: 1.5,
+            }}
+          >
+            {cert.fingerprint_display}
+          </div>
+        </div>
+        <CertStatusBadge status={cert.status} />
+      </div>
+
+      {/* Cert fields */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+        {[
+          { label: 'Subject', value: cert.subject },
+          { label: 'Issuer',  value: cert.issuer  },
+          { label: 'Valid From', value: formatDate(cert.not_before) },
+          { label: 'Valid To',   value: formatDate(cert.not_after)  },
+        ].map(({ label, value }) => (
+          <div key={label}>
+            <div style={{ fontSize: 11, color: 'var(--io-text-muted)', marginBottom: 2 }}>{label}</div>
+            <div style={{ fontSize: 12, color: 'var(--io-text-primary)', fontFamily: label === 'Subject' || label === 'Issuer' ? 'monospace' : undefined }}>
+              {value ?? '—'}
+              {label === 'Valid To' && cert.expired && (
+                <span style={{ marginLeft: 6, color: '#EF4444', fontSize: 11 }}>EXPIRED</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--io-text-muted)', marginBottom: 2 }}>First Seen</div>
+          <div style={{ fontSize: 12, color: 'var(--io-text-secondary)' }}>{formatDate(cert.first_seen_at)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--io-text-muted)', marginBottom: 2 }}>Last Seen</div>
+          <div style={{ fontSize: 12, color: 'var(--io-text-secondary)' }}>{formatDate(cert.last_seen_at)}</div>
+        </div>
+      </div>
+
+      {cert.auto_trusted && (
+        <div
+          style={{
+            fontSize: 11,
+            color: '#EAB308',
+            background: 'rgba(234,179,8,0.08)',
+            border: '1px solid rgba(234,179,8,0.25)',
+            borderRadius: 6,
+            padding: '6px 10px',
+          }}
+        >
+          Auto-trusted — this certificate was accepted automatically because <strong>OPC Auto-Trust</strong> is
+          enabled on this server. Disable it in Settings to require manual approval for new connections.
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {cert.status !== 'trusted' && (
+          <button style={btnStyle('primary')} onClick={onTrust} disabled={loading}>
+            Trust
+          </button>
+        )}
+        {cert.status !== 'rejected' && (
+          <button style={btnStyle('danger')} onClick={onReject} disabled={loading}>
+            Reject
+          </button>
+        )}
+        <button style={btnStyle('ghost')} onClick={onDelete} disabled={loading}>
+          Remove
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ServerCertTab({ sourceId }: { sourceId: string }) {
+  const queryClient = useQueryClient()
+
+  const { data: certs, isLoading } = useQuery({
+    queryKey: ['opc-server-certs'],
+    queryFn: async () => {
+      const result = await opcCertsApi.list()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    staleTime: 15_000,
+  })
+
+  const sourceCerts = (certs ?? []).filter(
+    (c) => c.source_id === sourceId || c.source_id === null,
+  )
+
+  const mutOpts = {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['opc-server-certs'] }),
+  }
+  const trustMut   = useMutation({ mutationFn: (id: string) => opcCertsApi.trust(id),   ...mutOpts })
+  const rejectMut  = useMutation({ mutationFn: (id: string) => opcCertsApi.reject(id),  ...mutOpts })
+  const deleteMut  = useMutation({ mutationFn: (id: string) => opcCertsApi.delete(id),  ...mutOpts })
+
+  const isBusy = trustMut.isPending || rejectMut.isPending || deleteMut.isPending
+
+  if (isLoading) {
+    return (
+      <div style={{ color: 'var(--io-text-muted)', fontSize: 13 }}>Loading certificates…</div>
+    )
+  }
+
+  if (sourceCerts.length === 0) {
+    return (
+      <div
+        style={{
+          textAlign: 'center',
+          padding: '40px 0',
+          color: 'var(--io-text-muted)',
+          fontSize: 13,
+        }}
+      >
+        <div style={{ marginBottom: 8, fontSize: 32 }}>🔒</div>
+        <div style={{ fontWeight: 500, marginBottom: 6 }}>No server certificate on record</div>
+        <div style={{ fontSize: 12, lineHeight: 1.6, maxWidth: 340, margin: '0 auto' }}>
+          The OPC UA server certificate will appear here the first time this source connects.
+          Once seen, you can approve or reject it.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.6 }}>
+        The certificate(s) below were presented by the OPC UA server during connection.
+        Trust a certificate to allow connections; reject it to block them.
+      </div>
+      {sourceCerts.map((cert) => (
+        <ServerCertCard
+          key={cert.id}
+          cert={cert}
+          loading={isBusy}
+          onTrust={()  => trustMut.mutate(cert.id)}
+          onReject={() => rejectMut.mutate(cert.id)}
+          onDelete={() => deleteMut.mutate(cert.id)}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Detail panel (slide-over with tabs)
+// ---------------------------------------------------------------------------
+
+const TAB_TRIGGER: React.CSSProperties = {
+  padding: '8px 14px',
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '2px solid transparent',
+  color: 'var(--io-text-secondary)',
+  fontSize: '13px',
+  fontWeight: 500,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+}
+
+const TAB_TRIGGER_ACTIVE: React.CSSProperties = {
+  ...TAB_TRIGGER,
+  borderBottomColor: 'var(--io-accent)',
+  color: 'var(--io-text-primary)',
+}
+
+function SourceDetailPanel({
+  source,
+  open,
+  onOpenChange,
+  onEdit,
+  onReconnect,
+  reconnecting,
+}: {
+  source: PointSource | null
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onEdit: () => void
+  onReconnect: () => void
+  reconnecting: boolean
+}) {
+  const [activeTab, setActiveTab] = useState('details')
+
+  React.useEffect(() => {
+    if (open) setActiveTab('details')
+  }, [open, source?.id])
+
+  if (!source) return null
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100 }}
+        />
+        <Dialog.Content
+          aria-describedby={undefined}
+          style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: '560px',
+            maxWidth: '95vw',
+            background: 'var(--io-surface-elevated)',
+            borderLeft: '1px solid var(--io-border)',
+            zIndex: 101,
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '-20px 0 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          {/* Panel header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '18px 20px 0',
+              flexShrink: 0,
+            }}
+          >
+            <div>
+              <Dialog.Title
+                style={{
+                  margin: '0 0 2px',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: 'var(--io-text-primary)',
+                }}
+              >
+                {source.name}
+              </Dialog.Title>
+              <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontFamily: 'monospace' }}>
+                {source.endpoint_url}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {source.status !== 'active' && source.enabled && (
+                <button
+                  style={{
+                    ...btnSecondary,
+                    borderColor: 'var(--io-accent)',
+                    color: 'var(--io-accent)',
+                    opacity: reconnecting ? 0.6 : 1,
+                    cursor: reconnecting ? 'not-allowed' : 'pointer',
+                  }}
+                  onClick={onReconnect}
+                  disabled={reconnecting}
+                  title="Trigger an immediate reconnect attempt"
+                >
+                  {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+                </button>
+              )}
+              <button style={btnPrimary} onClick={onEdit}>
+                Edit
+              </button>
+              <Dialog.Close asChild>
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--io-text-muted)',
+                    cursor: 'pointer',
+                    fontSize: '18px',
+                    lineHeight: 1,
+                    padding: '4px',
+                  }}
+                >
+                  &#x2715;
+                </button>
+              </Dialog.Close>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {/* Tab list */}
+            <div
+              style={{
+                display: 'flex',
+                borderBottom: '1px solid var(--io-border)',
+                padding: '0 20px',
+                marginTop: '12px',
+                flexShrink: 0,
+              }}
+            >
+              <button
+                style={activeTab === 'details' ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER}
+                onClick={() => setActiveTab('details')}
+              >
+                Connection Details
+              </button>
+              <button
+                style={activeTab === 'supplemental' ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER}
+                onClick={() => setActiveTab('supplemental')}
+              >
+                Supplemental Point Data
+              </button>
+              <button
+                style={activeTab === 'server-cert' ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER}
+                onClick={() => setActiveTab('server-cert')}
+              >
+                Server Certificate
+              </button>
+            </div>
+
+            {/* Details tab content */}
+            {activeTab === 'details' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <DetailRow label="Status">
+                    <StatusBadge status={source.status} />
+                  </DetailRow>
+                  <DetailRow label="Source Type">
+                    <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {source.source_type}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Security Policy">
+                    <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {source.security_policy || '—'}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Security Mode">
+                    <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {source.security_mode || '—'}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Username">
+                    <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {source.username || '—'}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Enabled">
+                    <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {source.enabled ? 'Yes' : 'No'}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Last Connected">
+                    <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {source.last_connected_at
+                        ? new Date(source.last_connected_at).toLocaleString()
+                        : '—'}
+                    </span>
+                  </DetailRow>
+                  {source.last_error_message && (
+                    <DetailRow label="Last Error">
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          color: 'var(--io-danger)',
+                          fontFamily: 'monospace',
+                          wordBreak: 'break-word',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {source.last_error_message}
+                        {source.last_error_at && (
+                          <span style={{ color: 'var(--io-text-muted)', fontFamily: 'inherit', marginLeft: 8 }}>
+                            ({new Date(source.last_error_at).toLocaleString()})
+                          </span>
+                        )}
+                      </span>
+                    </DetailRow>
+                  )}
+                  <DetailRow label="Created">
+                    <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {new Date(source.created_at).toLocaleString()}
+                    </span>
+                  </DetailRow>
+                </div>
+              </div>
+            )}
+
+            {/* Supplemental Point Data tab content */}
+            {activeTab === 'supplemental' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                <SupplementalConnectorsTab
+                  pointSourceId={source.id}
+                  pointSourceName={source.name}
+                />
+              </div>
+            )}
+
+            {/* Server Certificate tab content */}
+            {activeTab === 'server-cert' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                <ServerCertTab sourceId={source.id} />
+              </div>
+            )}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '10px 12px',
+        background: 'var(--io-surface-secondary)',
+        borderRadius: 'var(--io-radius)',
+        border: '1px solid var(--io-border-subtle)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          fontWeight: 500,
+          color: 'var(--io-text-muted)',
+          width: '120px',
+          flexShrink: 0,
+        }}
+      >
+        {label}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
+export default function OpcSourcesPage() {
+  const qc = useQueryClient()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editSource, setEditSource] = useState<PointSource | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [detailSource, setDetailSource] = useState<PointSource | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+
+  const sourcesQuery = useQuery({
+    queryKey: ['point-sources'],
+    queryFn: async () => {
+      const result = await pointSourcesApi.list()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data as PointSource[]
+    },
+    // Poll faster when any source is in a transitional/error state
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data) return 5_000
+      const hasActive = data.some((s) => s.status === 'connecting' || s.status === 'error')
+      return hasActive ? 3_000 : 8_000
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => pointSourcesApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['point-sources'] }),
+  })
+
+  const reconnectMutation = useMutation({
+    mutationFn: (id: string) => pointSourcesApi.reconnect(id),
+    onSuccess: () => {
+      // Refresh immediately after reconnect trigger
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['point-sources'] }), 500)
+    },
+  })
+
+  const sources = sourcesQuery.data ?? []
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '20px',
+        }}
+      >
+        <div>
+          <h2
+            style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+          >
+            OPC UA Sources
+          </h2>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-muted)' }}>
+            Configure connections to OPC UA servers
+          </p>
+        </div>
+        <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
+          + Add Source
+        </button>
+      </div>
+
+      <div
+        style={{
+          background: 'var(--io-surface-secondary)',
+          border: '1px solid var(--io-border)',
+          borderRadius: '8px',
+          overflow: 'hidden',
+        }}
+      >
+        {sourcesQuery.isLoading && (
+          <div
+            style={{ padding: '40px', textAlign: 'center', color: 'var(--io-text-muted)', fontSize: '14px' }}
+          >
+            Loading…
+          </div>
+        )}
+        {!sourcesQuery.isLoading && sources.length === 0 && (
+          <div
+            style={{ padding: '48px', textAlign: 'center', color: 'var(--io-text-muted)', fontSize: '14px' }}
+          >
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚙</div>
+            <p style={{ margin: '0 0 4px', color: 'var(--io-text-secondary)', fontWeight: 500 }}>
+              No OPC UA sources configured
+            </p>
+            <p style={{ margin: 0 }}>Add a source to start receiving real-time data.</p>
+          </div>
+        )}
+        {sources.length > 0 && (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr
+                style={{
+                  borderBottom: '1px solid var(--io-border)',
+                  background: 'var(--io-surface-primary)',
+                }}
+              >
+                {['Name', 'Endpoint', 'Status', 'Last Connected', ''].map((col) => (
+                  <th
+                    key={col}
+                    style={{
+                      padding: '10px 14px',
+                      textAlign: 'left',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: 'var(--io-text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sources.map((src, i) => (
+                <tr
+                  key={src.id}
+                  style={{
+                    borderBottom: i < sources.length - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setDetailSource(src)
+                    setDetailOpen(true)
+                  }}
+                >
+                  <td style={cellStyle}>
+                    <div style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>
+                      {src.name}
+                    </div>
+                    {!src.enabled && (
+                      <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '2px' }}>
+                        disabled
+                      </div>
+                    )}
+                  </td>
+                  <td style={cellStyle}>
+                    <span
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        color: 'var(--io-text-muted)',
+                      }}
+                    >
+                      {src.endpoint_url}
+                    </span>
+                  </td>
+                  <td style={cellStyle}>
+                    <StatusBadge status={src.status} />
+                    {src.last_error_message && src.status !== 'active' && (
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--io-danger)',
+                          marginTop: '4px',
+                          maxWidth: '220px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={src.last_error_message}
+                      >
+                        {src.last_error_message}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ ...cellStyle, fontSize: '12px', color: 'var(--io-text-muted)' }}>
+                    {src.last_connected_at
+                      ? new Date(src.last_connected_at).toLocaleString()
+                      : '—'}
+                  </td>
+                  <td
+                    style={cellStyle}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                      {src.status !== 'active' && src.enabled && (
+                        <button
+                          style={{
+                            padding: '4px 10px',
+                            background: 'transparent',
+                            border: '1px solid var(--io-accent)',
+                            borderRadius: 'var(--io-radius)',
+                            color: 'var(--io-accent)',
+                            fontSize: '12px',
+                            cursor: reconnectMutation.isPending ? 'not-allowed' : 'pointer',
+                            opacity: reconnectMutation.isPending ? 0.6 : 1,
+                          }}
+                          onClick={() => reconnectMutation.mutate(src.id)}
+                          disabled={reconnectMutation.isPending}
+                          title="Trigger an immediate reconnect attempt"
+                        >
+                          Reconnect
+                        </button>
+                      )}
+                      <button
+                        style={{
+                          padding: '4px 10px',
+                          background: 'transparent',
+                          border: '1px solid var(--io-border)',
+                          borderRadius: 'var(--io-radius)',
+                          color: 'var(--io-text-secondary)',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setEditSource(src)
+                          setEditOpen(true)
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        style={{
+                          padding: '4px 10px',
+                          background: 'transparent',
+                          border: '1px solid rgba(239,68,68,0.3)',
+                          borderRadius: 'var(--io-radius)',
+                          color: 'var(--io-danger)',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          if (confirm(`Delete "${src.name}"?`)) {
+                            deleteMutation.mutate(src.id)
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <CreateSourceDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <EditSourceDialog source={editSource} open={editOpen} onOpenChange={setEditOpen} />
+      <SourceDetailPanel
+        source={detailSource}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEdit={() => {
+          setDetailOpen(false)
+          setEditSource(detailSource)
+          setEditOpen(true)
+        }}
+        onReconnect={() => detailSource && reconnectMutation.mutate(detailSource.id)}
+        reconnecting={reconnectMutation.isPending}
+      />
+    </div>
+  )
+}

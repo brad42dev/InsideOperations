@@ -1,13 +1,17 @@
-# Build artifacts
+# Rust
 /target/
-/node_modules/
-/dist/
+Cargo.lock
+**/*.rs.bk
 
-# Environment (secrets — never commit)
+# Frontend
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.env.local
+
+# Environment
 .env
 .env.local
 .env.*.local
-!.env.example
 
 # IDE
 .vscode/
@@ -19,16 +23,30 @@
 .DS_Store
 Thumbs.db
 
+# Uploads/runtime
+/uploads/
+/backups/
+/tmp/
+
+# Logs
+*.log
+
+# Installer artifacts
+/dist/
+/packages/
+
 # Credentials / secrets
 *.key
 *.pem
 *.p12
 *.pfx
+*.der
 credentials.json
+
+# PKI runtime directory (generated certs/keys — not source-controlled)
+/pki/
 
 # Claude Code session data (keep .claude/settings.json, agents, etc.)
 .claude/session-state.md
 .claude/agent-output/
-
-# Installer packages
-/installers/
+.claude/*.md

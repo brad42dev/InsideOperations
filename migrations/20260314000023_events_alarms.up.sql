@@ -39,6 +39,10 @@ SELECT create_hypertable('events', 'timestamp',
 ALTER TABLE events ADD CONSTRAINT pk_events PRIMARY KEY (id, timestamp);
 
 -- ISA-18.2 alarm state machine tracking
+-- NOTE: event_id/event_timestamp duplicate the composite PK of events (id, timestamp).
+-- A FK to events(id) is intentionally omitted: TimescaleDB hypertables require the
+-- partition key in every UNIQUE/PK constraint, making simple FK references impossible.
+-- Join as: alarm_states AS s JOIN events AS e ON e.id = s.event_id AND e.timestamp = s.event_timestamp
 CREATE TABLE alarm_states (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id UUID NOT NULL,

@@ -1,0 +1,22 @@
+{
+  "id": "heat-exchanger-plate",
+  "name": "Plate Heat Exchanger",
+  "category": "heat-transfer",
+  "description": "Plate and frame heat exchanger — compact, high-efficiency heat transfer",
+  "tags": ["heat-exchanger", "plate", "PHE", "compact"],
+  "recognition_class": "PLATE_HX",
+  "connection_points": [
+    { "id": "hot_inlet",   "x": 0,   "y": 38, "type": "pipe" },
+    { "id": "hot_outlet",  "x": 0,   "y": 62, "type": "pipe" },
+    { "id": "cold_inlet",  "x": 100, "y": 62, "type": "pipe" },
+    { "id": "cold_outlet", "x": 100, "y": 38, "type": "pipe" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 50, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "active": "io-state-running",
+    "idle":   "io-state-stopped",
+    "fault":  "io-state-fault"
+  }
+}

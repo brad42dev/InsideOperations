@@ -74,7 +74,12 @@ CREATE TABLE report_templates (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     template_config JSONB NOT NULL,
+    category VARCHAR(100),
+    is_system_template BOOLEAN NOT NULL DEFAULT false,
+    default_params JSONB NOT NULL DEFAULT '{}',
     created_by UUID REFERENCES users(id),
+    updated_by UUID REFERENCES users(id),
+    deleted_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

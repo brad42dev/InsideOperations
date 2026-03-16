@@ -1,0 +1,21 @@
+{
+  "id": "tank-storage-open-top",
+  "name": "Storage Tank Open Top",
+  "category": "tanks",
+  "description": "Open top atmospheric storage tank — no fixed roof",
+  "tags": ["tank", "storage", "open-top", "atmospheric"],
+  "recognition_class": "OPEN_TOP_TANK",
+  "connection_points": [
+    { "id": "inlet",  "x": 100, "y": 40,  "type": "pipe" },
+    { "id": "outlet", "x": 100, "y": 68,  "type": "pipe" },
+    { "id": "drain",  "x": 50,  "y": 100, "type": "pipe" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 55, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "active": "io-state-running",
+    "idle":   "io-state-stopped",
+    "fault":  "io-state-fault"
+  }
+}

@@ -1,5 +1,11 @@
 -- TimescaleDB retention and compression policies
 
+-- Enable compression on points_history_raw before setting a compression policy
+ALTER TABLE points_history_raw
+    SET (timescaledb.compress,
+         timescaledb.compress_orderby = 'timestamp DESC',
+         timescaledb.compress_segmentby = 'point_id');
+
 -- points_history_raw: compress after 7 days, retain 90 days (keep aggregates longer)
 SELECT add_compression_policy('points_history_raw', INTERVAL '7 days');
 SELECT add_retention_policy('points_history_raw', INTERVAL '90 days');

@@ -21,16 +21,21 @@ CREATE TABLE group_roles (
 CREATE TABLE user_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    refresh_token VARCHAR(255) UNIQUE NOT NULL,
+    refresh_token VARCHAR(255) UNIQUE,
+    refresh_token_hash VARCHAR(255) UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,
     device_info JSONB,
     ip_address INET,
+    user_agent TEXT,
+    revoked_at TIMESTAMPTZ,
+    revoked_reason VARCHAR(100),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     last_accessed_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX idx_user_sessions_expires_at ON user_sessions(expires_at);
+CREATE INDEX idx_user_sessions_revoked ON user_sessions(revoked_at) WHERE revoked_at IS NOT NULL;
 
 CREATE TRIGGER trg_audit_user_roles
     AFTER INSERT OR UPDATE OR DELETE ON user_roles

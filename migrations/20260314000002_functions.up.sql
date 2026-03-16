@@ -10,35 +10,46 @@ $$ LANGUAGE plpgsql;
 -- Audit logging function
 CREATE OR REPLACE FUNCTION log_audit_trail()
 RETURNS TRIGGER AS $$
+DECLARE
+    v_record_id UUID;
+    v_row       JSONB;
 BEGIN
+    -- Safely extract 'id' field if the table has one; NULL otherwise
+    -- (junction tables like role_permissions have no id column)
     IF TG_OP = 'DELETE' THEN
+        v_row := row_to_json(OLD)::JSONB;
+        v_record_id := CASE WHEN v_row ? 'id' THEN (v_row->>'id')::UUID ELSE NULL END;
         INSERT INTO audit_log (user_id, action, table_name, record_id, changes)
         VALUES (
-            current_setting('app.current_user_id', true)::UUID,
+            nullif(current_setting('app.current_user_id', true), '')::UUID,
             'DELETE',
             TG_TABLE_NAME,
-            OLD.id,
-            jsonb_build_object('old', row_to_json(OLD))
+            v_record_id,
+            jsonb_build_object('old', v_row)
         );
         RETURN OLD;
     ELSIF TG_OP = 'UPDATE' THEN
+        v_row := row_to_json(NEW)::JSONB;
+        v_record_id := CASE WHEN v_row ? 'id' THEN (v_row->>'id')::UUID ELSE NULL END;
         INSERT INTO audit_log (user_id, action, table_name, record_id, changes)
         VALUES (
-            current_setting('app.current_user_id', true)::UUID,
+            nullif(current_setting('app.current_user_id', true), '')::UUID,
             'UPDATE',
             TG_TABLE_NAME,
-            NEW.id,
-            jsonb_build_object('old', row_to_json(OLD), 'new', row_to_json(NEW))
+            v_record_id,
+            jsonb_build_object('old', row_to_json(OLD)::JSONB, 'new', v_row)
         );
         RETURN NEW;
     ELSIF TG_OP = 'INSERT' THEN
+        v_row := row_to_json(NEW)::JSONB;
+        v_record_id := CASE WHEN v_row ? 'id' THEN (v_row->>'id')::UUID ELSE NULL END;
         INSERT INTO audit_log (user_id, action, table_name, record_id, changes)
         VALUES (
-            current_setting('app.current_user_id', true)::UUID,
+            nullif(current_setting('app.current_user_id', true), '')::UUID,
             'INSERT',
             TG_TABLE_NAME,
-            NEW.id,
-            jsonb_build_object('new', row_to_json(NEW))
+            v_record_id,
+            jsonb_build_object('new', v_row)
         );
         RETURN NEW;
     END IF;

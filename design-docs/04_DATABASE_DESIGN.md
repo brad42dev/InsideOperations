@@ -318,8 +318,18 @@ CREATE TABLE points_metadata (
     description TEXT,
     engineering_units VARCHAR(50),
     data_type VARCHAR(50) NOT NULL,
-    min_value DOUBLE PRECISION,
-    max_value DOUBLE PRECISION,
+    min_value DOUBLE PRECISION,       -- EURange.low from OPC UA Part 8 AnalogItemType; engineering scale low
+    max_value DOUBLE PRECISION,       -- EURange.high from OPC UA Part 8 AnalogItemType; engineering scale high
+
+    -- ALARM LIMITS (sourced in priority order: OPC UA Part 8/9 → supplemental connector → I/O threshold wizard)
+    -- See doc 17 § OPC UA Optional Services for sourcing logic.
+    -- NULL = not configured from any source (I/O threshold wizard can still define limits independently in alarm_definitions)
+    alarm_limit_hh DOUBLE PRECISION,  -- High-High trip limit (OPC UA HighHighLimit property)
+    alarm_limit_h  DOUBLE PRECISION,  -- High trip limit (OPC UA HighLimit property)
+    alarm_limit_l  DOUBLE PRECISION,  -- Low trip limit (OPC UA LowLimit property)
+    alarm_limit_ll DOUBLE PRECISION,  -- Low-Low trip limit (OPC UA LowLowLimit property)
+    alarm_limit_source VARCHAR(20)    -- Where limits came from: 'opc_ua' | 'supplemental' | 'wizard' | NULL
+        CHECK (alarm_limit_source IS NULL OR alarm_limit_source IN ('opc_ua', 'supplemental', 'wizard')),
 
     -- AGGREGATION CONTROL (bitmask)
     aggregation_types INTEGER NOT NULL DEFAULT 0,
@@ -371,8 +381,13 @@ CREATE TABLE points_metadata_versions (
     data_type VARCHAR(50) NOT NULL,
     min_value DOUBLE PRECISION,
     max_value DOUBLE PRECISION,
+    alarm_limit_hh DOUBLE PRECISION,
+    alarm_limit_h  DOUBLE PRECISION,
+    alarm_limit_l  DOUBLE PRECISION,
+    alarm_limit_ll DOUBLE PRECISION,
+    alarm_limit_source VARCHAR(20),
     effective_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    source_raw JSONB, -- full raw metadata from source for debugging
+    source_raw JSONB, -- full raw metadata from source for debugging (includes instrument_range, value_precision, enum_strings, EU unitId)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_points_metadata_versions_point_version UNIQUE (point_id, version),
     CONSTRAINT chk_version_non_negative CHECK (version >= 0)
@@ -543,7 +558,8 @@ CREATE TABLE connector_templates (
     domain VARCHAR(50) NOT NULL
         CHECK (domain IN (
             'maintenance', 'equipment', 'access_control', 'erp_financial',
-            'ticketing', 'environmental', 'lims_lab', 'regulatory'
+            'ticketing', 'environmental', 'lims_lab', 'regulatory',
+            'dcs_supplemental'  -- DCS supplemental REST/SQL connectors linked to OPC UA sources
         )),
     vendor VARCHAR(100) NOT NULL,               -- 'ServiceNow', 'SAP', 'IBM'
     description TEXT,
@@ -566,13 +582,28 @@ CREATE TABLE import_connections (
     enabled BOOLEAN NOT NULL DEFAULT true,
     data_category_id UUID REFERENCES data_categories(id),
         -- Links import connection to its category (Maintenance, Financial, etc.)
+
+    -- DCS supplemental connector linkage (NULL for general-purpose connectors).
+    -- When set, this connection supplements an OPC UA source rather than performing
+    -- a standalone import. Displayed as "Supplemental Point Data" in the UI and
+    -- configured from Settings > Data Sources rather than the Import wizard.
+    -- Supported DCS supplemental connection_types (see doc 24 § 3.2.1):
+    --   Custom REST: pi_web_api, experion_rest, siemens_sph_rest, wincc_oa_rest,
+    --                s800xa_rest, kepware_rest, canary_rest
+    --   SQL/ODBC via existing types: 'mssql' (DeltaV Event Chronicle, ABB brownfield,
+    --                Yokogawa), 'odbc' (any remaining ODBC-capable historian)
+    point_source_id UUID REFERENCES point_sources(id) ON DELETE SET NULL,
+    is_supplemental_connector BOOLEAN NOT NULL DEFAULT false,
+
     last_tested_at TIMESTAMPTZ,
     last_test_status VARCHAR(20),
     last_test_message TEXT,
     created_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_import_connections_name UNIQUE (name)
+    CONSTRAINT uq_import_connections_name UNIQUE (name),
+    CONSTRAINT chk_supplemental_has_source
+        CHECK (NOT is_supplemental_connector OR point_source_id IS NOT NULL)
 );
 
 -- Import job definitions (source query, field mappings, transforms, validation)
@@ -2061,8 +2092,10 @@ CREATE TYPE event_type_enum AS ENUM (
 
 -- Where the event originated
 CREATE TYPE event_source_enum AS ENUM (
-    'opc', 'io_threshold', 'io_expression', 'system', 'operator', 'scheduled'
+    'opc', 'supplemental', 'io_threshold', 'io_expression', 'system', 'operator', 'scheduled'
 );
+-- 'opc'         — event written directly by OPC UA A&C subscription
+-- 'supplemental' — event fetched from a DCS supplemental REST/SQL connector (PI Web API, Experion EPDOC, etc.)
 
 -- ISA-18.2 alarm states (four basic states + overlay states)
 -- active:          Alarm condition present, unacknowledged (annunciating)
@@ -3774,6 +3807,9 @@ SELECT add_retention_policy('io_metrics.samples_5m', INTERVAL '365 days');
 - **v0.25**: Removed hardcoded permission count from seed data comment — now references doc 03 as authoritative source (same pattern as doc 33).
 - **v0.24**: Added Forensics/Investigation schema domain (16). 6 new tables: `investigations` (top-level container with status lifecycle and snapshot on close), `investigation_stages` (sequential narrative sections with own time ranges), `investigation_evidence` (10 evidence types per stage), `investigation_points` (curated point list with removal reasons), `investigation_shares` (user and role sharing), `investigation_links` (entity links to log entries, tickets, alarms, other investigations). Indexes, `updated_at` triggers, and audit triggers. See doc 12.
 - **v0.23**: Added Data Links & Point Detail tables. `data_links` table for admin-configured cross-dataset correlations (source/target definition + column + transform pipeline + match type). `design_object_points` denormalized reverse lookup for point-to-graphic queries. `point_detail_config` for popup section layout with per-equipment-class overrides. Added `point_column` and `point_column_transforms` to `import_definitions` for point name designation with transform pipeline. Added `equipment_id` FK to `tickets` table (was documented in doc 24 architecture but missing from DDL). See doc 24 Section 6 (Data Links) and doc 32 (Point Detail component).
+- **v0.25**: Added migrations 46–49 for OPC UA supplemental work. Migration 46: added `alarm_limit_hh`, `alarm_limit_h`, `alarm_limit_l`, `alarm_limit_ll DOUBLE PRECISION` and `alarm_limit_source VARCHAR(20)` (CHECK: 'opc_ua'|'supplemental'|'wizard') to `points_metadata` and `points_metadata_versions`; partial index `idx_points_metadata_alarm_limits` on `source_id WHERE alarm_limit_source IS NOT NULL`. Migration 47: added `point_source_id UUID REFERENCES point_sources(id) ON DELETE SET NULL` and `is_supplemental_connector BOOLEAN NOT NULL DEFAULT false` to `import_connections`; CONSTRAINT `chk_supplemental_has_source` (NOT is_supplemental_connector OR point_source_id IS NOT NULL); partial index `idx_import_connections_supplemental`. Migration 48: added `'dcs_supplemental'` to `connector_templates.domain` CHECK; seeded 8 DCS supplemental templates (pi-web-api, honeywell-experion-epdoc, siemens-sph-rest, siemens-wincc-oa-rest, abb-information-manager-rest, kepware-rest, canary-labs-rest, deltav-event-chronicle). Migration 49: `ALTER TYPE event_source_enum ADD VALUE IF NOT EXISTS 'supplemental'` — required for DCS REST connector events; forward-only (PostgreSQL cannot remove enum values without type recreation).
+- **v0.24**: Updated `import_connections` DDL to include `point_source_id` and `is_supplemental_connector` columns with FK and CHECK constraint. These ship in migration 47 but their DDL is reflected in the authoritative schema here. See 24_UNIVERSAL_IMPORT.md §3.2.1.
+- **v0.23**: Added alarm limit columns and `alarm_limit_source` to `points_metadata` and `points_metadata_versions` (migration 46). Priority: OPC UA > supplemental connector > I/O wizard. See 17_OPC_INTEGRATION.md §5.4.
 - **v0.22**: Formalized seed data strategy with two-tier system. Tier 1 (Bootstrap): admin user, roles, permissions, data categories, settings, alert channels, EULA, site — required for first startup. Tier 2 (Content): 37 canned reports, 19 canned dashboards, 40 connector templates, symbol library SVGs, recognition mappings — optional out-of-box content. CLI flags (`--tier1`, `--tier2`). Version tracking via settings keys. Upgrade behavior: Tier 1 additive only, Tier 2 updates system templates without touching user copies.
 - **v0.21**: Added Database Migration Policy section (zero-downtime rules: lock_timeout, CONCURRENTLY, expand-and-contract, batch backfills, backward compatibility contract). Added `io_metrics` schema for observability metrics storage (hypertable with 30-day raw retention, 5-minute continuous aggregate with 1-year retention). See doc 36.
 - **v0.20**: Added `eula_versions` and `eula_acceptances` tables. `eula_versions`: draft/active/archived lifecycle with `content_hash` (SHA-256) for tamper-proof content verification, unique partial index enforcing single active version. `eula_acceptances`: append-only legal audit trail with `content_hash`, `username_snapshot`, IP, role, and user agent. Three integrity triggers: prevent published version deletion, prevent published version content edit, prevent acceptance update/delete. Two performance indexes for login-time check and admin audit queries. Tables are immutable/non-snapshottable (same category as `audit_log`). See 29_AUTHENTICATION.md EULA Acceptance Gate.

@@ -1,0 +1,50 @@
+[package]
+name = "api-gateway"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "api-gateway"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+dotenvy.workspace = true
+anyhow.workspace = true
+sqlx.workspace = true
+io-error = { path = "../../crates/io-error" }
+io-health = { path = "../../crates/io-health" }
+io-observability = { path = "../../crates/io-observability" }
+io-models = { path = "../../crates/io-models" }
+io-auth = { path = "../../crates/io-auth" }
+io-db = { path = "../../crates/io-db" }
+io-validate = { path = "../../crates/io-validate" }
+uuid.workspace = true
+chrono.workspace = true
+dashmap.workspace = true
+reqwest.workspace = true
+once_cell.workspace = true
+io-scan = { path = "../../crates/io-scan" }
+metrics.workspace = true
+zip.workspace = true
+csv = "1"
+rust_xlsxwriter = "0.81"
+ndarray = "0.16"
+ndarray-stats = "0.6"
+rustfft = "6.4"
+realfft = "3.5"
+rayon = "1.10"
+resvg.workspace = true
+tiny-skia.workspace = true
+x509-parser.workspace = true
+
+[features]
+# Enable Typst-based PDF compilation.  Requires the typst-as-lib crate to be
+# added to [dependencies] and compiled with its native dependencies present.
+typst-pdf = []

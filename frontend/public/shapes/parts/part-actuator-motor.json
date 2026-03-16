@@ -1,0 +1,18 @@
+{
+  "id": "part-actuator-motor",
+  "name": "Motor Actuator",
+  "category": "parts",
+  "description": "Electric motor actuator for valve or damper operation",
+  "tags": ["actuator", "motor", "electric", "MOV"],
+  "recognition_class": "MOTOR_ACTUATOR",
+  "connection_points": [
+    { "id": "power", "x": 50, "y": 0,   "type": "electrical" },
+    { "id": "stem",  "x": 50, "y": 100, "type": "shaft" }
+  ],
+  "text_zones": [],
+  "state_classes": {
+    "running": "io-state-running",
+    "stopped": "io-state-stopped",
+    "fault":   "io-state-fault"
+  }
+}

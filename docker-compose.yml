@@ -1,0 +1,34 @@
+version: "3.9"
+
+# Development environment: PostgreSQL 16 + TimescaleDB
+# Server 1 (Build/Test) only — Server 2 uses native PostgreSQL install
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: io_dev_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: io_dev
+      POSTGRES_USER: io
+      POSTGRES_PASSWORD: io_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - io_pgdata:/var/lib/postgresql/data
+      - ./scripts/db-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U io -d io_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  io_pgdata:
+    driver: local
+
+networks:
+  default:
+    name: io_dev_network

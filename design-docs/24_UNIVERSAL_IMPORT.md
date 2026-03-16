@@ -263,6 +263,62 @@ These connectors access historical process data from vendor-specific historian p
 
 **Common pattern**: Robust OPC UA Historical Access and generic SQL/ODBC connectors cover 80%+ of historian integration needs.
 
+### 3.2.1 DCS Supplemental Connectors (domain: `dcs_supplemental`)
+
+DCS supplemental connectors are a special subcategory of Import connections that fill gaps left by OPC UA. When a connected OPC UA server does not expose alarm limits, engineering units, alarm events, or tag descriptions via OPC UA Part 8/9/11, a supplemental connector fetches that data from the vendor's native REST or proprietary API.
+
+**How they differ from general-purpose Import connectors:**
+
+| Attribute | General Import Connector | DCS Supplemental Connector |
+|---|---|---|
+| `domain` | `maintenance`, `equipment`, etc. | `dcs_supplemental` |
+| `is_supplemental_connector` | `false` | `true` |
+| `point_source_id` | `NULL` | FK to `point_sources.id` |
+| Configured via | Import wizard | Settings > Data Sources > [OPC Source] > Supplemental |
+| Visible in Import list | Yes | Yes (labeled "Supplemental Point Data") |
+| Runs independently | Yes | No — deferred if OPC source is inactive |
+
+**Available connector types (DCS supplemental):**
+
+DCS supplemental connectors use two existing connector types from the general Import module plus new vendor-specific REST types:
+
+- **Custom REST connectors** (`pi_web_api`, `experion_rest`, etc.): Purpose-built `ImportConnector` implementations using `reqwest` for vendors with documented HTTP/JSON APIs.
+- **`mssql` connector** (existing): DeltaV's Event Chronicle, ABB 800xA's EventArchiveView, and Yokogawa's historian all run on SQL Server. The existing `mssql` connector (tiberius crate) connects directly from Linux on port 1433 — no Windows dependency. Pre-built `dcs_supplemental` templates ship with I/O for the standard table structures.
+- **`odbc` connector** (existing): For any remaining ODBC-capable DCS system; `odbc-api` crate with `spawn_blocking`, unixODBC on Linux.
+
+| Connector Type | Vendor | Implementation | Data Provided | Notes |
+|---|---|---|---|---|
+| `pi_web_api` | AVEVA/OSIsoft PI | Custom REST | Metadata, EU, limits, history, alarm event frames | Primary PI path (no OPC UA server) |
+| `experion_rest` | Honeywell Experion PKS R500+ | Custom REST | Full metadata, alarm limits, alarm history, trends | EPDOC API at `:58080/epdoc/api/v1`; Basic/NTLM |
+| `siemens_sph_rest` | Siemens SIMATIC Process Historian 2019+ | Custom REST | Tag metadata, history, aggregates, alarm history | SPH REST at `:18732/api/v1`; Windows/NTLM |
+| `wincc_oa_rest` | Siemens WinCC OA 3.18+ | Custom REST | Tag metadata, history, alarm history | WinCC OA REST at `:4999/rest/v1`; Basic/API key |
+| `s800xa_rest` | ABB 800xA + Information Manager 3.5+ | Custom REST | Tag metadata, history, alarm/event records | ABB IM REST at `/abb-im-api/v1/`; API key/Windows |
+| `kepware_rest` | PTC Kepware KEPServerEX 6.x | Custom REST | Tag EU, description, high/low EU (config view) | Config API `:57412` + IoT GW `:39320`; Basic |
+| `canary_rest` | Canary Labs Historian 22+ | Custom REST | Tag metadata, current values, history | REST at `:55236/api/v1`; Bearer token |
+| `mssql` | DeltaV, ABB 800xA (brownfield), Yokogawa | Existing | Alarm history, tag metadata from SQL Server | Pre-built `dcs_supplemental` templates; port 1433 |
+| `odbc` | Any ODBC-capable DCS/historian | Existing | Admin-configured SQL queries | unixODBC on Linux; `spawn_blocking` |
+
+> **Ignition SCADA** does not need a supplemental connector — connect directly to Ignition's built-in OPC UA server.
+
+> **DeltaV** has no native REST API, but its Event Chronicle and module configuration databases are SQL Server — use the `mssql` connector type directly from Linux.
+
+All DCS supplemental connectors implement the standard `ImportConnector` trait. The `point_source_id` FK tells the Import Service which OPC source's gaps to fill. On each run, the connector only writes values that are still `NULL` in `points_metadata` — it does not overwrite OPC UA-sourced data.
+
+**PI Web API connector (`pi_web_api`):**
+
+Since PI has no native OPC UA server, all PI integration uses PI Web API. This connector is the primary integration path for PI, not a fallback.
+
+| PI Web API Endpoint | I/O Usage | Target |
+|---|---|---|
+| `GET /piwebapi/points?path=\\server\tag` | Point discovery: descriptor, EU, zero, span | `points_metadata` |
+| `GET /piwebapi/elements/{webid}/attributes` | AF attributes including alarm limit setpoints | `points_metadata` alarm limit columns |
+| `GET /piwebapi/streams/{webid}/value` | Current value | `points_current` |
+| `GET /piwebapi/streams/{webid}/recorded?startTime=...&endTime=...` | Raw historical values | `points_history_raw` |
+| `GET /piwebapi/assetdatabases/{id}/eventframes?templateName=Alarm&startTime=...&searchMode=Overlapped` | Alarm lifecycle records | `events` |
+| `POST /piwebapi/batch` | Bulk queries (up to 1000 sub-requests) | All of the above |
+
+Auth: Kerberos (preferred for Windows domain — no password over wire), Basic (HTTPS only), or OAuth2/Bearer (PI Web API 2019+ with AD FS). Credentials stored encrypted via standard Import connection `auth_config`.
+
 ### 3.3 Database Connections
 
 The Import Service uses a hybrid driver strategy: **native async drivers** for the 4 most common databases (best performance), with **ODBC as a fallback** for all others.
@@ -417,7 +473,8 @@ CREATE TABLE connector_templates (
     domain VARCHAR(50) NOT NULL
         CHECK (domain IN (
             'maintenance', 'equipment', 'access_control', 'erp_financial',
-            'ticketing', 'environmental', 'lims_lab', 'regulatory'
+            'ticketing', 'environmental', 'lims_lab', 'regulatory',
+            'dcs_supplemental'  -- Supplemental point data connectors linked to OPC UA sources
         )),
     vendor VARCHAR(100) NOT NULL,               -- 'ServiceNow', 'SAP', 'IBM'
     description TEXT,
@@ -452,6 +509,9 @@ CREATE TABLE import_connections (
             'rest_json', 'rest_xml', 'graphql', 'soap', 'grpc', 'webhook', 'websocket',
             -- Industrial
             'opc_ua_browse', 'modbus_tcp', 'modbus_rtu', 'mqtt', 'sparkplug_b',
+            -- DCS supplemental REST connectors (linked to point_sources via point_source_id; is_supplemental_connector=true)
+            -- DeltaV/ABB brownfield/Yokogawa use existing 'mssql' or 'odbc' types above with dcs_supplemental templates
+            'pi_web_api', 'experion_rest', 'siemens_sph_rest', 'wincc_oa_rest', 's800xa_rest', 'kepware_rest', 'canary_rest',
             -- File transfer
             'sftp', 'ftp', 'smb', 's3', 'email_imap',
             -- Messaging
@@ -470,6 +530,13 @@ CREATE TABLE import_connections (
     -- Connection parameters vary by connector_type (host, port, database, base_url, etc.)
     -- Credentials within this JSONB are AES-256-GCM encrypted by the application layer
 
+    -- DCS supplemental connector linkage (NULL for general-purpose connectors)
+    point_source_id UUID REFERENCES point_sources(id) ON DELETE SET NULL,
+    -- When true, this connection supplements an OPC UA source rather than performing
+    -- a general-purpose import. Displayed as "Supplemental Point Data" in the UI.
+    -- Configured via Settings > Data Sources, not the Import wizard.
+    is_supplemental_connector BOOLEAN NOT NULL DEFAULT false,
+
     status VARCHAR(20) NOT NULL DEFAULT 'untested'
         CHECK (status IN ('untested', 'connected', 'error', 'disabled')),
     last_connected_at TIMESTAMPTZ,
@@ -480,7 +547,10 @@ CREATE TABLE import_connections (
     created_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_import_connections_name UNIQUE (name)
+    CONSTRAINT uq_import_connections_name UNIQUE (name),
+    -- A supplemental connector must reference an OPC source
+    CONSTRAINT chk_supplemental_has_source
+        CHECK (NOT is_supplemental_connector OR point_source_id IS NOT NULL)
 );
 
 -- ============================================================
@@ -652,6 +722,8 @@ CREATE TABLE custom_import_data (
 -- import_connections
 CREATE INDEX idx_import_connections_type ON import_connections(connector_type);
 CREATE INDEX idx_import_connections_enabled ON import_connections(enabled) WHERE enabled = true;
+CREATE INDEX idx_import_connections_point_source ON import_connections(point_source_id) WHERE point_source_id IS NOT NULL;
+CREATE INDEX idx_import_connections_supplemental ON import_connections(is_supplemental_connector) WHERE is_supplemental_connector = true;
 
 -- import_definitions
 CREATE INDEX idx_import_definitions_connection ON import_definitions(connection_id);

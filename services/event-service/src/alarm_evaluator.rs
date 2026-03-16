@@ -1,0 +1,467 @@
+/// Background alarm evaluator.
+///
+/// Polls every 5 seconds against `points_current` for each enabled alarm
+/// definition. Applies threshold evaluation with deadband, drives the
+/// ISA-18.2 state machine, and persists transitions to `alarm_states` +
+/// `events`. Broadcasts state changes via PostgreSQL NOTIFY.
+use chrono::Utc;
+use sqlx::{PgPool, Row};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::time::{interval, Duration};
+use tracing::{error, info, warn};
+use uuid::Uuid;
+
+use crate::alarm_state::{transition, AlarmEvent, AlarmInstance, AlarmState};
+use crate::config::Config;
+
+/// Map an `AlarmInstance` priority integer to a human-readable severity label.
+fn priority_to_severity(priority: i32) -> &'static str {
+    match priority {
+        1 => "urgent",
+        2 => "high",
+        3 => "medium",
+        4 => "low",
+        _ => "diagnostic",
+    }
+}
+
+/// In-process cache of active alarm instances keyed by `alarm_definition_id`.
+/// Initialised from the database on startup.
+type AlarmCache = Arc<tokio::sync::Mutex<HashMap<Uuid, AlarmInstance>>>;
+
+/// Spawn the evaluator as a long-running tokio task.
+pub async fn run_alarm_evaluator(db: PgPool, _config: Arc<Config>) {
+    let cache: AlarmCache = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+
+    // Warm the cache from `alarm_states` (most recent state per definition).
+    if let Err(e) = warm_cache(&db, &cache).await {
+        error!(error = %e, "Failed to warm alarm cache; starting cold");
+    }
+
+    let mut ticker = interval(Duration::from_secs(5));
+    info!("Alarm evaluator started (5-second poll interval)");
+
+    loop {
+        ticker.tick().await;
+
+        if let Err(e) = evaluate_all(&db, &cache).await {
+            error!(error = %e, "Alarm evaluation cycle failed");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Cache warm-up
+// ---------------------------------------------------------------------------
+
+async fn warm_cache(db: &PgPool, cache: &AlarmCache) -> anyhow::Result<()> {
+    // Fetch the latest state transition per alarm definition from alarm_states
+    // by joining to the most recent event for each definition.
+    let rows = sqlx::query(
+        r#"
+        SELECT DISTINCT ON (ad.id)
+            ad.id            AS definition_id,
+            ad.point_id      AS point_id,
+            ad.priority::text AS priority,
+            ad.name          AS name,
+            COALESCE(ast.state::text, 'normal') AS state
+        FROM alarm_definitions ad
+        LEFT JOIN alarm_states ast
+            ON ast.event_id IN (
+                SELECT id FROM events
+                WHERE point_id = ad.point_id
+                  AND event_type = 'io_alarm'
+                ORDER BY timestamp DESC
+                LIMIT 1
+            )
+        WHERE ad.enabled = true
+          AND ad.deleted_at IS NULL
+        ORDER BY ad.id, ast.transitioned_at DESC NULLS LAST
+        "#,
+    )
+    .fetch_all(db)
+    .await?;
+
+    let mut guard = cache.lock().await;
+    for row in &rows {
+        let def_id: Uuid = row.try_get("definition_id")?;
+        let point_id: Option<Uuid> = row.try_get("point_id")?;
+        let priority_str: String = row.try_get("priority")?;
+        let name: String = row.try_get("name")?;
+        let state_str: String = row.try_get("state")?;
+
+        let state = parse_state(&state_str);
+        let priority = priority_to_int(&priority_str);
+
+        let mut instance = AlarmInstance::new(
+            def_id,
+            point_id.unwrap_or(Uuid::nil()),
+            priority,
+            name,
+        );
+        instance.state = state;
+        guard.insert(def_id, instance);
+    }
+    info!(count = guard.len(), "Alarm cache warmed");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Evaluation cycle
+// ---------------------------------------------------------------------------
+
+async fn evaluate_all(db: &PgPool, cache: &AlarmCache) -> anyhow::Result<()> {
+    // Fetch all enabled alarm definitions with current point values.
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            ad.id               AS definition_id,
+            ad.name             AS name,
+            ad.point_id         AS point_id,
+            ad.definition_type  AS definition_type,
+            ad.threshold_config AS threshold_config,
+            ad.priority::text   AS priority,
+            pc.value            AS current_value
+        FROM alarm_definitions ad
+        LEFT JOIN points_current pc ON pc.point_id = ad.point_id
+        WHERE ad.enabled = true
+          AND ad.deleted_at IS NULL
+        "#,
+    )
+    .fetch_all(db)
+    .await?;
+
+    let now = Utc::now();
+
+    for row in &rows {
+        let def_id: Uuid = match row.try_get("definition_id") {
+            Ok(v) => v,
+            Err(e) => {
+                warn!(error = %e, "skipping alarm_definition row with bad id");
+                continue;
+            }
+        };
+        let definition_type: String = row.try_get("definition_type").unwrap_or_default();
+        let current_value: Option<f64> = row.try_get("current_value").unwrap_or(None);
+
+        // For threshold alarms, we need a current value.
+        if definition_type == "threshold" {
+            let value = match current_value {
+                Some(v) => v,
+                None => continue, // No data yet — skip.
+            };
+
+            let threshold_config: Option<serde_json::Value> =
+                row.try_get("threshold_config").unwrap_or(None);
+
+            let condition_active =
+                evaluate_threshold(value, threshold_config.as_ref());
+
+            // Get or create instance in cache.
+            let mut guard = cache.lock().await;
+            let point_id: Option<Uuid> = row.try_get("point_id").unwrap_or(None);
+            let name: String = row.try_get("name").unwrap_or_default();
+            let priority_str: String = row.try_get("priority").unwrap_or_default();
+
+            let instance = guard.entry(def_id).or_insert_with(|| {
+                AlarmInstance::new(
+                    def_id,
+                    point_id.unwrap_or(Uuid::nil()),
+                    priority_to_int(&priority_str),
+                    &name,
+                )
+            });
+
+            let event = if condition_active {
+                // Check for re-activation (already active — no re-trigger)
+                if instance.state == AlarmState::Unacknowledged
+                    || instance.state == AlarmState::Acknowledged
+                {
+                    continue;
+                }
+                AlarmEvent::ConditionActive { value }
+            } else {
+                if instance.state == AlarmState::Normal {
+                    continue; // Already normal — nothing to do.
+                }
+                AlarmEvent::ConditionCleared
+            };
+
+            let current_state = instance.state.clone();
+            let next = transition(&current_state, &event, instance, now);
+
+            if let Some(new_state) = next {
+                instance.state = new_state.clone();
+                let instance_snapshot = instance.clone();
+                drop(guard); // Release lock before async DB writes.
+
+                if let Err(e) = persist_transition(
+                    db,
+                    &instance_snapshot,
+                    &current_state,
+                    &new_state,
+                    now,
+                )
+                .await
+                {
+                    error!(
+                        definition_id = %def_id,
+                        error = %e,
+                        "Failed to persist alarm transition"
+                    );
+                }
+            }
+        }
+        // Expression-based alarms: evaluation is handled by the auth-service
+        // expression engine. The event-service receives pre-evaluated results
+        // via the event bus and applies the same state machine here.
+        // (Phase 8 scope: threshold alarms only.)
+    }
+
+    // Check for expired shelves.
+    check_shelve_expirations(db, cache, now).await;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Shelve expiration check
+// ---------------------------------------------------------------------------
+
+async fn check_shelve_expirations(db: &PgPool, cache: &AlarmCache, now: chrono::DateTime<Utc>) {
+    let mut guard = cache.lock().await;
+    let mut to_transition: Vec<(Uuid, AlarmInstance)> = Vec::new();
+
+    for (def_id, instance) in guard.iter_mut() {
+        if instance.state == AlarmState::Shelved {
+            if let Some(until) = instance.shelved_until {
+                if now >= until {
+                    let current = instance.state.clone();
+                    if let Some(new_state) =
+                        transition(&current, &AlarmEvent::ShelveExpired, instance, now)
+                    {
+                        instance.state = new_state;
+                        to_transition.push((*def_id, instance.clone()));
+                    }
+                }
+            }
+        }
+    }
+    drop(guard);
+
+    for (_def_id, instance) in &to_transition {
+        if let Err(e) = persist_transition(
+            db,
+            instance,
+            &AlarmState::Shelved,
+            &instance.state,
+            now,
+        )
+        .await
+        {
+            error!(definition_id = %instance.definition_id, error = %e, "Shelve expiry persist failed");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Persist a state transition
+// ---------------------------------------------------------------------------
+
+async fn persist_transition(
+    db: &PgPool,
+    instance: &AlarmInstance,
+    previous: &AlarmState,
+    new_state: &AlarmState,
+    now: chrono::DateTime<Utc>,
+) -> anyhow::Result<()> {
+    // Insert an event row for the transition.
+    let event_id = Uuid::new_v4();
+    let message = format!(
+        "Alarm '{}' transitioned {} → {}",
+        instance.message,
+        previous,
+        new_state,
+    );
+
+    sqlx::query(
+        "INSERT INTO events (id, event_type, source, severity, point_id, message, timestamp, metadata)
+         VALUES ($1, 'io_alarm'::event_type_enum, 'io_threshold'::event_source_enum,
+                 $2, $3, $4, $5,
+                 jsonb_build_object('definition_id', $6::text, 'state', $7))",
+    )
+    .bind(event_id)
+    .bind(500_i16) // default severity
+    .bind(
+        if instance.point_id == Uuid::nil() {
+            None
+        } else {
+            Some(instance.point_id)
+        },
+    )
+    .bind(&message)
+    .bind(now)
+    .bind(instance.definition_id)
+    .bind(new_state.to_string())
+    .execute(db)
+    .await?;
+
+    // Insert alarm_states row linking to the event.
+    let state_db = alarm_state_to_db_str(new_state);
+    let prev_state_db = alarm_state_to_db_str(previous);
+
+    sqlx::query(
+        "INSERT INTO alarm_states
+             (id, event_id, event_timestamp, state, previous_state, transitioned_at, transitioned_by)
+         VALUES ($1, $2, $3, $4::alarm_state_enum, $5::alarm_state_enum, $6, $7)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(event_id)
+    .bind(now)
+    .bind(state_db)
+    .bind(prev_state_db)
+    .bind(now)
+    .bind(instance.acknowledged_by)
+    .execute(db)
+    .await?;
+
+    // Broadcast via PostgreSQL NOTIFY.
+    let payload = serde_json::to_string(instance).unwrap_or_default();
+    sqlx::query("SELECT pg_notify('alarm_state_changed', $1)")
+        .bind(&payload)
+        .execute(db)
+        .await?;
+
+    // Emit domain metrics for notable state transitions.
+    match new_state {
+        AlarmState::Unacknowledged => {
+            let severity = priority_to_severity(instance.priority);
+            metrics::counter!(
+                "io_alarms_fired_total",
+                "severity" => severity,
+            )
+            .increment(1);
+        }
+        AlarmState::Normal | AlarmState::Acknowledged => {
+            // Normal means the condition cleared and was silently resolved;
+            // Acknowledged after RTN also counts as resolution.
+            if matches!(previous, AlarmState::Acknowledged | AlarmState::ReturnToNormal) {
+                metrics::counter!("io_alarms_resolved_total").increment(1);
+            }
+        }
+        _ => {}
+    }
+
+    info!(
+        definition_id = %instance.definition_id,
+        previous = %previous,
+        new = %new_state,
+        "Alarm state transition persisted"
+    );
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Threshold evaluation (with deadband from threshold_config)
+// ---------------------------------------------------------------------------
+
+/// Returns true if any threshold is violated.
+fn evaluate_threshold(value: f64, config: Option<&serde_json::Value>) -> bool {
+    let cfg = match config {
+        Some(c) => c,
+        None => return false,
+    };
+
+    // Config format:
+    // {
+    //   "hh": { "enabled": true, "threshold": 100.0, "deadband": 1.0 },
+    //   "h":  { "enabled": true, "threshold": 90.0,  "deadband": 1.0 },
+    //   "l":  { "enabled": true, "threshold": 10.0,  "deadband": 1.0 },
+    //   "ll": { "enabled": true, "threshold": 5.0,   "deadband": 1.0 }
+    // }
+
+    check_high_threshold(value, cfg, "hh")
+        || check_high_threshold(value, cfg, "h")
+        || check_low_threshold(value, cfg, "l")
+        || check_low_threshold(value, cfg, "ll")
+}
+
+fn check_high_threshold(value: f64, cfg: &serde_json::Value, key: &str) -> bool {
+    let level = match cfg.get(key) {
+        Some(v) => v,
+        None => return false,
+    };
+    let enabled = level
+        .get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !enabled {
+        return false;
+    }
+    let threshold = level
+        .get("threshold")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(f64::MAX);
+    value >= threshold
+}
+
+fn check_low_threshold(value: f64, cfg: &serde_json::Value, key: &str) -> bool {
+    let level = match cfg.get(key) {
+        Some(v) => v,
+        None => return false,
+    };
+    let enabled = level
+        .get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !enabled {
+        return false;
+    }
+    let threshold = level
+        .get("threshold")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(f64::MIN);
+    value <= threshold
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Map alarm_priority_enum text to an ISA-18.2 integer (1 = most critical).
+fn priority_to_int(s: &str) -> i32 {
+    match s {
+        "urgent" => 1,
+        "high" => 2,
+        "medium" => 3,
+        "low" => 4,
+        "diagnostic" => 5,
+        _ => 4,
+    }
+}
+
+fn parse_state(s: &str) -> AlarmState {
+    match s {
+        "active" | "unacknowledged" => AlarmState::Unacknowledged,
+        "acknowledged" => AlarmState::Acknowledged,
+        "rtn" | "return_to_normal" => AlarmState::ReturnToNormal,
+        "shelved" => AlarmState::Shelved,
+        "suppressed" | "out_of_service" => AlarmState::Suppressed,
+        "disabled" => AlarmState::Disabled,
+        _ => AlarmState::Normal,
+    }
+}
+
+fn alarm_state_to_db_str(s: &AlarmState) -> &'static str {
+    match s {
+        AlarmState::Normal => "cleared",         // maps to closest DB enum value
+        AlarmState::Unacknowledged => "active",
+        AlarmState::Acknowledged => "acknowledged",
+        AlarmState::ReturnToNormal => "rtn",
+        AlarmState::Shelved => "shelved",
+        AlarmState::Suppressed => "suppressed",
+        AlarmState::Disabled => "disabled",
+    }
+}

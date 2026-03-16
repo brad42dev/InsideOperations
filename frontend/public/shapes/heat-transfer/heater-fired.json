@@ -1,0 +1,22 @@
+{
+  "id": "heater-fired",
+  "name": "Fired Heater",
+  "category": "heat-transfer",
+  "description": "Fired heater / furnace — direct-fired process fluid heating",
+  "tags": ["heater", "fired", "furnace", "direct-fired"],
+  "recognition_class": "FIRED_HEATER",
+  "connection_points": [
+    { "id": "coil_inlet",  "x": 36, "y": 0,  "type": "pipe" },
+    { "id": "coil_outlet", "x": 64, "y": 0,  "type": "pipe" },
+    { "id": "stack",       "x": 50, "y": 0,  "type": "vent" },
+    { "id": "fuel",        "x": 50, "y": 100,"type": "pipe" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 52, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "running": "io-state-running",
+    "stopped": "io-state-stopped",
+    "fault":   "io-state-fault"
+  }
+}

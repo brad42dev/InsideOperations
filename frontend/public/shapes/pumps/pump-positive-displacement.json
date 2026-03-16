@@ -1,0 +1,21 @@
+{
+  "id": "pump-positive-displacement",
+  "name": "Positive Displacement Pump",
+  "category": "pumps",
+  "description": "ISA 5.1 positive displacement pump — gear/lobe/piston, fixed displacement per revolution",
+  "tags": ["pump", "positive-displacement", "gear", "PD", "rotating"],
+  "recognition_class": "PD_PUMP",
+  "connection_points": [
+    { "id": "suction",   "x": 0,   "y": 50, "type": "pipe" },
+    { "id": "discharge", "x": 100, "y": 50, "type": "pipe" },
+    { "id": "driver",    "x": 38,  "y": 0,  "type": "shaft" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 50, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "running": "io-state-running",
+    "stopped": "io-state-stopped",
+    "fault":   "io-state-fault"
+  }
+}

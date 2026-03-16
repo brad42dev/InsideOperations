@@ -1,0 +1,8 @@
+[Unit]
+Description=IO Service Failure Alert for %i
+After=io-email-service.service
+
+[Service]
+Type=oneshot
+User=io
+ExecStart=/opt/io/bin/io-notify-failure %i

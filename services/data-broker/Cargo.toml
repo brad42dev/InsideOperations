@@ -1,0 +1,34 @@
+[package]
+name = "data-broker"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "data-broker"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+dotenvy.workspace = true
+anyhow.workspace = true
+tokio-tungstenite.workspace = true
+io-error = { path = "../../crates/io-error" }
+io-health = { path = "../../crates/io-health" }
+io-observability = { path = "../../crates/io-observability" }
+io-models = { path = "../../crates/io-models" }
+io-bus = { path = "../../crates/io-bus" }
+io-db = { path = "../../crates/io-db" }
+uuid.workspace = true
+chrono.workspace = true
+dashmap.workspace = true
+rmp-serde.workspace = true
+reqwest.workspace = true
+once_cell.workspace = true
+sqlx.workspace = true
+metrics.workspace = true

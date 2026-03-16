@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g class="io-shape" data-category="parts" data-name="Fail Open Indicator">
+    <!-- Arrow pointing up-left (fail open — valve opens on air/power failure) -->
+    <!-- Arrow shaft -->
+    <line x1="62" y1="62" x2="28" y2="28" stroke="#8a8a8a" stroke-width="3"/>
+    <!-- Arrowhead at upper-left end -->
+    <polygon points="28,28 42,30 30,42" fill="#8a8a8a"/>
+    <!-- FO label -->
+    <text x="66" y="72" font-size="18" font-weight="bold" fill="#8a8a8a" font-family="sans-serif">FO</text>
+  </g>
+</svg>

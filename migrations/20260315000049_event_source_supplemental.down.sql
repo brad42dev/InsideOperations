@@ -1,0 +1,3 @@
+-- PostgreSQL does not support removing enum values without recreating the type.
+-- To roll back: recreate the enum without 'supplemental', update any rows, then swap.
+-- In practice this migration is forward-only. To fully roll back, restore from backup.

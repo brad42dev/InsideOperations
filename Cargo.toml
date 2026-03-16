@@ -1,0 +1,78 @@
+[workspace]
+resolver = "2"
+members = [
+    "services/api-gateway",
+    "services/data-broker",
+    "services/opc-service",
+    "services/event-service",
+    "services/parser-service",
+    "services/archive-service",
+    "services/import-service",
+    "services/alert-service",
+    "services/email-service",
+    "services/auth-service",
+    "services/recognition-service",
+    "crates/io-auth",
+    "crates/io-bus",
+    "crates/io-db",
+    "crates/io-error",
+    "crates/io-models",
+    "crates/io-opc",
+    "crates/io-time",
+    "crates/io-validate",
+    "crates/io-export",
+    "crates/io-health",
+    "crates/io-observability",
+    "crates/io-scan",
+    "tests/load",
+]
+
+[workspace.dependencies]
+yara-x = { version = "0.10", default-features = false }
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7", features = ["ws", "multipart"] }
+tower = { version = "0.4" }
+tower-http = { version = "0.5", features = ["trace", "cors", "request-id", "timeout", "catch-panic", "limit"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "json", "migrate"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+jsonwebtoken = "9"
+argon2 = { version = "0.5", features = ["std"] }
+once_cell = "1"
+dotenvy = "0.15"
+rand = "0.8"
+tokio-tungstenite = { version = "0.21" }
+async-trait = "0.1"
+sha2 = "0.10"
+dashmap = "6"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+openidconnect = { version = "3", features = ["reqwest"] }
+ldap3 = { version = "0.11", default-features = false, features = ["tls"] }
+rmp-serde = "1"
+opcua = { version = "0.12", features = ["client"] }
+rhai = { version = "1.19", features = ["sync"] }
+lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls", "builder", "smtp-transport"], default-features = false }
+minijinja = { version = "2", features = ["loader"] }
+base64 = "0.22"
+totp-rs = { version = "5", features = ["qr"] }
+base32 = "0.4"
+roxmltree = "0.20"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+samael = { version = "0.0.19", features = ["xmlsec"] }
+urlencoding = "2"
+resvg = { version = "0.44", default-features = false }
+tiny-skia = "0.11"
+sd-notify = { version = "0.4" }
+x509-parser = { version = "0.16", features = ["verify"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"

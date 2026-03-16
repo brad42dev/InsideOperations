@@ -1,0 +1,22 @@
+{
+  "id": "tank-storage-dome-roof",
+  "name": "Storage Tank Dome Roof",
+  "category": "tanks",
+  "description": "Fixed dome roof atmospheric storage tank",
+  "tags": ["tank", "storage", "dome-roof", "atmospheric", "fixed-roof"],
+  "recognition_class": "DOME_ROOF_TANK",
+  "connection_points": [
+    { "id": "vent",   "x": 50,  "y": 0,   "type": "vent" },
+    { "id": "inlet",  "x": 100, "y": 55,  "type": "pipe" },
+    { "id": "outlet", "x": 100, "y": 74,  "type": "pipe" },
+    { "id": "drain",  "x": 50,  "y": 100, "type": "pipe" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 65, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "active": "io-state-running",
+    "idle":   "io-state-stopped",
+    "fault":  "io-state-fault"
+  }
+}

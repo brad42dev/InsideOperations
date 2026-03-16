@@ -1,0 +1,46 @@
+[Unit]
+Description=Inside/Operations Archive Service
+Documentation=https://docs.io.internal
+After=network.target postgresql.service
+Wants=postgresql.service
+PartOf=io.target
+
+[Service]
+Type=simple
+User=io
+Group=io
+WorkingDirectory=/opt/io
+ExecStart=/opt/io/bin/archive-service
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=on-failure
+RestartSec=5s
+RestartMaxDelaySec=60s
+StartLimitIntervalSec=0
+
+# Environment
+EnvironmentFile=/opt/io/config/io.env
+Environment=PORT=3005
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/opt/io/uploads /opt/io/backups /var/log/io
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Watchdog
+WatchdogSec=30s
+NotifyAccess=main
+OnFailure=io-alert@%n.service
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=io-archive-service
+
+[Install]
+WantedBy=io.target

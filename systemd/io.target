@@ -1,0 +1,17 @@
+[Unit]
+Description=Inside/Operations Services
+Documentation=https://docs.io.internal
+Wants=io-api-gateway.service
+Wants=io-data-broker.service
+Wants=io-opc-service.service
+Wants=io-event-service.service
+Wants=io-parser-service.service
+Wants=io-archive-service.service
+Wants=io-import-service.service
+Wants=io-alert-service.service
+Wants=io-email-service.service
+Wants=io-auth-service.service
+Wants=io-recognition-service.service
+
+[Install]
+WantedBy=multi-user.target

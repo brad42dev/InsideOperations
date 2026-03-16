@@ -2,15 +2,15 @@
 -- Required for first startup. Safe to re-run (idempotent via ON CONFLICT DO NOTHING).
 
 -- Default roles (8 predefined)
-INSERT INTO roles (name, description, is_predefined, idle_timeout_minutes, max_concurrent_sessions) VALUES
-    ('Viewer',               'Read-only access to high-level data (finance, executives, visitors)',          true, 30, 3),
-    ('Operator',             'Console operation, alarm acknowledgment, rounds, logs',                        true, 60, 3),
-    ('Shift Supervisor',     'Operator permissions + alarm management, shelving, round oversight',           true, 60, 3),
-    ('Engineer',             'Dashboard/report creation, forensics, expression builder',                     true, 30, 5),
-    ('Maintenance Technician','Rounds, equipment data, maintenance-focused access',                          true, 30, 3),
-    ('Safety Officer',       'Safety event access, environmental data, audit reports',                       true, 30, 3),
-    ('Data Steward',         'Import/export management, point configuration, data quality',                  true, 30, 3),
-    ('Admin',                'Full system access including user management and system configuration',        true, 15, 5)
+INSERT INTO roles (name, display_name, description, is_predefined, idle_timeout_minutes, max_concurrent_sessions) VALUES
+    ('Viewer',               'Viewer',               'Read-only access to high-level data (finance, executives, visitors)',          true, 30, 3),
+    ('Operator',             'Operator',             'Console operation, alarm acknowledgment, rounds, logs',                        true, 60, 3),
+    ('Shift Supervisor',     'Shift Supervisor',     'Operator permissions + alarm management, shelving, round oversight',           true, 60, 3),
+    ('Engineer',             'Engineer',             'Dashboard/report creation, forensics, expression builder',                     true, 30, 5),
+    ('Maintenance Technician','Maintenance Technician','Rounds, equipment data, maintenance-focused access',                         true, 30, 3),
+    ('Safety Officer',       'Safety Officer',       'Safety event access, environmental data, audit reports',                       true, 30, 3),
+    ('Data Steward',         'Data Steward',         'Import/export management, point configuration, data quality',                  true, 30, 3),
+    ('Admin',                'Administrator',        'Full system access including user management and system configuration',        true, 15, 5)
 ON CONFLICT (name) DO NOTHING;
 
 -- All 118 permissions (authoritative list per doc 03)
@@ -337,13 +337,12 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Default admin user (password: changeme — MUST be changed on first login)
--- Argon2id hash of 'changeme' — generated at build time by api-gateway seed command
--- Placeholder: replaced by application-generated hash at runtime
+-- Argon2id hash of 'changeme' (m=19456, t=2, p=1)
 INSERT INTO users (id, username, password_hash, email, full_name, enabled)
 VALUES (
     '00000000-0000-0000-0000-000000000002',
     'admin',
-    '$argon2id$v=19$m=19456,t=2,p=1$PLACEHOLDER_HASH_CHANGEME',
+    '$argon2id$v=19$m=19456,t=2,p=1$LekpOWtC+P6KTcW6rdONOg$s6yNzDI8sViuq0fZt2fL4EAhGP2QNG4lSxdcY1FoAeU',
     'admin@localhost',
     'System Administrator',
     true
@@ -394,3 +393,55 @@ INSERT INTO settings (key, value, description) VALUES
     ('seed_version_tier1',                       '"1"',   'Bootstrap seed data version'),
     ('seed_version_tier2',                       '"0"',   'Content seed data version (0 = not yet loaded)')
 ON CONFLICT (key) DO NOTHING;
+
+-- 40 Connector Templates for Universal Import
+INSERT INTO connector_templates (slug, name, domain, vendor, description, template_config, required_fields, target_tables, version) VALUES
+    -- Maintenance (5)
+    ('sap-pm-work-orders',        'SAP Plant Maintenance Work Orders',          'maintenance',    'SAP SE',                              'Import work orders, maintenance notifications, and PM schedules from SAP Plant Maintenance (ECC/S4HANA) via OData API.',                                               '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('ibm-maximo-work-orders',    'IBM Maximo Work Orders',                     'maintenance',    'IBM',                                 'Import work orders, preventive maintenance schedules, and failure reports from IBM Maximo / Maximo Application Suite via OSLC REST API.',                          '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('emaint-fiix-cmms',          'eMaint / Fiix Work Orders',                  'maintenance',    'Fluke Reliability / Rockwell Automation', 'Import work orders and maintenance records from eMaint CMMS (Fluke Reliability) or Fiix CMMS (Rockwell Automation) via REST API.',                           '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('hxgn-eam-work-orders',      'HxGN EAM Work Orders',                       'maintenance',    'Hexagon',                             'Import work orders, service requests, and maintenance data from Hexagon EAM (formerly Infor EAM) via REST API.',                                                  '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('oracle-eam-work-orders',    'Oracle EAM Work Orders',                     'maintenance',    'Oracle',                              'Import asset records and maintenance work orders from Oracle Enterprise Asset Management (EBS/Fusion) via REST API.',                                              '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    -- Equipment (5)
+    ('aveva-aim-equipment',       'AVEVA Asset Information Management',         'equipment',      'AVEVA',                               'Import equipment hierarchy, asset metadata, and tag lists from AVEVA AIM / PI Asset Framework via REST API.',                                                     '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('ge-apm-equipment',          'GE APM Equipment Records',                   'equipment',      'GE Vernova',                          'Import equipment records, risk-based inspection data, and asset health metrics from GE APM via REST API.',                                                       '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('hxgn-spf-equipment',        'Hexagon SmartPlant Foundation Equipment',    'equipment',      'Hexagon',                             'Import equipment and tag data from Hexagon SmartPlant Foundation / HxGN SDx via REST API.',                                                                     '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('sap-pm-equipment',          'SAP PM Equipment Register',                  'equipment',      'SAP SE',                              'Import equipment master records and functional location hierarchies from SAP Plant Maintenance / S/4HANA via OData API.',                                        '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('ibm-maximo-assets',         'IBM Maximo Asset Register',                  'equipment',      'IBM',                                 'Import asset records, operating locations, and equipment hierarchy from IBM Maximo / MAS via OSLC REST API.',                                                    '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    -- ERP / Financial (5)
+    ('hitachi-ellipse-erp',       'Hitachi EAM (Ellipse) ERP',                  'erp_financial',  'Hitachi Energy',                      'Import financial, maintenance, and procurement data from Hitachi EAM (formerly ABB Ellipse) via REST API.',                                                     '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('infor-cloudsuite-erp',      'Infor CloudSuite Industrial ERP',            'erp_financial',  'Infor',                               'Import financial transactions, purchase orders, and maintenance records from Infor CloudSuite Industrial (SyteLine) via REST API.',                              '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('microsoft-dynamics-365',    'Microsoft Dynamics 365 F&O',                 'erp_financial',  'Microsoft',                           'Import financial transactions, purchase orders, and work orders from Microsoft Dynamics 365 Finance & Operations via OData API.',                                '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('oracle-fusion-ebs',         'Oracle Fusion / E-Business Suite',           'erp_financial',  'Oracle',                              'Import financial data, purchase orders, and maintenance records from Oracle Fusion Cloud or E-Business Suite via REST API.',                                     '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('sap-s4hana-erp',            'SAP S/4HANA ERP Financials',                 'erp_financial',  'SAP SE',                              'Import financial records, purchase orders, and procurement data from SAP S/4HANA Finance module via OData API.',                                                 '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    -- Ticketing (5)
+    ('bmc-helix-tickets',         'BMC Helix ITSM',                             'ticketing',      'BMC Software',                        'Import incidents, change requests, and service tickets from BMC Helix ITSM (formerly Remedy) via REST API.',                                                    '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('ivanti-neurons-tickets',    'Ivanti Neurons ITSM',                        'ticketing',      'Ivanti',                              'Import incident tickets, change requests, and problem records from Ivanti Neurons for ITSM via REST API.',                                                       '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('jira-service-management',   'Jira Service Management',                    'ticketing',      'Atlassian',                           'Import service requests, incidents, and change tickets from Atlassian Jira Service Management via REST API.',                                                    '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('manageengine-servicedesk',  'ManageEngine ServiceDesk Plus',              'ticketing',      'ManageEngine (Zoho)',                  'Import service requests and ITSM tickets from ManageEngine ServiceDesk Plus via REST API.',                                                                     '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('servicenow-itsm',           'ServiceNow ITSM',                            'ticketing',      'ServiceNow',                          'Import incidents, change requests, and CMDB records from ServiceNow IT Service Management via REST API.',                                                        '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    -- Environmental (5)
+    ('cority-ehs',                'Cority EHS Management',                      'environmental',  'Cority',                              'Import environmental incidents, compliance events, and monitoring data from Cority EHS platform via REST API.',                                                  '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('enablon-environmental',     'Enablon Environmental Management',           'environmental',  'Wolters Kluwer',                      'Import environmental monitoring data, permit conditions, and compliance records from Enablon via REST API.',                                                     '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('intelex-environmental',     'Intelex Environmental Management',           'environmental',  'Intelex Technologies',                'Import environmental incidents, audit findings, and compliance data from Intelex EHSQ platform via REST API.',                                                   '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('sap-ehs-environmental',     'SAP EHS Environmental Compliance',           'environmental',  'SAP SE',                              'Import environmental compliance records, waste management data, and permit data from SAP Environment Health & Safety via OData API.',                            '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('sphera-environmental',      'Sphera Environmental Compliance',            'environmental',  'Sphera Solutions',                    'Import emissions monitoring, environmental KPIs, and compliance records from Sphera Operations Management via REST API.',                                        '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    -- LIMS / Lab (5)
+    ('labvantage-lims',           'LabVantage LIMS',                            'lims_lab',       'LabVantage Solutions',                'Import laboratory samples, test results, and QC data from LabVantage LIMS via REST API.',                                                                        '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('labware-lims',              'LabWare LIMS / ELN',                         'lims_lab',       'LabWare',                             'Import sample results, stability studies, and QC data from LabWare LIMS or Electronic Lab Notebook via REST API.',                                              '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('siemens-opcenter-quality',  'Siemens Opcenter Quality',                   'lims_lab',       'Siemens',                             'Import quality control data, non-conformances, and inspection results from Siemens Opcenter Quality (formerly Camstar) via REST API.',                          '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('starlims-lims',             'Abbott STARLIMS',                            'lims_lab',       'Abbott Informatics',                  'Import laboratory data, sample workflow results, and audit records from Abbott STARLIMS via REST API.',                                                          '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('thermo-samplemanager-lims', 'Thermo Fisher SampleManager LIMS',           'lims_lab',       'Thermo Fisher Scientific',            'Import sample test results, specifications, and QC records from Thermo Fisher SampleManager LIMS via REST API.',                                                '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    -- Access Control (5)
+    ('ccure-9000-access',         'C•CURE 9000 Access Control',                 'access_control', 'Software House (Johnson Controls)',   'Import badge events, access permissions, and cardholder data from C•CURE 9000 security management system via REST API.',                                         '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('gallagher-command-centre',  'Gallagher Command Centre',                   'access_control', 'Gallagher Security',                  'Import cardholder events, access zones, and alarm events from Gallagher Command Centre via REST API.',                                                          '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('genetec-security-center',   'Genetec Security Center',                    'access_control', 'Genetec',                             'Import cardholder access events and credential data from Genetec Security Center via REST API.',                                                                '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('honeywell-prowatch',        'Honeywell Pro-Watch',                        'access_control', 'Honeywell Building Technologies',     'Import access control events, badge transactions, and cardholder records from Honeywell Pro-Watch via REST API.',                                                '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('lenel-onguard',             'LenelS2 OnGuard',                            'access_control', 'LenelS2 (Carrier)',                   'Import cardholder access events and credential data from LenelS2 OnGuard physical security platform via REST API.',                                              '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    -- Regulatory (5)
+    ('cority-regulatory',         'Cority Regulatory Compliance',               'regulatory',     'Cority',                              'Import regulatory filings, inspection records, and compliance tracking data from Cority regulatory modules via REST API.',                                       '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('enablon-regulatory',        'Enablon Regulatory Intelligence',            'regulatory',     'Wolters Kluwer',                      'Import regulatory obligation tracking, compliance schedules, and audit records from Enablon via REST API.',                                                      '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('intelex-regulatory',        'Intelex Regulatory Management',              'regulatory',     'Intelex Technologies',                'Import regulatory compliance records, inspection findings, and submission data from Intelex EHSQ platform via REST API.',                                        '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('sap-ehs-regulatory',        'SAP EHS Regulatory Compliance',              'regulatory',     'SAP SE',                              'Import regulatory compliance requirements, substance records, and EHS reports from SAP EHS via OData API.',                                                      '{}', '[]', ARRAY['custom_import_data'], '1.0'),
+    ('sphera-regulatory',         'Sphera Regulatory Compliance',               'regulatory',     'Sphera Solutions',                    'Import process safety management data, regulatory submissions, and compliance records from Sphera Operations Management via REST API.',                          '{}', '[]', ARRAY['custom_import_data'], '1.0')
+ON CONFLICT (slug) DO NOTHING;

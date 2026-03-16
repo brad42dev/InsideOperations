@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g class="io-shape" data-category="parts" data-name="Fail Closed Indicator">
+    <!-- Arrow pointing down-right (fail closed — valve closes on air/power failure) -->
+    <!-- Arrow shaft -->
+    <line x1="28" y1="28" x2="62" y2="62" stroke="#8a8a8a" stroke-width="3"/>
+    <!-- Arrowhead at lower-right end -->
+    <polygon points="62,62 48,60 60,48" fill="#8a8a8a"/>
+    <!-- FC label -->
+    <text x="10" y="32" font-size="18" font-weight="bold" fill="#8a8a8a" font-family="sans-serif">FC</text>
+  </g>
+</svg>

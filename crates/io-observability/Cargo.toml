@@ -1,0 +1,19 @@
+[package]
+name = "io-observability"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+axum.workspace = true
+tokio.workspace = true
+once_cell.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+sd-notify = { workspace = true, optional = true }
+
+[features]
+systemd = ["sd-notify"]

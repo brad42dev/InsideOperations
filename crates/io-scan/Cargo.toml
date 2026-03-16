@@ -1,0 +1,21 @@
+[package]
+name = "io-scan"
+version = "0.1.0"
+edition = "2021"
+description = "File scanning via YARA-X for malware and policy enforcement."
+
+[dependencies]
+tracing.workspace = true
+anyhow.workspace = true
+
+# yara-x is BSD-3-Clause.  When the `yara` Cargo feature is enabled we link
+# the yara-x crate; when disabled (the default) the scanner stubs all results
+# as Allow so the build succeeds on platforms where yara-x native bindings are
+# unavailable.
+[features]
+default = []
+yara = ["dep:yara-x"]
+
+[dependencies.yara-x]
+workspace = true
+optional = true

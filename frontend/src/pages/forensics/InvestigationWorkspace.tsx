@@ -1,0 +1,1260 @@
+import { useState, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  forensicsApi,
+  type Investigation,
+  type InvestigationStage,
+  type EvidenceItem,
+  type EvidenceType,
+  type InvestigationPoint,
+  type CorrelationResult,
+} from '../../api/forensics'
+import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
+import EvidenceRenderer from './EvidenceRenderer'
+
+// ---------------------------------------------------------------------------
+// Status badge
+// ---------------------------------------------------------------------------
+
+function StatusBadge({ status }: { status: Investigation['status'] }) {
+  const colors: Record<Investigation['status'], { bg: string; text: string }> = {
+    active: { bg: 'var(--io-accent-subtle, rgba(74,158,255,0.15))', text: 'var(--io-accent, #4A9EFF)' },
+    closed: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e' },
+    cancelled: { bg: 'var(--io-surface-secondary)', text: 'var(--io-text-muted)' },
+  }
+  const c = colors[status]
+  return (
+    <span
+      style={{
+        fontSize: '11px',
+        padding: '2px 8px',
+        borderRadius: '100px',
+        background: c.bg,
+        color: c.text,
+        fontWeight: 700,
+        letterSpacing: '0.04em',
+        textTransform: 'capitalize',
+        flexShrink: 0,
+      }}
+    >
+      {status}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Evidence type menu
+// ---------------------------------------------------------------------------
+
+const EVIDENCE_TYPES: { type: EvidenceType; label: string; icon: string }[] = [
+  { type: 'trend', label: 'Trend Chart', icon: '📈' },
+  { type: 'annotation', label: 'Annotation', icon: '📝' },
+  { type: 'alarm_list', label: 'Alarm List', icon: '🔔' },
+  { type: 'value_table', label: 'Value Table', icon: '📊' },
+  { type: 'correlation', label: 'Correlation', icon: '🔗' },
+  { type: 'point_detail', label: 'Point Detail', icon: '📍' },
+  { type: 'graphic_snapshot', label: 'Graphic Snapshot', icon: '📷' },
+  { type: 'log_entries', label: 'Log Entries', icon: '📋' },
+  { type: 'round_entries', label: 'Round Entries', icon: '☑️' },
+  { type: 'calculated_series', label: 'Calculated Series', icon: '⚙️' },
+]
+
+// ---------------------------------------------------------------------------
+// Stage card
+// ---------------------------------------------------------------------------
+
+function StageCard({
+  stage,
+  investigationId,
+  readOnly,
+  onRefresh,
+}: {
+  stage: InvestigationStage
+  investigationId: string
+  readOnly: boolean
+  onRefresh: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [editingName, setEditingName] = useState(false)
+  const [stageName, setStageName] = useState(stage.name)
+  const [showEvidenceMenu, setShowEvidenceMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const updateStageMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const result = await forensicsApi.updateStage(investigationId, stage.id, { name })
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] })
+      setEditingName(false)
+      onRefresh()
+    },
+  })
+
+  const deleteStageMutation = useMutation({
+    mutationFn: async () => {
+      const result = await forensicsApi.deleteStage(investigationId, stage.id)
+      if (!result.success) throw new Error(result.error.message)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] })
+      onRefresh()
+    },
+  })
+
+  const addEvidenceMutation = useMutation({
+    mutationFn: async (type: EvidenceType) => {
+      const result = await forensicsApi.addEvidence(investigationId, stage.id, {
+        evidence_type: type,
+        config: {},
+        sort_order: (stage.evidence?.length ?? 0) + 1,
+      })
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] })
+      setShowEvidenceMenu(false)
+      onRefresh()
+    },
+  })
+
+  const deleteEvidenceMutation = useMutation({
+    mutationFn: async (evidenceId: string) => {
+      const result = await forensicsApi.deleteEvidence(investigationId, stage.id, evidenceId)
+      if (!result.success) throw new Error(result.error.message)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] })
+      onRefresh()
+    },
+  })
+
+  const formatRange = (start: string, end: string) => {
+    const s = new Date(start).toLocaleString()
+    const e = new Date(end).toLocaleString()
+    return `${s} → ${e}`
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--io-border)',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        background: 'var(--io-surface)',
+      }}
+    >
+      {/* Stage header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '10px 14px',
+          background: 'var(--io-surface-secondary)',
+          borderBottom: '1px solid var(--io-border)',
+        }}
+      >
+        {editingName && !readOnly ? (
+          <input
+            autoFocus
+            value={stageName}
+            onChange={(e) => setStageName(e.target.value)}
+            onBlur={() => {
+              if (stageName.trim() && stageName !== stage.name) {
+                updateStageMutation.mutate(stageName.trim())
+              } else {
+                setStageName(stage.name)
+                setEditingName(false)
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (stageName.trim() && stageName !== stage.name) {
+                  updateStageMutation.mutate(stageName.trim())
+                } else {
+                  setEditingName(false)
+                }
+              }
+              if (e.key === 'Escape') {
+                setStageName(stage.name)
+                setEditingName(false)
+              }
+            }}
+            style={{
+              padding: '2px 6px',
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-accent)',
+              borderRadius: '4px',
+              color: 'var(--io-text-primary)',
+              fontSize: '13px',
+              fontWeight: 600,
+              outline: 'none',
+              flex: 1,
+            }}
+          />
+        ) : (
+          <span
+            onClick={() => !readOnly && setEditingName(true)}
+            style={{
+              fontSize: '13px',
+              fontWeight: 600,
+              color: 'var(--io-text-primary)',
+              cursor: readOnly ? 'default' : 'text',
+              flex: 1,
+            }}
+          >
+            {stageName}
+          </span>
+        )}
+
+        <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', flexShrink: 0 }}>
+          {formatRange(stage.time_range_start, stage.time_range_end)}
+        </span>
+
+        {!readOnly && (
+          <button
+            onClick={() => {
+              if (confirm(`Delete stage "${stage.name}"?`)) {
+                deleteStageMutation.mutate()
+              }
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--io-text-muted)',
+              fontSize: '13px',
+              padding: '2px 4px',
+              flexShrink: 0,
+            }}
+            title="Delete stage"
+          >
+            🗑
+          </button>
+        )}
+      </div>
+
+      {/* Evidence list */}
+      <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {(stage.evidence ?? []).length === 0 && (
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+            No evidence added to this stage yet.
+          </p>
+        )}
+
+        {(stage.evidence ?? [])
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((ev: EvidenceItem) => (
+            <EvidenceRenderer
+              key={ev.id}
+              item={ev}
+              stageStart={stage.time_range_start}
+              stageEnd={stage.time_range_end}
+              onDelete={
+                readOnly
+                  ? undefined
+                  : () => deleteEvidenceMutation.mutate(ev.id)
+              }
+              readOnly={readOnly}
+            />
+          ))}
+
+        {/* Add evidence button */}
+        {!readOnly && (
+          <div style={{ position: 'relative' }} ref={menuRef}>
+            <button
+              onClick={() => setShowEvidenceMenu((v) => !v)}
+              style={{
+                padding: '5px 12px',
+                background: 'none',
+                border: '1px dashed var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'pointer',
+                fontSize: '12px',
+                color: 'var(--io-text-muted)',
+                width: '100%',
+              }}
+            >
+              + Add Evidence
+            </button>
+
+            {showEvidenceMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  background: 'var(--io-surface-elevated)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '6px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  zIndex: 50,
+                  minWidth: '200px',
+                  overflow: 'hidden',
+                }}
+              >
+                {EVIDENCE_TYPES.map((et) => (
+                  <button
+                    key={et.type}
+                    onClick={() => addEvidenceMutation.mutate(et.type)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: 'var(--io-text-primary)',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.background =
+                        'var(--io-surface-secondary)')
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLButtonElement).style.background = 'none')
+                    }
+                  >
+                    <span>{et.icon}</span>
+                    {et.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Left panel — points
+// ---------------------------------------------------------------------------
+
+function PointsPanel({
+  investigationId,
+  readOnly,
+  onRefresh,
+}: {
+  investigationId: string
+  readOnly: boolean
+  onRefresh: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [addInput, setAddInput] = useState('')
+  const [showRemoved, setShowRemoved] = useState(false)
+
+  const pointsQuery = useQuery({
+    queryKey: ['investigation-points', investigationId],
+    queryFn: async () => {
+      const result = await forensicsApi.listPoints(investigationId)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    staleTime: 30_000,
+  })
+
+  const addPointsMutation = useMutation({
+    mutationFn: async (pointIds: string[]) => {
+      const result = await forensicsApi.addPoints(investigationId, pointIds)
+      if (!result.success) throw new Error(result.error.message)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation-points', investigationId] })
+      setAddInput('')
+      onRefresh()
+    },
+  })
+
+  const removePointMutation = useMutation({
+    mutationFn: async ({ pointId, reason }: { pointId: string; reason?: string }) => {
+      const result = await forensicsApi.removePoint(investigationId, pointId, reason)
+      if (!result.success) throw new Error(result.error.message)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation-points', investigationId] })
+      onRefresh()
+    },
+  })
+
+  const points = pointsQuery.data ?? []
+  const included = points.filter((p: InvestigationPoint) => p.status === 'included')
+  const suggested = points.filter((p: InvestigationPoint) => p.status === 'suggested')
+  const removed = points.filter((p: InvestigationPoint) => p.status === 'removed')
+
+  const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+    <div
+      style={{
+        fontSize: '10px',
+        fontWeight: 700,
+        letterSpacing: '0.06em',
+        color: 'var(--io-text-muted)',
+        textTransform: 'uppercase',
+        padding: '8px 0 4px',
+      }}
+    >
+      {children}
+    </div>
+  )
+
+  const PointRow = ({
+    point,
+    showRemove,
+  }: {
+    point: InvestigationPoint
+    showRemove: boolean
+  }) => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '4px 0',
+        gap: '6px',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          color: 'var(--io-text-primary)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: 1,
+        }}
+        title={point.point_id}
+      >
+        {point.point_name ?? point.point_tag ?? point.point_id}
+      </span>
+      {showRemove && !readOnly && (
+        <button
+          onClick={() => removePointMutation.mutate({ pointId: point.point_id })}
+          title="Remove point"
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--io-text-muted)',
+            fontSize: '12px',
+            padding: '1px 3px',
+            flexShrink: 0,
+          }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+
+  return (
+    <div
+      style={{
+        width: '260px',
+        flexShrink: 0,
+        borderRight: '1px solid var(--io-border)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        background: 'var(--io-surface-secondary)',
+      }}
+    >
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
+        <SectionLabel>Included Points ({included.length})</SectionLabel>
+
+        {included.length === 0 && (
+          <p style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontStyle: 'italic', margin: 0 }}>
+            No points added yet.
+          </p>
+        )}
+        {included.map((p: InvestigationPoint) => (
+          <PointRow key={p.point_id} point={p} showRemove={true} />
+        ))}
+
+        {!readOnly && (
+          <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+            <input
+              type="text"
+              placeholder="Point ID or tag"
+              value={addInput}
+              onChange={(e) => setAddInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && addInput.trim()) {
+                  addPointsMutation.mutate([addInput.trim()])
+                }
+              }}
+              style={{
+                flex: 1,
+                padding: '4px 8px',
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                color: 'var(--io-text-primary)',
+                fontSize: '12px',
+                outline: 'none',
+                minWidth: 0,
+              }}
+            />
+            <button
+              onClick={() => {
+                if (addInput.trim()) addPointsMutation.mutate([addInput.trim()])
+              }}
+              style={{
+                padding: '4px 8px',
+                background: 'var(--io-accent)',
+                border: 'none',
+                borderRadius: 'var(--io-radius)',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              Add
+            </button>
+          </div>
+        )}
+
+        {suggested.length > 0 && (
+          <>
+            <SectionLabel>Suggested ({suggested.length})</SectionLabel>
+            {suggested.map((p: InvestigationPoint) => (
+              <PointRow key={p.point_id} point={p} showRemove={false} />
+            ))}
+          </>
+        )}
+
+        {removed.length > 0 && (
+          <>
+            <button
+              onClick={() => setShowRemoved((v) => !v)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                color: 'var(--io-text-muted)',
+                textTransform: 'uppercase',
+                padding: '8px 0 4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              {showRemoved ? '▾' : '▸'} Removed ({removed.length})
+            </button>
+            {showRemoved &&
+              removed.map((p: InvestigationPoint) => (
+                <div key={p.point_id}>
+                  <PointRow point={p} showRemove={false} />
+                  {p.removal_reason && (
+                    <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', paddingLeft: '4px', marginTop: '-2px' }}>
+                      {p.removal_reason}
+                    </div>
+                  )}
+                </div>
+              ))}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Results panel — correlations, change points, spikes
+// ---------------------------------------------------------------------------
+
+type ResultsTab = 'correlations' | 'change_points' | 'spikes'
+
+function ResultsPanel({
+  investigationId,
+  investigation,
+}: {
+  investigationId: string
+  investigation: Investigation
+}) {
+  const [activeTab, setActiveTab] = useState<ResultsTab>('correlations')
+  const [results, setResults] = useState<{
+    correlations: CorrelationResult[]
+    change_points: unknown[]
+    spikes: unknown[]
+  } | null>(null)
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const runAnalysis = async () => {
+    // Gather included point IDs from investigation
+    const pointIdsResult = await forensicsApi.listPoints(investigationId)
+    if (!pointIdsResult.success) {
+      setError(pointIdsResult.error.message)
+      return
+    }
+    const included = pointIdsResult.data
+      .filter((p: InvestigationPoint) => p.status === 'included')
+      .map((p: InvestigationPoint) => p.point_id)
+
+    if (included.length < 2) {
+      setError('Add at least 2 included points to run correlation analysis.')
+      return
+    }
+
+    // Derive time range from all stages
+    const stages = investigation.stages ?? []
+    if (stages.length === 0) {
+      setError('Add at least one stage to define a time range.')
+      return
+    }
+
+    const starts = stages.map((s) => new Date(s.time_range_start).getTime())
+    const ends = stages.map((s) => new Date(s.time_range_end).getTime())
+    const start = new Date(Math.min(...starts)).toISOString()
+    const end = new Date(Math.max(...ends)).toISOString()
+
+    setRunning(true)
+    setError(null)
+    try {
+      const res = await forensicsApi.runCorrelation({ point_ids: included, start, end })
+      if (!res.success) {
+        setError(res.error.message)
+      } else {
+        setResults(res.data)
+      }
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const corrColumns: ColumnDef<CorrelationResult>[] = [
+    { id: 'point_id_a', header: 'Point A', accessorKey: 'point_id_a', sortable: true },
+    { id: 'point_id_b', header: 'Point B', accessorKey: 'point_id_b', sortable: true },
+    {
+      id: 'pearson',
+      header: 'Pearson',
+      accessorKey: 'pearson',
+      sortable: true,
+      cell: (val) => (val as number).toFixed(4),
+      width: 90,
+    },
+    {
+      id: 'spearman',
+      header: 'Spearman',
+      accessorKey: 'spearman',
+      sortable: true,
+      cell: (val) => (val as number).toFixed(4),
+      width: 90,
+    },
+    {
+      id: 'lag_ms',
+      header: 'Lag (ms)',
+      accessorKey: 'lag_ms',
+      sortable: true,
+      cell: (val) => (val as number).toLocaleString(),
+      width: 90,
+    },
+  ]
+
+  const tabs: { key: ResultsTab; label: string }[] = [
+    { key: 'correlations', label: 'Correlations' },
+    { key: 'change_points', label: 'Change Points' },
+    { key: 'spikes', label: 'Spikes' },
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Results panel toolbar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 16px',
+          borderBottom: '1px solid var(--io-border)',
+          background: 'var(--io-surface-secondary)',
+          flexShrink: 0,
+        }}
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            style={{
+              padding: '3px 10px',
+              background: activeTab === t.key ? 'var(--io-surface-elevated)' : 'none',
+              border: activeTab === t.key ? '1px solid var(--io-border)' : '1px solid transparent',
+              borderRadius: 'var(--io-radius)',
+              color: activeTab === t.key ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: activeTab === t.key ? 600 : 400,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+
+        <div style={{ flex: 1 }} />
+
+        {error && (
+          <span style={{ fontSize: '12px', color: 'var(--io-danger, #ef4444)' }}>{error}</span>
+        )}
+
+        <button
+          onClick={() => void runAnalysis()}
+          disabled={running}
+          style={{
+            padding: '4px 12px',
+            background: 'var(--io-accent)',
+            border: 'none',
+            borderRadius: 'var(--io-radius)',
+            color: '#fff',
+            cursor: running ? 'not-allowed' : 'pointer',
+            fontSize: '12px',
+            fontWeight: 600,
+            opacity: running ? 0.7 : 1,
+          }}
+        >
+          {running ? 'Running...' : 'Run Analysis'}
+        </button>
+      </div>
+
+      {/* Results body */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>
+        {!results && !running && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              color: 'var(--io-text-muted)',
+              fontSize: '13px',
+            }}
+          >
+            No analysis results yet. Click "Run Analysis" to correlate included points.
+          </div>
+        )}
+
+        {activeTab === 'correlations' && results && (
+          <DataTable
+            data={results.correlations}
+            columns={corrColumns}
+            height={200}
+            loading={running}
+            emptyMessage="No correlations computed"
+          />
+        )}
+
+        {activeTab === 'change_points' && results && (
+          <div style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
+            {results.change_points.length === 0
+              ? 'No change points detected.'
+              : `${results.change_points.length} change point(s) detected.`}
+          </div>
+        )}
+
+        {activeTab === 'spikes' && results && (
+          <div style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
+            {results.spikes.length === 0
+              ? 'No spikes detected.'
+              : `${results.spikes.length} spike(s) detected.`}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// InvestigationWorkspace
+// ---------------------------------------------------------------------------
+
+export default function InvestigationWorkspace() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [resultsCollapsed, setResultsCollapsed] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+
+  const query = useQuery({
+    queryKey: ['investigation', id],
+    queryFn: async () => {
+      if (!id) throw new Error('No investigation ID')
+      const result = await forensicsApi.getInvestigation(id)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    enabled: !!id,
+    staleTime: 15_000,
+  })
+
+  const investigation = query.data
+
+  const saveMutation = useMutation({
+    mutationFn: async (name: string) => {
+      if (!id) return
+      const result = await forensicsApi.updateInvestigation(id, { name })
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+      setEditingName(false)
+    },
+  })
+
+  const closeMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return
+      const result = await forensicsApi.closeInvestigation(id)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+      setShowCloseConfirm(false)
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return
+      const result = await forensicsApi.cancelInvestigation(id)
+      if (!result.success) throw new Error(result.error.message)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+    },
+  })
+
+  const addStageMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return
+      const now = new Date()
+      const end = now.toISOString()
+      const start = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+      const stages = investigation?.stages ?? []
+      const result = await forensicsApi.addStage(id, {
+        name: `Stage ${stages.length + 1}`,
+        time_range_start: start,
+        time_range_end: end,
+        sort_order: stages.length + 1,
+      })
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+    },
+  })
+
+  // ---------------------------------------------------------------------------
+  // Loading / error states
+  // ---------------------------------------------------------------------------
+
+  if (query.isLoading) {
+    return (
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--io-text-muted)',
+          fontSize: '14px',
+        }}
+      >
+        Loading investigation...
+      </div>
+    )
+  }
+
+  if (query.isError || !investigation) {
+    return (
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px',
+          color: 'var(--io-danger, #ef4444)',
+          fontSize: '14px',
+        }}
+      >
+        <span>Failed to load investigation.</span>
+        <button
+          onClick={() => navigate('/forensics')}
+          style={{
+            padding: '6px 14px',
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            cursor: 'pointer',
+            fontSize: '13px',
+            color: 'var(--io-text-secondary)',
+          }}
+        >
+          Back to Forensics
+        </button>
+      </div>
+    )
+  }
+
+  const isReadOnly = investigation.status !== 'active'
+  const stages = (investigation.stages ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)
+
+  const handleSaveName = () => {
+    if (nameInput.trim() && nameInput !== investigation.name) {
+      saveMutation.mutate(nameInput.trim())
+    } else {
+      setEditingName(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--io-surface-primary)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Toolbar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '0 16px',
+          height: '44px',
+          flexShrink: 0,
+          background: 'var(--io-surface)',
+          borderBottom: '1px solid var(--io-border)',
+        }}
+      >
+        <button
+          onClick={() => navigate('/forensics')}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--io-text-muted)',
+            cursor: 'pointer',
+            fontSize: '13px',
+            padding: '4px',
+            flexShrink: 0,
+          }}
+          title="Back to Forensics"
+        >
+          ←
+        </button>
+
+        {/* Editable name */}
+        {editingName && !isReadOnly ? (
+          <input
+            autoFocus
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onBlur={handleSaveName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveName()
+              if (e.key === 'Escape') setEditingName(false)
+            }}
+            style={{
+              flex: 1,
+              maxWidth: '400px',
+              padding: '4px 8px',
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-accent)',
+              borderRadius: '4px',
+              color: 'var(--io-text-primary)',
+              fontSize: '14px',
+              fontWeight: 600,
+              outline: 'none',
+            }}
+          />
+        ) : (
+          <span
+            onClick={() => {
+              if (!isReadOnly) {
+                setNameInput(investigation.name)
+                setEditingName(true)
+              }
+            }}
+            style={{
+              fontSize: '14px',
+              fontWeight: 700,
+              color: 'var(--io-text-primary)',
+              cursor: isReadOnly ? 'default' : 'text',
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: '400px',
+            }}
+            title={isReadOnly ? investigation.name : 'Click to rename'}
+          >
+            {investigation.name}
+          </span>
+        )}
+
+        <StatusBadge status={investigation.status} />
+
+        <div style={{ flex: 1 }} />
+
+        {/* Action buttons */}
+        {!isReadOnly && (
+          <>
+            <button
+              onClick={() => saveMutation.mutate(investigation.name)}
+              disabled={saveMutation.isPending}
+              style={{
+                padding: '5px 12px',
+                background: 'var(--io-accent)',
+                border: 'none',
+                borderRadius: 'var(--io-radius)',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+              }}
+            >
+              Save
+            </button>
+
+            <button
+              onClick={() => setShowCloseConfirm(true)}
+              style={{
+                padding: '5px 12px',
+                background: 'none',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                color: 'var(--io-text-secondary)',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              Close
+            </button>
+
+            <button
+              onClick={() => {
+                if (confirm('Cancel this investigation? This action cannot be undone.')) {
+                  cancelMutation.mutate()
+                }
+              }}
+              style={{
+                padding: '5px 12px',
+                background: 'none',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                color: 'var(--io-text-muted)',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              Cancel
+            </button>
+          </>
+        )}
+
+        {isReadOnly && (
+          <span style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+            Read-only
+          </span>
+        )}
+      </div>
+
+      {/* Body: left panel + main canvas */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        {/* Left panel */}
+        <PointsPanel
+          investigationId={investigation.id}
+          readOnly={isReadOnly}
+          onRefresh={() => void queryClient.invalidateQueries({ queryKey: ['investigation', id] })}
+        />
+
+        {/* Main canvas + results */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+          {/* Scrollable stages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {stages.length === 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  padding: '60px 24px',
+                  color: 'var(--io-text-muted)',
+                  textAlign: 'center',
+                }}
+              >
+                <span style={{ fontSize: '32px', opacity: 0.25 }}>📋</span>
+                <p style={{ margin: 0, fontSize: '14px', color: 'var(--io-text-secondary)' }}>
+                  No stages yet. Add a stage to begin organizing your investigation.
+                </p>
+              </div>
+            )}
+
+            {stages.map((stage) => (
+              <StageCard
+                key={stage.id}
+                stage={stage}
+                investigationId={investigation.id}
+                readOnly={isReadOnly}
+                onRefresh={() =>
+                  void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+                }
+              />
+            ))}
+
+            {!isReadOnly && (
+              <button
+                onClick={() => addStageMutation.mutate()}
+                disabled={addStageMutation.isPending}
+                style={{
+                  padding: '8px 16px',
+                  background: 'none',
+                  border: '1px dashed var(--io-border)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: 'var(--io-text-muted)',
+                  alignSelf: 'flex-start',
+                }}
+              >
+                {addStageMutation.isPending ? 'Adding...' : '+ Add Stage'}
+              </button>
+            )}
+          </div>
+
+          {/* Results panel — collapsible */}
+          <div
+            style={{
+              borderTop: '1px solid var(--io-border)',
+              flexShrink: 0,
+              height: resultsCollapsed ? '36px' : '260px',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              transition: 'height 0.2s ease',
+            }}
+          >
+            {/* Results header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 16px',
+                height: '36px',
+                flexShrink: 0,
+                background: 'var(--io-surface-secondary)',
+                borderBottom: resultsCollapsed ? 'none' : '1px solid var(--io-border)',
+                cursor: 'pointer',
+              }}
+              onClick={() => setResultsCollapsed((v) => !v)}
+            >
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', userSelect: 'none', flex: 1 }}>
+                {resultsCollapsed ? '▸' : '▾'} Analysis Results
+              </span>
+            </div>
+
+            {!resultsCollapsed && id && (
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <ResultsPanel investigationId={id} investigation={investigation} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Close confirmation */}
+      {showCloseConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '8px',
+              padding: '24px',
+              width: '380px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
+              Close Investigation
+            </h3>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+              Closing this investigation will lock it for editing. You can still view it.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                style={{
+                  padding: '6px 14px',
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: 'var(--io-text-secondary)',
+                }}
+              >
+                Keep Active
+              </button>
+              <button
+                onClick={() => closeMutation.mutate()}
+                disabled={closeMutation.isPending}
+                style={{
+                  padding: '6px 14px',
+                  background: '#22c55e',
+                  border: 'none',
+                  borderRadius: 'var(--io-radius)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#fff',
+                }}
+              >
+                {closeMutation.isPending ? 'Closing...' : 'Close Investigation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

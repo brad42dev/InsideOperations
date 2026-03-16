@@ -1,0 +1,34 @@
+[package]
+name = "opc-service"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "opc-service"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+dotenvy.workspace = true
+anyhow.workspace = true
+sqlx.workspace = true
+io-error = { path = "../../crates/io-error" }
+io-health = { path = "../../crates/io-health" }
+io-observability = { path = "../../crates/io-observability" }
+io-models = { path = "../../crates/io-models" }
+io-opc = { path = "../../crates/io-opc" }
+io-bus = { path = "../../crates/io-bus" }
+io-db = { path = "../../crates/io-db" }
+uuid.workspace = true
+chrono.workspace = true
+rmp-serde.workspace = true
+dashmap.workspace = true
+opcua.workspace = true
+x509-parser.workspace = true
+sha2.workspace = true

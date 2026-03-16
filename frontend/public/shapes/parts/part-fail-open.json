@@ -1,0 +1,11 @@
+{
+  "id": "part-fail-open",
+  "name": "Fail Open Indicator",
+  "category": "parts",
+  "description": "Valve fail position indicator — Fail Open (FO): valve opens on loss of power/signal",
+  "tags": ["fail-open", "FO", "actuator", "fail-position", "safety"],
+  "recognition_class": "FAIL_OPEN",
+  "connection_points": [],
+  "text_zones": [],
+  "state_classes": {}
+}

@@ -1,0 +1,22 @@
+{
+  "id": "tank-storage-cone-roof",
+  "name": "Storage Tank Cone Roof",
+  "category": "tanks",
+  "description": "Fixed cone roof atmospheric storage tank",
+  "tags": ["tank", "storage", "cone-roof", "atmospheric", "fixed-roof"],
+  "recognition_class": "CONE_ROOF_TANK",
+  "connection_points": [
+    { "id": "vent",    "x": 50,  "y": 0,   "type": "vent" },
+    { "id": "inlet",   "x": 100, "y": 52,  "type": "pipe" },
+    { "id": "outlet",  "x": 100, "y": 72,  "type": "pipe" },
+    { "id": "drain",   "x": 50,  "y": 100, "type": "pipe" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 63, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "active": "io-state-running",
+    "idle":   "io-state-stopped",
+    "fault":  "io-state-fault"
+  }
+}

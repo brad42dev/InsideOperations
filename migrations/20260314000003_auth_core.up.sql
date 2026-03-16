@@ -4,11 +4,13 @@
 CREATE TABLE roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(50) UNIQUE NOT NULL,
+    display_name VARCHAR(100),
     description TEXT,
     is_predefined BOOLEAN NOT NULL DEFAULT false,
     cloned_from UUID REFERENCES roles(id),
     idle_timeout_minutes INTEGER NOT NULL DEFAULT 30,
     max_concurrent_sessions INTEGER NOT NULL DEFAULT 3,
+    deleted_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

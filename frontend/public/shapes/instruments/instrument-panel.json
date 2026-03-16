@@ -1,0 +1,20 @@
+{
+  "id": "instrument-panel",
+  "name": "Panel Instrument",
+  "category": "instruments",
+  "description": "ISA 5.1 panel-mounted instrument — circle with solid horizontal centerline",
+  "tags": ["instrument", "panel", "ISA-5.1", "board-mounted", "controller"],
+  "recognition_class": "PANEL_INSTRUMENT",
+  "connection_points": [
+    { "id": "process", "x": 50, "y": 100, "type": "signal" }
+  ],
+  "text_zones": [
+    { "id": "tag",      "x": 50, "y": 40, "anchor": "center", "purpose": "tag_name" },
+    { "id": "function", "x": 50, "y": 62, "anchor": "center", "purpose": "function_code" }
+  ],
+  "state_classes": {
+    "normal": "io-state-normal",
+    "alarm":  "io-state-alarm",
+    "fault":  "io-state-fault"
+  }
+}

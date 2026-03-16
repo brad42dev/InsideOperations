@@ -1,0 +1,27 @@
+[package]
+name = "archive-service"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "archive-service"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+dotenvy.workspace = true
+anyhow.workspace = true
+sqlx.workspace = true
+io-error = { path = "../../crates/io-error" }
+io-health = { path = "../../crates/io-health" }
+io-observability = { path = "../../crates/io-observability" }
+io-models = { path = "../../crates/io-models" }
+io-db = { path = "../../crates/io-db" }
+uuid.workspace = true
+chrono.workspace = true

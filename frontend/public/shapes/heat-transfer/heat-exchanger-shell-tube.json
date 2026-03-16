@@ -1,0 +1,22 @@
+{
+  "id": "heat-exchanger-shell-tube",
+  "name": "Shell and Tube Heat Exchanger",
+  "category": "heat-transfer",
+  "description": "ISA 5.1 shell and tube heat exchanger — two-fluid heat transfer",
+  "tags": ["heat-exchanger", "shell-tube", "HX", "cooler", "heater"],
+  "recognition_class": "SHELL_TUBE_HX",
+  "connection_points": [
+    { "id": "tube_inlet",    "x": 0,   "y": 50, "type": "pipe" },
+    { "id": "tube_outlet",   "x": 100, "y": 50, "type": "pipe" },
+    { "id": "shell_inlet",   "x": 50,  "y": 0,  "type": "pipe" },
+    { "id": "shell_outlet",  "x": 50,  "y": 100,"type": "pipe" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 50, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "active": "io-state-running",
+    "idle":   "io-state-stopped",
+    "fault":  "io-state-fault"
+  }
+}

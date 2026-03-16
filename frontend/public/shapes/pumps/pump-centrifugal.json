@@ -1,0 +1,21 @@
+{
+  "id": "pump-centrifugal",
+  "name": "Centrifugal Pump",
+  "category": "pumps",
+  "description": "ISA 5.1 centrifugal pump — rotodynamic, continuous flow",
+  "tags": ["pump", "centrifugal", "rotodynamic", "rotating"],
+  "recognition_class": "CENTRIFUGAL_PUMP",
+  "connection_points": [
+    { "id": "suction",    "x": 0,   "y": 55, "type": "pipe" },
+    { "id": "discharge",  "x": 55,  "y": 0,  "type": "pipe" },
+    { "id": "driver",     "x": 100, "y": 55, "type": "shaft" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 55, "y": 55, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "running": "io-state-running",
+    "stopped": "io-state-stopped",
+    "fault":   "io-state-fault"
+  }
+}

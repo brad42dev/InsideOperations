@@ -1,0 +1,20 @@
+{
+  "id": "valve-check",
+  "name": "Check Valve",
+  "category": "valves",
+  "description": "ISA 5.1 check valve — non-return, allows flow in one direction only",
+  "tags": ["valve", "check", "non-return", "NRV", "backflow"],
+  "recognition_class": "CHECK_VALVE",
+  "connection_points": [
+    { "id": "inlet",  "x": 0,   "y": 50, "type": "pipe" },
+    { "id": "outlet", "x": 100, "y": 50, "type": "pipe" }
+  ],
+  "text_zones": [
+    { "id": "tag", "x": 50, "y": 50, "anchor": "center", "purpose": "tag_name" }
+  ],
+  "state_classes": {
+    "open":   "io-state-open",
+    "closed": "io-state-closed",
+    "fault":  "io-state-fault"
+  }
+}

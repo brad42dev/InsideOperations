@@ -4,6 +4,8 @@ CREATE TABLE settings (
     key VARCHAR(255) PRIMARY KEY,
     value JSONB NOT NULL,
     description TEXT,
+    is_public BOOLEAN NOT NULL DEFAULT false,
+    requires_restart BOOLEAN NOT NULL DEFAULT false,
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     updated_by UUID REFERENCES users(id)
 );
