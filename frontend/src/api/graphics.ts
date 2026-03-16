@@ -5,6 +5,8 @@ export interface GraphicSummary {
   id: string
   name: string
   type: string
+  /** Optional module tag from metadata.module — "process", "console", or absent (untagged) */
+  module?: string
   created_at: string
   created_by: string
   bindings_count: number
@@ -37,8 +39,8 @@ export interface CreateShapeBody {
 }
 
 export const graphicsApi = {
-  list: (): Promise<ApiResult<GraphicSummary[]>> =>
-    api.get<GraphicSummary[]>('/api/graphics'),
+  list: (module?: 'process' | 'console'): Promise<ApiResult<GraphicSummary[]>> =>
+    api.get<GraphicSummary[]>(module ? `/api/graphics?module=${module}` : '/api/graphics'),
 
   get: (id: string): Promise<ApiResult<GraphicDocument>> =>
     api.get<GraphicDocument>(`/api/graphics/${id}`),

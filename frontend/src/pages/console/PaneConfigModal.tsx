@@ -30,8 +30,8 @@ function GraphicSelector({
   value: string | undefined
   onChange: (id: string) => void
 }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['graphics-list'],
+  const { data: rawData, isLoading } = useQuery({
+    queryKey: ['graphics-list', 'console'],
     queryFn: async () => {
       const result = await graphicsApi.list()
       if (!result.success) throw new Error(result.error.message)
@@ -39,6 +39,8 @@ function GraphicSelector({
     },
     staleTime: 30_000,
   })
+  // Exclude graphics tagged for the Process module — they're too large for console panes
+  const data = rawData?.filter((g) => g.module !== 'process')
 
   if (isLoading) {
     return (

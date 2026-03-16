@@ -54,6 +54,15 @@ pub struct GraphicSummary {
     pub created_at: DateTime<Utc>,
     pub created_by: Option<Uuid>,
     pub bindings_count: i64,
+    /// Optional module hint from metadata.module — "process", "console", etc.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListGraphicsQuery {
+    /// Filter by module tag (metadata->>'module'). Pass "process" or "console".
+    pub module: Option<String>,
 }
 
 /// Full item returned in get-single responses.
@@ -108,35 +117,54 @@ fn row_to_detail(row: &sqlx::postgres::PgRow) -> Result<GraphicDetail, sqlx::Err
 pub async fn list_graphics(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<ListGraphicsQuery>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "designer:read") {
         return IoError::Forbidden("designer:read permission required".into()).into_response();
     }
 
-    let rows = match sqlx::query(
+    // Build optional module filter clause
+    let (extra_where, module_bind) = if let Some(ref m) = query.module {
+        (" AND metadata->>'module' = $1", Some(m.as_str()))
+    } else {
+        ("", None)
+    };
+
+    let sql = format!(
         r#"
         SELECT
             id,
             name,
             type,
+            metadata->>'module' AS module,
             created_at,
             created_by,
             (
                 SELECT count(*)::bigint
-                FROM jsonb_object_keys(COALESCE(bindings, '{}'::jsonb)) k
+                FROM jsonb_object_keys(COALESCE(bindings, '{{}}'::jsonb)) k
             ) AS bindings_count
         FROM design_objects
-        WHERE type = 'graphic'
+        WHERE type = 'graphic'{extra_where}
         ORDER BY created_at DESC
         "#,
-    )
-    .fetch_all(&state.db)
-    .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::error!(error = %e, "list_graphics query failed");
-            return IoError::Database(e).into_response();
+        extra_where = extra_where,
+    );
+
+    let rows = if let Some(m) = module_bind {
+        match sqlx::query(&sql).bind(m).fetch_all(&state.db).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "list_graphics query failed");
+                return IoError::Database(e).into_response();
+            }
+        }
+    } else {
+        match sqlx::query(&sql).fetch_all(&state.db).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "list_graphics query failed");
+                return IoError::Database(e).into_response();
+            }
         }
     };
 
@@ -151,13 +179,14 @@ pub async fn list_graphics(
         };
         let name: String = row.try_get("name").unwrap_or_default();
         let object_type: String = row.try_get("type").unwrap_or_default();
+        let module: Option<String> = row.try_get("module").ok().flatten();
         let created_at: DateTime<Utc> = match row.try_get("created_at") {
             Ok(v) => v,
             Err(_) => Utc::now(),
         };
         let created_by: Option<Uuid> = row.try_get("created_by").ok().flatten();
         let bindings_count: i64 = row.try_get("bindings_count").unwrap_or(0);
-        items.push(GraphicSummary { id, name, object_type, created_at, created_by, bindings_count });
+        items.push(GraphicSummary { id, name, object_type, module, created_at, created_by, bindings_count });
     }
 
     Json(ApiResponse::ok(items)).into_response()
