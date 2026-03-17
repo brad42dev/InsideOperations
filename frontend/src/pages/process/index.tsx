@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import GraphicViewer from '../../shared/components/graphics/GraphicViewer'
 import GraphicBrowser from './GraphicBrowser'
 import Minimap from './Minimap'
+import ContextMenu from '../../shared/components/ContextMenu'
 import { graphicsApi } from '../../api/graphics'
 
 const MIN_ZOOM = 0.1
@@ -23,6 +24,7 @@ export default function ProcessPage() {
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 600 })
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
 
   // Sync graphicId → query param
   useEffect(() => {
@@ -120,14 +122,27 @@ export default function ProcessPage() {
       }}
     >
       {/* Graphic viewer — fills all space */}
-      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }}>
+      <div
+        ref={containerRef}
+        style={{ position: 'absolute', inset: 0 }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setCtxMenu({ x: e.clientX, y: e.clientY })
+        }}
+      >
         {graphicId ? (
           <GraphicViewer
             graphicId={graphicId}
             width={viewportSize.width}
             height={viewportSize.height}
             allowPanZoom
-            initialZoom={zoom}
+            zoom={zoom}
+            panX={pan.x}
+            panY={pan.y}
+            onTransformChange={(z, px, py) => {
+              setZoom(z)
+              setPan({ x: px, y: py })
+            }}
           />
         ) : (
           <EmptyState onBrowse={() => setShowBrowser(true)} />
@@ -241,6 +256,49 @@ export default function ProcessPage() {
           onClick={handleMinimapClick}
         />
       )}
+
+      {/* Right-click context menu */}
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={() => setCtxMenu(null)}
+          items={[
+            {
+              label: 'Zoom In',
+              disabled: zoom >= MAX_ZOOM || !graphicId,
+              onClick: handleZoomIn,
+            },
+            {
+              label: 'Zoom Out',
+              disabled: zoom <= MIN_ZOOM || !graphicId,
+              onClick: handleZoomOut,
+            },
+            {
+              label: 'Reset Zoom (100%)',
+              disabled: !graphicId,
+              onClick: handleZoomReset,
+            },
+            {
+              label: 'Fit to Screen',
+              divider: true,
+              disabled: !graphicId,
+              onClick: handleFitToScreen,
+            },
+            {
+              label: showMinimap ? 'Hide Minimap' : 'Show Minimap',
+              divider: true,
+              disabled: !graphicId,
+              onClick: () => setShowMinimap((v) => !v),
+            },
+            {
+              label: 'Browse Graphics…',
+              divider: true,
+              onClick: () => setShowBrowser(true),
+            },
+          ]}
+        />
+      )}
     </div>
   )
 }
@@ -279,7 +337,7 @@ function EmptyState({ onBrowse }: { onBrowse: () => void }) {
         onClick={onBrowse}
         style={{
           marginTop: 8,
-          background: 'var(--io-color-accent)',
+          background: 'var(--io-accent)',
           border: 'none',
           borderRadius: 6,
           color: '#fff',

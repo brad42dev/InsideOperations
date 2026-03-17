@@ -78,6 +78,7 @@ const DEFAULT_STATE: DesignerState = {
   snapEnabled: true,
   undoStack: [],
   redoStack: [],
+  focusMode: false,
 }
 
 // ---------------------------------------------------------------------------
@@ -204,13 +205,13 @@ function RecoveryDialog({
   )
 }
 
+
 // ---------------------------------------------------------------------------
 // Main Designer page
 // ---------------------------------------------------------------------------
 export default function DesignerPage() {
   const { id: graphicId } = useParams<{ id: string }>()
 
-  // Load existing graphic when opened by ID
   const { data: existingGraphic, isLoading: isLoadingGraphic } = useQuery({
     queryKey: ['graphic-edit', graphicId],
     queryFn: async () => {
@@ -234,6 +235,7 @@ export default function DesignerPage() {
   const svgElRef = useRef<SVGSVGElement | null>(null)
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastSavedUndoRef = useRef<number>(0)
+  const imageImportTriggerRef = useRef<(() => void) | null>(null)
 
   const idbKey = `io-designer-draft-${state.documentId ?? 'new'}`
 
@@ -262,7 +264,7 @@ export default function DesignerPage() {
     }
   }, [state.isDirty, idbKey])
 
-  // Sync loaded graphic data into state (runs once when existingGraphic arrives)
+  // Sync loaded graphic data into state
   useEffect(() => {
     if (!existingGraphic || existingGraphicLoadedRef.current) return
     existingGraphicLoadedRef.current = true
@@ -284,10 +286,41 @@ export default function DesignerPage() {
         e.preventDefault()
         handleSave()
       }
+      // Keyboard tool shortcuts (only when not in an input)
+      if ((e.target as HTMLElement).tagName === 'INPUT') return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      switch (e.key.toLowerCase()) {
+        case 'v': setState((prev) => ({ ...prev, activeTool: 'select' })); break
+        case 'r': setState((prev) => ({ ...prev, activeTool: 'rect' })); break
+        case 'e': setState((prev) => ({ ...prev, activeTool: 'ellipse' })); break
+        case 'l': setState((prev) => ({ ...prev, activeTool: 'line' })); break
+        case 'p': setState((prev) => ({ ...prev, activeTool: 'pipe' })); break
+        case 'f': setState((prev) => ({ ...prev, activeTool: 'pencil' })); break
+        case 't': setState((prev) => ({ ...prev, activeTool: 'text' })); break
+        case 'i': imageImportTriggerRef.current?.(); break
+        case 'g': setState((prev) => ({ ...prev, gridEnabled: !prev.gridEnabled })); break
+        case 'escape':
+          setState((prev) => ({ ...prev, activeTool: 'select' }))
+          if (state.focusMode) setState((prev) => ({ ...prev, focusMode: false }))
+          break
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   })
+
+  // Focus mode keyboard shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+        e.preventDefault()
+        setState((prev) => ({ ...prev, focusMode: !prev.focusMode }))
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const pushUndo = useCallback(
     (xml: string) => {
@@ -312,6 +345,10 @@ export default function DesignerPage() {
 
   const handleStateChange = useCallback((partial: Partial<DesignerState>) => {
     setState((prev) => ({ ...prev, ...partial }))
+  }, [])
+
+  const handleZoomChange = useCallback((zoom: number, panX: number, panY: number) => {
+    setState((prev) => ({ ...prev, zoom, panX, panY }))
   }, [])
 
   const handleSave = async () => {
@@ -353,17 +390,19 @@ export default function DesignerPage() {
     setState((prev) => ({ ...prev, activeTool: tool }))
   }
 
-  const handleZoomIn = () =>
-    setState((prev) => ({ ...prev, zoom: Math.min(prev.zoom * 1.2, 5) }))
-  const handleZoomOut = () =>
-    setState((prev) => ({ ...prev, zoom: Math.max(prev.zoom / 1.2, 0.1) }))
-  const handleZoomFit = () =>
+  // Zoom in/out keeping the current pan origin (same as Ctrl+/- keyboard shortcuts in canvas)
+  const handleZoomIn = useCallback(() => {
+    setState((prev) => ({ ...prev, zoom: Math.min(prev.zoom * 1.2, 10) }))
+  }, [])
+  const handleZoomOut = useCallback(() => {
+    setState((prev) => ({ ...prev, zoom: Math.max(prev.zoom / 1.2, 0.05) }))
+  }, [])
+  const handleZoomFit = useCallback(() => {
     setState((prev) => ({ ...prev, zoom: 1, panX: 0, panY: 0 }))
+  }, [])
 
   const handleRecoverDraft = () => {
     setShowRecovery(false)
-    // Draft will be loaded when canvas mounts and calls getContentRef
-    // For now just set dirty flag
     setState((prev) => ({ ...prev, isDirty: true }))
     setDraftXml(null)
   }
@@ -374,13 +413,17 @@ export default function DesignerPage() {
     await idbDelete(idbKey)
   }
 
+  const handleImageImport = useCallback(() => {
+    imageImportTriggerRef.current?.()
+  }, [])
+
   const modes: { id: DesignerMode; label: string }[] = [
     { id: 'graphic', label: 'Graphic' },
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'report', label: 'Report' },
   ]
 
-  // Suppress unused draft xml warning
+  // Suppress unused warning
   void draftXml
   void lastSavedUndoRef
 
@@ -402,109 +445,67 @@ export default function DesignerPage() {
     )
   }
 
+  const focusMode = state.focusMode
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-        background: 'var(--io-surface-primary)',
-      }}
-    >
-      {showRecovery && (
-        <RecoveryDialog onRecover={handleRecoverDraft} onDiscard={handleDiscardDraft} />
-      )}
-
-      {/* Header */}
-      <div style={headerStyle}>
-        {/* Mode tabs */}
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {modes.map(({ id, label }) => (
-            <button
-              key={id}
-              style={modeBtnStyle(state.mode === id)}
-              onClick={() => handleModeChange(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ flex: 1 }} />
-
-        {/* Document name */}
-        <input
-          value={state.documentName}
-          onChange={(e) =>
-            setState((prev) => ({ ...prev, documentName: e.target.value, isDirty: true }))
-          }
+    <>
+      {/* Focus mode — full overlay that covers everything including AppShell */}
+      {focusMode && (
+        <div
           style={{
-            ...titleInputStyle,
-            borderColor: state.isDirty ? 'var(--io-border)' : 'transparent',
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--io-surface-primary)',
           }}
-          onFocus={(e) =>
-            (e.currentTarget.style.borderColor = 'var(--io-accent)')
-          }
-          onBlur={(e) =>
-            (e.currentTarget.style.borderColor = state.isDirty ? 'var(--io-border)' : 'transparent')
-          }
-        />
-
-        {state.isDirty && (
-          <span
-            style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginLeft: '4px' }}
-          >
-            ●
-          </span>
-        )}
-
-        <div style={{ flex: 1 }} />
-
-        {/* Actions */}
-        <button onClick={handleSave} disabled={isSaving} style={saveBtnStyle}>
-          {isSaving ? 'Saving…' : 'Save'}
-        </button>
-        <button
-          onClick={async () => {
-            await handleSave()
-          }}
-          disabled={isSaving}
-          style={publishBtnStyle}
         >
-          Publish
-        </button>
-      </div>
-
-      {/* Body */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Symbol library */}
-        <SymbolLibrary
-          mode={state.mode}
-          onSymbolDrop={() => {
-            // Canvas handles drop events directly
-          }}
-        />
-
-        {/* Center: toolbar + canvas */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Toolbar
-            activeTool={state.activeTool}
-            onToolChange={handleToolChange}
-            gridEnabled={state.gridEnabled}
-            onGridToggle={() =>
-              setState((prev) => ({ ...prev, gridEnabled: !prev.gridEnabled }))
-            }
-            snapEnabled={state.snapEnabled}
-            onSnapToggle={() =>
-              setState((prev) => ({ ...prev, snapEnabled: !prev.snapEnabled }))
-            }
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-            onZoomFit={handleZoomFit}
-            zoom={state.zoom}
-          />
-
+          {/* Minimal focus mode toolbar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '0 8px',
+              height: '40px',
+              background: 'var(--io-surface-elevated)',
+              borderBottom: '1px solid var(--io-border)',
+              flexShrink: 0,
+            }}
+          >
+            <Toolbar
+              activeTool={state.activeTool}
+              onToolChange={handleToolChange}
+              gridEnabled={state.gridEnabled}
+              onGridToggle={() => setState((prev) => ({ ...prev, gridEnabled: !prev.gridEnabled }))}
+              snapEnabled={state.snapEnabled}
+              onSnapToggle={() => setState((prev) => ({ ...prev, snapEnabled: !prev.snapEnabled }))}
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onZoomFit={handleZoomFit}
+              onImageImport={handleImageImport}
+              zoom={state.zoom}
+              focusMode={focusMode}
+              onFocusModeToggle={() => setState((prev) => ({ ...prev, focusMode: false }))}
+            />
+            <button
+              onClick={() => setState((prev) => ({ ...prev, focusMode: false }))}
+              title="Exit focus mode (Esc)"
+              style={{
+                marginLeft: 'auto',
+                padding: '4px 10px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                background: 'transparent',
+                color: 'var(--io-text-secondary)',
+              }}
+            >
+              Exit Focus
+            </button>
+          </div>
           <DesignerCanvas
             mode={state.mode}
             activeTool={state.activeTool}
@@ -517,20 +518,149 @@ export default function DesignerPage() {
             onSelectionChange={handleSelectionChange}
             onStateChange={handleStateChange}
             onContentChange={handleContentChange}
+            onZoomChange={handleZoomChange}
             getContentRef={getContentRef}
+            imageImportTriggerRef={imageImportTriggerRef}
             initialSvg={existingGraphic?.svg_data ?? null}
           />
         </div>
+      )}
 
-        {/* Property panel */}
-        <PropertyPanel
-          selectedIds={state.selectedElementIds}
-          svgRef={svgElRef}
-          bindings={bindings}
-          onBindingsChange={setBindings}
-          mode={state.mode}
-        />
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          overflow: 'hidden',
+          background: 'var(--io-surface-primary)',
+          visibility: focusMode ? 'hidden' : 'visible',
+        }}
+      >
+        {showRecovery && (
+          <RecoveryDialog onRecover={handleRecoverDraft} onDiscard={handleDiscardDraft} />
+        )}
+
+        {/* Header */}
+        <div style={headerStyle}>
+          {/* Mode tabs */}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {modes.map(({ id, label }) => (
+              <button
+                key={id}
+                style={modeBtnStyle(state.mode === id)}
+                onClick={() => handleModeChange(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Document name */}
+          <input
+            value={state.documentName}
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, documentName: e.target.value, isDirty: true }))
+            }
+            style={{
+              ...titleInputStyle,
+              borderColor: state.isDirty ? 'var(--io-border)' : 'transparent',
+            }}
+            onFocus={(e) =>
+              (e.currentTarget.style.borderColor = 'var(--io-accent)')
+            }
+            onBlur={(e) =>
+              (e.currentTarget.style.borderColor = state.isDirty ? 'var(--io-border)' : 'transparent')
+            }
+          />
+
+          {state.isDirty && (
+            <span
+              style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginLeft: '4px' }}
+            >
+              ●
+            </span>
+          )}
+
+          <div style={{ flex: 1 }} />
+
+          {/* Actions */}
+          <button onClick={handleSave} disabled={isSaving} style={saveBtnStyle}>
+            {isSaving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            onClick={async () => {
+              await handleSave()
+            }}
+            disabled={isSaving}
+            style={publishBtnStyle}
+          >
+            Publish
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          {/* Symbol library */}
+          <SymbolLibrary
+            mode={state.mode}
+            onSymbolDrop={() => {
+              // Canvas handles drop events directly
+            }}
+          />
+
+          {/* Center: toolbar + canvas */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <Toolbar
+              activeTool={state.activeTool}
+              onToolChange={handleToolChange}
+              gridEnabled={state.gridEnabled}
+              onGridToggle={() =>
+                setState((prev) => ({ ...prev, gridEnabled: !prev.gridEnabled }))
+              }
+              snapEnabled={state.snapEnabled}
+              onSnapToggle={() =>
+                setState((prev) => ({ ...prev, snapEnabled: !prev.snapEnabled }))
+              }
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onZoomFit={handleZoomFit}
+              onImageImport={handleImageImport}
+              zoom={state.zoom}
+              focusMode={focusMode}
+              onFocusModeToggle={() => setState((prev) => ({ ...prev, focusMode: true }))}
+            />
+
+            <DesignerCanvas
+              mode={state.mode}
+              activeTool={state.activeTool}
+              gridEnabled={state.gridEnabled}
+              gridSize={state.gridSize}
+              snapEnabled={state.snapEnabled}
+              zoom={state.zoom}
+              panX={state.panX}
+              panY={state.panY}
+              onSelectionChange={handleSelectionChange}
+              onStateChange={handleStateChange}
+              onContentChange={handleContentChange}
+              onZoomChange={handleZoomChange}
+              getContentRef={getContentRef}
+              imageImportTriggerRef={imageImportTriggerRef}
+              initialSvg={existingGraphic?.svg_data ?? null}
+            />
+          </div>
+
+          {/* Property panel */}
+          <PropertyPanel
+            selectedIds={state.selectedElementIds}
+            svgRef={svgElRef}
+            bindings={bindings}
+            onBindingsChange={setBindings}
+            mode={state.mode}
+          />
+        </div>
       </div>
-    </div>
+    </>
   )
 }

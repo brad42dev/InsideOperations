@@ -73,7 +73,7 @@ export default function GraphicBrowser({ currentGraphicId, onSelect, onClose }: 
         style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 39,
+          zIndex: 51,
           background: 'transparent',
         }}
       />
@@ -89,7 +89,7 @@ export default function GraphicBrowser({ currentGraphicId, onSelect, onClose }: 
           width: 220,
           background: 'var(--io-surface-elevated)',
           borderRight: '1px solid var(--io-border)',
-          zIndex: 40,
+          zIndex: 52,
           display: 'flex',
           flexDirection: 'column',
           animation: 'io-slide-in-left 180ms ease-out',

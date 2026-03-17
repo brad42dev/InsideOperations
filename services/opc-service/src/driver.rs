@@ -352,6 +352,8 @@ async fn run_source_once(
     // preventing stale tasks from accumulating across reconnect cycles.
     let event_task = create_event_subscription(source, db, &session, config).await;
 
+    info!(source = %source.name, "Entering flush loop — waiting for OPC UA DataChange callbacks");
+
     // --- Flush loop (runs until session ends) ---
     flush_loop(source, db, uds, config, update_rx).await;
 
@@ -359,6 +361,20 @@ async fn run_source_once(
     if let Some(handle) = event_task {
         handle.abort();
     }
+
+    // Send OPC UA CloseSession so the server can immediately release all
+    // server-side session state (subscriptions, monitored items, locks).
+    // Without this, "zombie" sessions accumulate on the server across restarts
+    // until the server-side timeout expires, consuming server session/item
+    // quota and causing BadServiceUnsupported on monitored item creation.
+    let session_clone = session.clone();
+    let source_name = source.name.clone();
+    tokio::task::spawn_blocking(move || {
+        session_clone.write().disconnect();
+        tracing::info!(source = %source_name, "OPC UA session closed cleanly");
+    })
+    .await
+    .ok(); // join error is non-fatal
 
     Ok(())
 }
@@ -420,6 +436,11 @@ async fn browse_namespace(
                         // Skip ns=0 nodes — those are OPC UA server infrastructure
                         // (Server diagnostics, Endpoints, SessionDiagnostics, etc.).
                         // Process data lives in vendor namespaces (ns >= 2).
+                        // NOTE: Do NOT recurse into ns=0 Objects — SimBLAH's address space
+                        // contains ns=2 metadata nodes under ns=0 Objects (e.g. Server node)
+                        // that return BadServiceUnsupported when monitored.  The correct
+                        // process data is accessible directly from Objects (ns=0;i=85) via
+                        // ns>=2 Object children without recursing through ns=0.
                         if node_id.namespace == 0 {
                             continue;
                         }
@@ -998,14 +1019,33 @@ fn create_subscriptions(
             )
             .map_err(|sc| anyhow::anyhow!("create_subscription failed: {}", sc))?;
 
-        session_guard
+        let item_results = session_guard
             .create_monitored_items(sub_id, TimestampsToReturn::Both, &monitored_items)
             .map_err(|sc| anyhow::anyhow!("create_monitored_items failed: {}", sc))?;
+
+        // Count items with non-Good status codes and log them for diagnostics.
+        let bad_items: Vec<String> = item_results
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| !r.status_code.is_good())
+            .take(10)
+            .map(|(i, r)| format!("[{}]={}", i, r.status_code))
+            .collect();
+        if !bad_items.is_empty() {
+            warn!(
+                source = %source.name,
+                chunk = chunk_idx,
+                bad_count = item_results.iter().filter(|r| !r.status_code.is_good()).count(),
+                first_bad = %bad_items.join(", "),
+                "Some monitored items returned non-Good status codes"
+            );
+        }
 
         info!(
             source = %source.name,
             chunk = chunk_idx,
             items = chunk.len(),
+            good_items = item_results.iter().filter(|r| r.status_code.is_good()).count(),
             sub_id,
             "Created OPC UA subscription"
         );
@@ -1389,6 +1429,9 @@ async fn flush_loop(
     let interval = Duration::from_millis(config.batch_interval_ms);
     let mut pending: Vec<PointUpdate> = Vec::with_capacity(config.batch_max_points);
     let mut next_flush = Instant::now() + interval;
+    let mut heartbeat = tokio::time::Instant::now();
+    let heartbeat_interval = Duration::from_secs(30);
+    let mut total_updates: u64 = 0;
 
     loop {
         tokio::select! {
@@ -1397,6 +1440,10 @@ async fn flush_loop(
             maybe = update_rx.recv() => {
                 match maybe {
                     Some(update) => {
+                        total_updates += 1;
+                        if total_updates == 1 {
+                            info!(source = %source.name, "First DataChange callback received!");
+                        }
                         pending.push(update);
                         if pending.len() >= config.batch_max_points {
                             flush(source, db, uds, &mut pending).await;
@@ -1418,6 +1465,13 @@ async fn flush_loop(
                     flush(source, db, uds, &mut pending).await;
                 }
                 next_flush = Instant::now() + interval;
+                // Heartbeat: log every 30s if no data is arriving
+                if heartbeat.elapsed() >= heartbeat_interval && total_updates == 0 {
+                    warn!(source = %source.name, "No OPC UA DataChange callbacks received in 30s — subscriptions may not be delivering data");
+                    heartbeat = tokio::time::Instant::now();
+                } else if heartbeat.elapsed() >= heartbeat_interval {
+                    heartbeat = tokio::time::Instant::now();
+                }
             }
         }
     }

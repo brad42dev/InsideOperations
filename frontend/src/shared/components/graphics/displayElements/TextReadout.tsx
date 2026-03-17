@@ -46,7 +46,10 @@ export default function TextReadout({
 
   return (
     <g
-      style={{ cursor: onPointClick ? 'pointer' : undefined }}
+      style={{
+        cursor: onPointClick ? 'pointer' : undefined,
+        pointerEvents: onPointClick ? 'auto' : 'none',
+      }}
       onClick={onPointClick}
       data-testid="text-readout"
     >

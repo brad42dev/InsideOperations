@@ -42,11 +42,12 @@ describe('api client — 401 and auth refresh', () => {
   beforeEach(() => {
     // Clear any token so refresh returns null quickly
     localStorage.removeItem('io_access_token')
-    // Mock window.location.href setter to avoid jsdom navigation errors
-    vi.spyOn(window, 'location', 'get').mockReturnValue({
-      ...window.location,
-      href: '/',
-    } as Location)
+    // Replace window.location with a plain object so assignments don't trigger
+    // happy-dom navigation (which throws / swallows the return value).
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { href: '/', assign: vi.fn(), replace: vi.fn() },
+    })
   })
 
   it('returns UNAUTHORIZED error when 401 and refresh fails', async () => {

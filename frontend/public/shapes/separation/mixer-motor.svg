@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 34"
+     data-io-shape="mixer-motor" data-io-version="3.0">
+  <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="0.75">
+    <circle cx="30" cy="4" r="3"/>
+    <line x1="30" y1="7" x2="30" y2="32"/>
+    <path d="M 30,19 C 22,14 14,12 10,19 C 14,26 22,24 30,19 Z"
+          fill="#808080" stroke="none"/>
+    <path d="M 30,19 C 38,14 46,12 50,19 C 46,26 38,24 30,19 Z"
+          fill="#808080" stroke="none" transform="rotate(180,30,19)"/>
+  </g>
+</svg>

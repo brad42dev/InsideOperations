@@ -3,90 +3,637 @@
 @tailwind utilities;
 
 /* ============================================================
-   I/O Design System — CSS Custom Properties
+   I/O Design System — CSS Custom Properties (138 tokens)
    Defaults: Dark theme. JS (tokens.ts) overrides on load.
+   Doc 38 token registry — all 138 tokens defined.
    ============================================================ */
 
+/* ---- Dark theme (default) ---------------------------------- */
 :root,
 [data-theme="dark"] {
+  /* Surface & Layout (5) */
   --io-surface-primary: #09090b;
   --io-surface-secondary: #18181b;
   --io-surface-elevated: #27272a;
   --io-surface-sunken: #09090b;
-  --io-text-primary: #fafafa;
+  --io-surface-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Text (5) */
+  --io-text-primary: #f9fafb;
   --io-text-secondary: #a1a1aa;
   --io-text-muted: #71717a;
+  --io-text-inverse: #09090b;
+  --io-text-link: var(--io-accent);
+
+  /* Accent — Midnight Teal, dark theme uses 400-level (5) */
   --io-accent: #2dd4bf;
-  --io-accent-hover: #14b8a6;
+  --io-accent-hover: #5eead4;
+  --io-accent-active: #99f6e4;
+  --io-accent-foreground: #09090b;
   --io-accent-subtle: rgba(45, 212, 191, 0.1);
+
+  /* Borders & Separators (4) */
   --io-border: #3f3f46;
   --io-border-subtle: #27272a;
+  --io-border-strong: #52525b;
+  --io-focus-ring: #2dd4bf;
+
+  /* Alarm Priority — ISA-101 / ISA-18.2 (6, NOT customizable) */
+  --io-alarm-critical: #ef4444;
+  --io-alarm-high: #f59e0b;
+  --io-alarm-medium: #eab308;
+  --io-alarm-advisory: #06b6d4;
+  --io-alarm-custom: #7c3aed;
+  --io-alarm-fault: #d946ef;
+
+  /* Graphics Display Elements (4) */
+  --io-fill-normal: rgba(71, 85, 105, 0.5);
+  --io-display-zone-inactive: #3f3f46;
+  --io-display-zone-normal: #404048;
+  --io-display-zone-border: #52525b;
+
+  /* Operational Status (3) */
+  --io-alarm-normal: #22c55e;
+  --io-alarm-suppressed: #a78bfa;
+  --io-alarm-disabled: #71717a;
+
+  /* Semantic Status (5) */
   --io-danger: #ef4444;
   --io-success: #22c55e;
   --io-warning: #f59e0b;
+  --io-info: #3b82f6;
+  --io-text-disabled: #52525b;
+
+  /* Chart & Visualization (5) */
+  --io-chart-bg: #18181b;
+  --io-chart-grid: #27272a;
+  --io-chart-axis: #a1a1aa;
+  --io-chart-crosshair: #71717a;
+  --io-chart-tooltip-bg: #27272a;
+
+  /* Trend pen colors — 8 pens (static across themes) */
+  --io-pen-1: #2563eb;
+  --io-pen-2: #dc2626;
+  --io-pen-3: #16a34a;
+  --io-pen-4: #d97706;
+  --io-pen-5: #7c3aed;
+  --io-pen-6: #0891b2;
+  --io-pen-7: #db2777;
+  --io-pen-8: #65a30d;
+
+  /* Layer 4: Button Tokens (6) */
+  --io-btn-bg: var(--io-accent);
+  --io-btn-hover: var(--io-accent-hover);
+  --io-btn-active: var(--io-accent-active);
+  --io-btn-text: var(--io-accent-foreground);
+  --io-btn-secondary-bg: var(--io-surface-secondary);
+  --io-btn-secondary-border: var(--io-border);
+
+  /* Layer 4: Sidebar Tokens (5) */
+  --io-sidebar-bg: var(--io-surface-secondary);
+  --io-sidebar-width: 240px;
+  --io-sidebar-collapsed: 48px;
+  --io-sidebar-active-border: var(--io-accent);
+  --io-sidebar-hover-bg: var(--io-accent-subtle);
+
+  /* Layer 4: Top Bar Tokens (3) */
+  --io-topbar-bg: var(--io-surface-primary);
+  --io-topbar-height: 48px;
+  --io-topbar-border: var(--io-border-subtle);
+
+  /* Layer 4: Card Tokens (4) */
+  --io-card-bg: var(--io-surface-secondary);
+  --io-card-border: var(--io-border);
+  --io-card-radius: var(--io-radius);
+  --io-card-shadow: var(--io-shadow-sm);
+
+  /* Layer 4: Table Tokens (6) */
+  --io-table-row-compact: 28px;
+  --io-table-row-default: 36px;
+  --io-table-row-comfortable: 44px;
+  --io-table-header-bg: var(--io-surface-sunken);
+  --io-table-row-hover: var(--io-accent-subtle);
+  --io-table-row-selected: var(--io-accent-subtle);
+
+  /* Layer 4: Input Tokens (5) */
+  --io-input-bg: var(--io-surface-sunken);
+  --io-input-border: var(--io-border);
+  --io-input-focus-border: var(--io-accent);
+  --io-input-placeholder: var(--io-text-muted);
+  --io-input-height: 36px;
+
+  /* Layer 4: Modal/Dialog Tokens (3) */
+  --io-modal-bg: var(--io-surface-elevated);
+  --io-modal-backdrop: var(--io-surface-overlay);
+  --io-modal-radius: var(--io-radius-lg);
+
+  /* Layer 4: Toast/Notification Tokens (3) */
+  --io-toast-bg: var(--io-surface-elevated);
+  --io-toast-border: var(--io-border);
+  --io-toast-shadow: var(--io-shadow-lg);
+
+  /* Spacing (17) */
+  --io-space-0: 0px;
   --io-space-1: 4px;
   --io-space-2: 8px;
   --io-space-3: 12px;
   --io-space-4: 16px;
+  --io-space-5: 20px;
   --io-space-6: 24px;
   --io-space-8: 32px;
+  --io-space-10: 40px;
+  --io-space-12: 48px;
+  --io-space-14: 56px;
+  --io-space-16: 64px;
+  --io-space-20: 80px;
+  --io-space-24: 96px;
+  --io-space-32: 128px;
+  --io-space-40: 160px;
+  --io-space-48: 192px;
+
+  /* Border Radius (4) — Subtle preset (6px) */
+  --io-radius-sm: 3px;
   --io-radius: 6px;
-  --io-sidebar-width: 220px;
-  --io-topbar-height: 48px;
+  --io-radius-lg: 9px;
+  --io-radius-full: 9999px;
+
+  /* Shadow (4) */
+  --io-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --io-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --io-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5), 0 4px 6px rgba(0, 0, 0, 0.3);
+  --io-shadow-none: none;
+
+  /* Typography (16) */
+  --io-text-4xl: 2.25rem;
+  --io-text-3xl: 1.75rem;
+  --io-text-2xl: 1.375rem;
+  --io-text-xl: 1.125rem;
+  --io-text-lg: 1rem;
+  --io-text-base: 0.875rem;
+  --io-text-sm: 0.8125rem;
+  --io-text-xs: 0.75rem;
+  --io-text-2xs: 0.6875rem;
+  --io-text-label: 0.75rem;
+  --io-text-label-sm: 0.6875rem;
+  --io-text-value: 0.875rem;
+  --io-text-value-lg: 1.125rem;
+  --io-text-value-xl: 1.5rem;
+  --io-text-code: 0.8125rem;
+  --io-text-code-sm: 0.75rem;
+
+  /* Z-Index (12) */
+  --io-z-base: 0;
+  --io-z-panel: 10;
+  --io-z-sidebar: 100;
+  --io-z-topbar: 100;
+  --io-z-edge-hover: 150;
+  --io-z-dropdown: 200;
+  --io-z-modal: 300;
+  --io-z-command: 400;
+  --io-z-visual-lock: 500;
+  --io-z-kiosk-auth: 600;
+  --io-z-toast: 700;
+  --io-z-emergency: 800;
+
+  /* Duration (3) */
+  --io-duration-fast: 150ms;
+  --io-duration-medium: 250ms;
+  --io-duration-slow: 350ms;
 }
 
+/* ---- Light theme ------------------------------------------- */
 [data-theme="light"] {
+  /* Surface & Layout */
   --io-surface-primary: #ffffff;
   --io-surface-secondary: #f9fafb;
   --io-surface-elevated: #ffffff;
   --io-surface-sunken: #f3f4f6;
-  --io-text-primary: #09090b;
-  --io-text-secondary: #52525b;
-  --io-text-muted: #a1a1aa;
+  --io-surface-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Text */
+  --io-text-primary: #111827;
+  --io-text-secondary: #6b7280;
+  --io-text-muted: #9ca3af;
+  --io-text-inverse: #ffffff;
+  --io-text-link: var(--io-accent);
+
+  /* Accent — Midnight Teal, light theme uses 600-level */
   --io-accent: #0d9488;
   --io-accent-hover: #0f766e;
+  --io-accent-active: #115e59;
+  --io-accent-foreground: #ffffff;
   --io-accent-subtle: rgba(13, 148, 136, 0.08);
-  --io-border: #e4e4e7;
-  --io-border-subtle: #f4f4f5;
-  --io-danger: #ef4444;
-  --io-success: #22c55e;
-  --io-warning: #f59e0b;
+
+  /* Borders */
+  --io-border: #e5e7eb;
+  --io-border-subtle: #f3f4f6;
+  --io-border-strong: #d1d5db;
+  --io-focus-ring: #14b8a6;
+
+  /* Alarm Priority — ISA-101 (lighter for light bg) */
+  --io-alarm-critical: #dc2626;
+  --io-alarm-high: #d97706;
+  --io-alarm-medium: #ca8a04;
+  --io-alarm-advisory: #0891b2;
+  --io-alarm-custom: #6d28d9;
+  --io-alarm-fault: #c026d3;
+
+  /* Graphics Display Elements */
+  --io-fill-normal: rgba(148, 163, 184, 0.3);
+  --io-display-zone-inactive: #e5e7eb;
+  --io-display-zone-normal: #d1d5db;
+  --io-display-zone-border: #d1d5db;
+
+  /* Operational Status */
+  --io-alarm-normal: #16a34a;
+  --io-alarm-suppressed: #7c3aed;
+  --io-alarm-disabled: #9ca3af;
+
+  /* Semantic Status */
+  --io-danger: #dc2626;
+  --io-success: #16a34a;
+  --io-warning: #d97706;
+  --io-info: #2563eb;
+  --io-text-disabled: #d1d5db;
+
+  /* Chart & Visualization */
+  --io-chart-bg: #ffffff;
+  --io-chart-grid: #f3f4f6;
+  --io-chart-axis: #6b7280;
+  --io-chart-crosshair: #9ca3af;
+  --io-chart-tooltip-bg: #ffffff;
+
+  /* Trend pen colors (static across themes) */
+  --io-pen-1: #2563eb;
+  --io-pen-2: #dc2626;
+  --io-pen-3: #16a34a;
+  --io-pen-4: #d97706;
+  --io-pen-5: #7c3aed;
+  --io-pen-6: #0891b2;
+  --io-pen-7: #db2777;
+  --io-pen-8: #65a30d;
+
+  /* Layer 4: Button Tokens */
+  --io-btn-bg: var(--io-accent);
+  --io-btn-hover: var(--io-accent-hover);
+  --io-btn-active: var(--io-accent-active);
+  --io-btn-text: var(--io-accent-foreground);
+  --io-btn-secondary-bg: var(--io-surface-secondary);
+  --io-btn-secondary-border: var(--io-border);
+
+  /* Layer 4: Sidebar Tokens */
+  --io-sidebar-bg: var(--io-surface-secondary);
+  --io-sidebar-width: 240px;
+  --io-sidebar-collapsed: 48px;
+  --io-sidebar-active-border: var(--io-accent);
+  --io-sidebar-hover-bg: var(--io-accent-subtle);
+
+  /* Layer 4: Top Bar Tokens */
+  --io-topbar-bg: var(--io-surface-primary);
+  --io-topbar-height: 48px;
+  --io-topbar-border: var(--io-border-subtle);
+
+  /* Layer 4: Card Tokens */
+  --io-card-bg: var(--io-surface-secondary);
+  --io-card-border: var(--io-border);
+  --io-card-radius: var(--io-radius);
+  --io-card-shadow: var(--io-shadow-sm);
+
+  /* Layer 4: Table Tokens */
+  --io-table-row-compact: 28px;
+  --io-table-row-default: 36px;
+  --io-table-row-comfortable: 44px;
+  --io-table-header-bg: var(--io-surface-sunken);
+  --io-table-row-hover: var(--io-accent-subtle);
+  --io-table-row-selected: var(--io-accent-subtle);
+
+  /* Layer 4: Input Tokens */
+  --io-input-bg: var(--io-surface-sunken);
+  --io-input-border: var(--io-border);
+  --io-input-focus-border: var(--io-accent);
+  --io-input-placeholder: var(--io-text-muted);
+  --io-input-height: 36px;
+
+  /* Layer 4: Modal/Dialog Tokens */
+  --io-modal-bg: var(--io-surface-elevated);
+  --io-modal-backdrop: var(--io-surface-overlay);
+  --io-modal-radius: var(--io-radius-lg);
+
+  /* Layer 4: Toast/Notification Tokens */
+  --io-toast-bg: var(--io-surface-elevated);
+  --io-toast-border: var(--io-border);
+  --io-toast-shadow: var(--io-shadow-lg);
+
+  /* Spacing */
+  --io-space-0: 0px;
   --io-space-1: 4px;
   --io-space-2: 8px;
   --io-space-3: 12px;
   --io-space-4: 16px;
+  --io-space-5: 20px;
   --io-space-6: 24px;
   --io-space-8: 32px;
+  --io-space-10: 40px;
+  --io-space-12: 48px;
+  --io-space-14: 56px;
+  --io-space-16: 64px;
+  --io-space-20: 80px;
+  --io-space-24: 96px;
+  --io-space-32: 128px;
+  --io-space-40: 160px;
+  --io-space-48: 192px;
+
+  /* Border Radius */
+  --io-radius-sm: 3px;
   --io-radius: 6px;
-  --io-sidebar-width: 220px;
-  --io-topbar-height: 48px;
+  --io-radius-lg: 9px;
+  --io-radius-full: 9999px;
+
+  /* Shadow */
+  --io-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --io-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --io-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --io-shadow-none: none;
+
+  /* Typography (same values across themes) */
+  --io-text-4xl: 2.25rem;
+  --io-text-3xl: 1.75rem;
+  --io-text-2xl: 1.375rem;
+  --io-text-xl: 1.125rem;
+  --io-text-lg: 1rem;
+  --io-text-base: 0.875rem;
+  --io-text-sm: 0.8125rem;
+  --io-text-xs: 0.75rem;
+  --io-text-2xs: 0.6875rem;
+  --io-text-label: 0.75rem;
+  --io-text-label-sm: 0.6875rem;
+  --io-text-value: 0.875rem;
+  --io-text-value-lg: 1.125rem;
+  --io-text-value-xl: 1.5rem;
+  --io-text-code: 0.8125rem;
+  --io-text-code-sm: 0.75rem;
+
+  /* Z-Index (same across themes) */
+  --io-z-base: 0;
+  --io-z-panel: 10;
+  --io-z-sidebar: 100;
+  --io-z-topbar: 100;
+  --io-z-edge-hover: 150;
+  --io-z-dropdown: 200;
+  --io-z-modal: 300;
+  --io-z-command: 400;
+  --io-z-visual-lock: 500;
+  --io-z-kiosk-auth: 600;
+  --io-z-toast: 700;
+  --io-z-emergency: 800;
+
+  /* Duration (same across themes) */
+  --io-duration-fast: 150ms;
+  --io-duration-medium: 250ms;
+  --io-duration-slow: 350ms;
 }
 
+/* ---- HPHMI theme (dark blue-gray, ISA-101) ----------------- */
 [data-theme="hphmi"] {
+  /* Surface & Layout */
   --io-surface-primary: #0f172a;
   --io-surface-secondary: #1e293b;
   --io-surface-elevated: #334155;
   --io-surface-sunken: #0c1525;
+  --io-surface-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Text */
   --io-text-primary: #e2e8f0;
   --io-text-secondary: #94a3b8;
   --io-text-muted: #64748b;
-  --io-accent: #2dd4bf;
-  --io-accent-hover: #14b8a6;
+  --io-text-inverse: #0f172a;
+  --io-text-link: var(--io-accent);
+
+  /* Accent — Midnight Teal, HPHMI uses 500-level */
+  --io-accent: #14b8a6;
+  --io-accent-hover: #2dd4bf;
+  --io-accent-active: #5eead4;
+  --io-accent-foreground: #0f172a;
   --io-accent-subtle: rgba(45, 212, 191, 0.08);
+
+  /* Borders */
   --io-border: #334155;
   --io-border-subtle: #1e293b;
+  --io-border-strong: #475569;
+  --io-focus-ring: #14b8a6;
+
+  /* Alarm Priority — ISA-101 */
+  --io-alarm-critical: #ef4444;
+  --io-alarm-high: #f59e0b;
+  --io-alarm-medium: #eab308;
+  --io-alarm-advisory: #06b6d4;
+  --io-alarm-custom: #7c3aed;
+  --io-alarm-fault: #d946ef;
+
+  /* Graphics Display Elements */
+  --io-fill-normal: rgba(71, 85, 105, 0.5);
+  --io-display-zone-inactive: #3f3f46;
+  --io-display-zone-normal: #404048;
+  --io-display-zone-border: #52525b;
+
+  /* Operational Status */
+  --io-alarm-normal: #22c55e;
+  --io-alarm-suppressed: #a78bfa;
+  --io-alarm-disabled: #64748b;
+
+  /* Semantic Status */
   --io-danger: #ef4444;
   --io-success: #22c55e;
   --io-warning: #f59e0b;
+  --io-info: #3b82f6;
+  --io-text-disabled: #475569;
+
+  /* Chart & Visualization */
+  --io-chart-bg: #1e293b;
+  --io-chart-grid: #1e293b;
+  --io-chart-axis: #94a3b8;
+  --io-chart-crosshair: #64748b;
+  --io-chart-tooltip-bg: #1e293b;
+
+  /* Trend pen colors (static) */
+  --io-pen-1: #2563eb;
+  --io-pen-2: #dc2626;
+  --io-pen-3: #16a34a;
+  --io-pen-4: #d97706;
+  --io-pen-5: #7c3aed;
+  --io-pen-6: #0891b2;
+  --io-pen-7: #db2777;
+  --io-pen-8: #65a30d;
+
+  /* Layer 4: Button Tokens */
+  --io-btn-bg: var(--io-accent);
+  --io-btn-hover: var(--io-accent-hover);
+  --io-btn-active: var(--io-accent-active);
+  --io-btn-text: var(--io-accent-foreground);
+  --io-btn-secondary-bg: var(--io-surface-secondary);
+  --io-btn-secondary-border: var(--io-border);
+
+  /* Layer 4: Sidebar Tokens */
+  --io-sidebar-bg: var(--io-surface-secondary);
+  --io-sidebar-width: 240px;
+  --io-sidebar-collapsed: 48px;
+  --io-sidebar-active-border: var(--io-accent);
+  --io-sidebar-hover-bg: var(--io-accent-subtle);
+
+  /* Layer 4: Top Bar Tokens */
+  --io-topbar-bg: var(--io-surface-primary);
+  --io-topbar-height: 48px;
+  --io-topbar-border: var(--io-border-subtle);
+
+  /* Layer 4: Card Tokens */
+  --io-card-bg: var(--io-surface-secondary);
+  --io-card-border: var(--io-border);
+  --io-card-radius: var(--io-radius);
+  --io-card-shadow: var(--io-shadow-sm);
+
+  /* Layer 4: Table Tokens */
+  --io-table-row-compact: 28px;
+  --io-table-row-default: 36px;
+  --io-table-row-comfortable: 44px;
+  --io-table-header-bg: var(--io-surface-sunken);
+  --io-table-row-hover: var(--io-accent-subtle);
+  --io-table-row-selected: var(--io-accent-subtle);
+
+  /* Layer 4: Input Tokens */
+  --io-input-bg: var(--io-surface-sunken);
+  --io-input-border: var(--io-border);
+  --io-input-focus-border: var(--io-accent);
+  --io-input-placeholder: var(--io-text-muted);
+  --io-input-height: 36px;
+
+  /* Layer 4: Modal/Dialog Tokens */
+  --io-modal-bg: var(--io-surface-elevated);
+  --io-modal-backdrop: var(--io-surface-overlay);
+  --io-modal-radius: var(--io-radius-lg);
+
+  /* Layer 4: Toast/Notification Tokens */
+  --io-toast-bg: var(--io-surface-elevated);
+  --io-toast-border: var(--io-border);
+  --io-toast-shadow: var(--io-shadow-lg);
+
+  /* Spacing */
+  --io-space-0: 0px;
   --io-space-1: 4px;
   --io-space-2: 8px;
   --io-space-3: 12px;
   --io-space-4: 16px;
+  --io-space-5: 20px;
   --io-space-6: 24px;
   --io-space-8: 32px;
+  --io-space-10: 40px;
+  --io-space-12: 48px;
+  --io-space-14: 56px;
+  --io-space-16: 64px;
+  --io-space-20: 80px;
+  --io-space-24: 96px;
+  --io-space-32: 128px;
+  --io-space-40: 160px;
+  --io-space-48: 192px;
+
+  /* Border Radius */
+  --io-radius-sm: 3px;
   --io-radius: 6px;
-  --io-sidebar-width: 220px;
-  --io-topbar-height: 48px;
+  --io-radius-lg: 9px;
+  --io-radius-full: 9999px;
+
+  /* Shadow */
+  --io-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --io-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --io-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5), 0 4px 6px rgba(0, 0, 0, 0.3);
+  --io-shadow-none: none;
+
+  /* Typography */
+  --io-text-4xl: 2.25rem;
+  --io-text-3xl: 1.75rem;
+  --io-text-2xl: 1.375rem;
+  --io-text-xl: 1.125rem;
+  --io-text-lg: 1rem;
+  --io-text-base: 0.875rem;
+  --io-text-sm: 0.8125rem;
+  --io-text-xs: 0.75rem;
+  --io-text-2xs: 0.6875rem;
+  --io-text-label: 0.75rem;
+  --io-text-label-sm: 0.6875rem;
+  --io-text-value: 0.875rem;
+  --io-text-value-lg: 1.125rem;
+  --io-text-value-xl: 1.5rem;
+  --io-text-code: 0.8125rem;
+  --io-text-code-sm: 0.75rem;
+
+  /* Z-Index */
+  --io-z-base: 0;
+  --io-z-panel: 10;
+  --io-z-sidebar: 100;
+  --io-z-topbar: 100;
+  --io-z-edge-hover: 150;
+  --io-z-dropdown: 200;
+  --io-z-modal: 300;
+  --io-z-command: 400;
+  --io-z-visual-lock: 500;
+  --io-z-kiosk-auth: 600;
+  --io-z-toast: 700;
+  --io-z-emergency: 800;
+
+  /* Duration */
+  --io-duration-fast: 150ms;
+  --io-duration-medium: 250ms;
+  --io-duration-slow: 350ms;
+}
+
+/* ============================================================
+   Alarm State CSS Classes (doc 38 / doc 35)
+   Applied to display elements, not theme-dependent.
+   ============================================================ */
+
+/* Unacknowledged — 1Hz flash between alarm color and gray */
+@keyframes io-alarm-flash {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.25; }
+}
+
+.io-unack {
+  animation: io-alarm-flash 1s step-end infinite;
+}
+.io-ack {
+  /* Steady alarm color — no animation */
+}
+.io-rtn-unack {
+  opacity: 0.6;
+}
+.io-shelved {
+  border-style: dashed !important;
+  opacity: 0.7;
+}
+.io-suppressed {
+  opacity: 0.4;
+}
+.io-oos-display {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* Data Quality CSS Classes */
+.io-quality-stale {
+  outline: 1px dashed var(--io-border-strong);
+  opacity: 0.6;
+}
+.io-quality-bad {
+  outline: 1px dashed var(--io-alarm-critical);
+}
+.io-quality-comm-fail {
+  outline: 1px solid var(--io-alarm-disabled);
+  opacity: 0.7;
+}
+.io-quality-uncertain {
+  outline: 1px dotted var(--io-border-strong);
+}
+.io-quality-manual {
+  outline: 1px solid var(--io-alarm-advisory);
 }
 
 /* ============================================================
@@ -108,14 +655,30 @@ body {
   margin: 0;
   background: var(--io-surface-primary);
   color: var(--io-text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  font-size: 14px;
+  font-family: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', sans-serif;
+  font-size: var(--io-text-base, 0.875rem);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling */
+/* Monospace for code/data contexts */
+code, pre, kbd,
+.io-mono {
+  font-family: 'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: var(--io-text-code, 0.8125rem);
+}
+
+/* Tabular numbers for data values — prevents layout jitter */
+.io-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Scrollbar styling
+   ============================================================ */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -134,14 +697,50 @@ body {
   background: var(--io-text-muted);
 }
 
-/* Focus ring */
+/* ============================================================
+   Focus ring
+   ============================================================ */
+
 :focus-visible {
-  outline: 2px solid var(--io-accent);
+  outline: 2px solid var(--io-focus-ring, var(--io-accent));
   outline-offset: 2px;
 }
 
-/* Selection */
+/* ============================================================
+   Text selection
+   ============================================================ */
+
 ::selection {
   background: var(--io-accent-subtle);
   color: var(--io-text-primary);
+}
+
+/* ============================================================
+   Print stylesheet — color normalization (doc 06)
+   ============================================================ */
+
+@media print {
+  :root {
+    --io-surface-primary: #ffffff;
+    --io-surface-secondary: #f9fafb;
+    --io-surface-elevated: #ffffff;
+    --io-text-primary: #111827;
+    --io-text-secondary: #374151;
+    --io-text-muted: #6b7280;
+    --io-border: #d1d5db;
+    /* Alarm colors preserved (semantic meaning must survive print) */
+  }
+
+  body {
+    background: #ffffff;
+    color: #111827;
+  }
+
+  /* Hide navigation chrome */
+  .io-sidebar,
+  .io-topbar,
+  .io-toolbar,
+  [role="navigation"] {
+    display: none !important;
+  }
 }

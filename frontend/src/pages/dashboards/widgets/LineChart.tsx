@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import TimeSeriesChart from '../../../shared/components/charts/TimeSeriesChart'
 import type { WidgetConfig } from '../../../api/dashboards'
+import { usePointValues } from '../../../shared/hooks/usePointValues'
 
 interface LineChartConfig {
   title: string
@@ -62,24 +63,43 @@ export default function LineChart({ config }: Props) {
     enabled: points.length > 0,
   })
 
-  const seriesData = (query.data ?? []).map((result, idx) => {
-    const sortedData = [...(result.data ?? [])].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    )
-    const colors = ['#4A9EFF', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4']
-    return {
-      label: points[idx] ?? `Series ${idx + 1}`,
-      data: sortedData.map((d) => d.value),
-      color: colors[idx % colors.length],
-    }
-  })
+  // Subscribe to live values — appended as the rightmost point on each series
+  const liveValues = usePointValues(points)
 
-  const timestamps =
+  const colors = ['#4A9EFF', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4']
+
+  const nowSec = Math.floor(Date.now() / 1000)
+
+  const baseTimestamps =
     query.data && query.data[0]
       ? [...(query.data[0].data ?? [])].sort(
           (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         ).map((d) => Math.floor(new Date(d.timestamp).getTime() / 1000))
       : []
+
+  // Append current timestamp if we have any live data
+  const hasLive = points.some((id) => liveValues.has(id))
+  const timestamps = hasLive && baseTimestamps.length > 0
+    ? [...baseTimestamps, nowSec]
+    : baseTimestamps
+
+  const seriesData = (query.data ?? []).map((result, idx) => {
+    const sortedData = [...(result.data ?? [])].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    )
+    const pointId = points[idx]
+    const livePoint = pointId ? liveValues.get(pointId) : undefined
+    const historicalValues = sortedData.map((d) => d.value)
+    // Append live value as the rightmost point only when historical data exists
+    const data = livePoint != null && historicalValues.length > 0
+      ? [...historicalValues, livePoint.value]
+      : historicalValues
+    return {
+      label: pointId ?? `Series ${idx + 1}`,
+      data,
+      color: colors[idx % colors.length],
+    }
+  })
 
   if (query.isLoading) {
     return (

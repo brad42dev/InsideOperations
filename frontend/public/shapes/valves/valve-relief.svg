@@ -1,17 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <g class="io-shape" data-category="valves" data-name="Relief Valve">
-    <!-- Two triangles meeting at center (gate valve body) -->
-    <polygon points="10,35 50,60 10,85" fill="white" stroke="#8a8a8a" stroke-width="2"/>
-    <polygon points="90,35 50,60 90,85" fill="white" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Stem line -->
-    <line x1="50" y1="60" x2="50" y2="40" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Spring coil (zigzag representing spring) -->
-    <polyline points="50,40 44,37 56,33 44,29 56,25 44,21 56,17 50,14"
-              fill="none" stroke="#8a8a8a" stroke-width="2" stroke-linejoin="round"/>
-    <!-- Cap line at top of spring -->
-    <line x1="44" y1="14" x2="56" y2="14" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Flow lines -->
-    <line x1="0" y1="60" x2="10" y2="60" stroke="#8a8a8a" stroke-width="2"/>
-    <line x1="90" y1="60" x2="100" y2="60" stroke="#8a8a8a" stroke-width="2"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 62"
+     data-io-shape="valve-relief" data-io-version="3.0">
+  <g class="io-shape-body">
+    <polygon class="io-stateful" points="8,56 20,38 32,56"
+             fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polygon class="io-stateful" points="20,38 42,28 42,48"
+             fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="20" y1="38" x2="20" y2="5"
+          stroke="#808080" stroke-width="1.5"/>
+    <line x1="14" y1="11" x2="26" y2="7"
+          stroke="#808080" stroke-width="1.5"/>
+    <line x1="8" y1="22" x2="32" y2="14"
+          stroke="#808080" stroke-width="1.5"/>
+    <line x1="2" y1="33" x2="38" y2="21"
+          stroke="#808080" stroke-width="1.5"/>
   </g>
 </svg>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { GraphicBindings } from '../../types/graphics'
 import { useWebSocket } from '../../hooks/useWebSocket'
 import { mapValueToAttributeValue } from './valueMapping'
@@ -12,6 +12,9 @@ import type { TextMapping, AnalogBarMapping, FillGaugeMapping, SparklineMapping,
 interface PointBindingLayerProps {
   svgRef: React.RefObject<SVGSVGElement>
   bindings: GraphicBindings
+  viewBox?: string
+  width?: number
+  height?: number
   onPointClick?: (pointId: string, position: { x: number; y: number }) => void
 }
 
@@ -19,18 +22,22 @@ interface PointBindingLayerProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getElementBBoxCenter(
+function getElementSVGCenter(
   el: Element,
+  svgRoot: SVGSVGElement,
 ): { x: number; y: number } {
-  if (el instanceof SVGGraphicsElement) {
-    try {
-      const bbox = el.getBBox()
-      return { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2 }
-    } catch {
-      // getBBox may fail on hidden elements
-    }
+  try {
+    const rect = el.getBoundingClientRect()
+    const pt = svgRoot.createSVGPoint()
+    pt.x = rect.left + rect.width / 2
+    pt.y = rect.top + rect.height / 2
+    const ctm = svgRoot.getScreenCTM()
+    if (!ctm) return { x: 0, y: 0 }
+    const svgPt = pt.matrixTransform(ctm.inverse())
+    return { x: svgPt.x, y: svgPt.y }
+  } catch {
+    return { x: 0, y: 0 }
   }
-  return { x: 0, y: 0 }
 }
 
 // ---------------------------------------------------------------------------
@@ -40,6 +47,9 @@ function getElementBBoxCenter(
 export default function PointBindingLayer({
   svgRef,
   bindings,
+  viewBox,
+  width,
+  height,
   onPointClick,
 }: PointBindingLayerProps) {
   const pointIds = useMemo(
@@ -48,6 +58,23 @@ export default function PointBindingLayer({
   )
 
   const { values } = useWebSocket(pointIds)
+
+  // Resolve SVG element positions after the main SVG has been painted.
+  // getBBox() returns zeros during the render phase, so we read positions in
+  // useLayoutEffect (post-DOM-mutation, pre-paint) and store them in state.
+  // A sentinel counter lets us re-measure when the SVG content changes.
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
+
+  useLayoutEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const next: Record<string, { x: number; y: number }> = {}
+    for (const elementId of Object.keys(bindings)) {
+      const el = svg.getElementById(elementId)
+      if (el) next[elementId] = getElementSVGCenter(el, svg)
+    }
+    setPositions(next)
+  }, [svgRef, bindings])
 
   // Direct DOM attribute updates for non-overlay bindings
   useEffect(() => {
@@ -93,7 +120,7 @@ export default function PointBindingLayer({
           el.removeEventListener('click', existingHandler)
         }
         const handler: EventListener = () => {
-          const pos = getElementBBoxCenter(el)
+          const pos = getElementSVGCenter(el, svg)
           onPointClick(point_id, pos)
         }
         ;(el as SVGElement & { _ioClickHandler?: EventListener })._ioClickHandler = handler
@@ -114,24 +141,21 @@ export default function PointBindingLayer({
     const quality = pointValue?.quality
     const stale = pointValue?.stale
 
-    // Need element position — derive from element ID and a data attribute or
-    // fall back to a positioned foreignObject.  We store the target SVG element
-    // id so the overlay reads position at render time via getBBox.
     const key = `${elementId}-${mapping.type}`
 
-    // Resolve x/y from SVG element bounding box (best-effort; 0,0 when svg not mounted)
-    let bx = 0
-    let by = 0
-    if (svgRef.current) {
-      const el = svgRef.current.getElementById(elementId)
-      if (el) {
-        const pos = getElementBBoxCenter(el)
-        bx = pos.x
-        by = pos.y
-      }
-    }
+    // Positions are resolved via useLayoutEffect after the SVG is painted.
+    // Skip this element until its position is known to avoid piling at (0,0).
+    const pos = positions[elementId]
+    if (!pos) continue
+    const { x: bx, y: by } = pos
+
+    // Don't render text overlays when no data has arrived yet — avoids covering
+    // the graphic with N/C placeholders before the WebSocket delivers values.
+    // Other overlay types (bars, gauges, alarms) also suppress when no data.
+    const hasData = pointValue !== undefined
 
     if (mapping.type === 'text') {
+      if (!hasData) continue
       const m = mapping as TextMapping
       overlays.push(
         <TextReadout
@@ -150,6 +174,7 @@ export default function PointBindingLayer({
         />,
       )
     } else if (mapping.type === 'analog_bar') {
+      if (!hasData) continue
       const m = mapping as AnalogBarMapping
       overlays.push(
         <AnalogBar
@@ -170,6 +195,7 @@ export default function PointBindingLayer({
         />,
       )
     } else if (mapping.type === 'fill_gauge') {
+      if (!hasData) continue
       const m = mapping as FillGaugeMapping
       overlays.push(
         <FillGauge
@@ -216,5 +242,24 @@ export default function PointBindingLayer({
 
   if (overlays.length === 0) return null
 
-  return <>{overlays}</>
+  // Overlay elements are SVG primitives (g, rect, text…) and must live inside an
+  // SVG element.  PointBindingLayer is intentionally a sibling of the main SVG
+  // (so we can use dangerouslySetInnerHTML on the main SVG without conflicts), so
+  // we create a second SVG that covers the same coordinate space as an overlay.
+  return (
+    <svg
+      viewBox={viewBox}
+      width={width}
+      height={height}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        overflow: 'visible',
+        pointerEvents: 'none',
+      }}
+    >
+      {overlays}
+    </svg>
+  )
 }

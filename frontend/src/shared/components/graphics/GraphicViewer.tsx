@@ -214,7 +214,7 @@ function HybridGraphic({
         style={{ position: 'absolute', inset: 0 }}
         dangerouslySetInnerHTML={{ __html: overlayInner }}
       />
-      <PointBindingLayer svgRef={svgRef} bindings={bindings} onPointClick={onPointClick} />
+      <PointBindingLayer svgRef={svgRef} bindings={bindings} viewBox={viewBox} width={width} height={height} onPointClick={onPointClick} />
     </div>
   )
 }
@@ -233,6 +233,14 @@ interface GraphicViewerProps {
   onPointClick?: (pointId: string, position: { x: number; y: number }) => void
   allowPanZoom?: boolean
   initialZoom?: number
+  /** Controlled zoom (overrides internal state when provided) */
+  zoom?: number
+  /** Controlled pan X offset (overrides internal state when provided) */
+  panX?: number
+  /** Controlled pan Y offset (overrides internal state when provided) */
+  panY?: number
+  /** Called whenever the internal transform changes (zoom, panX, panY) */
+  onTransformChange?: (zoom: number, panX: number, panY: number) => void
 }
 
 const HYBRID_THRESHOLD = 3000
@@ -277,11 +285,60 @@ export default function GraphicViewer({
   onPointClick,
   allowPanZoom = true,
   initialZoom = 1,
+  zoom: controlledZoom,
+  panX: controlledPanX,
+  panY: controlledPanY,
+  onTransformChange,
 }: GraphicViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: initialZoom })
+  const isControlled = controlledZoom !== undefined
+
+  const [transform, setTransformInternal] = useState<Transform>({
+    x: controlledPanX ?? 0,
+    y: controlledPanY ?? 0,
+    scale: controlledZoom ?? initialZoom,
+  })
+
+  // Track the last transform we reported via onTransformChange to avoid echo loops
+  const lastReportedRef = useRef<Transform | null>(null)
+
+  // When controlled props change from outside (not echoed back from our own report),
+  // sync internal state.
+  useEffect(() => {
+    if (!isControlled) return
+    const incoming: Transform = {
+      x: controlledPanX ?? 0,
+      y: controlledPanY ?? 0,
+      scale: controlledZoom ?? initialZoom,
+    }
+    const last = lastReportedRef.current
+    // Skip if this matches what we just reported (echo prevention)
+    if (
+      last &&
+      Math.abs(last.scale - incoming.scale) < 1e-9 &&
+      Math.abs(last.x - incoming.x) < 1e-9 &&
+      Math.abs(last.y - incoming.y) < 1e-9
+    ) {
+      return
+    }
+    setTransformInternal(incoming)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledZoom, controlledPanX, controlledPanY, isControlled])
+
+  const setTransform = useCallback(
+    (updater: Transform | ((prev: Transform) => Transform)) => {
+      setTransformInternal((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        lastReportedRef.current = next
+        onTransformChange?.(next.scale, next.x, next.y)
+        return next
+      })
+    },
+    [onTransformChange],
+  )
+
   const isPanning = useRef(false)
   const lastPan = useRef({ x: 0, y: 0 })
 
@@ -325,12 +382,21 @@ export default function GraphicViewer({
       if (!allowPanZoom) return
       e.preventDefault()
       const delta = e.deltaY > 0 ? 0.9 : 1.1
-      setTransform((prev) => ({
-        ...prev,
-        scale: Math.max(0.1, Math.min(10, prev.scale * delta)),
-      }))
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      setTransform((prev) => {
+        const newScale = Math.max(0.1, Math.min(10, prev.scale * delta))
+        const scaleChange = newScale / prev.scale
+        return {
+          scale: newScale,
+          x: mouseX - scaleChange * (mouseX - prev.x),
+          y: mouseY - scaleChange * (mouseY - prev.y),
+        }
+      })
     },
-    [allowPanZoom],
+    [allowPanZoom, setTransform],
   )
 
   const handleMouseDown = useCallback(
@@ -351,7 +417,7 @@ export default function GraphicViewer({
       lastPan.current = { x: e.clientX, y: e.clientY }
       setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }))
     },
-    [],
+    [setTransform],
   )
 
   const handleMouseUp = useCallback(() => {
@@ -487,7 +553,8 @@ export default function GraphicViewer({
         ) : (
           // Pure SVG mode — PointBindingLayer is a sibling, not a child, because
           // dangerouslySetInnerHTML and children cannot coexist on the same element.
-          <>
+          // The position:relative wrapper lets the overlay SVG align correctly.
+          <div style={{ position: 'relative', width: viewerWidth, height: viewerHeight }}>
             <svg
               ref={svgRef}
               viewBox={viewBox}
@@ -499,9 +566,12 @@ export default function GraphicViewer({
             <PointBindingLayer
               svgRef={svgRef}
               bindings={bindings}
+              viewBox={viewBox}
+              width={viewerWidth}
+              height={viewerHeight}
               onPointClick={onPointClick}
             />
-          </>
+          </div>
         )}
       </div>
     </div>

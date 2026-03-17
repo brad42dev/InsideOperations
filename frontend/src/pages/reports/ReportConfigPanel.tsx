@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { reportsApi, type ReportTemplate, type ExportPreset } from '../../api/reports'
 import { showToast } from '../../shared/components/Toast'
+import PointPicker from '../../shared/components/PointPicker'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,6 +15,7 @@ interface ReportParams {
   start_time: string
   end_time: string
   area_filter: string
+  point_ids: string[]
   format: ReportFormat
   notify_email: boolean
   email_address: string
@@ -234,6 +236,7 @@ export default function ReportConfigPanel({
     start_time: isoHoursAgo(24),
     end_time: isoNow(),
     area_filter: '',
+    point_ids: [],
     format: 'pdf',
     notify_email: false,
     email_address: '',
@@ -316,6 +319,7 @@ export default function ReportConfigPanel({
           start_time: new Date(params.start_time).toISOString(),
           end_time: new Date(params.end_time).toISOString(),
           area_filter: params.area_filter || undefined,
+          point_ids: params.point_ids.length > 0 ? params.point_ids : undefined,
         },
         notify_email: params.notify_email && params.email_address ? true : undefined,
       }),
@@ -352,6 +356,7 @@ export default function ReportConfigPanel({
           start_time: params.start_time,
           end_time: params.end_time,
           area_filter: params.area_filter,
+          point_ids: params.point_ids.length > 0 ? params.point_ids : undefined,
           format: params.format,
         },
       }),
@@ -381,6 +386,7 @@ export default function ReportConfigPanel({
       start_time?: string
       end_time?: string
       area_filter?: string
+      point_ids?: string[]
       format?: ReportFormat
     }
     setParams((prev) => ({
@@ -388,6 +394,7 @@ export default function ReportConfigPanel({
       start_time: p.start_time ?? prev.start_time,
       end_time: p.end_time ?? prev.end_time,
       area_filter: p.area_filter ?? prev.area_filter,
+      point_ids: p.point_ids ?? prev.point_ids,
       format: p.format ?? prev.format,
     }))
     setSelectedPresetId(presetId)
@@ -593,6 +600,34 @@ export default function ReportConfigPanel({
               fontSize: '12px',
               outline: 'none',
             }}
+          />
+        </Section>
+
+        {/* Points */}
+        <Section title="Points" collapsible defaultOpen={params.point_ids.length > 0}>
+          <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: '8px' }}>
+            Optionally limit this report to specific OPC points.
+            {params.point_ids.length > 0 && (
+              <button
+                onClick={() => setParams((p) => ({ ...p, point_ids: [] }))}
+                style={{
+                  marginLeft: '8px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--io-accent)',
+                  fontSize: '11px',
+                  padding: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+          <PointPicker
+            selected={params.point_ids}
+            onChange={(ids) => setParams((p) => ({ ...p, point_ids: ids }))}
           />
         </Section>
 

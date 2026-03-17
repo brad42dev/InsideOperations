@@ -45,18 +45,18 @@ function BuiltinShapeCard({ shape }: { shape: BuiltinShapeEntry }) {
       {/* SVG preview via img tag */}
       <div
         style={{
-          height: '80px',
+          height: '60px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'var(--io-surface-secondary)',
+          background: '#1a1a1a',
           padding: '8px',
         }}
       >
         <img
           src={shape.svg}
           alt={shape.name}
-          style={{ width: '64px', height: '64px', objectFit: 'contain' }}
+          style={{ width: '40px', height: '40px', objectFit: 'contain' }}
           loading="lazy"
         />
       </div>
@@ -457,15 +457,24 @@ function UploadModal({
 
 const TYPE_FILTERS = ['All', 'shape', 'stencil', 'symbol']
 const CATEGORY_LABELS: Record<string, string> = {
-  valves:        'Valves',
-  pumps:         'Pumps',
-  compressors:   'Compressors',
-  drivers:       'Drivers',
+  valves:          'Valves',
+  pumps:           'Pumps',
+  compressors:     'Compressors',
+  rotating:        'Rotating',
+  drivers:         'Drivers',
   'heat-transfer': 'Heat Transfer',
-  vessels:       'Vessels',
-  tanks:         'Tanks',
-  instruments:   'Instruments',
-  parts:         'Parts',
+  vessels:         'Vessels',
+  tanks:           'Tanks',
+  separation:      'Separation',
+  instrumentation: 'Instrumentation',
+  instruments:     'Instruments',
+  control:         'Control',
+  actuators:       'Actuators',
+  agitators:       'Agitators',
+  supports:        'Supports',
+  indicators:      'Indicators',
+  piping:          'Piping',
+  parts:           'Parts',
 }
 
 export default function DesignerSymbolLibrary() {

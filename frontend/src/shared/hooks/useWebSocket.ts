@@ -29,6 +29,10 @@ interface WsServerMessage {
   source_id?: string
   source_name?: string
   job_id?: string
+  // alert_notification fields
+  message?: string
+  full_screen_takeover?: boolean
+  alert_id?: string
 }
 
 type PointUpdateHandler = (update: PointValue) => void
@@ -53,6 +57,8 @@ class WsManager {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectDelay = 1000
   private destroyed = false
+  // Status report interval (doc 16 §Adaptive Throttling — 10 second period)
+  private statusReportTimer: ReturnType<typeof setInterval> | null = null
 
   getState() {
     return this.state
@@ -95,6 +101,8 @@ class WsManager {
         if (allPoints.length > 0) {
           this.sendMsg({ type: 'subscribe', points: allPoints })
         }
+        // Begin periodic status reports so the broker can apply adaptive throttling (doc 16)
+        this.startStatusReports()
       }
 
       ws.onmessage = (evt) => {
@@ -107,6 +115,7 @@ class WsManager {
       }
 
       ws.onclose = () => {
+        this.stopStatusReports()
         if (!this.destroyed) {
           this.setState('disconnected')
           this.scheduleReconnect()
@@ -197,9 +206,42 @@ class WsManager {
         })
         break
       }
+      case 'alert_notification': {
+        // Full-screen takeover: trigger the emergency alert overlay (doc 31)
+        if (msg.full_screen_takeover && msg.message) {
+          // Dynamically import to avoid circular dependency with the store
+          import('../../store/ui').then((mod) => {
+            mod.useUiStore.getState().showEmergencyAlert(msg.message!)
+          })
+        }
+        break
+      }
       case 'ping':
         this.sendMsg({ type: 'pong' })
         break
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Status report helpers (doc 16 §Adaptive Throttling)
+  // ---------------------------------------------------------------------------
+
+  private startStatusReports() {
+    if (this.statusReportTimer) return
+    this.statusReportTimer = setInterval(() => {
+      this.sendMsg({
+        type: 'status_report',
+        render_fps: 60,
+        pending_updates: 0,
+        last_batch_process_ms: 0,
+      })
+    }, 10_000)
+  }
+
+  private stopStatusReports() {
+    if (this.statusReportTimer) {
+      clearInterval(this.statusReportTimer)
+      this.statusReportTimer = null
     }
   }
 
@@ -253,6 +295,7 @@ class WsManager {
   // Call on logout: closes connection and clears all subscriptions
   // without permanently disabling the manager (unlike destroy()).
   disconnect() {
+    this.stopStatusReports()
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
@@ -268,6 +311,7 @@ class WsManager {
 
   destroy() {
     this.destroyed = true
+    this.stopStatusReports()
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.ws?.close()
     this.ws = null

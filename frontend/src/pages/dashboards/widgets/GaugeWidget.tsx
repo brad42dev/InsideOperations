@@ -3,6 +3,7 @@ import EChart from '../../../shared/components/charts/EChart'
 import type { EChartsOption } from 'echarts'
 import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
+import { usePointValues } from '../../../shared/hooks/usePointValues'
 
 interface GaugeConfig {
   title: string
@@ -41,9 +42,14 @@ export default function GaugeWidget({ config }: Props) {
     enabled: !!pointId,
   })
 
-  const rawValue = query.data?.value ?? min
+  // Real-time WebSocket subscription — overrides the API-fetched value when available
+  const liveValues = usePointValues(pointId ? [pointId] : [])
+  const livePoint = pointId ? liveValues.get(pointId) : undefined
+
+  const rawValue = livePoint?.value ?? query.data?.value ?? min
   const clampedValue = Math.min(max, Math.max(min, rawValue))
-  const isStale = query.data?.quality === 'uncertain' || query.data?.quality === 'bad'
+  const quality = livePoint?.quality ?? query.data?.quality ?? 'unknown'
+  const isStale = livePoint?.stale === true || quality === 'uncertain' || quality === 'bad'
 
   function getColor(val: number): string {
     if (!thresholds) return '#4A9EFF'
@@ -147,18 +153,36 @@ export default function GaugeWidget({ config }: Props) {
     <div style={{ height: '100%', minHeight: 0, position: 'relative' }}>
       <EChart option={option} />
       {isStale && (
-        <span
+        <div
           style={{
             position: 'absolute',
             top: 6,
             right: 8,
-            fontSize: '9px',
-            color: 'var(--io-text-muted)',
-            letterSpacing: '0.05em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '3px',
           }}
         >
-          STALE
-        </span>
+          <span
+            style={{
+              display: 'inline-block',
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: quality === 'bad' ? 'var(--io-danger, #ef4444)' : 'var(--io-warning, #f59e0b)',
+              flexShrink: 0,
+            }}
+          />
+          <span
+            style={{
+              fontSize: '9px',
+              color: 'var(--io-text-muted)',
+              letterSpacing: '0.05em',
+            }}
+          >
+            {quality === 'bad' ? 'BAD' : 'STALE'}
+          </span>
+        </div>
       )}
     </div>
   )

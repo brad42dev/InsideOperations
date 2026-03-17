@@ -1,5 +1,5 @@
 export type DesignerMode = 'graphic' | 'dashboard' | 'report'
-export type DrawingTool = 'select' | 'rect' | 'ellipse' | 'path' | 'text' | 'line' | 'pipe'
+export type DrawingTool = 'select' | 'rect' | 'ellipse' | 'path' | 'text' | 'line' | 'pipe' | 'pencil' | 'image' | 'pan'
 
 export interface DesignerState {
   mode: DesignerMode
@@ -16,4 +16,5 @@ export interface DesignerState {
   snapEnabled: boolean
   undoStack: string[]       // serialized SVG snapshots, max 20
   redoStack: string[]
+  focusMode: boolean        // hides sidebar and top nav
 }

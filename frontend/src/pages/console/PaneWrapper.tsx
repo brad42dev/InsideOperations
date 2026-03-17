@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import GraphicPane from './panes/GraphicPane'
 import TrendPane from './panes/TrendPane'
 import PointTablePane from './panes/PointTablePane'
 import AlarmListPane from './panes/AlarmListPane'
+import ContextMenu from '../../shared/components/ContextMenu'
 import type { PaneConfig } from './types'
 
 export interface PaneWrapperProps {
@@ -107,6 +109,7 @@ export default function PaneWrapper({
   onGraphicSelected,
 }: PaneWrapperProps) {
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
+  const [paneCtxMenu, setPaneCtxMenu] = useState<{ x: number; y: number } | null>(null)
 
   return (
     <div
@@ -122,6 +125,10 @@ export default function PaneWrapper({
     >
       {/* Header */}
       <div
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setPaneCtxMenu({ x: e.clientX, y: e.clientY })
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -131,6 +138,7 @@ export default function PaneWrapper({
           flexShrink: 0,
           background: 'var(--io-surface-secondary)',
           borderBottom: '1px solid var(--io-border)',
+          cursor: 'context-menu',
         }}
       >
         <span
@@ -239,6 +247,26 @@ export default function PaneWrapper({
           <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
         )}
       </div>
+
+      {/* Pane header context menu */}
+      {paneCtxMenu && (
+        <ContextMenu
+          x={paneCtxMenu.x}
+          y={paneCtxMenu.y}
+          onClose={() => setPaneCtxMenu(null)}
+          items={[
+            {
+              label: 'Configure Pane…',
+              onClick: () => onConfigure(config.id),
+            },
+            {
+              label: 'Remove Pane',
+              divider: true,
+              onClick: () => onRemove(config.id),
+            },
+          ]}
+        />
+      )}
     </div>
   )
 }

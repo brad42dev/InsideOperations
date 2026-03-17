@@ -1,0 +1,28 @@
+-- DOWN MIGRATION: 20260316000053_fix_process_graphics
+--
+-- This migration rewrote SVG content for 13 process graphics in design_objects.
+-- To restore the previous state, re-run the seed migration and convert_graphic_bindings migration:
+--
+--   sqlx migrate revert  (reverts to 20260316000052)
+--   sqlx migrate revert  (reverts to 20260316000051)
+--   sqlx migrate run     (re-applies 20260316000051_seed_process_graphics)
+--   sqlx migrate run     (re-applies 20260316000052_convert_graphic_bindings)
+--
+-- Alternatively, restore from a database backup taken before this migration was applied.
+--
+-- The 13 affected rows (by UUID) were:
+--   401ed010-2a20-4bf0-afe0-9324afbc19a2  UNIT 24 — HYDROGEN PLANT (SMR) — PROCESS OVERVIEW
+--   b165e49d-13ca-47cc-a86d-36aad91ed2a8  H2 Plant Overview — Reformer & Shift
+--   5a8987cc-22a8-46f9-a100-fb29c534f181  H2 Plant — Steam System / Compression / Utilities
+--   b665f179-a8ca-459d-9fc0-4200572e8298  HCU Feed Preheat & Charge Heater
+--   4abe4d89-2c19-4866-8391-156e79d0a0ae  HCU Fractionator
+--   55aecf35-c52b-44f6-aa2c-0369b957dea0  HCU HP Separation
+--   16f0faa3-6b9e-4a88-b643-7ee62a05b2ff  HCU Light Ends
+--   b2d452d5-764d-4eab-af45-b4d03b5b9dbf  HCU Overview / Performance
+--   b02feff2-dec9-4c8e-a647-4baf102c2ae8  HCU Reactor R-2501 (Pretreater)
+--   88b9bbfb-3808-48f4-9b92-76dc75347156  HCU Reactor R-2502 (Cracker)
+--   ea78e79a-c6cb-4219-8c32-85e11707eae7  HCU Recycle Gas Compressor
+--   4a9773e5-3d29-4778-a312-134cc81e5f98  HCU Unit 25 Process
+--   7870402e-22cd-4c32-a873-a6d659e7d3da  Combined Unit 24 + Unit 25 Process
+
+SELECT 'Run 20260316000051_seed_process_graphics and 20260316000052_convert_graphic_bindings to restore.' AS note;

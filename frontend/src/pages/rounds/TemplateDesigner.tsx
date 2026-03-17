@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { roundsApi, type Checkpoint, type CheckpointValidation } from '../../api/rounds'
+import PointPicker from '../../shared/components/PointPicker'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +18,7 @@ interface EditableCheckpoint {
   data_type: DataType
   required: boolean
   unit: string
+  opc_point_id: string
   validation_mode: ValidationMode
   hh: string
   h: string
@@ -38,6 +40,7 @@ function emptyCheckpoint(index: number): EditableCheckpoint {
     data_type: 'text',
     required: false,
     unit: '',
+    opc_point_id: '',
     validation_mode: 'none',
     hh: '',
     h: '',
@@ -60,6 +63,7 @@ function checkpointToApi(cp: EditableCheckpoint): Checkpoint {
     data_type: cp.data_type,
     required: cp.required,
     unit: cp.unit || undefined,
+    opc_point_id: cp.opc_point_id || undefined,
   }
 
   if (cp.data_type === 'numeric' && cp.validation_mode !== 'none') {
@@ -102,6 +106,7 @@ function apiToEditable(cp: Checkpoint): EditableCheckpoint {
     data_type: cp.data_type,
     required: cp.required,
     unit: cp.unit ?? '',
+    opc_point_id: cp.opc_point_id ?? '',
     validation_mode: v ? (v.mode as ValidationMode) : 'none',
     hh: v?.hh !== undefined ? String(v.hh) : '',
     h: v?.h !== undefined ? String(v.h) : '',
@@ -281,6 +286,63 @@ function CheckpointEditor({
               Required
             </label>
           </div>
+
+          {/* OPC Point binding */}
+          <Field label="OPC Point (auto-capture)">
+            <div
+              style={{
+                border: '1px solid var(--io-border)',
+                borderRadius: '6px',
+                padding: '10px',
+                background: 'var(--io-surface-secondary)',
+              }}
+            >
+              {cp.opc_point_id ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: '12px',
+                      fontFamily: 'monospace',
+                      color: 'var(--io-accent)',
+                      background: 'var(--io-accent-subtle, rgba(74,158,255,0.1))',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {cp.opc_point_id}
+                  </span>
+                  <button
+                    onClick={() => set('opc_point_id', '')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--io-text-muted)',
+                      fontSize: '14px',
+                      padding: '2px 6px',
+                      flexShrink: 0,
+                    }}
+                    title="Clear point binding"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', marginBottom: '8px' }}>
+                  No point bound — select one below to enable automatic value capture.
+                </div>
+              )}
+              <PointPicker
+                selected={cp.opc_point_id ? [cp.opc_point_id] : []}
+                onChange={(ids) => set('opc_point_id', ids[0] ?? '')}
+                singleSelect
+              />
+            </div>
+          </Field>
 
           {/* Numeric extras */}
           {cp.data_type === 'numeric' && (

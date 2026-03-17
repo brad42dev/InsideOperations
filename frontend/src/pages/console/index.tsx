@@ -1,16 +1,20 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import WorkspaceGrid from './WorkspaceGrid'
 import PaneConfigModal from './PaneConfigModal'
+import ContextMenu from '../../shared/components/ContextMenu'
 import type { WorkspaceLayout, PaneConfig, LayoutPreset } from './types'
 import { uuidv4 } from '../../lib/uuid'
+import { consoleApi } from '../../api/console'
+import { useAuthStore } from '../../store/auth'
 
 // ---------------------------------------------------------------------------
-// LocalStorage persistence
+// LocalStorage fallback (used when not authenticated or API unavailable)
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = 'io-console-workspaces'
 
-function loadWorkspaces(): WorkspaceLayout[] {
+function loadWorkspacesLocal(): WorkspaceLayout[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
@@ -20,7 +24,7 @@ function loadWorkspaces(): WorkspaceLayout[] {
   }
 }
 
-function saveWorkspaces(workspaces: WorkspaceLayout[]): void {
+function saveWorkspacesLocal(workspaces: WorkspaceLayout[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces))
   } catch {
@@ -38,11 +42,33 @@ function makeBlankPanes(count: number): PaneConfig[] {
 
 function layoutPaneCount(layout: LayoutPreset): number {
   switch (layout) {
+    // Even grids
     case '1x1': return 1
     case '2x1': return 2
     case '1x2': return 2
     case '2x2': return 4
     case '3x1': return 3
+    case '1x3': return 3
+    case '3x2': return 6
+    case '2x3': return 6
+    case '3x3': return 9
+    case '4x1': return 4
+    case '1x4': return 4
+    case '4x2': return 8
+    case '2x4': return 8
+    case '4x3': return 12
+    case '3x4': return 12
+    case '4x4': return 16
+    // Asymmetric
+    case 'big-left-3-right': return 4
+    case 'big-right-3-left': return 4
+    case 'big-top-3-bottom': return 4
+    case 'big-bottom-3-top': return 4
+    case '2-big-4-small': return 6
+    case 'pip': return 2
+    case 'featured-sidebar': return 2
+    case 'side-by-side-unequal': return 2
+    // Legacy
     case '2x1+1': return 3
     default: return 1
   }
@@ -58,66 +84,223 @@ function makeNewWorkspace(name: string, layout: LayoutPreset = '2x2'): Workspace
 }
 
 const LAYOUT_PRESETS: { value: LayoutPreset; label: string }[] = [
-  { value: '1x1', label: '1×1' },
-  { value: '2x1', label: '2×1' },
-  { value: '1x2', label: '1×2' },
-  { value: '2x2', label: '2×2' },
-  { value: '3x1', label: '3×1' },
-  { value: '2x1+1', label: '2+1' },
+  // Even grids
+  { value: '1x1',  label: '1×1' },
+  { value: '2x1',  label: '2×1' },
+  { value: '1x2',  label: '1×2' },
+  { value: '2x2',  label: '2×2' },
+  { value: '3x1',  label: '3×1' },
+  { value: '1x3',  label: '1×3' },
+  { value: '3x2',  label: '3×2' },
+  { value: '2x3',  label: '2×3' },
+  { value: '3x3',  label: '3×3' },
+  { value: '4x1',  label: '4×1' },
+  { value: '1x4',  label: '1×4' },
+  { value: '4x2',  label: '4×2' },
+  { value: '2x4',  label: '2×4' },
+  { value: '4x3',  label: '4×3' },
+  { value: '3x4',  label: '3×4' },
+  { value: '4x4',  label: '4×4' },
+  // Asymmetric
+  { value: 'big-left-3-right',    label: 'Big Left + 3 Right' },
+  { value: 'big-right-3-left',    label: 'Big Right + 3 Left' },
+  { value: 'big-top-3-bottom',    label: 'Big Top + 3 Bottom' },
+  { value: 'big-bottom-3-top',    label: 'Big Bottom + 3 Top' },
+  { value: '2-big-4-small',       label: '2 Big + 4 Small' },
+  { value: 'pip',                 label: 'Picture in Picture' },
+  { value: 'featured-sidebar',    label: 'Featured + Sidebar' },
+  { value: 'side-by-side-unequal',label: 'Side by Side Unequal' },
 ]
 
 // ---------------------------------------------------------------------------
-// ConsolePage
+// ConsolePage — API-backed workspace persistence with localStorage fallback
 // ---------------------------------------------------------------------------
 
 export default function ConsolePage() {
-  const [workspaces, setWorkspaces] = useState<WorkspaceLayout[]>(() => loadWorkspaces())
-  const [activeId, setActiveId] = useState<string | null>(
-    () => loadWorkspaces()[0]?.id ?? null,
+  const queryClient = useQueryClient()
+  const { isAuthenticated } = useAuthStore()
+
+  // ---- API-backed state (when authenticated) --------------------------------
+
+  const {
+    data: apiWorkspaces,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['console-workspaces'],
+    queryFn: async () => {
+      const result = await consoleApi.listWorkspaces()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    enabled: isAuthenticated,
+    staleTime: 30_000,
+  })
+
+  // ---- Local fallback state (when not authenticated or API fails) -----------
+
+  const [localWorkspaces, setLocalWorkspaces] = useState<WorkspaceLayout[]>(() =>
+    loadWorkspacesLocal(),
   )
+
+  // Decide which source to use
+  const useApi = isAuthenticated && !isError
+  const workspaces: WorkspaceLayout[] = useApi
+    ? (apiWorkspaces ?? [])
+    : localWorkspaces
+
+  // ---- Active workspace tracking -------------------------------------------
+
+  const [activeId, setActiveId] = useState<string | null>(null)
+
+  // Set active to first workspace once data loads
+  useEffect(() => {
+    if (workspaces.length > 0 && activeId === null) {
+      setActiveId(workspaces[0].id)
+    }
+    // Clear active if the active workspace was deleted
+    if (activeId !== null && !workspaces.find((w) => w.id === activeId)) {
+      setActiveId(workspaces[0]?.id ?? null)
+    }
+  }, [workspaces, activeId])
+
+  // ---- API mutations --------------------------------------------------------
+
+  const saveMutation = useMutation({
+    mutationFn: (ws: WorkspaceLayout) => consoleApi.saveWorkspace(ws),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => consoleApi.deleteWorkspace(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+    },
+  })
+
+  // ---- Persist helper — routes to API or localStorage ---------------------
+
+  const persistWorkspace = useCallback(
+    (ws: WorkspaceLayout) => {
+      if (useApi) {
+        saveMutation.mutate(ws)
+      } else {
+        setLocalWorkspaces((prev) => {
+          const exists = prev.find((w) => w.id === ws.id)
+          const updated = exists ? prev.map((w) => (w.id === ws.id ? ws : w)) : [...prev, ws]
+          saveWorkspacesLocal(updated)
+          return updated
+        })
+      }
+    },
+    [useApi, saveMutation],
+  )
+
+  const deleteWorkspace = useCallback(
+    (id: string) => {
+      if (useApi) {
+        deleteMutation.mutate(id)
+      } else {
+        setLocalWorkspaces((prev) => {
+          const updated = prev.filter((w) => w.id !== id)
+          saveWorkspacesLocal(updated)
+          return updated
+        })
+      }
+      if (activeId === id) {
+        setActiveId(workspaces.find((w) => w.id !== id)?.id ?? null)
+      }
+    },
+    [useApi, deleteMutation, activeId, workspaces],
+  )
+
+  // Apply an update function to the workspace list and persist the changed workspace
+  const updateWorkspace = useCallback(
+    (id: string, updater: (w: WorkspaceLayout) => WorkspaceLayout) => {
+      const target = workspaces.find((w) => w.id === id)
+      if (!target) return
+      const updated = updater(target)
+      persistWorkspace(updated)
+      // Optimistically update local list (API will re-fetch via invalidation)
+      if (useApi) {
+        queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
+          prev ? prev.map((w) => (w.id === id ? updated : w)) : prev,
+        )
+      }
+    },
+    [workspaces, persistWorkspace, useApi, queryClient],
+  )
+
+  // ---- UI state -----------------------------------------------------------
+
   const [editMode, setEditMode] = useState(false)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    x: number
+    y: number
+    workspaceId: string
+  } | null>(null)
 
   const activeWorkspace = workspaces.find((w) => w.id === activeId) ?? null
-
-  const persist = (updated: WorkspaceLayout[]) => {
-    setWorkspaces(updated)
-    saveWorkspaces(updated)
-  }
 
   // ---- Workspace management -----------------------------------------------
 
   const createWorkspace = () => {
     const name = `Workspace ${workspaces.length + 1}`
     const ws = makeNewWorkspace(name)
-    const updated = [...workspaces, ws]
-    persist(updated)
+    persistWorkspace(ws)
+    // Optimistically add to local list for API mode
+    if (useApi) {
+      queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
+        prev ? [...prev, ws] : [ws],
+      )
+    }
     setActiveId(ws.id)
     setEditMode(true)
   }
 
   const deleteActiveWorkspace = () => {
     if (!activeId) return
-    const updated = workspaces.filter((w) => w.id !== activeId)
-    persist(updated)
-    setActiveId(updated[0]?.id ?? null)
+    deleteWorkspace(activeId)
   }
 
+  const duplicateWorkspace = (id: string) => {
+    const source = workspaces.find((w) => w.id === id)
+    if (!source) return
+    const copy: WorkspaceLayout = {
+      ...source,
+      id: uuidv4(),
+      name: `${source.name} (copy)`,
+      panes: source.panes.map((p) => ({ ...p, id: uuidv4() })),
+    }
+    persistWorkspace(copy)
+    if (useApi) {
+      queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
+        prev ? [...prev, copy] : [copy],
+      )
+    }
+    setActiveId(copy.id)
+  }
+
+  const handleTabContextMenu = useCallback((e: React.MouseEvent, workspaceId: string) => {
+    e.preventDefault()
+    setTabContextMenu({ x: e.clientX, y: e.clientY, workspaceId })
+  }, [])
+
   const renameWorkspace = (id: string, name: string) => {
-    const updated = workspaces.map((w) => (w.id === id ? { ...w, name } : w))
-    persist(updated)
+    updateWorkspace(id, (w) => ({ ...w, name }))
   }
 
   const changeLayout = (layout: LayoutPreset) => {
     if (!activeId) return
-    const updated = workspaces.map((w) => {
-      if (w.id !== activeId) return w
+    updateWorkspace(activeId, (w) => {
       const needed = layoutPaneCount(layout)
       const existing = w.panes.slice(0, needed)
       const extra = makeBlankPanes(Math.max(0, needed - existing.length))
       return { ...w, layout, panes: [...existing, ...extra] }
     })
-    persist(updated)
   }
 
   const saveEdit = () => setEditMode(false)
@@ -128,50 +311,38 @@ export default function ConsolePage() {
     setConfiguringPaneId(paneId)
   }, [])
 
-  const handleRemovePane = useCallback((paneId: string) => {
-    if (!activeId) return
-    setWorkspaces((prev) => {
-      const updated = prev.map((w) => {
-        if (w.id !== activeId) return w
-        const panes = w.panes.map((p) =>
+  const handleRemovePane = useCallback(
+    (paneId: string) => {
+      if (!activeId) return
+      updateWorkspace(activeId, (w) => ({
+        ...w,
+        panes: w.panes.map((p) =>
           p.id === paneId ? { id: uuidv4(), type: 'blank' as const } : p,
-        )
-        return { ...w, panes }
-      })
-      saveWorkspaces(updated)
-      return updated
-    })
-  }, [activeId])
+        ),
+      }))
+    },
+    [activeId, updateWorkspace],
+  )
 
   const handleGraphicSelected = useCallback(
     (paneId: string, graphicId: string) => {
       if (!activeId) return
-      setWorkspaces((prev) => {
-        const updated = prev.map((w) => {
-          if (w.id !== activeId) return w
-          const panes = w.panes.map((p) =>
-            p.id === paneId ? { ...p, type: 'graphic' as const, graphicId } : p,
-          )
-          return { ...w, panes }
-        })
-        saveWorkspaces(updated)
-        return updated
-      })
+      updateWorkspace(activeId, (w) => ({
+        ...w,
+        panes: w.panes.map((p) =>
+          p.id === paneId ? { ...p, type: 'graphic' as const, graphicId } : p,
+        ),
+      }))
     },
-    [activeId],
+    [activeId, updateWorkspace],
   )
 
   const handleSavePane = (updated: PaneConfig) => {
     if (!activeId) return
-    setWorkspaces((prev) => {
-      const next = prev.map((w) => {
-        if (w.id !== activeId) return w
-        const panes = w.panes.map((p) => (p.id === updated.id ? updated : p))
-        return { ...w, panes }
-      })
-      saveWorkspaces(next)
-      return next
-    })
+    updateWorkspace(activeId, (w) => ({
+      ...w,
+      panes: w.panes.map((p) => (p.id === updated.id ? updated : p)),
+    }))
     setConfiguringPaneId(null)
   }
 
@@ -182,6 +353,23 @@ export default function ConsolePage() {
     : null
 
   // ---- Render -------------------------------------------------------------
+
+  if (isLoading && isAuthenticated) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: 'var(--io-text-muted)',
+          fontSize: 14,
+        }}
+      >
+        Loading workspaces…
+      </div>
+    )
+  }
 
   return (
     <div
@@ -233,6 +421,7 @@ export default function ConsolePage() {
             <button
               key={ws.id}
               onClick={() => setActiveId(ws.id)}
+              onContextMenu={(e) => handleTabContextMenu(e, ws.id)}
               style={{
                 background:
                   ws.id === activeId ? 'var(--io-surface-secondary)' : 'transparent',
@@ -482,6 +671,43 @@ export default function ConsolePage() {
           onClose={() => setConfiguringPaneId(null)}
         />
       )}
+
+      {/* Workspace tab context menu */}
+      {tabContextMenu && (() => {
+        const ws = workspaces.find((w) => w.id === tabContextMenu.workspaceId)
+        if (!ws) return null
+        return (
+          <ContextMenu
+            x={tabContextMenu.x}
+            y={tabContextMenu.y}
+            onClose={() => setTabContextMenu(null)}
+            items={[
+              {
+                label: 'Switch to Workspace',
+                onClick: () => setActiveId(ws.id),
+              },
+              {
+                label: 'Rename…',
+                divider: false,
+                onClick: () => {
+                  const newName = prompt('Workspace name:', ws.name)
+                  if (newName && newName.trim()) renameWorkspace(ws.id, newName.trim())
+                },
+              },
+              {
+                label: 'Duplicate',
+                onClick: () => duplicateWorkspace(ws.id),
+              },
+              {
+                label: 'Delete',
+                divider: true,
+                disabled: workspaces.length <= 1,
+                onClick: () => deleteWorkspace(ws.id),
+              },
+            ]}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"
+     data-io-shape="fan-blower" data-io-version="1.0"
+     data-io-variant="opt1">
+  <g class="io-shape-body">
+    <circle class="io-stateful" cx="25" cy="25" r="20"
+            fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="12.1" y1="9.7" x2="43.1" y2="16.5"
+          stroke="#808080" stroke-width="1.5"/>
+    <line x1="12.1" y1="40.3" x2="43.1" y2="33.5"
+          stroke="#808080" stroke-width="1.5"/>
+    <ellipse cx="25" cy="20" rx="2.5" ry="5"
+             fill="none" stroke="#808080" stroke-width="1.5"
+             transform="rotate(315, 25, 25)"/>
+    <ellipse cx="25" cy="20" rx="2.5" ry="5"
+             fill="none" stroke="#808080" stroke-width="1.5"
+             transform="rotate(75, 25, 25)"/>
+    <ellipse cx="25" cy="20" rx="2.5" ry="5"
+             fill="none" stroke="#808080" stroke-width="1.5"
+             transform="rotate(195, 25, 25)"/>
+  </g>
+</svg>

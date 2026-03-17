@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
+import { usePointValues } from '../../../shared/hooks/usePointValues'
 
 interface KpiConfig {
   title: string
@@ -44,14 +45,19 @@ export default function KpiCard({ config }: Props) {
     enabled: !!pointId && cfg.staticValue === undefined,
   })
 
+  // Real-time WebSocket subscription — overrides the API-fetched value when available
+  const liveValues = usePointValues(pointId && cfg.staticValue === undefined ? [pointId] : [])
+  const livePoint = pointId ? liveValues.get(pointId) : undefined
+
   const value = cfg.staticValue !== undefined
     ? cfg.staticValue
-    : (query.data?.value ?? null)
+    : (livePoint?.value ?? query.data?.value ?? null)
 
   const displayValue = value !== null ? value.toFixed(2) : '—'
   const color = value !== null ? getTrendColor(value, cfg.thresholds) : 'var(--io-text-muted)'
-  const quality = query.data?.quality ?? 'unknown'
-  const isStale = quality === 'uncertain' || quality === 'bad'
+  // Prefer live quality; fall back to API quality
+  const quality = livePoint?.quality ?? query.data?.quality ?? 'unknown'
+  const isStale = livePoint?.stale === true || quality === 'uncertain' || quality === 'bad'
 
   return (
     <div
@@ -104,10 +110,22 @@ export default function KpiCard({ config }: Props) {
             )}
           </div>
 
-          {isStale && (
-            <span style={{ fontSize: '10px', color: 'var(--io-text-muted)', letterSpacing: '0.05em' }}>
-              STALE
-            </span>
+          {(isStale || quality === 'bad') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '7px',
+                  height: '7px',
+                  borderRadius: '50%',
+                  background: quality === 'bad' ? 'var(--io-danger, #ef4444)' : 'var(--io-warning, #f59e0b)',
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ fontSize: '10px', color: 'var(--io-text-muted)', letterSpacing: '0.05em' }}>
+                {quality === 'bad' ? 'BAD' : 'STALE'}
+              </span>
+            </div>
           )}
 
           {query.isError && (

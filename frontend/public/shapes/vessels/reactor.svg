@@ -1,23 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <g class="io-shape" data-category="vessels" data-name="Reactor">
-    <!-- Wider cylindrical body (drum shape) -->
-    <rect x="25" y="22" width="50" height="56" fill="white" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Domed top -->
-    <ellipse cx="50" cy="22" rx="25" ry="9" fill="white" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Domed bottom -->
-    <ellipse cx="50" cy="78" rx="25" ry="9" fill="white" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Agitator shaft (center line from top) -->
-    <line x1="50" y1="13" x2="50" y2="75" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Agitator blades -->
-    <line x1="38" y1="55" x2="62" y2="55" stroke="#8a8a8a" stroke-width="2"/>
-    <line x1="40" y1="65" x2="60" y2="65" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Drive motor mount (top) -->
-    <rect x="43" y="4" width="14" height="9" fill="white" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Feed inlet (top right) -->
-    <line x1="68" y1="15" x2="80" y2="5" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Product outlet (bottom) -->
-    <line x1="50" y1="87" x2="50" y2="98" stroke="#8a8a8a" stroke-width="2"/>
-    <!-- Side inlet -->
-    <line x1="25" y1="40" x2="10" y2="40" stroke="#8a8a8a" stroke-width="2"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80"
+     data-io-shape="reactor" data-io-variant="base" data-io-version="3.0">
+  <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
+    <path d="M 10,12 A 10,5 0 0,1 30,12"/>
+    <line x1="10" y1="12" x2="10" y2="68"/>
+    <line x1="30" y1="12" x2="30" y2="68"/>
+    <line x1="10" y1="68" x2="30" y2="68"/>
   </g>
 </svg>
