@@ -109,6 +109,7 @@ function AppRoutes() {
       {/* Public */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/oidc-callback" element={<OidcCallback />} />
+      <Route path="/login/callback" element={<OidcCallback />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/eula" element={<EulaAcceptance />} />
 
@@ -955,6 +956,15 @@ function AppRoutes() {
           <Route path="security" element={<SecurityPage />} />
           <Route
             path="import"
+            element={
+              <PermissionGuard permission="settings:write">
+                <ImportSettingsPage />
+              </PermissionGuard>
+            }
+          />
+          {/* Doc 38 alias: /settings/imports → /settings/import */}
+          <Route
+            path="imports"
             element={
               <PermissionGuard permission="settings:write">
                 <ImportSettingsPage />

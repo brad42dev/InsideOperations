@@ -126,6 +126,89 @@ const darkTokens: Record<string, string> = {
   '--io-duration-fast': '150ms',
   '--io-duration-medium': '250ms',
   '--io-duration-slow': '350ms',
+
+  // Text (remaining)
+  '--io-text-link': '#2dd4bf',
+
+  // Button (Layer 4)
+  '--io-btn-bg': '#2dd4bf',
+  '--io-btn-hover': '#5eead4',
+  '--io-btn-active': '#99f6e4',
+  '--io-btn-text': '#09090b',
+  '--io-btn-secondary-bg': '#18181b',
+  '--io-btn-secondary-border': '#3f3f46',
+
+  // Sidebar (remaining Layer 4)
+  '--io-sidebar-bg': '#18181b',
+  '--io-sidebar-active-border': '#2dd4bf',
+  '--io-sidebar-hover-bg': 'rgba(45,212,191,0.1)',
+
+  // Top bar (remaining Layer 4)
+  '--io-topbar-bg': '#09090b',
+  '--io-topbar-border': '#27272a',
+
+  // Card (Layer 4)
+  '--io-card-bg': '#18181b',
+  '--io-card-border': '#3f3f46',
+  '--io-card-radius': '6px',
+  '--io-card-shadow': '0 1px 2px rgba(0,0,0,0.3)',
+
+  // Table (Layer 4)
+  '--io-table-row-compact': '28px',
+  '--io-table-row-default': '36px',
+  '--io-table-row-comfortable': '44px',
+  '--io-table-header-bg': '#09090b',
+  '--io-table-row-hover': 'rgba(45,212,191,0.1)',
+  '--io-table-row-selected': 'rgba(45,212,191,0.1)',
+
+  // Input (Layer 4)
+  '--io-input-bg': '#09090b',
+  '--io-input-border': '#3f3f46',
+  '--io-input-focus-border': '#2dd4bf',
+  '--io-input-placeholder': '#71717a',
+  '--io-input-height': '36px',
+
+  // Modal (Layer 4)
+  '--io-modal-bg': '#27272a',
+  '--io-modal-backdrop': 'rgba(0,0,0,0.7)',
+  '--io-modal-radius': '9px',
+
+  // Toast (Layer 4)
+  '--io-toast-bg': '#27272a',
+  '--io-toast-border': '#3f3f46',
+  '--io-toast-shadow': '0 10px 15px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)',
+
+  // Z-Index Scale (static, all themes)
+  '--io-z-base': '0',
+  '--io-z-panel': '10',
+  '--io-z-sidebar': '100',
+  '--io-z-topbar': '100',
+  '--io-z-edge-hover': '150',
+  '--io-z-dropdown': '200',
+  '--io-z-modal': '300',
+  '--io-z-command': '400',
+  '--io-z-visual-lock': '500',
+  '--io-z-kiosk-auth': '600',
+  '--io-z-toast': '700',
+  '--io-z-emergency': '800',
+
+  // Typography — font-size tokens (static, all themes)
+  '--io-text-4xl': '2.25rem',
+  '--io-text-3xl': '1.75rem',
+  '--io-text-2xl': '1.375rem',
+  '--io-text-xl': '1.125rem',
+  '--io-text-lg': '1rem',
+  '--io-text-base': '0.875rem',
+  '--io-text-sm': '0.8125rem',
+  '--io-text-xs': '0.75rem',
+  '--io-text-2xs': '0.6875rem',
+  '--io-text-label': '0.75rem',
+  '--io-text-label-sm': '0.6875rem',
+  '--io-text-value': '0.875rem',
+  '--io-text-value-lg': '1.125rem',
+  '--io-text-value-xl': '1.5rem',
+  '--io-text-code': '0.8125rem',
+  '--io-text-code-sm': '0.75rem',
 }
 
 const lightTokens: Record<string, string> = {
@@ -240,6 +323,89 @@ const lightTokens: Record<string, string> = {
   '--io-duration-fast': '150ms',
   '--io-duration-medium': '250ms',
   '--io-duration-slow': '350ms',
+
+  // Text (remaining)
+  '--io-text-link': '#0d9488',
+
+  // Button (Layer 4)
+  '--io-btn-bg': '#0d9488',
+  '--io-btn-hover': '#0f766e',
+  '--io-btn-active': '#115e59',
+  '--io-btn-text': '#ffffff',
+  '--io-btn-secondary-bg': '#f9fafb',
+  '--io-btn-secondary-border': '#e5e7eb',
+
+  // Sidebar (remaining Layer 4)
+  '--io-sidebar-bg': '#f9fafb',
+  '--io-sidebar-active-border': '#0d9488',
+  '--io-sidebar-hover-bg': 'rgba(13,148,136,0.08)',
+
+  // Top bar (remaining Layer 4)
+  '--io-topbar-bg': '#ffffff',
+  '--io-topbar-border': '#f3f4f6',
+
+  // Card (Layer 4)
+  '--io-card-bg': '#f9fafb',
+  '--io-card-border': '#e5e7eb',
+  '--io-card-radius': '6px',
+  '--io-card-shadow': '0 1px 2px rgba(0,0,0,0.05)',
+
+  // Table (Layer 4)
+  '--io-table-row-compact': '28px',
+  '--io-table-row-default': '36px',
+  '--io-table-row-comfortable': '44px',
+  '--io-table-header-bg': '#f3f4f6',
+  '--io-table-row-hover': 'rgba(13,148,136,0.08)',
+  '--io-table-row-selected': 'rgba(13,148,136,0.08)',
+
+  // Input (Layer 4)
+  '--io-input-bg': '#f3f4f6',
+  '--io-input-border': '#e5e7eb',
+  '--io-input-focus-border': '#0d9488',
+  '--io-input-placeholder': '#9ca3af',
+  '--io-input-height': '36px',
+
+  // Modal (Layer 4)
+  '--io-modal-bg': '#ffffff',
+  '--io-modal-backdrop': 'rgba(0,0,0,0.5)',
+  '--io-modal-radius': '9px',
+
+  // Toast (Layer 4)
+  '--io-toast-bg': '#ffffff',
+  '--io-toast-border': '#e5e7eb',
+  '--io-toast-shadow': '0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05)',
+
+  // Z-Index Scale (static, all themes)
+  '--io-z-base': '0',
+  '--io-z-panel': '10',
+  '--io-z-sidebar': '100',
+  '--io-z-topbar': '100',
+  '--io-z-edge-hover': '150',
+  '--io-z-dropdown': '200',
+  '--io-z-modal': '300',
+  '--io-z-command': '400',
+  '--io-z-visual-lock': '500',
+  '--io-z-kiosk-auth': '600',
+  '--io-z-toast': '700',
+  '--io-z-emergency': '800',
+
+  // Typography — font-size tokens (static, all themes)
+  '--io-text-4xl': '2.25rem',
+  '--io-text-3xl': '1.75rem',
+  '--io-text-2xl': '1.375rem',
+  '--io-text-xl': '1.125rem',
+  '--io-text-lg': '1rem',
+  '--io-text-base': '0.875rem',
+  '--io-text-sm': '0.8125rem',
+  '--io-text-xs': '0.75rem',
+  '--io-text-2xs': '0.6875rem',
+  '--io-text-label': '0.75rem',
+  '--io-text-label-sm': '0.6875rem',
+  '--io-text-value': '0.875rem',
+  '--io-text-value-lg': '1.125rem',
+  '--io-text-value-xl': '1.5rem',
+  '--io-text-code': '0.8125rem',
+  '--io-text-code-sm': '0.75rem',
 }
 
 const hphmiTokens: Record<string, string> = {
@@ -354,6 +520,89 @@ const hphmiTokens: Record<string, string> = {
   '--io-duration-fast': '150ms',
   '--io-duration-medium': '250ms',
   '--io-duration-slow': '350ms',
+
+  // Text (remaining)
+  '--io-text-link': '#14b8a6',
+
+  // Button (Layer 4)
+  '--io-btn-bg': '#14b8a6',
+  '--io-btn-hover': '#2dd4bf',
+  '--io-btn-active': '#5eead4',
+  '--io-btn-text': '#0f172a',
+  '--io-btn-secondary-bg': '#1e293b',
+  '--io-btn-secondary-border': '#334155',
+
+  // Sidebar (remaining Layer 4)
+  '--io-sidebar-bg': '#1e293b',
+  '--io-sidebar-active-border': '#14b8a6',
+  '--io-sidebar-hover-bg': 'rgba(45,212,191,0.08)',
+
+  // Top bar (remaining Layer 4)
+  '--io-topbar-bg': '#0f172a',
+  '--io-topbar-border': '#1e293b',
+
+  // Card (Layer 4)
+  '--io-card-bg': '#1e293b',
+  '--io-card-border': '#334155',
+  '--io-card-radius': '6px',
+  '--io-card-shadow': '0 1px 2px rgba(0,0,0,0.3)',
+
+  // Table (Layer 4)
+  '--io-table-row-compact': '28px',
+  '--io-table-row-default': '36px',
+  '--io-table-row-comfortable': '44px',
+  '--io-table-header-bg': '#0c1525',
+  '--io-table-row-hover': 'rgba(45,212,191,0.08)',
+  '--io-table-row-selected': 'rgba(45,212,191,0.08)',
+
+  // Input (Layer 4)
+  '--io-input-bg': '#0c1525',
+  '--io-input-border': '#334155',
+  '--io-input-focus-border': '#14b8a6',
+  '--io-input-placeholder': '#64748b',
+  '--io-input-height': '36px',
+
+  // Modal (Layer 4)
+  '--io-modal-bg': '#334155',
+  '--io-modal-backdrop': 'rgba(0,0,0,0.7)',
+  '--io-modal-radius': '9px',
+
+  // Toast (Layer 4)
+  '--io-toast-bg': '#334155',
+  '--io-toast-border': '#334155',
+  '--io-toast-shadow': '0 10px 15px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)',
+
+  // Z-Index Scale (static, all themes)
+  '--io-z-base': '0',
+  '--io-z-panel': '10',
+  '--io-z-sidebar': '100',
+  '--io-z-topbar': '100',
+  '--io-z-edge-hover': '150',
+  '--io-z-dropdown': '200',
+  '--io-z-modal': '300',
+  '--io-z-command': '400',
+  '--io-z-visual-lock': '500',
+  '--io-z-kiosk-auth': '600',
+  '--io-z-toast': '700',
+  '--io-z-emergency': '800',
+
+  // Typography — font-size tokens (static, all themes)
+  '--io-text-4xl': '2.25rem',
+  '--io-text-3xl': '1.75rem',
+  '--io-text-2xl': '1.375rem',
+  '--io-text-xl': '1.125rem',
+  '--io-text-lg': '1rem',
+  '--io-text-base': '0.875rem',
+  '--io-text-sm': '0.8125rem',
+  '--io-text-xs': '0.75rem',
+  '--io-text-2xs': '0.6875rem',
+  '--io-text-label': '0.75rem',
+  '--io-text-label-sm': '0.6875rem',
+  '--io-text-value': '0.875rem',
+  '--io-text-value-lg': '1.125rem',
+  '--io-text-value-xl': '1.5rem',
+  '--io-text-code': '0.8125rem',
+  '--io-text-code-sm': '0.75rem',
 }
 
 // ---------------------------------------------------------------------------
