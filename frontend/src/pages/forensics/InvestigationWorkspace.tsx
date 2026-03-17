@@ -11,6 +11,7 @@ import {
   type CorrelationResult,
 } from '../../api/forensics'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
+import EChart from '../../shared/components/charts/EChart'
 import EvidenceRenderer from './EvidenceRenderer'
 
 // ---------------------------------------------------------------------------
@@ -575,10 +576,103 @@ function PointsPanel({
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Correlation heatmap — ECharts N×N matrix
+// ---------------------------------------------------------------------------
+
+function CorrelationHeatmap({ correlations }: { correlations: CorrelationResult[] }) {
+  // Build unique ordered point list
+  const pointIds = Array.from(
+    new Set(correlations.flatMap((c) => [c.point_id_a, c.point_id_b])),
+  ).sort()
+
+  // Build value array for ECharts heatmap: [xIdx, yIdx, value]
+  const data: [number, number, number][] = []
+  const lookup = new Map<string, number>()
+  for (const c of correlations) {
+    lookup.set(`${c.point_id_a}__${c.point_id_b}`, c.pearson)
+    lookup.set(`${c.point_id_b}__${c.point_id_a}`, c.pearson)
+  }
+  for (let yi = 0; yi < pointIds.length; yi++) {
+    for (let xi = 0; xi < pointIds.length; xi++) {
+      const key = `${pointIds[xi]}__${pointIds[yi]}`
+      const val = xi === yi ? 1 : (lookup.get(key) ?? null)
+      if (val !== null) data.push([xi, yi, parseFloat(val.toFixed(3))])
+    }
+  }
+
+  // Short labels — last segment of tag path (e.g. "HCU.FIC101.PV" → "FIC101.PV")
+  const shortLabels = pointIds.map((id) => {
+    const parts = id.split('.')
+    return parts.length > 2 ? parts.slice(-2).join('.') : id
+  })
+
+  const option: import('echarts').EChartsOption = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      position: 'top',
+      formatter: (params: unknown) => {
+        const p = params as { data: [number, number, number] }
+        const a = shortLabels[p.data[0]]
+        const b = shortLabels[p.data[1]]
+        return `${a} ↔ ${b}<br/>Pearson: ${p.data[2].toFixed(4)}`
+      },
+    },
+    grid: { top: 24, bottom: 80, left: 80, right: 24 },
+    xAxis: {
+      type: 'category',
+      data: shortLabels,
+      axisLabel: { rotate: 45, fontSize: 10, color: '#a1a1aa' },
+      axisLine: { lineStyle: { color: '#3f3f46' } },
+      splitArea: { show: true },
+    },
+    yAxis: {
+      type: 'category',
+      data: shortLabels,
+      axisLabel: { fontSize: 10, color: '#a1a1aa' },
+      axisLine: { lineStyle: { color: '#3f3f46' } },
+      splitArea: { show: true },
+    },
+    visualMap: {
+      min: -1,
+      max: 1,
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      textStyle: { color: '#a1a1aa', fontSize: 10 },
+      inRange: {
+        color: ['#2563eb', '#27272a', '#2dd4bf'],
+      },
+    },
+    series: [
+      {
+        name: 'Pearson r',
+        type: 'heatmap',
+        data,
+        label: { show: pointIds.length <= 8, fontSize: 9, color: '#f9fafb' },
+        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.5)' } },
+      },
+    ],
+  }
+
+  if (pointIds.length < 2) {
+    return (
+      <div style={{ padding: '16px', fontSize: 13, color: 'var(--io-text-muted)' }}>
+        Need at least 2 points to render a heatmap.
+      </div>
+    )
+  }
+
+  return (
+    <EChart option={option} height={Math.max(240, pointIds.length * 40 + 100)} />
+  )
+}
+
 // Results panel — correlations, change points, spikes
 // ---------------------------------------------------------------------------
 
-type ResultsTab = 'correlations' | 'change_points' | 'spikes'
+type ResultsTab = 'correlations' | 'heatmap' | 'change_points' | 'spikes'
 
 function ResultsPanel({
   investigationId,
@@ -669,6 +763,7 @@ function ResultsPanel({
 
   const tabs: { key: ResultsTab; label: string }[] = [
     { key: 'correlations', label: 'Correlations' },
+    { key: 'heatmap', label: 'Heatmap' },
     { key: 'change_points', label: 'Change Points' },
     { key: 'spikes', label: 'Spikes' },
   ]
@@ -756,6 +851,10 @@ function ResultsPanel({
             loading={running}
             emptyMessage="No correlations computed"
           />
+        )}
+
+        {activeTab === 'heatmap' && results && (
+          <CorrelationHeatmap correlations={results.correlations} />
         )}
 
         {activeTab === 'change_points' && results && (

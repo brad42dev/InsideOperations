@@ -815,10 +815,64 @@ export default function AppShell() {
             overflowY: 'auto',
             background: 'var(--io-surface-primary)',
           }}
+          className="main-content"
         >
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile bottom tab bar — 5 primary nav items, visible only on mobile */}
+      {!isKiosk && (
+        <nav
+          className="mobile-bottom-bar"
+          style={{
+            display: 'none', // shown via CSS media query
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '56px',
+            background: 'var(--io-surface-secondary)',
+            borderTop: '1px solid var(--io-border)',
+            zIndex: 60,
+            alignItems: 'stretch',
+          }}
+        >
+          {[
+            { path: '/console', label: 'Console', icon: Monitor },
+            { path: '/process', label: 'Process', icon: Layers },
+            { path: '/dashboards', label: 'Dashboards', icon: LayoutDashboard },
+            { path: '/alerts', label: 'Alerts', icon: Bell },
+            { path: '/settings', label: 'Settings', icon: SettingsIcon },
+          ].map(({ path, label, icon: Icon }) => {
+            const active = location.pathname === path || location.pathname.startsWith(path + '/')
+            return (
+              <NavLink
+                key={path}
+                to={path}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  textDecoration: 'none',
+                  color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                  fontSize: '10px',
+                  fontWeight: active ? 600 : 400,
+                  padding: '6px 0',
+                  borderTop: active ? '2px solid var(--io-accent)' : '2px solid transparent',
+                  background: 'none',
+                }}
+              >
+                <Icon size={20} />
+                {label}
+              </NavLink>
+            )
+          })}
+        </nav>
+      )}
 
       {/* Overlays — mounted at the AppShell level */}
       <LockOverlay />
@@ -831,6 +885,8 @@ export default function AppShell() {
           .sidebar.open { transform: translateX(0); }
           .hamburger { display: flex !important; }
           .mobile-overlay { display: block !important; }
+          .mobile-bottom-bar { display: flex !important; }
+          .main-content { padding-bottom: 56px; }
         }
       `}</style>
     </div>

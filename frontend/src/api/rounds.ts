@@ -26,6 +26,8 @@ export interface Checkpoint {
   data_type: 'text' | 'numeric' | 'boolean' | 'dropdown' | 'multi_field'
   required: boolean
   unit?: string
+  /** OPC UA point ID for automatic value capture during round execution */
+  opc_point_id?: string
   validation?: CheckpointValidation
   options?: string[]
   fields?: Array<{ name: string; type: string }>
