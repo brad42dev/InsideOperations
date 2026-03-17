@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import WorkspaceGrid from './WorkspaceGrid'
+import ConsolePalette, { type ConsoleDragItem } from './ConsolePalette'
 import PaneConfigModal from './PaneConfigModal'
 import ContextMenu from '../../shared/components/ContextMenu'
 import type { WorkspaceLayout, PaneConfig, LayoutPreset } from './types'
@@ -236,6 +237,7 @@ export default function ConsolePage() {
   // ---- UI state -----------------------------------------------------------
 
   const [editMode, setEditMode] = useState(false)
+  const [paletteVisible, setPaletteVisible] = useState(true)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
   const [tabContextMenu, setTabContextMenu] = useState<{
     x: number
@@ -345,6 +347,48 @@ export default function ConsolePage() {
     }))
     setConfiguringPaneId(null)
   }
+
+  // ---- Palette drop handler -----------------------------------------------
+
+  const handlePaletteDrop = useCallback(
+    (paneId: string, item: ConsoleDragItem) => {
+      if (!activeId) return
+      updateWorkspace(activeId, (w) => ({
+        ...w,
+        panes: w.panes.map((p) => {
+          if (p.id !== paneId) return p
+          switch (item.itemType) {
+            case 'graphic':
+              return {
+                ...p,
+                type: 'graphic' as const,
+                graphicId: item.graphicId,
+                title: item.label,
+              }
+            case 'trend':
+              return {
+                ...p,
+                type: 'trend' as const,
+                trendPointIds: item.pointIds ?? p.trendPointIds ?? [],
+                title: item.label ?? p.title,
+              }
+            case 'point_table':
+              return {
+                ...p,
+                type: 'point_table' as const,
+                tablePointIds: item.pointIds ?? p.tablePointIds ?? [],
+                title: item.label ?? p.title,
+              }
+            case 'alarm_list':
+              return { ...p, type: 'alarm_list' as const, title: item.label ?? p.title }
+            default:
+              return p
+          }
+        }),
+      }))
+    },
+    [activeId, updateWorkspace],
+  )
 
   // ---- Configuring pane object --------------------------------------------
 
@@ -587,80 +631,87 @@ export default function ConsolePage() {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {workspaces.length === 0 ? (
-          /* Empty state */
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 16,
-              color: 'var(--io-text-muted)',
-            }}
-          >
-            <svg
-              width="56"
-              height="56"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-            >
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <line x1="12" y1="3" x2="12" y2="17" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-              <line x1="8" y1="21" x2="16" y2="21" />
-              <line x1="12" y1="17" x2="12" y2="21" />
-            </svg>
-            <div style={{ textAlign: 'center', fontSize: 15 }}>
-              <p style={{ margin: '0 0 4px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
-                No workspaces yet
-              </p>
-              <p style={{ margin: 0, fontSize: 13 }}>
-                Create your first workspace to start monitoring
-              </p>
-            </div>
-            <button
-              onClick={createWorkspace}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
+        {/* Left palette */}
+        <ConsolePalette visible={paletteVisible} onToggle={() => setPaletteVisible((v) => !v)} />
+
+        {/* Workspace area */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {workspaces.length === 0 ? (
+            /* Empty state */
+            <div
               style={{
-                background: 'var(--io-accent)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '9px 20px',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 16,
+                color: 'var(--io-text-muted)',
               }}
             >
-              Create Workspace
-            </button>
-          </div>
-        ) : activeWorkspace ? (
-          <WorkspaceGrid
-            workspace={activeWorkspace}
-            editMode={editMode}
-            onConfigurePane={handleConfigurePane}
-            onRemovePane={handleRemovePane}
-            onGraphicSelected={handleGraphicSelected}
-          />
-        ) : (
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--io-text-muted)',
-              fontSize: 14,
-            }}
-          >
-            Select a workspace above
-          </div>
-        )}
+              <svg
+                width="56"
+                height="56"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="12" y1="3" x2="12" y2="17" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+              <div style={{ textAlign: 'center', fontSize: 15 }}>
+                <p style={{ margin: '0 0 4px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
+                  No workspaces yet
+                </p>
+                <p style={{ margin: 0, fontSize: 13 }}>
+                  Create your first workspace to start monitoring
+                </p>
+              </div>
+              <button
+                onClick={createWorkspace}
+                style={{
+                  background: 'var(--io-accent)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '9px 20px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                Create Workspace
+              </button>
+            </div>
+          ) : activeWorkspace ? (
+            <WorkspaceGrid
+              workspace={activeWorkspace}
+              editMode={editMode}
+              onConfigurePane={handleConfigurePane}
+              onRemovePane={handleRemovePane}
+              onGraphicSelected={handleGraphicSelected}
+              onPaletteDrop={handlePaletteDrop}
+            />
+          ) : (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--io-text-muted)',
+                fontSize: 14,
+              }}
+            >
+              Select a workspace above
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Pane config modal */}

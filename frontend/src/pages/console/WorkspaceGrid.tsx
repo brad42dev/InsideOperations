@@ -1,4 +1,5 @@
 import PaneWrapper from './PaneWrapper'
+import type { ConsoleDragItem } from './ConsolePalette'
 import type { WorkspaceLayout, PaneConfig } from './types'
 
 export interface WorkspaceGridProps {
@@ -7,6 +8,7 @@ export interface WorkspaceGridProps {
   onConfigurePane: (paneId: string) => void
   onRemovePane: (paneId: string) => void
   onGraphicSelected?: (paneId: string, graphicId: string) => void
+  onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +211,7 @@ export default function WorkspaceGrid({
   onConfigurePane,
   onRemovePane,
   onGraphicSelected,
+  onPaletteDrop,
 }: WorkspaceGridProps) {
   const { gridTemplateColumns, gridTemplateRows, cellAreas } = getGridTemplate(workspace.layout)
   const expectedCount = paneCount(workspace.layout)
@@ -252,6 +255,7 @@ export default function WorkspaceGrid({
             onConfigure={onConfigurePane}
             onRemove={onRemovePane}
             onGraphicSelected={onGraphicSelected}
+            onPaletteDrop={onPaletteDrop}
           />
         </div>
       ))}

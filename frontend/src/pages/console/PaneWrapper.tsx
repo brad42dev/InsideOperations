@@ -4,6 +4,7 @@ import TrendPane from './panes/TrendPane'
 import PointTablePane from './panes/PointTablePane'
 import AlarmListPane from './panes/AlarmListPane'
 import ContextMenu from '../../shared/components/ContextMenu'
+import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from './ConsolePalette'
 import type { PaneConfig } from './types'
 
 export interface PaneWrapperProps {
@@ -12,6 +13,7 @@ export interface PaneWrapperProps {
   onConfigure: (paneId: string) => void
   onRemove: (paneId: string) => void
   onGraphicSelected?: (paneId: string, graphicId: string) => void
+  onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
 }
 
 const PANE_TYPE_LABELS: Record<string, string> = {
@@ -107,20 +109,53 @@ export default function PaneWrapper({
   onConfigure,
   onRemove,
   onGraphicSelected,
+  onPaletteDrop,
 }: PaneWrapperProps) {
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
   const [paneCtxMenu, setPaneCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  function handleDragOver(e: React.DragEvent) {
+    if (e.dataTransfer.types.includes(CONSOLE_DRAG_KEY)) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+      setDragOver(true)
+    }
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    // Only clear if leaving the pane itself, not a child
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOver(false)
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    setDragOver(false)
+    const raw = e.dataTransfer.getData(CONSOLE_DRAG_KEY)
+    if (!raw) return
+    try {
+      const item = JSON.parse(raw) as ConsoleDragItem
+      onPaletteDrop?.(config.id, item)
+    } catch {
+      // ignore malformed
+    }
+  }
 
   return (
     <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         background: 'var(--io-surface)',
-        border: '1px solid var(--io-border)',
+        border: dragOver ? '2px solid var(--io-accent)' : '1px solid var(--io-border)',
         borderRadius: 4,
         overflow: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       {/* Header */}
