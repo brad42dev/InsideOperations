@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import WorkspaceGrid from './WorkspaceGrid'
 import ConsolePalette, { type ConsoleDragItem } from './ConsolePalette'
@@ -217,11 +217,38 @@ export default function ConsolePage() {
     [useApi, deleteMutation, activeId, workspaces],
   )
 
+  // ---- Undo/Redo stacks (scoped to active workspace) ----------------------
+
+  const MAX_UNDO = 50
+  // Refs for stacks so we can read them synchronously in callbacks
+  const undoStackRef = useRef<WorkspaceLayout[]>([])
+  const redoStackRef = useRef<WorkspaceLayout[]>([])
+  // State shadows for reactive UI (canUndo/canRedo buttons)
+  const [undoDepth, setUndoDepth] = useState(0)
+  const [redoDepth, setRedoDepth] = useState(0)
+
+  // Reset stacks when switching workspaces
+  useEffect(() => {
+    undoStackRef.current = []
+    redoStackRef.current = []
+    setUndoDepth(0)
+    setRedoDepth(0)
+  }, [activeId])
+
+  const pushUndo = useCallback((snapshot: WorkspaceLayout) => {
+    undoStackRef.current = [...undoStackRef.current, snapshot].slice(-MAX_UNDO)
+    redoStackRef.current = []
+    setUndoDepth(undoStackRef.current.length)
+    setRedoDepth(0)
+  }, [])
+
   // Apply an update function to the workspace list and persist the changed workspace
   const updateWorkspace = useCallback(
-    (id: string, updater: (w: WorkspaceLayout) => WorkspaceLayout) => {
+    (id: string, updater: (w: WorkspaceLayout) => WorkspaceLayout, skipUndo = false) => {
       const target = workspaces.find((w) => w.id === id)
       if (!target) return
+      // Snapshot current state for undo (unless this IS an undo/redo restore)
+      if (!skipUndo) pushUndo(target)
       const updated = updater(target)
       persistWorkspace(updated)
       // Optimistically update local list (API will re-fetch via invalidation)
@@ -231,7 +258,7 @@ export default function ConsolePage() {
         )
       }
     },
-    [workspaces, persistWorkspace, useApi, queryClient],
+    [workspaces, persistWorkspace, useApi, queryClient, pushUndo],
   )
 
   // ---- UI state -----------------------------------------------------------
@@ -306,6 +333,49 @@ export default function ConsolePage() {
   }
 
   const saveEdit = () => setEditMode(false)
+
+  // ---- Undo / Redo ---------------------------------------------------------
+
+  const handleUndo = useCallback(() => {
+    if (!activeId || undoStackRef.current.length === 0) return
+    const stack = [...undoStackRef.current]
+    const snapshot = stack.pop()!
+    const current = workspaces.find((w) => w.id === activeId)
+    if (current) {
+      redoStackRef.current = [...redoStackRef.current, current]
+      setRedoDepth(redoStackRef.current.length)
+    }
+    undoStackRef.current = stack
+    setUndoDepth(stack.length)
+    // Restore snapshot without pushing a new undo entry
+    updateWorkspace(activeId, () => snapshot, true)
+  }, [activeId, workspaces, updateWorkspace])
+
+  const handleRedo = useCallback(() => {
+    if (!activeId || redoStackRef.current.length === 0) return
+    const stack = [...redoStackRef.current]
+    const snapshot = stack.pop()!
+    const current = workspaces.find((w) => w.id === activeId)
+    if (current) {
+      undoStackRef.current = [...undoStackRef.current, current]
+      setUndoDepth(undoStackRef.current.length)
+    }
+    redoStackRef.current = stack
+    setRedoDepth(stack.length)
+    updateWorkspace(activeId, () => snapshot, true)
+  }, [activeId, workspaces, updateWorkspace])
+
+  // Keyboard: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const ctrl = e.ctrlKey || e.metaKey
+      if (!ctrl) return
+      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo() }
+      if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); handleRedo() }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleUndo, handleRedo])
 
   // ---- Pane management ----------------------------------------------------
 
@@ -514,6 +584,54 @@ export default function ConsolePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {editMode && activeWorkspace && (
             <>
+              {/* Undo / Redo */}
+              <button
+                onClick={handleUndo}
+                disabled={undoDepth === 0}
+                title="Undo (Ctrl+Z)"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 6,
+                  padding: '4px 8px',
+                  cursor: undoDepth === 0 ? 'default' : 'pointer',
+                  fontSize: 12,
+                  color: undoDepth === 0 ? 'var(--io-text-disabled)' : 'var(--io-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                {/* Undo arrow */}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+                </svg>
+                Undo
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={redoDepth === 0}
+                title="Redo (Ctrl+Y)"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 6,
+                  padding: '4px 8px',
+                  cursor: redoDepth === 0 ? 'default' : 'pointer',
+                  fontSize: 12,
+                  color: redoDepth === 0 ? 'var(--io-text-disabled)' : 'var(--io-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                Redo
+                {/* Redo arrow */}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+                </svg>
+              </button>
+
               {/* Layout selector */}
               <select
                 value={activeWorkspace.layout}
