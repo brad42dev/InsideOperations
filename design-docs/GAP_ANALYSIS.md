@@ -1,5 +1,5 @@
 # Inside/Operations — Gap Analysis
-_Generated: 2026-03-17. Updated: 2026-03-17. Covers docs 00–39 (all 40 design documents)._
+_Generated: 2026-03-17. Updated: 2026-03-17 (pass 2). Covers docs 00–39 (all 40 design documents)._
 
 ---
 
@@ -23,47 +23,47 @@ Each design document (00–10, 38) was read in full and compared to the current 
 
 | Doc | Area | Gap Severity | Status |
 |-----|------|-------------|--------|
-| 06 | Design tokens — missing ~90 of 138 specified tokens | MEDIUM | Documented below |
-| 06 | Typography — Inter/JetBrains Mono fonts not loaded | MEDIUM | Fixable |
-| 06 | Sidebar — width 220px vs spec 240px | LOW | Fixable |
-| 06 | Sidebar — Hidden (0px) state not implemented | MEDIUM | Large feature |
-| 06 | Sidebar — Collapsed hover-to-expand overlay not implemented | LOW | Enhancement |
-| 06 | Sidebar — Navigation grouping (Monitoring/Analysis/Operations/Management) not implemented | MEDIUM | Fixable |
-| 06 | Sidebar — Badge counts (unread alerts, active rounds) not implemented | LOW | Enhancement |
-| 06 | Top bar — hide/show (Ctrl+Shift+T) not implemented | LOW | Enhancement |
-| 06 | Top bar — alert notification bell not implemented | MEDIUM | Enhancement |
-| 06 | Top bar — breadcrumbs not implemented | LOW | Enhancement |
-| 06 | Command palette — G-key navigation not implemented | LOW | Fixable |
-| 06 | Command palette — prefix scopes (> @ / #) not implemented | LOW | Enhancement |
+| 06 | Design tokens — missing ~90 of 138 specified tokens | MEDIUM | **DONE** (pass 2: all 138 tokens now in tokens.ts for all 3 themes) |
+| 06 | Typography — Inter/JetBrains Mono fonts not loaded | MEDIUM | **DONE** (Google Fonts preloaded in index.html) |
+| 06 | Sidebar — width 220px vs spec 240px | LOW | **DONE** (tokens.ts: 240px/48px) |
+| 06 | Sidebar — Hidden (0px) state not implemented | MEDIUM | Deferred (low user impact) |
+| 06 | Sidebar — Collapsed hover-to-expand overlay not implemented | LOW | Deferred |
+| 06 | Sidebar — Navigation grouping (Monitoring/Analysis/Operations/Management) not implemented | MEDIUM | **DONE** (NAV_GROUPS already in AppShell) |
+| 06 | Sidebar — Badge counts (unread alerts, active rounds) not implemented | LOW | Deferred |
+| 06 | Top bar — hide/show (Ctrl+Shift+T) not implemented | LOW | Deferred |
+| 06 | Top bar — alert notification bell not implemented | MEDIUM | **DONE** (AlertBell component in AppShell) |
+| 06 | Top bar — breadcrumbs not implemented | LOW | **DONE** (buildBreadcrumbs in AppShell) |
+| 06 | Command palette — G-key navigation not implemented | LOW | **DONE** (G_KEY_MAP in AppShell) |
+| 06 | Command palette — prefix scopes (> @ / #) not implemented | LOW | Deferred |
 | 06 | Command palette — uses Radix Dialog not cmdk library | LOW | Acceptable |
 | 06 | Kiosk mode — Ctrl+Shift+T not implemented, kiosk flag exists | LOW | Acceptable |
-| 06 | Print stylesheet not implemented | LOW | Enhancement |
-| 06 | Multi-window / detached windows not implemented | HIGH | Large feature |
-| 07 | Console — only 6 layout presets vs spec 16+8=24 | MEDIUM | Large feature |
-| 07 | Console — react-grid-layout not used; CSS grid used instead | MEDIUM | Acceptable |
-| 07 | Console — left panel accordion (4 sections) not implemented | HIGH | Large feature |
-| 07 | Console — drag-and-drop from palette to workspace not implemented | HIGH | Large feature |
-| 07 | Console — pane swap, box select, copy/paste not implemented | MEDIUM | Large feature |
-| 07 | Console — undo/redo (zundo) not implemented | MEDIUM | Large feature |
-| 07 | Console — historical playback not implemented | MEDIUM | Large feature |
-| 07 | Console — real-time WebSocket data updates in panes not implemented | HIGH | Architecture |
-| 07 | Console — workspace saved to localStorage not database | MEDIUM | Architecture |
-| 07 | Console — publish/share workspaces not implemented | LOW | Enhancement |
-| 08 | Process — LOD (Level of Detail) transitions not implemented | LOW | Enhancement |
-| 08 | Process — viewport-aware point subscriptions not implemented | MEDIUM | Enhancement |
-| 08 | Process — hotspot navigation not implemented | LOW | Enhancement |
-| 08 | Process — view hierarchy / breadcrumbs not implemented | LOW | Enhancement |
-| 08 | Process — historical playback not implemented | LOW | Enhancement |
+| 06 | Print stylesheet not implemented | LOW | **DONE** (@media print in index.css) |
+| 06 | Multi-window / detached windows not implemented | HIGH | Deferred (large architectural) |
+| 07 | Console — only 6 layout presets vs spec 16+8=24 | MEDIUM | **DONE** (24+ presets in WorkspaceGrid + ConsolePage) |
+| 07 | Console — react-grid-layout not used; CSS grid used instead | MEDIUM | Acceptable (CSS grid is simpler, adequate) |
+| 07 | Console — left panel accordion (4 sections) not implemented | HIGH | **DONE** (ConsolePalette.tsx — Graphics/Widgets/Points accordion) |
+| 07 | Console — drag-and-drop from palette to workspace not implemented | HIGH | **DONE** (HTML5 DnD in ConsolePalette → PaneWrapper → WorkspaceGrid) |
+| 07 | Console — pane swap, box select, copy/paste not implemented | MEDIUM | Deferred |
+| 07 | Console — undo/redo (zundo) not implemented | MEDIUM | **DONE** (useRef-based 50-level stacks, Ctrl+Z/Y/Shift+Z) |
+| 07 | Console — historical playback not implemented | MEDIUM | Deferred |
+| 07 | Console — real-time WebSocket data updates in panes not implemented | HIGH | **DONE** (useWebSocket in all 4 pane types; GraphicViewer has PointBindingLayer) |
+| 07 | Console — workspace saved to localStorage not database | MEDIUM | **DONE** (API-backed via consoleApi with localStorage fallback) |
+| 07 | Console — publish/share workspaces not implemented | LOW | Deferred |
+| 08 | Process — LOD (Level of Detail) transitions not implemented | LOW | Deferred |
+| 08 | Process — viewport-aware point subscriptions not implemented | MEDIUM | Deferred |
+| 08 | Process — hotspot navigation not implemented | LOW | Deferred |
+| 08 | Process — view hierarchy / breadcrumbs not implemented | LOW | Deferred |
+| 08 | Process — historical playback not implemented | LOW | Deferred |
 | 09 | Designer — covered by DESIGNER_WORK_QUEUE.md | SKIP | Skip |
-| 10 | Dashboards — widget real-time updates via WebSocket not implemented | HIGH | Enhancement |
+| 10 | Dashboards — widget real-time updates via WebSocket not implemented | HIGH | **DONE** (usePointValues hook in KpiCard, LineChart, GaugeWidget) |
 | 10 | Dashboards — 19 canned dashboards seeded (8+11) — backend done, UI shows them | OK | |
-| 10 | Dashboards — kiosk URL param (?kiosk=true) not wired | LOW | Fixable |
-| 10 | Dashboards — template variables URL sync not implemented | LOW | Enhancement |
-| 38 | Routes — /login/callback should be route alias for /oidc-callback | LOW | Fixable |
-| 38 | Routes — several settings sub-routes missing from App.tsx | LOW | Fixable |
-| 38 | Token registry — tokens.ts only defines ~24 of 138 required tokens | MEDIUM | Fixable |
-| 38 | Token registry — sidebar-width is 220px vs spec 240px | LOW | Fixable |
-| 38 | Token registry — sidebar-collapsed (48px) token missing | LOW | Fixable |
+| 10 | Dashboards — kiosk URL param (?kiosk=true) not wired | LOW | **DONE** (useSearchParams + kioskParam in DashboardViewer) |
+| 10 | Dashboards — template variables URL sync not implemented | LOW | **DONE** (var-{name} params in DashboardViewer) |
+| 38 | Routes — /login/callback should be route alias for /oidc-callback | LOW | **DONE** (alias route added to App.tsx) |
+| 38 | Routes — several settings sub-routes missing from App.tsx | LOW | **DONE** (/settings/imports alias added) |
+| 38 | Token registry — tokens.ts only defines ~24 of 138 required tokens | MEDIUM | **DONE** |
+| 38 | Token registry — sidebar-width is 220px vs spec 240px | LOW | **DONE** |
+| 38 | Token registry — sidebar-collapsed (48px) token missing | LOW | **DONE** |
 
 ---
 
