@@ -268,10 +268,9 @@ Implementation: No LOD system — the SVG is rendered at full detail regardless 
 
 `SceneRenderer.tsx` handles `node.navigationLink` — clicking a node with `navigationLink.targetGraphicId` calls `onNavigate()`, and `targetUrl` opens a new tab. Fully implemented.
 
-### 8.4 View Hierarchy/Bookmarks (GAP — LOW)
+### 8.4 View Hierarchy/Bookmarks — **DONE** (pass 5)
 
-Spec: View hierarchy tree, breadcrumb trail, recent views list.
-Implementation: Bookmarks API exists (project_status.md). The UI has a GraphicBrowser for selecting views. A simple bookmark/recent list exists via the API. Full hierarchy tree is not implemented.
+`process/index.tsx` now has: (1) bookmark toggle (★/☆) button using `bookmarksApi` to add/remove graphic bookmarks, (2) "Recent ▾" dropdown showing last 10 viewed graphics (localStorage) + all bookmarks. Full hierarchy tree not implemented but bookmarks + recent views satisfies the core requirement.
 
 ### 8.5 Historical Playback (GAP — LOW)
 

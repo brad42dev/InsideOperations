@@ -1,13 +1,28 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { graphicsApi } from '../../api/graphics'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneRenderer'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
+import { bookmarksApi } from '../../api/bookmarks'
 import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import type { DesignObjectSummary } from '../../api/graphics'
 
 const DEFAULT_GRAPHIC_ID_KEY = 'io-process-last-graphic'
+const RECENT_VIEWS_KEY = 'io-process-recent-views'
+const MAX_RECENT = 10
+
+interface RecentView { id: string; name: string }
+
+function loadRecentViews(): RecentView[] {
+  try { return JSON.parse(localStorage.getItem(RECENT_VIEWS_KEY) ?? '[]') } catch { return [] }
+}
+
+function pushRecentView(id: string, name: string) {
+  const views = loadRecentViews().filter((v) => v.id !== id)
+  views.unshift({ id, name })
+  localStorage.setItem(RECENT_VIEWS_KEY, JSON.stringify(views.slice(0, MAX_RECENT)))
+}
 
 // Determine which nodes are visible in the current viewport (canvas coords)
 function getVisiblePointIds(
@@ -50,9 +65,12 @@ function getVisiblePointIds(
 }
 
 export default function ProcessPage() {
+  const qc = useQueryClient()
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     return localStorage.getItem(DEFAULT_GRAPHIC_ID_KEY)
   })
+  const [recentViews, setRecentViews] = useState<RecentView[]>(loadRecentViews)
+  const [showRecent, setShowRecent] = useState(false)
   const [viewport, setViewport] = useState<ViewportState>({
     panX: 0, panY: 0, zoom: 1,
     canvasWidth: 1920, canvasHeight: 1080,
@@ -81,6 +99,39 @@ export default function ProcessPage() {
     },
     enabled: !!selectedId,
   })
+
+  // Bookmarks
+  const { data: bookmarks = [] } = useQuery({
+    queryKey: ['bookmarks', 'graphic'],
+    queryFn: async () => {
+      const result = await bookmarksApi.list()
+      if (result.success) return result.data.filter((b) => b.entity_type === 'graphic')
+      return []
+    },
+  })
+
+  const isBookmarked = selectedId ? bookmarks.some((b) => b.entity_id === selectedId) : false
+  const currentBookmark = selectedId ? bookmarks.find((b) => b.entity_id === selectedId) : undefined
+
+  const addBookmarkMutation = useMutation({
+    mutationFn: (args: { id: string; name: string }) =>
+      bookmarksApi.add({ entity_type: 'graphic', entity_id: args.id, name: args.name }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookmarks', 'graphic'] }),
+  })
+
+  const removeBookmarkMutation = useMutation({
+    mutationFn: (bookmarkId: string) => bookmarksApi.remove(bookmarkId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookmarks', 'graphic'] }),
+  })
+
+  function toggleBookmark() {
+    if (!selectedId || !graphic) return
+    if (isBookmarked && currentBookmark) {
+      removeBookmarkMutation.mutate(currentBookmark.id)
+    } else {
+      addBookmarkMutation.mutate({ id: selectedId, name: graphic.scene_data?.name ?? selectedId })
+    }
+  }
 
   // Update viewport dimensions on container resize
   useEffect(() => {
@@ -137,7 +188,11 @@ export default function ProcessPage() {
   const handleNavigate = useCallback((targetId: string) => {
     setSelectedId(targetId)
     localStorage.setItem(DEFAULT_GRAPHIC_ID_KEY, targetId)
-  }, [])
+    // Track in recent views (name resolved when graphic loads)
+    const name = graphicsList?.find((g) => g.id === targetId)?.name ?? targetId
+    pushRecentView(targetId, name)
+    setRecentViews(loadRecentViews())
+  }, [graphicsList])
 
   // Debounced viewport-aware point subscriptions (500ms per spec)
   const [debouncedVp, setDebouncedVp] = useState(viewport)
@@ -182,7 +237,12 @@ export default function ProcessPage() {
           onChange={(e) => {
             const val = e.target.value || null
             setSelectedId(val)
-            if (val) localStorage.setItem(DEFAULT_GRAPHIC_ID_KEY, val)
+            if (val) {
+              localStorage.setItem(DEFAULT_GRAPHIC_ID_KEY, val)
+              const name = graphicsList?.find((g) => g.id === val)?.name ?? val
+              pushRecentView(val, name)
+              setRecentViews(loadRecentViews())
+            }
           }}
           style={{
             background: 'var(--io-surface-elevated)', color: 'var(--io-text-primary)',
@@ -195,6 +255,90 @@ export default function ProcessPage() {
             <option key={g.id} value={g.id}>{g.name}</option>
           ))}
         </select>
+
+        {/* Bookmark toggle */}
+        {selectedId && (
+          <button
+            onClick={toggleBookmark}
+            title={isBookmarked ? 'Remove bookmark' : 'Bookmark this graphic'}
+            style={{
+              background: 'none', border: 'none',
+              color: isBookmarked ? 'var(--io-accent)' : 'var(--io-text-muted)',
+              cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1,
+            }}
+          >
+            {isBookmarked ? '★' : '☆'}
+          </button>
+        )}
+
+        {/* Recent views dropdown */}
+        {recentViews.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowRecent((v) => !v)}
+              title="Recent views"
+              style={{
+                background: 'none', border: 'none',
+                color: 'var(--io-text-muted)', cursor: 'pointer',
+                fontSize: 11, padding: '2px 6px',
+              }}
+            >
+              Recent ▾
+            </button>
+            {showRecent && (
+              <div
+                style={{
+                  position: 'absolute', top: '100%', left: 0, zIndex: 200,
+                  background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)',
+                  borderRadius: 6, padding: '4px 0', minWidth: 200,
+                  boxShadow: 'var(--io-shadow)',
+                }}
+                onMouseLeave={() => setShowRecent(false)}
+              >
+                <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Recent Views
+                </div>
+                {recentViews.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => { handleNavigate(v.id); setShowRecent(false) }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      background: v.id === selectedId ? 'var(--io-surface-secondary)' : 'none',
+                      border: 'none', padding: '5px 10px', fontSize: 12,
+                      color: 'var(--io-text-primary)', cursor: 'pointer',
+                    }}
+                  >
+                    {v.name}
+                  </button>
+                ))}
+                {bookmarks.length > 0 && (
+                  <>
+                    <div style={{ margin: '4px 0', borderTop: '1px solid var(--io-border)' }} />
+                    <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 700, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Bookmarks
+                    </div>
+                    {bookmarks.map((b) => (
+                      <button
+                        key={b.id}
+                        onClick={() => { handleNavigate(b.entity_id); setShowRecent(false) }}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          background: b.entity_id === selectedId ? 'var(--io-surface-secondary)' : 'none',
+                          border: 'none', padding: '5px 10px', fontSize: 12,
+                          color: 'var(--io-text-primary)', cursor: 'pointer',
+                        }}
+                      >
+                        ★ {b.name}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {graphic && (
           <>
             <div style={{ width: 1, height: 16, background: 'var(--io-border)', margin: '0 4px' }} />
