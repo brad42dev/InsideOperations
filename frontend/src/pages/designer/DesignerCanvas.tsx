@@ -40,6 +40,7 @@ import type {
   EmbeddedSvgNode,
   Stencil,
   Transform,
+  WidgetNode,
 } from '../../shared/types/graphics'
 import {
   AddNodeCommand,
@@ -359,6 +360,73 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
 }
 
 // ---------------------------------------------------------------------------
+// Widget renderer — design-time placeholder for dashboard/report widgets
+// ---------------------------------------------------------------------------
+
+const WIDGET_ICONS: Record<string, string> = {
+  trend:      '📈',
+  table:      '▦',
+  gauge:      '⏱',
+  kpi_card:   '◈',
+  bar_chart:  '📊',
+  pie_chart:  '◕',
+  alarm_list: '🔔',
+  muster_point: '📍',
+}
+
+function WidgetRenderer({ node, tx }: { node: WidgetNode; tx: string }) {
+  const { widgetType, width, height, config } = node
+  const title = ('title' in config ? (config as { title?: string }).title : undefined) ?? widgetType.replace(/_/g, ' ')
+  const icon = WIDGET_ICONS[widgetType] ?? '▭'
+  const isSmall = width < 80 || height < 50
+
+  return (
+    <g transform={tx} data-node-id={node.id} opacity={node.opacity}>
+      {/* Background */}
+      <rect
+        x={0} y={0}
+        width={Math.max(width, 40)}
+        height={Math.max(height, 28)}
+        fill="var(--io-surface-elevated)"
+        stroke="var(--io-border)"
+        strokeWidth={1}
+        rx={3}
+      />
+      {/* Title bar */}
+      <rect
+        x={0} y={0}
+        width={Math.max(width, 40)}
+        height={18}
+        fill="rgba(99,102,241,0.12)"
+        rx={3}
+      />
+      <rect x={0} y={14} width={Math.max(width, 40)} height={4} fill="rgba(99,102,241,0.12)" />
+      <text x={6} y={12} fontSize={9} fill="var(--io-accent)" fontWeight={500}>{title}</text>
+      {/* Center icon */}
+      {!isSmall && (
+        <>
+          <text
+            x={Math.max(width, 40) / 2}
+            y={Math.max(height, 28) / 2 + 10}
+            textAnchor="middle"
+            fontSize={22}
+            fill="rgba(99,102,241,0.25)"
+            fontFamily="serif"
+          >{icon}</text>
+          <text
+            x={Math.max(width, 40) / 2}
+            y={Math.max(height, 28) - 6}
+            textAnchor="middle"
+            fontSize={8}
+            fill="var(--io-text-muted)"
+          >{widgetType.replace(/_/g, ' ')}</text>
+        </>
+      )}
+    </g>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Render a single SceneNode
 // ---------------------------------------------------------------------------
 
@@ -499,8 +567,12 @@ function RenderNode({
       )
     }
 
+    case 'widget': {
+      const wn = node as WidgetNode
+      return <WidgetRenderer key={node.id} node={wn} tx={tx} />
+    }
+
     case 'annotation':
-    case 'widget':
     case 'stencil':
     default:
       // Placeholder for unimplemented types

@@ -1,11 +1,52 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { graphicsApi } from '../../api/graphics'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
-import type { ViewportState } from '../../shared/types/graphics'
+import { useWebSocket } from '../../shared/hooks/useWebSocket'
+import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import type { DesignObjectSummary } from '../../api/graphics'
 
 const DEFAULT_GRAPHIC_ID_KEY = 'io-process-last-graphic'
+
+// Determine which nodes are visible in the current viewport (canvas coords)
+function getVisiblePointIds(
+  doc: { children: SceneNode[] },
+  vp: ViewportState
+): string[] {
+  const visible = new Set<string>()
+  // Viewport bounds in canvas coordinates
+  const vLeft = vp.panX
+  const vTop = vp.panY
+  const vRight = vp.panX + vp.screenWidth / vp.zoom
+  const vBottom = vp.panY + vp.screenHeight / vp.zoom
+
+  function scanNode(node: SceneNode) {
+    if (!node.visible) return
+    const { x, y } = node.transform.position
+    // Simple bbox — use 200x200 as a safe overestimate for any node
+    const nRight = x + 200
+    const nBottom = y + 200
+    const inViewport = x < vRight && nRight > vLeft && y < vBottom && nBottom > vTop
+
+    if (inViewport) {
+      if (node.type === 'display_element') {
+        const de = node as DisplayElement
+        if (de.binding?.pointId) visible.add(de.binding.pointId)
+      }
+      if (node.type === 'symbol_instance') {
+        const si = node as SymbolInstance
+        if (si.stateBinding?.pointId) visible.add(si.stateBinding.pointId)
+      }
+    }
+
+    if ('children' in node && Array.isArray(node.children)) {
+      for (const child of node.children) scanNode(child as SceneNode)
+    }
+  }
+
+  for (const node of doc.children) scanNode(node)
+  return Array.from(visible)
+}
 
 export default function ProcessPage() {
   const [selectedId, setSelectedId] = useState<string | null>(() => {
@@ -97,6 +138,20 @@ export default function ProcessPage() {
     localStorage.setItem(DEFAULT_GRAPHIC_ID_KEY, targetId)
   }, [])
 
+  // Debounced viewport-aware point subscriptions (500ms per spec)
+  const [debouncedVp, setDebouncedVp] = useState(viewport)
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedVp(viewport), 500)
+    return () => clearTimeout(id)
+  }, [viewport])
+
+  const visiblePointIds = useMemo(() => {
+    if (!graphic?.scene_data) return []
+    return getVisiblePointIds(graphic.scene_data, debouncedVp)
+  }, [graphic?.scene_data, debouncedVp])
+
+  const { values: pointValues } = useWebSocket(visiblePointIds)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--io-bg)' }}>
       {/* Toolbar */}
@@ -171,6 +226,7 @@ export default function ProcessPage() {
           <SceneRenderer
             document={graphic.scene_data}
             viewport={viewport}
+            pointValues={pointValues as Map<string, import('../../shared/graphics/SceneRenderer').PointValue>}
             onNavigate={handleNavigate}
             style={{ position: 'absolute', inset: 0 }}
           />

@@ -18,7 +18,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useSceneStore, useHistoryStore } from '../../store/designer'
 import { graphicsApi } from '../../api/graphics'
 import { wsManager } from '../../shared/hooks/useWebSocket'
@@ -283,6 +283,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 export default function DesignerPage() {
   const { graphicId } = useParams<{ graphicId?: string }>()
+  const navigate = useNavigate()
   const isNew = !graphicId || graphicId === 'new'
 
   // Store actions
@@ -620,6 +621,13 @@ export default function DesignerPage() {
       {showImportWizard && (
         <IographicImportWizard
           onClose={() => setShowImportWizard(false)}
+          onImported={(result) => {
+            setShowImportWizard(false)
+            // Navigate to the first imported graphic so it can be edited
+            if (result.graphic_ids.length > 0) {
+              navigate(`/designer/graphics/${result.graphic_ids[0]}/edit`)
+            }
+          }}
         />
       )}
 
