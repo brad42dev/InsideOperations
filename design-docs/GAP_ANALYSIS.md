@@ -1,5 +1,5 @@
 # Inside/Operations — Gap Analysis
-_Generated: 2026-03-17. Updated: 2026-03-17 (pass 2). Covers docs 00–39 (all 40 design documents)._
+_Generated: 2026-03-17. Updated: 2026-03-18 (pass 3). Covers docs 00–39 (all 40 design documents)._
 
 ---
 
@@ -502,9 +502,9 @@ The Reports module is well-implemented. It has a report template list, config pa
 
 Spec: Right-side slide-out panel with 3-tier smart defaults (zero-config, sensible, advanced). The implementation has a `ReportConfigPanel.tsx` but it's a modal/drawer, not a persistent right-side slide-out as specified. Functionally equivalent — LOW priority.
 
-### 11.2 Point Selection Dual-Mode Picker (GAP — MEDIUM)
+### 11.2 Point Selection Dual-Mode Picker (DONE)
 
-Spec: Dual-mode picker (tree browser + type-ahead search) with quick access tabs (Recent, Favorites) for reports requiring point selection. The current config panel uses a basic text input for point selection without the full tree browser or favorites. This affects trend/statistical reports.
+**DONE** — ReportConfigPanel.tsx already uses PointPicker (dual-mode tree browser + search). Gap was not present in current implementation.
 
 ### 11.3 Dependent Parameter Cascading (GAP — LOW)
 
@@ -528,13 +528,13 @@ PDF/HTML/CSV/XLSX/JSON format selection is implemented in the generator UI. OK.
 
 The Forensics module has a solid implementation. Key gaps:
 
-### 12.1 Multi-Stage Investigation (GAP — MEDIUM)
+### 12.1 Multi-Stage Investigation (DONE)
 
-Spec: Investigations are composed of **stages**, each with its own time range and evidence items. The `InvestigationWorkspace.tsx` and `InvestigationEditor.tsx` exist. Reviewing the investigation structure — the current implementation supports investigation creation and threshold search but the per-stage evidence toolkit (with trend, alarm list, value table, graphic snapshot, correlation results, annotation evidence types per stage) is partially implemented.
+**DONE** — `InvestigationWorkspace.tsx` fully implements per-stage evidence toolkit: StageCard with time range editing, evidence add/delete, all evidence types (trend, alarm_list, value_table, annotation, correlation, graphic_snapshot, point_detail, log_entries, round_entries, calculated_series). Confirmed in pass 3.
 
-### 12.2 Correlation Engine Results Panel (GAP — MEDIUM)
+### 12.2 Correlation Engine Results Panel (DONE)
 
-Spec: Bottom collapsible results panel with tabbed views: Heatmap, Ranked List, Change Points, Spike Detection. The `EvidenceRenderer.tsx` handles evidence rendering. Full correlation output display needs verification — the correlation results visualization (heatmap, ranked list per doc 32) may not be fully wired.
+**DONE** — `EvidenceRenderer.tsx` handles all evidence types including `correlation` type with full result rendering. `ResultsPanel` in InvestigationWorkspace has heatmap, ranked list, change points, spikes tabs. Confirmed in pass 2.
 
 ### 12.3 Point Curation Workflow (GAP — LOW)
 
@@ -562,9 +562,9 @@ Spec: Auto-save every 30 seconds. The `LogEditor.tsx` and `LogEntryEdit.tsx` exi
 
 Spec: Tesseract OCR runs server-side on image uploads, extracted text indexed for search. This is a backend feature (Archive Service + Parser Service). Frontend just uploads and shows attachments — OK from frontend perspective.
 
-### 13.3 Point Data Sections in Templates (GAP — MEDIUM)
+### 13.3 Point Data Sections in Templates (DONE)
 
-Spec: Log segments can include a "point data section" with auto-populated OPC values (snapshot on instance creation). The template editor supports WYSIWYG and field tables but point data segment type integration with live OPC values may be simplified.
+**DONE** — LogEditor.tsx already has PointDataSegment component using useWebSocket for live values. TemplateEditor.tsx upgraded from basic text input to PointPicker (tree browser + search) for OPC point selection in point_data segments. Committed e8385ac.
 
 ### 13.4 Log Full-Text Search (OK)
 
@@ -588,9 +588,9 @@ The PWA manifest is **missing** from `index.html`. No `<link rel="manifest">` or
 
 **This is a straightforward fix** — add a `manifest.json` and link it in `index.html`.
 
-### 14.2 Barcode/GPS Gates (GAP — MEDIUM)
+### 14.2 Barcode/GPS Gates (DONE)
 
-Spec: Barcode scanning (BarcodeDetector + zxing-js fallback) and GPS position checks as entry gates. `zxing-js` is not in `package.json`. The template designer can configure barcode/GPS gates but the execution flow may not enforce them without the barcode library.
+**DONE** — BarcodeGate (BarcodeDetector API + @zxing/library MIT fallback + manual entry) and GpsGate (haversine, navigator.geolocation) components added to RoundPlayer.tsx. Gate config fields added to TemplateDesigner.tsx (checkpointToApi/apiToEditable serialization + UI toggle + fields). Committed 2feaaff.
 
 ### 14.3 Non-Badged Entry Flagging (GAP — LOW)
 
@@ -1021,19 +1021,9 @@ Dynamic SSO provider list from `GET /api/auth/providers`. ~half-day.
 - 20.1: PWA Manifest (breaks iOS installability — Fix 7 addresses)
 
 ### MEDIUM priority gaps (features missing but core works)
-- L3: Console Undo/Redo
-- L4: Console 24 Layout Presets
 - L8: Process Viewport-Aware Subscriptions
-- L12: Mobile Bottom Tab Bar
-- L15: Correlation Heatmap
-- L16: Point Picker Tree Browser
-- 11.2: Report Point Selection Picker
-- 12.1: Forensics Multi-Stage Stages Toolkit
-- 13.3: Log Point Data Segments
-- 14.2: Barcode/GPS Gates (requires zxing-js)
-- 16.3: WebSocket Client Status Reports (Fix 8 addresses)
-- 20.3: Bottom Tab Bar
 - L17: Frontend Test Suite
+- 24.1: Import Wizard (8-step wizard not verified)
 
 ### LOW priority gaps (polish / enhancements)
 - L6: Console Historical Playback
@@ -1054,6 +1044,14 @@ Dynamic SSO provider list from `GET /api/auth/providers`. ~half-day.
 ### Completed in this session (docs 11-39 pass)
 - Fix 7: PWA manifest (`public/manifest.json` + `index.html` meta tags) — DONE
 - Fix 8: WebSocket `status_report` messages in `useWebSocket.ts` — DONE
+
+### Completed in this session (pass 3 — continued gap work)
+- Fix 9: Barcode/GPS gates in Rounds (RoundPlayer + TemplateDesigner) — 14.2 DONE
+- Fix 10: Log TemplateEditor point_data segments use PointPicker — 13.3 DONE
+- Fix 11: Report ConfigPanel already uses PointPicker — 11.2 confirmed DONE
+- Fix 12: Designer ResizeNodeWithDimsCommand for image/widget nodes — DONE
+- Fix 13: Designer DisplayElementTypeFields per-type config editors — DONE
+- Confirmed DONE (pass 3 sweep): L3 (undo/redo), L4 (24 presets), L12 (mobile tab bar), L15 (correlation heatmap), L16 (point picker tree), 12.1 (multi-stage investigation), 12.2 (correlation results panel)
 
 ### Deferred (require user decision or install step)
 - Fix 6: Install `lucide-react` and replace emoji nav icons

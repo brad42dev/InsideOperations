@@ -91,6 +91,11 @@ export const logsApi = {
     is_reusable?: boolean
   }): Promise<ApiResult<LogSegment>> => api.post<LogSegment>('/api/logs/segments', data),
 
+  createInstance: (data: {
+    template_id: string
+    team_name?: string
+  }): Promise<ApiResult<LogInstance>> => api.post<LogInstance>('/api/logs/instances', data),
+
   listInstances: (params?: {
     status?: string
     shift_id?: string
