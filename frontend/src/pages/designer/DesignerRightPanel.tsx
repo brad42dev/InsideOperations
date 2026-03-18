@@ -21,6 +21,14 @@ import type {
   ComposablePart,
   WidgetNode,
   WidgetConfig,
+  DisplayElementType,
+  DisplayElementConfig,
+  TextReadoutConfig,
+  AnalogBarConfig,
+  FillGaugeConfig,
+  SparklineConfig,
+  NumericIndicatorConfig,
+  DigitalStatusConfig,
 } from '../../shared/types/graphics'
 import {
   ChangePropertyCommand,
@@ -665,8 +673,6 @@ function PipePanel({ node }: { node: Pipe }) {
 // DisplayElement panel
 // ---------------------------------------------------------------------------
 
-import type { DisplayElementType, DisplayElementConfig } from '../../shared/types/graphics'
-
 const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{ value: DisplayElementType; label: string }> = [
   { value: 'text_readout',       label: 'Text Readout' },
   { value: 'numeric_indicator',  label: 'Numeric Indicator' },
@@ -687,6 +693,197 @@ function defaultConfig(type: DisplayElementType): DisplayElementConfig {
     case 'sparkline':          return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
     case 'alarm_indicator':    return { displayType: 'alarm_indicator', mode: 'single' }
     case 'digital_status':     return { displayType: 'digital_status', stateLabels: {}, normalStates: [], abnormalPriority: 3 }
+  }
+}
+
+function DisplayElementTypeFields({ node, executeCmd }: { node: DisplayElement; executeCmd: (cmd: SceneCommand) => void }) {
+  function patchConfig(patch: Partial<DisplayElementConfig>) {
+    const newConfig = { ...node.config, ...patch } as DisplayElementConfig
+    executeCmd(new ChangeDisplayElementConfigCommand(node.id, newConfig, node.config))
+  }
+
+  switch (node.displayType) {
+    case 'numeric_indicator': {
+      const cfg = node.config as NumericIndicatorConfig
+      return (
+        <>
+          <Field label="Font Size">
+            <NumberInput value={cfg.fontSize} min={8} max={120}
+              onChange={v => patchConfig({ fontSize: v } as Partial<NumericIndicatorConfig>)} />
+          </Field>
+          <Field label="Decimal Places">
+            <NumberInput value={cfg.decimalPlaces} min={0} max={6}
+              onChange={v => patchConfig({ decimalPlaces: v } as Partial<NumericIndicatorConfig>)} />
+          </Field>
+          <Field label="Width">
+            <NumberInput value={cfg.width} min={40} max={400}
+              onChange={v => patchConfig({ width: v } as Partial<NumericIndicatorConfig>)} />
+          </Field>
+          <Field label="Show Unit">
+            <input type="checkbox" checked={cfg.showUnit}
+              onChange={e => patchConfig({ showUnit: e.target.checked } as Partial<NumericIndicatorConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+          <Field label="Show Label">
+            <input type="checkbox" checked={cfg.showLabel}
+              onChange={e => patchConfig({ showLabel: e.target.checked } as Partial<NumericIndicatorConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+          {cfg.showLabel && (
+            <Field label="Label Text">
+              <input type="text" defaultValue={cfg.labelText ?? ''}
+                onBlur={e => patchConfig({ labelText: e.target.value || undefined } as Partial<NumericIndicatorConfig>)}
+                style={inputStyle} placeholder="(use tag name)" />
+            </Field>
+          )}
+        </>
+      )
+    }
+    case 'text_readout': {
+      const cfg = node.config as TextReadoutConfig
+      return (
+        <>
+          <Field label="Value Format">
+            <input type="text" defaultValue={cfg.valueFormat ?? '0.##'}
+              onBlur={e => patchConfig({ valueFormat: e.target.value } as Partial<TextReadoutConfig>)}
+              style={inputStyle} placeholder="0.##" />
+          </Field>
+          <Field label="Min Width">
+            <NumberInput value={cfg.minWidth ?? 60} min={20} max={400}
+              onChange={v => patchConfig({ minWidth: v } as Partial<TextReadoutConfig>)} />
+          </Field>
+          <Field label="Show Box">
+            <input type="checkbox" checked={cfg.showBox}
+              onChange={e => patchConfig({ showBox: e.target.checked } as Partial<TextReadoutConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+          <Field label="Show Label">
+            <input type="checkbox" checked={cfg.showLabel}
+              onChange={e => patchConfig({ showLabel: e.target.checked } as Partial<TextReadoutConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+          <Field label="Show Units">
+            <input type="checkbox" checked={cfg.showUnits}
+              onChange={e => patchConfig({ showUnits: e.target.checked } as Partial<TextReadoutConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+        </>
+      )
+    }
+    case 'analog_bar': {
+      const cfg = node.config as AnalogBarConfig
+      return (
+        <>
+          <Field label="Orientation">
+            <SelectInput value={cfg.orientation}
+              onChange={v => patchConfig({ orientation: v as 'vertical' | 'horizontal' } as Partial<AnalogBarConfig>)}
+              options={[{ value: 'vertical', label: 'Vertical' }, { value: 'horizontal', label: 'Horizontal' }]} />
+          </Field>
+          <Field label="Range Low">
+            <NumberInput value={cfg.rangeLo} step={0.1}
+              onChange={v => patchConfig({ rangeLo: v } as Partial<AnalogBarConfig>)} />
+          </Field>
+          <Field label="Range High">
+            <NumberInput value={cfg.rangeHi} step={0.1}
+              onChange={v => patchConfig({ rangeHi: v } as Partial<AnalogBarConfig>)} />
+          </Field>
+          <Field label="Bar Width">
+            <NumberInput value={cfg.barWidth} min={4} max={120}
+              onChange={v => patchConfig({ barWidth: v } as Partial<AnalogBarConfig>)} />
+          </Field>
+          <Field label="Bar Height">
+            <NumberInput value={cfg.barHeight} min={20} max={400}
+              onChange={v => patchConfig({ barHeight: v } as Partial<AnalogBarConfig>)} />
+          </Field>
+          <Field label="Show Numeric Readout">
+            <input type="checkbox" checked={cfg.showNumericReadout}
+              onChange={e => patchConfig({ showNumericReadout: e.target.checked } as Partial<AnalogBarConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+          <Field label="Show Pointer">
+            <input type="checkbox" checked={cfg.showPointer}
+              onChange={e => patchConfig({ showPointer: e.target.checked } as Partial<AnalogBarConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+        </>
+      )
+    }
+    case 'fill_gauge': {
+      const cfg = node.config as FillGaugeConfig
+      return (
+        <>
+          <Field label="Fill Direction">
+            <SelectInput value={cfg.fillDirection}
+              onChange={v => patchConfig({ fillDirection: v as FillGaugeConfig['fillDirection'] } as Partial<FillGaugeConfig>)}
+              options={[
+                { value: 'up', label: 'Up' },
+                { value: 'down', label: 'Down' },
+                { value: 'left', label: 'Left' },
+                { value: 'right', label: 'Right' },
+              ]} />
+          </Field>
+          <Field label="Range Low">
+            <NumberInput value={cfg.rangeLo} step={0.1}
+              onChange={v => patchConfig({ rangeLo: v } as Partial<FillGaugeConfig>)} />
+          </Field>
+          <Field label="Range High">
+            <NumberInput value={cfg.rangeHi} step={0.1}
+              onChange={v => patchConfig({ rangeHi: v } as Partial<FillGaugeConfig>)} />
+          </Field>
+          <Field label="Show Value">
+            <input type="checkbox" checked={cfg.showValue}
+              onChange={e => patchConfig({ showValue: e.target.checked } as Partial<FillGaugeConfig>)}
+              style={{ cursor: 'pointer' }} />
+          </Field>
+          <Field label="Value Format">
+            <input type="text" defaultValue={cfg.valueFormat ?? '0.#'}
+              onBlur={e => patchConfig({ valueFormat: e.target.value } as Partial<FillGaugeConfig>)}
+              style={inputStyle} placeholder="0.#" />
+          </Field>
+        </>
+      )
+    }
+    case 'sparkline': {
+      const cfg = node.config as SparklineConfig
+      return (
+        <>
+          <Field label="Time Window (min)">
+            <NumberInput value={cfg.timeWindowMinutes} min={1} max={1440}
+              onChange={v => patchConfig({ timeWindowMinutes: v } as Partial<SparklineConfig>)} />
+          </Field>
+          <Field label="Data Points">
+            <NumberInput value={cfg.dataPoints} min={10} max={500}
+              onChange={v => patchConfig({ dataPoints: v } as Partial<SparklineConfig>)} />
+          </Field>
+          <Field label="Scale Mode">
+            <SelectInput value={cfg.scaleMode}
+              onChange={v => patchConfig({ scaleMode: v as 'auto' | 'fixed' } as Partial<SparklineConfig>)}
+              options={[{ value: 'auto', label: 'Auto' }, { value: 'fixed', label: 'Fixed' }]} />
+          </Field>
+        </>
+      )
+    }
+    case 'digital_status': {
+      const cfg = node.config as DigitalStatusConfig
+      return (
+        <>
+          <Field label="Abnormal Priority">
+            <SelectInput value={String(cfg.abnormalPriority)}
+              onChange={v => patchConfig({ abnormalPriority: parseInt(v) as 1|2|3|4|5 } as Partial<DigitalStatusConfig>)}
+              options={[
+                { value: '1', label: 'P1 — Critical' },
+                { value: '2', label: 'P2 — High' },
+                { value: '3', label: 'P3 — Medium' },
+                { value: '4', label: 'P4 — Low' },
+                { value: '5', label: 'P5 — Diagnostic' },
+              ]} />
+          </Field>
+        </>
+      )
+    }
+    case 'alarm_indicator':
+    default:
+      return null
   }
 }
 
@@ -719,6 +916,7 @@ function DisplayElementPanel({ node }: { node: DisplayElement }) {
           placeholder="tag.point"
         />
       </Field>
+      <DisplayElementTypeFields node={node} executeCmd={executeCmd} />
       <Field label="Opacity">
         <NumberInput
           value={Math.round(node.opacity * 100)}
