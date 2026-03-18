@@ -117,6 +117,10 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
     }
   }
   if (node.type === 'text_block') return { x, y, w: 120, h: 20 }
+  if (node.type === 'image') {
+    const img = node as ImageNode
+    return { x, y, w: img.displayWidth, h: img.displayHeight }
+  }
   if (node.type === 'pipe') {
     const pipe = node as Pipe
     if (pipe.waypoints && pipe.waypoints.length >= 2) {
@@ -536,7 +540,10 @@ function RenderNode({
 
     case 'image': {
       const img = node as ImageNode
-      const url = `/api/v1/image-assets/${img.assetRef.hash}`
+      // Support both server-side hashes and embedded data URLs
+      const url = img.assetRef.hash.startsWith('data:')
+        ? img.assetRef.hash
+        : `/api/v1/image-assets/${img.assetRef.hash}`
       return (
         <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
           <image href={url} x={0} y={0} width={img.displayWidth} height={img.displayHeight}
@@ -884,6 +891,50 @@ function PipeDrawOverlay({ zoom }: { zoom: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// Pen draw preview overlay
+// ---------------------------------------------------------------------------
+
+function PenDrawOverlay({
+  waypoints,
+  cursorX,
+  cursorY,
+  zoom,
+}: {
+  waypoints: Array<{ x: number; y: number }> | null
+  cursorX: number
+  cursorY: number
+  zoom: number
+}) {
+  if (!waypoints || waypoints.length === 0) return null
+  const allPts = [...waypoints, { x: cursorX, y: cursorY }]
+  const pts = allPts.map(p => `${p.x},${p.y}`).join(' ')
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="var(--io-accent)"
+        strokeWidth={1.5 / zoom}
+        strokeDasharray={`${4 / zoom},${2 / zoom}`}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {waypoints.map((pt, i) => (
+        <circle
+          key={i}
+          cx={pt.x}
+          cy={pt.y}
+          r={3 / zoom}
+          fill="white"
+          stroke="var(--io-accent)"
+          strokeWidth={1 / zoom}
+        />
+      ))}
+    </g>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main canvas component
 // ---------------------------------------------------------------------------
 
@@ -929,6 +980,14 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
   // Local selection state
   const selectedIdsRef = useRef<Set<NodeId>>(new Set())
+
+  // Pen tool draw state (waypoints for polyline being drawn)
+  const [penWaypoints, setPenWaypoints] = useState<Array<{ x: number; y: number }> | null>(null)
+  const [penCursor, setPenCursor] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+
+  // Image tool: stores click position for after file picker returns
+  const imagePendingPosRef = useRef<{ x: number; y: number } | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   // Smart alignment guides — cleared on drag end
   const [alignGuides, setAlignGuides] = useState<Array<{ axis: 'h' | 'v'; pos: number }>>([])
@@ -1027,11 +1086,8 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       for (let i = nodes.length - 1; i >= 0; i--) {
         const n = nodes[i]
         if (!n.visible || n.locked) continue
-        // Simple bounding box check using transform position
-        const tx = n.transform.position.x
-        const ty = n.transform.position.y
-        // Use a generous 64x64 bounding box as placeholder
-        if (canvasX >= tx && canvasX <= tx + 64 && canvasY >= ty && canvasY <= ty + 64) {
+        const b = getNodeBounds(n)
+        if (canvasX >= b.x && canvasX <= b.x + b.w && canvasY >= b.y && canvasY <= b.y + b.h) {
           return n.id
         }
         if ('children' in n && Array.isArray(n.children)) {
@@ -1123,8 +1179,8 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     if (tool === 'select') {
       const hitId = hitTest(cx, cy)
       if (hitId) {
-        // Select node
-        const newSelection = e.shiftKey
+        // Select node (Shift or Ctrl adds to selection)
+        const newSelection = (e.shiftKey || e.ctrlKey)
           ? new Set([...selectedIdsRef.current, hitId])
           : new Set([hitId])
         selectedIdsRef.current = newSelection
@@ -1203,6 +1259,19 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       return
     }
 
+    if (tool === 'pen') {
+      const pt = { x: snap(cx), y: snap(cy) }
+      setPenWaypoints(prev => prev ? [...prev, pt] : [pt])
+      setPenCursor(pt)
+      return
+    }
+
+    if (tool === 'image') {
+      imagePendingPosRef.current = { x: snap(cx), y: snap(cy) }
+      imageInputRef.current?.click()
+      return
+    }
+
     // Shape drawing tools
     if (tool === 'rect' || tool === 'ellipse' || tool === 'line') {
       inter.type = 'draw'
@@ -1214,7 +1283,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         endY: snap(cy),
       })
     }
-  }, [snap, pipeDrawState, setPipeDrawState, addPipeWaypoint, setMarquee, startDrag, setDrawPreview])
+  }, [snap, pipeDrawState, setPipeDrawState, addPipeWaypoint, setMarquee, startDrag, setDrawPreview, setPenWaypoints, setPenCursor])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = getRect()
@@ -1311,7 +1380,12 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     if (pipeDrawState) {
       setPipeDrawState({ ...pipeDrawState, cursorX: snap(cx), cursorY: snap(cy) })
     }
-  }, [drawPreview, pipeDrawState, snap, setAlignGuides, setDrawPreview, setMarquee, setPipeDrawState, setViewport])
+
+    // Update pen cursor
+    if (penWaypoints) {
+      setPenCursor({ x: snap(cx), y: snap(cy) })
+    }
+  }, [drawPreview, penWaypoints, pipeDrawState, snap, setAlignGuides, setDrawPreview, setMarquee, setPenCursor, setPipeDrawState, setViewport])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const inter = interactionRef.current
@@ -1532,8 +1606,30 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       emitSelection([pipe.id])
       setPipeDrawState(null)
       setTool('select')
+      return
     }
-  }, [pipeDrawState, setPipeDrawState, setTool])
+
+    // Pen tool — commit polyline on double-click
+    if (penWaypoints && penWaypoints.length >= 2) {
+      const prim: Primitive = {
+        id: crypto.randomUUID(),
+        type: 'primitive',
+        primitiveType: 'polyline',
+        name: 'Path',
+        transform: { position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+        visible: true,
+        locked: false,
+        opacity: 1,
+        geometry: { type: 'polyline', points: penWaypoints },
+        style: { fill: 'none', fillOpacity: 1, stroke: '#6366f1', strokeWidth: 1 },
+      }
+      executeCmd(new AddNodeCommand(prim, null))
+      selectedIdsRef.current = new Set([prim.id])
+      emitSelection([prim.id])
+      setPenWaypoints(null)
+      setTool('select')
+    }
+  }, [penWaypoints, pipeDrawState, setPenWaypoints, setPipeDrawState, setTool])
 
   // -------------------------------------------------------------------------
   // Wheel — zoom centered on cursor
@@ -1682,6 +1778,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       selectedIdsRef.current = new Set()
       emitSelection([])
       setPipeDrawState(null)
+      setPenWaypoints(null)
       setDrawPreview(null)
       setMarquee(null)
       setTool('select')
@@ -1729,7 +1826,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         case 'i': setTool('pipe'); break
       }
     }
-  }, [historyUndo, historyRedo, setTool, setPipeDrawState, setDrawPreview, setMarquee])
+  }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee])
 
   // -------------------------------------------------------------------------
   // Right-click context menu
@@ -1965,8 +2062,61 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
           {/* Pipe draw preview */}
           <PipeDrawOverlay zoom={zoom} />
+
+          {/* Pen draw preview */}
+          <PenDrawOverlay waypoints={penWaypoints} cursorX={penCursor.x} cursorY={penCursor.y} zoom={zoom} />
         </g>
       </svg>
+
+      {/* Hidden image file input */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (!file || !imagePendingPosRef.current || !docRef.current) return
+          const pos = imagePendingPosRef.current
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            const dataUrl = ev.target?.result as string
+            if (!dataUrl) return
+            const img = new window.Image()
+            img.onload = () => {
+              const node: ImageNode = {
+                id: crypto.randomUUID(),
+                type: 'image',
+                name: file.name,
+                transform: { position: { x: pos.x, y: pos.y }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+                visible: true,
+                locked: false,
+                opacity: 1,
+                assetRef: {
+                  hash: dataUrl,
+                  mimeType: file.type,
+                  originalFilename: file.name,
+                  originalWidth: img.naturalWidth,
+                  originalHeight: img.naturalHeight,
+                  fileSize: file.size,
+                },
+                displayWidth: Math.min(img.naturalWidth, 400),
+                displayHeight: Math.min(img.naturalHeight, 400) * (Math.min(img.naturalWidth, 400) / img.naturalWidth),
+                preserveAspectRatio: true,
+                imageRendering: 'auto',
+              }
+              executeCmd(new AddNodeCommand(node, null))
+              selectedIdsRef.current = new Set([node.id])
+              emitSelection([node.id])
+              setTool('select')
+            }
+            img.src = dataUrl
+          }
+          reader.readAsDataURL(file)
+          // Reset so same file can be re-imported
+          e.target.value = ''
+        }}
+      />
 
       {/* No document placeholder */}
       {!doc && (
