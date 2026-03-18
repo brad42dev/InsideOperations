@@ -8,6 +8,7 @@ import {
   type ImportRun,
   type ImportError,
   type CreateConnectionBody,
+  type CreateDefinitionBody,
 } from '../../api/import'
 import { showToast } from '../../shared/components/Toast'
 
@@ -1418,7 +1419,543 @@ const tdStyle: React.CSSProperties = {
 // Main page component
 // ---------------------------------------------------------------------------
 
-type Tab = 'connectors' | 'connections' | 'runs'
+// ---------------------------------------------------------------------------
+// Definitions Tab
+// ---------------------------------------------------------------------------
+
+const TARGET_TABLES = [
+  'points_metadata', 'alarm_thresholds', 'equipment', 'crews', 'shifts',
+  'locations', 'documents', 'materials', 'work_orders', 'custom_data',
+]
+
+const ERROR_STRATEGIES = [
+  { value: 'skip', label: 'Skip errored rows' },
+  { value: 'abort', label: 'Abort on first error' },
+  { value: 'log', label: 'Log and continue' },
+]
+
+type WizardState = {
+  connection_id: string
+  name: string
+  description: string
+  target_table: string
+  source_config: string  // JSON
+  field_mappings: string // JSON array
+  transforms: string     // JSON array
+  error_strategy: string
+  batch_size: number
+  schedule_type: string
+  schedule_cron: string
+  template_id: string
+}
+
+function DefinitionWizard({
+  connections,
+  onClose,
+  onCreated,
+}: {
+  connections: ImportConnection[]
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [step, setStep] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [state, setState] = useState<WizardState>({
+    connection_id: '',
+    name: '',
+    description: '',
+    target_table: 'points_metadata',
+    source_config: '{}',
+    field_mappings: '[]',
+    transforms: '[]',
+    error_strategy: 'skip',
+    batch_size: 500,
+    schedule_type: 'manual',
+    schedule_cron: '0 2 * * *',
+    template_id: '',
+  })
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      let source_config: Record<string, unknown> = {}
+      let field_mappings: unknown[] = []
+      let transforms: unknown[] = []
+      try {
+        source_config = JSON.parse(state.source_config)
+        field_mappings = JSON.parse(state.field_mappings)
+        transforms = JSON.parse(state.transforms)
+      } catch {
+        throw new Error('Invalid JSON in one of the config fields')
+      }
+      const body: CreateDefinitionBody = {
+        connection_id: state.connection_id,
+        name: state.name,
+        description: state.description || undefined,
+        target_table: state.target_table,
+        source_config,
+        field_mappings,
+        transforms,
+        error_strategy: state.error_strategy,
+        batch_size: state.batch_size,
+        template_id: state.template_id || undefined,
+      }
+      const res = await importApi.createDefinition(body)
+      if (!res.success) throw new Error(res.error.message)
+      // Create schedule if not manual
+      if (state.schedule_type !== 'manual') {
+        await importApi.createSchedule(res.data.id, {
+          schedule_type: state.schedule_type,
+          schedule_config: state.schedule_type === 'cron' ? { cron: state.schedule_cron } : {},
+          enabled: true,
+        })
+      }
+      return res.data
+    },
+    onSuccess: () => {
+      onCreated()
+      onClose()
+    },
+    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to create definition'),
+  })
+
+  const set = (k: keyof WizardState, v: string | number) =>
+    setState((s) => ({ ...s, [k]: v }))
+
+  const STEPS = [
+    'Select Connection',
+    'Configure Source',
+    'Map Fields',
+    'Transformations',
+    'Validation & Options',
+    'Schedule',
+    'Review',
+  ]
+
+  function canAdvance() {
+    if (step === 0) return !!state.connection_id
+    if (step === 1) return !!state.name && !!state.target_table
+    return true
+  }
+
+  const connName = connections.find((c) => c.id === state.connection_id)?.name ?? ''
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0', minHeight: '480px' }}>
+      {/* Step progress */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', gap: '0', marginBottom: '8px' }}>
+          {STEPS.map((_label, i) => (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                height: '3px',
+                background: i <= step ? 'var(--io-accent)' : 'var(--io-border)',
+                transition: 'background 0.2s',
+                marginRight: i < STEPS.length - 1 ? '3px' : '0',
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+          Step {step + 1} of {STEPS.length} — <span style={{ color: 'var(--io-text-secondary)', fontWeight: 600 }}>{STEPS[step]}</span>
+        </div>
+      </div>
+
+      {/* Step content */}
+      <div style={{ flex: 1 }}>
+        {/* Step 0: Select Connection */}
+        {step === 0 && (
+          <div>
+            <p style={{ fontSize: '13px', color: 'var(--io-text-secondary)', marginBottom: '16px' }}>
+              Choose which connection this definition will read data from.
+            </p>
+            {connections.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--io-text-muted)', fontSize: '13px' }}>
+                No connections configured. Go to the Connections tab first.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {connections.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => set('connection_id', c.id)}
+                    style={{
+                      padding: '12px 16px',
+                      background: state.connection_id === c.id ? 'var(--io-accent-subtle)' : 'var(--io-surface-secondary)',
+                      border: `1px solid ${state.connection_id === c.id ? 'var(--io-accent)' : 'var(--io-border)'}`,
+                      borderRadius: 'var(--io-radius)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--io-text-primary)' }}>{c.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '2px' }}>
+                      {c.connection_type} · Auth: {c.auth_type}
+                      {c.last_test_status === 'ok' && <span style={{ color: 'var(--io-success)', marginLeft: '6px' }}>✓ tested OK</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 1: Configure Source */}
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <Field label="Definition Name">
+              <input
+                type="text"
+                value={state.name}
+                onChange={(e) => set('name', e.target.value)}
+                placeholder="e.g. PI Tag Metadata Import"
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Description (optional)">
+              <input
+                type="text"
+                value={state.description}
+                onChange={(e) => set('description', e.target.value)}
+                placeholder="What this import does"
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Target Table">
+              <select value={state.target_table} onChange={(e) => set('target_table', e.target.value)} style={inputStyle}>
+                {TARGET_TABLES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="Source Configuration (JSON)">
+              <textarea
+                value={state.source_config}
+                onChange={(e) => set('source_config', e.target.value)}
+                rows={5}
+                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                placeholder={'{\n  "query": "SELECT * FROM tags",\n  "page_size": 1000\n}'}
+              />
+            </Field>
+          </div>
+        )}
+
+        {/* Step 2: Map Fields */}
+        {step === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--io-text-secondary)', margin: '0 0 4px' }}>
+              Define how source fields map to columns in <code style={{ fontFamily: 'monospace', background: 'var(--io-surface-secondary)', padding: '1px 5px', borderRadius: '3px' }}>{state.target_table}</code>.
+            </p>
+            <Field label="Field Mappings (JSON array)">
+              <textarea
+                value={state.field_mappings}
+                onChange={(e) => set('field_mappings', e.target.value)}
+                rows={10}
+                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                placeholder={`[
+  { "source_field": "TagName", "target_column": "tag_path", "transform": null },
+  { "source_field": "Description", "target_column": "description", "transform": null },
+  { "source_field": "EngineeringUnits", "target_column": "engineering_units", "transform": null },
+  { "source_field": "Zero", "target_column": "range_low", "transform": { "type": "cast", "target_type": "float8" } },
+  { "source_field": "Span", "target_column": "range_high", "transform": { "type": "cast", "target_type": "float8" } }
+]`}
+              />
+            </Field>
+            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+              Each mapping: <code style={{ fontFamily: 'monospace' }}>{'{ source_field, target_column, transform }'}</code>. Leave <code style={{ fontFamily: 'monospace' }}>transform</code> null for direct copy, or specify a built-in transform (cast, trim, parse_datetime, lookup).
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Transformations */}
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--io-text-secondary)', margin: '0 0 4px' }}>
+              Optional row-level transforms applied after field mapping (Rhai scripts or built-in).
+            </p>
+            <Field label="Transform Pipeline (JSON array)">
+              <textarea
+                value={state.transforms}
+                onChange={(e) => set('transforms', e.target.value)}
+                rows={10}
+                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                placeholder={`[
+  {
+    "type": "rhai",
+    "name": "Normalize tag path",
+    "script": "row.tag_path = row.tag_path.to_lower();"
+  }
+]`}
+              />
+            </Field>
+            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+              Leave <code style={{ fontFamily: 'monospace' }}>[]</code> for no custom transforms. Built-in types: <code style={{ fontFamily: 'monospace' }}>cast</code>, <code style={{ fontFamily: 'monospace' }}>trim</code>, <code style={{ fontFamily: 'monospace' }}>parse_datetime</code>, <code style={{ fontFamily: 'monospace' }}>lookup</code>. Rhai scripts have access to the full row as a map.
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Validation & Options */}
+        {step === 4 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <Field label="Error Strategy">
+              <select value={state.error_strategy} onChange={(e) => set('error_strategy', e.target.value)} style={inputStyle}>
+                {ERROR_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Batch Size">
+              <input
+                type="number"
+                value={state.batch_size}
+                onChange={(e) => set('batch_size', parseInt(e.target.value, 10) || 500)}
+                min={1}
+                max={10000}
+                style={inputStyle}
+              />
+            </Field>
+            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+              Rows are processed in batches. Smaller batches use less memory but are slower. Recommended: 100–1000.
+              <br />Import validation runs after transformations. Rows that fail validation are handled according to the error strategy.
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Schedule */}
+        {step === 5 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <Field label="Schedule Type">
+              <select value={state.schedule_type} onChange={(e) => set('schedule_type', e.target.value)} style={inputStyle}>
+                <option value="manual">Manual only (trigger from UI)</option>
+                <option value="cron">Cron schedule</option>
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+                <option value="per_shift">Per shift</option>
+              </select>
+            </Field>
+            {state.schedule_type === 'cron' && (
+              <Field label="Cron Expression">
+                <input
+                  type="text"
+                  value={state.schedule_cron}
+                  onChange={(e) => set('schedule_cron', e.target.value)}
+                  placeholder="0 2 * * * (daily at 02:00)"
+                  style={{ ...inputStyle, fontFamily: 'monospace' }}
+                />
+              </Field>
+            )}
+            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+              Scheduled imports run in the Import Service (Port 3006) at the lowest QoS tier — they will not affect real-time data or event processing. You can also trigger runs manually from the Run History tab.
+            </div>
+          </div>
+        )}
+
+        {/* Step 6: Review */}
+        {step === 6 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
+            <div style={{ background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', padding: '16px', border: '1px solid var(--io-border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[
+                ['Connection', connName],
+                ['Name', state.name],
+                ['Description', state.description || '(none)'],
+                ['Target Table', state.target_table],
+                ['Error Strategy', state.error_strategy],
+                ['Batch Size', String(state.batch_size)],
+                ['Schedule', state.schedule_type === 'cron' ? `Cron: ${state.schedule_cron}` : state.schedule_type],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', gap: '12px' }}>
+                  <span style={{ color: 'var(--io-text-muted)', width: '120px', flexShrink: 0 }}>{label}</span>
+                  <span style={{ color: 'var(--io-text-primary)', fontWeight: 500 }}>{val}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '12px', fontSize: '12px' }}>
+              <div style={{ flex: 1, background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', padding: '12px', border: '1px solid var(--io-border)' }}>
+                <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--io-text-secondary)' }}>Field Mappings</div>
+                <pre style={{ margin: 0, fontSize: '11px', color: 'var(--io-text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {state.field_mappings}
+                </pre>
+              </div>
+              <div style={{ flex: 1, background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', padding: '12px', border: '1px solid var(--io-border)' }}>
+                <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--io-text-secondary)' }}>Transforms</div>
+                <pre style={{ margin: 0, fontSize: '11px', color: 'var(--io-text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {state.transforms}
+                </pre>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <div style={{ padding: '10px 12px', background: 'var(--io-danger-subtle)', color: 'var(--io-danger)', borderRadius: 'var(--io-radius)', fontSize: '13px', marginTop: '16px' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--io-border)' }}>
+        <button
+          onClick={step === 0 ? onClose : () => setStep((s) => s - 1)}
+          style={secondaryBtnStyle}
+        >
+          {step === 0 ? 'Cancel' : '← Back'}
+        </button>
+        {step < STEPS.length - 1 ? (
+          <button
+            onClick={() => setStep((s) => s + 1)}
+            disabled={!canAdvance()}
+            style={{ ...primaryBtnStyle, opacity: canAdvance() ? 1 : 0.5, cursor: canAdvance() ? 'pointer' : 'not-allowed' }}
+          >
+            Next →
+          </button>
+        ) : (
+          <button
+            onClick={() => { setError(null); mutation.mutate() }}
+            disabled={mutation.isPending}
+            style={primaryBtnStyle}
+          >
+            {mutation.isPending ? 'Creating…' : 'Create Definition'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DefinitionsTab() {
+  const queryClient = useQueryClient()
+  const [wizardOpen, setWizardOpen] = useState(false)
+
+  const { data: defsResult, isLoading } = useQuery({
+    queryKey: ['import-definitions'],
+    queryFn: () => importApi.listDefinitions(),
+  })
+  const definitions = defsResult?.success ? defsResult.data : []
+
+  const { data: connsResult } = useQuery({
+    queryKey: ['import-connections'],
+    queryFn: () => importApi.listConnections(),
+  })
+  const connections = connsResult?.success ? connsResult.data : []
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      importApi.updateDefinition(id, { enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['import-definitions'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => importApi.deleteDefinition(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['import-definitions'] }),
+  })
+
+  const runMutation = useMutation({
+    mutationFn: ({ id, dry_run }: { id: string; dry_run: boolean }) =>
+      importApi.triggerRun(id, { dry_run }),
+    onSuccess: (res, { dry_run }) => {
+      if (res.success) {
+        showToast({ title: dry_run ? 'Dry run started' : 'Import run started', description: `Run ID: ${res.data.id.slice(0, 8)}…`, variant: 'success' })
+        queryClient.invalidateQueries({ queryKey: ['import-runs'] })
+      }
+    },
+  })
+
+  if (isLoading) {
+    return <div style={{ color: 'var(--io-text-muted)', textAlign: 'center', padding: '40px' }}>Loading definitions...</div>
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        <button onClick={() => setWizardOpen(true)} style={primaryBtnStyle}>
+          + New Definition
+        </button>
+      </div>
+
+      {definitions.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px', color: 'var(--io-text-muted)', background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', border: '1px solid var(--io-border)', fontSize: '13px' }}>
+          No import definitions configured. Click "New Definition" to create one using the setup wizard.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {definitions.map((def) => {
+            const conn = connections.find((c) => c.id === def.connection_id)
+            return (
+              <div
+                key={def.id}
+                style={{ background: 'var(--io-surface-secondary)', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{def.name}</span>
+                    <StatusBadge status={def.enabled ? 'ok' : 'cancelled'} />
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    {conn && <span>Connection: {conn.name}</span>}
+                    <span>Target: {def.target_table}</span>
+                    <span>Batch: {def.batch_size}</span>
+                    <span>On error: {def.error_strategy}</span>
+                  </div>
+                  {def.description && (
+                    <div style={{ fontSize: '12px', color: 'var(--io-text-secondary)', marginTop: '4px' }}>{def.description}</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                  <button
+                    onClick={() => runMutation.mutate({ id: def.id, dry_run: true })}
+                    disabled={runMutation.isPending}
+                    style={secondaryBtnStyle}
+                    title="Dry run (preview without writing)"
+                  >
+                    Dry Run
+                  </button>
+                  <button
+                    onClick={() => runMutation.mutate({ id: def.id, dry_run: false })}
+                    disabled={runMutation.isPending}
+                    style={secondaryBtnStyle}
+                    title="Trigger import now"
+                  >
+                    Run Now
+                  </button>
+                  <button
+                    onClick={() => toggleMutation.mutate({ id: def.id, enabled: !def.enabled })}
+                    style={secondaryBtnStyle}
+                  >
+                    {def.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete definition "${def.name}"?`)) deleteMutation.mutate(def.id)
+                    }}
+                    style={dangerBtnStyle}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <Modal
+        title="New Import Definition"
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+      >
+        <DefinitionWizard
+          connections={connections}
+          onClose={() => setWizardOpen(false)}
+          onCreated={() => queryClient.invalidateQueries({ queryKey: ['import-definitions'] })}
+        />
+      </Modal>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main Page
+// ---------------------------------------------------------------------------
+
+type Tab = 'connectors' | 'connections' | 'definitions' | 'runs'
 
 export default function ImportSettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('connectors')
@@ -1426,6 +1963,7 @@ export default function ImportSettingsPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'connectors', label: 'Connectors' },
     { id: 'connections', label: 'Connections' },
+    { id: 'definitions', label: 'Definitions' },
     { id: 'runs', label: 'Run History' },
   ]
 
@@ -1479,6 +2017,7 @@ export default function ImportSettingsPage() {
 
       {activeTab === 'connectors' && <ConnectorsTab />}
       {activeTab === 'connections' && <ConnectionsTab />}
+      {activeTab === 'definitions' && <DefinitionsTab />}
       {activeTab === 'runs' && <RunsTab />}
     </div>
   )
