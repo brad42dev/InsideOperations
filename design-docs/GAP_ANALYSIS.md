@@ -255,10 +255,9 @@ Implementation: Not implemented.
 
 The Process module is in better shape than Console — it has a working GraphicViewer with zoom/pan and a minimap. Key gaps:
 
-### 8.1 Viewport-Aware Point Subscriptions (GAP — MEDIUM)
+### 8.1 Viewport-Aware Point Subscriptions — **DONE** (pass 5 confirmed)
 
-Spec: Subscribe only to points visible in the current viewport, unsubscribe as points leave viewport, debounce 500ms during rapid zoom/pan.
-Implementation: The GraphicViewer renders SVG but doesn't manage per-viewport WebSocket subscriptions. Point binding layer exists but isn't connected to subscription management.
+`process/index.tsx`: `getVisiblePointIds()` computes bbox for each node in the viewport, viewport changes debounced 500ms, `useWebSocket(visiblePointIds)` subscribes only to visible points. Fully per spec.
 
 ### 8.2 Level of Detail (LOD) (GAP — LOW)
 

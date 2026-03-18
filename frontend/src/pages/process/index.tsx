@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { graphicsApi } from '../../api/graphics'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
+import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneRenderer'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
 import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import type { DesignObjectSummary } from '../../api/graphics'
@@ -150,7 +151,22 @@ export default function ProcessPage() {
     return getVisiblePointIds(graphic.scene_data, debouncedVp)
   }, [graphic?.scene_data, debouncedVp])
 
-  const { values: pointValues } = useWebSocket(visiblePointIds)
+  const { values: wsValues } = useWebSocket(visiblePointIds)
+
+  // Adapt wire-format PointValue → SceneRenderer PointValue
+  const pointValues = useMemo(() => {
+    const out = new Map<string, ScenePointValue>()
+    for (const [id, pv] of wsValues) {
+      out.set(id, {
+        pointId: pv.pointId,
+        value: pv.value,
+        quality: (pv.quality === 'good' || pv.quality === 'bad' || pv.quality === 'uncertain')
+          ? pv.quality
+          : undefined,
+      })
+    }
+    return out
+  }, [wsValues])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--io-bg)' }}>
@@ -226,7 +242,7 @@ export default function ProcessPage() {
           <SceneRenderer
             document={graphic.scene_data}
             viewport={viewport}
-            pointValues={pointValues as Map<string, import('../../shared/graphics/SceneRenderer').PointValue>}
+            pointValues={pointValues}
             onNavigate={handleNavigate}
             style={{ position: 'absolute', inset: 0 }}
           />
