@@ -41,6 +41,9 @@ import type {
   Stencil,
   Transform,
   WidgetNode,
+  WidgetType,
+  WidgetConfig,
+  PointBinding,
 } from '../../shared/types/graphics'
 import {
   AddNodeCommand,
@@ -1913,6 +1916,55 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
     document.addEventListener('io:stencil-drop', onStencilDrop)
     return () => document.removeEventListener('io:stencil-drop', onStencilDrop)
+  }, [snap])
+
+  // Handle widget drops from left palette (dashboard / report modes)
+  useEffect(() => {
+    function onWidgetDrop(e: Event) {
+      const ce = e as CustomEvent<{ widgetType: WidgetType; x: number; y: number }>
+      const rect = getRect()
+      if (!rect || !docRef.current) return
+      const vp = viewportRef.current
+      const cx = snap((ce.detail.x - rect.left - vp.panX) / vp.zoom)
+      const cy = snap((ce.detail.y - rect.top  - vp.panY) / vp.zoom)
+
+      const wt = ce.detail.widgetType
+      const defaultLabel = wt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+      const nullBinding: PointBinding = {}
+      const defaultConfig: WidgetConfig = (() => {
+        switch (wt) {
+          case 'trend':        return { widgetType: 'trend', title: defaultLabel, series: [], timeRange: { mode: 'relative', relativeSeconds: 3600 }, liveMode: true, refreshMs: 5000, yAxis: { autoScale: true, logScale: false }, showQuality: false, showEvents: false } satisfies WidgetConfig
+          case 'table':        return { widgetType: 'table', title: defaultLabel, columns: [], pageSize: 20 } satisfies WidgetConfig
+          case 'gauge':        return { widgetType: 'gauge', title: defaultLabel, binding: nullBinding, gaugeStyle: 'radial', rangeLo: 0, rangeHi: 100, showValue: true, valueFormat: '#.##' } satisfies WidgetConfig
+          case 'kpi_card':     return { widgetType: 'kpi_card', title: defaultLabel, binding: nullBinding, valueFormat: '#.##', showSparkline: true, showTrendArrow: true } satisfies WidgetConfig
+          case 'bar_chart':    return { widgetType: 'bar_chart', title: defaultLabel, series: [], orientation: 'vertical', showLegend: true } satisfies WidgetConfig
+          case 'pie_chart':    return { widgetType: 'pie_chart', title: defaultLabel, slices: [], donut: false, showLegend: true } satisfies WidgetConfig
+          case 'alarm_list':   return { widgetType: 'alarm_list', title: defaultLabel, maxRows: 50, showAcknowledged: false } satisfies WidgetConfig
+          case 'muster_point': return { widgetType: 'muster_point', title: defaultLabel, musterPointId: '', showHeadcount: true, showMissing: true } satisfies WidgetConfig
+        }
+      })()
+
+      const node: WidgetNode = {
+        id: crypto.randomUUID(),
+        type: 'widget',
+        widgetType: wt,
+        name: defaultLabel,
+        transform: { position: { x: cx, y: cy }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+        visible: true,
+        locked: false,
+        opacity: 1,
+        width: 320,
+        height: 200,
+        config: defaultConfig,
+      }
+      executeCmd(new AddNodeCommand(node, null))
+      selectedIdsRef.current = new Set([node.id])
+      emitSelection([node.id])
+    }
+
+    document.addEventListener('io:widget-drop', onWidgetDrop)
+    return () => document.removeEventListener('io:widget-drop', onWidgetDrop)
   }, [snap])
 
   // -------------------------------------------------------------------------

@@ -10,7 +10,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useLibraryStore, useSceneStore, useHistoryStore } from '../../store/designer'
 import type { ShapeIndexItem } from '../../store/designer'
-import type { DisplayElementType } from '../../shared/types/graphics'
+import type { DisplayElementType, WidgetType } from '../../shared/types/graphics'
 import {
   AddLayerCommand,
   ChangeLayerPropertyCommand,
@@ -840,27 +840,150 @@ function StencilsSection({ collapsed }: { collapsed: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
+// Widget types (dashboard / report modes)
+// ---------------------------------------------------------------------------
+
+const WIDGET_TYPES: Array<{ type: WidgetType; label: string; icon: string }> = [
+  { type: 'trend',        label: 'Trend',        icon: '∿' },
+  { type: 'table',        label: 'Table',        icon: '⊞' },
+  { type: 'gauge',        label: 'Gauge',        icon: '◎' },
+  { type: 'kpi_card',     label: 'KPI Card',     icon: '#' },
+  { type: 'bar_chart',    label: 'Bar Chart',    icon: '▊' },
+  { type: 'pie_chart',    label: 'Pie Chart',    icon: '◔' },
+  { type: 'alarm_list',   label: 'Alarm List',   icon: '⚠' },
+  { type: 'muster_point', label: 'Muster Point', icon: '⛺' },
+]
+
+function WidgetTile({
+  type,
+  label,
+  icon,
+  collapsed,
+}: {
+  type: WidgetType
+  label: string
+  icon: string
+  collapsed: boolean
+}) {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const ghost = document.createElement('div')
+    ghost.style.cssText = `
+      position: fixed; pointer-events: none; z-index: 9999;
+      padding: 4px 8px; background: var(--io-accent); color: #09090b;
+      border-radius: 4px; font-size: 11px; font-weight: 600;
+      transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
+    `
+    ghost.textContent = label
+    document.body.appendChild(ghost)
+    const onMove = (ev: MouseEvent) => {
+      ghost.style.left = `${ev.clientX}px`
+      ghost.style.top  = `${ev.clientY}px`
+    }
+    const onUp = (ev: MouseEvent) => {
+      ghost.remove()
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.dispatchEvent(new CustomEvent('io:widget-drop', {
+        detail: { widgetType: type, x: ev.clientX, y: ev.clientY },
+      }))
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [type, label])
+
+  const size = collapsed ? 32 : 48
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      title={label}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        width: size,
+        height: size,
+        background: 'var(--io-surface-elevated)',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        fontSize: collapsed ? 14 : 20,
+        color: 'var(--io-text-secondary)',
+        userSelect: 'none',
+        flexShrink: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+    >
+      <span>{icon}</span>
+      {!collapsed && (
+        <span style={{ fontSize: 9, color: 'var(--io-text-muted)', textAlign: 'center', lineHeight: 1.2 }}>
+          {label.length > 10 ? label.slice(0, 9) + '…' : label}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function WidgetsSection({ collapsed }: { collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 4px', alignItems: 'center' }}>
+        {WIDGET_TYPES.map(w => <WidgetTile key={w.type} {...w} collapsed />)}
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, flexShrink: 0 }}>
+      {WIDGET_TYPES.map(w => <WidgetTile key={w.type} {...w} collapsed={false} />)}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPaletteProps) {
+  const designMode = useSceneStore(s => s.designMode)
+  const isGraphicMode = designMode === 'graphic'
+
   const [equipOpen,    setEquipOpen]    = useState(true)
   const [stencilsOpen, setStencilsOpen] = useState(false)
   const [elemOpen,     setElemOpen]     = useState(true)
+  const [widgetsOpen,  setWidgetsOpen]  = useState(true)
   const [layersOpen,   setLayersOpen]   = useState(true)
+
+  const containerStyle: React.CSSProperties = {
+    width,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    background: 'var(--io-surface)',
+    borderRight: '1px solid var(--io-border)',
+  }
 
   if (collapsed) {
     return (
-      <div style={{ width, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--io-surface)', borderRight: '1px solid var(--io-border)' }}>
-        <EquipmentSection collapsed />
-        <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
-        <StencilsSection collapsed />
-        <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 4 }}>
-          {DISPLAY_ELEMENT_TYPES.map(t => (
-            <DisplayElementTile key={t.type} {...t} collapsed />
-          ))}
-        </div>
+      <div style={containerStyle}>
+        {isGraphicMode ? (
+          <>
+            <EquipmentSection collapsed />
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <StencilsSection collapsed />
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 4 }}>
+              {DISPLAY_ELEMENT_TYPES.map(t => (
+                <DisplayElementTile key={t.type} {...t} collapsed />
+              ))}
+            </div>
+          </>
+        ) : (
+          <WidgetsSection collapsed />
+        )}
         <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
         <LayersSection collapsed />
       </div>
@@ -868,31 +991,40 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
   }
 
   return (
-    <div style={{ width, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--io-surface)', borderRight: '1px solid var(--io-border)' }}>
+    <div style={containerStyle}>
+      {isGraphicMode ? (
+        <>
+          {/* Equipment section */}
+          <SectionHeader label="Equipment" open={equipOpen} onToggle={() => setEquipOpen(v => !v)} />
+          {equipOpen && (
+            <div style={{ flex: '1 1 0', minHeight: 100, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <EquipmentSection collapsed={false} />
+            </div>
+          )}
 
-      {/* Equipment section */}
-      <SectionHeader label="Equipment" open={equipOpen} onToggle={() => setEquipOpen(v => !v)} />
-      {equipOpen && (
-        <div style={{ flex: '1 1 0', minHeight: 100, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <EquipmentSection collapsed={false} />
-        </div>
+          {/* Stencils section */}
+          <SectionHeader label="Stencils" open={stencilsOpen} onToggle={() => setStencilsOpen(v => !v)} />
+          {stencilsOpen && <StencilsSection collapsed={false} />}
+
+          {/* Display Elements section */}
+          <SectionHeader label="Display Elements" open={elemOpen} onToggle={() => setElemOpen(v => !v)} />
+          {elemOpen && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, flexShrink: 0 }}>
+              {DISPLAY_ELEMENT_TYPES.map(t => (
+                <DisplayElementTile key={t.type} {...t} collapsed={false} />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Widgets section (dashboard / report modes) */}
+          <SectionHeader label="Widgets" open={widgetsOpen} onToggle={() => setWidgetsOpen(v => !v)} />
+          {widgetsOpen && <WidgetsSection collapsed={false} />}
+        </>
       )}
 
-      {/* Stencils section */}
-      <SectionHeader label="Stencils" open={stencilsOpen} onToggle={() => setStencilsOpen(v => !v)} />
-      {stencilsOpen && <StencilsSection collapsed={false} />}
-
-      {/* Display Elements section */}
-      <SectionHeader label="Display Elements" open={elemOpen} onToggle={() => setElemOpen(v => !v)} />
-      {elemOpen && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, flexShrink: 0 }}>
-          {DISPLAY_ELEMENT_TYPES.map(t => (
-            <DisplayElementTile key={t.type} {...t} collapsed={false} />
-          ))}
-        </div>
-      )}
-
-      {/* Layers section */}
+      {/* Layers section — always shown */}
       <SectionHeader label="Layers" open={layersOpen} onToggle={() => setLayersOpen(v => !v)} />
       {layersOpen && <LayersSection collapsed={false} />}
     </div>
