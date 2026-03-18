@@ -55,6 +55,7 @@ import {
   PasteNodesCommand,
   ReorderNodeCommand,
   RotateNodesCommand,
+  FlipNodesCommand,
   ResizePrimitiveCommand,
 } from '../../shared/graphics/commands'
 import type { SceneCommand } from '../../shared/graphics/commands'
@@ -956,6 +957,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   const snapToGrid      = useUiStore(s => s.snapToGrid)
   const setViewport     = useUiStore(s => s.setViewport)
   const zoomTo          = useUiStore(s => s.zoomTo)
+  const fitToCanvas     = useUiStore(s => s.fitToCanvas)
   const setTool         = useUiStore(s => s.setTool)
   const setDrawPreview  = useUiStore(s => s.setDrawPreview)
   const setMarquee      = useUiStore(s => s.setMarquee)
@@ -1744,6 +1746,28 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       return
     }
 
+    // Ctrl++ / Ctrl+= — zoom in; Ctrl+- — zoom out; Ctrl+0 — fit to canvas
+    if (ctrl && (e.key === '+' || e.key === '=')) {
+      e.preventDefault()
+      zoomTo(viewportRef.current.zoom * 1.25)
+      return
+    }
+    if (ctrl && e.key === '-') {
+      e.preventDefault()
+      zoomTo(viewportRef.current.zoom / 1.25)
+      return
+    }
+    if (ctrl && e.key === '0') {
+      e.preventDefault()
+      const d = docRef.current
+      const el = containerRef.current
+      if (d && el) {
+        const { width, height } = el.getBoundingClientRect()
+        fitToCanvas(d.canvas.width, d.canvas.height, width, height)
+      }
+      return
+    }
+
     // Ctrl+G — group; Ctrl+Shift+G — ungroup
     if (ctrl && e.key === 'g' && !e.shiftKey) {
       e.preventDefault()
@@ -1829,7 +1853,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         case 'i': setTool('pipe'); break
       }
     }
-  }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee])
+  }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee, zoomTo, fitToCanvas])
 
   // -------------------------------------------------------------------------
   // Right-click context menu
@@ -2223,6 +2247,19 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
             emitSelection(allIds)
             setCtxMenu(null)
           }}
+          onCut={() => {
+            if (!doc) return
+            const ids = Array.from(selectedIdsRef.current)
+            _clipboard = ids
+              .map(id => doc.children.find(n => n.id === id))
+              .filter((n): n is SceneNode => n !== undefined)
+            if (ids.length > 0) {
+              executeCmd(new DeleteNodesCommand(ids))
+              selectedIdsRef.current = new Set()
+              emitSelection([])
+            }
+            setCtxMenu(null)
+          }}
           onCopy={() => {
             if (!doc) return
             _clipboard = Array.from(selectedIdsRef.current)
@@ -2263,17 +2300,47 @@ interface ContextMenuProps {
   onExec: (cmd: import('../../shared/graphics/commands').SceneCommand) => void
   onSelectAll: () => void
   onCopy: () => void
+  onCut: () => void
   onPaste: () => void
 }
 
-function ContextMenu({ x, y, nodeId, selectedIds, doc, onClose, onExec, onSelectAll, onCopy, onPaste }: ContextMenuProps) {
+function ContextMenu({ x, y, nodeId, selectedIds, doc, onClose, onExec, onSelectAll, onCopy, onCut, onPaste }: ContextMenuProps) {
   const hasSelection = selectedIds.size > 0
   const hasDoc = !!doc
+
+  function buildRotateCmd(degrees: number): RotateNodesCommand | null {
+    if (!doc || selectedIds.size === 0) return null
+    const ids = Array.from(selectedIds)
+    const prevTransforms = new Map<NodeId, Transform>()
+    const newTransforms = new Map<NodeId, Transform>()
+    for (const id of ids) {
+      const node = doc.children.find(n => n.id === id)
+      if (!node) continue
+      const t = node.transform
+      prevTransforms.set(id, { ...t })
+      newTransforms.set(id, { ...t, rotation: ((t.rotation + degrees) % 360 + 360) % 360 })
+    }
+    return new RotateNodesCommand(ids, newTransforms, prevTransforms)
+  }
+
+  function buildFlipCmd(axis: 'horizontal' | 'vertical'): FlipNodesCommand | null {
+    if (!doc || selectedIds.size === 0) return null
+    const ids = Array.from(selectedIds)
+    const prevTransforms = new Map<NodeId, Transform>()
+    for (const id of ids) {
+      const node = doc.children.find(n => n.id === id)
+      if (node) prevTransforms.set(id, { ...node.transform })
+    }
+    return new FlipNodesCommand(ids, axis, prevTransforms)
+  }
+
+  const fromIdx = nodeId ? doc?.children.findIndex(n => n.id === nodeId) ?? -1 : -1
 
   const menuItems: Array<{ label: string; disabled: boolean; onClick: () => void } | 'sep'> = [
     { label: 'Select All', disabled: !hasDoc, onClick: onSelectAll },
     'sep',
-    { label: 'Copy', disabled: !hasSelection, onClick: onCopy },
+    { label: 'Cut',   disabled: !hasSelection, onClick: onCut },
+    { label: 'Copy',  disabled: !hasSelection, onClick: onCopy },
     { label: 'Paste', disabled: _clipboard.length === 0, onClick: onPaste },
     'sep',
     {
@@ -2299,14 +2366,45 @@ function ContextMenu({ x, y, nodeId, selectedIds, doc, onClose, onExec, onSelect
     },
     'sep',
     {
+      label: 'Rotate 90° CW',
+      disabled: !hasSelection || !hasDoc,
+      onClick: () => { const cmd = buildRotateCmd(90);  if (cmd) onExec(cmd) },
+    },
+    {
+      label: 'Rotate 90° CCW',
+      disabled: !hasSelection || !hasDoc,
+      onClick: () => { const cmd = buildRotateCmd(-90); if (cmd) onExec(cmd) },
+    },
+    {
+      label: 'Flip Horizontal',
+      disabled: !hasSelection || !hasDoc,
+      onClick: () => { const cmd = buildFlipCmd('horizontal'); if (cmd) onExec(cmd) },
+    },
+    {
+      label: 'Flip Vertical',
+      disabled: !hasSelection || !hasDoc,
+      onClick: () => { const cmd = buildFlipCmd('vertical');   if (cmd) onExec(cmd) },
+    },
+    'sep',
+    {
       label: 'Bring to Front',
-      disabled: !nodeId || !hasDoc,
-      onClick: () => { if (nodeId && doc) onExec(new ReorderNodeCommand(doc.children.length - 1, doc.children.findIndex(n => n.id === nodeId), null)) },
+      disabled: !nodeId || !hasDoc || fromIdx < 0,
+      onClick: () => { if (nodeId && doc && fromIdx >= 0) onExec(new ReorderNodeCommand(doc.children.length - 1, fromIdx, null)) },
+    },
+    {
+      label: 'Bring Forward',
+      disabled: !nodeId || !hasDoc || fromIdx < 0 || fromIdx >= (doc?.children.length ?? 0) - 1,
+      onClick: () => { if (nodeId && doc && fromIdx >= 0) onExec(new ReorderNodeCommand(Math.min(fromIdx + 1, doc.children.length - 1), fromIdx, null)) },
+    },
+    {
+      label: 'Send Backward',
+      disabled: !nodeId || !hasDoc || fromIdx <= 0,
+      onClick: () => { if (nodeId && doc && fromIdx > 0) onExec(new ReorderNodeCommand(Math.max(fromIdx - 1, 0), fromIdx, null)) },
     },
     {
       label: 'Send to Back',
-      disabled: !nodeId || !hasDoc,
-      onClick: () => { if (nodeId && doc) onExec(new ReorderNodeCommand(0, doc.children.findIndex(n => n.id === nodeId), null)) },
+      disabled: !nodeId || !hasDoc || fromIdx < 0,
+      onClick: () => { if (nodeId && doc && fromIdx >= 0) onExec(new ReorderNodeCommand(0, fromIdx, null)) },
     },
   ]
 
