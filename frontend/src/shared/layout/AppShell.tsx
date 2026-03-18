@@ -205,7 +205,12 @@ export default function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  // 3-state sidebar: 'expanded' | 'collapsed' | 'hidden'
+  const [sidebarState, setSidebarState] = useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
+  const sidebarCollapsed = sidebarState === 'collapsed'
+  // sidebarHidden drives the edge-reveal strip
+  const sidebarHidden = sidebarState === 'hidden'
+  const [sidebarPeek, setSidebarPeek] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
 
@@ -283,6 +288,13 @@ export default function AppShell() {
         return
       }
 
+      // Ctrl+Shift+B — cycle sidebar: expanded → collapsed → hidden → expanded
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'b') {
+        e.preventDefault()
+        setSidebarState(s => s === 'expanded' ? 'collapsed' : s === 'collapsed' ? 'hidden' : 'expanded')
+        return
+      }
+
       // G-key sequence: press G, then a letter within 1500ms
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'g') {
         e.preventDefault()
@@ -347,11 +359,50 @@ export default function AppShell() {
 
       {/* Sidebar — hidden in kiosk mode */}
       {!isKiosk && (
+        <>
+          {/* Edge-hover reveal strip when sidebar is hidden */}
+          {sidebarHidden && (
+            <div
+              style={{
+                position: 'relative',
+                width: 4,
+                flexShrink: 0,
+                zIndex: 60,
+                cursor: 'pointer',
+                background: sidebarPeek ? 'var(--io-accent)' : 'transparent',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={() => setSidebarPeek(true)}
+              onMouseLeave={() => setSidebarPeek(false)}
+              onClick={() => setSidebarState('expanded')}
+              title="Show sidebar"
+            >
+              {sidebarPeek && (
+                <div style={{
+                  position: 'absolute',
+                  left: 4,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'var(--io-surface)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '0 4px 4px 0',
+                  padding: '4px 6px',
+                  fontSize: 10,
+                  color: 'var(--io-text-muted)',
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                  zIndex: 61,
+                }}>
+                  › Show sidebar
+                </div>
+              )}
+            </div>
+          )}
         <aside
           style={{
-            width: sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
+            width: sidebarHidden ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
             background: 'var(--io-surface-secondary)',
-            borderRight: '1px solid var(--io-border)',
+            borderRight: sidebarHidden ? 'none' : '1px solid var(--io-border)',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
@@ -432,10 +483,10 @@ export default function AppShell() {
                 </span>
               </div>
             )}
-            {/* Collapse toggle button */}
+            {/* Collapse toggle button — cycles expanded → collapsed → hidden */}
             <button
-              onClick={() => setSidebarCollapsed((v) => !v)}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              onClick={() => setSidebarState(s => s === 'expanded' ? 'collapsed' : s === 'collapsed' ? 'hidden' : 'expanded')}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar (Ctrl+Shift+B)'}
               style={{
                 flexShrink: 0,
                 width: '24px',
@@ -568,6 +619,7 @@ export default function AppShell() {
             )}
           </div>
         </aside>
+        </>
       )}
 
       {/* Main area */}
