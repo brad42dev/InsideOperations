@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi, type LogSegment, type LogTemplate } from '../../api/logs'
+import PointPicker from '../../shared/components/PointPicker'
 
 // ---------------------------------------------------------------------------
 // Field definition (for field_table / field_list segments)
@@ -42,7 +43,6 @@ function NewSegmentForm({
   const [newFieldLabel, setNewFieldLabel] = useState('')
   const [newFieldType, setNewFieldType] = useState<FieldType>('text')
   const [pointIds, setPointIds] = useState<string[]>([])
-  const [newPointId, setNewPointId] = useState('')
 
   const addField = () => {
     if (!newFieldName.trim()) return
@@ -63,12 +63,6 @@ function NewSegmentForm({
     setFields(fields.filter((_, i) => i !== idx))
   }
 
-  const addPointId = () => {
-    const pid = newPointId.trim()
-    if (!pid || pointIds.includes(pid)) return
-    setPointIds([...pointIds, pid])
-    setNewPointId('')
-  }
 
   const buildConfig = (): Record<string, unknown> => {
     if (segmentType === 'field_table' || segmentType === 'field_list') {
@@ -287,60 +281,10 @@ function NewSegmentForm({
           <p style={{ fontSize: '12px', color: 'var(--io-text-muted)', margin: '0 0 8px' }}>
             These point values are automatically captured when a log entry is created from this template.
           </p>
-          {pointIds.length > 0 && (
-            <div style={{ marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {pointIds.map((pid) => (
-                <div
-                  key={pid}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    background: 'var(--io-surface)',
-                    borderRadius: '6px',
-                    padding: '5px 10px',
-                    fontSize: '13px',
-                  }}
-                >
-                  <span style={{ flex: 1, color: 'var(--io-text-primary)', fontFamily: 'var(--io-font-mono, monospace)' }}>
-                    {pid}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPointIds(pointIds.filter((p) => p !== pid))}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: '16px', lineHeight: 1 }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              style={{ ...inputStyle, flex: 1 }}
-              value={newPointId}
-              onChange={(e) => setNewPointId(e.target.value)}
-              placeholder="e.g. HCU.FIC101.PV"
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPointId())}
-            />
-            <button
-              type="button"
-              onClick={addPointId}
-              style={{
-                background: 'var(--io-surface)',
-                border: '1px solid var(--io-border)',
-                borderRadius: '6px',
-                padding: '7px 12px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                color: 'var(--io-text-secondary)',
-                flexShrink: 0,
-              }}
-            >
-              + Add
-            </button>
-          </div>
+          <PointPicker
+            selected={pointIds}
+            onChange={setPointIds}
+          />
         </div>
       )}
 
