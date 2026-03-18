@@ -121,7 +121,8 @@ const LAYOUT_PRESETS: { value: LayoutPreset; label: string }[] = [
 
 export default function ConsolePage() {
   const queryClient = useQueryClient()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
+  const canPublish = user?.permissions.includes('console:workspace_publish') ?? false
 
   // ---- API-backed state (when authenticated) --------------------------------
 
@@ -178,6 +179,14 @@ export default function ConsolePage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => consoleApi.deleteWorkspace(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+    },
+  })
+
+  const publishMutation = useMutation({
+    mutationFn: ({ id, published }: { id: string; published: boolean }) =>
+      consoleApi.publishWorkspace(id, published),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
     },
@@ -617,6 +626,14 @@ export default function ConsolePage() {
                 alignItems: 'center',
               }}
             >
+              {ws.published && (
+                <span
+                  title="Published workspace"
+                  style={{ color: 'var(--io-accent)', fontSize: 8, marginRight: 3 }}
+                >
+                  ●
+                </span>
+              )}
               {ws.name}
             </button>
           ))}
@@ -734,6 +751,28 @@ export default function ConsolePage() {
               >
                 Rename
               </button>
+
+              {/* Publish toggle — gated by console:workspace_publish permission */}
+              {canPublish && (
+                <button
+                  onClick={() => publishMutation.mutate({ id: activeWorkspace.id, published: !activeWorkspace.published })}
+                  title={activeWorkspace.published ? 'Unpublish workspace (visible to all users)' : 'Publish workspace (make visible to all users)'}
+                  style={{
+                    background: activeWorkspace.published ? 'var(--io-accent-subtle)' : 'transparent',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    color: activeWorkspace.published ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  {activeWorkspace.published ? '● Published' : '○ Publish'}
+                </button>
+              )}
 
               {/* Delete workspace */}
               {workspaces.length > 1 && (
@@ -933,6 +972,11 @@ export default function ConsolePage() {
                 label: 'Duplicate',
                 onClick: () => duplicateWorkspace(ws.id),
               },
+              ...(canPublish ? [{
+                label: ws.published ? 'Unpublish' : 'Publish',
+                divider: false,
+                onClick: () => publishMutation.mutate({ id: ws.id, published: !ws.published }),
+              }] : []),
               {
                 label: 'Delete',
                 divider: true,

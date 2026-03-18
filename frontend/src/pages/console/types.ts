@@ -50,6 +50,10 @@ export interface WorkspaceLayout {
   panes: PaneConfig[]
   /** Free-form pane positions. When present, overrides the static `layout` preset for rendering. */
   gridItems?: GridItem[]
+  /** Whether this workspace is published (visible to all users with console:read) */
+  published?: boolean
+  /** ID of the user who owns this workspace */
+  owner_id?: string
 }
 
 export interface ConsoleState {

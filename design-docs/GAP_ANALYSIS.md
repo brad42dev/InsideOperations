@@ -45,15 +45,15 @@ Each design document (00–10, 38) was read in full and compared to the current 
 | 07 | Console — drag-and-drop from palette to workspace not implemented | HIGH | **DONE** (HTML5 DnD in ConsolePalette → PaneWrapper → WorkspaceGrid) |
 | 07 | Console — pane swap, box select, copy/paste not implemented | MEDIUM | **PARTIAL** — box select DONE (pointer drag on empty grid background, AABB overlap, visual selection rect); copy/paste DONE (Ctrl+C/V); pane swap deferred |
 | 07 | Console — undo/redo (zundo) not implemented | MEDIUM | **DONE** (useRef-based 50-level stacks, Ctrl+Z/Y/Shift+Z) |
-| 07 | Console — historical playback not implemented | MEDIUM | Deferred |
+| 07 | Console — historical playback not implemented | MEDIUM | **DONE** (HistoricalPlaybackBar + usePlaybackStore; all 4 pane types use historical values in historical mode) |
 | 07 | Console — real-time WebSocket data updates in panes not implemented | HIGH | **DONE** (useWebSocket in all 4 pane types; GraphicViewer has PointBindingLayer) |
 | 07 | Console — workspace saved to localStorage not database | MEDIUM | **DONE** (API-backed via consoleApi with localStorage fallback) |
-| 07 | Console — publish/share workspaces not implemented | LOW | Deferred |
-| 08 | Process — LOD (Level of Detail) transitions not implemented | LOW | Deferred |
-| 08 | Process — viewport-aware point subscriptions not implemented | MEDIUM | Deferred |
-| 08 | Process — hotspot navigation not implemented | LOW | Deferred |
-| 08 | Process — view hierarchy / breadcrumbs not implemented | LOW | Deferred |
-| 08 | Process — historical playback not implemented | LOW | Deferred |
+| 07 | Console — publish/share workspaces not implemented | LOW | **DONE** (WorkspaceLayout.published field; consoleApi.publishWorkspace + shareWorkspace; Publish toggle button in edit toolbar gated by console:workspace_publish; ● badge on published tabs; Publish/Unpublish in tab context menu; api.patch() added to client) |
+| 08 | Process — LOD (Level of Detail) transitions not implemented | LOW | **DONE** (lod.css + SceneRenderer; io-lod-N class on SVG root, CSS hides high-LOD elements at low zoom) |
+| 08 | Process — viewport-aware point subscriptions not implemented | MEDIUM | **DONE** (getVisiblePointIds() in process/index.tsx; debounced 500ms, useWebSocket on visible point set) |
+| 08 | Process — hotspot navigation not implemented | LOW | **DONE** (SceneRenderer handles node.navigationLink; targetGraphicId calls onNavigate, targetUrl opens tab) |
+| 08 | Process — view hierarchy / breadcrumbs not implemented | LOW | **DONE** (bookmark toggle + recent ▾ dropdown in Process; bookmarksApi integration) |
+| 08 | Process — historical playback not implemented | LOW | **DONE** (HistoricalPlaybackBar at bottom of ProcessPage; shares usePlaybackStore) |
 | 09 | Designer — covered by DESIGNER_WORK_QUEUE.md | SKIP | Skip |
 | 10 | Dashboards — widget real-time updates via WebSocket not implemented | HIGH | **DONE** (usePointValues hook in KpiCard, LineChart, GaugeWidget) |
 | 10 | Dashboards — 19 canned dashboards seeded (8+11) — backend done, UI shows them | OK | |

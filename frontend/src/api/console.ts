@@ -19,4 +19,13 @@ export const consoleApi = {
 
   deleteWorkspace: (id: string): Promise<ApiResult<void>> =>
     api.delete<void>(`/api/console/workspaces/${id}`),
+
+  publishWorkspace: (id: string, published: boolean): Promise<ApiResult<WorkspaceLayout>> =>
+    api.patch<WorkspaceLayout>(`/api/console/workspaces/${id}/publish`, { published }),
+
+  shareWorkspace: (
+    id: string,
+    grantees: Array<{ id: string; type: 'user' | 'group'; permission: 'view' | 'edit' }>,
+  ): Promise<ApiResult<void>> =>
+    api.post<void>(`/api/console/workspaces/${id}/share`, { grantees }),
 }
