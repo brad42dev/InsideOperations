@@ -142,6 +142,41 @@ export default function AlertComposer() {
       <form onSubmit={handleSubmit} style={{ maxWidth: 600 }}>
         <div style={{ display: 'grid', gap: 20 }}>
 
+          {/* Emergency Quick-Send: prominent emergency/critical templates */}
+          {templates && templates.filter(t => t.severity === 'emergency' || t.severity === 'critical').length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                Emergency Quick-Send
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {templates
+                  .filter(t => t.severity === 'emergency' || t.severity === 'critical')
+                  .map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleTemplateChange(t.id)}
+                      style={{
+                        padding: '10px 16px',
+                        background: selectedTemplateId === t.id
+                          ? (t.severity === 'emergency' ? 'rgba(239,68,68,0.2)' : 'rgba(251,191,36,0.2)')
+                          : 'var(--io-surface)',
+                        border: `2px solid ${t.severity === 'emergency' ? '#ef4444' : '#fbbf24'}`,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: t.severity === 'emergency' ? '#ef4444' : '#f59e0b',
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      {t.severity === 'emergency' ? '🚨 ' : '⚠️ '}{t.name}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {templates && templates.length > 0 && (
             <div>
               <label style={labelStyle}>Template (optional)</label>

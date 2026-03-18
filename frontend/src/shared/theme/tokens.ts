@@ -618,8 +618,11 @@ function applyTokens(tokens: Record<string, string>): void {
 
 export function initTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY)
+  // Mobile devices default to Light for outdoor readability (doc 20)
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const defaultTheme: Theme = isMobile ? 'light' : 'dark'
   const theme: Theme =
-    stored === 'light' || stored === 'dark' || stored === 'hphmi' ? stored : 'dark'
+    stored === 'light' || stored === 'dark' || stored === 'hphmi' ? stored : defaultTheme
   document.documentElement.setAttribute('data-theme', theme)
   if (theme === 'light') {
     applyTokens(lightTokens)
