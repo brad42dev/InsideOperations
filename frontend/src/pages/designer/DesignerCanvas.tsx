@@ -44,6 +44,8 @@ import type {
   WidgetType,
   WidgetConfig,
   PointBinding,
+  DisplayElementType,
+  DisplayElementConfig,
 } from '../../shared/types/graphics'
 import {
   AddNodeCommand,
@@ -347,6 +349,16 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
                 {formatValue(v, cfg.valueFormat ?? '%.0f')}
               </text>
             )}
+          </g>
+        )
+      }
+      case 'numeric_indicator': {
+        const formatted = typeof v === 'number' ? v.toFixed(cfg.decimalPlaces) : String(v)
+        return (
+          <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+            <text x={cfg.width / 2} y={cfg.fontSize} textAnchor="middle" fontSize={cfg.fontSize} fontWeight="600" fill={textColor} fontFamily="var(--io-font-mono)" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {formatted}
+            </text>
           </g>
         )
       }
@@ -1989,6 +2001,50 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
     document.addEventListener('io:widget-drop', onWidgetDrop)
     return () => document.removeEventListener('io:widget-drop', onWidgetDrop)
+  }, [snap])
+
+  // Handle display-element drops from left palette (graphic mode)
+  useEffect(() => {
+    function onDisplayElementDrop(e: Event) {
+      const ce = e as CustomEvent<{ elementType: DisplayElementType; x: number; y: number }>
+      const rect = getRect()
+      if (!rect || !docRef.current) return
+      const vp = viewportRef.current
+      const cx = snap((ce.detail.x - rect.left - vp.panX) / vp.zoom)
+      const cy = snap((ce.detail.y - rect.top  - vp.panY) / vp.zoom)
+
+      const et = ce.detail.elementType
+      const config: DisplayElementConfig = (() => {
+        switch (et) {
+          case 'text_readout':      return { displayType: 'text_readout', showBox: false, showLabel: false, showUnits: true, valueFormat: '%.2f', minWidth: 60 }
+          case 'numeric_indicator': return { displayType: 'numeric_indicator', fontSize: 24, decimalPlaces: 1, showUnit: true, showLabel: false, width: 100 }
+          case 'analog_bar':        return { displayType: 'analog_bar', orientation: 'vertical', barWidth: 20, barHeight: 80, rangeLo: 0, rangeHi: 100, showZoneLabels: true, showPointer: true, showSetpoint: false, showNumericReadout: true, showSignalLine: false }
+          case 'fill_gauge':        return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: true, showValue: true, valueFormat: '%.0f' }
+          case 'sparkline':         return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
+          case 'alarm_indicator':   return { displayType: 'alarm_indicator', mode: 'single' }
+          case 'digital_status':    return { displayType: 'digital_status', stateLabels: {}, normalStates: [], abnormalPriority: 3 }
+        }
+      })()
+
+      const node: DisplayElement = {
+        id: crypto.randomUUID(),
+        type: 'display_element',
+        displayType: et,
+        name: et.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        binding: {},
+        config,
+        transform: { position: { x: cx, y: cy }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+        visible: true,
+        locked: false,
+        opacity: 1,
+      }
+      executeCmd(new AddNodeCommand(node, null))
+      selectedIdsRef.current = new Set([node.id])
+      emitSelection([node.id])
+    }
+
+    document.addEventListener('io:display-element-drop', onDisplayElementDrop)
+    return () => document.removeEventListener('io:display-element-drop', onDisplayElementDrop)
   }, [snap])
 
   // -------------------------------------------------------------------------

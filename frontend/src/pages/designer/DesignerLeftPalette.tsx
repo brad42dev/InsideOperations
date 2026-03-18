@@ -267,12 +267,13 @@ function ShapeTile({
 // ---------------------------------------------------------------------------
 
 const DISPLAY_ELEMENT_TYPES: Array<{ type: DisplayElementType; label: string; icon: string }> = [
-  { type: 'text_readout',    label: 'Text Readout',    icon: '123' },
-  { type: 'analog_bar',      label: 'Analog Bar',      icon: '▐▌' },
-  { type: 'fill_gauge',      label: 'Fill Gauge',      icon: '▓' },
-  { type: 'sparkline',       label: 'Sparkline',       icon: '∿' },
-  { type: 'alarm_indicator', label: 'Alarm Indicator', icon: '⚠' },
-  { type: 'digital_status',  label: 'Digital Status',  icon: '●' },
+  { type: 'text_readout',      label: 'Text Readout',      icon: '123' },
+  { type: 'numeric_indicator', label: 'Numeric',            icon: '#' },
+  { type: 'analog_bar',        label: 'Analog Bar',         icon: '▐▌' },
+  { type: 'fill_gauge',        label: 'Fill Gauge',         icon: '▓' },
+  { type: 'sparkline',         label: 'Sparkline',          icon: '∿' },
+  { type: 'alarm_indicator',   label: 'Alarm Indicator',    icon: '⚠' },
+  { type: 'digital_status',    label: 'Digital Status',     icon: '●' },
 ]
 
 function DisplayElementTile({
