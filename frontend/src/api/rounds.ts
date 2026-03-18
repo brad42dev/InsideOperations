@@ -19,6 +19,18 @@ export interface CheckpointMediaRequirements {
   comments?: 'optional' | 'required' | 'required_on_alarm'
 }
 
+export interface CheckpointBarcodeGate {
+  /** Expected barcode value (exact match). If omitted, any scan unlocks. */
+  expected_value?: string
+}
+
+export interface CheckpointGpsGate {
+  lat: number
+  lng: number
+  /** Required proximity in metres before data entry is enabled (default 50) */
+  radius_metres: number
+}
+
 export interface Checkpoint {
   index: number
   title: string
@@ -32,6 +44,10 @@ export interface Checkpoint {
   options?: string[]
   fields?: Array<{ name: string; type: string }>
   media_requirements?: CheckpointMediaRequirements
+  /** Barcode entry gate — must scan barcode before data entry is enabled */
+  barcode_gate?: CheckpointBarcodeGate
+  /** GPS entry gate — must be within radius of configured location */
+  gps_gate?: CheckpointGpsGate
 }
 
 export interface RoundTemplate {

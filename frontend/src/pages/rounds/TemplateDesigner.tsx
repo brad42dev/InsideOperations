@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { roundsApi, type Checkpoint, type CheckpointValidation } from '../../api/rounds'
+import { roundsApi, type Checkpoint, type CheckpointValidation, type CheckpointBarcodeGate, type CheckpointGpsGate } from '../../api/rounds'
 import PointPicker from '../../shared/components/PointPicker'
 
 // ---------------------------------------------------------------------------
@@ -30,6 +30,14 @@ interface EditableCheckpoint {
   fields: Array<{ name: string; type: string }>
   photo: string
   comments: string
+  // Barcode gate
+  barcode_gate_enabled: boolean
+  barcode_expected: string
+  // GPS gate
+  gps_gate_enabled: boolean
+  gps_lat: string
+  gps_lng: string
+  gps_radius: string
 }
 
 function emptyCheckpoint(index: number): EditableCheckpoint {
@@ -52,6 +60,12 @@ function emptyCheckpoint(index: number): EditableCheckpoint {
     fields: [{ name: '', type: 'text' }],
     photo: 'none',
     comments: 'optional',
+    barcode_gate_enabled: false,
+    barcode_expected: '',
+    gps_gate_enabled: false,
+    gps_lat: '',
+    gps_lng: '',
+    gps_radius: '50',
   }
 }
 
@@ -94,6 +108,21 @@ function checkpointToApi(cp: EditableCheckpoint): Checkpoint {
     }
   }
 
+  if (cp.barcode_gate_enabled) {
+    const gate: CheckpointBarcodeGate = {}
+    if (cp.barcode_expected.trim()) gate.expected_value = cp.barcode_expected.trim()
+    base.barcode_gate = gate
+  }
+
+  if (cp.gps_gate_enabled && cp.gps_lat && cp.gps_lng) {
+    const gate: CheckpointGpsGate = {
+      lat: parseFloat(cp.gps_lat),
+      lng: parseFloat(cp.gps_lng),
+      radius_metres: parseFloat(cp.gps_radius) || 50,
+    }
+    base.gps_gate = gate
+  }
+
   return base
 }
 
@@ -118,6 +147,12 @@ function apiToEditable(cp: Checkpoint): EditableCheckpoint {
     fields: cp.fields?.length ? cp.fields : [{ name: '', type: 'text' }],
     photo: cp.media_requirements?.photo ?? 'none',
     comments: cp.media_requirements?.comments ?? 'optional',
+    barcode_gate_enabled: !!cp.barcode_gate,
+    barcode_expected: cp.barcode_gate?.expected_value ?? '',
+    gps_gate_enabled: !!cp.gps_gate,
+    gps_lat: cp.gps_gate ? String(cp.gps_gate.lat) : '',
+    gps_lng: cp.gps_gate ? String(cp.gps_gate.lng) : '',
+    gps_radius: cp.gps_gate ? String(cp.gps_gate.radius_metres) : '50',
   }
 }
 
@@ -483,6 +518,88 @@ function CheckpointEditor({
                 <option value="required_on_alarm">Required on alarm</option>
               </select>
             </Field>
+          </div>
+
+          {/* Barcode gate */}
+          <div style={{ borderTop: '1px solid var(--io-border)', paddingTop: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="checkbox"
+                id={`barcode-${cp.index}`}
+                checked={cp.barcode_gate_enabled}
+                onChange={(e) => set('barcode_gate_enabled', e.target.checked)}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <label htmlFor={`barcode-${cp.index}`} style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-secondary)', cursor: 'pointer' }}>
+                Barcode gate
+              </label>
+              <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
+                — operator must scan a barcode before entering data
+              </span>
+            </div>
+            {cp.barcode_gate_enabled && (
+              <Field label="Expected barcode value (leave blank to accept any scan)">
+                <input
+                  value={cp.barcode_expected}
+                  onChange={(e) => set('barcode_expected', e.target.value)}
+                  placeholder="e.g. PUMP-101-A"
+                  style={inputStyle}
+                />
+              </Field>
+            )}
+          </div>
+
+          {/* GPS gate */}
+          <div style={{ borderTop: '1px solid var(--io-border)', paddingTop: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="checkbox"
+                id={`gps-${cp.index}`}
+                checked={cp.gps_gate_enabled}
+                onChange={(e) => set('gps_gate_enabled', e.target.checked)}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <label htmlFor={`gps-${cp.index}`} style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-secondary)', cursor: 'pointer' }}>
+                GPS gate
+              </label>
+              <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
+                — operator must be at the configured location
+              </span>
+            </div>
+            {cp.gps_gate_enabled && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <Field label="Latitude">
+                  <input
+                    type="number"
+                    value={cp.gps_lat}
+                    onChange={(e) => set('gps_lat', e.target.value)}
+                    placeholder="e.g. 51.5074"
+                    step="any"
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Longitude">
+                  <input
+                    type="number"
+                    value={cp.gps_lng}
+                    onChange={(e) => set('gps_lng', e.target.value)}
+                    placeholder="e.g. -0.1278"
+                    step="any"
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Radius (metres)">
+                  <input
+                    type="number"
+                    value={cp.gps_radius}
+                    onChange={(e) => set('gps_radius', e.target.value)}
+                    min={1}
+                    max={10000}
+                    style={inputStyle}
+                  />
+                </Field>
+              </div>
+            )}
           </div>
         </div>
       )}

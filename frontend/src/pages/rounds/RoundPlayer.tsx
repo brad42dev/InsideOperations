@@ -1,8 +1,213 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { roundsApi, type Checkpoint, type ResponseItem } from '../../api/rounds'
 import { useOfflineRounds, batchSyncRounds } from '../../shared/hooks/useOfflineRounds'
+
+// ---------------------------------------------------------------------------
+// Barcode gate — scans via BarcodeDetector API or manual entry fallback
+// ---------------------------------------------------------------------------
+
+function BarcodeGate({
+  expectedValue,
+  onUnlock,
+}: {
+  expectedValue?: string
+  onUnlock: (scanned: string) => void
+}) {
+  const [manualValue, setManualValue] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  // BarcodeDetector API scan
+  const startScan = async () => {
+    setScanError(null)
+    if (!('BarcodeDetector' in window)) {
+      setScanError('Camera scan not supported in this browser. Use manual entry below.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play()
+      }
+      setScanning(true)
+
+      // @ts-expect-error BarcodeDetector not in TS lib yet
+      const detector = new window.BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'data_matrix'] })
+      const interval = setInterval(async () => {
+        if (!videoRef.current) { clearInterval(interval); return }
+        try {
+          const barcodes = await detector.detect(videoRef.current)
+          if (barcodes.length > 0) {
+            clearInterval(interval)
+            stopScan()
+            const raw = barcodes[0].rawValue as string
+            if (expectedValue && raw !== expectedValue) {
+              setScanError(`Wrong barcode. Expected: ${expectedValue}`)
+              return
+            }
+            onUnlock(raw)
+          }
+        } catch { /* ignore detection frames errors */ }
+      }, 300)
+
+      // Auto-stop after 30s
+      setTimeout(() => { clearInterval(interval); stopScan() }, 30_000)
+    } catch (err) {
+      setScanError('Camera access denied.')
+      setScanning(false)
+    }
+  }
+
+  const stopScan = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setScanning(false)
+  }
+
+  useEffect(() => () => { stopScan() }, [])
+
+  const handleManualSubmit = () => {
+    const v = manualValue.trim()
+    if (!v) return
+    if (expectedValue && v !== expectedValue) {
+      setScanError(`Incorrect. Expected barcode: ${expectedValue}`)
+      return
+    }
+    onUnlock(v)
+  }
+
+  return (
+    <div style={{ padding: '16px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '8px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+        <span style={{ fontSize: '20px' }}>◉</span>
+        <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--io-text-primary)' }}>Barcode Gate</span>
+        <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>Scan barcode to unlock this checkpoint</span>
+      </div>
+      {scanning ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <video ref={videoRef} style={{ width: '100%', maxHeight: '200px', borderRadius: '6px', background: '#000' }} playsInline muted />
+          <button onClick={stopScan} style={{ padding: '8px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '6px', color: 'var(--io-text-secondary)', cursor: 'pointer', fontSize: '13px' }}>
+            Cancel scan
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button onClick={startScan} style={{ padding: '10px 16px', background: 'var(--io-accent)', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}>
+            Scan Barcode
+          </button>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input
+              type="text"
+              value={manualValue}
+              onChange={e => setManualValue(e.target.value)}
+              placeholder="Or enter barcode manually…"
+              onKeyDown={e => e.key === 'Enter' && handleManualSubmit()}
+              style={{ flex: 1, padding: '8px 10px', background: 'var(--io-surface)', border: '1px solid var(--io-border)', borderRadius: '6px', color: 'var(--io-text-primary)', fontSize: '13px' }}
+            />
+            <button onClick={handleManualSubmit} style={{ padding: '8px 14px', background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+      {scanError && (
+        <div style={{ marginTop: '8px', fontSize: '12px', color: '#ef4444' }}>{scanError}</div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// GPS gate — checks proximity to configured fence
+// ---------------------------------------------------------------------------
+
+function GpsGate({
+  lat,
+  lng,
+  radiusMetres,
+  currentGps,
+  onUnlock,
+}: {
+  lat: number
+  lng: number
+  radiusMetres: number
+  currentGps: { lat: number; lng: number } | null
+  onUnlock: () => void
+}) {
+  const [checking, setChecking] = useState(false)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+
+  function haversineMetres(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371000
+    const phi1 = lat1 * Math.PI / 180
+    const phi2 = lat2 * Math.PI / 180
+    const dPhi = (lat2 - lat1) * Math.PI / 180
+    const dLam = (lon2 - lon1) * Math.PI / 180
+    const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
+
+  const checkLocation = () => {
+    setGpsError(null)
+    setChecking(true)
+    if (!navigator.geolocation) {
+      setGpsError('Geolocation not supported on this device.')
+      setChecking(false)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const dist = haversineMetres(pos.coords.latitude, pos.coords.longitude, lat, lng)
+        setChecking(false)
+        if (dist <= radiusMetres) {
+          onUnlock()
+        } else {
+          setGpsError(`Too far away (${Math.round(dist)}m). Must be within ${radiusMetres}m.`)
+        }
+      },
+      () => {
+        setGpsError('Could not get location. Check GPS/location permissions.')
+        setChecking(false)
+      },
+      { timeout: 10_000, enableHighAccuracy: true },
+    )
+  }
+
+  // If we already have GPS from earlier capture, check immediately
+  useEffect(() => {
+    if (currentGps) {
+      const dist = haversineMetres(currentGps.lat, currentGps.lng, lat, lng)
+      if (dist <= radiusMetres) onUnlock()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div style={{ padding: '16px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+        <span style={{ fontSize: '20px' }}>◎</span>
+        <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--io-text-primary)' }}>GPS Gate</span>
+        <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>Must be within {radiusMetres}m of equipment</span>
+      </div>
+      <button
+        onClick={checkLocation}
+        disabled={checking}
+        style={{ padding: '10px 16px', background: checking ? 'var(--io-surface-elevated)' : 'var(--io-accent)', border: 'none', borderRadius: '6px', color: checking ? 'var(--io-text-muted)' : '#fff', fontWeight: 600, cursor: checking ? 'not-allowed' : 'pointer', fontSize: '14px' }}
+      >
+        {checking ? 'Getting location…' : 'Check My Location'}
+      </button>
+      {gpsError && (
+        <div style={{ marginTop: '8px', fontSize: '12px', color: '#ef4444' }}>{gpsError}</div>
+      )}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -208,6 +413,9 @@ export default function RoundPlayer() {
   const [saving, setSaving] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Gate unlock state: tracks which checkpoint indexes have their barcode/GPS gates cleared
+  const [barcodeUnlocked, setBarcodeUnlocked] = useState<Record<number, boolean>>({})
+  const [gpsUnlocked, setGpsUnlocked] = useState<Record<number, boolean>>({})
 
   const { isOnline, pendingCount, saveOfflineResponse, getPendingResponses, clearSynced, syncPending } = useOfflineRounds()
 
@@ -347,6 +555,7 @@ export default function RoundPlayer() {
     return true
   }, [id, detailResult, values, comments, gps, isOnline, saveOfflineResponse])
 
+  // Gates are per-checkpoint — reset for the target index when navigating
   const handleNext = async () => {
     const ok = await saveCurrentResponse(checkpointIdx)
     if (!ok) return
@@ -564,13 +773,39 @@ export default function RoundPlayer() {
             </p>
           )}
 
-          <CheckpointInput
-            checkpoint={cp}
-            value={values[clampedIdx] ?? ''}
-            onChange={(v) => setValues((prev) => ({ ...prev, [clampedIdx]: v }))}
-            comment={comments[clampedIdx] ?? ''}
-            onCommentChange={(v) => setComments((prev) => ({ ...prev, [clampedIdx]: v }))}
-          />
+          {/* Barcode gate — renders above input, blocks data entry until unlocked */}
+          {cp.barcode_gate && !barcodeUnlocked[clampedIdx] && (
+            <BarcodeGate
+              expectedValue={cp.barcode_gate.expected_value}
+              onUnlock={(scanned) => {
+                void scanned
+                setBarcodeUnlocked(prev => ({ ...prev, [clampedIdx]: true }))
+              }}
+            />
+          )}
+
+          {/* GPS gate — renders above input (after barcode), blocks until unlocked */}
+          {cp.gps_gate && !gpsUnlocked[clampedIdx] && (
+            <GpsGate
+              lat={cp.gps_gate.lat}
+              lng={cp.gps_gate.lng}
+              radiusMetres={cp.gps_gate.radius_metres}
+              currentGps={gps}
+              onUnlock={() => setGpsUnlocked(prev => ({ ...prev, [clampedIdx]: true }))}
+            />
+          )}
+
+          {/* Only render the data input once all gates are satisfied */}
+          {(!cp.barcode_gate || barcodeUnlocked[clampedIdx]) &&
+           (!cp.gps_gate || gpsUnlocked[clampedIdx]) && (
+            <CheckpointInput
+              checkpoint={cp}
+              value={values[clampedIdx] ?? ''}
+              onChange={(v) => setValues((prev) => ({ ...prev, [clampedIdx]: v }))}
+              comment={comments[clampedIdx] ?? ''}
+              onCommentChange={(v) => setComments((prev) => ({ ...prev, [clampedIdx]: v }))}
+            />
+          )}
         </div>
 
         {/* Error */}
