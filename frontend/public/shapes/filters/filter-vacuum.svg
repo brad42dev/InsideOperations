@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 66 55" data-io-shape="filter-vacuum">
+  <g class="io-shape-body">
+    <polyline points="9,20 33,44 57,20" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polyline points="17,20 33,36 49,20" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="9" y1="20" x2="17" y2="20" stroke="#808080" stroke-width="1.5"/>
+    <line x1="49" y1="20" x2="57" y2="20" stroke="#808080" stroke-width="1.5"/>
+    <line x1="17" y1="20" x2="17" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <line x1="49" y1="20" x2="49" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <path d="M17,10 A16,4 0 0,1 49,10" fill="none" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="9" cy="20" r="3"/>
+    <circle data-conn-id="outlet" data-conn-type="process" data-conn-dir="right" cx="57" cy="20" r="3"/>
+    <circle data-conn-id="vacuum-port" data-conn-type="process" data-conn-dir="top" cx="33" cy="0" r="3"/>
+  </g>
+</svg>

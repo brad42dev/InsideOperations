@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 70" data-io-shape="tank-storage-cone-roof">
+  <g class="io-shape-body">
+    <rect x="10" y="20" width="50" height="40" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polyline points="10,20 35,6 60,20" fill="none" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="10" cy="40" r="3"/>
+    <circle data-conn-id="outlet" data-conn-type="process" data-conn-dir="right" cx="60" cy="40" r="3"/>
+    <circle data-conn-id="top-vent" data-conn-type="process" data-conn-dir="top" cx="35" cy="6" r="3"/>
+  </g>
+</svg>

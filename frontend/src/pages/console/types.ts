@@ -1,13 +1,11 @@
 // Console module type definitions
 
-export type PaneType = 'graphic' | 'trend' | 'point_table' | 'alarm_list' | 'blank'
+export type PaneType = 'trend' | 'point_table' | 'alarm_list' | 'graphic' | 'blank'
 
 export interface PaneConfig {
   id: string
   type: PaneType
   title?: string
-  // graphic pane
-  graphicId?: string
   // trend pane
   trendPointIds?: string[]
   trendDuration?: number // minutes, default 60
@@ -15,6 +13,8 @@ export interface PaneConfig {
   tablePointIds?: string[]
   // alarm_list pane
   alarmFilter?: 'all' | 'active' | 'unacknowledged'
+  // graphic pane
+  graphicId?: string
 }
 
 export type LayoutPreset =

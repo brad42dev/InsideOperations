@@ -29,7 +29,7 @@ const SERVICE_NAMES: { key: string; label: string }[] = [
 
 async function fetchHealth(): Promise<ServiceHealth[]> {
   try {
-    const r = await fetch('/api/v1/health', { signal: AbortSignal.timeout(3000) })
+    const r = await fetch('/api/health/services', { signal: AbortSignal.timeout(3000) })
     if (!r.ok) {
       // All unknown when unreachable
       return SERVICE_NAMES.map(({ key, label }) => ({ name: label, status: 'unknown', key }))

@@ -1,0 +1,23 @@
+{
+  "id": "hx-shell-tube-opt1",
+  "category": "heat-exchange",
+  "geometry": { "viewBox": "0 0 50 50", "width": 50, "height": 50 },
+  "connections": [
+    { "id": "shell-inlet",  "type": "process", "x": 5,  "y": 25, "direction": "left" },
+    { "id": "shell-outlet", "type": "process", "x": 45, "y": 25, "direction": "right" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 25, "y": -6, "width": 50, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 0.5, "ny": 1.15, "preferredElement": "text_readout" }
+  ],
+  "alarmAnchor": { "nx": 1.1, "ny": -0.1 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

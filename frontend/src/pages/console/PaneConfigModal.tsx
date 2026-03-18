@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useQuery } from '@tanstack/react-query'
-import { graphicsApi } from '../../api/graphics'
 import { pointsApi } from '../../api/points'
 import type { PaneConfig, PaneType } from './types'
 
@@ -12,97 +11,11 @@ interface PaneConfigModalProps {
 }
 
 const PANE_TYPES: { value: PaneType; label: string; description: string }[] = [
-  { value: 'graphic', label: 'Graphic', description: 'Display a process graphic' },
   { value: 'trend', label: 'Trend', description: 'Real-time trend chart' },
   { value: 'point_table', label: 'Point Table', description: 'Live point value table' },
   { value: 'alarm_list', label: 'Alarm List', description: 'Active alarm list' },
   { value: 'blank', label: 'Blank', description: 'Empty pane' },
 ]
-
-// ---------------------------------------------------------------------------
-// Graphic selector section
-// ---------------------------------------------------------------------------
-
-function GraphicSelector({
-  value,
-  onChange,
-}: {
-  value: string | undefined
-  onChange: (id: string) => void
-}) {
-  const { data: rawData, isLoading } = useQuery({
-    queryKey: ['graphics-list', 'console'],
-    queryFn: async () => {
-      const result = await graphicsApi.list()
-      if (!result.success) throw new Error(result.error.message)
-      return result.data
-    },
-    staleTime: 30_000,
-  })
-  // Exclude graphics tagged for the Process module — they're too large for console panes
-  const data = rawData?.filter((g) => g.module !== 'process')
-
-  if (isLoading) {
-    return (
-      <div style={{ color: 'var(--io-text-muted)', fontSize: 13, padding: '8px 0' }}>
-        Loading graphics…
-      </div>
-    )
-  }
-
-  if (!data || data.length === 0) {
-    return (
-      <div style={{ color: 'var(--io-text-muted)', fontSize: 13, padding: '8px 0' }}>
-        No graphics available. Create one in the Designer.
-      </div>
-    )
-  }
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-        maxHeight: 200,
-        overflowY: 'auto',
-      }}
-    >
-      {data.map((g) => (
-        <label
-          key={g.id}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '8px 10px',
-            background:
-              value === g.id ? 'var(--io-accent-subtle, rgba(74,158,255,0.1))' : 'var(--io-surface-secondary)',
-            border: `1px solid ${value === g.id ? 'var(--io-accent)' : 'var(--io-border)'}`,
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 13,
-          }}
-        >
-          <input
-            type="radio"
-            name="graphic-select"
-            value={g.id}
-            checked={value === g.id}
-            onChange={() => onChange(g.id)}
-            style={{ accentColor: 'var(--io-accent)' }}
-          />
-          <span style={{ flex: 1 }}>
-            <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>{g.name}</span>
-            <span style={{ color: 'var(--io-text-muted)', marginLeft: 8, fontSize: 11 }}>
-              {g.type}
-            </span>
-          </span>
-        </label>
-      ))}
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Point search section
@@ -241,7 +154,6 @@ function PointSearch({
 export default function PaneConfigModal({ pane, onSave, onClose }: PaneConfigModalProps) {
   const [type, setType] = useState<PaneType>(pane.type)
   const [title, setTitle] = useState(pane.title ?? '')
-  const [graphicId, setGraphicId] = useState(pane.graphicId)
   const [trendPointIds, setTrendPointIds] = useState<string[]>(pane.trendPointIds ?? [])
   const [trendDuration, setTrendDuration] = useState(pane.trendDuration ?? 60)
   const [tablePointIds, setTablePointIds] = useState<string[]>(pane.tablePointIds ?? [])
@@ -254,7 +166,6 @@ export default function PaneConfigModal({ pane, onSave, onClose }: PaneConfigMod
       id: pane.id,
       type,
       title: title.trim() || undefined,
-      graphicId: type === 'graphic' ? graphicId : undefined,
       trendPointIds: type === 'trend' ? trendPointIds : undefined,
       trendDuration: type === 'trend' ? trendDuration : undefined,
       tablePointIds: type === 'point_table' ? tablePointIds : undefined,
@@ -355,15 +266,6 @@ export default function PaneConfigModal({ pane, onSave, onClose }: PaneConfigMod
           </div>
 
           {/* Type-specific config */}
-
-          {type === 'graphic' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Graphic
-              </label>
-              <GraphicSelector value={graphicId} onChange={setGraphicId} />
-            </div>
-          )}
 
           {type === 'trend' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

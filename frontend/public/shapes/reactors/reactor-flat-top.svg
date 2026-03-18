@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80" data-io-shape="reactor-flat-top">
+  <g class="io-shape-body">
+    <line x1="10" y1="12" x2="30" y2="12" stroke="#808080" stroke-width="1.5"/>
+    <line x1="10" y1="12" x2="10" y2="68" stroke="#808080" stroke-width="1.5"/>
+    <line x1="30" y1="12" x2="30" y2="68" stroke="#808080" stroke-width="1.5"/>
+    <path d="M10,68 A10,5 0 0,0 30,68" fill="none" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="10" cy="30" r="3"/>
+    <circle data-conn-id="outlet" data-conn-type="process" data-conn-dir="left" cx="10" cy="60" r="3"/>
+    <circle data-conn-id="top-nozzle" data-conn-type="process" data-conn-dir="top" cx="20" cy="12" r="3"/>
+    <circle data-conn-id="bottom-drain" data-conn-type="process" data-conn-dir="bottom" cx="20" cy="68" r="3"/>
+  </g>
+</svg>

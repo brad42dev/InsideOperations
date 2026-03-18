@@ -1,0 +1,23 @@
+{
+  "id": "mixer-inline",
+  "category": "mixers",
+  "geometry": { "viewBox": "0 0 70 30", "width": 70, "height": 30 },
+  "connections": [
+    { "id": "inlet",  "type": "process", "x": 2,  "y": 15, "direction": "left" },
+    { "id": "outlet", "type": "process", "x": 68, "y": 15, "direction": "right" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 35, "y": -6, "width": 70, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 0.5, "ny": 1.25, "preferredElement": "text_readout" }
+  ],
+  "alarmAnchor": { "nx": 1.05, "ny": -0.2 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

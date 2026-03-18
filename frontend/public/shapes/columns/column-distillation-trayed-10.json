@@ -1,0 +1,28 @@
+{
+  "id": "column-distillation-trayed-10",
+  "category": "columns",
+  "geometry": { "viewBox": "0 0 44 120", "width": 44, "height": 120 },
+  "connections": [
+    { "id": "feed",           "type": "process", "x": 10, "y": 60,  "direction": "left" },
+    { "id": "overhead-vapor", "type": "process", "x": 22, "y": 10,  "direction": "top" },
+    { "id": "bottoms",        "type": "process", "x": 22, "y": 110, "direction": "bottom" },
+    { "id": "reflux",         "type": "process", "x": 34, "y": 30,  "direction": "right" },
+    { "id": "side-draw",      "type": "process", "x": 34, "y": 80,  "direction": "right" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 22, "y": -8, "width": 44, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 1.2,  "ny": 0.2, "preferredElement": "text_readout" },
+    { "nx": 1.2,  "ny": 0.5, "preferredElement": "text_readout" },
+    { "nx": 1.15, "ny": 0.3, "preferredElement": "analog_bar" }
+  ],
+  "alarmAnchor": { "nx": 1.1, "ny": -0.03 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

@@ -590,6 +590,12 @@
    Applied to display elements, not theme-dependent.
    ============================================================ */
 
+/* Skeleton loading pulse */
+@keyframes io-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
 /* Unacknowledged — 1Hz flash between alarm color and gray */
 @keyframes io-alarm-flash {
   0%, 49% { opacity: 1; }

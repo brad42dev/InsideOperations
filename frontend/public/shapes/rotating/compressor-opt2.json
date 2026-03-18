@@ -1,0 +1,23 @@
+{
+  "id": "compressor-opt2",
+  "category": "rotating",
+  "geometry": { "viewBox": "0 0 50 48", "width": 50, "height": 48 },
+  "connections": [
+    { "id": "suction",   "type": "process", "x": 4,  "y": 21, "direction": "left" },
+    { "id": "discharge", "type": "process", "x": 44, "y": 21, "direction": "right" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 25, "y": -6, "width": 50, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 0.5, "ny": 1.15, "preferredElement": "text_readout" }
+  ],
+  "alarmAnchor": { "nx": 1.1, "ny": -0.1 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

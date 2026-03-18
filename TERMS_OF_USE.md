@@ -6,7 +6,7 @@
 
 > **Plain-English Summary** *(for convenience only — not legally binding)*
 >
-> - You are using Inside/Operations because your employer has licensed it from WMB Ventures LLC. These terms govern your personal use of the application.
+> - You are using Inside/Operations because your employer has licensed it from Inside Operations LLC. These terms govern your personal use of the application.
 > - Use it only for your assigned job duties. Do not attempt to access areas outside your assigned permissions.
 > - This application is a monitoring and information tool — it is **not** a safety system. Never rely on it as your primary source for safety-critical decisions.
 > - Your usage activity may be logged and monitored by your organization.
@@ -17,7 +17,7 @@
 
 ## 1. Who This Agreement Is With
 
-Inside/Operations is a proprietary industrial process monitoring application developed and owned by **WMB Ventures LLC**. Your employer or organization has licensed Inside/Operations from WMB Ventures LLC under a separate Software License Agreement. These End User Terms of Use govern your individual access to and use of the application. By using Inside/Operations, you agree to be bound by these terms.
+Inside/Operations is a proprietary industrial process monitoring application developed and owned by **Inside Operations LLC**. Your employer or organization has licensed Inside/Operations from Inside Operations LLC under a separate Software License Agreement. These End User Terms of Use govern your individual access to and use of the application. By using Inside/Operations, you agree to be bound by these terms.
 
 If you do not agree to these terms, do not use the application. Contact your system administrator.
 
@@ -52,9 +52,9 @@ All safety-critical decisions must be made using your facility's approved safety
 
 ## 4. Data Accuracy Disclaimer
 
-Data displayed in Inside/Operations is sourced from your facility's OPC UA servers, historians, and other connected systems configured and maintained by your organization. **WMB Ventures LLC does not control, verify, or guarantee the accuracy, completeness, timeliness, or reliability of that data.**
+Data displayed in Inside/Operations is sourced from your facility's OPC UA servers, historians, and other connected systems configured and maintained by your organization. **Inside Operations LLC does not control, verify, or guarantee the accuracy, completeness, timeliness, or reliability of that data.**
 
-Displayed values reflect what the connected source systems are reporting at the time of transmission. Data may be delayed, incomplete, or incorrect due to network conditions, source system issues, configuration errors, or other factors outside WMB Ventures LLC's control.
+Displayed values reflect what the connected source systems are reporting at the time of transmission. Data may be delayed, incomplete, or incorrect due to network conditions, source system issues, configuration errors, or other factors outside Inside Operations LLC's control.
 
 Do not treat displayed data as authoritative for any purpose where independent verification is required.
 
@@ -92,13 +92,13 @@ You must:
 - Lock or log out of the application when leaving your workstation unattended
 - Promptly notify your system administrator if you suspect your credentials have been compromised or that unauthorized access has occurred
 
-WMB Ventures LLC is not responsible for any loss, damage, or unauthorized access resulting from your failure to protect your credentials.
+Inside Operations LLC is not responsible for any loss, damage, or unauthorized access resulting from your failure to protect your credentials.
 
 ---
 
 ## 8. Intellectual Property
 
-Inside/Operations, including all software code, user interface designs, graphics, documentation, algorithms, and components, is the proprietary intellectual property of WMB Ventures LLC and is protected by copyright, trade secret, and other applicable laws.
+Inside/Operations, including all software code, user interface designs, graphics, documentation, algorithms, and components, is the proprietary intellectual property of Inside Operations LLC and is protected by copyright, trade secret, and other applicable laws.
 
 You must not:
 - Copy, reproduce, or redistribute any part of the application
@@ -106,21 +106,21 @@ You must not:
 - Remove or alter any proprietary notices, copyright markings, or labels
 - Attempt to extract, replicate, or use any proprietary logic, algorithms, templates, or formats from the application outside of your authorized use
 
-Your organization's rights to use Inside/Operations are defined in its Software License Agreement with WMB Ventures LLC. These End User Terms of Use do not grant you any ownership interest in the software.
+Your organization's rights to use Inside/Operations are defined in its Software License Agreement with Inside Operations LLC. These End User Terms of Use do not grant you any ownership interest in the software.
 
 ---
 
 ## 9. No Warranty to End Users
 
-Inside/Operations is provided to you through your organization under the terms of its Software License Agreement with WMB Ventures LLC. **WMB Ventures LLC makes no warranty of any kind, express or implied, directly to you as an end user.** This includes, without limitation, any implied warranty of merchantability, fitness for a particular purpose, or non-infringement.
+Inside/Operations is provided to you through your organization under the terms of its Software License Agreement with Inside Operations LLC. **Inside Operations LLC makes no warranty of any kind, express or implied, directly to you as an end user.** This includes, without limitation, any implied warranty of merchantability, fitness for a particular purpose, or non-infringement.
 
-For questions about application functionality, access, or issues, contact your system administrator. Support is provided to your organization in accordance with its agreement with WMB Ventures LLC. You may also reach WMB Ventures LLC support at support@in-ops.com, though your primary point of contact for day-to-day issues should be your organization's system administrator.
+For questions about application functionality, access, or issues, contact your system administrator. Support is provided to your organization in accordance with its agreement with Inside Operations LLC. You may also reach Inside Operations LLC support at support@in-ops.com, though your primary point of contact for day-to-day issues should be your organization's system administrator.
 
 ---
 
 ## 10. Limitation of Liability
 
-To the fullest extent permitted by applicable law, WMB Ventures LLC shall not be liable to you for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of Inside/Operations, including but not limited to damages resulting from data inaccuracies, system unavailability, unauthorized access, or reliance on displayed information for safety-critical decisions.
+To the fullest extent permitted by applicable law, Inside Operations LLC shall not be liable to you for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of Inside/Operations, including but not limited to damages resulting from data inaccuracies, system unavailability, unauthorized access, or reliance on displayed information for safety-critical decisions.
 
 ---
 
@@ -132,7 +132,7 @@ These End User Terms of Use are governed by the laws of the **State of Texas**, 
 
 ## 12. Changes to These Terms
 
-WMB Ventures LLC may update these End User Terms of Use from time to time. Your continued use of Inside/Operations after updated terms are presented at login constitutes your acceptance of the revised terms.
+Inside Operations LLC may update these End User Terms of Use from time to time. Your continued use of Inside/Operations after updated terms are presented at login constitutes your acceptance of the revised terms.
 
 ---
 
@@ -142,7 +142,7 @@ WMB Ventures LLC may update these End User Terms of Use from time to time. Your 
 **Support:** support@in-ops.com
 **System access and permissions:** Contact your organization's system administrator
 
-The full Software License Agreement governing your organization's rights to Inside/Operations is a separate document available from WMB Ventures LLC upon request.
+The full Software License Agreement governing your organization's rights to Inside/Operations is a separate document available from Inside Operations LLC upon request.
 
 ---
 
@@ -152,9 +152,9 @@ By clicking **"I Accept"** below, you confirm that:
 
 1. You have read and understood these End User Terms of Use
 2. You agree to be bound by these terms
-3. You are an authorized employee or contractor of an organization that has licensed Inside/Operations from WMB Ventures LLC
+3. You are an authorized employee or contractor of an organization that has licensed Inside/Operations from Inside Operations LLC
 4. You will use Inside/Operations only for authorized purposes in accordance with your assigned job duties and your organization's policies
 
 ---
 
-*Inside/Operations is a product of WMB Ventures LLC. All rights reserved.*
+*Inside/Operations is a product of Inside Operations LLC. All rights reserved.*

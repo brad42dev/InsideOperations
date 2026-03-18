@@ -145,3 +145,50 @@ export const pointsApi = {
   batchLatest: (pointIds: string[]): Promise<ApiResult<PointLatest[]>> =>
     api.post<PointLatest[]>('/api/points/batch-latest', { point_ids: pointIds }),
 }
+
+// ---------------------------------------------------------------------------
+// History recovery
+// ---------------------------------------------------------------------------
+
+export interface RecoveryJob {
+  id: string
+  source_id: string
+  from_time: string
+  to_time: string
+  status: 'pending' | 'running' | 'complete' | 'failed'
+  points_recovered: number
+  started_at: string | null
+  completed_at: string | null
+  error_message: string | null
+  created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// OPC source stats
+// ---------------------------------------------------------------------------
+
+export interface PointSourceStats {
+  source_id: string
+  point_count: number
+  active_subscriptions: number
+  updates_per_minute: number | null
+  error_count_24h: number
+  last_value_at: string | null
+}
+
+export const pointSourceStatsApi = {
+  /** GET /api/opc/sources/stats — stats for all sources (bulk) */
+  listAll: () => api.get<PointSourceStats[]>('/api/opc/sources/stats'),
+  /** GET /api/opc/sources/:id/stats — stats for one source */
+  get: (id: string) => api.get<PointSourceStats>(`/api/opc/sources/${id}/stats`),
+}
+
+export const historyRecoveryApi = {
+  createJob: (sourceId: string, fromTime: string, toTime?: string) =>
+    api.post<{ id: string }>(`/api/opc/sources/${sourceId}/history-recovery`, {
+      from_time: fromTime,
+      ...(toTime ? { to_time: toTime } : {}),
+    }),
+  listJobs: (sourceId: string) =>
+    api.get<RecoveryJob[]>(`/api/opc/sources/${sourceId}/history-recovery/jobs`),
+}

@@ -1,3 +1,4 @@
+-- no-transaction
 -- Environmental: emissions, compliance, ambient monitoring, LDAR, permits, waste manifests
 
 CREATE TABLE emissions_events (

@@ -411,3 +411,281 @@ pub async fn reconnect_source(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// History recovery
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct CreateRecoveryJobRequest {
+    /// ISO-8601 start of recovery window.
+    pub from_time: DateTime<Utc>,
+    /// ISO-8601 end of recovery window (defaults to now if omitted).
+    pub to_time: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecoveryJobResponse {
+    pub id: Uuid,
+    pub source_id: Uuid,
+    pub from_time: DateTime<Utc>,
+    pub to_time: DateTime<Utc>,
+    pub status: String,
+    pub points_recovered: i64,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub error_message: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// POST /api/opc/sources/:id/history-recovery
+///
+/// Enqueue a manual history recovery job for an OPC UA source.
+/// Requires `settings:admin` permission.
+pub async fn create_history_recovery_job(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(source_id): Path<Uuid>,
+    Json(body): Json<CreateRecoveryJobRequest>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:admin") {
+        return IoError::Forbidden("settings:admin permission required".into()).into_response();
+    }
+
+    let to_time = body.to_time.unwrap_or_else(Utc::now);
+
+    if body.from_time >= to_time {
+        return IoError::BadRequest("from_time must be before to_time".into()).into_response();
+    }
+
+    // Verify source exists.
+    let exists = match sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM point_sources WHERE id = $1 AND source_type = 'opc_ua')",
+    )
+    .bind(source_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(v) => v,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    if !exists {
+        return IoError::NotFound(format!("OPC UA source {} not found", source_id)).into_response();
+    }
+
+    let job_id = match sqlx::query_scalar::<_, Uuid>(
+        r#"
+        INSERT INTO opc_history_recovery_jobs
+            (source_id, requested_by, from_time, to_time)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+        "#,
+    )
+    .bind(source_id)
+    .bind(claims.sub)
+    .bind(body.from_time)
+    .bind(to_time)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(id) => id,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    (
+        StatusCode::CREATED,
+        Json(ApiResponse::ok(serde_json::json!({ "id": job_id }))),
+    )
+        .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/opc/sources/stats          — all sources
+// GET /api/opc/sources/:id/stats      — single source
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct PointSourceStats {
+    pub source_id: Uuid,
+    /// Total number of configured points for this source.
+    pub point_count: i64,
+    /// Points that received a value update in the last 5 minutes.
+    pub active_subscriptions: i64,
+    /// Points that received a value update in the last 1 minute.
+    pub updates_per_minute: i64,
+    /// 1 if the source recorded an error in the last 24 h, 0 otherwise.
+    pub error_count_24h: i64,
+    /// Timestamp of the most recently written point value.
+    pub last_value_at: Option<DateTime<Utc>>,
+}
+
+/// GET /api/opc/sources/stats
+///
+/// Returns live statistics for every point source in a single query.
+/// Requires `settings:read` permission.
+pub async fn list_source_stats(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:read") {
+        return IoError::Forbidden("settings:read permission required".into()).into_response();
+    }
+
+    let rows = match sqlx::query(
+        r#"
+        SELECT
+            ps.id                                                                              AS source_id,
+            COUNT(DISTINCT pm.id)::bigint                                                      AS point_count,
+            COUNT(DISTINCT CASE WHEN pc.updated_at > NOW() - INTERVAL '5 minutes'
+                                THEN pc.point_id END)::bigint                                  AS active_subscriptions,
+            COUNT(DISTINCT CASE WHEN pc.updated_at > NOW() - INTERVAL '1 minute'
+                                THEN pc.point_id END)::bigint                                  AS updates_per_minute,
+            CASE WHEN ps.last_error_at IS NOT NULL
+                  AND ps.last_error_at > NOW() - INTERVAL '24 hours'
+                 THEN 1::bigint ELSE 0::bigint END                                             AS error_count_24h,
+            MAX(pc.updated_at)                                                                 AS last_value_at
+        FROM point_sources ps
+        LEFT JOIN points_metadata pm ON pm.source_id = ps.id
+        LEFT JOIN points_current  pc ON pc.point_id  = pm.id
+        GROUP BY ps.id, ps.last_error_at
+        ORDER BY ps.name
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let stats: Vec<PointSourceStats> = rows
+        .into_iter()
+        .map(|r| PointSourceStats {
+            source_id:            r.get("source_id"),
+            point_count:          r.get("point_count"),
+            active_subscriptions: r.get("active_subscriptions"),
+            updates_per_minute:   r.get("updates_per_minute"),
+            error_count_24h:      r.get("error_count_24h"),
+            last_value_at:        r.get("last_value_at"),
+        })
+        .collect();
+
+    Json(ApiResponse::ok(stats)).into_response()
+}
+
+/// GET /api/opc/sources/:id/stats
+///
+/// Returns live statistics for a single point source.
+/// Requires `settings:read` permission.
+pub async fn get_source_stats(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(source_id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:read") {
+        return IoError::Forbidden("settings:read permission required".into()).into_response();
+    }
+
+    let row = match sqlx::query(
+        r#"
+        WITH pts AS (
+            SELECT id FROM points_metadata WHERE source_id = $1
+        ),
+        curr AS (
+            SELECT
+                COUNT(*) FILTER (WHERE updated_at > NOW() - INTERVAL '5 minutes')  AS active_5m,
+                COUNT(*) FILTER (WHERE updated_at > NOW() - INTERVAL '1 minute')   AS updates_1m,
+                MAX(updated_at)                                                     AS last_value_at
+            FROM points_current
+            WHERE point_id IN (SELECT id FROM pts)
+        )
+        SELECT
+            $1::uuid                                              AS source_id,
+            (SELECT COUNT(*) FROM pts)::bigint                    AS point_count,
+            COALESCE((SELECT active_5m  FROM curr), 0)::bigint   AS active_subscriptions,
+            COALESCE((SELECT updates_1m FROM curr), 0)::bigint   AS updates_per_minute,
+            CASE
+                WHEN ps.last_error_at IS NOT NULL
+                 AND ps.last_error_at > NOW() - INTERVAL '24 hours'
+                THEN 1::bigint ELSE 0::bigint
+            END                                                   AS error_count_24h,
+            (SELECT last_value_at FROM curr)                      AS last_value_at
+        FROM point_sources ps
+        WHERE ps.id = $1
+        "#,
+    )
+    .bind(source_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return IoError::NotFound(format!("Point source {} not found", source_id))
+                .into_response()
+        }
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let stats = PointSourceStats {
+        source_id:            row.get("source_id"),
+        point_count:          row.get("point_count"),
+        active_subscriptions: row.get("active_subscriptions"),
+        updates_per_minute:   row.get("updates_per_minute"),
+        error_count_24h:      row.get("error_count_24h"),
+        last_value_at:        row.get("last_value_at"),
+    };
+
+    Json(ApiResponse::ok(stats)).into_response()
+}
+
+/// GET /api/opc/sources/:id/history-recovery/jobs
+///
+/// List recent history recovery jobs for an OPC UA source (last 50).
+/// Requires `settings:admin` permission.
+pub async fn list_history_recovery_jobs(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(source_id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:admin") {
+        return IoError::Forbidden("settings:admin permission required".into()).into_response();
+    }
+
+    let rows = match sqlx::query(
+        r#"
+        SELECT id, source_id, from_time, to_time, status,
+               points_recovered, started_at, completed_at,
+               error_message, created_at
+        FROM   opc_history_recovery_jobs
+        WHERE  source_id = $1
+        ORDER  BY created_at DESC
+        LIMIT  50
+        "#,
+    )
+    .bind(source_id)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let jobs: Vec<RecoveryJobResponse> = rows
+        .into_iter()
+        .map(|r| RecoveryJobResponse {
+            id:               r.get("id"),
+            source_id:        r.get("source_id"),
+            from_time:        r.get("from_time"),
+            to_time:          r.get("to_time"),
+            status:           r.get("status"),
+            points_recovered: r.get("points_recovered"),
+            started_at:       r.get("started_at"),
+            completed_at:     r.get("completed_at"),
+            error_message:    r.get("error_message"),
+            created_at:       r.get("created_at"),
+        })
+        .collect();
+
+    Json(ApiResponse::ok(jobs)).into_response()
+}

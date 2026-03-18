@@ -1,9 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80"
-     data-io-shape="agitator-paddle" data-io-part="agitator" data-io-version="3.0">
-  <g class="io-part-agitator" fill="none" stroke="#808080" stroke-width="1.5">
-    <circle cx="20" cy="6" r="3"/>
-    <line x1="20" y1="9" x2="20" y2="74"/>
-    <line x1="8" y1="60" x2="32" y2="60"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 80" data-io-shape="agitator-paddle">
+  <g class="io-part-agitator">
+    <line x1="20" y1="7" x2="20" y2="48" stroke="#808080" stroke-width="1.5"/>
+    <circle cx="20" cy="5" r="3" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="13" y1="45" x2="27" y2="45" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle data-conn-id="shaft-top" data-conn-type="mechanical" data-conn-dir="top" cx="20" cy="7" r="3"/>
   </g>
 </svg>

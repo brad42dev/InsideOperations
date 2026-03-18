@@ -1,10 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 20"
-     data-io-shape="support-legs-splayed" data-io-part="support" data-io-version="3.0">
-  <g class="io-part-support" fill="none" stroke="#808080" stroke-width="1.5">
-    <line x1="35" y1="0" x2="4" y2="18"/>
-    <line x1="35" y1="0" x2="66" y2="18"/>
-    <line x1="0" y1="18" x2="8" y2="18"/>
-    <line x1="62" y1="18" x2="70" y2="18"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 20" data-io-shape="support-legs-splayed">
+  <g class="io-part-support">
+    <line x1="19" y1="0" x2="14" y2="17" stroke="#808080" stroke-width="1.5"/>
+    <line x1="51" y1="0" x2="56" y2="17" stroke="#808080" stroke-width="1.5"/>
   </g>
 </svg>

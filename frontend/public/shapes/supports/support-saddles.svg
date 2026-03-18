@@ -1,10 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 14"
-     data-io-shape="support-saddles" data-io-part="support" data-io-version="3.0">
-  <g class="io-part-support" fill="none" stroke="#808080" stroke-width="1.5">
-    <polyline points="6,0 4,12 16,12 14,0"/>
-    <line x1="2" y1="12" x2="18" y2="12"/>
-    <polyline points="66,0 64,12 76,12 74,0"/>
-    <line x1="62" y1="12" x2="78" y2="12"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 14" data-io-shape="support-saddles">
+  <g class="io-part-support">
+    <line x1="20" y1="0" x2="17" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <line x1="24" y1="0" x2="24" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <line x1="17" y1="10" x2="24" y2="10" stroke="#808080" stroke-width="0.75"/>
+    <line x1="56" y1="0" x2="53" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <line x1="60" y1="0" x2="60" y2="10" stroke="#808080" stroke-width="1.5"/>
+    <line x1="53" y1="10" x2="60" y2="10" stroke="#808080" stroke-width="0.75"/>
   </g>
 </svg>

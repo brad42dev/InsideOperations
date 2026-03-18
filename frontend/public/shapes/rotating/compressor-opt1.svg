@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" data-io-shape="compressor-opt1">
+  <g class="io-shape-body">
+    <circle class="io-stateful" cx="25" cy="25" r="20" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="12.1" y1="9.7" x2="43.1" y2="16.5" stroke="#808080" stroke-width="1.5"/>
+    <line x1="12.1" y1="40.3" x2="43.1" y2="33.5" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle data-conn-id="suction" data-conn-type="process" data-conn-dir="left" cx="5" cy="25" r="3"/>
+    <circle data-conn-id="discharge" data-conn-type="process" data-conn-dir="right" cx="45" cy="25" r="3"/>
+  </g>
+</svg>

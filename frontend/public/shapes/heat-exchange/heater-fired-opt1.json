@@ -1,0 +1,25 @@
+{
+  "id": "heater-fired-opt1",
+  "category": "heat-exchange",
+  "geometry": { "viewBox": "-2 -2 48 64", "width": 48, "height": 64 },
+  "connections": [
+    { "id": "inlet",        "type": "process", "x": 22, "y": 0,  "direction": "top" },
+    { "id": "outlet-left",  "type": "process", "x": 7,  "y": 43, "direction": "left" },
+    { "id": "outlet-right", "type": "process", "x": 37, "y": 43, "direction": "right" },
+    { "id": "burner",       "type": "process", "x": 22, "y": 62, "direction": "bottom" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 22, "y": -8, "width": 48, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 1.2, "ny": 0.5, "preferredElement": "text_readout" }
+  ],
+  "alarmAnchor": { "nx": 1.15, "ny": -0.05 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

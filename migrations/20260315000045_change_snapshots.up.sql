@@ -1,11 +1,8 @@
-CREATE TABLE IF NOT EXISTS change_snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    target_type TEXT NOT NULL,
-    label TEXT,
-    row_count INTEGER NOT NULL DEFAULT 0,
-    snapshot_data JSONB NOT NULL DEFAULT '[]',
-    created_by UUID REFERENCES users(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX idx_change_snapshots_target_type ON change_snapshots(target_type);
-CREATE INDEX idx_change_snapshots_created_at ON change_snapshots(created_at DESC);
+-- Add target_type and snapshot_data columns to change_snapshots (created in migration 22)
+ALTER TABLE change_snapshots
+    ADD COLUMN IF NOT EXISTS target_type TEXT,
+    ADD COLUMN IF NOT EXISTS label TEXT,
+    ADD COLUMN IF NOT EXISTS snapshot_data JSONB NOT NULL DEFAULT '[]';
+
+CREATE INDEX IF NOT EXISTS idx_change_snapshots_target_type ON change_snapshots(target_type);
+CREATE INDEX IF NOT EXISTS idx_change_snapshots_created_at ON change_snapshots(created_at DESC);

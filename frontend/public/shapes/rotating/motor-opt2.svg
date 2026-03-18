@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 30" data-io-shape="motor-opt2">
+  <g class="io-shape-body">
+    <path class="io-stateful" d="M 13,5 L 37,5 A 5,10 0 0,1 37,25 L 13,25 A 5,10 0 0,1 13,5 Z" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line x1="13" y1="5" x2="13" y2="25" stroke="#808080" stroke-width="1.5"/>
+    <line x1="37" y1="5" x2="37" y2="25" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle data-conn-id="shaft-left" data-conn-type="mechanical" data-conn-dir="left" cx="13" cy="15" r="3"/>
+    <circle data-conn-id="shaft-right" data-conn-type="mechanical" data-conn-dir="right" cx="37" cy="15" r="3"/>
+  </g>
+</svg>

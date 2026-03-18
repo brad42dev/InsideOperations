@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import GraphicPane from './panes/GraphicPane'
 import TrendPane from './panes/TrendPane'
 import PointTablePane from './panes/PointTablePane'
 import AlarmListPane from './panes/AlarmListPane'
+import GraphicPane from './panes/GraphicPane'
 import ContextMenu from '../../shared/components/ContextMenu'
 import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from './ConsolePalette'
 import type { PaneConfig } from './types'
@@ -12,15 +12,14 @@ export interface PaneWrapperProps {
   editMode: boolean
   onConfigure: (paneId: string) => void
   onRemove: (paneId: string) => void
-  onGraphicSelected?: (paneId: string, graphicId: string) => void
   onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
 }
 
 const PANE_TYPE_LABELS: Record<string, string> = {
-  graphic: 'Graphic',
   trend: 'Trend',
   point_table: 'Point Table',
   alarm_list: 'Alarm List',
+  graphic: 'Graphic',
   blank: 'Blank',
 }
 
@@ -108,7 +107,6 @@ export default function PaneWrapper({
   editMode,
   onConfigure,
   onRemove,
-  onGraphicSelected,
   onPaletteDrop,
 }: PaneWrapperProps) {
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
@@ -256,13 +254,6 @@ export default function PaneWrapper({
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {config.type === 'graphic' && (
-          <GraphicPane
-            config={config}
-            editMode={editMode}
-            onGraphicSelected={onGraphicSelected}
-          />
-        )}
         {config.type === 'trend' && (
           <TrendPane
             config={config}
@@ -278,6 +269,12 @@ export default function PaneWrapper({
           />
         )}
         {config.type === 'alarm_list' && <AlarmListPane config={config} />}
+        {config.type === 'graphic' && config.graphicId && (
+          <GraphicPane graphicId={config.graphicId} />
+        )}
+        {config.type === 'graphic' && !config.graphicId && (
+          <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
+        )}
         {config.type === 'blank' && (
           <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
         )}

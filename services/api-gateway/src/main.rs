@@ -158,10 +158,28 @@ async fn main() -> anyhow::Result<()> {
                 .put(handlers::points::update_source)
                 .delete(handlers::points::delete_source),
         )
+        // OPC UA source stats — static path MUST be before parameterised /:id routes
+        .route(
+            "/api/opc/sources/stats",
+            get(handlers::points::list_source_stats),
+        )
+        .route(
+            "/api/opc/sources/:id/stats",
+            get(handlers::points::get_source_stats),
+        )
         // OPC UA source reconnect
         .route(
             "/api/opc/sources/:id/reconnect",
             post(handlers::points::reconnect_source),
+        )
+        // OPC UA history recovery
+        .route(
+            "/api/opc/sources/:id/history-recovery",
+            post(handlers::points::create_history_recovery_job),
+        )
+        .route(
+            "/api/opc/sources/:id/history-recovery/jobs",
+            get(handlers::points::list_history_recovery_jobs),
         )
         // OPC UA server certificate trust management
         .route(

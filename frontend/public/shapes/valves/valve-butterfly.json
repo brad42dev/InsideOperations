@@ -1,0 +1,23 @@
+{
+  "id": "valve-butterfly",
+  "category": "valves",
+  "geometry": { "viewBox": "0 0 60 24", "width": 60, "height": 24 },
+  "connections": [
+    { "id": "inlet",  "type": "process", "x": 0,  "y": 12, "direction": "left" },
+    { "id": "outlet", "type": "process", "x": 60, "y": 12, "direction": "right" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 30, "y": -6, "width": 60, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 0.5, "ny": 1.4, "preferredElement": "text_readout" }
+  ],
+  "alarmAnchor": { "nx": 1.05, "ny": -0.2 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

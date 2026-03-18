@@ -135,7 +135,7 @@ function AlertBell() {
   const { data } = useQuery<number>({
     queryKey: ['alerts-unacknowledged-count'],
     queryFn: async () => {
-      const res = await fetch('/api/v1/alerts/active?unacknowledged=true', {
+      const res = await fetch('/api/alarms/active?unacknowledged=true', {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}`,
         },

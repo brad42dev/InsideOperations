@@ -1,644 +1,71 @@
 {
-  "version": "3.0",
-  "categories": [
-    {
-      "id": "valves",
-      "label": "Valves",
-      "path": "valves",
-      "shapes": [
-        {
-          "id": "valve-gate",
-          "file": "valves/valve-gate.svg",
-          "label": "Gate Valve",
-          "viewBox": "0 0 48 24",
-          "connections": [
-            { "id": "left", "x": 0, "y": 12, "direction": "left" },
-            { "id": "right", "x": 48, "y": 12, "direction": "right" }
-          ]
-        },
-        {
-          "id": "valve-butterfly",
-          "file": "valves/valve-butterfly.svg",
-          "label": "Butterfly Valve",
-          "viewBox": "0 0 60 24",
-          "connections": [
-            { "id": "left", "x": 0, "y": 12, "direction": "left" },
-            { "id": "right", "x": 60, "y": 12, "direction": "right" }
-          ]
-        },
-        {
-          "id": "valve-ball",
-          "file": "valves/valve-ball.svg",
-          "label": "Ball Valve",
-          "viewBox": "0 0 48 24",
-          "connections": [
-            { "id": "left", "x": 0, "y": 12, "direction": "left" },
-            { "id": "right", "x": 48, "y": 12, "direction": "right" }
-          ]
-        },
-        {
-          "id": "valve-globe",
-          "file": "valves/valve-globe.svg",
-          "label": "Globe Valve",
-          "viewBox": "0 0 48 24",
-          "connections": [
-            { "id": "left", "x": 0, "y": 12, "direction": "left" },
-            { "id": "right", "x": 48, "y": 12, "direction": "right" }
-          ]
-        },
-        {
-          "id": "valve-control",
-          "file": "valves/valve-control.svg",
-          "label": "Control Valve",
-          "viewBox": "0 0 48 44",
-          "connections": [
-            { "id": "left", "x": 0, "y": 32, "direction": "left" },
-            { "id": "right", "x": 48, "y": 32, "direction": "right" }
-          ]
-        },
-        {
-          "id": "valve-relief",
-          "file": "valves/valve-relief.svg",
-          "label": "Relief Valve",
-          "viewBox": "0 0 48 62",
-          "connections": [
-            { "id": "left", "x": 0, "y": 50, "direction": "left" },
-            { "id": "right", "x": 48, "y": 50, "direction": "right" }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "pumps",
-      "label": "Pumps",
-      "path": "pumps",
-      "shapes": [
-        {
-          "id": "pump-centrifugal",
-          "file": "pumps/pump-centrifugal.svg",
-          "label": "Centrifugal Pump",
-          "viewBox": "0 0 48 48",
-          "connections": [
-            { "id": "suction", "x": 4, "y": 24, "direction": "left" },
-            { "id": "discharge", "x": 44, "y": 24, "direction": "right" }
-          ]
-        },
-        {
-          "id": "pump-centrifugal-opt2",
-          "file": "pumps/pump-centrifugal-opt2.svg",
-          "label": "Centrifugal Pump (Graphical)",
-          "viewBox": "0 0 50 48",
-          "connections": [
-            { "id": "suction", "x": 0, "y": 20, "direction": "left" },
-            { "id": "discharge", "x": 50, "y": 20, "direction": "right" }
-          ]
-        },
-        {
-          "id": "pump-positive-displacement",
-          "file": "pumps/pump-positive-displacement.svg",
-          "label": "Positive Displacement Pump",
-          "viewBox": "0 0 48 48",
-          "connections": [
-            { "id": "suction", "x": 4, "y": 24, "direction": "left" },
-            { "id": "discharge", "x": 44, "y": 24, "direction": "right" }
-          ]
-        },
-        {
-          "id": "pump-positive-displacement-opt2",
-          "file": "pumps/pump-positive-displacement-opt2.svg",
-          "label": "Positive Displacement Pump (Graphical)",
-          "viewBox": "0 0 50 48",
-          "connections": [
-            { "id": "suction", "x": 0, "y": 20, "direction": "left" },
-            { "id": "discharge", "x": 50, "y": 20, "direction": "right" }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "rotating",
-      "label": "Rotating Equipment",
-      "path": "rotating",
-      "shapes": [
-        {
-          "id": "compressor",
-          "file": "rotating/compressor.svg",
-          "label": "Compressor",
-          "viewBox": "0 0 50 50"
-        },
-        {
-          "id": "fan-blower",
-          "file": "rotating/fan-blower.svg",
-          "label": "Fan / Blower (ISA)",
-          "viewBox": "0 0 50 50"
-        },
-        {
-          "id": "fan-blower-opt2",
-          "file": "rotating/fan-blower-opt2.svg",
-          "label": "Fan / Blower (Graphical)",
-          "viewBox": "0 0 50 50"
-        },
-        {
-          "id": "motor",
-          "file": "rotating/motor.svg",
-          "label": "Motor",
-          "viewBox": "0 0 40 40"
-        }
-      ]
-    },
-    {
-      "id": "heat-transfer",
-      "label": "Heat Transfer",
-      "path": "heat-transfer",
-      "shapes": [
-        {
-          "id": "heat-exchanger-shell-tube",
-          "file": "heat-transfer/heat-exchanger-shell-tube.svg",
-          "label": "Shell & Tube Heat Exchanger",
-          "viewBox": "0 0 50 50"
-        },
-        {
-          "id": "heat-exchanger-plate",
-          "file": "heat-transfer/heat-exchanger-plate.svg",
-          "label": "Plate Heat Exchanger",
-          "viewBox": "-2 -2 58 20"
-        },
-        {
-          "id": "heater-fired",
-          "file": "heat-transfer/heater-fired.svg",
-          "label": "Fired Heater",
-          "viewBox": "-2 -2 48 64"
-        },
-        {
-          "id": "air-cooler",
-          "file": "heat-transfer/air-cooler.svg",
-          "label": "Air Cooler",
-          "viewBox": "-8 0 76 38"
-        }
-      ]
-    },
-    {
-      "id": "vessels",
-      "label": "Vessels & Tanks",
-      "path": "vessels",
-      "shapes": [
-        {
-          "id": "vessel-vertical",
-          "file": "vessels/vessel-vertical.svg",
-          "label": "Vertical Vessel",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "vessel-vertical-flanged-top",
-          "file": "vessels/vessel-vertical-flanged-top.svg",
-          "label": "Vertical Vessel (Flanged Top)",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "vessel-vertical-flanged-bottom",
-          "file": "vessels/vessel-vertical-flanged-bottom.svg",
-          "label": "Vertical Vessel (Flanged Bottom)",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "vessel-vertical-flanged",
-          "file": "vessels/vessel-vertical-flanged.svg",
-          "label": "Vertical Vessel (Flanged Both)",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "vessel-horizontal",
-          "file": "vessels/vessel-horizontal.svg",
-          "label": "Horizontal Vessel",
-          "viewBox": "0 0 80 40"
-        },
-        {
-          "id": "vessel-horizontal-flanged-left",
-          "file": "vessels/vessel-horizontal-flanged-left.svg",
-          "label": "Horizontal Vessel (Flanged Left)",
-          "viewBox": "0 0 80 40"
-        },
-        {
-          "id": "vessel-horizontal-flanged-right",
-          "file": "vessels/vessel-horizontal-flanged-right.svg",
-          "label": "Horizontal Vessel (Flanged Right)",
-          "viewBox": "0 0 80 40"
-        },
-        {
-          "id": "vessel-horizontal-flanged",
-          "file": "vessels/vessel-horizontal-flanged.svg",
-          "label": "Horizontal Vessel (Flanged Both)",
-          "viewBox": "0 0 80 40"
-        },
-        {
-          "id": "reactor",
-          "file": "vessels/reactor.svg",
-          "label": "Reactor (Base)",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "reactor-flat-top",
-          "file": "vessels/reactor-flat-top.svg",
-          "label": "Reactor (Flat Top)",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "reactor-closed",
-          "file": "vessels/reactor-closed.svg",
-          "label": "Reactor (Closed)",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "reactor-trayed",
-          "file": "vessels/reactor-trayed.svg",
-          "label": "Reactor (Trayed)",
-          "viewBox": "0 0 40 80"
-        },
-        {
-          "id": "tank-storage-cone-roof",
-          "file": "vessels/tank-storage-cone-roof.svg",
-          "label": "Storage Tank (Cone Roof)",
-          "viewBox": "0 0 70 70"
-        },
-        {
-          "id": "tank-storage-dome-roof",
-          "file": "vessels/tank-storage-dome-roof.svg",
-          "label": "Storage Tank (Dome Roof)",
-          "viewBox": "0 0 70 70"
-        },
-        {
-          "id": "tank-storage-open-top",
-          "file": "vessels/tank-storage-open-top.svg",
-          "label": "Storage Tank (Open Top)",
-          "viewBox": "0 0 70 70"
-        },
-        {
-          "id": "tank-storage-floating-roof",
-          "file": "vessels/tank-storage-floating-roof.svg",
-          "label": "Storage Tank (Floating Roof)",
-          "viewBox": "0 0 70 70"
-        },
-        {
-          "id": "tank-storage-sphere",
-          "file": "vessels/tank-storage-sphere.svg",
-          "label": "Spherical Storage Tank",
-          "viewBox": "0 0 70 56"
-        },
-        {
-          "id": "tank-storage-capsule",
-          "file": "vessels/tank-storage-capsule.svg",
-          "label": "Capsule Storage Tank",
-          "viewBox": "0 0 80 52"
-        }
-      ]
-    },
-    {
-      "id": "separation",
-      "label": "Separation & Mixing",
-      "path": "separation",
-      "shapes": [
-        {
-          "id": "column-distillation",
-          "file": "separation/column-distillation.svg",
-          "label": "Distillation Column",
-          "viewBox": "0 0 44 120"
-        },
-        {
-          "id": "column-distillation-trayed",
-          "file": "separation/column-distillation-trayed.svg",
-          "label": "Distillation Column (Trayed)",
-          "viewBox": "0 0 44 120"
-        },
-        {
-          "id": "column-distillation-trayed-10",
-          "file": "separation/column-distillation-trayed-10.svg",
-          "label": "Distillation Column (10 Trays)",
-          "viewBox": "0 0 44 120"
-        },
-        {
-          "id": "column-distillation-packed",
-          "file": "separation/column-distillation-packed.svg",
-          "label": "Distillation Column (Packed)",
-          "viewBox": "0 0 44 120"
-        },
-        {
-          "id": "column-distillation-narrow",
-          "file": "separation/column-distillation-narrow.svg",
-          "label": "Distillation Column (Narrow)",
-          "viewBox": "0 0 40 120"
-        },
-        {
-          "id": "column-distillation-narrow-trayed",
-          "file": "separation/column-distillation-narrow-trayed.svg",
-          "label": "Distillation Column (Narrow, Trayed)",
-          "viewBox": "0 0 40 120"
-        },
-        {
-          "id": "column-distillation-narrow-trayed-10",
-          "file": "separation/column-distillation-narrow-trayed-10.svg",
-          "label": "Distillation Column (Narrow, 10 Trays)",
-          "viewBox": "0 0 40 120"
-        },
-        {
-          "id": "column-distillation-narrow-packed",
-          "file": "separation/column-distillation-narrow-packed.svg",
-          "label": "Distillation Column (Narrow, Packed)",
-          "viewBox": "0 0 40 120"
-        },
-        {
-          "id": "column-distillation-wide",
-          "file": "separation/column-distillation-wide.svg",
-          "label": "Distillation Column (Wide)",
-          "viewBox": "0 0 50 120"
-        },
-        {
-          "id": "column-distillation-wide-trayed",
-          "file": "separation/column-distillation-wide-trayed.svg",
-          "label": "Distillation Column (Wide, Trayed)",
-          "viewBox": "0 0 50 120"
-        },
-        {
-          "id": "column-distillation-wide-trayed-10",
-          "file": "separation/column-distillation-wide-trayed-10.svg",
-          "label": "Distillation Column (Wide, 10 Trays)",
-          "viewBox": "0 0 50 120"
-        },
-        {
-          "id": "column-distillation-wide-packed",
-          "file": "separation/column-distillation-wide-packed.svg",
-          "label": "Distillation Column (Wide, Packed)",
-          "viewBox": "0 0 50 120"
-        },
-        {
-          "id": "filter",
-          "file": "separation/filter.svg",
-          "label": "Filter",
-          "viewBox": "0 0 50 60"
-        },
-        {
-          "id": "filter-vacuum",
-          "file": "separation/filter-vacuum.svg",
-          "label": "Vacuum Filter",
-          "viewBox": "0 0 66 55"
-        },
-        {
-          "id": "mixer",
-          "file": "separation/mixer.svg",
-          "label": "Mixer",
-          "viewBox": "0 0 60 30"
-        },
-        {
-          "id": "mixer-motor",
-          "file": "separation/mixer-motor.svg",
-          "label": "Mixer (with Motor)",
-          "viewBox": "0 0 60 34"
-        },
-        {
-          "id": "mixer-inline",
-          "file": "separation/mixer-inline.svg",
-          "label": "Inline Mixer",
-          "viewBox": "0 0 70 30"
-        }
-      ]
-    },
-    {
-      "id": "instrumentation",
-      "label": "Instrumentation",
-      "path": "instrumentation",
-      "shapes": [
-        {
-          "id": "instrument-field",
-          "file": "instrumentation/instrument-field.svg",
-          "label": "Field Instrument",
-          "viewBox": "0 0 40 40"
-        },
-        {
-          "id": "instrument-panel",
-          "file": "instrumentation/instrument-panel.svg",
-          "label": "Panel Instrument",
-          "viewBox": "0 0 40 40"
-        },
-        {
-          "id": "instrument-behind-panel",
-          "file": "instrumentation/instrument-behind-panel.svg",
-          "label": "Behind-Panel Instrument",
-          "viewBox": "0 0 40 40"
-        }
-      ]
-    },
-    {
-      "id": "control",
-      "label": "Control & Safety",
-      "path": "control",
-      "shapes": [
-        {
-          "id": "alarm-annunciator",
-          "file": "control/alarm-annunciator.svg",
-          "label": "Alarm Annunciator (ISA)",
-          "viewBox": "0 0 40 40"
-        },
-        {
-          "id": "alarm-annunciator-opt2",
-          "file": "control/alarm-annunciator-opt2.svg",
-          "label": "Alarm Annunciator (Horn)",
-          "viewBox": "0 0 50 40"
-        },
-        {
-          "id": "interlock",
-          "file": "control/interlock.svg",
-          "label": "Interlock",
-          "viewBox": "0 0 60 44"
-        },
-        {
-          "id": "interlock-sis",
-          "file": "control/interlock-sis.svg",
-          "label": "SIS Interlock",
-          "viewBox": "0 0 60 44"
-        },
-        {
-          "id": "interlock-opt2",
-          "file": "control/interlock-opt2.svg",
-          "label": "Interlock (Padlock)",
-          "viewBox": "0 0 40 50"
-        }
-      ]
-    },
-    {
-      "id": "actuators",
-      "label": "Actuators",
-      "path": "actuators",
-      "shapes": [
-        {
-          "id": "actuator-pneumatic",
-          "file": "actuators/actuator-pneumatic.svg",
-          "label": "Pneumatic Actuator",
-          "viewBox": "0 0 40 20"
-        },
-        {
-          "id": "actuator-electric",
-          "file": "actuators/actuator-electric.svg",
-          "label": "Electric Actuator",
-          "viewBox": "0 0 30 24"
-        },
-        {
-          "id": "actuator-hydraulic",
-          "file": "actuators/actuator-hydraulic.svg",
-          "label": "Hydraulic Actuator",
-          "viewBox": "0 0 34 24"
-        },
-        {
-          "id": "actuator-handwheel",
-          "file": "actuators/actuator-handwheel.svg",
-          "label": "Handwheel Actuator",
-          "viewBox": "0 0 30 30"
-        }
-      ]
-    },
-    {
-      "id": "agitators",
-      "label": "Agitators",
-      "path": "agitators",
-      "shapes": [
-        {
-          "id": "agitator-turbine",
-          "file": "agitators/agitator-turbine.svg",
-          "label": "Turbine Agitator",
-          "viewBox": "0 0 40 80",
-          "part": "agitator"
-        },
-        {
-          "id": "agitator-propeller",
-          "file": "agitators/agitator-propeller.svg",
-          "label": "Propeller Agitator",
-          "viewBox": "0 0 40 80",
-          "part": "agitator"
-        },
-        {
-          "id": "agitator-anchor",
-          "file": "agitators/agitator-anchor.svg",
-          "label": "Anchor Agitator",
-          "viewBox": "0 0 40 80",
-          "part": "agitator"
-        },
-        {
-          "id": "agitator-paddle",
-          "file": "agitators/agitator-paddle.svg",
-          "label": "Paddle Agitator",
-          "viewBox": "0 0 40 80",
-          "part": "agitator"
-        },
-        {
-          "id": "agitator-helical",
-          "file": "agitators/agitator-helical.svg",
-          "label": "Helical Ribbon Agitator",
-          "viewBox": "0 0 40 80",
-          "part": "agitator"
-        }
-      ]
-    },
-    {
-      "id": "supports",
-      "label": "Supports",
-      "path": "supports",
-      "shapes": [
-        {
-          "id": "support-skirt",
-          "file": "supports/support-skirt.svg",
-          "label": "Skirt Support",
-          "viewBox": "0 0 40 86",
-          "part": "support"
-        },
-        {
-          "id": "support-legs-3",
-          "file": "supports/support-legs-3.svg",
-          "label": "3-Leg Support",
-          "viewBox": "0 0 40 86",
-          "part": "support"
-        },
-        {
-          "id": "support-legs-4",
-          "file": "supports/support-legs-4.svg",
-          "label": "4-Leg Support",
-          "viewBox": "0 0 40 86",
-          "part": "support"
-        },
-        {
-          "id": "support-legs-splayed",
-          "file": "supports/support-legs-splayed.svg",
-          "label": "Splayed Leg Support",
-          "viewBox": "0 0 70 20",
-          "part": "support"
-        },
-        {
-          "id": "support-saddles",
-          "file": "supports/support-saddles.svg",
-          "label": "Saddle Supports",
-          "viewBox": "0 0 80 14",
-          "part": "support"
-        }
-      ]
-    },
-    {
-      "id": "indicators",
-      "label": "Indicators",
-      "path": "indicators",
-      "shapes": [
-        {
-          "id": "fail-open",
-          "file": "indicators/fail-open.svg",
-          "label": "Fail Open",
-          "viewBox": "0 0 16 20"
-        },
-        {
-          "id": "fail-close",
-          "file": "indicators/fail-close.svg",
-          "label": "Fail Close",
-          "viewBox": "0 0 16 20"
-        },
-        {
-          "id": "position-indicator",
-          "file": "indicators/position-indicator.svg",
-          "label": "Position Indicator",
-          "viewBox": "0 0 30 14"
-        }
-      ]
-    },
-    {
-      "id": "piping",
-      "label": "Piping",
-      "path": "piping",
-      "shapes": [
-        {
-          "id": "pipe-straight",
-          "file": "piping/pipe-straight.svg",
-          "label": "Straight Pipe",
-          "viewBox": "0 0 60 10"
-        },
-        {
-          "id": "pipe-elbow",
-          "file": "piping/pipe-elbow.svg",
-          "label": "Elbow",
-          "viewBox": "0 0 30 30"
-        },
-        {
-          "id": "pipe-tee",
-          "file": "piping/pipe-tee.svg",
-          "label": "Tee",
-          "viewBox": "0 0 30 30"
-        },
-        {
-          "id": "reducer",
-          "file": "piping/reducer.svg",
-          "label": "Reducer",
-          "viewBox": "0 0 40 20"
-        },
-        {
-          "id": "spectacle-blind",
-          "file": "piping/spectacle-blind.svg",
-          "label": "Spectacle Blind",
-          "viewBox": "0 0 30 20"
-        }
-      ]
-    }
+  "shapes": [
+    { "id": "valve-gate",                       "category": "valves",       "label": "Gate Valve" },
+    { "id": "valve-globe",                      "category": "valves",       "label": "Globe Valve" },
+    { "id": "valve-ball",                       "category": "valves",       "label": "Ball Valve" },
+    { "id": "valve-butterfly",                  "category": "valves",       "label": "Butterfly Valve" },
+    { "id": "valve-control",                    "category": "valves",       "label": "Control Valve" },
+    { "id": "valve-relief",                     "category": "valves",       "label": "Relief / Safety Valve" },
+    { "id": "pump-centrifugal-opt1",            "category": "pumps",        "label": "Centrifugal Pump (Opt 1)" },
+    { "id": "pump-centrifugal-opt2",            "category": "pumps",        "label": "Centrifugal Pump (Opt 2)" },
+    { "id": "pump-positive-displacement-opt1",  "category": "pumps",        "label": "PD Pump (Opt 1)" },
+    { "id": "pump-positive-displacement-opt2",  "category": "pumps",        "label": "PD Pump (Opt 2)" },
+    { "id": "compressor-opt1",                  "category": "rotating",     "label": "Compressor (Opt 1)" },
+    { "id": "compressor-opt2",                  "category": "rotating",     "label": "Compressor (Opt 2)" },
+    { "id": "fan-blower-opt1",                  "category": "rotating",     "label": "Fan/Blower (Opt 1)" },
+    { "id": "fan-blower-opt2",                  "category": "rotating",     "label": "Fan/Blower (Opt 2)" },
+    { "id": "motor-opt1",                       "category": "rotating",     "label": "Motor (Opt 1)" },
+    { "id": "motor-opt2",                       "category": "rotating",     "label": "Motor (Opt 2)" },
+    { "id": "hx-shell-tube-opt1",               "category": "heat-exchange","label": "Shell & Tube HX (Opt 1)" },
+    { "id": "hx-plate-opt1",                    "category": "heat-exchange","label": "Plate HX (Opt 1)" },
+    { "id": "heater-fired-opt1",                "category": "heat-exchange","label": "Fired Heater / Furnace" },
+    { "id": "air-cooler",                       "category": "heat-exchange","label": "Air Cooler / Fin-Fan" },
+    { "id": "instrument-field",                 "category": "instruments",  "label": "Instrument (Field)" },
+    { "id": "instrument-panel",                 "category": "instruments",  "label": "Instrument (Panel)" },
+    { "id": "instrument-behind-panel",          "category": "instruments",  "label": "Instrument (Behind Panel)" },
+    { "id": "vessel-vertical",                  "category": "vessels",      "label": "Vertical Vessel (Welded)" },
+    { "id": "vessel-vertical-flanged-top",      "category": "vessels",      "label": "Vertical Vessel (Flanged Top)" },
+    { "id": "vessel-vertical-flanged-bottom",   "category": "vessels",      "label": "Vertical Vessel (Flanged Bottom)" },
+    { "id": "vessel-vertical-flanged",          "category": "vessels",      "label": "Vertical Vessel (Flanged Both)" },
+    { "id": "vessel-horizontal",                "category": "vessels",      "label": "Horizontal Vessel (Welded)" },
+    { "id": "vessel-horizontal-flanged-left",   "category": "vessels",      "label": "Horizontal Vessel (Flanged Left)" },
+    { "id": "vessel-horizontal-flanged-right",  "category": "vessels",      "label": "Horizontal Vessel (Flanged Right)" },
+    { "id": "vessel-horizontal-flanged",        "category": "vessels",      "label": "Horizontal Vessel (Flanged Both)" },
+    { "id": "reactor",                          "category": "reactors",     "label": "Reactor (Base)" },
+    { "id": "reactor-flat-top",                 "category": "reactors",     "label": "Reactor (Flat Top)" },
+    { "id": "reactor-closed",                   "category": "reactors",     "label": "Reactor (Closed)" },
+    { "id": "reactor-trayed",                   "category": "reactors",     "label": "Reactor (Trayed)" },
+    { "id": "agitator-turbine",                 "category": "agitators",    "label": "Agitator — Turbine" },
+    { "id": "agitator-propeller",               "category": "agitators",    "label": "Agitator — Propeller" },
+    { "id": "agitator-anchor",                  "category": "agitators",    "label": "Agitator — Anchor" },
+    { "id": "agitator-paddle",                  "category": "agitators",    "label": "Agitator — Paddle" },
+    { "id": "agitator-helical",                 "category": "agitators",    "label": "Agitator — Helical" },
+    { "id": "support-skirt",                    "category": "supports",     "label": "Support — Skirt" },
+    { "id": "support-legs-3",                   "category": "supports",     "label": "Support — 3 Splayed Legs" },
+    { "id": "support-legs-4",                   "category": "supports",     "label": "Support — 4 Straight Legs" },
+    { "id": "support-legs-splayed",             "category": "supports",     "label": "Support — Splayed Legs" },
+    { "id": "support-saddles",                  "category": "supports",     "label": "Support — Saddles" },
+    { "id": "column-distillation",              "category": "columns",      "label": "Column — Standard Plain" },
+    { "id": "column-distillation-trayed",       "category": "columns",      "label": "Column — Trayed-6 (Default)" },
+    { "id": "column-distillation-trayed-10",    "category": "columns",      "label": "Column — Trayed-10" },
+    { "id": "column-distillation-packed",       "category": "columns",      "label": "Column — Packed" },
+    { "id": "column-distillation-narrow",       "category": "columns",      "label": "Column — Narrow Plain" },
+    { "id": "column-distillation-wide",         "category": "columns",      "label": "Column — Wide Plain" },
+    { "id": "tank-storage-cone-roof",           "category": "tanks",        "label": "Tank — Cone Roof" },
+    { "id": "tank-storage-dome-roof",           "category": "tanks",        "label": "Tank — Dome Roof" },
+    { "id": "tank-storage-open-top",            "category": "tanks",        "label": "Tank — Open Top" },
+    { "id": "tank-storage-floating-roof",       "category": "tanks",        "label": "Tank — Floating Roof" },
+    { "id": "tank-storage-sphere",              "category": "tanks",        "label": "Tank — Sphere" },
+    { "id": "tank-storage-capsule",             "category": "tanks",        "label": "Tank — Capsule" },
+    { "id": "filter",                           "category": "filters",      "label": "Filter (Standard)" },
+    { "id": "filter-vacuum",                    "category": "filters",      "label": "Filter (Vacuum)" },
+    { "id": "alarm-annunciator",                "category": "annunciators", "label": "Alarm Annunciator (ISA)" },
+    { "id": "alarm-annunciator-opt2",           "category": "annunciators", "label": "Alarm Annunciator (Horn)" },
+    { "id": "mixer",                            "category": "mixers",       "label": "Mixer — Agitator" },
+    { "id": "mixer-motor",                      "category": "mixers",       "label": "Mixer — Agitator + Motor" },
+    { "id": "mixer-inline",                     "category": "mixers",       "label": "Mixer — Inline Static" },
+    { "id": "interlock",                        "category": "interlocks",   "label": "Interlock — BPCS Diamond" },
+    { "id": "interlock-sis",                    "category": "interlocks",   "label": "Interlock — SIS" },
+    { "id": "interlock-opt2",                   "category": "interlocks",   "label": "Interlock — Padlock" }
   ]
 }

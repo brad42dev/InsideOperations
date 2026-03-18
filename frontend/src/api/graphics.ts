@@ -1,71 +1,173 @@
-import { api, type ApiResult } from './client'
-import type { GraphicDocument, GraphicBindings } from '../shared/types/graphics'
+import { api, queryString } from './client'
+import type { GraphicDocument, GraphicSummary } from '../shared/types/graphics'
 
-export interface GraphicSummary {
-  id: string
+export interface DesignObjectSummary extends GraphicSummary {}
+
+export interface DesignObjectCreateRequest {
   name: string
-  type: string
-  /** Optional module tag from metadata.module — "process", "console", or absent (untagged) */
-  module?: string
-  created_at: string
-  created_by: string
-  bindings_count: number
+  scene_data: GraphicDocument
 }
 
-export interface CreateGraphicBody {
-  name: string
-  type: 'graphic' | 'template' | 'symbol'
-  svg_data: string
-  bindings?: GraphicBindings
-  metadata?: { width: number; height: number; viewBox?: string; description?: string }
+export interface DesignObjectUpdateRequest {
+  name?: string
+  scene_data?: GraphicDocument
 }
 
-export interface ShapeObject {
-  id: string
-  name: string
-  type: 'shape' | 'stencil'
-  svg_data: string
-  category?: string
-  tags?: string[]
-  created_at: string
-}
-
-export interface CreateShapeBody {
-  name: string
-  type: 'shape' | 'stencil'
-  svg_data: string
-  category?: string
-  tags?: string[]
+export interface ShapeBatchResponse {
+  [shapeId: string]: {
+    svg: string
+    sidecar: Record<string, unknown>
+  }
 }
 
 export const graphicsApi = {
-  list: (module?: 'process' | 'console'): Promise<ApiResult<GraphicSummary[]>> =>
-    api.get<GraphicSummary[]>(module ? `/api/graphics?module=${module}` : '/api/graphics'),
+  /** List all design objects (graphics) */
+  list: (params?: { scope?: 'console' | 'process'; mode?: 'graphic' | 'dashboard' | 'report' }) =>
+    api.get<{ data: DesignObjectSummary[]; total: number }>(
+      `/api/v1/design-objects${queryString(params as Record<string, unknown>)}`
+    ),
 
-  get: (id: string): Promise<ApiResult<GraphicDocument>> =>
-    api.get<GraphicDocument>(`/api/graphics/${id}`),
+  /** Get a single graphic by ID */
+  get: (id: string) =>
+    api.get<{ data: { id: string; name: string; scene_data: GraphicDocument; version: number; updatedAt: string } }>(
+      `/api/v1/design-objects/${id}`
+    ),
 
-  create: (body: CreateGraphicBody): Promise<ApiResult<GraphicDocument>> =>
-    api.post<GraphicDocument>('/api/graphics', body),
+  /** Create a new graphic */
+  create: (payload: DesignObjectCreateRequest) =>
+    api.post<{ data: { id: string } }>('/api/v1/design-objects', payload),
 
-  update: (id: string, body: Partial<CreateGraphicBody>): Promise<ApiResult<GraphicDocument>> =>
-    api.put<GraphicDocument>(`/api/graphics/${id}`, body),
+  /** Update an existing graphic */
+  update: (id: string, payload: DesignObjectUpdateRequest) =>
+    api.put<{ data: { id: string; version: number } }>(`/api/v1/design-objects/${id}`, payload),
 
-  remove: (id: string): Promise<ApiResult<void>> =>
-    api.delete<void>(`/api/graphics/${id}`),
+  /** Delete a graphic */
+  remove: (id: string) =>
+    api.delete(`/api/v1/design-objects/${id}`),
 
-  tileInfo: (id: string): Promise<ApiResult<{
-    tile_base_url: string
-    max_zoom: number
-    tile_size: number
-    width: number
-    height: number
-  }>> =>
-    api.get(`/api/graphics/${id}/tile-info`),
+  /** Batch fetch shapes from the shape library */
+  batchShapes: (shapeIds: string[]) =>
+    api.post<ShapeBatchResponse>('/api/v1/shapes/batch', { shapeIds }),
 
-  listShapes: (type?: 'shape' | 'stencil'): Promise<ApiResult<ShapeObject[]>> =>
-    api.get<ShapeObject[]>(`/api/design-objects${type ? `?type=${type}` : ''}`),
+  /** Get a graphic's thumbnail URL */
+  thumbnailUrl: (id: string) => `/api/v1/design-objects/${id}/thumbnail.png`,
 
-  createShape: (body: CreateShapeBody): Promise<ApiResult<ShapeObject>> =>
-    api.post<ShapeObject>('/api/design-objects', body),
+  /** Upload an image asset */
+  uploadImage: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<{ data: { hash: string; url: string } }>('/api/v1/image-assets', form)
+  },
+
+  /** Get image asset URL by hash */
+  imageUrl: (hash: string) => `/api/v1/image-assets/${hash}`,
+
+  /** Export a graphic as a .iographic ZIP (returns Blob) */
+  exportIographic: async (id: string, description?: string): Promise<Blob> => {
+    const resp = await fetch(`/api/v1/design-objects/${id}/export/iographic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: description ?? '' }),
+      credentials: 'include',
+    })
+    if (!resp.ok) throw new Error(`Export failed: ${resp.statusText}`)
+    return resp.blob()
+  },
+
+  /** Analyze a .iographic file before import (returns structured analysis) */
+  analyzeIographic: async (file: File): Promise<IographicAnalysis> => {
+    const form = new FormData()
+    form.append('file', file)
+    const resp = await fetch('/api/v1/design-objects/import/iographic/analyze', {
+      method: 'POST',
+      body: form,
+      credentials: 'include',
+    })
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ message: resp.statusText }))
+      throw new Error(err.message ?? 'Analysis failed')
+    }
+    const json = await resp.json()
+    return json.data as IographicAnalysis
+  },
+
+  /** Commit an import after user resolves decisions */
+  commitIographic: async (file: File, options: IographicImportOptions): Promise<IographicImportResult> => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('options', JSON.stringify(options))
+    const resp = await fetch('/api/v1/design-objects/import/iographic', {
+      method: 'POST',
+      body: form,
+      credentials: 'include',
+    })
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ message: resp.statusText }))
+      throw new Error(err.message ?? 'Import failed')
+    }
+    const json = await resp.json()
+    return json.data as IographicImportResult
+  },
+}
+
+// ── .iographic import/export types ──────────────────────────────────────────
+
+export interface IographicManifest {
+  format: 'iographic'
+  format_version: string
+  generator: { application: string; version: string; instance_id?: string }
+  exported_at: string
+  exported_by: string
+  description?: string
+  graphics: Array<{ directory: string; name: string; type: string }>
+  shapes: Array<{ directory: string; name: string; shape_id: string }>
+  stencils: Array<{ directory: string; name: string }>
+  shape_dependencies: string[]
+  point_tags: string[]
+  checksum: string
+}
+
+export interface IographicTagResolution {
+  tag: string
+  source_hint?: string
+  status: 'resolved' | 'ambiguous' | 'unresolved'
+  resolved_to?: string  // point UUID if resolved
+  candidates?: Array<{ id: string; tagname: string; source: string }>
+}
+
+export interface IographicShapeStatus {
+  shape_id: string
+  name?: string
+  status: 'available' | 'missing' | 'custom_new' | 'custom_exists'
+  action?: 'import' | 'use_existing' | 'import_as_copy' | 'skip'
+}
+
+export interface IographicAnalysis {
+  manifest: IographicManifest
+  tag_resolutions: IographicTagResolution[]
+  shape_statuses: IographicShapeStatus[]
+  stencil_statuses: Array<{ stencil_id: string; name: string; status: 'new' | 'exists' }>
+  valid: boolean
+  errors: string[]
+}
+
+export interface IographicImportOptions {
+  tag_mappings: Array<{ original_tag: string; mapped_tag?: string; action: 'keep' | 'remap' | 'skip' }>
+  shape_actions: Array<{ shape_id: string; action: 'import' | 'use_existing' | 'import_as_copy' | 'skip' }>
+  stencil_actions: Array<{ stencil_id: string; action: 'import' | 'use_existing' | 'skip' }>
+  target_name?: string
+  import_as: 'draft' | 'published'
+  overwrite: boolean
+}
+
+export interface IographicImportResult {
+  graphics_imported: number
+  shapes_imported: number
+  stencils_imported: number
+  bindings_resolved: number
+  bindings_unresolved: number
+  bindings_total: number
+  unresolved_tags: string[]
+  missing_shapes: string[]
+  graphic_ids: string[]
 }

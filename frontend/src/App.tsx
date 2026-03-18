@@ -7,7 +7,6 @@ import DesignerPage from './pages/designer/index'
 import DesignerHome from './pages/designer/DesignerHome'
 import DesignerGraphicsList from './pages/designer/DesignerGraphicsList'
 import DesignerReportsList from './pages/designer/DesignerReportsList'
-import DesignerSymbolLibrary from './pages/designer/DesignerSymbolLibrary'
 import DesignerImport from './pages/designer/DesignerImport'
 import DesignerDashboardsList from './pages/designer/DesignerDashboardsList'
 import ConsolePage from './pages/console/index'
@@ -312,16 +311,7 @@ function AppRoutes() {
             </PermissionGuard>
           }
         />
-        <Route
-          path="designer/symbols"
-          element={
-            <PermissionGuard permission="designer:read">
-              <ErrorBoundary module="Designer">
-                <DesignerSymbolLibrary />
-              </ErrorBoundary>
-            </PermissionGuard>
-          }
-        />
+        <Route path="designer/symbols" element={<Navigate to="/designer" replace />} />
         <Route
           path="designer/import"
           element={

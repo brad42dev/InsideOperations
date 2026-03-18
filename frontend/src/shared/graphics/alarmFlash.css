@@ -1,0 +1,40 @@
+@keyframes io-alarm-flash-critical {
+  0%, 49.99% { stroke: #EF4444; }
+  50%, 100%  { stroke: #808080; }
+}
+@keyframes io-alarm-flash-critical-text {
+  0%, 49.99% { fill: #EF4444; }
+  50%, 100%  { fill: #808080; }
+}
+@keyframes io-alarm-flash-high {
+  0%, 49.99% { stroke: #F97316; }
+  50%, 100%  { stroke: #808080; }
+}
+@keyframes io-alarm-flash-medium {
+  0%, 49.99% { stroke: #EAB308; }
+  50%, 100%  { stroke: #808080; }
+}
+@keyframes io-alarm-flash-advisory {
+  0%, 49.99% { stroke: #06B6D4; }
+  50%, 100%  { stroke: #808080; }
+}
+@keyframes io-alarm-flash-custom {
+  0%, 49.99% { stroke: #7C3AED; }
+  50%, 100%  { stroke: #808080; }
+}
+
+.io-alarm-flash-critical > * { animation: io-alarm-flash-critical 1s steps(1) infinite; }
+.io-alarm-flash-critical text { animation: io-alarm-flash-critical-text 1s steps(1) infinite; }
+.io-alarm-flash-high > * { animation: io-alarm-flash-high 1s steps(1) infinite; }
+.io-alarm-flash-medium > * { animation: io-alarm-flash-medium 1s steps(1) infinite; }
+.io-alarm-flash-advisory > * { animation: io-alarm-flash-advisory 1s steps(1) infinite; }
+.io-alarm-flash-custom > * { animation: io-alarm-flash-custom 1s steps(1) infinite; }
+
+/* Text readout alarm flash */
+.io-alarm-flash rect {
+  animation: io-alarm-box-flash 1s steps(1) infinite;
+}
+@keyframes io-alarm-box-flash {
+  0%, 49.99% { fill: rgba(239,68,68,0.2); stroke: #EF4444; }
+  50%, 100%  { fill: #27272A; stroke: #3F3F46; }
+}

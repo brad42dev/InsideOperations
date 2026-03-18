@@ -7,7 +7,6 @@ export interface WorkspaceGridProps {
   editMode: boolean
   onConfigurePane: (paneId: string) => void
   onRemovePane: (paneId: string) => void
-  onGraphicSelected?: (paneId: string, graphicId: string) => void
   onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
 }
 
@@ -210,7 +209,6 @@ export default function WorkspaceGrid({
   editMode,
   onConfigurePane,
   onRemovePane,
-  onGraphicSelected,
   onPaletteDrop,
 }: WorkspaceGridProps) {
   const { gridTemplateColumns, gridTemplateRows, cellAreas } = getGridTemplate(workspace.layout)
@@ -254,7 +252,6 @@ export default function WorkspaceGrid({
             editMode={editMode}
             onConfigure={onConfigurePane}
             onRemove={onRemovePane}
-            onGraphicSelected={onGraphicSelected}
             onPaletteDrop={onPaletteDrop}
           />
         </div>

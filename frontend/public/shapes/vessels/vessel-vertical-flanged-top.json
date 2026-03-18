@@ -1,0 +1,27 @@
+{
+  "id": "vessel-vertical-flanged-top",
+  "category": "vessels",
+  "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
+  "connections": [
+    { "id": "inlet",        "type": "process", "x": 10, "y": 25, "direction": "left" },
+    { "id": "outlet",       "type": "process", "x": 10, "y": 55, "direction": "left" },
+    { "id": "top-nozzle",   "type": "process", "x": 20, "y": 12, "direction": "top" },
+    { "id": "bottom-drain", "type": "process", "x": 20, "y": 68, "direction": "bottom" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 20, "y": -6, "width": 40, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 0.5, "ny": 1.08, "preferredElement": "text_readout" },
+    { "nx": 1.2, "ny": 0.5,  "preferredElement": "analog_bar" },
+    { "nx": 0.5, "ny": 0.5,  "preferredElement": "fill_gauge" }
+  ],
+  "alarmAnchor": { "nx": 1.15, "ny": -0.05 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

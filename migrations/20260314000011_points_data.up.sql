@@ -1,3 +1,4 @@
+-- no-transaction
 -- Point metadata, versions, current values, history (TimescaleDB hypertable + aggregates)
 
 CREATE TABLE points_metadata (

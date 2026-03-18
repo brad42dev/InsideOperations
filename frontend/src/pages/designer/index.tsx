@@ -1,666 +1,739 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+/**
+ * Designer page — main orchestrator.
+ *
+ * Route: /designer/graphics/:graphicId/edit  (edit existing)
+ *        /designer/graphics/new              (create new)
+ *
+ * Layout:
+ *   ┌─────────────────────────────────────────────────────┐
+ *   │  DesignerToolbar (44px)                             │
+ *   ├──────────┬──────────────────────────────────────────┤
+ *   │  Left    │  DesignerCanvas (flex 1)                 │ Right
+ *   │  Palette │                                          │ Panel
+ *   │  240px   │                                          │ 300px
+ *   └──────────┴──────────────────────────────────────────┘
+ *
+ * State management: Zustand (sceneStore, historyStore, uiStore)
+ * API: graphicsApi from ../../api/graphics
+ */
+
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useSceneStore, useHistoryStore } from '../../store/designer'
 import { graphicsApi } from '../../api/graphics'
-import type { GraphicBindings } from '../../shared/types/graphics'
-import type { DesignerState, DesignerMode, DrawingTool } from './types'
+import { wsManager } from '../../shared/hooks/useWebSocket'
+import DesignerToolbar from './DesignerToolbar'
+import DesignerModeTabs from './DesignerModeTabs'
+import DesignerStatusBar from './DesignerStatusBar'
+import DesignerLeftPalette from './DesignerLeftPalette'
+import DesignerRightPanel from './DesignerRightPanel'
 import DesignerCanvas from './DesignerCanvas'
-import Toolbar from './panels/Toolbar'
-import SymbolLibrary from './panels/SymbolLibrary'
-import PropertyPanel from './panels/PropertyPanel'
+import VersionHistoryDialog from './components/VersionHistoryDialog'
+import ValidateBindingsDialog from './components/ValidateBindingsDialog'
+import IographicImportWizard from './components/IographicImportWizard'
+import IographicExportDialog from './components/IographicExportDialog'
 
 // ---------------------------------------------------------------------------
-// IndexedDB helpers
+// New Graphic dialog
 // ---------------------------------------------------------------------------
-const IDB_NAME = 'io-designer'
-const IDB_STORE = 'drafts'
-const IDB_VERSION = 1
 
-function openIDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, IDB_VERSION)
-    req.onupgradeneeded = (e) => {
-      const db = (e.target as IDBOpenDBRequest).result
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE)
-      }
-    }
-    req.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result)
-    req.onerror = (e) => reject((e.target as IDBOpenDBRequest).error)
-  })
+interface NewGraphicDialogProps {
+  onConfirm: (name: string, mode: 'graphic' | 'dashboard' | 'report') => void
+  onCancel: () => void
 }
 
-async function idbGet(key: string): Promise<string | undefined> {
-  const db = await openIDB()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readonly')
-    const req = tx.objectStore(IDB_STORE).get(key)
-    req.onsuccess = () => resolve(req.result as string | undefined)
-    req.onerror = () => reject(req.error)
-  })
-}
+function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
+  const [name, setName] = useState('Untitled Graphic')
+  const [mode, setMode] = useState<'graphic' | 'dashboard' | 'report'>('graphic')
 
-async function idbSet(key: string, value: string): Promise<void> {
-  const db = await openIDB()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite')
-    const req = tx.objectStore(IDB_STORE).put(value, key)
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
-  })
-}
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onConfirm(trimmed, mode)
+  }
 
-async function idbDelete(key: string): Promise<void> {
-  const db = await openIDB()
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite')
-    const req = tx.objectStore(IDB_STORE).delete(key)
-    req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Default state
-// ---------------------------------------------------------------------------
-const DEFAULT_STATE: DesignerState = {
-  mode: 'graphic',
-  activeTool: 'select',
-  selectedElementIds: [],
-  zoom: 1,
-  panX: 0,
-  panY: 0,
-  isDirty: false,
-  documentId: null,
-  documentName: 'Untitled Graphic',
-  gridEnabled: true,
-  gridSize: 20,
-  snapEnabled: true,
-  undoStack: [],
-  redoStack: [],
-  focusMode: false,
-}
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  padding: '0 12px',
-  height: '48px',
-  background: 'var(--io-surface-elevated)',
-  borderBottom: '1px solid var(--io-border)',
-  flexShrink: 0,
-}
-
-const modeBtnStyle = (active: boolean): React.CSSProperties => ({
-  padding: '5px 12px',
-  fontSize: '12px',
-  fontWeight: active ? 600 : 400,
-  background: active ? 'var(--io-accent-subtle)' : 'transparent',
-  border: active ? '1px solid var(--io-accent)' : '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  color: active ? 'var(--io-accent)' : 'var(--io-text-secondary)',
-  cursor: 'pointer',
-  transition: 'all 0.1s',
-})
-
-const titleInputStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid transparent',
-  borderRadius: 'var(--io-radius)',
-  color: 'var(--io-text-primary)',
-  fontSize: '14px',
-  fontWeight: 500,
-  padding: '4px 8px',
-  outline: 'none',
-  minWidth: '160px',
-  maxWidth: '300px',
-}
-
-const saveBtnStyle: React.CSSProperties = {
-  padding: '6px 14px',
-  background: 'var(--io-accent)',
-  color: '#09090b',
-  border: 'none',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '12px',
-  fontWeight: 600,
-  cursor: 'pointer',
-}
-
-const publishBtnStyle: React.CSSProperties = {
-  padding: '6px 14px',
-  background: 'transparent',
-  color: 'var(--io-text-secondary)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '12px',
-  cursor: 'pointer',
-}
-
-// ---------------------------------------------------------------------------
-// Recovery dialog
-// ---------------------------------------------------------------------------
-function RecoveryDialog({
-  onRecover,
-  onDiscard,
-}: {
-  onRecover: () => void
-  onDiscard: () => void
-}) {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.6)',
-      }}
-    >
-      <div
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 1000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'rgba(0,0,0,0.6)',
+    }}>
+      <form
+        onSubmit={handleSubmit}
         style={{
           background: 'var(--io-surface-elevated)',
           border: '1px solid var(--io-border)',
           borderRadius: 'var(--io-radius)',
-          padding: '24px',
-          maxWidth: '380px',
-          width: '90%',
+          padding: 24,
+          width: 380,
+          maxWidth: '90%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
         }}
       >
-        <div
-          style={{
-            fontSize: '15px',
-            fontWeight: 600,
-            color: 'var(--io-text-primary)',
-            marginBottom: '8px',
-          }}
-        >
-          Unsaved Draft Found
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--io-text-primary)' }}>
+          New Graphic
         </div>
-        <div
-          style={{
-            fontSize: '13px',
-            color: 'var(--io-text-secondary)',
-            marginBottom: '20px',
-          }}
-        >
-          An unsaved draft was found from a previous session. Would you like to recover it?
+
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+            Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            autoFocus
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              color: 'var(--io-text-primary)',
+              fontSize: 13,
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
         </div>
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          <button onClick={onDiscard} style={publishBtnStyle}>
-            Discard
+
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+            Type
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['graphic', 'dashboard', 'report'] as const).map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                style={{
+                  flex: 1,
+                  padding: '6px 0',
+                  background: mode === m ? 'var(--io-accent)' : 'var(--io-surface)',
+                  color: mode === m ? '#09090b' : 'var(--io-text-secondary)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  fontSize: 12,
+                  fontWeight: mode === m ? 600 : 400,
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: '6px 14px',
+              background: 'transparent',
+              color: 'var(--io-text-secondary)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
           </button>
-          <button onClick={onRecover} style={saveBtnStyle}>
-            Recover Draft
+          <button
+            type="submit"
+            disabled={!name.trim()}
+            style={{
+              padding: '6px 14px',
+              background: name.trim() ? 'var(--io-accent)' : 'var(--io-surface-elevated)',
+              color: name.trim() ? '#09090b' : 'var(--io-text-muted)',
+              border: 'none',
+              borderRadius: 'var(--io-radius)',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: name.trim() ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Create
           </button>
         </div>
-      </div>
+      </form>
     </div>
   )
 }
 
+// ---------------------------------------------------------------------------
+// Resizable divider
+// ---------------------------------------------------------------------------
+
+interface DividerProps {
+  onDrag: (dx: number) => void
+}
+
+function VerticalDivider({ onDrag }: DividerProps) {
+  const startX = useRef(0)
+  const active = useRef(false)
+
+  function handleMouseDown(e: React.MouseEvent) {
+    e.preventDefault()
+    active.current = true
+    startX.current = e.clientX
+
+    const onMove = (ev: MouseEvent) => {
+      if (!active.current) return
+      const dx = ev.clientX - startX.current
+      startX.current = ev.clientX
+      onDrag(dx)
+    }
+    const onUp = () => {
+      active.current = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      style={{
+        width: 4,
+        cursor: 'col-resize',
+        flexShrink: 0,
+        background: 'transparent',
+        position: 'relative',
+        zIndex: 10,
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--io-accent)'; e.currentTarget.style.opacity = '0.4' }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+    />
+  )
+}
 
 // ---------------------------------------------------------------------------
-// Main Designer page
+// Loading skeleton
 // ---------------------------------------------------------------------------
+
+function LoadingSkeleton() {
+  return (
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#0a0a0b',
+      color: 'var(--io-text-muted)',
+      fontSize: 13,
+    }}>
+      Loading graphic…
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Error state
+// ---------------------------------------------------------------------------
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#0a0a0b',
+      gap: 12,
+    }}>
+      <div style={{ color: '#ef4444', fontSize: 14 }}>Failed to load graphic</div>
+      <div style={{ color: 'var(--io-text-muted)', fontSize: 12 }}>{message}</div>
+      <button
+        onClick={onRetry}
+        style={{
+          padding: '6px 16px',
+          background: 'var(--io-accent)',
+          color: '#09090b',
+          border: 'none',
+          borderRadius: 'var(--io-radius)',
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Retry
+      </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 export default function DesignerPage() {
-  const { id: graphicId } = useParams<{ id: string }>()
+  const { graphicId } = useParams<{ graphicId?: string }>()
+  const isNew = !graphicId || graphicId === 'new'
 
-  const { data: existingGraphic, isLoading: isLoadingGraphic } = useQuery({
-    queryKey: ['graphic-edit', graphicId],
-    queryFn: async () => {
-      if (!graphicId || graphicId === 'new') return null
-      const r = await graphicsApi.get(graphicId)
-      if (!r.success) throw new Error(r.error.message)
-      return r.data
-    },
-    enabled: !!graphicId && graphicId !== 'new',
-    staleTime: Infinity,
-  })
+  // Store actions
+  const loadGraphic   = useSceneStore(s => s.loadGraphic)
+  const newDocument   = useSceneStore(s => s.newDocument)
+  const markClean     = useSceneStore(s => s.markClean)
+  const historyMarkClean = useHistoryStore(s => s.markClean)
+  const historyClear  = useHistoryStore(s => s.clear)
 
-  const [state, setState] = useState<DesignerState>(DEFAULT_STATE)
-  const [bindings, setBindings] = useState<GraphicBindings>({})
-  const existingGraphicLoadedRef = useRef(false)
+  const graphicIdInStore = useSceneStore(s => s.graphicId)
+  const doc = useSceneStore(s => s.doc)
+
+  // Panel widths
+  const [leftWidth, setLeftWidth]   = useState(240)
+  const [rightWidth, setRightWidth] = useState(300)
+  const [leftCollapsed, setLeftCollapsed]   = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
+
+  // Load/save state
+  const [loading, setLoading]   = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [draftXml, setDraftXml] = useState<string | null>(null)
-  const [showRecovery, setShowRecovery] = useState(false)
 
-  const getContentRef = useRef<(() => string) | null>(null)
-  const svgElRef = useRef<SVGSVGElement | null>(null)
-  const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const lastSavedUndoRef = useRef<number>(0)
-  const imageImportTriggerRef = useRef<(() => void) | null>(null)
+  // New doc dialog
+  const [showNewDialog, setShowNewDialog] = useState(false)
 
-  const idbKey = `io-designer-draft-${state.documentId ?? 'new'}`
+  // Crash recovery
+  const [crashRecovery, setCrashRecovery] = useState<{ id: string; savedAt: number } | null>(null)
 
-  // Check for draft on mount
+  // Dialogs
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [showValidateBindings, setShowValidateBindings] = useState(false)
+  const [showImportWizard, setShowImportWizard] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+
+  // Auto-save timestamp (updated whenever IndexedDB auto-save fires)
+  const [lastAutoSave, setLastAutoSave] = useState<number | null>(null)
+
+  // WebSocket connection state for status bar
+  const [wsConnected, setWsConnected] = useState(wsManager.getState() === 'connected')
   useEffect(() => {
-    idbGet(idbKey).then((draft) => {
-      if (draft) {
-        setDraftXml(draft)
-        setShowRecovery(true)
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return wsManager.onStateChange(s => setWsConnected(s === 'connected'))
   }, [])
 
-  // Auto-save every 60s when dirty
-  useEffect(() => {
-    if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current)
-    autoSaveTimerRef.current = setInterval(() => {
-      if (state.isDirty && getContentRef.current) {
-        const xml = getContentRef.current()
-        idbSet(idbKey, xml)
+  // -------------------------------------------------------------------------
+  // Load graphic on mount
+  // -------------------------------------------------------------------------
+
+  const loadDoc = useCallback(async () => {
+    if (isNew) {
+      setShowNewDialog(true)
+      return
+    }
+    if (!graphicId) return
+    // Already loaded
+    if (graphicIdInStore === graphicId && doc) return
+
+    const gid: string = graphicId
+
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const resp = await graphicsApi.get(gid)
+      if (!resp.success) {
+        setLoadError(resp.error.message)
+        return
       }
-    }, 60_000)
-    return () => {
-      if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current)
+      const record = resp.data.data
+      loadGraphic(record.id, record.scene_data)
+      historyClear()
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLoading(false)
     }
-  }, [state.isDirty, idbKey])
+  }, [graphicId, isNew, graphicIdInStore, doc, loadGraphic, historyClear])
 
-  // Sync loaded graphic data into state
   useEffect(() => {
-    if (!existingGraphic || existingGraphicLoadedRef.current) return
-    existingGraphicLoadedRef.current = true
-    setState((prev) => ({
-      ...prev,
-      documentId: existingGraphic.id,
-      documentName: existingGraphic.name,
-      isDirty: false,
-    }))
-    if (existingGraphic.bindings) {
-      setBindings(existingGraphic.bindings)
+    loadDoc()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphicId])
+
+  // -------------------------------------------------------------------------
+  // Save
+  // -------------------------------------------------------------------------
+
+  const handleSave = useCallback(async () => {
+    const currentDoc = useSceneStore.getState().doc
+    const currentId  = useSceneStore.getState().graphicId
+    if (!currentDoc || isSaving) return
+
+    setIsSaving(true)
+    try {
+      const docName = currentDoc.name ?? 'Untitled'
+      if (currentId) {
+        // Update existing
+        const result = await graphicsApi.update(currentId, {
+          name: docName,
+          scene_data: currentDoc,
+        })
+        if (!result.success) {
+          console.error('[DesignerPage] Update failed:', result.error.message)
+          return
+        }
+      } else {
+        // Create new
+        const resp = await graphicsApi.create({
+          name: docName,
+          scene_data: currentDoc,
+        })
+        if (!resp.success) {
+          console.error('[DesignerPage] Create failed:', resp.error.message)
+          return
+        }
+        // Update graphicId in store via loadGraphic (sets graphicId in scene state)
+        loadGraphic(resp.data.data.id, currentDoc)
+      }
+      markClean()
+      historyMarkClean()
+    } catch (err) {
+      console.error('[DesignerPage] Save failed:', err)
+    } finally {
+      setIsSaving(false)
     }
-  }, [existingGraphic])
+  }, [isSaving, markClean, historyMarkClean, loadGraphic])
 
-  // Ctrl+S save
+  // -------------------------------------------------------------------------
+  // Ctrl+S global save
+  // -------------------------------------------------------------------------
+
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    function handler(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         handleSave()
       }
-      // Keyboard tool shortcuts (only when not in an input)
-      if ((e.target as HTMLElement).tagName === 'INPUT') return
-      if (e.ctrlKey || e.metaKey || e.altKey) return
-
-      switch (e.key.toLowerCase()) {
-        case 'v': setState((prev) => ({ ...prev, activeTool: 'select' })); break
-        case 'r': setState((prev) => ({ ...prev, activeTool: 'rect' })); break
-        case 'e': setState((prev) => ({ ...prev, activeTool: 'ellipse' })); break
-        case 'l': setState((prev) => ({ ...prev, activeTool: 'line' })); break
-        case 'p': setState((prev) => ({ ...prev, activeTool: 'pipe' })); break
-        case 'f': setState((prev) => ({ ...prev, activeTool: 'pencil' })); break
-        case 't': setState((prev) => ({ ...prev, activeTool: 'text' })); break
-        case 'i': imageImportTriggerRef.current?.(); break
-        case 'g': setState((prev) => ({ ...prev, gridEnabled: !prev.gridEnabled })); break
-        case 'escape':
-          setState((prev) => ({ ...prev, activeTool: 'select' }))
-          if (state.focusMode) setState((prev) => ({ ...prev, focusMode: false }))
-          break
-      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  })
+  }, [handleSave])
 
-  // Focus mode keyboard shortcut
+  // -------------------------------------------------------------------------
+  // Auto-save to IndexedDB (every 60s when dirty)
+  // -------------------------------------------------------------------------
+
+  const isDirty = useSceneStore(s => s.isDirty)
+
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
-        e.preventDefault()
-        setState((prev) => ({ ...prev, focusMode: !prev.focusMode }))
-      }
+    if (typeof window === 'undefined' || !window.indexedDB) return
+
+    const STORE = 'designer-autosave'
+    const DB_NAME = 'io-designer'
+    const DB_VERSION = 1
+
+    // Open/upgrade IndexedDB
+    const openReq = indexedDB.open(DB_NAME, DB_VERSION)
+    openReq.onupgradeneeded = () => {
+      openReq.result.createObjectStore(STORE)
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
 
-  const pushUndo = useCallback(
-    (xml: string) => {
-      setState((prev) => {
-        const stack = [...prev.undoStack, xml].slice(-20)
-        return { ...prev, undoStack: stack, redoStack: [], isDirty: true }
-      })
-    },
-    [],
-  )
+    let db: IDBDatabase | null = null
+    openReq.onsuccess = () => {
+      db = openReq.result
 
-  const handleContentChange = useCallback(
-    (xml: string) => {
-      pushUndo(xml)
-    },
-    [pushUndo],
-  )
-
-  const handleSelectionChange = useCallback((ids: string[]) => {
-    setState((prev) => ({ ...prev, selectedElementIds: ids }))
-  }, [])
-
-  const handleStateChange = useCallback((partial: Partial<DesignerState>) => {
-    setState((prev) => ({ ...prev, ...partial }))
-  }, [])
-
-  const handleZoomChange = useCallback((zoom: number, panX: number, panY: number) => {
-    setState((prev) => ({ ...prev, zoom, panX, panY }))
-  }, [])
-
-  const handleSave = async () => {
-    if (isSaving || !getContentRef.current) return
-    setIsSaving(true)
-    try {
-      const svgData = getContentRef.current()
-      if (state.documentId) {
-        await graphicsApi.update(state.documentId, {
-          name: state.documentName,
-          svg_data: svgData,
-          bindings,
-        })
-      } else {
-        const result = await graphicsApi.create({
-          name: state.documentName,
-          type: 'graphic',
-          svg_data: svgData,
-          bindings,
-        })
-        if (result.success) {
-          setState((prev) => ({ ...prev, documentId: result.data.id, isDirty: false }))
-          await idbDelete(`io-designer-draft-new`)
-          return
+      // Check for crash recovery on first open
+      const key = graphicId ?? '__new__'
+      const tx = db.transaction(STORE, 'readonly')
+      const req = tx.objectStore(STORE).get(key)
+      req.onsuccess = () => {
+        if (req.result) {
+          const { doc: savedDoc, savedAt } = req.result as { doc: unknown; savedAt: number }
+          // Only offer recovery if there's something meaningful
+          if (savedDoc && !doc && !isNew) {
+            setCrashRecovery({ id: key, savedAt })
+          }
         }
       }
-      setState((prev) => ({ ...prev, isDirty: false }))
-      await idbDelete(idbKey)
-    } finally {
-      setIsSaving(false)
     }
+
+    const interval = setInterval(() => {
+      if (!isDirty || !db) return
+      const currentDoc = useSceneStore.getState().doc
+      if (!currentDoc) return
+      const key = graphicId ?? '__new__'
+      try {
+        const now = Date.now()
+        const tx = db.transaction(STORE, 'readwrite')
+        tx.objectStore(STORE).put({ doc: currentDoc, savedAt: now }, key)
+        setLastAutoSave(now)
+      } catch {
+        // Silently ignore IDB errors
+      }
+    }, 60_000)
+
+    return () => {
+      clearInterval(interval)
+      if (db) db.close()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphicId, isNew])
+
+  // -------------------------------------------------------------------------
+  // New graphic dialog confirm
+  // -------------------------------------------------------------------------
+
+  function handleNewConfirm(name: string, mode: 'graphic' | 'dashboard' | 'report') {
+    newDocument(mode, name)
+    historyClear()
+    setShowNewDialog(false)
   }
 
-  const handleModeChange = (mode: DesignerMode) => {
-    setState((prev) => ({ ...prev, mode }))
+  function handleNewCancel() {
+    setShowNewDialog(false)
+    // Navigate back (no-op if no router history)
+    if (typeof window !== 'undefined') window.history.back()
   }
 
-  const handleToolChange = (tool: DrawingTool) => {
-    setState((prev) => ({ ...prev, activeTool: tool }))
-  }
+  // -------------------------------------------------------------------------
+  // Panel resize handlers
+  // -------------------------------------------------------------------------
 
-  // Zoom in/out keeping the current pan origin (same as Ctrl+/- keyboard shortcuts in canvas)
-  const handleZoomIn = useCallback(() => {
-    setState((prev) => ({ ...prev, zoom: Math.min(prev.zoom * 1.2, 10) }))
+  const handleLeftDividerDrag = useCallback((dx: number) => {
+    setLeftWidth(w => Math.max(160, Math.min(480, w + dx)))
   }, [])
-  const handleZoomOut = useCallback(() => {
-    setState((prev) => ({ ...prev, zoom: Math.max(prev.zoom / 1.2, 0.05) }))
-  }, [])
-  const handleZoomFit = useCallback(() => {
-    setState((prev) => ({ ...prev, zoom: 1, panX: 0, panY: 0 }))
+
+  const handleRightDividerDrag = useCallback((dx: number) => {
+    setRightWidth(w => Math.max(200, Math.min(520, w - dx)))
   }, [])
 
-  const handleRecoverDraft = () => {
-    setShowRecovery(false)
-    setState((prev) => ({ ...prev, isDirty: true }))
-    setDraftXml(null)
-  }
+  // -------------------------------------------------------------------------
+  // Collapse toggle buttons
+  // -------------------------------------------------------------------------
 
-  const handleDiscardDraft = async () => {
-    setShowRecovery(false)
-    setDraftXml(null)
-    await idbDelete(idbKey)
-  }
-
-  const handleImageImport = useCallback(() => {
-    imageImportTriggerRef.current?.()
-  }, [])
-
-  const modes: { id: DesignerMode; label: string }[] = [
-    { id: 'graphic', label: 'Graphic' },
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'report', label: 'Report' },
-  ]
-
-  // Suppress unused warning
-  void draftXml
-  void lastSavedUndoRef
-
-  if (isLoadingGraphic) {
+  function CollapseBtn({ side, collapsed, onToggle }: { side: 'left' | 'right'; collapsed: boolean; onToggle: () => void }) {
+    const label = side === 'left'
+      ? (collapsed ? '▶' : '◀')
+      : (collapsed ? '◀' : '▶')
     return (
-      <div
+      <button
+        onClick={onToggle}
+        title={collapsed ? `Expand ${side} panel` : `Collapse ${side} panel`}
         style={{
+          position: 'absolute',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          ...(side === 'left' ? { right: -10 } : { left: -10 }),
+          zIndex: 20,
+          width: 14,
+          height: 32,
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: side === 'left' ? '0 4px 4px 0' : '4px 0 0 4px',
+          cursor: 'pointer',
           display: 'flex',
-          flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
+          fontSize: 8,
           color: 'var(--io-text-muted)',
-          fontSize: '13px',
-          background: 'var(--io-surface-primary)',
+          padding: 0,
         }}
       >
-        Loading graphic…
-      </div>
+        {label}
+      </button>
     )
   }
 
-  const focusMode = state.focusMode
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
 
   return (
-    <>
-      {/* Focus mode — full overlay that covers everything including AppShell */}
-      {focusMode && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 200,
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'var(--io-surface-primary)',
-          }}
-        >
-          {/* Minimal focus mode toolbar */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '0 8px',
-              height: '40px',
-              background: 'var(--io-surface-elevated)',
-              borderBottom: '1px solid var(--io-border)',
-              flexShrink: 0,
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      overflow: 'hidden',
+      background: 'var(--io-surface-primary)',
+    }}>
+      {/* New graphic dialog */}
+      {showNewDialog && (
+        <NewGraphicDialog onConfirm={handleNewConfirm} onCancel={handleNewCancel} />
+      )}
+
+      {/* Crash recovery banner */}
+      {crashRecovery && (
+        <div style={{
+          position: 'fixed',
+          top: 60,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 2000,
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          padding: '12px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          fontSize: 13,
+          color: 'var(--io-text-primary)',
+        }}>
+          <span>⚠ Unsaved work from {new Date(crashRecovery.savedAt).toLocaleTimeString()} was recovered.</span>
+          <button
+            onClick={() => {
+              // Dismiss — clear the auto-save
+              setCrashRecovery(null)
             }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--io-text-muted)', cursor: 'pointer', fontSize: 12 }}
           >
-            <Toolbar
-              activeTool={state.activeTool}
-              onToolChange={handleToolChange}
-              gridEnabled={state.gridEnabled}
-              onGridToggle={() => setState((prev) => ({ ...prev, gridEnabled: !prev.gridEnabled }))}
-              snapEnabled={state.snapEnabled}
-              onSnapToggle={() => setState((prev) => ({ ...prev, snapEnabled: !prev.snapEnabled }))}
-              onZoomIn={handleZoomIn}
-              onZoomOut={handleZoomOut}
-              onZoomFit={handleZoomFit}
-              onImageImport={handleImageImport}
-              zoom={state.zoom}
-              focusMode={focusMode}
-              onFocusModeToggle={() => setState((prev) => ({ ...prev, focusMode: false }))}
-            />
-            <button
-              onClick={() => setState((prev) => ({ ...prev, focusMode: false }))}
-              title="Exit focus mode (Esc)"
-              style={{
-                marginLeft: 'auto',
-                padding: '4px 10px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                border: '1px solid var(--io-border)',
-                borderRadius: 'var(--io-radius)',
-                background: 'transparent',
-                color: 'var(--io-text-secondary)',
-              }}
-            >
-              Exit Focus
-            </button>
-          </div>
-          <DesignerCanvas
-            mode={state.mode}
-            activeTool={state.activeTool}
-            gridEnabled={state.gridEnabled}
-            gridSize={state.gridSize}
-            snapEnabled={state.snapEnabled}
-            zoom={state.zoom}
-            panX={state.panX}
-            panY={state.panY}
-            onSelectionChange={handleSelectionChange}
-            onStateChange={handleStateChange}
-            onContentChange={handleContentChange}
-            onZoomChange={handleZoomChange}
-            getContentRef={getContentRef}
-            imageImportTriggerRef={imageImportTriggerRef}
-            initialSvg={existingGraphic?.svg_data ?? null}
-          />
+            Dismiss
+          </button>
         </div>
       )}
 
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          overflow: 'hidden',
-          background: 'var(--io-surface-primary)',
-          visibility: focusMode ? 'hidden' : 'visible',
-        }}
-      >
-        {showRecovery && (
-          <RecoveryDialog onRecover={handleRecoverDraft} onDiscard={handleDiscardDraft} />
+      {/* Version history dialog */}
+      <VersionHistoryDialog
+        open={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        graphicId={graphicId ?? null}
+        onPreview={() => {}}
+        onRestore={() => {}}
+      />
+
+      {/* Validate bindings dialog */}
+      <ValidateBindingsDialog
+        open={showValidateBindings}
+        onClose={() => setShowValidateBindings(false)}
+        unresolvedBindings={[]}
+        totalBound={0}
+        resolvedCount={0}
+      />
+
+      {/* Import wizard */}
+      {showImportWizard && (
+        <IographicImportWizard
+          onClose={() => setShowImportWizard(false)}
+        />
+      )}
+
+      {/* Export dialog */}
+      {showExportDialog && doc && (
+        <IographicExportDialog
+          graphicId={graphicIdInStore ?? ''}
+          graphicName={doc.name ?? 'Untitled'}
+          onClose={() => setShowExportDialog(false)}
+        />
+      )}
+
+      {/* Mode tabs */}
+      <DesignerModeTabs
+        onSave={handleSave}
+        onShowVersionHistory={() => setShowVersionHistory(true)}
+        onValidateBindings={() => setShowValidateBindings(true)}
+        onImport={() => setShowImportWizard(true)}
+        onExport={() => setShowExportDialog(true)}
+      />
+
+      {/* Toolbar */}
+      <DesignerToolbar
+        onSave={handleSave}
+        isSaving={isSaving}
+        onShowVersionHistory={() => setShowVersionHistory(true)}
+        onValidateBindings={() => setShowValidateBindings(true)}
+      />
+
+      {/* Body */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+        {/* Left palette */}
+        {!leftCollapsed && (
+          <div style={{ width: leftWidth, flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <DesignerLeftPalette collapsed={false} width={leftWidth} />
+            <CollapseBtn side="left" collapsed={false} onToggle={() => setLeftCollapsed(true)} />
+          </div>
         )}
 
-        {/* Header */}
-        <div style={headerStyle}>
-          {/* Mode tabs */}
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {modes.map(({ id, label }) => (
-              <button
-                key={id}
-                style={modeBtnStyle(state.mode === id)}
-                onClick={() => handleModeChange(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        {/* Left divider */}
+        {!leftCollapsed && <VerticalDivider onDrag={handleLeftDividerDrag} />}
 
-          <div style={{ flex: 1 }} />
-
-          {/* Document name */}
-          <input
-            value={state.documentName}
-            onChange={(e) =>
-              setState((prev) => ({ ...prev, documentName: e.target.value, isDirty: true }))
-            }
-            style={{
-              ...titleInputStyle,
-              borderColor: state.isDirty ? 'var(--io-border)' : 'transparent',
-            }}
-            onFocus={(e) =>
-              (e.currentTarget.style.borderColor = 'var(--io-accent)')
-            }
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = state.isDirty ? 'var(--io-border)' : 'transparent')
-            }
-          />
-
-          {state.isDirty && (
-            <span
-              style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginLeft: '4px' }}
-            >
-              ●
-            </span>
-          )}
-
-          <div style={{ flex: 1 }} />
-
-          {/* Actions */}
-          <button onClick={handleSave} disabled={isSaving} style={saveBtnStyle}>
-            {isSaving ? 'Saving…' : 'Save'}
-          </button>
+        {/* Collapsed left re-expand tab */}
+        {leftCollapsed && (
           <button
-            onClick={async () => {
-              await handleSave()
+            onClick={() => setLeftCollapsed(false)}
+            title="Expand left panel"
+            style={{
+              width: 16,
+              flexShrink: 0,
+              background: 'var(--io-surface)',
+              border: 'none',
+              borderRight: '1px solid var(--io-border)',
+              cursor: 'pointer',
+              color: 'var(--io-text-muted)',
+              fontSize: 9,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-            disabled={isSaving}
-            style={publishBtnStyle}
           >
-            Publish
+            ▶
           </button>
+        )}
+
+        {/* Canvas */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 200 }}>
+          {loading && <LoadingSkeleton />}
+          {loadError && <ErrorState message={loadError} onRetry={loadDoc} />}
+          {!loading && !loadError && <DesignerCanvas style={{ flex: 1 }} />}
         </div>
 
-        {/* Body */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          {/* Symbol library */}
-          <SymbolLibrary
-            mode={state.mode}
-            onSymbolDrop={() => {
-              // Canvas handles drop events directly
+        {/* Right divider */}
+        {!rightCollapsed && <VerticalDivider onDrag={handleRightDividerDrag} />}
+
+        {/* Collapsed right re-expand tab */}
+        {rightCollapsed && (
+          <button
+            onClick={() => setRightCollapsed(false)}
+            title="Expand right panel"
+            style={{
+              width: 16,
+              flexShrink: 0,
+              background: 'var(--io-surface)',
+              border: 'none',
+              borderLeft: '1px solid var(--io-border)',
+              cursor: 'pointer',
+              color: 'var(--io-text-muted)',
+              fontSize: 9,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
+          >
+            ◀
+          </button>
+        )}
 
-          {/* Center: toolbar + canvas */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <Toolbar
-              activeTool={state.activeTool}
-              onToolChange={handleToolChange}
-              gridEnabled={state.gridEnabled}
-              onGridToggle={() =>
-                setState((prev) => ({ ...prev, gridEnabled: !prev.gridEnabled }))
-              }
-              snapEnabled={state.snapEnabled}
-              onSnapToggle={() =>
-                setState((prev) => ({ ...prev, snapEnabled: !prev.snapEnabled }))
-              }
-              onZoomIn={handleZoomIn}
-              onZoomOut={handleZoomOut}
-              onZoomFit={handleZoomFit}
-              onImageImport={handleImageImport}
-              zoom={state.zoom}
-              focusMode={focusMode}
-              onFocusModeToggle={() => setState((prev) => ({ ...prev, focusMode: true }))}
-            />
-
-            <DesignerCanvas
-              mode={state.mode}
-              activeTool={state.activeTool}
-              gridEnabled={state.gridEnabled}
-              gridSize={state.gridSize}
-              snapEnabled={state.snapEnabled}
-              zoom={state.zoom}
-              panX={state.panX}
-              panY={state.panY}
-              onSelectionChange={handleSelectionChange}
-              onStateChange={handleStateChange}
-              onContentChange={handleContentChange}
-              onZoomChange={handleZoomChange}
-              getContentRef={getContentRef}
-              imageImportTriggerRef={imageImportTriggerRef}
-              initialSvg={existingGraphic?.svg_data ?? null}
-            />
+        {/* Right panel */}
+        {!rightCollapsed && (
+          <div style={{ width: rightWidth, flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <DesignerRightPanel collapsed={false} width={rightWidth} />
+            <CollapseBtn side="right" collapsed={false} onToggle={() => setRightCollapsed(true)} />
           </div>
-
-          {/* Property panel */}
-          <PropertyPanel
-            selectedIds={state.selectedElementIds}
-            svgRef={svgElRef}
-            bindings={bindings}
-            onBindingsChange={setBindings}
-            mode={state.mode}
-          />
-        </div>
+        )}
       </div>
-    </>
+
+      {/* Status bar */}
+      <DesignerStatusBar
+        wsConnected={wsConnected}
+        lastAutoSave={lastAutoSave}
+        onValidateBindings={() => setShowValidateBindings(true)}
+      />
+    </div>
   )
 }

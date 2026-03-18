@@ -27,7 +27,8 @@ services:
 
 volumes:
   io_pgdata:
-    driver: local
+    name: io-dev_io-pgdata
+    external: true
 
 networks:
   default:

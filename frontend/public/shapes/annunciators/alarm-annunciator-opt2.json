@@ -1,0 +1,22 @@
+{
+  "id": "alarm-annunciator-opt2",
+  "category": "annunciators",
+  "geometry": { "viewBox": "0 0 50 40", "width": 50, "height": 40 },
+  "connections": [
+    { "id": "signal", "type": "signal", "x": 12, "y": 20, "direction": "left" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 25, "y": -6, "width": 50, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 0.5, "ny": 1.25, "preferredElement": "text_readout" }
+  ],
+  "alarmAnchor": { "nx": 1.1, "ny": -0.1 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

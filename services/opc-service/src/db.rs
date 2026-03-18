@@ -195,12 +195,12 @@ pub async fn write_points_current(db: &DbPool, updates: &[PointUpdate]) -> anyho
             ORDER BY pt_id, ts DESC
         )
         INSERT INTO points_current (point_id, value, quality, timestamp, updated_at)
-        SELECT pt_id, val, qual, ts, ts FROM data
+        SELECT pt_id, val, qual, ts, NOW() FROM data
         ON CONFLICT (point_id) DO UPDATE
             SET value      = EXCLUDED.value,
                 quality    = EXCLUDED.quality,
                 timestamp  = EXCLUDED.timestamp,
-                updated_at = EXCLUDED.updated_at
+                updated_at = NOW()
         "#,
     )
     .bind(&ids)
@@ -404,5 +404,133 @@ pub async fn notify_broker(
             .context("notify_broker: pg_notify failed")?;
     }
 
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// History recovery jobs
+// ---------------------------------------------------------------------------
+
+/// A pending or running history recovery job.
+#[derive(Debug, Clone)]
+pub struct RecoveryJob {
+    pub id: Uuid,
+    pub source_id: Uuid,
+    pub from_time: DateTime<Utc>,
+    pub to_time: DateTime<Utc>,
+}
+
+/// Returns the latest timestamp stored in `points_history_raw` for points belonging
+/// to the given source.  Used to compute the auto-recovery window on startup.
+pub async fn get_last_history_timestamp(
+    db: &DbPool,
+    source_id: Uuid,
+) -> anyhow::Result<Option<DateTime<Utc>>> {
+    let ts = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+        r#"SELECT MAX(ph.time)
+           FROM points_history_raw ph
+           JOIN points_metadata pm ON pm.id = ph.point_id
+           WHERE pm.source_id = $1"#,
+    )
+    .bind(source_id)
+    .fetch_one(db)
+    .await
+    .context("get_last_history_timestamp")?;
+    Ok(ts)
+}
+
+/// Insert a new history recovery job and return its id.
+pub async fn create_recovery_job(
+    db: &DbPool,
+    source_id: Uuid,
+    from_time: DateTime<Utc>,
+    to_time: DateTime<Utc>,
+    requested_by: Option<Uuid>,
+) -> anyhow::Result<Uuid> {
+    let id = sqlx::query_scalar::<_, Uuid>(
+        r#"INSERT INTO opc_history_recovery_jobs (source_id, from_time, to_time, requested_by)
+           VALUES ($1, $2, $3, $4) RETURNING id"#,
+    )
+    .bind(source_id)
+    .bind(from_time)
+    .bind(to_time)
+    .bind(requested_by)
+    .fetch_one(db)
+    .await
+    .context("create_recovery_job")?;
+    Ok(id)
+}
+
+/// Fetch pending jobs for a source (oldest first, limit 10).
+pub async fn get_pending_recovery_jobs(
+    db: &DbPool,
+    source_id: Uuid,
+) -> anyhow::Result<Vec<RecoveryJob>> {
+    use sqlx::Row;
+    let rows = sqlx::query(
+        r#"SELECT id, source_id, from_time, to_time
+           FROM opc_history_recovery_jobs
+           WHERE source_id = $1 AND status = 'pending'
+           ORDER BY created_at ASC
+           LIMIT 10"#,
+    )
+    .bind(source_id)
+    .fetch_all(db)
+    .await
+    .context("get_pending_recovery_jobs")?;
+
+    rows.into_iter()
+        .map(|row| {
+            Ok(RecoveryJob {
+                id: row.try_get("id")?,
+                source_id: row.try_get("source_id")?,
+                from_time: row.try_get("from_time")?,
+                to_time: row.try_get("to_time")?,
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()
+}
+
+/// Mark a job as running.
+pub async fn claim_recovery_job(db: &DbPool, job_id: Uuid) -> anyhow::Result<()> {
+    sqlx::query(
+        "UPDATE opc_history_recovery_jobs SET status='running', started_at=now() WHERE id=$1",
+    )
+    .bind(job_id)
+    .execute(db)
+    .await
+    .context("claim_recovery_job")?;
+    Ok(())
+}
+
+/// Mark a job as complete.
+pub async fn complete_recovery_job(
+    db: &DbPool,
+    job_id: Uuid,
+    points_recovered: i64,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "UPDATE opc_history_recovery_jobs \
+         SET status='complete', completed_at=now(), points_recovered=$2 WHERE id=$1",
+    )
+    .bind(job_id)
+    .bind(points_recovered)
+    .execute(db)
+    .await
+    .context("complete_recovery_job")?;
+    Ok(())
+}
+
+/// Mark a job as failed.
+pub async fn fail_recovery_job(db: &DbPool, job_id: Uuid, error: &str) -> anyhow::Result<()> {
+    sqlx::query(
+        "UPDATE opc_history_recovery_jobs \
+         SET status='failed', completed_at=now(), error_message=$2 WHERE id=$1",
+    )
+    .bind(job_id)
+    .bind(error)
+    .execute(db)
+    .await
+    .context("fail_recovery_job")?;
     Ok(())
 }

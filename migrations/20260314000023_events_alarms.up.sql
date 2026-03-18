@@ -1,3 +1,4 @@
+-- no-transaction
 -- Events & alarms: enums, events hypertable, alarm states, definitions, shelving
 
 CREATE TYPE event_type_enum AS ENUM (

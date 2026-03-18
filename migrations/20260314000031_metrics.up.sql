@@ -1,3 +1,4 @@
+-- no-transaction
 -- Observability metrics schema (see doc 36)
 
 CREATE SCHEMA IF NOT EXISTS io_metrics;

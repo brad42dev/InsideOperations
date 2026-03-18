@@ -3,7 +3,11 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   pointSourcesApi,
+  pointSourceStatsApi,
+  historyRecoveryApi,
   PointSource,
+  PointSourceStats,
+  RecoveryJob,
   CreatePointSourceRequest,
   UpdatePointSourceRequest,
 } from '../../api/points'
@@ -106,6 +110,159 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Source stats — inline chips for the table row
+// ---------------------------------------------------------------------------
+
+function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
+function SourceStatsChips({ stats }: { stats: PointSourceStats | undefined }) {
+  if (!stats) return null
+  const chips: Array<{ label: string; value: string; color?: string }> = [
+    { label: 'pts', value: fmtCount(stats.point_count) },
+    { label: 'active', value: fmtCount(stats.active_subscriptions) },
+  ]
+  if (stats.updates_per_minute !== null) {
+    chips.push({ label: '/min', value: fmtCount(stats.updates_per_minute) })
+  }
+  if (stats.error_count_24h > 0) {
+    chips.push({ label: 'errors', value: String(stats.error_count_24h), color: 'var(--io-danger)' })
+  }
+  return (
+    <div
+      style={{ display: 'flex', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {chips.map((c) => (
+        <span
+          key={c.label}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'baseline',
+            gap: '3px',
+            fontSize: '11px',
+            color: c.color ?? 'var(--io-text-muted)',
+          }}
+        >
+          <strong style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{c.value}</strong>
+          <span style={{ opacity: 0.7 }}>{c.label}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Source stats — tile grid for the detail panel
+// ---------------------------------------------------------------------------
+
+function SourceStatsTiles({ sourceId }: { sourceId: string }) {
+  const statsQuery = useQuery({
+    queryKey: ['point-source-stats', sourceId],
+    queryFn: async () => {
+      const r = await pointSourceStatsApi.get(sourceId)
+      if (!r.success) throw new Error(r.error.message)
+      return r.data as PointSourceStats
+    },
+    refetchInterval: 15_000,
+  })
+
+  const s = statsQuery.data
+  const tiles: Array<{ label: string; value: string; sub?: string; accent?: boolean; danger?: boolean }> = [
+    {
+      label: 'Total Points',
+      value: s ? fmtCount(s.point_count) : '—',
+      sub: 'configured',
+    },
+    {
+      label: 'Active Subs',
+      value: s ? fmtCount(s.active_subscriptions) : '—',
+      sub: 'subscriptions',
+      accent: s ? s.active_subscriptions > 0 : false,
+    },
+    {
+      label: 'Updates / min',
+      value: s?.updates_per_minute !== null && s?.updates_per_minute !== undefined
+        ? fmtCount(s.updates_per_minute)
+        : '—',
+      sub: 'recording',
+    },
+    {
+      label: 'Errors (24 h)',
+      value: s ? String(s.error_count_24h) : '—',
+      danger: s ? s.error_count_24h > 0 : false,
+    },
+  ]
+
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: '11px',
+          fontWeight: 600,
+          color: 'var(--io-text-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          marginBottom: '10px',
+        }}
+      >
+        Live Statistics
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '20px' }}>
+        {tiles.map((t) => (
+          <div
+            key={t.label}
+            style={{
+              background: 'var(--io-surface-secondary)',
+              border: '1px solid var(--io-border-subtle)',
+              borderRadius: 'var(--io-radius)',
+              padding: '12px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '20px',
+                fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
+                color: t.danger
+                  ? 'var(--io-danger)'
+                  : t.accent
+                    ? 'var(--io-success)'
+                    : 'var(--io-text-primary)',
+                lineHeight: 1.1,
+              }}
+            >
+              {statsQuery.isLoading ? (
+                <span style={{ opacity: 0.3 }}>—</span>
+              ) : (
+                t.value
+              )}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', lineHeight: 1.3 }}>
+              {t.label}
+              {t.sub && (
+                <span style={{ display: 'block', opacity: 0.7 }}>{t.sub}</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {s?.last_value_at && (
+        <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: '16px' }}>
+          Last value received: {new Date(s.last_value_at).toLocaleString()}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Modal wrapper
 // ---------------------------------------------------------------------------
 
@@ -182,7 +339,7 @@ interface SourceFormState {
   enabled: boolean
 }
 
-const SECURITY_POLICIES = ['None', 'Basic256Sha256', 'Aes256Sha256RsaPss']
+const SECURITY_POLICIES = ['None', 'Basic256Sha256', 'Aes128Sha256RsaOaep', 'Aes256Sha256RsaPss']
 const SECURITY_MODES = ['None', 'Sign', 'SignAndEncrypt']
 
 function SourceFormFields({
@@ -717,6 +874,273 @@ function ServerCertTab({ sourceId }: { sourceId: string }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// History Recovery tab
+// ---------------------------------------------------------------------------
+
+const SHORTCUT_HOURS = [1, 4, 8, 24, 48, 72, 168] as const
+
+function fmtDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function statusColor(status: RecoveryJob['status']): string {
+  switch (status) {
+    case 'complete': return 'var(--io-success)'
+    case 'running':  return 'var(--io-accent)'
+    case 'failed':   return 'var(--io-danger)'
+    default:         return 'var(--io-text-muted)'
+  }
+}
+
+function HistoryRecoveryTab({ sourceId }: { sourceId: string }) {
+  const qc = useQueryClient()
+
+  // Default: last 1 hour
+  const now = new Date()
+  const oneHourAgo = new Date(now.getTime() - 3600_000)
+  const [fromValue, setFromValue] = useState(fmtDatetimeLocal(oneHourAgo))
+  const [toValue, setToValue]     = useState(fmtDatetimeLocal(now))
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitOk, setSubmitOk]   = useState(false)
+
+  const jobsQuery = useQuery({
+    queryKey: ['history-recovery-jobs', sourceId],
+    queryFn: async () => {
+      const r = await historyRecoveryApi.listJobs(sourceId)
+      if (!r.success) throw new Error(r.error.message)
+      return r.data as RecoveryJob[]
+    },
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data) return 10_000
+      const hasActive = data.some((j) => j.status === 'pending' || j.status === 'running')
+      return hasActive ? 3_000 : 15_000
+    },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const from = new Date(fromValue).toISOString()
+      const to   = new Date(toValue).toISOString()
+      const r = await historyRecoveryApi.createJob(sourceId, from, to)
+      if (!r.success) throw new Error(r.error.message)
+      return r.data
+    },
+    onSuccess: () => {
+      setSubmitOk(true)
+      setSubmitError(null)
+      setTimeout(() => setSubmitOk(false), 4000)
+      qc.invalidateQueries({ queryKey: ['history-recovery-jobs', sourceId] })
+    },
+    onError: (e: Error) => {
+      setSubmitError(e.message)
+      setSubmitOk(false)
+    },
+  })
+
+  function applyShortcut(hours: number) {
+    const t = new Date()
+    const f = new Date(t.getTime() - hours * 3600_000)
+    setFromValue(fmtDatetimeLocal(f))
+    setToValue(fmtDatetimeLocal(t))
+  }
+
+  const jobs = jobsQuery.data ?? []
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Request form */}
+      <div
+        style={{
+          background: 'var(--io-surface-secondary)',
+          border: '1px solid var(--io-border-subtle)',
+          borderRadius: 'var(--io-radius)',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}
+      >
+        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
+          Request Historical Data Recovery
+        </div>
+
+        {/* Quick shortcuts */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {SHORTCUT_HOURS.map((h) => (
+            <button
+              key={h}
+              onClick={() => applyShortcut(h)}
+              style={{
+                padding: '4px 10px',
+                fontSize: '12px',
+                background: 'var(--io-surface-sunken)',
+                border: '1px solid var(--io-border)',
+                borderRadius: '4px',
+                color: 'var(--io-text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              {h < 24 ? `Last ${h}h` : `Last ${h / 24}d`}
+            </button>
+          ))}
+        </div>
+
+        {/* Date range */}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: '4px' }}>
+              From
+            </div>
+            <input
+              type="datetime-local"
+              value={fromValue}
+              onChange={(e) => setFromValue(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '7px 9px',
+                background: 'var(--io-surface-sunken)',
+                border: '1px solid var(--io-border)',
+                borderRadius: '4px',
+                color: 'var(--io-text-primary)',
+                fontSize: '13px',
+              }}
+            />
+          </div>
+          <div style={{ paddingTop: '18px', color: 'var(--io-text-muted)', fontSize: '12px' }}>→</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: '4px' }}>
+              To
+            </div>
+            <input
+              type="datetime-local"
+              value={toValue}
+              onChange={(e) => setToValue(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '7px 9px',
+                background: 'var(--io-surface-sunken)',
+                border: '1px solid var(--io-border)',
+                borderRadius: '4px',
+                color: 'var(--io-text-primary)',
+                fontSize: '13px',
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending}
+            style={{
+              padding: '8px 16px',
+              background: 'var(--io-accent)',
+              border: 'none',
+              borderRadius: '4px',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: createMutation.isPending ? 0.7 : 1,
+            }}
+          >
+            {createMutation.isPending ? 'Submitting…' : 'Request Recovery'}
+          </button>
+          {submitOk && (
+            <span style={{ fontSize: '12px', color: 'var(--io-success)' }}>
+              Job queued — the OPC service will process it shortly.
+            </span>
+          )}
+          {submitError && (
+            <span style={{ fontSize: '12px', color: 'var(--io-danger)' }}>{submitError}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Recent jobs */}
+      <div>
+        <div
+          style={{
+            fontSize: '12px',
+            fontWeight: 600,
+            color: 'var(--io-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: '10px',
+          }}
+        >
+          Recent Jobs
+        </div>
+        {jobs.length === 0 ? (
+          <div
+            style={{
+              padding: '20px',
+              textAlign: 'center',
+              color: 'var(--io-text-muted)',
+              fontSize: '13px',
+              background: 'var(--io-surface-secondary)',
+              border: '1px solid var(--io-border-subtle)',
+              borderRadius: 'var(--io-radius)',
+            }}
+          >
+            No recovery jobs yet.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {jobs.map((job) => (
+              <div
+                key={job.id}
+                style={{
+                  background: 'var(--io-surface-secondary)',
+                  border: '1px solid var(--io-border-subtle)',
+                  borderRadius: 'var(--io-radius)',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: statusColor(job.status),
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {job.status}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
+                    {new Date(job.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--io-text-secondary)', fontFamily: 'monospace' }}>
+                  {new Date(job.from_time).toLocaleString()} → {new Date(job.to_time).toLocaleString()}
+                </div>
+                {job.status === 'complete' && (
+                  <div style={{ fontSize: '12px', color: 'var(--io-success)' }}>
+                    {job.points_recovered.toLocaleString()} points recovered
+                  </div>
+                )}
+                {job.error_message && (
+                  <div style={{ fontSize: '12px', color: 'var(--io-danger)', fontFamily: 'monospace' }}>
+                    {job.error_message}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Detail panel (slide-over with tabs)
 // ---------------------------------------------------------------------------
 
@@ -877,11 +1301,18 @@ function SourceDetailPanel({
               >
                 Server Certificate
               </button>
+              <button
+                style={activeTab === 'history-recovery' ? TAB_TRIGGER_ACTIVE : TAB_TRIGGER}
+                onClick={() => setActiveTab('history-recovery')}
+              >
+                History Recovery
+              </button>
             </div>
 
             {/* Details tab content */}
             {activeTab === 'details' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                <SourceStatsTiles sourceId={source.id} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <DetailRow label="Status">
                     <StatusBadge status={source.status} />
@@ -963,6 +1394,13 @@ function SourceDetailPanel({
                 <ServerCertTab sourceId={source.id} />
               </div>
             )}
+
+            {/* History Recovery tab content */}
+            {activeTab === 'history-recovery' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                <HistoryRecoveryTab sourceId={source.id} />
+              </div>
+            )}
           </div>
         </Dialog.Content>
       </Dialog.Portal>
@@ -1032,6 +1470,22 @@ export default function OpcSourcesPage() {
       return hasActive ? 3_000 : 8_000
     },
   })
+
+  const statsQuery = useQuery({
+    queryKey: ['point-sources-stats'],
+    queryFn: async () => {
+      const r = await pointSourceStatsApi.listAll()
+      if (!r.success) return [] as PointSourceStats[]
+      return r.data as PointSourceStats[]
+    },
+    refetchInterval: 30_000,
+  })
+
+  const statsById = React.useMemo(() => {
+    const m = new Map<string, PointSourceStats>()
+    for (const s of statsQuery.data ?? []) m.set(s.source_id, s)
+    return m
+  }, [statsQuery.data])
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => pointSourcesApi.delete(id),
@@ -1149,6 +1603,7 @@ export default function OpcSourcesPage() {
                         disabled
                       </div>
                     )}
+                    <SourceStatsChips stats={statsById.get(src.id)} />
                   </td>
                   <td style={cellStyle}>
                     <span

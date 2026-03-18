@@ -1,0 +1,14 @@
+{
+  "id": "agitator-turbine",
+  "category": "agitators",
+  "isPart": true,
+  "partClass": "io-part-agitator",
+  "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
+  "connections": [
+    { "id": "shaft-top", "type": "mechanical", "x": 20, "y": 7, "direction": "top" }
+  ],
+  "textZones": [],
+  "valueAnchors": [],
+  "alarmAnchor": null,
+  "states": {}
+}

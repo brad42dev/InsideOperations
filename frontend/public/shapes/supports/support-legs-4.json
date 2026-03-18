@@ -1,0 +1,12 @@
+{
+  "id": "support-legs-4",
+  "category": "supports",
+  "isPart": true,
+  "partClass": "io-part-support",
+  "geometry": { "viewBox": "0 0 40 86", "width": 40, "height": 86 },
+  "connections": [],
+  "textZones": [],
+  "valueAnchors": [],
+  "alarmAnchor": null,
+  "states": {}
+}

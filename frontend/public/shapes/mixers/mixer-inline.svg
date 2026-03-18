@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 30" data-io-shape="mixer-inline">
+  <g class="io-shape-body">
+    <rect x="10" y="5" width="50" height="20" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polyline points="10,5 16,25 22,5 28,25 34,5 40,25 46,5 52,25 58,5 60,15" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <line x1="2" y1="15" x2="10" y2="15" stroke="#808080" stroke-width="1.5"/>
+    <line x1="60" y1="15" x2="68" y2="15" stroke="#808080" stroke-width="1.5"/>
+  </g>
+  <g class="io-connections" display="none">
+    <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="2" cy="15" r="3"/>
+    <circle data-conn-id="outlet" data-conn-type="process" data-conn-dir="right" cx="68" cy="15" r="3"/>
+  </g>
+</svg>

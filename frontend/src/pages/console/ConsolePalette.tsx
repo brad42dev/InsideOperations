@@ -1,18 +1,10 @@
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
-import { graphicsApi } from '../../api/graphics'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface Graphic {
-  id: string
-  name: string
-  type: string
-  bindings_count: number
-}
 
 interface Point {
   id: string
@@ -26,8 +18,7 @@ interface Point {
 export const CONSOLE_DRAG_KEY = 'application/io-console-item'
 
 export interface ConsoleDragItem {
-  itemType: 'graphic' | 'trend' | 'point_table' | 'alarm_list'
-  graphicId?: string
+  itemType: 'trend' | 'point_table' | 'alarm_list'
   label?: string
   pointIds?: string[]
 }
@@ -192,75 +183,6 @@ function DraggableItem({
 }
 
 // ---------------------------------------------------------------------------
-// Graphics section
-// ---------------------------------------------------------------------------
-
-function GraphicsSection() {
-  const [search, setSearch] = useState('')
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['console-palette-graphics'],
-    queryFn: async () => {
-      const r = await graphicsApi.list()
-      if (!r.success) return []
-      return r.data as Graphic[]
-    },
-    staleTime: 30_000,
-  })
-
-  const items = (data ?? []).filter((g) =>
-    search ? g.name.toLowerCase().includes(search.toLowerCase()) : true,
-  )
-
-  return (
-    <div style={{ padding: '6px 4px 4px' }}>
-      <div style={{ padding: '0 6px 6px' }}>
-        <input
-          type="search"
-          placeholder="Filter graphics…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={searchInput}
-        />
-      </div>
-      {isLoading && (
-        <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
-          Loading…
-        </div>
-      )}
-      {!isLoading && items.length === 0 && (
-        <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
-          {search ? 'No matches' : 'No graphics — create one in Designer'}
-        </div>
-      )}
-      {items.map((g) => (
-        <DraggableItem
-          key={g.id}
-          item={{ itemType: 'graphic', graphicId: g.id, label: g.name }}
-        >
-          {/* Graphic icon */}
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
-            <rect x="1" y="1" width="14" height="14" rx="2" />
-            <circle cx="5.5" cy="5.5" r="1.5" />
-            <polyline points="1 10 5 6.5 8 9.5 11 7 15 11" />
-          </svg>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
-              {g.name}
-            </div>
-            {g.bindings_count > 0 && (
-              <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>
-                {g.bindings_count} binding{g.bindings_count !== 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
-        </DraggableItem>
-      ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Widgets section (Trend, Point Table, Alarm List)
 // ---------------------------------------------------------------------------
 
@@ -417,7 +339,6 @@ interface ConsolePaletteProps {
 
 export default function ConsolePalette({ visible, onToggle }: ConsolePaletteProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    graphics: true,
     widgets: true,
     points: false,
   })
@@ -506,14 +427,6 @@ export default function ConsolePalette({ visible, onToggle }: ConsolePaletteProp
 
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <AccordionSection
-          title="Graphics"
-          open={openSections.graphics}
-          onToggle={() => toggleSection('graphics')}
-        >
-          <GraphicsSection />
-        </AccordionSection>
-
         <AccordionSection
           title="Widgets"
           open={openSections.widgets}

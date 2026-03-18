@@ -1,0 +1,12 @@
+{
+  "id": "support-saddles",
+  "category": "supports",
+  "isPart": true,
+  "partClass": "io-part-support",
+  "geometry": { "viewBox": "0 0 80 14", "width": 80, "height": 14 },
+  "connections": [],
+  "textZones": [],
+  "valueAnchors": [],
+  "alarmAnchor": null,
+  "states": {}
+}

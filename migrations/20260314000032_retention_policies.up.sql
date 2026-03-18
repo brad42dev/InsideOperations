@@ -1,3 +1,4 @@
+-- no-transaction
 -- TimescaleDB retention and compression policies
 
 -- Enable compression on points_history_raw before setting a compression policy

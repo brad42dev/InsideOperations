@@ -1,0 +1,24 @@
+{
+  "id": "column-distillation-narrow",
+  "category": "columns",
+  "geometry": { "viewBox": "0 0 40 120", "width": 40, "height": 120 },
+  "connections": [
+    { "id": "feed",           "type": "process", "x": 12, "y": 60,  "direction": "left" },
+    { "id": "overhead-vapor", "type": "process", "x": 20, "y": 10,  "direction": "top" },
+    { "id": "bottoms",        "type": "process", "x": 20, "y": 110, "direction": "bottom" }
+  ],
+  "textZones": [
+    { "id": "tagname", "x": 20, "y": -8, "width": 40, "anchor": "middle", "fontSize": 11 }
+  ],
+  "valueAnchors": [
+    { "nx": 1.2, "ny": 0.5, "preferredElement": "text_readout" }
+  ],
+  "alarmAnchor": { "nx": 1.1, "ny": -0.05 },
+  "states": {
+    "running": "io-running",
+    "stopped": "io-stopped",
+    "fault": "io-fault",
+    "transitioning": "io-transitioning",
+    "oos": "io-oos"
+  }
+}

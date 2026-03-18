@@ -15,10 +15,12 @@ use io_bus::{
 use io_db::DbPool;
 use opcua::client::prelude::*;
 use opcua::sync::RwLock;
+use opcua::client::prelude::HistoryReadAction;
 use opcua::types::{
-    AttributeId, BrowseDescription, BrowseDirection, MonitoredItemCreateRequest,
-    MonitoringMode, MonitoringParameters, NodeClass, NodeId, QualifiedName, ReadValueId,
-    ReferenceTypeId, StatusCode, TimestampsToReturn, UAString,
+    AttributeId, BrowseDescription, BrowseDirection, DecodingOptions, HistoryData,
+    HistoryReadValueId, MonitoredItemCreateRequest, MonitoringMode, MonitoringParameters,
+    NodeClass, NodeId, QualifiedName, ReadRawModifiedDetails, ReadValueId, ReferenceTypeId,
+    StatusCode, TimestampsToReturn, UAString,
 };
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -325,6 +327,59 @@ async fn run_source_once(
     // Opportunistic — failures are non-fatal; missing properties are skipped.
     harvest_analog_metadata(source, db, &session, &node_map, &analog_nodes).await;
 
+    // --- Startup history auto-recovery ---
+    // On every connect, check the most recent timestamp we have for this source.
+    // Request HistoricalRead from the start of that last full hour to now so that
+    // any data missed during a comm gap (reboot, network outage, etc.) is recovered.
+    {
+        let now = Utc::now();
+        let recover_from = match db::get_last_history_timestamp(db, source.id).await {
+            Ok(Some(last_ts)) => {
+                use chrono::Timelike;
+                // Round down to the start of the hour containing the last stored value
+                // so we overlap slightly and don't miss data at hourly boundaries.
+                let hour_start = last_ts
+                    .with_minute(0)
+                    .and_then(|t: chrono::DateTime<Utc>| t.with_second(0))
+                    .and_then(|t: chrono::DateTime<Utc>| t.with_nanosecond(0))
+                    .unwrap_or(last_ts);
+                Some(hour_start)
+            }
+            Ok(None) => {
+                // No history yet — recover the last hour as an initial backfill.
+                Some(now - chrono::Duration::hours(1))
+            }
+            Err(e) => {
+                warn!(source = %source.name, error = %e, "Failed to query last history timestamp (skipping auto-recovery)");
+                None
+            }
+        };
+
+        if let Some(from_time) = recover_from {
+            // Only recover if there's actually a gap (from_time must be in the past).
+            if from_time < now {
+                info!(
+                    source = %source.name,
+                    from = %from_time,
+                    to = %now,
+                    "Starting startup history auto-recovery"
+                );
+                match harvest_history(source, db, &session, &node_map, from_time, now).await {
+                    Ok(n) => info!(
+                        source = %source.name,
+                        rows = n,
+                        "Startup history auto-recovery complete"
+                    ),
+                    Err(e) => warn!(
+                        source = %source.name,
+                        error = %e,
+                        "Startup history auto-recovery failed (non-fatal)"
+                    ),
+                }
+            }
+        }
+    }
+
     // Mark active; send UDS online status.
     if let Err(e) = db::set_source_status(db, source.id, "active", None).await {
         warn!(source = %source.name, error = %e, "Failed to set status to active");
@@ -345,17 +400,30 @@ async fn run_source_once(
     // --- Subscribe ---
     let (update_tx, update_rx) = mpsc::unbounded_channel::<PointUpdate>();
 
-    create_subscriptions(source, &session, &node_map, update_tx, config)?;
+    let good_items = create_subscriptions(source, &session, &node_map, update_tx, config)?;
 
     // --- OPC UA Part 9 A&C event subscription (non-fatal) ---
     // Store the handle so we can abort the drain task when this session ends,
     // preventing stale tasks from accumulating across reconnect cycles.
     let event_task = create_event_subscription(source, db, &session, config).await;
 
-    info!(source = %source.name, "Entering flush loop — waiting for OPC UA DataChange callbacks");
-
-    // --- Flush loop (runs until session ends) ---
-    flush_loop(source, db, uds, config, update_rx).await;
+    // If all monitored items returned BadServiceUnsupported (0 good items), fall back to
+    // periodic polling via OPC UA Read instead of subscriptions.  This handles servers
+    // that implement Browse and Read but not the Subscription service, or servers that
+    // have exhausted their subscription quota from zombie sessions.
+    if good_items == 0 && !node_map.is_empty() {
+        warn!(
+            source = %source.name,
+            points = node_map.len(),
+            "All monitored items returned non-Good status — falling back to polling mode"
+        );
+        drop(update_rx); // won't be used in polling mode
+        poll_loop(source, db, uds, config, &session, &node_map).await;
+    } else {
+        info!(source = %source.name, "Entering flush loop — waiting for OPC UA DataChange callbacks");
+        // --- Flush loop (runs until session ends) ---
+        flush_loop(source, db, uds, config, &session, &node_map, update_rx).await;
+    }
 
     // Abort the A&C drain task — the session is gone, events will no longer arrive.
     if let Some(handle) = event_task {
@@ -688,9 +756,87 @@ async fn harvest_analog_metadata(
 }
 
 /// Read OPC UA Part 8 AnalogItemType properties for a single variable node.
-/// Uses relative path Browse → Read pattern to locate child property nodes.
+///
+/// Fast path: if the node uses SimBLAH's `ns=1;s="<point_name>"` convention, the property
+/// NodeIds are predictable (`ns=1;s="prop:EURange:<name>"`, `ns=1;s="prop:EU:<name>"`) and
+/// can be batch-read directly without a prior Browse round-trip.
+///
+/// Slow path (generic servers): Browse HasProperty children, then batch-read their values.
 /// All failures are silently ignored (returns empty AnalogMetadata).
 fn read_analog_properties(session: &Session, node_id: &NodeId) -> AnalogMetadata {
+    // Fast path — SimBLAH publishes properties at known NodeIds under ns=1 string identifiers.
+    if node_id.namespace == 1 {
+        if let opcua::types::Identifier::String(ref s) = node_id.identifier {
+            if let Some(point_name) = s.value() {
+                // Reject anything that already looks like a property or folder prefix.
+                if !point_name.starts_with("prop:") && !point_name.starts_with("folder:") {
+                    if let Some(meta) = read_analog_properties_simblah(session, point_name) {
+                        return meta;
+                    }
+                }
+            }
+        }
+    }
+
+    read_analog_properties_generic(session, node_id)
+}
+
+/// SimBLAH-specific fast path: construct property NodeIds directly and batch-read.
+/// Returns None if the batch read itself fails (caller falls back to generic path).
+fn read_analog_properties_simblah(session: &Session, point_name: &str) -> Option<AnalogMetadata> {
+    use opcua::types::Identifier;
+
+    let prop_names: &[(&str, &str)] = &[
+        ("prop:EURange",          "EURange"),
+        ("prop:EU",               "EngineeringUnits"),
+        ("prop:TrueState",        "TrueState"),
+        ("prop:FalseState",       "FalseState"),
+        ("prop:EnumStrings",      "EnumStrings"),
+    ];
+
+    let read_nodes: Vec<ReadValueId> = prop_names
+        .iter()
+        .map(|(prefix, _)| {
+            let key = format!("{}:{}", prefix, point_name);
+            ReadValueId {
+                node_id: NodeId {
+                    namespace: 1,
+                    identifier: Identifier::String(UAString::from(key)),
+                },
+                attribute_id: AttributeId::Value as u32,
+                index_range: UAString::null(),
+                data_encoding: QualifiedName::null(),
+            }
+        })
+        .collect();
+
+    let data_values = session
+        .read(&read_nodes, TimestampsToReturn::Neither, 0.0)
+        .ok()?;
+
+    let mut meta = AnalogMetadata::default();
+    for ((_, prop_name), dv) in prop_names.iter().zip(data_values.iter()) {
+        let Some(ref variant) = dv.value else { continue };
+        match *prop_name {
+            "EngineeringUnits" => {
+                meta.engineering_units = extract_eu_display_name(variant);
+            }
+            "EURange" => {
+                if let Some((low, high)) = extract_eu_range(variant) {
+                    meta.eu_range_low = Some(low);
+                    meta.eu_range_high = Some(high);
+                }
+            }
+            // TrueState/FalseState/EnumStrings are browse metadata — not stored in AnalogMetadata.
+            _ => {}
+        }
+    }
+
+    Some(meta)
+}
+
+/// Generic OPC UA property harvest: Browse HasProperty children, then batch-read their values.
+fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> AnalogMetadata {
     let mut meta = AnalogMetadata::default();
 
     // Browse the node's properties (PropertyType reference = ns=0;i=68).
@@ -931,19 +1077,22 @@ fn decode_eu_range(ext: &opcua::types::ExtensionObject) -> Option<(f64, f64)> {
 // Subscription creation
 // ---------------------------------------------------------------------------
 
+/// Returns the total number of monitored items that were accepted (Good status) by the server.
+/// A return value of 0 means all items failed — caller should fall back to polling mode.
 fn create_subscriptions(
     source: &PointSource,
     session: &Arc<RwLock<Session>>,
     node_map: &HashMap<NodeId, Uuid>,
     update_tx: mpsc::UnboundedSender<PointUpdate>,
     config: &Arc<Config>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<usize> {
     let node_ids: Vec<(NodeId, Uuid)> = node_map
         .iter()
         .map(|(n, p)| (n.clone(), *p))
         .collect();
 
     let publishing_ms = config.publishing_interval_ms;
+    let mut total_good: usize = 0;
 
     for (chunk_idx, chunk) in node_ids.chunks(config.subscription_batch_size).enumerate() {
         let chunk: Vec<(NodeId, Uuid)> = chunk.to_vec();
@@ -1041,17 +1190,20 @@ fn create_subscriptions(
             );
         }
 
+        let chunk_good = item_results.iter().filter(|r| r.status_code.is_good()).count();
+        total_good += chunk_good;
+
         info!(
             source = %source.name,
             chunk = chunk_idx,
             items = chunk.len(),
-            good_items = item_results.iter().filter(|r| r.status_code.is_good()).count(),
+            good_items = chunk_good,
             sub_id,
             "Created OPC UA subscription"
         );
     }
 
-    Ok(())
+    Ok(total_good)
 }
 
 // ---------------------------------------------------------------------------
@@ -1416,6 +1568,304 @@ async fn create_event_subscription(
 }
 
 // ---------------------------------------------------------------------------
+// History recovery
+// ---------------------------------------------------------------------------
+
+/// Performs an OPC UA HistoricalRead for all nodes in `node_map` over the range
+/// [from_time, to_time], writing results to `points_history_raw`.
+/// Returns the total number of data-value rows recovered.
+///
+/// Uses server-side pagination (continuation points) so arbitrarily large ranges
+/// are handled correctly even when the server limits results per request.
+async fn harvest_history(
+    source: &PointSource,
+    db: &DbPool,
+    session: &Arc<RwLock<Session>>,
+    node_map: &HashMap<NodeId, Uuid>,
+    from_time: chrono::DateTime<Utc>,
+    to_time: chrono::DateTime<Utc>,
+) -> anyhow::Result<u64> {
+    use opcua::types::DateTime as OpcDateTime;
+
+    let node_ids: Vec<(NodeId, Uuid)> =
+        node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
+
+    // OPC UA HistoricalRead supports up to ~1000 nodes per request on most servers.
+    // We use 200 nodes per chunk to stay well within limits.
+    const HISTORY_CHUNK: usize = 200;
+    // Values-per-node per page. 0 = server default (typically 100–1000).
+    // Use an explicit limit so we can page predictably.
+    const VALUES_PER_PAGE: u32 = 500;
+
+    let mut total_written: u64 = 0;
+
+    for chunk in node_ids.chunks(HISTORY_CHUNK) {
+        // Track continuation points per node (empty = first request).
+        let mut continuations: Vec<opcua::types::ByteString> =
+            vec![opcua::types::ByteString::null(); chunk.len()];
+        // Once a node has no more pages we remove it from subsequent requests.
+        let mut active: Vec<bool> = vec![true; chunk.len()];
+
+        loop {
+            let nodes_to_read: Vec<HistoryReadValueId> = chunk
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| active[*i])
+                .map(|(i, (nid, _))| HistoryReadValueId {
+                    node_id: nid.clone(),
+                    index_range: UAString::null(),
+                    data_encoding: QualifiedName::null(),
+                    continuation_point: continuations[i].clone(),
+                })
+                .collect();
+
+            if nodes_to_read.is_empty() {
+                break;
+            }
+
+            let details = ReadRawModifiedDetails {
+                is_read_modified: false,
+                start_time: OpcDateTime::from(from_time),
+                end_time: OpcDateTime::from(to_time),
+                num_values_per_node: VALUES_PER_PAGE,
+                return_bounds: false,
+            };
+
+            let session_clone = session.clone();
+            let nodes_clone = nodes_to_read.clone();
+            let results = tokio::task::spawn_blocking(move || {
+                session_clone.read().history_read(
+                    HistoryReadAction::ReadRawModifiedDetails(details),
+                    TimestampsToReturn::Source,
+                    false,
+                    &nodes_clone,
+                )
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("spawn_blocking history_read: {}", e))?
+            .map_err(|sc| anyhow::anyhow!("OPC UA history_read returned: {}", sc))?;
+
+            let mut batch: Vec<crate::db::PointUpdate> = Vec::new();
+            let mut any_continuation = false;
+
+            // `results` is indexed over the ACTIVE nodes only — map back to chunk indices.
+            let active_indices: Vec<usize> = (0..chunk.len()).filter(|i| active[*i]).collect();
+
+            for (res_idx, result) in results.into_iter().enumerate() {
+                let chunk_idx = active_indices[res_idx];
+                let point_id = chunk[chunk_idx].1;
+
+                if !result.status_code.is_good() {
+                    // Server couldn't retrieve history for this node — mark done.
+                    active[chunk_idx] = false;
+                    continue;
+                }
+
+                // Decode HistoryData from the ExtensionObject.
+                let history_data = result
+                    .history_data
+                    .decode_inner::<HistoryData>(&DecodingOptions::default())
+                    .unwrap_or_else(|_| HistoryData { data_values: None });
+
+                if let Some(data_values) = history_data.data_values {
+                    for dv in data_values {
+                        let (value, quality) = extract_value(&dv);
+                        let timestamp = dv
+                            .source_timestamp
+                            .as_ref()
+                            .map(|dt| dt.as_chrono())
+                            .or_else(|| dv.server_timestamp.as_ref().map(|dt| dt.as_chrono()))
+                            .unwrap_or(from_time);
+                        batch.push(crate::db::PointUpdate {
+                            point_id,
+                            value,
+                            quality: quality.as_str().to_string(),
+                            timestamp,
+                        });
+                    }
+                }
+
+                // Update continuation point for next page.
+                if result.continuation_point.is_null() {
+                    active[chunk_idx] = false;
+                } else {
+                    continuations[chunk_idx] = result.continuation_point;
+                    any_continuation = true;
+                }
+            }
+
+            if !batch.is_empty() {
+                db::write_history_batch(db, &batch).await?;
+                total_written += batch.len() as u64;
+            }
+
+            if !any_continuation {
+                break;
+            }
+        }
+    }
+
+    Ok(total_written)
+}
+
+/// Runs pending history recovery jobs for this source.
+/// Called periodically from the data loop.  Picks up jobs in order and runs
+/// them one at a time; each job is marked running → complete/failed atomically.
+async fn run_pending_recovery_jobs(
+    source: &PointSource,
+    db: &DbPool,
+    session: &Arc<RwLock<Session>>,
+    node_map: &HashMap<NodeId, Uuid>,
+) {
+    let jobs = match db::get_pending_recovery_jobs(db, source.id).await {
+        Ok(j) => j,
+        Err(e) => {
+            warn!(source = %source.name, error = %e, "Failed to fetch recovery jobs");
+            return;
+        }
+    };
+
+    for job in jobs {
+        info!(
+            source = %source.name,
+            job_id = %job.id,
+            from = %job.from_time,
+            to = %job.to_time,
+            "Starting history recovery job"
+        );
+
+        if let Err(e) = db::claim_recovery_job(db, job.id).await {
+            warn!(source = %source.name, job_id = %job.id, error = %e, "Failed to claim recovery job");
+            continue;
+        }
+
+        match harvest_history(source, db, session, node_map, job.from_time, job.to_time).await {
+            Ok(n) => {
+                info!(
+                    source = %source.name,
+                    job_id = %job.id,
+                    rows = n,
+                    "History recovery complete"
+                );
+                let _ = db::complete_recovery_job(db, job.id, n as i64).await;
+            }
+            Err(e) => {
+                warn!(
+                    source = %source.name,
+                    job_id = %job.id,
+                    error = %e,
+                    "History recovery failed"
+                );
+                let _ = db::fail_recovery_job(db, job.id, &e.to_string()).await;
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Polling loop (fallback when subscriptions are unsupported)
+// ---------------------------------------------------------------------------
+
+/// Fallback data collection when `CreateMonitoredItems` returns `BadServiceUnsupported`
+/// for all items.  Periodically reads all nodes via OPC UA Read and pushes the results
+/// through the normal flush path.  Exits when the OPC UA session dies.
+async fn poll_loop(
+    source: &PointSource,
+    db: &DbPool,
+    uds: &Arc<UdsSender>,
+    config: &Arc<Config>,
+    session: &Arc<RwLock<Session>>,
+    node_map: &HashMap<NodeId, Uuid>,
+) {
+    let poll_interval = Duration::from_millis(config.publishing_interval_ms);
+    let node_ids: Vec<(NodeId, Uuid)> = node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
+    let mut total_polls: u64 = 0;
+
+    info!(
+        source = %source.name,
+        points = node_ids.len(),
+        interval_ms = config.publishing_interval_ms,
+        "Polling mode active — reading all nodes periodically"
+    );
+
+    loop {
+        tokio::time::sleep(poll_interval).await;
+
+        let mut pending: Vec<PointUpdate> = Vec::new();
+        let now = Utc::now();
+
+        for chunk in node_ids.chunks(500) {
+            let read_ids: Vec<ReadValueId> = chunk
+                .iter()
+                .map(|(nid, _)| ReadValueId {
+                    node_id: nid.clone(),
+                    attribute_id: AttributeId::Value as u32,
+                    index_range: UAString::null(),
+                    data_encoding: QualifiedName::null(),
+                })
+                .collect();
+
+            let session_clone = session.clone();
+            let results = tokio::task::spawn_blocking(move || {
+                session_clone
+                    .read()
+                    .read(&read_ids, TimestampsToReturn::Both, 0.0)
+            })
+            .await;
+
+            match results {
+                Ok(Ok(data_values)) => {
+                    for (i, dv) in data_values.iter().enumerate() {
+                        if let Some((_, point_id)) = chunk.get(i) {
+                            if dv.status.as_ref().map_or(true, |s| s.is_good()) {
+                                let (value, quality) = extract_value(dv);
+                                let timestamp = dv
+                                    .source_timestamp
+                                    .as_ref()
+                                    .map(|dt| dt.as_chrono())
+                                    .or_else(|| {
+                                        dv.server_timestamp.as_ref().map(|dt| dt.as_chrono())
+                                    })
+                                    .unwrap_or(now);
+                                pending.push(PointUpdate {
+                                    point_id: *point_id,
+                                    value,
+                                    quality: quality.as_str().to_string(),
+                                    timestamp,
+                                });
+                            }
+                        }
+                    }
+                }
+                Ok(Err(sc)) => {
+                    warn!(source = %source.name, status = %sc, "Poll read failed — session may have dropped");
+                    return; // Trigger reconnect
+                }
+                Err(_) => {
+                    warn!(source = %source.name, "Poll spawn_blocking failed");
+                    return;
+                }
+            }
+        }
+
+        total_polls += 1;
+        if !pending.is_empty() {
+            if total_polls == 1 {
+                info!(source = %source.name, points = pending.len(), "First poll read succeeded — data flowing");
+            }
+            flush(source, db, uds, &mut pending).await;
+        } else if total_polls % 10 == 0 {
+            warn!(source = %source.name, "Poll returned 0 good values — nodes may be offline or unsupported");
+        }
+
+        // Check for pending history recovery jobs every 60 polls.
+        if total_polls % 60 == 1 {
+            run_pending_recovery_jobs(source, db, session, node_map).await;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Flush loop
 // ---------------------------------------------------------------------------
 
@@ -1424,6 +1874,8 @@ async fn flush_loop(
     db: &DbPool,
     uds: &Arc<UdsSender>,
     config: &Arc<Config>,
+    session: &Arc<RwLock<Session>>,
+    node_map: &HashMap<NodeId, Uuid>,
     mut update_rx: mpsc::UnboundedReceiver<PointUpdate>,
 ) {
     let interval = Duration::from_millis(config.batch_interval_ms);
@@ -1431,6 +1883,8 @@ async fn flush_loop(
     let mut next_flush = Instant::now() + interval;
     let mut heartbeat = tokio::time::Instant::now();
     let heartbeat_interval = Duration::from_secs(30);
+    let mut job_check = tokio::time::Instant::now();
+    let job_check_interval = Duration::from_secs(60);
     let mut total_updates: u64 = 0;
 
     loop {
@@ -1471,6 +1925,11 @@ async fn flush_loop(
                     heartbeat = tokio::time::Instant::now();
                 } else if heartbeat.elapsed() >= heartbeat_interval {
                     heartbeat = tokio::time::Instant::now();
+                }
+                // Check for pending history recovery jobs every 60s.
+                if job_check.elapsed() >= job_check_interval {
+                    run_pending_recovery_jobs(source, db, session, node_map).await;
+                    job_check = tokio::time::Instant::now();
                 }
             }
         }
@@ -1543,10 +2002,11 @@ fn build_security(
     // These are deprecated in OPC UA 1.04 but remain the majority of the installed OT base.
     // Doc 17 mandates we support them and log a warning rather than refusing the connection.
     let security_policy = match policy {
-        "Basic256Sha256"     => SecurityPolicy::Basic256Sha256,
-        "Aes256Sha256RsaPss" => SecurityPolicy::Aes256Sha256RsaPss,
-        "Basic256"           => SecurityPolicy::Basic256,
-        "Basic128Rsa15"      => SecurityPolicy::Basic128Rsa15,
+        "Basic256Sha256"         => SecurityPolicy::Basic256Sha256,
+        "Aes128Sha256RsaOaep"    => SecurityPolicy::Aes128Sha256RsaOaep,
+        "Aes256Sha256RsaPss"     => SecurityPolicy::Aes256Sha256RsaPss,
+        "Basic256"               => SecurityPolicy::Basic256,
+        "Basic128Rsa15"          => SecurityPolicy::Basic128Rsa15,
         _ => SecurityPolicy::None,
     };
 
@@ -1613,6 +2073,9 @@ fn variant_to_f64(v: &Variant) -> Option<f64> {
         Variant::SByte(i) => Some(*i as f64),
         Variant::Byte(i) => Some(*i as f64),
         Variant::Boolean(b) => Some(if *b { 1.0 } else { 0.0 }),
+        // String values (MultiStateDiscreteType) — try numeric parse first, then give up.
+        // Proper enum-to-index mapping requires schema support; this preserves numeric strings.
+        Variant::String(s) => s.value().as_deref().and_then(|s| s.parse::<f64>().ok()),
         _ => None,
     }
 }
@@ -1640,10 +2103,12 @@ async fn register_server_cert(source: &PointSource, db: &DbPool, config: &Arc<Co
     let pki_dir = std::path::Path::new(&config.pki_dir);
     let auto_trust = config.auto_trust_server_certs;
 
-    // Scan trusted and rejected dirs
+    // Scan trusted and rejected dirs.
+    // The opcua library writes server certs directly to pki/trusted/ and pki/rejected/
+    // (not a certs/ subdirectory), so we look there.
     let dirs: &[(&str, &str)] = &[
-        ("trusted/certs", "trusted"),
-        ("rejected/certs", "pending"),
+        ("trusted", "trusted"),
+        ("rejected", "pending"),
     ];
 
     for (subdir, initial_status) in dirs {

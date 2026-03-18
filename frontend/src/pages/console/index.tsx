@@ -396,19 +396,6 @@ export default function ConsolePage() {
     [activeId, updateWorkspace],
   )
 
-  const handleGraphicSelected = useCallback(
-    (paneId: string, graphicId: string) => {
-      if (!activeId) return
-      updateWorkspace(activeId, (w) => ({
-        ...w,
-        panes: w.panes.map((p) =>
-          p.id === paneId ? { ...p, type: 'graphic' as const, graphicId } : p,
-        ),
-      }))
-    },
-    [activeId, updateWorkspace],
-  )
-
   const handleSavePane = (updated: PaneConfig) => {
     if (!activeId) return
     updateWorkspace(activeId, (w) => ({
@@ -428,13 +415,6 @@ export default function ConsolePage() {
         panes: w.panes.map((p) => {
           if (p.id !== paneId) return p
           switch (item.itemType) {
-            case 'graphic':
-              return {
-                ...p,
-                type: 'graphic' as const,
-                graphicId: item.graphicId,
-                title: item.label,
-              }
             case 'trend':
               return {
                 ...p,
@@ -812,7 +792,6 @@ export default function ConsolePage() {
               editMode={editMode}
               onConfigurePane={handleConfigurePane}
               onRemovePane={handleRemovePane}
-              onGraphicSelected={handleGraphicSelected}
               onPaletteDrop={handlePaletteDrop}
             />
           ) : (

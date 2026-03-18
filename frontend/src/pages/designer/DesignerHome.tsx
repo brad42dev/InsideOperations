@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { graphicsApi, type GraphicSummary } from '../../api/graphics'
 import { reportsApi, type ReportTemplate } from '../../api/reports'
 import { dashboardsApi, type Dashboard } from '../../api/dashboards'
 
@@ -161,15 +160,6 @@ function RecentItem({
 // ---------------------------------------------------------------------------
 
 export default function DesignerHome() {
-  const graphicsQuery = useQuery({
-    queryKey: ['graphics'],
-    queryFn: async () => {
-      const r = await graphicsApi.list()
-      if (!r.success) throw new Error(r.error.message)
-      return r.data
-    },
-  })
-
   const reportsQuery = useQuery({
     queryKey: ['report-templates', { is_system: false }],
     queryFn: async () => {
@@ -188,14 +178,12 @@ export default function DesignerHome() {
     },
   })
 
-  const graphics: GraphicSummary[] = graphicsQuery.data ?? []
   const reports: ReportTemplate[] = reportsQuery.data ?? []
   const dashboards: Dashboard[] = dashboardsQuery.data ?? []
 
   // Recent items: combine and sort by created_at desc, take top 8
-  type RecentEntry = { type: 'graphic' | 'dashboard' | 'report'; id: string; name: string; created_at: string }
+  type RecentEntry = { type: 'dashboard' | 'report'; id: string; name: string; created_at: string }
   const recentItems: RecentEntry[] = [
-    ...graphics.map((g): RecentEntry => ({ type: 'graphic', id: g.id, name: g.name, created_at: g.created_at })),
     ...dashboards.map((d): RecentEntry => ({ type: 'dashboard', id: d.id, name: d.name, created_at: d.created_at })),
     ...reports.map((r): RecentEntry => ({ type: 'report', id: r.id, name: r.name, created_at: r.created_at })),
   ]
@@ -257,15 +245,6 @@ export default function DesignerHome() {
           }}
         >
           <HubCard
-            icon="🖼"
-            title="Process Graphics"
-            count={graphics.length}
-            description="SVG-based process views with real-time data bindings"
-            browseHref="/designer/graphics"
-            newHref="/designer/graphics/new"
-            isLoading={graphicsQuery.isLoading}
-          />
-          <HubCard
             icon="▦"
             title="Dashboards"
             count={dashboards.length}
@@ -319,7 +298,7 @@ export default function DesignerHome() {
             Recently Modified
           </div>
 
-          {recentItems.length === 0 && !graphicsQuery.isLoading && !dashboardsQuery.isLoading && !reportsQuery.isLoading && (
+          {recentItems.length === 0 && !dashboardsQuery.isLoading && !reportsQuery.isLoading && (
             <div
               style={{
                 padding: '24px',
