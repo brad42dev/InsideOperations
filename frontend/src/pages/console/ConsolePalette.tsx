@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
+import { graphicsApi } from '../../api/graphics'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,9 +19,10 @@ interface Point {
 export const CONSOLE_DRAG_KEY = 'application/io-console-item'
 
 export interface ConsoleDragItem {
-  itemType: 'trend' | 'point_table' | 'alarm_list'
+  itemType: 'trend' | 'point_table' | 'alarm_list' | 'graphic'
   label?: string
   pointIds?: string[]
+  graphicId?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +331,114 @@ function PointsSection() {
 }
 
 // ---------------------------------------------------------------------------
+// Graphic thumbnail tile — drag-to-drop onto console pane
+// ---------------------------------------------------------------------------
+
+function GraphicTile({ item, name, thumbUrl }: { item: ConsoleDragItem; name: string; thumbUrl: string }) {
+  const [dragging, setDragging] = useState(false)
+  const [thumbError, setThumbError] = useState(false)
+
+  return (
+    <div
+      draggable
+      style={{
+        padding: '5px 6px',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        opacity: dragging ? 0.5 : 1,
+        transition: 'background 0.1s',
+        border: '1px solid transparent',
+      }}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+        e.dataTransfer.effectAllowed = 'copy'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+    >
+      {/* Thumbnail */}
+      <div style={{
+        width: '100%',
+        aspectRatio: '16/9',
+        background: 'var(--io-surface-sunken)',
+        borderRadius: 3,
+        overflow: 'hidden',
+        border: '1px solid var(--io-border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
+      }}>
+        {!thumbError ? (
+          <img
+            src={thumbUrl}
+            alt={name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={() => setThumbError(true)}
+          />
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.2" opacity={0.4}>
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+        )}
+      </div>
+      <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', color: 'var(--io-text-primary)' }}>
+        {name}
+      </span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Graphics section — shows available graphics as thumbnail tiles
+// ---------------------------------------------------------------------------
+
+function GraphicsSection() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['console-palette-graphics'],
+    queryFn: async () => {
+      const r = await graphicsApi.list({ scope: 'console' })
+      if (!r.success) return []
+      return r.data.data ?? []
+    },
+    staleTime: 60_000,
+  })
+
+  const graphics = data ?? []
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        Loading…
+      </div>
+    )
+  }
+
+  if (graphics.length === 0) {
+    return (
+      <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+        No graphics. Create one in Designer.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {graphics.map((g) => {
+        const thumbUrl = graphicsApi.thumbnailUrl(g.id)
+        const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+        return (
+          <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} />
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // ConsolePalette — main component
 // ---------------------------------------------------------------------------
 
@@ -339,7 +449,8 @@ interface ConsolePaletteProps {
 
 export default function ConsolePalette({ visible, onToggle }: ConsolePaletteProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    widgets: true,
+    graphics: true,
+    widgets: false,
     points: false,
   })
 
@@ -427,6 +538,14 @@ export default function ConsolePalette({ visible, onToggle }: ConsolePaletteProp
 
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
+        <AccordionSection
+          title="Graphics"
+          open={openSections.graphics}
+          onToggle={() => toggleSection('graphics')}
+        >
+          <GraphicsSection />
+        </AccordionSection>
+
         <AccordionSection
           title="Widgets"
           open={openSections.widgets}

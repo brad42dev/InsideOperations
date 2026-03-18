@@ -647,6 +647,8 @@ export default function DesignerPage() {
         onValidateBindings={() => setShowValidateBindings(true)}
         onImport={() => setShowImportWizard(true)}
         onExport={() => setShowExportDialog(true)}
+        onNew={() => setShowNewDialog(true)}
+        onOpen={() => navigate('/designer/graphics')}
       />
 
       {/* Toolbar */}

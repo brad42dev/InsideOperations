@@ -431,6 +431,13 @@ export default function ConsolePage() {
               }
             case 'alarm_list':
               return { ...p, type: 'alarm_list' as const, title: item.label ?? p.title }
+            case 'graphic':
+              return {
+                ...p,
+                type: 'graphic' as const,
+                graphicId: item.graphicId,
+                title: item.label ?? p.title,
+              }
             default:
               return p
           }
