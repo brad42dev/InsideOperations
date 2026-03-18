@@ -19,6 +19,8 @@ import type {
   GraphicDocument,
   NavigationLink,
   ComposablePart,
+  WidgetNode,
+  WidgetConfig,
 } from '../../shared/types/graphics'
 import {
   ChangePropertyCommand,
@@ -31,6 +33,7 @@ import {
   AddComposablePartCommand,
   RemoveComposablePartCommand,
   ChangeDisplayElementConfigCommand,
+  ChangeWidgetConfigCommand,
 } from '../../shared/graphics/commands'
 import type { SceneCommand } from '../../shared/graphics/commands'
 import { PIPE_SERVICE_COLORS } from '../../shared/types/graphics'
@@ -732,6 +735,74 @@ function DisplayElementPanel({ node }: { node: DisplayElement }) {
 }
 
 // ---------------------------------------------------------------------------
+// Widget panel
+// ---------------------------------------------------------------------------
+
+const WIDGET_TYPE_OPTIONS = [
+  { value: 'trend',        label: 'Trend' },
+  { value: 'table',        label: 'Table' },
+  { value: 'gauge',        label: 'Gauge' },
+  { value: 'kpi_card',     label: 'KPI Card' },
+  { value: 'bar_chart',    label: 'Bar Chart' },
+  { value: 'pie_chart',    label: 'Pie Chart' },
+  { value: 'alarm_list',   label: 'Alarm List' },
+  { value: 'muster_point', label: 'Muster Point' },
+]
+
+function WidgetPanel({ node }: { node: WidgetNode }) {
+  const executeCmd = useExecuteCmd()
+
+  function patchConfig(patch: Partial<WidgetConfig>) {
+    const newConfig = { ...node.config, ...patch } as WidgetConfig
+    executeCmd(new ChangeWidgetConfigCommand(node.id, newConfig, node.config))
+  }
+
+  const title = (node.config as { title?: string }).title ?? ''
+
+  return (
+    <div style={{ padding: '0 12px' }}>
+      <Field label="Widget Type">
+        <SelectInput
+          value={node.widgetType}
+          onChange={() => {/* type change not supported here — drag new widget */}}
+          options={WIDGET_TYPE_OPTIONS}
+        />
+      </Field>
+      <Field label="Title">
+        <input
+          type="text"
+          defaultValue={title}
+          onBlur={e => patchConfig({ title: e.target.value } as Partial<WidgetConfig>)}
+          style={inputStyle}
+          placeholder="Widget title…"
+        />
+      </Field>
+      <Field label="Width">
+        <NumberInput
+          value={node.width}
+          min={80} max={2000}
+          onChange={v => executeCmd(new ChangePropertyCommand(node.id, 'width', v, node.width))}
+        />
+      </Field>
+      <Field label="Height">
+        <NumberInput
+          value={node.height}
+          min={60} max={1200}
+          onChange={v => executeCmd(new ChangePropertyCommand(node.id, 'height', v, node.height))}
+        />
+      </Field>
+      <Field label="Opacity">
+        <NumberInput
+          value={Math.round(node.opacity * 100)}
+          min={0} max={100}
+          onChange={v => executeCmd(new ChangePropertyCommand(node.id, 'opacity', v / 100, node.opacity))}
+        />
+      </Field>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Multi-selection panel
 // ---------------------------------------------------------------------------
 
@@ -943,6 +1014,13 @@ export default function DesignerRightPanel({ collapsed, width }: DesignerRightPa
           <>
             <SectionHeader>Display Element</SectionHeader>
             <DisplayElementPanel key={node.id} node={node as DisplayElement} />
+          </>
+        )
+      case 'widget':
+        return (
+          <>
+            <SectionHeader>Widget</SectionHeader>
+            <WidgetPanel key={node.id} node={node as WidgetNode} />
           </>
         )
       default:
