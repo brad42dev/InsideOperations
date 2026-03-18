@@ -453,9 +453,9 @@ Spec: Right-side slide-out panel with 3-tier smart defaults (zero-config, sensib
 
 Spec: Selecting Area → units auto-populate; selecting Unit → equipment/points reload. The implementation has parameter forms but cascading dependency updates are not implemented.
 
-### 11.4 Report Subscriptions (GAP — LOW)
+### 11.4 Report Subscriptions — DONE
 
-Spec: Users can self-subscribe to reports with frequency/format/delivery options. Admin can push subscriptions to users/roles. The `ReportSchedules.tsx` handles admin scheduling but self-subscribe from the template view is not implemented.
+Added "Subscribe" button to each template card in `ReportTemplates.tsx`. Clicking it opens `SubscribeDialog.tsx` — a modal with frequency (4 presets), format (PDF/HTML/CSV/XLSX), and email notification options. On confirm, calls `reportsApi.createSchedule` with `recipient_user_ids: [currentUserId]`. Admin push-to-role scheduling is already in `ReportSchedules.tsx`.
 
 ### 11.5 In-App Viewer (OK)
 
@@ -483,9 +483,9 @@ The Forensics module has a solid implementation. Key gaps:
 
 Verified: `InvestigationWorkspace.tsx` left panel has Included/Suggested/Removed sections with filter by status, add via PointPicker, remove/restore actions, and Recent Investigations navigation. Full curation workflow implemented.
 
-### 12.4 Investigation Linking (GAP — LOW)
+### 12.4 Investigation Linking — DONE
 
-Spec: Bidirectional links to log entries, tickets, alarm events, other investigations. Investigations embedded as appendix in log entry exports. Not confirmed implemented.
+Added `InvestigationLink` type + `listLinks`/`addLink`/`removeLink` API methods to `forensics.ts`. Added `LinksPanel` component in `InvestigationWorkspace.tsx` — collapsible section at the bottom of the left panel showing linked items (log entry / alarm event / investigation / ticket) with add/remove controls. Links are manually entered by ID and label.
 
 ### 12.5 Graphic Snapshots (GAP — LOW)
 
@@ -549,9 +549,9 @@ Print button generating paper-backup checklists is implemented per project_statu
 
 The Settings module is very well-implemented with 30+ sub-pages. The gaps are mostly enhancement items:
 
-### 15.1 Route Path Mismatches (GAP — LOW)
+### 15.1 Route Path Mismatches — DONE
 
-As noted in doc 38 analysis: `/settings/imports` is `/settings/import` in App.tsx. The sub-routes `/settings/imports/connections`, `/settings/imports/definitions`, `/settings/imports/history` are not separate routes — they're tabs within `Settings/Import.tsx`. Functionally equivalent.
+App.tsx already has both `path="import"` and `path="imports"` (alias) registered under `/settings`. Both serve `ImportSettingsPage`. The sub-routes are tabs within the page, not separate routes — functionally equivalent to the spec.
 
 ### 15.2 Group Management (OK)
 
@@ -592,9 +592,9 @@ The WebSocket hook (`useWebSocket`) exists and is used in `PointBindingLayer`, `
 
 `WsManager` has `statusReportTimer` that sends `{ type: 'status_report', render_fps: 60, pending_updates: 0, last_batch_process_ms: 0 }` every 10s on WebSocket open.
 
-### 16.4 Mobile WebSocket Throttling (GAP — LOW)
+### 16.4 Mobile WebSocket Throttling — DONE
 
-Spec: Mobile clients send a hint at connection time indicating mobile device type (tablet/phone) for 5s/10s throttling respectively. Not implemented.
+`detectDeviceType()` in `useWebSocket.ts` classifies UA as `phone`/`tablet`/`desktop`. On WebSocket open, sends `{ type: 'client_hint', device_type }` before the subscribe batch. Broker applies 10s (phone) / 5s (tablet) throttle intervals server-side.
 
 ---
 
@@ -665,9 +665,9 @@ Spec: Phone screens use tile-based rendering (resvg server-side tiles + Leaflet 
 
 `TileGraphicViewer.tsx` exists in `shared/components/` — this may implement the tile-based approach. Needs verification.
 
-### 20.5 Touch Target Sizes (GAP — LOW)
+### 20.5 Touch Target Sizes — DONE
 
-Spec: 60px minimum touch targets for gloved operation. 72px for critical actions. The current CSS uses standard desktop sizing. Mobile-specific CSS with larger touch targets is not implemented.
+Added `@media (pointer: coarse)` block in `index.css`: `min-height/width: 60px` for standard controls (buttons, links, inputs, `.io-nav-item`, `.io-tab`), `72px` for `.io-critical-action` / `[data-critical="true"]` elements. Only applies on touch devices.
 
 ### 20.6 Mobile Theme Defaulting to Light — **DONE** (pass 4)
 

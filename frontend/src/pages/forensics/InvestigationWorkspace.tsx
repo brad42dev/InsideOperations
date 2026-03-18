@@ -8,6 +8,8 @@ import {
   type EvidenceItem,
   type EvidenceType,
   type InvestigationPoint,
+  type InvestigationLink,
+  type InvestigationLinkType,
   type CorrelationResult,
 } from '../../api/forensics'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
@@ -414,6 +416,212 @@ function StageCard({
 }
 
 // ---------------------------------------------------------------------------
+// Links panel — bidirectional links to log entries, alarms, investigations
+// (doc 12 §Investigation Linking)
+// ---------------------------------------------------------------------------
+
+const LINK_TYPE_LABELS: Record<InvestigationLinkType, string> = {
+  log_entry: 'Log Entry',
+  alarm_event: 'Alarm Event',
+  investigation: 'Investigation',
+  ticket: 'Ticket',
+}
+
+function LinksPanel({
+  investigationId,
+  readOnly,
+}: {
+  investigationId: string
+  readOnly: boolean
+}) {
+  const queryClient = useQueryClient()
+  const [expanded, setExpanded] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [linkType, setLinkType] = useState<InvestigationLinkType>('log_entry')
+  const [targetId, setTargetId] = useState('')
+  const [targetLabel, setTargetLabel] = useState('')
+
+  const linksQuery = useQuery({
+    queryKey: ['investigation-links', investigationId],
+    queryFn: async () => {
+      const result = await forensicsApi.listLinks(investigationId)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    enabled: expanded,
+    staleTime: 30_000,
+  })
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      forensicsApi.addLink(investigationId, {
+        link_type: linkType,
+        target_id: targetId.trim(),
+        target_label: targetLabel.trim() || targetId.trim(),
+      }),
+    onSuccess: (result) => {
+      if (result.success) {
+        void queryClient.invalidateQueries({ queryKey: ['investigation-links', investigationId] })
+        setShowForm(false)
+        setTargetId('')
+        setTargetLabel('')
+      }
+    },
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (linkId: string) => forensicsApi.removeLink(investigationId, linkId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation-links', investigationId] })
+    },
+  })
+
+  const links = linksQuery.data ?? []
+
+  return (
+    <div style={{ borderTop: '1px solid var(--io-border)', flexShrink: 0 }}>
+      {/* Section header */}
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          width: '100%',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          fontSize: '10px',
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          color: 'var(--io-text-muted)',
+          textTransform: 'uppercase',
+        }}
+      >
+        {expanded ? '▾' : '▸'} Links ({links.length})
+      </button>
+
+      {expanded && (
+        <div style={{ padding: '0 12px 10px' }}>
+          {links.map((link: InvestigationLink) => (
+            <div
+              key={link.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '3px 0',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '10px',
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  background: 'var(--io-surface-elevated)',
+                  color: 'var(--io-text-muted)',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                {LINK_TYPE_LABELS[link.link_type]}
+              </span>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--io-text-primary)',
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={link.target_id}
+              >
+                {link.target_label}
+              </span>
+              {!readOnly && (
+                <button
+                  onClick={() => removeMutation.mutate(link.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '11px', padding: '1px 3px', flexShrink: 0 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+
+          {links.length === 0 && !showForm && (
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+              No links yet.
+            </p>
+          )}
+
+          {!readOnly && !showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              style={{
+                marginTop: '6px',
+                padding: '3px 8px',
+                background: 'none',
+                border: '1px dashed var(--io-border)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '11px',
+                color: 'var(--io-text-muted)',
+              }}
+            >
+              + Add Link
+            </button>
+          )}
+
+          {showForm && (
+            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <select
+                value={linkType}
+                onChange={(e) => setLinkType(e.target.value as InvestigationLinkType)}
+                style={{ fontSize: '12px', padding: '4px 6px', background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: '4px', color: 'var(--io-text-primary)' }}
+              >
+                {(Object.keys(LINK_TYPE_LABELS) as InvestigationLinkType[]).map((t) => (
+                  <option key={t} value={t}>{LINK_TYPE_LABELS[t]}</option>
+                ))}
+              </select>
+              <input
+                placeholder="Target ID"
+                value={targetId}
+                onChange={(e) => setTargetId(e.target.value)}
+                style={{ fontSize: '12px', padding: '4px 6px', background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: '4px', color: 'var(--io-text-primary)' }}
+              />
+              <input
+                placeholder="Label (optional)"
+                value={targetLabel}
+                onChange={(e) => setTargetLabel(e.target.value)}
+                style={{ fontSize: '12px', padding: '4px 6px', background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: '4px', color: 'var(--io-text-primary)' }}
+              />
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => { if (targetId.trim()) addMutation.mutate() }}
+                  disabled={!targetId.trim() || addMutation.isPending}
+                  style={{ flex: 1, padding: '4px 0', background: 'var(--io-accent)', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: targetId.trim() ? 'pointer' : 'not-allowed', opacity: targetId.trim() ? 1 : 0.5 }}
+                >
+                  {addMutation.isPending ? '…' : 'Add'}
+                </button>
+                <button
+                  onClick={() => { setShowForm(false); setTargetId(''); setTargetLabel('') }}
+                  style={{ flex: 1, padding: '4px 0', background: 'none', border: '1px solid var(--io-border)', borderRadius: '4px', color: 'var(--io-text-muted)', fontSize: '11px', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Left panel — points
 // ---------------------------------------------------------------------------
 
@@ -533,18 +741,7 @@ function PointsPanel({
   )
 
   return (
-    <div
-      style={{
-        width: '260px',
-        flexShrink: 0,
-        borderRight: '1px solid var(--io-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        background: 'var(--io-surface-secondary)',
-      }}
-    >
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px' }}>
+    <div style={{ padding: '10px 12px' }}>
         <SectionLabel>Included Points ({included.length})</SectionLabel>
 
         {included.length === 0 && (
@@ -644,7 +841,6 @@ function PointsPanel({
               ))}
           </>
         )}
-      </div>
     </div>
   )
 }
@@ -1260,11 +1456,16 @@ export default function InvestigationWorkspace() {
       {/* Body: left panel + main canvas */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         {/* Left panel */}
-        <PointsPanel
-          investigationId={investigation.id}
-          readOnly={isReadOnly}
-          onRefresh={() => void queryClient.invalidateQueries({ queryKey: ['investigation', id] })}
-        />
+        <div style={{ width: '260px', flexShrink: 0, borderRight: '1px solid var(--io-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--io-surface-secondary)' }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <PointsPanel
+              investigationId={investigation.id}
+              readOnly={isReadOnly}
+              onRefresh={() => void queryClient.invalidateQueries({ queryKey: ['investigation', id] })}
+            />
+          </div>
+          <LinksPanel investigationId={investigation.id} readOnly={isReadOnly} />
+        </div>
 
         {/* Main canvas + results */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>

@@ -722,6 +722,52 @@ code, pre, kbd,
 }
 
 /* ============================================================
+   Mobile touch targets — gloved operation (doc 20 §Touch Targets)
+   60px minimum for standard controls; 72px for critical actions.
+   Applies only on coarse-pointer (touch) devices.
+   ============================================================ */
+
+@media (pointer: coarse) {
+  /* Standard interactive elements — 60px minimum */
+  button,
+  [role="button"],
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  select,
+  .io-tab,
+  .io-nav-item,
+  .io-list-item {
+    min-height: 60px;
+    min-width: 60px;
+  }
+
+  /* Icon-only buttons expand their hit area via padding */
+  button.io-icon-btn {
+    min-height: 60px;
+    min-width: 60px;
+    padding: 12px;
+  }
+
+  /* Critical actions (alarm ack, emergency, submit) — 72px minimum */
+  .io-critical-action,
+  button[data-critical="true"],
+  [role="button"][data-critical="true"] {
+    min-height: 72px;
+    min-width: 72px;
+  }
+
+  /* Form inputs — taller tap zone */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  textarea {
+    min-height: 60px;
+  }
+}
+
+/* ============================================================
    Print stylesheet — color normalization (doc 06)
    ============================================================ */
 

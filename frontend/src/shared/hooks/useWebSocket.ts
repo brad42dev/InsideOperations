@@ -9,6 +9,17 @@ import { reportsApi } from '../../api/reports'
 const WS_BASE = (import.meta.env.VITE_WS_URL as string | undefined) ??
   `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
 
+export type DeviceType = 'phone' | 'tablet' | 'desktop'
+
+// Detect mobile device type from User Agent for throttle hinting (doc 16 §Mobile Throttling).
+// phone → broker applies 10s update interval; tablet → 5s; desktop → no extra throttling.
+function detectDeviceType(): DeviceType {
+  const ua = navigator.userAgent
+  if (/Mobi|Android.*Mobile|iPhone|iPod/i.test(ua)) return 'phone'
+  if (/Tablet|iPad|Android(?!.*Mobile)/i.test(ua)) return 'tablet'
+  return 'desktop'
+}
+
 export type WsConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 export interface PointValue {
@@ -97,6 +108,9 @@ class WsManager {
       ws.onopen = () => {
         this.reconnectDelay = 1000
         this.setState('connected')
+        // Send device hint so the broker can apply appropriate throttling (doc 16 §Mobile Throttling)
+        const deviceType = detectDeviceType()
+        this.sendMsg({ type: 'client_hint', device_type: deviceType })
         const allPoints = Array.from(this.subscribers.keys())
         if (allPoints.length > 0) {
           this.sendMsg({ type: 'subscribe', points: allPoints })

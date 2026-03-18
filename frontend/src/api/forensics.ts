@@ -71,6 +71,17 @@ export interface InvestigationPoint {
   point_tag?: string
 }
 
+export type InvestigationLinkType = 'log_entry' | 'alarm_event' | 'investigation' | 'ticket'
+
+export interface InvestigationLink {
+  id: string
+  investigation_id: string
+  link_type: InvestigationLinkType
+  target_id: string
+  target_label: string
+  created_at: string
+}
+
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
@@ -202,4 +213,19 @@ export const forensicsApi = {
     end?: string
   }): Promise<ApiResult<unknown[]>> =>
     api.post<unknown[]>('/api/forensics/alarm-search', data),
+
+  // ---- Links ---------------------------------------------------------------
+
+  listLinks: (id: string): Promise<ApiResult<InvestigationLink[]>> =>
+    api.get<InvestigationLink[]>(`/api/forensics/investigations/${id}/links`),
+
+  addLink: (id: string, data: {
+    link_type: InvestigationLinkType
+    target_id: string
+    target_label: string
+  }): Promise<ApiResult<InvestigationLink>> =>
+    api.post<InvestigationLink>(`/api/forensics/investigations/${id}/links`, data),
+
+  removeLink: (id: string, linkId: string): Promise<ApiResult<void>> =>
+    api.delete<void>(`/api/forensics/investigations/${id}/links/${linkId}`),
 }

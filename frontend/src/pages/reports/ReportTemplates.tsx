@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { reportsApi } from '../../api/reports'
+import { reportsApi, type ReportTemplate } from '../../api/reports'
+import SubscribeDialog from './SubscribeDialog'
 
 export default function ReportTemplates() {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
+  const [subscribeTarget, setSubscribeTarget] = useState<ReportTemplate | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['reports', 'templates', page, search, category],
@@ -80,11 +82,11 @@ export default function ReportTemplates() {
             <div
               key={t.id}
               onClick={() => navigate(`/reports/generate/${t.id}`)}
-              style={{ padding: '16px', background: 'var(--io-surface)', border: '1px solid var(--io-border)', borderRadius: '8px', cursor: 'pointer', transition: 'border-color 0.15s' }}
+              style={{ padding: '16px', background: 'var(--io-surface)', border: '1px solid var(--io-border)', borderRadius: '8px', cursor: 'pointer', transition: 'border-color 0.15s', display: 'flex', flexDirection: 'column', gap: '6px' }}
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--io-accent)')}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--io-border)')}
             >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
                 <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--io-text-primary)', lineHeight: 1.3 }}>{t.name}</span>
                 {t.is_system_template && (
                   <span style={{ flexShrink: 0, fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'var(--io-surface-secondary)', color: 'var(--io-text-muted)', fontWeight: 600 }}>
@@ -93,7 +95,7 @@ export default function ReportTemplates() {
                 )}
               </div>
               {t.category && (
-                <span style={{ display: 'inline-block', fontSize: '11px', padding: '1px 7px', borderRadius: '100px', background: 'rgba(74,158,255,0.12)', color: 'var(--io-accent)', fontWeight: 600, marginBottom: '8px' }}>
+                <span style={{ display: 'inline-block', fontSize: '11px', padding: '1px 7px', borderRadius: '100px', background: 'rgba(74,158,255,0.12)', color: 'var(--io-accent)', fontWeight: 600 }}>
                   {t.category}
                 </span>
               )}
@@ -102,9 +104,36 @@ export default function ReportTemplates() {
                   {t.description}
                 </p>
               )}
+              {/* Self-subscribe button */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setSubscribeTarget(t) }}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: '4px',
+                  padding: '4px 10px',
+                  background: 'transparent',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '5px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--io-text-secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Subscribe
+              </button>
             </div>
           ))}
         </div>
+      )}
+
+      {/* Self-subscribe dialog */}
+      {subscribeTarget && (
+        <SubscribeDialog
+          template={subscribeTarget}
+          open={!!subscribeTarget}
+          onOpenChange={(open) => { if (!open) setSubscribeTarget(null) }}
+        />
       )}
 
       {/* Pagination */}
