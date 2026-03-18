@@ -173,8 +173,9 @@ export default function PaneWrapper({
         outlineOffset: isSelected ? '-1px' : undefined,
       }}
     >
-      {/* Header */}
+      {/* Header — io-pane-drag-handle is the react-grid-layout drag target in edit mode */}
       <div
+        className={editMode ? 'io-pane-drag-handle' : undefined}
         onContextMenu={(e) => {
           e.preventDefault()
           setPaneCtxMenu({ x: e.clientX, y: e.clientY })
@@ -188,7 +189,7 @@ export default function PaneWrapper({
           flexShrink: 0,
           background: 'var(--io-surface-secondary)',
           borderBottom: '1px solid var(--io-border)',
-          cursor: 'context-menu',
+          cursor: editMode ? 'grab' : 'context-menu',
         }}
       >
         <span

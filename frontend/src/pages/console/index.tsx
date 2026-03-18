@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import WorkspaceGrid from './WorkspaceGrid'
+import type { GridItem } from './types'
 import ConsolePalette, { type ConsoleDragItem } from './ConsolePalette'
 import PaneConfigModal from './PaneConfigModal'
 import ContextMenu from '../../shared/components/ContextMenu'
@@ -329,9 +330,18 @@ export default function ConsolePage() {
       const needed = layoutPaneCount(layout)
       const existing = w.panes.slice(0, needed)
       const extra = makeBlankPanes(Math.max(0, needed - existing.length))
-      return { ...w, layout, panes: [...existing, ...extra] }
+      // Clear saved grid positions so the new preset's defaults take effect
+      return { ...w, layout, panes: [...existing, ...extra], gridItems: undefined }
     })
   }
+
+  const handleGridLayoutChange = useCallback(
+    (items: GridItem[]) => {
+      if (!activeId) return
+      updateWorkspace(activeId, (w) => ({ ...w, gridItems: items }))
+    },
+    [activeId, updateWorkspace],
+  )
 
   const saveEdit = () => setEditMode(false)
 
@@ -840,6 +850,7 @@ export default function ConsolePage() {
               onRemovePane={handleRemovePane}
               onSelectPane={handlePaneSelect}
               onPaletteDrop={handlePaletteDrop}
+              onGridLayoutChange={handleGridLayoutChange}
             />
           ) : (
             <div

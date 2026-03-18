@@ -28,6 +28,7 @@
     "@tiptap/pm": "^3.20.1",
     "@tiptap/react": "^3.20.1",
     "@tiptap/starter-kit": "^3.20.1",
+    "@types/react-grid-layout": "^2.1.0",
     "@zxing/library": "^0.21.3",
     "echarts": "^5.5.0",
     "leaflet": "^1.9.4",
@@ -35,6 +36,7 @@
     "mathjs": "^15.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-grid-layout": "^2.2.2",
     "react-router-dom": "^6.23.1",
     "uplot": "^1.6.31",
     "zustand": "^4.5.2"

@@ -34,11 +34,22 @@ export type LayoutPreset =
   // Legacy (keep for backwards compat)
   | '2x1+1'
 
+/** One cell in the react-grid-layout 12-column coordinate system. `i` matches a PaneConfig.id. */
+export interface GridItem {
+  i: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface WorkspaceLayout {
   id: string
   name: string
   layout: LayoutPreset
   panes: PaneConfig[]
+  /** Free-form pane positions. When present, overrides the static `layout` preset for rendering. */
+  gridItems?: GridItem[]
 }
 
 export interface ConsoleState {

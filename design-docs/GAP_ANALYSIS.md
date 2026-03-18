@@ -213,12 +213,17 @@ Missing all 3×x, 4×x layouts and all asymmetric templates (1 Big + 3 Small L/R
 
 This requires adding the missing `LayoutPreset` types and implementing the grid templates for each.
 
-### 7.2 Grid Implementation (GAP — MEDIUM)
+### 7.2 Grid Implementation (DONE)
 
-**Spec:** `react-grid-layout` v2 with 12-column coordinate system, drag-resize, drag-to-remove, pane swap on drop.
-**Implementation:** CSS grid with static layout. Panes cannot be resized by dragging borders. There's no drag-and-drop rearrangement.
-
-The spec is explicit about using `react-grid-layout`. Without it, the drag/resize/swap features cannot be implemented cleanly. This is a significant architectural gap for the Console.
+Installed `react-grid-layout` v2 (MIT). Replaced the static CSS grid in `WorkspaceGrid.tsx` with a `<GridLayout>` using a 12-column × 12-row coordinate system. Key details:
+- `GridItem` type added to `WorkspaceLayout` (optional `gridItems` field); panes derive positions from preset on first load
+- `presetToGridItems()` maps all ~20 layout presets to default 12×12 grid coordinates
+- `dragConfig.handle = '.io-pane-drag-handle'` — pane headers get this class in edit mode (`cursor: grab`)
+- `resizeConfig.handles = ['se','sw','ne','nw','e','w','n','s']` — resize from all 8 edges
+- `compactor = noCompactor` — free positioning, no auto-compaction
+- `rowHeight` computed dynamically from container height (ResizeObserver) to fill the available space
+- `onGridLayoutChange` saves updated positions to `workspace.gridItems` on every drag/resize stop
+- Switching presets via `changeLayout()` clears `gridItems` so the new preset defaults apply
 
 ### 7.3 Left Panel Accordion — **DONE** (pass 5)
 
@@ -665,11 +670,11 @@ Spec: Bottom tab bar on mobile with 5 tabs (Monitor, Rounds, Log, Alerts, More).
 
 **This would require a responsive navigation component.** Medium effort.
 
-### 20.4 Tile-Based Phone Graphics (GAP — HIGH)
+### 20.4 Tile-Based Phone Graphics (DONE)
 
-Spec: Phone screens use tile-based rendering (resvg server-side tiles + Leaflet client-side viewer) instead of the SVG/Canvas renderer. `leaflet` is installed but the tile viewer implementation for phone graphics is not present.
+Created `src/shared/components/TileGraphicViewer.tsx` using Leaflet (BSD-2-Clause, already installed). Uses `L.CRS.Simple` coordinate system matching the SVG canvas dimensions. Tile URL template: `/api/v1/design-objects/{graphicId}/tiles/{z}/{x}/{y}.png`. Live point value overlays positioned using `transform.position` fractions extracted from the scene graph. Includes a **Status View** toggle (colored dots with values, no tile map) per doc 20 §Phone Graphics.
 
-`TileGraphicViewer.tsx` exists in `shared/components/` — this may implement the tile-based approach. Needs verification.
+`GraphicPane.tsx` now detects `isPhone` at module level via `detectDeviceType()`. On phones, renders the toggle bar (Map / Status) above `TileGraphicViewer`; on desktops/tablets, renders `SceneRenderer` as before. `detectDeviceType()` exported from `useWebSocket.ts`. `graphicsApi.tileUrl()` helper added.
 
 ### 20.5 Touch Target Sizes — DONE
 
@@ -890,9 +895,11 @@ Verified: `AppShell.tsx` imports `SystemHealthDot` and `SystemHealthDotRow` from
 
 Backend wire format authority. The TypeScript types in `src/shared/types/` must match the Rust struct definitions. Key concern:
 
-### 37.1 TypeScript Type Parity (GAP — LOW)
+### 37.1 TypeScript Type Parity (DONE)
 
-Spec requires TypeScript types in `src/shared/types/` that mirror every Rust struct in the shared `io-*` crates. The `types/expression.ts` and `types/graphics.ts` exist. A full audit of all wire formats (investigation stages, alarm events, shift data, etc.) against their TypeScript definitions was not performed — this is an ongoing maintenance concern rather than a specific implementation gap.
+Created `src/shared/types/ipc.ts` with full IPC type parity per doc 37 §16: REST envelope (`ApiResponse`, `ApiError`, `ErrorCode`, `PaginatedResponse`), point types, event types, alert types, user identity, source types, all WebSocket discriminated unions (`WsServerMessage`, `WsClientMessage`), and health check types.
+
+Created `src/shared/types/permissions.ts` with all 118 RBAC permissions per doc 37 §18: 15 module-scoped permission sub-types plus the union `Permission` type and an `isPermission()` runtime guard. Strings match the Rust `io-models` enum serde renames exactly.
 
 ---
 

@@ -13,7 +13,7 @@ export type DeviceType = 'phone' | 'tablet' | 'desktop'
 
 // Detect mobile device type from User Agent for throttle hinting (doc 16 §Mobile Throttling).
 // phone → broker applies 10s update interval; tablet → 5s; desktop → no extra throttling.
-function detectDeviceType(): DeviceType {
+export function detectDeviceType(): DeviceType {
   const ua = navigator.userAgent
   if (/Mobi|Android.*Mobile|iPhone|iPod/i.test(ua)) return 'phone'
   if (/Tablet|iPad|Android(?!.*Mobile)/i.test(ua)) return 'tablet'
