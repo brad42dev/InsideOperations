@@ -452,9 +452,12 @@ Spec: Right-side slide-out panel with 3-tier smart defaults (zero-config, sensib
 
 **DONE** — ReportConfigPanel.tsx already uses PointPicker (dual-mode tree browser + search). Gap was not present in current implementation.
 
-### 11.3 Dependent Parameter Cascading (GAP — LOW)
+### 11.3 Dependent Parameter Cascading — DONE
 
-Spec: Selecting Area → units auto-populate; selecting Unit → equipment/points reload. The implementation has parameter forms but cascading dependency updates are not implemented.
+`ReportConfigPanel.tsx` Area/Unit section replaced with cascading dropdowns:
+- Area `<select>` populated from `GET /api/v1/points/hierarchy` (same endpoint as PointPicker)
+- On area select: `unit_filter` resets and unit dropdown appears, populated with units for that area
+- `unit_filter` value passed to `reportsApi.generate()` params alongside `area_filter`
 
 ### 11.4 Report Subscriptions — DONE
 
@@ -534,9 +537,9 @@ Verified: `useOfflineRounds.ts` implements IndexedDB storage + sync queue. `publ
 
 **DONE** — BarcodeGate (BarcodeDetector API + @zxing/library MIT fallback + manual entry) and GpsGate (haversine, navigator.geolocation) components added to RoundPlayer.tsx. Gate config fields added to TemplateDesigner.tsx (checkpointToApi/apiToEditable serialization + UI toggle + fields). Committed 2feaaff.
 
-### 14.3 Non-Badged Entry Flagging (GAP — LOW)
+### 14.3 Non-Badged Entry Flagging — DONE
 
-Spec: Entries flagged if the operator is not badged in (from doc 30 presence data). Requires integration with the Shifts/Presence API. Not confirmed implemented.
+`RoundPlayer.tsx` queries `shiftsApi.getPresence(userId)` on mount. If `on_site` is false, shows a red warning banner ("Not Badged In — flagged for review") and sets `flagged_not_badged: true` on every `ResponseItem` submitted during the session. `ResponseItem` type updated with `flagged_not_badged?: boolean` field.
 
 ### 14.4 Round Transfer (OK)
 

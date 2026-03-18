@@ -120,6 +120,8 @@ export interface ResponseItem {
   gps_latitude?: number
   gps_longitude?: number
   barcode_scanned?: string
+  /** Set to true if operator is not currently badged on-site (doc 14.3) */
+  flagged_not_badged?: boolean
 }
 
 // ---------------------------------------------------------------------------

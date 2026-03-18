@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { roundsApi, type Checkpoint, type ResponseItem } from '../../api/rounds'
 import { useOfflineRounds, batchSyncRounds } from '../../shared/hooks/useOfflineRounds'
+import { useAuthStore } from '../../store/auth'
+import { shiftsApi } from '../../api/shifts'
 
 // ---------------------------------------------------------------------------
 // Barcode gate — scans via BarcodeDetector API or manual entry fallback
@@ -405,6 +407,7 @@ export default function RoundPlayer() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const userId = useAuthStore((s) => s.user?.id)
 
   const [checkpointIdx, setCheckpointIdx] = useState(0)
   const [values, setValues] = useState<Record<number, string>>({})
@@ -418,6 +421,19 @@ export default function RoundPlayer() {
   const [gpsUnlocked, setGpsUnlocked] = useState<Record<number, boolean>>({})
 
   const { isOnline, pendingCount, saveOfflineResponse, getPendingResponses, clearSynced, syncPending } = useOfflineRounds()
+
+  // Check if the operator is currently badged-in (doc 14 §Non-Badged Entry Flagging)
+  const { data: presenceData } = useQuery({
+    queryKey: ['presence', userId],
+    queryFn: async () => {
+      if (!userId) return null
+      const result = await shiftsApi.getPresence(userId)
+      return result.success ? result.data : null
+    },
+    enabled: !!userId,
+    staleTime: 60_000,
+  })
+  const operatorNotBadged = presenceData !== undefined && presenceData !== null && !presenceData.on_site
 
   const { data: detailResult, isLoading } = useQuery({
     queryKey: ['rounds', 'instance', id],
@@ -543,6 +559,7 @@ export default function RoundPlayer() {
       response_value: responseValue,
       gps_latitude: gps?.lat,
       gps_longitude: gps?.lng,
+      flagged_not_badged: operatorNotBadged || undefined,
     }
 
     const result = await roundsApi.saveResponses(id, [item])
@@ -629,6 +646,26 @@ export default function RoundPlayer() {
         padding: '0 16px',
       }}
     >
+      {/* Non-badged warning — operator not currently on-site per presence data (doc 14.3) */}
+      {operatorNotBadged && (
+        <div
+          style={{
+            background: 'rgba(239,68,68,0.1)',
+            borderBottom: '1px solid rgba(239,68,68,0.3)',
+            padding: '8px 16px',
+            fontSize: '12px',
+            color: '#ef4444',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontWeight: 700 }}>Not Badged In</span>
+          <span>— You are not currently badged on-site. This round will be flagged for review.</span>
+        </div>
+      )}
+
       {/* Offline banner */}
       {!isOnline && (
         <div

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { reportsApi, type ReportTemplate, type ExportPreset } from '../../api/reports'
 import { showToast } from '../../shared/components/Toast'
 import PointPicker from '../../shared/components/PointPicker'
+import { api } from '../../api/client'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,11 +16,16 @@ interface ReportParams {
   start_time: string
   end_time: string
   area_filter: string
+  unit_filter: string
   point_ids: string[]
   format: ReportFormat
   notify_email: boolean
   email_address: string
 }
+
+// Hierarchy types (mirrors PointPicker's internal structure)
+interface AreaEntry { id: string; name: string; units: UnitEntry[] }
+interface UnitEntry { id: string; name: string; equipment: unknown[] }
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -236,11 +242,25 @@ export default function ReportConfigPanel({
     start_time: isoHoursAgo(24),
     end_time: isoNow(),
     area_filter: '',
+    unit_filter: '',
     point_ids: [],
     format: 'pdf',
     notify_email: false,
     email_address: '',
   })
+
+  // Hierarchy for area→unit cascading (doc 11 §Dependent Parameter Cascading)
+  const hierarchyQuery = useQuery({
+    queryKey: ['points', 'hierarchy'],
+    queryFn: async () => {
+      const result = await api.get<{ areas: AreaEntry[] }>('/api/v1/points/hierarchy')
+      return result.success ? result.data.areas : []
+    },
+    staleTime: 300_000,
+  })
+  const areas = hierarchyQuery.data ?? []
+  const selectedAreaEntry = areas.find((a) => a.name === params.area_filter || a.id === params.area_filter)
+  const unitsForArea: UnitEntry[] = selectedAreaEntry?.units ?? []
 
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
@@ -319,6 +339,7 @@ export default function ReportConfigPanel({
           start_time: new Date(params.start_time).toISOString(),
           end_time: new Date(params.end_time).toISOString(),
           area_filter: params.area_filter || undefined,
+          unit_filter: params.unit_filter || undefined,
           point_ids: params.point_ids.length > 0 ? params.point_ids : undefined,
         },
         notify_email: params.notify_email && params.email_address ? true : undefined,
@@ -582,25 +603,51 @@ export default function ReportConfigPanel({
           </div>
         </Section>
 
-        {/* Area/Unit Filter */}
+        {/* Area/Unit Filter — cascading (doc 11 §Dependent Parameter Cascading) */}
         <Section title="Area / Unit">
-          <input
-            type="text"
-            placeholder="All areas"
-            value={params.area_filter}
-            onChange={(e) => setParams((p) => ({ ...p, area_filter: e.target.value }))}
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '6px 8px',
-              background: 'var(--io-surface-elevated)',
-              border: '1px solid var(--io-border)',
-              borderRadius: 'var(--io-radius)',
-              color: 'var(--io-text-primary)',
-              fontSize: '12px',
-              outline: 'none',
-            }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {/* Area dropdown — populated from hierarchy API */}
+            <select
+              value={params.area_filter}
+              onChange={(e) => setParams((p) => ({ ...p, area_filter: e.target.value, unit_filter: '' }))}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                color: params.area_filter ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                fontSize: '12px',
+              }}
+            >
+              <option value="">All areas</option>
+              {areas.map((a) => (
+                <option key={a.id} value={a.name}>{a.name}</option>
+              ))}
+            </select>
+
+            {/* Unit dropdown — auto-populates when an area is selected */}
+            {params.area_filter && (
+              <select
+                value={params.unit_filter}
+                onChange={(e) => setParams((p) => ({ ...p, unit_filter: e.target.value }))}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  background: 'var(--io-surface-elevated)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  color: params.unit_filter ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                  fontSize: '12px',
+                }}
+              >
+                <option value="">All units in {params.area_filter}</option>
+                {unitsForArea.map((u) => (
+                  <option key={u.id} value={u.name}>{u.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
         </Section>
 
         {/* Points */}
