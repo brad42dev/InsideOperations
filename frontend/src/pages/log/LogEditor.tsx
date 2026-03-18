@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { logsApi, type LogSegment, type LogTemplate } from '../../api/logs'
+import { useWebSocket } from '../../shared/hooks/useWebSocket'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -345,27 +346,46 @@ function FieldsSegment({
 // ---------------------------------------------------------------------------
 
 function PointDataSegment({ pointIds }: { pointIds?: string[] }) {
+  const ids = pointIds ?? []
+  const { values } = useWebSocket(ids)
+
+  if (ids.length === 0) {
+    return (
+      <div style={{ padding: '12px 16px', background: 'var(--io-surface-secondary)', borderRadius: '6px', fontSize: '13px', color: 'var(--io-text-muted)', textAlign: 'center' }}>
+        No points configured for this segment.
+      </div>
+    )
+  }
+
   return (
-    <div
-      style={{
-        padding: '16px',
-        background: 'var(--io-surface-secondary)',
-        borderRadius: '6px',
-        fontSize: '13px',
-        color: 'var(--io-text-muted)',
-        textAlign: 'center',
-      }}
-    >
-      {pointIds && pointIds.length > 0 ? (
-        <div>
-          <div style={{ marginBottom: '8px', fontWeight: 600 }}>
-            {pointIds.length} point{pointIds.length !== 1 ? 's' : ''} configured
-          </div>
-          <div>Live data not yet loaded — real-time wiring is available in a future phase.</div>
-        </div>
-      ) : (
-        <div>No points configured for this segment.</div>
-      )}
+    <div style={{ borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--io-border)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <thead>
+          <tr>
+            <th style={{ padding: '6px 12px', textAlign: 'left', background: 'var(--io-surface-secondary)', borderBottom: '1px solid var(--io-border)', fontWeight: 600, color: 'var(--io-text-muted)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Point
+            </th>
+            <th style={{ padding: '6px 12px', textAlign: 'right', background: 'var(--io-surface-secondary)', borderBottom: '1px solid var(--io-border)', fontWeight: 600, color: 'var(--io-text-muted)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Value
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {ids.map((pid, idx) => {
+            const pv = values.get(pid)
+            return (
+              <tr key={pid} style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--io-surface-secondary)' }}>
+                <td style={{ padding: '7px 12px', color: 'var(--io-text-secondary)', fontFamily: 'var(--io-font-mono, monospace)', fontSize: '12px', borderBottom: idx < ids.length - 1 ? '1px solid var(--io-border)' : 'none' }}>
+                  {pid}
+                </td>
+                <td style={{ padding: '7px 12px', textAlign: 'right', color: pv ? 'var(--io-text-primary)' : 'var(--io-text-muted)', fontWeight: pv ? 600 : 400, borderBottom: idx < ids.length - 1 ? '1px solid var(--io-border)' : 'none' }}>
+                  {pv ? String(pv.value) : '—'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

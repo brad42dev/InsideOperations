@@ -668,23 +668,25 @@ function PipePanel({ node }: { node: Pipe }) {
 import type { DisplayElementType, DisplayElementConfig } from '../../shared/types/graphics'
 
 const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{ value: DisplayElementType; label: string }> = [
-  { value: 'text_readout',     label: 'Text Readout' },
-  { value: 'analog_bar',       label: 'Analog Bar' },
-  { value: 'fill_gauge',       label: 'Fill Gauge' },
-  { value: 'sparkline',        label: 'Sparkline' },
-  { value: 'alarm_indicator',  label: 'Alarm Indicator' },
-  { value: 'digital_status',   label: 'Digital Status' },
+  { value: 'text_readout',       label: 'Text Readout' },
+  { value: 'numeric_indicator',  label: 'Numeric Indicator' },
+  { value: 'analog_bar',         label: 'Analog Bar' },
+  { value: 'fill_gauge',         label: 'Fill Gauge' },
+  { value: 'sparkline',          label: 'Sparkline' },
+  { value: 'alarm_indicator',    label: 'Alarm Indicator' },
+  { value: 'digital_status',     label: 'Digital Status' },
 ]
 
 /** Build a minimal valid default config for a given display element type */
 function defaultConfig(type: DisplayElementType): DisplayElementConfig {
   switch (type) {
-    case 'text_readout':    return { displayType: 'text_readout', showBox: false, showLabel: false, showUnits: false, valueFormat: '0.##', minWidth: 60 }
-    case 'analog_bar':      return { displayType: 'analog_bar', orientation: 'vertical', barWidth: 20, barHeight: 80, rangeLo: 0, rangeHi: 100, showZoneLabels: false, showPointer: true, showSetpoint: false, showNumericReadout: false, showSignalLine: false }
-    case 'fill_gauge':      return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: false, showValue: false, valueFormat: '0.#' }
-    case 'sparkline':       return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
-    case 'alarm_indicator': return { displayType: 'alarm_indicator', mode: 'single' }
-    case 'digital_status':  return { displayType: 'digital_status', stateLabels: {}, normalStates: [], abnormalPriority: 3 }
+    case 'text_readout':       return { displayType: 'text_readout', showBox: false, showLabel: false, showUnits: false, valueFormat: '0.##', minWidth: 60 }
+    case 'numeric_indicator':  return { displayType: 'numeric_indicator', fontSize: 24, decimalPlaces: 1, showUnit: true, showLabel: false, width: 100 }
+    case 'analog_bar':         return { displayType: 'analog_bar', orientation: 'vertical', barWidth: 20, barHeight: 80, rangeLo: 0, rangeHi: 100, showZoneLabels: false, showPointer: true, showSetpoint: false, showNumericReadout: false, showSignalLine: false }
+    case 'fill_gauge':         return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: false, showValue: false, valueFormat: '0.#' }
+    case 'sparkline':          return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
+    case 'alarm_indicator':    return { displayType: 'alarm_indicator', mode: 'single' }
+    case 'digital_status':     return { displayType: 'digital_status', stateLabels: {}, normalStates: [], abnormalPriority: 3 }
   }
 }
 

@@ -4,6 +4,7 @@ import type {
   Pipe, TextBlock, Group, Annotation, ImageNode, EmbeddedSvgNode,
   WidgetNode, ViewportState, LayerDefinition,
   TextReadoutConfig, AnalogBarConfig, FillGaugeConfig, DigitalStatusConfig,
+  NumericIndicatorConfig,
 } from '../types/graphics'
 import { PIPE_SERVICE_COLORS, canvasToScreen } from '../types/graphics'
 import { fetchShapes } from './shapeCache'
@@ -401,6 +402,33 @@ export function SceneRenderer({
             <rect x={1} y={fillY} width={bw-2} height={fillH} rx={1} fill={fillColor} />
             {cfg.showLevelLine && fillH > 0 && <line x1={1} y1={fillY} x2={bw-1} y2={fillY} stroke="#64748B" strokeWidth={1} strokeDasharray="5 3" />}
             {cfg.showValue && <text x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
+          </g>
+        )
+      }
+
+      case 'numeric_indicator': {
+        const cfg = node.config as NumericIndicatorConfig
+        const raw = pv?.value ?? null
+        const priority = pv?.alarmPriority as (1|2|3|4|5) | null | undefined
+        const unacked = pv?.unacknowledged ?? false
+        let displayValue = '---'
+        if (raw !== null) {
+          const num = typeof raw === 'number' ? raw : parseFloat(String(raw))
+          displayValue = isNaN(num) ? String(raw) : num.toFixed(cfg.decimalPlaces)
+        }
+        const alarmColor = priority ? ALARM_COLORS[priority] : null
+        const valueColor = alarmColor ?? '#F9FAFB'
+        const flashClass = unacked && alarmColor ? 'io-alarm-flash' : ''
+        const label = cfg.showLabel ? (cfg.labelText ?? pv?.tag ?? '') : null
+        const unitStr = cfg.showUnit && pv?.units ? pv.units : null
+        const labelH = label ? 14 : 0
+        const unitH = unitStr ? 14 : 0
+        const cy = labelH + cfg.fontSize / 2 + 3
+        return (
+          <g key={node.id} className={`io-display-element ${flashClass}`} data-node-id={node.id} opacity={node.opacity} transform={`translate(${x},${y})`}>
+            {label && <text x={cfg.width/2} y={10} textAnchor="middle" dominantBaseline="middle" fontFamily="Inter" fontSize={9} fill="#71717A" style={{ letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</text>}
+            <text x={cfg.width/2} y={cy} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={cfg.fontSize} fontWeight="600" fill={valueColor} style={{ fontVariantNumeric: 'tabular-nums' }}>{displayValue}</text>
+            {unitStr && <text x={cfg.width/2} y={labelH + cfg.fontSize + unitH/2 + 3} textAnchor="middle" dominantBaseline="middle" fontFamily="Inter" fontSize={10} fill="#71717A">{unitStr}</text>}
           </g>
         )
       }

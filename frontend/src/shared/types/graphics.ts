@@ -133,6 +133,7 @@ export type DisplayElementType =
   | 'sparkline'
   | 'alarm_indicator'
   | 'digital_status'
+  | 'numeric_indicator'
 
 export interface TextReadoutConfig {
   displayType: 'text_readout'
@@ -203,6 +204,21 @@ export interface DigitalStatusConfig {
   abnormalPriority: 1 | 2 | 3 | 4 | 5
 }
 
+export interface NumericIndicatorConfig {
+  displayType: 'numeric_indicator'
+  /** Font size for the value (default 24) */
+  fontSize: number
+  /** Number of decimal places to show */
+  decimalPlaces: number
+  /** Show the engineering unit label below the value */
+  showUnit: boolean
+  /** Show a tag/label above the value */
+  showLabel: boolean
+  labelText?: string
+  /** Width of the bounding box */
+  width: number
+}
+
 export type DisplayElementConfig =
   | TextReadoutConfig
   | AnalogBarConfig
@@ -210,6 +226,7 @@ export type DisplayElementConfig =
   | SparklineConfig
   | AlarmIndicatorConfig
   | DigitalStatusConfig
+  | NumericIndicatorConfig
 
 export interface DisplayElement extends SceneNodeBase {
   type: 'display_element'

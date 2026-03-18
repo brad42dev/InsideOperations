@@ -79,18 +79,22 @@ function StageCard({
   const queryClient = useQueryClient()
   const [editingName, setEditingName] = useState(false)
   const [stageName, setStageName] = useState(stage.name)
+  const [editingRange, setEditingRange] = useState(false)
+  const [rangeStart, setRangeStart] = useState(stage.time_range_start.slice(0, 16))
+  const [rangeEnd, setRangeEnd] = useState(stage.time_range_end.slice(0, 16))
   const [showEvidenceMenu, setShowEvidenceMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const updateStageMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const result = await forensicsApi.updateStage(investigationId, stage.id, { name })
+    mutationFn: async (patch: Partial<{ name: string; time_range_start: string; time_range_end: string }>) => {
+      const result = await forensicsApi.updateStage(investigationId, stage.id, patch)
       if (!result.success) throw new Error(result.error.message)
       return result.data
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] })
       setEditingName(false)
+      setEditingRange(false)
       onRefresh()
     },
   })
@@ -167,7 +171,7 @@ function StageCard({
             onChange={(e) => setStageName(e.target.value)}
             onBlur={() => {
               if (stageName.trim() && stageName !== stage.name) {
-                updateStageMutation.mutate(stageName.trim())
+                updateStageMutation.mutate({ name: stageName.trim() })
               } else {
                 setStageName(stage.name)
                 setEditingName(false)
@@ -176,7 +180,7 @@ function StageCard({
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 if (stageName.trim() && stageName !== stage.name) {
-                  updateStageMutation.mutate(stageName.trim())
+                  updateStageMutation.mutate({ name: stageName.trim() })
                 } else {
                   setEditingName(false)
                 }
@@ -213,9 +217,79 @@ function StageCard({
           </span>
         )}
 
-        <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', flexShrink: 0 }}>
-          {formatRange(stage.time_range_start, stage.time_range_end)}
-        </span>
+        {editingRange && !readOnly ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <input
+              type="datetime-local"
+              value={rangeStart}
+              onChange={(e) => setRangeStart(e.target.value)}
+              style={{
+                padding: '2px 6px',
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-accent)',
+                borderRadius: '4px',
+                color: 'var(--io-text-primary)',
+                fontSize: '11px',
+                outline: 'none',
+              }}
+            />
+            <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>→</span>
+            <input
+              type="datetime-local"
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(e.target.value)}
+              style={{
+                padding: '2px 6px',
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-accent)',
+                borderRadius: '4px',
+                color: 'var(--io-text-primary)',
+                fontSize: '11px',
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={() => {
+                if (rangeStart && rangeEnd) {
+                  updateStageMutation.mutate({
+                    time_range_start: new Date(rangeStart).toISOString(),
+                    time_range_end: new Date(rangeEnd).toISOString(),
+                  })
+                }
+              }}
+              style={{ padding: '2px 8px', background: 'var(--io-accent)', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+            >
+              Set
+            </button>
+            <button
+              onClick={() => {
+                setRangeStart(stage.time_range_start.slice(0, 16))
+                setRangeEnd(stage.time_range_end.slice(0, 16))
+                setEditingRange(false)
+              }}
+              style={{ padding: '2px 6px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '4px', color: 'var(--io-text-muted)', cursor: 'pointer', fontSize: '11px' }}
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <span
+            onClick={() => !readOnly && setEditingRange(true)}
+            title={readOnly ? undefined : 'Click to edit time range'}
+            style={{
+              fontSize: '11px',
+              color: 'var(--io-text-muted)',
+              flexShrink: 0,
+              cursor: readOnly ? 'default' : 'pointer',
+              padding: '2px 4px',
+              borderRadius: '4px',
+            }}
+            onMouseEnter={(e) => { if (!readOnly) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            {formatRange(stage.time_range_start, stage.time_range_end)}
+          </span>
+        )}
 
         {!readOnly && (
           <button
