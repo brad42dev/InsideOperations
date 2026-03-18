@@ -768,9 +768,9 @@ Spec defines 6 contexts: `point_config`, `alarm_threshold`, `rounds_checkpoint`,
 
 Settings > Import has a UI (`Settings/Import.tsx`) with connection and definition management. Key gap:
 
-### 24.1 Import Wizard (GAP — MEDIUM)
+### 24.1 Import Wizard — **DONE** (pass 4, 2026-03-18)
 
-Spec: A wizard-based UI for configuring new import connections with 40 connector templates. The current implementation shows a table of connections and definitions. Whether the full 8-step wizard (select connector, configure, map fields, transform, schedule, preview, validate, activate) is implemented needs verification. The `SupplementalConnectorsTab.tsx` suggests some connector configuration UI exists.
+Added a new "Definitions" tab with a 7-step definition wizard (Select Connection → Configure Source → Map Fields → Transformations → Validation & Options → Schedule → Review). Wizard creates `ImportDefinition` + optional `ImportSchedule` via `importApi`. Connections (3-step) and Connector Templates (40 card grid) were already implemented. Full 4-tab layout: Connectors | Connections | Definitions | Run History.
 
 ---
 
@@ -832,9 +832,9 @@ Key gap:
 
 Spec: PermissionGuard checks `user.eula_accepted`. The current `PermissionGuard.tsx` redirects to `/eula` if not authenticated. The EULA gate is implemented separately as `EulaGate.tsx`. Functionally correct — gap in strict code organization only.
 
-### 29.2 Login Page SSO Provider Buttons (GAP — LOW)
+### 29.2 Login Page SSO Provider Buttons — **DONE** (pass 4, 2026-03-18)
 
-Spec: Login page dynamically renders SSO provider buttons based on configured providers. Current `Login.tsx` shows username/password only. SSO/LDAP provider buttons are not rendered (they would require a `GET /api/auth/providers` call to know which providers are configured).
+`Login.tsx` already fully implements dynamic SSO provider buttons via `authProvidersApi.listPublic()`. OIDC/SAML providers get "Sign in with {name}" buttons that redirect to authorization URL. LDAP providers get inline credential forms. Divider shown before local username/password form when any SSO providers are present.
 
 ---
 
@@ -1004,35 +1004,27 @@ Tree browser view (area → unit → equipment → point hierarchy) for the shar
 #### L17: Frontend Test Suite
 Set up Vitest + Testing Library for unit tests. Add Playwright for E2E. ~1 day setup, ongoing.
 
-#### L18: Login Page SSO Provider Buttons
-Dynamic SSO provider list from `GET /api/auth/providers`. ~half-day.
+#### L18: Login Page SSO Provider Buttons — **DONE** (pass 4)
+Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders OIDC/SAML/LDAP buttons dynamically.
 
 ---
 
 ## Complete Gap Priority Summary (All Docs)
 
 ### HIGH priority gaps (functionality significantly affected)
-- L1: Console Left Panel Accordion
-- L2: Console react-grid-layout
-- L5: Console Real-Time WebSocket Integration (revised: partially OK via PointBindingLayer)
-- L7: Multi-Window / Detached Windows
-- L9: Dashboard Real-Time Widget Updates
-- L14: Historical Playback Bar
-- 20.1: PWA Manifest (breaks iOS installability — Fix 7 addresses)
+- L2: Console react-grid-layout (Deferred — CSS grid acceptable)
+- L7: Multi-Window / Detached Windows (Deferred — large architectural)
+- L14: Historical Playback Bar (Deferred)
 
 ### MEDIUM priority gaps (features missing but core works)
-- L8: Process Viewport-Aware Subscriptions
+- L8: Process Viewport-Aware Subscriptions (Deferred — backend dependent)
 - L17: Frontend Test Suite
-- 24.1: Import Wizard (8-step wizard not verified)
 
 ### LOW priority gaps (polish / enhancements)
 - L6: Console Historical Playback
-- L10: Alert Notification Bell
-- L11: Inter / JetBrains Mono Fonts
-- L18: Login SSO Provider Buttons
 - All breadcrumb, LOD, hotspot, badge count gaps
 - BroadcastChannel for LockOverlay
-- Template variable URL sync
+- Sidebar hidden/collapsed hover states
 
 ### Completed in this session (docs 00-10 pass)
 - Fix 1: Token registry (138 tokens) — DONE
@@ -1053,7 +1045,15 @@ Dynamic SSO provider list from `GET /api/auth/providers`. ~half-day.
 - Fix 13: Designer DisplayElementTypeFields per-type config editors — DONE
 - Confirmed DONE (pass 3 sweep): L3 (undo/redo), L4 (24 presets), L12 (mobile tab bar), L15 (correlation heatmap), L16 (point picker tree), 12.1 (multi-stage investigation), 12.2 (correlation results panel)
 
-### Deferred (require user decision or install step)
+### Completed in pass 4 (2026-03-18)
+- Fix 14: Settings Snapshots, EventConfig, Badges, Groups stubs — DONE
+- Fix 15: Import Definitions tab + 7-step wizard (24.1) — DONE
+- Confirmed DONE (pass 4 sweep): L18 (Login SSO buttons), 29.2 (SSO buttons)
+
+### Deferred (require user decision or backend work)
 - Fix 6: Install `lucide-react` and replace emoji nav icons
-- L1–L11: Large features (Console enhancements, multi-window, historical playback, etc.)
-- L12–L18: New large features identified in docs 11-39 pass
+- L2: Console react-grid-layout (CSS grid is acceptable)
+- L7: Multi-Window / Detached Windows (large architectural)
+- L8: Process Viewport-Aware Subscriptions (backend dependent)
+- L14: Historical Playback Bar
+- L17: Frontend Test Suite (ongoing)
