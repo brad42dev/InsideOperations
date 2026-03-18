@@ -5,8 +5,10 @@ import type { WorkspaceLayout, PaneConfig } from './types'
 export interface WorkspaceGridProps {
   workspace: WorkspaceLayout
   editMode: boolean
+  selectedPaneIds?: Set<string>
   onConfigurePane: (paneId: string) => void
   onRemovePane: (paneId: string) => void
+  onSelectPane?: (paneId: string, addToSelection: boolean) => void
   onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
 }
 
@@ -207,8 +209,10 @@ function paneCount(layout: WorkspaceLayout['layout']): number {
 export default function WorkspaceGrid({
   workspace,
   editMode,
+  selectedPaneIds,
   onConfigurePane,
   onRemovePane,
+  onSelectPane,
   onPaletteDrop,
 }: WorkspaceGridProps) {
   const { gridTemplateColumns, gridTemplateRows, cellAreas } = getGridTemplate(workspace.layout)
@@ -250,8 +254,10 @@ export default function WorkspaceGrid({
           <PaneWrapper
             config={pane}
             editMode={editMode}
+            isSelected={selectedPaneIds?.has(pane.id) ?? false}
             onConfigure={onConfigurePane}
             onRemove={onRemovePane}
+            onSelect={onSelectPane}
             onPaletteDrop={onPaletteDrop}
           />
         </div>

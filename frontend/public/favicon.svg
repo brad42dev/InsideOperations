@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#09090b"/>
+  <!-- I/O logotype: cyan bar + circle -->
+  <rect x="8" y="8" width="4" height="16" rx="1.5" fill="#2dd4bf"/>
+  <circle cx="22" cy="16" r="6" fill="none" stroke="#2dd4bf" stroke-width="2.5"/>
+</svg>

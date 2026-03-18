@@ -266,6 +266,7 @@ export default function ConsolePage() {
   const [editMode, setEditMode] = useState(false)
   const [paletteVisible, setPaletteVisible] = useState(true)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
+  const [selectedPaneIds, setSelectedPaneIds] = useState<Set<string>>(new Set())
   const [tabContextMenu, setTabContextMenu] = useState<{
     x: number
     y: number
@@ -365,19 +366,56 @@ export default function ConsolePage() {
     updateWorkspace(activeId, () => snapshot, true)
   }, [activeId, workspaces, updateWorkspace])
 
-  // Keyboard: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+  // Keyboard shortcuts: undo/redo, pane selection ops
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const ctrl = e.ctrlKey || e.metaKey
-      if (!ctrl) return
-      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo() }
-      if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); handleRedo() }
+      // Undo / redo
+      if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return }
+      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return }
+      // Ctrl+A — select all panes in active workspace
+      if (ctrl && e.key === 'a' && editMode && activeId) {
+        e.preventDefault()
+        const ws = workspaces.find((w) => w.id === activeId)
+        if (ws) setSelectedPaneIds(new Set(ws.panes.map((p) => p.id)))
+        return
+      }
+      // Escape — clear selection
+      if (e.key === 'Escape') {
+        setSelectedPaneIds(new Set())
+        return
+      }
+      // Delete / Backspace — remove selected panes (edit mode only)
+      if ((e.key === 'Delete' || e.key === 'Backspace') && editMode && activeId) {
+        setSelectedPaneIds((prev) => {
+          if (prev.size === 0) return prev
+          updateWorkspace(activeId, (w) => ({
+            ...w,
+            panes: w.panes.filter((p) => !prev.has(p.id)),
+          }))
+          return new Set()
+        })
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleUndo, handleRedo])
+  }, [handleUndo, handleRedo, editMode, activeId, workspaces, updateWorkspace])
 
   // ---- Pane management ----------------------------------------------------
+
+  const handlePaneSelect = useCallback((paneId: string, addToSelection: boolean) => {
+    setSelectedPaneIds((prev) => {
+      if (addToSelection) {
+        const next = new Set(prev)
+        if (next.has(paneId)) next.delete(paneId)
+        else next.add(paneId)
+        return next
+      }
+      // Single-select: toggle off if already the only selected
+      if (prev.size === 1 && prev.has(paneId)) return new Set()
+      return new Set([paneId])
+    })
+  }, [])
 
   const handleConfigurePane = useCallback((paneId: string) => {
     setConfiguringPaneId(paneId)
@@ -797,8 +835,10 @@ export default function ConsolePage() {
             <WorkspaceGrid
               workspace={activeWorkspace}
               editMode={editMode}
+              selectedPaneIds={selectedPaneIds}
               onConfigurePane={handleConfigurePane}
               onRemovePane={handleRemovePane}
+              onSelectPane={handlePaneSelect}
               onPaletteDrop={handlePaletteDrop}
             />
           ) : (

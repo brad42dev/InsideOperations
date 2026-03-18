@@ -10,8 +10,10 @@ import type { PaneConfig } from './types'
 export interface PaneWrapperProps {
   config: PaneConfig
   editMode: boolean
+  isSelected?: boolean
   onConfigure: (paneId: string) => void
   onRemove: (paneId: string) => void
+  onSelect?: (paneId: string, addToSelection: boolean) => void
   onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
 }
 
@@ -105,8 +107,10 @@ function BlankPane({ editMode, onConfigure, paneId }: {
 export default function PaneWrapper({
   config,
   editMode,
+  isSelected = false,
   onConfigure,
   onRemove,
+  onSelect,
   onPaletteDrop,
 }: PaneWrapperProps) {
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
@@ -140,20 +144,33 @@ export default function PaneWrapper({
     }
   }
 
+  function handlePaneClick(e: React.MouseEvent) {
+    // Ignore clicks on buttons / context menus
+    if ((e.target as HTMLElement).closest('button, [role="menu"]')) return
+    onSelect?.(config.id, e.ctrlKey || e.metaKey || e.shiftKey)
+  }
+
   return (
     <div
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onClick={handlePaneClick}
       style={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         background: 'var(--io-surface)',
-        border: dragOver ? '2px solid var(--io-accent)' : '1px solid var(--io-border)',
+        border: dragOver
+          ? '2px solid var(--io-accent)'
+          : isSelected
+            ? '2px solid var(--io-accent)'
+            : '1px solid var(--io-border)',
         borderRadius: 4,
         overflow: 'hidden',
         boxSizing: 'border-box',
+        outline: isSelected ? '1px solid var(--io-accent)' : undefined,
+        outlineOffset: isSelected ? '-1px' : undefined,
       }}
     >
       {/* Header */}

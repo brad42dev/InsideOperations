@@ -176,7 +176,7 @@ The current AppShell renders all 11 items as a flat list with no grouping. The s
 
 `AppShell.tsx` has an `AlertBell` component (line 133) that queries `/api/alarms/active?unacknowledged=true` and renders a Bell icon with a count badge in the top bar.
 
-### 6.7 Top Bar — Breadcrumbs (GAP — LOW)
+### 6.7 Top Bar — Breadcrumbs — **DONE** (pass 5 confirmed)
 
 Doc 06 specifies auto-generated breadcrumbs below the top bar. The current implementation shows only the page title (module name). Full breadcrumb paths like `Console > Main Control Room > Pane 3` are not shown.
 
@@ -194,7 +194,7 @@ Docs 06, 07, 08, 10 all describe a multi-window system with:
 
 None of this is implemented. The routes don't exist in App.tsx. This is a large architectural feature.
 
-### 6.10 Print Stylesheet (GAP — LOW)
+### 6.10 Print Stylesheet — **DONE** (pass 5 confirmed)
 
 Doc 06 specifies `@media print` styles with color normalization rules. Not implemented in index.css.
 
@@ -228,17 +228,9 @@ The spec is explicit about using `react-grid-layout`. Without it, the drag/resiz
 
 `ConsolePalette.tsx` sets `draggable` on items with `CONSOLE_DRAG_KEY` data. `PaneWrapper.tsx` handles `onDragOver` / `onDrop` events, decodes the drag item, and calls `onPaletteDrop(paneId, item)`. Wired in `console/index.tsx` via `handlePaletteDrop`.
 
-### 7.5 Pane Interactions (GAP — MEDIUM)
+### 7.5 Pane Interactions — **PARTIAL** (pass 5)
 
-Missing:
-- Box selection (left click + drag on empty space)
-- Ctrl+A to select all panes
-- Ctrl+C/V copy-paste pane content between workspaces
-- Pane swap by dragging one pane over another
-- Drag-to-remove (drag pane outside workspace boundary)
-- Delete key to remove selected panes
-
-Only basic pane operations (configure, remove via modal) are implemented.
+Added: click-to-select pane (visual accent border), Ctrl+A selects all panes, Delete/Backspace removes selected panes, Escape clears selection, Ctrl+click for multi-select. Still missing: box selection drag, Ctrl+C/V copy-paste between workspaces, pane swap by drag, drag-to-remove.
 
 ### 7.6 Undo/Redo — **DONE** (pass 3 confirmed)
 
@@ -657,7 +649,7 @@ Implementation: `index.html` has no `<link rel="manifest">` and `public/manifest
 
 **This is a straightforward fix** — create `public/manifest.json` and add the link tag to `index.html`.
 
-### 20.2 PWA Icons Missing (GAP — MEDIUM)
+### 20.2 PWA Icons — **PARTIAL** (pass 5)
 
 Spec: App requires PWA icons (192×192, 512×512 PNG, maskable). Only `favicon.svg` exists in public. No PNG icons for the manifest.
 
