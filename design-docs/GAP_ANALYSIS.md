@@ -30,7 +30,7 @@ Each design document (00–10, 38) was read in full and compared to the current 
 | 06 | Sidebar — Collapsed hover-to-expand overlay not implemented | LOW | Deferred |
 | 06 | Sidebar — Navigation grouping (Monitoring/Analysis/Operations/Management) not implemented | MEDIUM | **DONE** (NAV_GROUPS already in AppShell) |
 | 06 | Sidebar — Badge counts (unread alerts, active rounds) not implemented | LOW | **DONE** (useUnacknowledgedAlertCount + useActiveRoundsCount hooks in AppShell) |
-| 06 | Top bar — hide/show (Ctrl+Shift+T) not implemented | LOW | Deferred |
+| 06 | Top bar — hide/show (Ctrl+Shift+T) not implemented | LOW | **DONE** (Ctrl+Shift+T keyboard shortcut; ▲ hide button at right of topbar; 8px edge-hover strip with 200ms dwell + peek overlay) |
 | 06 | Top bar — alert notification bell not implemented | MEDIUM | **DONE** (AlertBell component in AppShell) |
 | 06 | Top bar — breadcrumbs not implemented | LOW | **DONE** (buildBreadcrumbs in AppShell) |
 | 06 | Command palette — G-key navigation not implemented | LOW | **DONE** (G_KEY_MAP in AppShell) |
@@ -43,7 +43,7 @@ Each design document (00–10, 38) was read in full and compared to the current 
 | 07 | Console — react-grid-layout not used; CSS grid used instead | MEDIUM | Acceptable (CSS grid is simpler, adequate) |
 | 07 | Console — left panel accordion (4 sections) not implemented | HIGH | **DONE** (ConsolePalette.tsx — Graphics/Widgets/Points accordion) |
 | 07 | Console — drag-and-drop from palette to workspace not implemented | HIGH | **DONE** (HTML5 DnD in ConsolePalette → PaneWrapper → WorkspaceGrid) |
-| 07 | Console — pane swap, box select, copy/paste not implemented | MEDIUM | Deferred |
+| 07 | Console — pane swap, box select, copy/paste not implemented | MEDIUM | **PARTIAL** — box select DONE (pointer drag on empty grid background, AABB overlap, visual selection rect); copy/paste DONE (Ctrl+C/V); pane swap deferred |
 | 07 | Console — undo/redo (zundo) not implemented | MEDIUM | **DONE** (useRef-based 50-level stacks, Ctrl+Z/Y/Shift+Z) |
 | 07 | Console — historical playback not implemented | MEDIUM | Deferred |
 | 07 | Console — real-time WebSocket data updates in panes not implemented | HIGH | **DONE** (useWebSocket in all 4 pane types; GraphicViewer has PointBindingLayer) |
@@ -952,12 +952,13 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 - L7: Multi-Window / Detached Windows (Deferred — large architectural; requires SharedWorker + BroadcastChannel + detached routes)
 
 ### MEDIUM priority gaps (features missing but core works)
-- L17: Frontend Test Suite — 66 tests pass, more coverage needed per doc 33
+- L17: Frontend Test Suite — 210 tests pass across 13 files; more integration-level and component tests still needed per doc 33
 
 ### LOW priority gaps (polish / enhancements)
-- 7.5 box selection drag / pane swap-by-drag
+- 7.5 pane swap-by-drag (box selection DONE, copy/paste DONE)
 - 30.2 Drag-and-Drop Schedule Calendar
 - 11.1 Report Config as persistent slide-out (vs modal)
+- Sidebar collapsed hover-to-expand overlay
 - Breadcrumb trails, sidebar hover-expand animation
 
 ### Completed in this session (docs 00-10 pass)
@@ -1000,12 +1001,15 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 - Sidebar badge counts (6.6 entry) — `useUnacknowledgedAlertCount` + `useActiveRoundsCount` hooks; badge rendered in AppShell collapsed (absolute) and expanded (pill) states — DONE
 - AlarmListPane real data — `useQuery`/`useMutation` against `/api/alarms/active`, `toAlarmRow()` adapter, 15s polling — DONE
 - Console/Process historical playback wired — `GraphicPane`, `TrendPane`, `PointTablePane`, `AlarmListPane`, `ProcessPage` all check `usePlaybackStore().mode`; WS suspended in historical mode; values from `useHistoricalValues` — DONE
-- Test suite expanded — 107 tests passing (was 66); new file `commandPalette.test.ts` with `parseQuery`, `toAlarmRow`, `relativeTime` test coverage (41 tests) — DONE
-- Updated summary table entries: 6.6 DONE, L14 DONE, L6 DONE, command palette DONE
+- Test suite expanded — 210 tests passing (was 66); new files `commandPalette.test.ts` (41), `playbackStore.test.ts` (13), `wsMessages.test.ts` (18), `consoleGrid.test.ts` (28), `permissions.test.ts` (isPermission guard + 118-perm count), `uiStore.test.ts` (lock/unlock/kiosk/emergency), `expressionAst.test.ts` (JSON round-trip, TileType coverage, tile validation) — DONE
+- Top bar hide/show (6.x) — Ctrl+Shift+T keyboard shortcut, ▲ hide button (right of topbar), 8px edge-hover strip + 200ms dwell timer, peek overlay with 400ms hide delay — DONE
+- Console box selection — pointer drag on empty grid background, AABB overlap with `data-pane-id` DOM query, visual selection rect (accent border/bg), 6px threshold — DONE
+- Updated summary table entries: topbar hide/show DONE, Console box-select DONE
 
 ### Deferred (require user decision or backend work)
 - L7: Multi-Window / Detached Windows (large architectural — SharedWorker, BroadcastChannel, detached routes)
-- 7.5 box selection drag / pane swap (minor UX polish)
+- 7.5 pane swap-by-drag (minor UX polish; box selection + copy/paste already done)
 - 30.2 Drag-and-Drop Schedule Calendar (low priority — pattern wizard is adequate)
 - 11.1 Report Config Slide-Out (low priority — modal is functionally equivalent)
 - 13.2 Attachment OCR (backend-only feature)
+- 16.1 SharedWorker (tied to L7 multi-window; not actionable independently)

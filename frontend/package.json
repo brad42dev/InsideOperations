@@ -37,6 +37,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-grid-layout": "^2.2.2",
+    "react-resizable": "^3.1.3",
     "react-router-dom": "^6.23.1",
     "uplot": "^1.6.31",
     "zustand": "^4.5.2"

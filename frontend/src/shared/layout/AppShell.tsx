@@ -233,6 +233,10 @@ export default function AppShell() {
   // sidebarHidden drives the edge-reveal strip
   const sidebarHidden = sidebarState === 'hidden'
   const [sidebarPeek, setSidebarPeek] = useState(false)
+  // Top bar hidden state (Ctrl+Shift+T)
+  const [topbarHidden, setTopbarHidden] = useState(false)
+  const [topbarPeek, setTopbarPeek] = useState(false)
+  const topbarPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
 
@@ -322,6 +326,14 @@ export default function AppShell() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'b') {
         e.preventDefault()
         setSidebarState(s => s === 'expanded' ? 'collapsed' : s === 'collapsed' ? 'hidden' : 'expanded')
+        return
+      }
+
+      // Ctrl+Shift+T — toggle top bar
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 't') {
+        e.preventDefault()
+        setTopbarHidden(v => !v)
+        setTopbarPeek(false)
         return
       }
 
@@ -677,17 +689,82 @@ export default function AppShell() {
 
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Edge-hover strip for hidden topbar */}
+        {topbarHidden && !isKiosk && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: sidebarHidden ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
+              right: 0,
+              height: 8,
+              zIndex: 200,
+              cursor: 'pointer',
+            }}
+            onMouseEnter={() => {
+              if (topbarPeekTimerRef.current) clearTimeout(topbarPeekTimerRef.current)
+              topbarPeekTimerRef.current = setTimeout(() => setTopbarPeek(true), 200)
+            }}
+            onMouseLeave={() => {
+              if (topbarPeekTimerRef.current) clearTimeout(topbarPeekTimerRef.current)
+              topbarPeekTimerRef.current = setTimeout(() => setTopbarPeek(false), 400)
+            }}
+          />
+        )}
+        {/* Peek overlay when topbar is hidden but mouse is at top edge */}
+        {topbarHidden && topbarPeek && !isKiosk && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: sidebarHidden ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
+              right: 0,
+              zIndex: 200,
+              background: 'var(--io-surface-secondary)',
+              borderBottom: '1px solid var(--io-border)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            }}
+            onMouseEnter={() => {
+              if (topbarPeekTimerRef.current) clearTimeout(topbarPeekTimerRef.current)
+            }}
+            onMouseLeave={() => {
+              if (topbarPeekTimerRef.current) clearTimeout(topbarPeekTimerRef.current)
+              topbarPeekTimerRef.current = setTimeout(() => setTopbarPeek(false), 400)
+            }}
+          >
+            <button
+              onClick={() => { setTopbarHidden(false); setTopbarPeek(false) }}
+              title="Show top bar (Ctrl+Shift+T)"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 6,
+                background: 'var(--io-accent-subtle)',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 10,
+                color: 'var(--io-accent)',
+              }}
+            >
+              ▼
+            </button>
+          </div>
+        )}
         {/* Topbar */}
         <header
           style={{
-            height: 'var(--io-topbar-height)',
+            height: (!isKiosk && topbarHidden) ? 0 : 'var(--io-topbar-height)',
+            overflow: 'hidden',
             background: 'var(--io-surface-secondary)',
-            borderBottom: '1px solid var(--io-border)',
+            borderBottom: (!isKiosk && topbarHidden) ? 'none' : '1px solid var(--io-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0 20px',
+            padding: (!isKiosk && topbarHidden) ? 0 : '0 20px',
             flexShrink: 0,
+            transition: 'height 0.25s ease',
           }}
         >
           {/* Hamburger for mobile */}
@@ -799,6 +876,30 @@ export default function AppShell() {
 
             {/* Alert notification bell */}
             {!isKiosk && <AlertBell />}
+
+            {/* Hide top bar button */}
+            {!isKiosk && (
+              <button
+                onClick={() => setTopbarHidden(true)}
+                title="Hide top bar (Ctrl+Shift+T)"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  color: 'var(--io-text-muted)',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  width: '34px',
+                  height: '34px',
+                  fontSize: '12px',
+                }}
+              >
+                ▲
+              </button>
+            )}
 
             {/* User menu */}
             {!isKiosk && (
