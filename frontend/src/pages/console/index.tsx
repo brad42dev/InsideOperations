@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import WorkspaceGrid from './WorkspaceGrid'
 import type { GridItem } from './types'
 import ConsolePalette, { type ConsoleDragItem } from './ConsolePalette'
+import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
 import PaneConfigModal from './PaneConfigModal'
 import ContextMenu from '../../shared/components/ContextMenu'
 import type { WorkspaceLayout, PaneConfig, LayoutPreset } from './types'
@@ -789,7 +790,7 @@ export default function ConsolePage() {
         <ConsolePalette visible={paletteVisible} onToggle={() => setPaletteVisible((v) => !v)} />
 
         {/* Workspace area */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {workspaces.length === 0 ? (
             /* Empty state */
             <div
@@ -866,6 +867,9 @@ export default function ConsolePage() {
               Select a workspace above
             </div>
           )}
+
+          {/* Historical Playback Bar — always shown at bottom of workspace area */}
+          {workspaces.length > 0 && <HistoricalPlaybackBar />}
         </div>
       </div>
 

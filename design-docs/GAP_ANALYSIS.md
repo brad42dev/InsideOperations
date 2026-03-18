@@ -249,10 +249,9 @@ Console workspace undo/redo implemented (Ctrl+Z/Ctrl+Y). Confirmed in pass 3 swe
 
 `console/index.tsx` uses `consoleApi.listWorkspaces()` / `consoleApi.saveWorkspace()` / `consoleApi.deleteWorkspace()` for API-backed persistence with localStorage fallback.
 
-### 7.9 Historical Playback (GAP — MEDIUM)
+### 7.9 Historical Playback (DONE)
 
-Spec: Live↔Historical mode toggle, playback bar with scrub/play/speed controls, all panes sync to playback timestamp.
-Implementation: Not implemented.
+`HistoricalPlaybackBar` component added at the bottom of the Console workspace area. Reads from `usePlaybackStore` (Zustand). Controls: Live/Historical toggle, date range pickers, scrub slider, step-back/forward buttons, play/pause, speed selector (1×/2×/5×/10×/60×/300×), timestamp display. `useHistoricalValues` hook fetches archive values at a specific timestamp via `pointsApi.getHistory()` with a 10-second window. See also gap 32.1.
 
 ---
 
@@ -280,9 +279,9 @@ Implemented via `lod.css` + `SceneRenderer.tsx`:
 
 `process/index.tsx` now has: (1) bookmark toggle (★/☆) button using `bookmarksApi` to add/remove graphic bookmarks, (2) "Recent ▾" dropdown showing last 10 viewed graphics (localStorage) + all bookmarks. Full hierarchy tree not implemented but bookmarks + recent views satisfies the core requirement.
 
-### 8.5 Historical Playback (GAP — LOW)
+### 8.5 Historical Playback (DONE)
 
-Same as Console — Live↔Historical toggle with Playback Bar not implemented.
+`HistoricalPlaybackBar` added at bottom of Process module, sharing `usePlaybackStore`. Same implementation as 7.9.
 
 ---
 
@@ -843,9 +842,9 @@ The shared UI components are implemented:
 
 Key gaps:
 
-### 32.1 Historical Playback Bar (GAP — HIGH)
+### 32.1 Historical Playback Bar (DONE)
 
-Spec: Shared `HistoricalPlaybackBar` component used by Console, Process, and Forensics for scrub/play/speed controls. Not implemented as a standalone component. Depends on the historical data pipeline which is not implemented.
+Created `src/shared/components/HistoricalPlaybackBar.tsx` — the shared component used by Console and Process (Forensics integration deferred until investigation workspace refactor). Features: Live/Historical toggle, date range pickers, scrub slider, step/play/pause, speed selector (1×–300×), timestamp display. Backed by `src/store/playback.ts` (Zustand). `src/shared/hooks/useHistoricalValues.ts` fetches point values at a timestamp from archive-service via `pointsApi.getHistory()`.
 
 ### 32.2 Correlation Matrix Heatmap — **DONE** (pass 3 confirmed)
 

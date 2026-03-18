@@ -7,6 +7,7 @@ import { useWebSocket } from '../../shared/hooks/useWebSocket'
 import { bookmarksApi } from '../../api/bookmarks'
 import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import type { DesignObjectSummary } from '../../api/graphics'
+import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
 
 const DEFAULT_GRAPHIC_ID_KEY = 'io-process-last-graphic'
 const RECENT_VIEWS_KEY = 'io-process-recent-views'
@@ -392,6 +393,8 @@ export default function ProcessPage() {
           />
         )}
       </div>
+      {/* Historical Playback Bar */}
+      <HistoricalPlaybackBar />
     </div>
   )
 }
