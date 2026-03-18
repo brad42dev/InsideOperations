@@ -59,6 +59,7 @@ import {
   RotateNodesCommand,
   FlipNodesCommand,
   ResizePrimitiveCommand,
+  ResizeNodeWithDimsCommand,
 } from '../../shared/graphics/commands'
 import type { SceneCommand } from '../../shared/graphics/commands'
 import { PIPE_SERVICE_COLORS } from '../../shared/types/graphics'
@@ -134,6 +135,10 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
       const ys = pipe.waypoints.map(p => p.y)
       return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs) || 4, h: Math.max(...ys) - Math.min(...ys) || 4 }
     }
+  }
+  if (node.type === 'widget') {
+    const wn = node as WidgetNode
+    return { x, y, w: wn.width, h: wn.height }
   }
   // Default generous bbox for symbols, display elements, etc.
   return { x, y, w: 64, h: 64 }
@@ -1493,6 +1498,25 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
             inter.resizeNodeId,
             newT, newGeom,
             prevT, prim.geometry,
+          ))
+        } else if (target?.type === 'image') {
+          const img = target as ImageNode
+          const prevT = inter.resizeOrigTransform
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+          executeCmd(new ResizeNodeWithDimsCommand(
+            inter.resizeNodeId,
+            newT, { width: nw, height: nh },
+            prevT, { width: img.displayWidth, height: img.displayHeight },
+            ['displayWidth', 'displayHeight'],
+          ))
+        } else if (target?.type === 'widget') {
+          const wn = target as WidgetNode
+          const prevT = inter.resizeOrigTransform
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+          executeCmd(new ResizeNodeWithDimsCommand(
+            inter.resizeNodeId,
+            newT, { width: nw, height: nh },
+            prevT, { width: wn.width, height: wn.height },
           ))
         }
       }

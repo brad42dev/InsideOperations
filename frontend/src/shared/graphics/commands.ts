@@ -1209,6 +1209,43 @@ export class ResizePrimitiveCommand implements SceneCommand {
 }
 
 // ---------------------------------------------------------------------------
+// ResizeNodeWithDimsCommand — updates transform AND width/height properties
+// Used for image and widget nodes where dimensions are stored as separate props
+// ---------------------------------------------------------------------------
+
+export class ResizeNodeWithDimsCommand implements SceneCommand {
+  description = 'Resize'
+  constructor(
+    private nodeId: NodeId,
+    private newTransform: Transform,
+    private newDims: { width: number; height: number },
+    private prevTransform: Transform,
+    private prevDims: { width: number; height: number },
+    private dimKeys: [string, string] = ['width', 'height']
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const [wk, hk] = this.dimKeys
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      transform: clone(this.newTransform),
+      [wk]: this.newDims.width,
+      [hk]: this.newDims.height,
+    }))
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    const [wk, hk] = this.dimKeys
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      transform: clone(this.prevTransform),
+      [wk]: this.prevDims.width,
+      [hk]: this.prevDims.height,
+    }))
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Command history Zustand store
 // ---------------------------------------------------------------------------
 
