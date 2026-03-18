@@ -27,7 +27,7 @@ Each design document (00–10, 38) was read in full and compared to the current 
 | 06 | Typography — Inter/JetBrains Mono fonts not loaded | MEDIUM | **DONE** (Google Fonts preloaded in index.html) |
 | 06 | Sidebar — width 220px vs spec 240px | LOW | **DONE** (tokens.ts: 240px/48px) |
 | 06 | Sidebar — Hidden (0px) state not implemented | MEDIUM | **DONE** (sidebarState 3-state: expanded/collapsed/hidden; Ctrl+Shift+B cycles; edge-reveal strip shown when hidden) |
-| 06 | Sidebar — Collapsed hover-to-expand overlay not implemented | LOW | Deferred |
+| 06 | Sidebar — Collapsed hover-to-expand overlay not implemented | LOW | **DONE** (300ms dwell → floating overlay at position:fixed 240px; 200ms retract on mouse leave; nav click retracts; `sidebarShowFull` derived state drives all sidebar content rendering) |
 | 06 | Sidebar — Navigation grouping (Monitoring/Analysis/Operations/Management) not implemented | MEDIUM | **DONE** (NAV_GROUPS already in AppShell) |
 | 06 | Sidebar — Badge counts (unread alerts, active rounds) not implemented | LOW | **DONE** (useUnacknowledgedAlertCount + useActiveRoundsCount hooks in AppShell) |
 | 06 | Top bar — hide/show (Ctrl+Shift+T) not implemented | LOW | **DONE** (Ctrl+Shift+T keyboard shortcut; ▲ hide button at right of topbar; 8px edge-hover strip with 200ms dwell + peek overlay) |
@@ -958,8 +958,7 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 - 7.5 pane swap-by-drag (box selection DONE, copy/paste DONE)
 - 30.2 Drag-and-Drop Schedule Calendar
 - 11.1 Report Config as persistent slide-out (vs modal)
-- Sidebar collapsed hover-to-expand overlay
-- Breadcrumb trails, sidebar hover-expand animation
+- Breadcrumb trails
 
 ### Completed in this session (docs 00-10 pass)
 - Fix 1: Token registry (138 tokens) — DONE

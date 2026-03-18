@@ -233,6 +233,11 @@ export default function AppShell() {
   // sidebarHidden drives the edge-reveal strip
   const sidebarHidden = sidebarState === 'hidden'
   const [sidebarPeek, setSidebarPeek] = useState(false)
+  // Collapsed sidebar hover-to-expand overlay (300ms dwell, 200ms retract)
+  const [collapsedPeek, setCollapsedPeek] = useState(false)
+  const collapsedPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // When collapsed but peeking, show full sidebar content as floating overlay
+  const sidebarShowFull = !sidebarCollapsed || collapsedPeek
   // Top bar hidden state (Ctrl+Shift+T)
   const [topbarHidden, setTopbarHidden] = useState(false)
   const [topbarPeek, setTopbarPeek] = useState(false)
@@ -443,16 +448,37 @@ export default function AppShell() {
         <aside
           style={{
             width: sidebarHidden ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
+            // When collapsed+peeking: fixed overlay, no flex participation change (content doesn't reflow)
+            position: (sidebarCollapsed && collapsedPeek) ? 'fixed' : 'relative',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            // Override width for the floating overlay
+            ...(sidebarCollapsed && collapsedPeek ? {
+              width: 'var(--io-sidebar-width, 240px)',
+              zIndex: 200,
+              boxShadow: '4px 0 24px rgba(0,0,0,0.4)',
+            } : {}),
             background: 'var(--io-surface-secondary)',
             borderRight: sidebarHidden ? 'none' : '1px solid var(--io-border)',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
-            zIndex: 50,
+            zIndex: sidebarCollapsed && collapsedPeek ? 200 : 50,
             overflow: 'hidden',
             transition: 'width 0.18s ease',
           }}
           className="sidebar"
+          onMouseEnter={() => {
+            if (!sidebarCollapsed) return
+            if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
+            collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(true), 300)
+          }}
+          onMouseLeave={() => {
+            if (!sidebarCollapsed) return
+            if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
+            collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(false), 200)
+          }}
         >
           {/* Logo / collapse button row */}
           <div
@@ -460,13 +486,13 @@ export default function AppShell() {
               height: 'var(--io-topbar-height)',
               display: 'flex',
               alignItems: 'center',
-              padding: sidebarCollapsed ? '0 0 0 10px' : '0 8px 0 16px',
+              padding: sidebarShowFull ? '0 8px 0 16px' : '0 0 0 10px',
               borderBottom: '1px solid var(--io-border)',
               flexShrink: 0,
               gap: '8px',
             }}
           >
-            {!sidebarCollapsed && (
+            {sidebarShowFull && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                 <div
                   style={{
@@ -506,7 +532,7 @@ export default function AppShell() {
                 </span>
               </div>
             )}
-            {sidebarCollapsed && (
+            {!sidebarShowFull && (
               <div
                 style={{
                   width: '28px',
@@ -527,8 +553,11 @@ export default function AppShell() {
             )}
             {/* Collapse toggle button — cycles expanded → collapsed → hidden */}
             <button
-              onClick={() => setSidebarState(s => s === 'expanded' ? 'collapsed' : s === 'collapsed' ? 'hidden' : 'expanded')}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar (Ctrl+Shift+B)'}
+              onClick={() => {
+                setCollapsedPeek(false)
+                setSidebarState(s => s === 'expanded' ? 'collapsed' : s === 'collapsed' ? 'hidden' : 'expanded')
+              }}
+              title={sidebarShowFull ? 'Collapse sidebar (Ctrl+Shift+B)' : 'Expand sidebar'}
               style={{
                 flexShrink: 0,
                 width: '24px',
@@ -542,11 +571,11 @@ export default function AppShell() {
                 cursor: 'pointer',
                 color: 'var(--io-text-muted)',
                 fontSize: '10px',
-                marginLeft: sidebarCollapsed ? '0' : 'auto',
+                marginLeft: sidebarShowFull ? 'auto' : '0',
                 padding: 0,
               }}
             >
-              {sidebarCollapsed ? '›' : '‹'}
+              {sidebarShowFull ? '‹' : '›'}
             </button>
           </div>
 
@@ -554,7 +583,7 @@ export default function AppShell() {
           <nav
             role="navigation"
             aria-label="Main navigation"
-            style={{ flex: 1, overflowY: 'auto', padding: sidebarCollapsed ? '8px 4px' : '8px 6px' }}
+            style={{ flex: 1, overflowY: 'auto', padding: sidebarShowFull ? '8px 6px' : '8px 4px' }}
           >
             {NAV_GROUPS.map((group, groupIdx) => {
               const visibleGroupItems = group.items.filter(
@@ -563,17 +592,17 @@ export default function AppShell() {
               if (visibleGroupItems.length === 0) return null
               return (
                 <div key={group.label}>
-                  {/* Group separator + label (hidden when collapsed) */}
+                  {/* Group separator + label (hidden when not showing full) */}
                   {groupIdx > 0 && (
                     <div
                       style={{
                         height: '1px',
                         background: 'var(--io-border-subtle)',
-                        margin: sidebarCollapsed ? '6px 4px' : '6px 8px',
+                        margin: sidebarShowFull ? '6px 8px' : '6px 4px',
                       }}
                     />
                   )}
-                  {!sidebarCollapsed && (
+                  {sidebarShowFull && (
                     <div
                       style={{
                         fontSize: '10px',
@@ -591,7 +620,8 @@ export default function AppShell() {
                     <NavLink
                       key={item.path}
                       to={item.path}
-                      title={sidebarCollapsed ? item.label : undefined}
+                      title={sidebarShowFull ? undefined : item.label}
+                      onClick={() => collapsedPeek && setCollapsedPeek(false)}
                       aria-current={
                         location.pathname === item.path ||
                         location.pathname.startsWith(item.path + '/')
@@ -601,8 +631,8 @@ export default function AppShell() {
                       style={({ isActive }) => ({
                         display: 'flex',
                         alignItems: 'center',
-                        gap: sidebarCollapsed ? '0' : '10px',
-                        padding: sidebarCollapsed ? '8px 0' : '7px 10px',
+                        gap: sidebarShowFull ? '10px' : '0',
+                        padding: sidebarShowFull ? '7px 10px' : '8px 0',
                         borderRadius: 'var(--io-radius)',
                         marginBottom: '1px',
                         textDecoration: 'none',
@@ -611,15 +641,15 @@ export default function AppShell() {
                         color: isActive ? 'var(--io-accent)' : 'var(--io-text-secondary)',
                         background: isActive ? 'var(--io-accent-subtle)' : 'transparent',
                         transition: 'background var(--io-duration-fast), color var(--io-duration-fast)',
-                        justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-                        borderLeft: isActive && !sidebarCollapsed
+                        justifyContent: sidebarShowFull ? 'flex-start' : 'center',
+                        borderLeft: isActive && sidebarShowFull
                           ? '2px solid var(--io-accent)'
                           : '2px solid transparent',
                       })}
                     >
                       <span style={{ width: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
                         <item.icon size={18} />
-                        {sidebarCollapsed && (sidebarBadges[item.path] ?? 0) > 0 && (
+                        {!sidebarShowFull && (sidebarBadges[item.path] ?? 0) > 0 && (
                           <span style={{
                             position: 'absolute', top: -3, right: -3,
                             background: 'var(--io-alarm-critical, #ef4444)',
@@ -632,8 +662,8 @@ export default function AppShell() {
                           </span>
                         )}
                       </span>
-                      {!sidebarCollapsed && <span style={{ flex: 1 }}>{item.label}</span>}
-                      {!sidebarCollapsed && (sidebarBadges[item.path] ?? 0) > 0 && (
+                      {sidebarShowFull && <span style={{ flex: 1 }}>{item.label}</span>}
+                      {sidebarShowFull && (sidebarBadges[item.path] ?? 0) > 0 && (
                         <span style={{
                           background: 'var(--io-alarm-critical, #ef4444)',
                           color: '#fff', borderRadius: 10,
@@ -654,17 +684,17 @@ export default function AppShell() {
           {/* Sidebar footer — system health dots */}
           <div
             style={{
-              padding: sidebarCollapsed ? '10px 6px' : '10px 12px',
+              padding: sidebarShowFull ? '10px 12px' : '10px 6px',
               borderTop: '1px solid var(--io-border)',
               display: 'flex',
-              flexDirection: sidebarCollapsed ? 'row' : 'column',
-              alignItems: sidebarCollapsed ? 'center' : 'flex-start',
-              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              flexDirection: sidebarShowFull ? 'column' : 'row',
+              alignItems: sidebarShowFull ? 'flex-start' : 'center',
+              justifyContent: sidebarShowFull ? 'flex-start' : 'center',
               gap: '4px',
               flexShrink: 0,
             }}
           >
-            {sidebarCollapsed ? (
+            {!sidebarShowFull ? (
               <SystemHealthDot />
             ) : (
               <>
