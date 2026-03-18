@@ -11,6 +11,7 @@ import { fetchShapes } from './shapeCache'
 import { graphicsApi } from '../../api/graphics'
 import './alarmFlash.css'
 import './operationalState.css'
+import './lod.css'
 
 // ---- Point value types received from WebSocket ----
 
@@ -70,6 +71,16 @@ export function SceneRenderer({
     screenWidth: canvas.width,
     screenHeight: canvas.height,
   }
+
+  // Apply LOD class to SVG element based on viewport zoom (doc 19 §LOD)
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    el.classList.remove('io-lod-1', 'io-lod-2', 'io-lod-3')
+    if (vp.zoom < 0.3) el.classList.add('io-lod-1')
+    else if (vp.zoom < 0.7) el.classList.add('io-lod-2')
+    else el.classList.add('io-lod-3')
+  }, [vp.zoom])
 
   // Build layer lookup
   const layerMap = new Map<string, LayerDefinition>()
@@ -517,21 +528,27 @@ export function SceneRenderer({
 
   function renderNode(node: SceneNode): React.ReactElement | null {
     if (!isNodeVisible(node)) return null
+    let el: React.ReactElement | null
     switch (node.type) {
-      case 'symbol_instance': return renderSymbolInstance(node as SymbolInstance)
-      case 'display_element': return renderDisplayElement(node as DisplayElement)
-      case 'primitive': return renderPrimitive(node as Primitive)
-      case 'pipe': return renderPipe(node as Pipe)
-      case 'text_block': return renderTextBlock(node as TextBlock)
-      case 'image': return renderImage(node as ImageNode)
-      case 'embedded_svg': return renderEmbeddedSvg(node as EmbeddedSvgNode)
-      case 'annotation': return renderAnnotation(node as Annotation)
-      case 'group': return renderGroup(node as Group)
-      case 'stencil': return null // Stencil rendering TBD with stencil library
-      case 'widget': return null // Widgets render in HTML overlay
+      case 'symbol_instance': el = renderSymbolInstance(node as SymbolInstance); break
+      case 'display_element': el = renderDisplayElement(node as DisplayElement); break
+      case 'primitive': el = renderPrimitive(node as Primitive); break
+      case 'pipe': el = renderPipe(node as Pipe); break
+      case 'text_block': el = renderTextBlock(node as TextBlock); break
+      case 'image': el = renderImage(node as ImageNode); break
+      case 'embedded_svg': el = renderEmbeddedSvg(node as EmbeddedSvgNode); break
+      case 'annotation': el = renderAnnotation(node as Annotation); break
+      case 'group': el = renderGroup(node as Group); break
+      case 'stencil': return null // Stencil rendering TBD
+      case 'widget': return null  // Widgets render in HTML overlay
       case 'graphic_document': return null
       default: return null
     }
+    // Wrap with LOD attribute if specified so CSS can hide low-detail elements
+    if (el && node.lodLevel && node.lodLevel > 1) {
+      return <g key={`lod-${node.id}`} data-lod={node.lodLevel}>{el}</g>
+    }
+    return el
   }
 
   // Collect widget nodes for HTML overlay

@@ -60,6 +60,9 @@ export interface SceneNodeBase {
   opacity: number
   layerId?: NodeId
   navigationLink?: NavigationLink
+  /** Level-of-detail threshold: element is hidden when viewport zoom < threshold.
+   *  1 = always visible, 2 = visible at zoom ≥ 0.3, 3 = visible at zoom ≥ 0.7 */
+  lodLevel?: 1 | 2 | 3
 }
 
 export interface LayerDefinition {

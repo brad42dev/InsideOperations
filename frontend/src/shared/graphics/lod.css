@@ -1,0 +1,24 @@
+/*
+ * Level-of-Detail (LOD) visibility rules for SVG graphics (doc 19 §LOD)
+ *
+ * Zoom thresholds:
+ *   lod-1 (zoom < 0.3)  — show only LOD-1 elements
+ *   lod-2 (zoom 0.3–0.7) — show LOD-1 and LOD-2 elements
+ *   lod-3 (zoom ≥ 0.7)  — show all elements (full detail)
+ *
+ * Elements are tagged with data-lod="2" or data-lod="3" on their SVG <g>.
+ * LOD-1 elements have no data-lod attribute (always visible).
+ */
+
+/* At low zoom: hide LOD-2 and LOD-3 detail elements */
+.io-lod-1 [data-lod="2"],
+.io-lod-1 [data-lod="3"] {
+  visibility: hidden;
+}
+
+/* At medium zoom: hide only LOD-3 detail elements */
+.io-lod-2 [data-lod="3"] {
+  visibility: hidden;
+}
+
+/* io-lod-3: all elements visible (no rules needed) */

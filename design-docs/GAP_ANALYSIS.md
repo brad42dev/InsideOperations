@@ -259,10 +259,13 @@ The Process module is in better shape than Console — it has a working GraphicV
 
 `process/index.tsx`: `getVisiblePointIds()` computes bbox for each node in the viewport, viewport changes debounced 500ms, `useWebSocket(visiblePointIds)` subscribes only to visible points. Fully per spec.
 
-### 8.2 Level of Detail (LOD) (GAP — LOW)
+### 8.2 Level of Detail (LOD) — DONE
 
-Spec: Simplified elements when zoomed out (hide text labels, reduce detail), full detail when zoomed in. Configurable thresholds.
-Implementation: No LOD system — the SVG is rendered at full detail regardless of zoom level.
+Implemented via `lod.css` + `SceneRenderer.tsx`:
+- `SceneNodeBase` now has `lodLevel?: 1 | 2 | 3`
+- `renderNode` wraps nodes with `lodLevel > 1` in `<g data-lod={level}>`
+- A `useEffect` applies `io-lod-1/2/3` class to the SVG root when `vp.zoom` changes
+- CSS hides `[data-lod="2"]` and `[data-lod="3"]` at zoom < 0.3, and `[data-lod="3"]` at zoom < 0.7
 
 ### 8.3 Hotspot Navigation — **DONE** (pass 5 confirmed)
 
@@ -621,9 +624,9 @@ The graphics system has a solid implementation:
 
 Key gaps:
 
-### 19.1 LOD (Level of Detail) System (GAP — LOW)
+### 19.1 LOD (Level of Detail) System — DONE
 
-Spec: `data-lod="1/2/3"` attributes on SVG elements, visibility toggled on zoom change. The current `GraphicViewer.tsx` implements basic zoom/pan but no LOD system. This is a rendering enhancement.
+See gap 8.2. `SceneRenderer.tsx` applies `io-lod-N` class to the SVG root on zoom change; `lod.css` hides `[data-lod="2/3"]` elements at low zoom levels. `SceneNodeBase.lodLevel` field added to the type definition.
 
 ### 19.2 Canvg Library Not Used (ACCEPTABLE DIVERGENCE)
 
@@ -787,13 +790,13 @@ The Shifts module is implemented with:
 
 Key gaps:
 
-### 30.1 Shift Pattern Templates (GAP — LOW)
+### 30.1 Shift Pattern Templates — DONE
 
-Spec: Pre-built shift pattern templates (8h×3, 12h×2, DuPont, Pitman, Custom) with a pattern wizard. The schedule editor likely supports custom shift creation but the pre-built pattern templates with auto-generation wizard may be simplified.
+Added `PatternWizardDialog` to `ShiftSchedule.tsx` with 5 pre-built templates: 8h×3, 12h×2, DuPont 12h, Pitman 12h, Custom. "Use Pattern…" button opens the wizard. Step 1: pick a pattern. Step 2: set start date + crew. Preview shows all generated shifts. On confirm, creates all shifts via `shiftsApi.createShift` in parallel.
 
 ### 30.2 Drag-and-Drop Schedule Calendar (GAP — LOW)
 
-Spec: Calendar-based schedule builder with drag-and-drop shift block creation and resizing. The current `ShiftScheduleEditor.tsx` may use a form-based interface rather than a calendar drag-and-drop.
+Deferred — implementing a full calendar DnD without an external library (all DnD libraries capable of this are complex to build from scratch) is out of scope for now. The pattern wizard + `ShiftScheduleEditor` form provides equivalent schedule creation capability.
 
 ---
 
