@@ -4,6 +4,9 @@ import { api } from '../../api/client'
 import TimeSeriesChart from '../../shared/components/charts/TimeSeriesChart'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
 import type { EvidenceItem } from '../../api/forensics'
+import { graphicsApi } from '../../api/graphics'
+import { extractPointIds } from '../../shared/graphics/pointExtractor'
+import { useHistoricalValues } from '../../shared/hooks/useHistoricalValues'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -436,6 +439,148 @@ function AnnotationEvidence({
 }
 
 // ---------------------------------------------------------------------------
+// Graphic snapshot evidence
+// ---------------------------------------------------------------------------
+
+function GraphicSnapshotEvidence({ item }: { item: EvidenceItem }) {
+  const graphicId = item.config.graphicId as string | undefined
+  const timestampStr = item.config.timestamp as string | undefined
+  const epochMs = timestampStr ? new Date(timestampStr).getTime() : undefined
+
+  const graphicQuery = useQuery({
+    queryKey: ['graphic-snapshot', graphicId],
+    queryFn: async () => {
+      if (!graphicId) return null
+      const result = await graphicsApi.get(graphicId)
+      return result.success ? result.data.data : null
+    },
+    enabled: !!graphicId,
+    staleTime: 300_000,
+  })
+
+  const pointIds = graphicQuery.data
+    ? Array.from(extractPointIds(graphicQuery.data.scene_data))
+    : []
+
+  const historicalValues = useHistoricalValues(pointIds, epochMs)
+
+  if (!graphicId) {
+    return (
+      <span style={{ fontSize: '13px', color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+        No graphic selected.
+      </span>
+    )
+  }
+
+  if (graphicQuery.isLoading) {
+    return <span style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>Loading graphic...</span>
+  }
+
+  const graphic = graphicQuery.data
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {/* Header: graphic name + timestamp */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
+          {graphic?.name ?? graphicId}
+        </span>
+        {timestampStr && (
+          <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', flexShrink: 0 }}>
+            {new Date(timestampStr).toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      {/* Thumbnail */}
+      <div
+        style={{
+          border: '1px solid var(--io-border)',
+          borderRadius: '4px',
+          overflow: 'hidden',
+          background: 'var(--io-surface-secondary)',
+          position: 'relative',
+        }}
+      >
+        <img
+          src={graphicsApi.thumbnailUrl(graphicId)}
+          alt={graphic?.name ?? 'Graphic snapshot'}
+          style={{ width: '100%', display: 'block', maxHeight: '240px', objectFit: 'contain' }}
+          onError={(e) => {
+            const el = e.currentTarget as HTMLImageElement
+            el.style.display = 'none'
+          }}
+        />
+        {timestampStr && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '6px',
+              right: '8px',
+              background: 'rgba(0,0,0,0.6)',
+              color: '#fff',
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            {new Date(timestampStr).toLocaleString()}
+          </div>
+        )}
+      </div>
+
+      {/* Point values at snapshot time */}
+      {pointIds.length > 0 && (
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Point Values at Snapshot
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {pointIds.slice(0, 12).map((pid) => {
+              const pv = historicalValues.get(pid)
+              return (
+                <div
+                  key={pid}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: 'var(--io-surface-secondary)',
+                    fontSize: '12px',
+                  }}
+                >
+                  <span style={{ color: 'var(--io-text-muted)', fontFamily: 'var(--io-font-mono, monospace)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+                    {pid}
+                  </span>
+                  <span
+                    style={{
+                      color: pv ? (pv.quality === 'good' ? 'var(--io-text-primary)' : 'var(--io-text-muted)') : 'var(--io-text-muted)',
+                      fontWeight: pv ? 600 : 400,
+                      flexShrink: 0,
+                      marginLeft: '8px',
+                    }}
+                  >
+                    {pv ? (typeof pv.value === 'number' ? pv.value.toLocaleString(undefined, { maximumFractionDigits: 3 }) : String(pv.value)) : (epochMs ? '—' : 'N/A')}
+                  </span>
+                </div>
+              )
+            })}
+            {pointIds.length > 12 && (
+              <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', padding: '2px 8px' }}>
+                + {pointIds.length - 12} more points
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // EvidenceRenderer
 // ---------------------------------------------------------------------------
 
@@ -530,24 +675,8 @@ export default function EvidenceRenderer({ item, stageStart, stageEnd, onDelete,
         )
       }
 
-      case 'graphic_snapshot': {
-        const ts = item.config.timestamp as string | undefined
-        return (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              color: 'var(--io-text-muted)',
-              fontSize: '13px',
-              padding: '8px 0',
-            }}
-          >
-            <span style={{ fontSize: '20px', opacity: 0.4 }}>📷</span>
-            Graphic snapshot{ts ? ` at ${new Date(ts).toLocaleString()}` : ''}
-          </div>
-        )
-      }
+      case 'graphic_snapshot':
+        return <GraphicSnapshotEvidence item={item} />
 
       case 'log_entries':
         return (

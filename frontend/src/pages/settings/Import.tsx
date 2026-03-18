@@ -1957,8 +1957,8 @@ function DefinitionsTab() {
 
 type Tab = 'connectors' | 'connections' | 'definitions' | 'runs'
 
-export default function ImportSettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('connectors')
+export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab }) {
+  const [activeTab, setActiveTab] = useState<Tab>(defaultTab ?? 'connectors')
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'connectors', label: 'Connectors' },

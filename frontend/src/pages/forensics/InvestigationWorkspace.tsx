@@ -12,6 +12,7 @@ import {
   type InvestigationLinkType,
   type CorrelationResult,
 } from '../../api/forensics'
+import { graphicsApi } from '../../api/graphics'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
 import EChart from '../../shared/components/charts/EChart'
 import EvidenceRenderer from './EvidenceRenderer'
@@ -85,7 +86,21 @@ function StageCard({
   const [rangeStart, setRangeStart] = useState(stage.time_range_start.slice(0, 16))
   const [rangeEnd, setRangeEnd] = useState(stage.time_range_end.slice(0, 16))
   const [showEvidenceMenu, setShowEvidenceMenu] = useState(false)
+  const [showSnapshotDialog, setShowSnapshotDialog] = useState(false)
+  const [snapshotGraphicId, setSnapshotGraphicId] = useState('')
+  const [snapshotTimestamp, setSnapshotTimestamp] = useState(stage.time_range_start.slice(0, 16))
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Load graphic list only when snapshot dialog is open
+  const graphicsQuery = useQuery({
+    queryKey: ['graphics-list-for-snapshot'],
+    queryFn: async () => {
+      const result = await graphicsApi.list()
+      return result.success ? (result.data.data ?? []) : []
+    },
+    enabled: showSnapshotDialog,
+    staleTime: 60_000,
+  })
 
   const updateStageMutation = useMutation({
     mutationFn: async (patch: Partial<{ name: string; time_range_start: string; time_range_end: string }>) => {
@@ -113,10 +128,10 @@ function StageCard({
   })
 
   const addEvidenceMutation = useMutation({
-    mutationFn: async (type: EvidenceType) => {
+    mutationFn: async ({ type, config = {} }: { type: EvidenceType; config?: Record<string, unknown> }) => {
       const result = await forensicsApi.addEvidence(investigationId, stage.id, {
         evidence_type: type,
-        config: {},
+        config,
         sort_order: (stage.evidence?.length ?? 0) + 1,
       })
       if (!result.success) throw new Error(result.error.message)
@@ -125,6 +140,7 @@ function StageCard({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] })
       setShowEvidenceMenu(false)
+      setShowSnapshotDialog(false)
       onRefresh()
     },
   })
@@ -342,6 +358,115 @@ function StageCard({
             />
           ))}
 
+        {/* Graphic snapshot picker dialog */}
+        {showSnapshotDialog && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.55)',
+              zIndex: 200,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSnapshotDialog(false) }}
+          >
+            <div
+              style={{
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-border)',
+                borderRadius: '8px',
+                padding: '20px',
+                width: '380px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
+                📷 Add Graphic Snapshot
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontWeight: 600 }}>Graphic</label>
+                <select
+                  value={snapshotGraphicId}
+                  onChange={(e) => setSnapshotGraphicId(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    background: 'var(--io-surface)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    color: 'var(--io-text-primary)',
+                    fontSize: '13px',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="">— Select a graphic —</option>
+                  {graphicsQuery.isLoading && <option disabled>Loading...</option>}
+                  {(graphicsQuery.data ?? []).map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontWeight: 600 }}>Snapshot Timestamp</label>
+                <input
+                  type="datetime-local"
+                  value={snapshotTimestamp}
+                  onChange={(e) => setSnapshotTimestamp(e.target.value)}
+                  style={{
+                    padding: '6px 10px',
+                    background: 'var(--io-surface)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    color: 'var(--io-text-primary)',
+                    fontSize: '13px',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <button
+                  onClick={() => setShowSnapshotDialog(false)}
+                  style={{ padding: '6px 14px', background: 'none', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', cursor: 'pointer', fontSize: '13px', color: 'var(--io-text-muted)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={!snapshotGraphicId || !snapshotTimestamp || addEvidenceMutation.isPending}
+                  onClick={() => {
+                    if (!snapshotGraphicId || !snapshotTimestamp) return
+                    addEvidenceMutation.mutate({
+                      type: 'graphic_snapshot',
+                      config: {
+                        graphicId: snapshotGraphicId,
+                        timestamp: new Date(snapshotTimestamp).toISOString(),
+                      },
+                    })
+                  }}
+                  style={{
+                    padding: '6px 16px',
+                    background: snapshotGraphicId && snapshotTimestamp ? 'var(--io-accent)' : 'var(--io-surface-secondary)',
+                    border: 'none',
+                    borderRadius: 'var(--io-radius)',
+                    cursor: snapshotGraphicId && snapshotTimestamp ? 'pointer' : 'not-allowed',
+                    fontSize: '13px',
+                    color: '#fff',
+                    fontWeight: 600,
+                  }}
+                >
+                  {addEvidenceMutation.isPending ? 'Adding...' : 'Add Snapshot'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add evidence button */}
         {!readOnly && (
           <div style={{ position: 'relative' }} ref={menuRef}>
@@ -380,7 +505,16 @@ function StageCard({
                 {EVIDENCE_TYPES.map((et) => (
                   <button
                     key={et.type}
-                    onClick={() => addEvidenceMutation.mutate(et.type)}
+                    onClick={() => {
+                      if (et.type === 'graphic_snapshot') {
+                        setShowEvidenceMenu(false)
+                        setSnapshotGraphicId('')
+                        setSnapshotTimestamp(stage.time_range_start.slice(0, 16))
+                        setShowSnapshotDialog(true)
+                      } else {
+                        addEvidenceMutation.mutate({ type: et.type })
+                      }
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',

@@ -235,7 +235,7 @@ Installed `react-grid-layout` v2 (MIT). Replaced the static CSS grid in `Workspa
 
 ### 7.5 Pane Interactions — **PARTIAL** (pass 5)
 
-Added: click-to-select pane (visual accent border), Ctrl+A selects all panes, Delete/Backspace removes selected panes, Escape clears selection, Ctrl+click for multi-select. Still missing: box selection drag, Ctrl+C/V copy-paste between workspaces, pane swap by drag, drag-to-remove.
+Implemented: click-to-select pane (visual accent border), Ctrl+A selects all panes, Delete/Backspace removes selected panes, Escape clears selection, Ctrl+click for multi-select, **Ctrl+C copies selected panes** (serializes to `copiedPanesRef`), **Ctrl+V pastes copied panes** into active workspace (new IDs assigned). Still missing: box selection drag, pane swap by drag.
 
 ### 7.6 Undo/Redo — **DONE** (pass 3 confirmed)
 
@@ -311,26 +311,16 @@ The Dashboards module is well-implemented. Key gaps:
 
 ## Doc 38 — FRONTEND_CONTRACTS
 
-### 38.1 Route Map Discrepancies
+### 38.1 Route Map Discrepancies — **DONE** (pass 5)
 
-**Doc 38 route vs App.tsx implementation:**
-
-| Doc 38 Route | App.tsx Route | Status |
-|---|---|---|
-| `/login/callback` | `/oidc-callback` | MISMATCH — doc says `/login/callback`, app uses `/oidc-callback` |
-| `/settings/sources` | `settings/sources` | OK |
-| `/settings/sources/:id` | `settings/sources/:id` | OK (but renders `<DataSources detail />` — unusual) |
-| `/settings/imports` | `settings/import` | MISMATCH — doc says `/settings/imports`, app has `/settings/import` |
-| `/settings/imports/connections` | Missing | GAP |
-| `/settings/imports/definitions` | Missing | GAP |
-| `/settings/imports/history` | Missing | GAP |
-| `/settings/display` | `settings/display` | OK |
-| `/settings/about` | `settings/about` | OK |
-| `/settings/auth` | `settings/auth-providers` | MISMATCH — doc says `/settings/auth`, app has `/settings/auth-providers` |
-
-**Notes:**
-- `/oidc-callback` vs `/login/callback` is a minor semantic difference. The OIDC provider callback URL must be configured to match — if the provider is configured for `/oidc-callback`, it works fine. The doc says `/login/callback` which is more conventional. Low priority.
-- The import sub-routes (`/settings/imports/connections`, `/settings/imports/definitions`, `/settings/imports/history`) are specified in doc 38 but not in App.tsx. The Settings > Import page currently shows everything in tabs within a single page component, which is functionally equivalent.
+All route discrepancies resolved:
+- `/login/callback` — alias added alongside `/oidc-callback` (both work)
+- `/settings/imports` — alias added alongside `/settings/import` (both work)
+- `/settings/auth` — alias added alongside `/settings/auth-providers` (both work)
+- `/settings/imports/connections` — added, renders `<ImportSettingsPage defaultTab="connections" />`
+- `/settings/imports/definitions` — added, renders `<ImportSettingsPage defaultTab="definitions" />`
+- `/settings/imports/history` — added, renders `<ImportSettingsPage defaultTab="runs" />`
+- `ImportSettingsPage` accepts optional `defaultTab` prop to start on the right tab
 
 ### 38.2 CSS Token Registry — **DONE** (pass 1 + pass 5 confirmed)
 
@@ -373,8 +363,8 @@ These gaps are large architectural features that require significant development
 ### L1: Console Left Panel Accordion
 4-section left panel with Workspaces, Graphics, Widgets, Points sections. Requires designing the accordion layout, integrating with the API for graphics/points browsing. **Estimate: 3-5 days.**
 
-### L2: Console react-grid-layout Integration
-Replace CSS grid with react-grid-layout v2 for drag-resize, pane swap, drag-to-remove. **Estimate: 2-4 days.**
+### L2: Console react-grid-layout Integration — **DONE** (pass 5)
+`WorkspaceGrid.tsx` replaced with react-grid-layout v2 `GridLayout`. 12×12 coordinate system. `presetToGridItems()` maps all 24 layout presets. Drag handle `.io-pane-drag-handle` on pane headers in edit mode. `gridItems` persisted to workspace state. `noCompactor` for free positioning. `onGridLayoutChange` callback saves layout back to store.
 
 ### L3: Console Undo/Redo (zundo)
 Add zundo temporal middleware to workspace Zustand store. **Estimate: 1 day** (once react-grid-layout is in place).
@@ -385,8 +375,8 @@ Add the remaining 18 layout templates (3×x, 4×x, asymmetric). Blocked by L2.
 ### L5: Console Real-Time WebSocket Integration
 Wire the console pane WebSocket subscriptions using the existing `useWebSocket` hook and the RAF-based update pipeline. **Estimate: 2-3 days.**
 
-### L6: Console Historical Playback
-Full playback bar UI and data fetching. **Estimate: 3-5 days.**
+### L6: Console Historical Playback — **DONE** (pass 5)
+`HistoricalPlaybackBar` component + `usePlaybackStore` (Zustand) + `useHistoricalValues` hook. See gap 7.9 / 32.1.
 
 ### L7: Multi-Window / Detached Windows
 SharedWorker, BroadcastChannel, detached routes. **Estimate: 3-5 days.**
@@ -497,9 +487,9 @@ Verified: `InvestigationWorkspace.tsx` left panel has Included/Suggested/Removed
 
 Added `InvestigationLink` type + `listLinks`/`addLink`/`removeLink` API methods to `forensics.ts`. Added `LinksPanel` component in `InvestigationWorkspace.tsx` — collapsible section at the bottom of the left panel showing linked items (log entry / alarm event / investigation / ticket) with add/remove controls. Links are manually entered by ID and label.
 
-### 12.5 Graphic Snapshots (GAP — LOW)
+### 12.5 Graphic Snapshots — **DONE** (pass 5)
 
-Spec: Console/Process graphic rendered with historical values at a specific timestamp, stored as part of the investigation. Uses Historical Playback Bar for timestamp selection. Not implemented (depends on historical rendering pipeline which is also not implemented).
+`InvestigationWorkspace.tsx`: `graphic_snapshot` evidence type now opens a picker dialog (graphic selector from `graphicsApi.list()` + datetime-local input) instead of adding empty evidence. `addEvidenceMutation` updated to accept `{ type, config }`. `EvidenceRenderer.tsx`: `GraphicSnapshotEvidence` component loads graphic via `graphicsApi.get()`, extracts all point IDs via `extractPointIds()`, fetches historical values at snapshot timestamp via `useHistoricalValues()`, renders thumbnail + point value table with quality-aware coloring.
 
 ---
 
@@ -910,8 +900,8 @@ Analyzed in the original docs 00-10 section above. Status after fixes:
 - Kiosk URL param: already implemented
 
 Remaining from doc 38:
-- Lucide React icons: deferred (Fix 6)
-- Route map: minor mismatches noted above remain
+- Lucide React icons: **DONE** — `lucide-react` already installed and all nav icons use Lucide (`Monitor`, `Layers`, `LayoutDashboard`, `FileText`, `Search`, `BookOpen`, `CheckSquare`, `Bell`, `Users`, `Settings`, `PenTool`)
+- Route map: all mismatches resolved (38.1 DONE)
 
 ---
 
@@ -936,11 +926,11 @@ Added `startStatusReports()` / `stopStatusReports()` helpers to `WsManager`. On 
 #### L12: Mobile Bottom Tab Bar
 Responsive navigation: bottom tab bar on mobile, sidebar on desktop/tablet. Medium effort.
 
-#### L13: PWA Icons
-Generate 192×192 and 512×512 PNG icons from the `favicon.svg`. Low effort but requires asset tooling.
+#### L13: PWA Icons — **DONE** (pass 5)
+`public/icon-192.png` and `public/icon-512.png` generated by `scripts/generate-pwa-icons.cjs` (pure Node.js PNG encoder). Added to `manifest.json`.
 
-#### L14: Historical Playback Bar
-Shared `HistoricalPlaybackBar` component for Console, Process, Forensics. Blocked by historical data pipeline.
+#### L14: Historical Playback Bar — **DONE** (pass 5)
+See L6 above. Console + Process both have `<HistoricalPlaybackBar />` at the bottom of the workspace area.
 
 #### L15: Correlation Heatmap Component
 ECharts N×N heatmap for Forensics results. Moderate effort (~1 day).
@@ -959,19 +949,16 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 ## Complete Gap Priority Summary (All Docs)
 
 ### HIGH priority gaps (functionality significantly affected)
-- L2: Console react-grid-layout (Deferred — CSS grid acceptable)
-- L7: Multi-Window / Detached Windows (Deferred — large architectural)
-- L14: Historical Playback Bar (Deferred)
+- L7: Multi-Window / Detached Windows (Deferred — large architectural; requires SharedWorker + BroadcastChannel + detached routes)
 
 ### MEDIUM priority gaps (features missing but core works)
-- L8: Process Viewport-Aware Subscriptions (Deferred — backend dependent)
-- L17: Frontend Test Suite
+- L17: Frontend Test Suite — 66 tests pass, more coverage needed per doc 33
 
 ### LOW priority gaps (polish / enhancements)
-- L6: Console Historical Playback
-- All breadcrumb, LOD, hotspot, badge count gaps
-- BroadcastChannel for LockOverlay
-- Sidebar hidden/collapsed hover states
+- 7.5 box selection drag / pane swap-by-drag
+- 30.2 Drag-and-Drop Schedule Calendar
+- 11.1 Report Config as persistent slide-out (vs modal)
+- Breadcrumb trails, sidebar hover-expand animation
 
 ### Completed in this session (docs 00-10 pass)
 - Fix 1: Token registry (138 tokens) — DONE
@@ -1001,10 +988,17 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 - Fix 16: GraphicPane WebSocket realtime (7.7) — `extractPointIds` + `useWebSocket` + adapt to ScenePointValue — DONE
 - Confirmed DONE (pass 5 sweep): 6.6 (alert bell), 7.3 (left panel accordion), 7.8 (workspace persistence API), 10.1 (widget realtime usePointValues), 10.2 (kiosk URL param), 10.3 (template variable URL sync), 33.1 (66 tests passing)
 - Fixed vitest multi-file run: removed redundant `// @vitest-environment happy-dom` annotations; fixed e2e exclude glob to `**/e2e/**`
+- L2 (react-grid-layout), L6 (Historical Playback Bar), L13 (PWA Icons), L14 (Playback) — DONE, updated GAP entries
+- 12.5 (Graphic Snapshots) — graphic picker dialog + `GraphicSnapshotEvidence` renderer with historical values
+- 38.1 (Route Discrepancies) — all routes aliased, import sub-routes added, auth alias added
+- 7.5 (Pane Interactions PARTIAL) — Ctrl+C/V copy-paste added; box selection and drag-remove remain deferred
+- Fix 6 (Lucide React icons) — already implemented; confirmed and documented
+- Updated `ImportSettingsPage` to accept `defaultTab` prop for URL-driven tab selection
 
 ### Deferred (require user decision or backend work)
-- Fix 6: Install `lucide-react` and replace emoji nav icons
-- L2: Console react-grid-layout (CSS grid is acceptable)
-- L7: Multi-Window / Detached Windows (large architectural)
-- L8: Process Viewport-Aware Subscriptions (backend dependent)
-- L14: Historical Playback Bar
+- L7: Multi-Window / Detached Windows (large architectural — SharedWorker, BroadcastChannel, detached routes)
+- L8: Process Viewport-Aware Subscriptions (already done per 8.1 — no remaining gap)
+- 7.5 box selection drag / pane swap (minor UX polish)
+- 30.2 Drag-and-Drop Schedule Calendar (low priority — pattern wizard is adequate)
+- 11.1 Report Config Slide-Out (low priority — modal is functionally equivalent)
+- 13.2 Attachment OCR (backend-only feature)

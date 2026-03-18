@@ -269,6 +269,7 @@ export default function ConsolePage() {
   const [paletteVisible, setPaletteVisible] = useState(true)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
   const [selectedPaneIds, setSelectedPaneIds] = useState<Set<string>>(new Set())
+  const copiedPanesRef = useRef<PaneConfig[]>([])
   const [tabContextMenu, setTabContextMenu] = useState<{
     x: number
     y: number
@@ -391,6 +392,30 @@ export default function ConsolePage() {
         if (ws) setSelectedPaneIds(new Set(ws.panes.map((p) => p.id)))
         return
       }
+      // Ctrl+C — copy selected panes
+      if (ctrl && e.key === 'c' && editMode && activeId && selectedPaneIds.size > 0) {
+        e.preventDefault()
+        const ws = workspaces.find((w) => w.id === activeId)
+        if (ws) {
+          copiedPanesRef.current = ws.panes.filter((p) => selectedPaneIds.has(p.id))
+        }
+        return
+      }
+      // Ctrl+V — paste copied panes into active workspace
+      if (ctrl && e.key === 'v' && editMode && activeId && copiedPanesRef.current.length > 0) {
+        e.preventDefault()
+        updateWorkspace(activeId, (w) => ({
+          ...w,
+          panes: [
+            ...w.panes,
+            ...copiedPanesRef.current.map((p) => ({
+              ...p,
+              id: `pane-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            })),
+          ],
+        }))
+        return
+      }
       // Escape — clear selection
       if (e.key === 'Escape') {
         setSelectedPaneIds(new Set())
@@ -410,7 +435,7 @@ export default function ConsolePage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleUndo, handleRedo, editMode, activeId, workspaces, updateWorkspace])
+  }, [handleUndo, handleRedo, editMode, activeId, workspaces, updateWorkspace, selectedPaneIds])
 
   // ---- Pane management ----------------------------------------------------
 

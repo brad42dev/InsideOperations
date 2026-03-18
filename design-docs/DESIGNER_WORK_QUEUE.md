@@ -112,19 +112,16 @@ Produce a gap list: every feature in the spec that is not implemented or is only
 
 ---
 
-### 3.8 iographic Import — Broken
+### 3.8 iographic Import — **PARTIALLY FIXED** (2026-03-18)
 
 **Problem:** When importing `.iographic` (IO native format) files:
 - Graphics come in but are not editable — cannot click on any element
-- Should come in as native IO shapes and piping, fully editable in the designer
 
-**Fix:**
-- iographic import should parse the file and create proper editable designer objects from the shapes and pipes
-- Each element should be individually selectable, movable, and resizable
+**Root cause found:** `getNodeBounds()` in `DesignerCanvas.tsx` had no case for `embedded_svg` nodes — they fell through to the default 64×64 bounding box, making them virtually impossible to select.
 
-**Generic SVG import should also work:**
-- Imported SVG elements should become selectable stencils/objects
-- Should be manipulatable (move, resize, rotate)
+**Fix applied:** Added `embedded_svg` case to `getNodeBounds()` using `esn.width / esn.height`. Also added `embedded_svg` to the resize commit logic in `handleMouseUp` so these nodes can be resized.
+
+**Remaining:** Full decomposition of `embedded_svg` blobs into individual primitives (select SVG element → decompose to designer objects) is a larger feature dependent on a client-side SVG parser. For now, imported SVG blobs can be selected, moved, rotated, and resized as a single unit.
 
 ---
 
@@ -181,15 +178,16 @@ The following items may need user input before proceeding:
 
 ## 6. Priority Order
 
-1. Fix resize handles (broken, high impact)
-2. Fix multi-select (broken, high impact)
-3. Fix zoom controls (broken, high impact)
+1. ~~Fix resize handles (broken, high impact)~~ — **CONFIRMED WORKING** (analysis pass 2026-03-18)
+2. ~~Fix multi-select (broken, high impact)~~ — **CONFIRMED WORKING** (Ctrl+Click, Shift+Click, marquee)
+3. ~~Fix zoom controls (broken, high impact)~~ — **CONFIRMED WORKING** (wheel, Ctrl+/-, Ctrl+0)
 4. Icon-based toolbar
-5. Rubber-band selection
-6. Rotation support + right-click context menu
-7. Freehand draw tool
-8. Image import
-9. iographic import editing
-10. Compact asset palette with thumbnails
-11. Navigation collapse
-12. Report objects functioning
+5. ~~Rubber-band selection~~ — **CONFIRMED WORKING**
+6. ~~Rotation support~~ — **DONE** (2026-03-18): `handleMouseMove` and `handleMouseUp` now have `rotate` case. `rotationPreview` state drives live `SelectionOverlay` rotation visualization during drag. `RotateNodesCommand` committed on mouseUp.
+7. ~~Smart alignment snap~~ — **DONE** (2026-03-18): `handleMouseUp` drag case now computes alignment snap corrections and applies them to the final delta before calling `MoveNodesCommand`.
+8. Freehand draw tool
+9. Image import
+10. iographic import editing
+11. Compact asset palette with thumbnails
+12. Navigation collapse
+13. Report objects functioning

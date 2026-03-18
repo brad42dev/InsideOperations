@@ -140,6 +140,10 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
     const wn = node as WidgetNode
     return { x, y, w: wn.width, h: wn.height }
   }
+  if (node.type === 'embedded_svg') {
+    const esn = node as EmbeddedSvgNode
+    return { x, y, w: esn.width || 64, h: esn.height || 64 }
+  }
   // Default generous bbox for symbols, display elements, etc.
   return { x, y, w: 64, h: 64 }
 }
@@ -623,12 +627,14 @@ function SelectionOverlay({
   zoom,
   onRotateStart,
   onResizeStart,
+  previewRotation,
 }: {
   nodeIds: Set<NodeId>
   doc: GraphicDocument
   zoom: number
   onRotateStart?: (nodeId: NodeId, center: { x: number; y: number }, initialTransform: Transform) => void
   onResizeStart?: (nodeId: NodeId, handle: ResizeHandle, bounds: { x: number; y: number; w: number; h: number }, transform: Transform, startX: number, startY: number) => void
+  previewRotation?: { nodeId: NodeId; angle: number } | null
 }) {
   if (nodeIds.size === 0) return null
 
@@ -657,7 +663,7 @@ function SelectionOverlay({
         const cx = x + w / 2
         const cy = y + h / 2
         const pad = 3 / zoom
-        const rot = node.transform.rotation
+        const rot = (previewRotation?.nodeId === id ? previewRotation.angle : node.transform.rotation)
         const rotAttr = rot !== 0 ? `rotate(${rot},${cx},${cy})` : undefined
 
         // Stem top and handle cy (above the selection rect, in node-local frame)
@@ -1013,6 +1019,8 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
   // Smart alignment guides — cleared on drag end
   const [alignGuides, setAlignGuides] = useState<Array<{ axis: 'h' | 'v'; pos: number }>>([])
+  // Live rotation preview while dragging rotation handle
+  const [rotationPreview, setRotationPreview] = useState<{ nodeId: NodeId; angle: number } | null>(null)
 
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<{
@@ -1378,7 +1386,17 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         }
       }
       setAlignGuides(guides)
-      void dx; void dy // Applied on mouseup
+      return
+    }
+
+    // Rotate drag — live preview via rotationPreview state
+    if (inter.type === 'rotate') {
+      const center = inter.rotateCenter
+      const currentAngle = Math.atan2(cy - center.y, cx - center.x) * 180 / Math.PI
+      // newRotation: when handle is straight up (-90°), rotation = 0; +90° offset normalizes atan2 quadrant
+      const newAngle = currentAngle + 90
+      const nodeId = Array.from(inter.rotateInitialTransforms.keys())[0]
+      if (nodeId) setRotationPreview({ nodeId, angle: newAngle })
       return
     }
 
@@ -1407,7 +1425,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     if (penWaypoints) {
       setPenCursor({ x: snap(cx), y: snap(cy) })
     }
-  }, [drawPreview, penWaypoints, pipeDrawState, snap, setAlignGuides, setDrawPreview, setMarquee, setPenCursor, setPipeDrawState, setViewport])
+  }, [drawPreview, penWaypoints, pipeDrawState, snap, setAlignGuides, setRotationPreview, setDrawPreview, setMarquee, setPenCursor, setPipeDrawState, setViewport])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const inter = interactionRef.current
@@ -1419,8 +1437,51 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     const d = docRef.current
 
     if (inter.type === 'drag' && d) {
-      const dx = cx - inter.startCanvasX
-      const dy = cy - inter.startCanvasY
+      let dx = cx - inter.startCanvasX
+      let dy = cy - inter.startCanvasY
+
+      // Apply alignment snap: adjust delta so a dragged edge snaps to the nearest guide
+      const SNAP_THRESHOLD = 6
+      const selIds = selectedIdsRef.current
+      const firstId = Array.from(selIds)[0]
+      if (firstId) {
+        const orig = inter.originalPositions.get(firstId)
+        const srcNode = d.children.find(n => n.id === firstId)
+        if (orig && srcNode) {
+          const bb = getNodeBounds(srcNode)
+          const draggedX = orig.x + dx
+          const draggedY = orig.y + dy
+          const dragEdges = {
+            left: draggedX, right: draggedX + bb.w, centerX: draggedX + bb.w / 2,
+            top: draggedY, bottom: draggedY + bb.h, centerY: draggedY + bb.h / 2,
+          }
+          let bestXSnap: number | null = null
+          let bestYSnap: number | null = null
+          let bestXDist = SNAP_THRESHOLD
+          let bestYDist = SNAP_THRESHOLD
+          for (const node of d.children) {
+            if (selIds.has(node.id) || !node.visible) continue
+            const nb = getNodeBounds(node)
+            const nodeEdges = [nb.x, nb.x + nb.w, nb.x + nb.w / 2]
+            const nodeHEdges = [nb.y, nb.y + nb.h, nb.y + nb.h / 2]
+            for (const de of [dragEdges.left, dragEdges.right, dragEdges.centerX]) {
+              for (const ne of nodeEdges) {
+                const dist = Math.abs(de - ne)
+                if (dist < bestXDist) { bestXDist = dist; bestXSnap = ne - (de - dx) }
+              }
+            }
+            for (const de of [dragEdges.top, dragEdges.bottom, dragEdges.centerY]) {
+              for (const ne of nodeHEdges) {
+                const dist = Math.abs(de - ne)
+                if (dist < bestYDist) { bestYDist = dist; bestYSnap = ne - (de - dy) }
+              }
+            }
+          }
+          if (bestXSnap !== null) dx = bestXSnap
+          if (bestYSnap !== null) dy = bestYSnap
+        }
+      }
+
       if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
         const ids = Array.from(selectedIdsRef.current)
         if (ids.length > 0) {
@@ -1450,6 +1511,28 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       }
       endDrag()
       setAlignGuides([])
+    }
+
+    // Rotate commit
+    if (inter.type === 'rotate' && d) {
+      const center = inter.rotateCenter
+      const currentAngle = Math.atan2(cy - center.y, cx - center.x) * 180 / Math.PI
+      const newAngle = currentAngle + 90
+      const newTransforms = new Map<NodeId, Transform>()
+      for (const [id, initialT] of inter.rotateInitialTransforms) {
+        const initialAngle = initialT.rotation
+        const angleDelta = newAngle - (inter.rotateStartAngle + 90)
+        newTransforms.set(id, { ...initialT, rotation: initialAngle + angleDelta })
+      }
+      if (newTransforms.size > 0) {
+        executeCmd(new RotateNodesCommand(
+          Array.from(newTransforms.keys()),
+          newTransforms,
+          inter.rotateInitialTransforms,
+        ))
+      }
+      setRotationPreview(null)
+      inter.type = 'none'
     }
 
     // Resize commit
@@ -1517,6 +1600,15 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
             inter.resizeNodeId,
             newT, { width: nw, height: nh },
             prevT, { width: wn.width, height: wn.height },
+          ))
+        } else if (target?.type === 'embedded_svg') {
+          const esn = target as EmbeddedSvgNode
+          const prevT = inter.resizeOrigTransform
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+          executeCmd(new ResizeNodeWithDimsCommand(
+            inter.resizeNodeId,
+            newT, { width: nw, height: nh },
+            prevT, { width: esn.width, height: esn.height },
           ))
         }
       }
@@ -1617,7 +1709,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     }
 
     inter.type = 'none'
-  }, [drawPreview, snap, endDrag, setAlignGuides, setDrawPreview, setMarquee, setTool])
+  }, [drawPreview, snap, endDrag, setAlignGuides, setRotationPreview, setDrawPreview, setMarquee, setTool])
 
   // -------------------------------------------------------------------------
   // Double-click — commit pipe draw
@@ -2201,6 +2293,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
               zoom={zoom}
               onRotateStart={startRotate}
               onResizeStart={startResize}
+              previewRotation={rotationPreview}
             />
           )}
 

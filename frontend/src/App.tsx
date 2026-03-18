@@ -969,6 +969,40 @@ function AppRoutes() {
               </PermissionGuard>
             }
           />
+          {/* Doc 38 alias: /settings/auth → /settings/auth-providers */}
+          <Route
+            path="auth"
+            element={
+              <PermissionGuard permission="auth:configure">
+                <AuthProvidersPage />
+              </PermissionGuard>
+            }
+          />
+          {/* Doc 38 import sub-routes */}
+          <Route
+            path="imports/connections"
+            element={
+              <PermissionGuard permission="settings:write">
+                <ImportSettingsPage defaultTab="connections" />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="imports/definitions"
+            element={
+              <PermissionGuard permission="settings:write">
+                <ImportSettingsPage defaultTab="definitions" />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="imports/history"
+            element={
+              <PermissionGuard permission="settings:write">
+                <ImportSettingsPage defaultTab="runs" />
+              </PermissionGuard>
+            }
+          />
           <Route
             path="recognition"
             element={
