@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useWebSocket } from '../../../shared/hooks/useWebSocket'
+import { usePlaybackStore } from '../../../store/playback'
 import TimeSeriesChart, { type Series } from '../../../shared/components/charts/TimeSeriesChart'
 import { pointsApi } from '../../../api/points'
 import type { PaneConfig } from '../types'
@@ -68,8 +69,40 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
   // Force chart re-render on new data; _tick read via chartData dependency below
   const [_tick, setTick] = useState(0)
 
+  const { mode: playbackMode, timeRange } = usePlaybackStore()
+  const isHistorical = playbackMode === 'historical'
+
   const { data: metaMap } = usePointMeta(pointIds)
-  const { values } = useWebSocket(pointIds)
+  const { values } = useWebSocket(isHistorical ? [] : pointIds)
+
+  // Historical: fetch series data for the playback time range
+  const { data: historicalSeries } = useQuery({
+    queryKey: ['trend-historical', pointIds.join(','), timeRange.start, timeRange.end],
+    queryFn: async () => {
+      const results = await Promise.all(
+        pointIds.map((id) =>
+          pointsApi.getHistory(id, {
+            start: new Date(timeRange.start).toISOString(),
+            end: new Date(timeRange.end).toISOString(),
+            resolution: 'auto',
+            limit: 2000,
+          }),
+        ),
+      )
+      const map = new Map<string, RingBuffer[]>()
+      results.forEach((r, i) => {
+        if (r.success) {
+          const entries = Array.isArray(r.data) ? r.data : []
+          map.set(pointIds[i], entries.map((e: { timestamp?: string; value?: number }) => ({
+            ts: new Date(e.timestamp ?? 0).getTime() / 1000,
+            v: e.value ?? NaN,
+          })))
+        }
+      })
+      return map
+    },
+    enabled: isHistorical && pointIds.length > 0,
+  })
 
   // Accumulate incoming values into ring buffers
   useEffect(() => {
@@ -102,16 +135,21 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
   const chartData = (() => {
     if (pointIds.length === 0) return { timestamps: [] as number[], series: [] as Series[] }
 
+    // Historical mode: use fetched series data
+    const sourceMap: Map<string, RingBuffer[]> = isHistorical && historicalSeries
+      ? historicalSeries
+      : buffers.current
+
     // Collect all timestamps across all series, sorted
     const allTs = new Set<number>()
     pointIds.forEach((id) => {
-      const buf = buffers.current.get(id) ?? []
+      const buf = sourceMap.get(id) ?? []
       buf.forEach((e) => allTs.add(e.ts))
     })
     const timestamps = Array.from(allTs).sort((a, b) => a - b)
 
     const series: Series[] = pointIds.map((id, idx) => {
-      const buf = buffers.current.get(id) ?? []
+      const buf = sourceMap.get(id) ?? []
       const bufMap = new Map(buf.map((e) => [e.ts, e.v]))
       const data = timestamps.map((ts) => bufMap.get(ts) ?? NaN)
       return {

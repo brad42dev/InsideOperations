@@ -295,6 +295,10 @@ export interface Pipe extends SceneNodeBase {
   startConnection?: PipeConnection
   endConnection?: PipeConnection
   waypoints: Point2D[]
+  /** Insulated pipe — renders as double line with hatching per ISA P&ID convention */
+  insulated?: boolean
+  /** SVG stroke-dasharray value. undefined = solid, '8 4' = dashed, '2 4' = dotted */
+  dashPattern?: string
 }
 
 // ---- TextBlock ----
@@ -341,7 +345,7 @@ export interface Group extends SceneNodeBase {
 
 // ---- Annotation ----
 
-export type AnnotationType = 'callout' | 'dimension_line' | 'north_arrow' | 'legend' | 'border'
+export type AnnotationType = 'callout' | 'dimension_line' | 'north_arrow' | 'legend' | 'border' | 'section_break' | 'page_break' | 'header' | 'footer'
 
 export interface CalloutConfig {
   annotationType: 'callout'
@@ -405,12 +409,21 @@ export interface BorderConfig {
   }
 }
 
+export interface SectionBreakConfig { annotationType: 'section_break'; width: number }
+export interface PageBreakConfig    { annotationType: 'page_break';    width: number }
+export interface HeaderConfig       { annotationType: 'header';        width: number; height: number; content?: string }
+export interface FooterConfig       { annotationType: 'footer';        width: number; height: number; content?: string }
+
 export type AnnotationConfig =
   | CalloutConfig
   | DimensionLineConfig
   | NorthArrowConfig
   | LegendConfig
   | BorderConfig
+  | SectionBreakConfig
+  | PageBreakConfig
+  | HeaderConfig
+  | FooterConfig
 
 export interface Annotation extends SceneNodeBase {
   type: 'annotation'

@@ -4,6 +4,8 @@ import { graphicsApi } from '../../api/graphics'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneRenderer'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
+import { useHistoricalValues } from '../../shared/hooks/useHistoricalValues'
+import { usePlaybackStore } from '../../store/playback'
 import { bookmarksApi } from '../../api/bookmarks'
 import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import type { DesignObjectSummary } from '../../api/graphics'
@@ -207,12 +209,17 @@ export default function ProcessPage() {
     return getVisiblePointIds(graphic.scene_data, debouncedVp)
   }, [graphic?.scene_data, debouncedVp])
 
-  const { values: wsValues } = useWebSocket(visiblePointIds)
+  const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore()
+  const isHistorical = playbackMode === 'historical'
+
+  const { values: wsValues } = useWebSocket(isHistorical ? [] : visiblePointIds)
+  const historicalValues = useHistoricalValues(isHistorical ? visiblePointIds : [], isHistorical ? playbackTs : undefined)
 
   // Adapt wire-format PointValue → SceneRenderer PointValue
   const pointValues = useMemo(() => {
+    const source = isHistorical ? historicalValues : wsValues
     const out = new Map<string, ScenePointValue>()
-    for (const [id, pv] of wsValues) {
+    for (const [id, pv] of source) {
       out.set(id, {
         pointId: pv.pointId,
         value: pv.value,
@@ -222,7 +229,7 @@ export default function ProcessPage() {
       })
     }
     return out
-  }, [wsValues])
+  }, [isHistorical, wsValues, historicalValues])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--io-bg)' }}>

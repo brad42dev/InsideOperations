@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '../../../api/client'
+import { useWebSocket } from '../../../shared/hooks/useWebSocket'
 import type { PaneConfig } from '../types'
 
-// TODO: Phase 9 — connect to event-service alarm feed
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface AlarmRow {
   id: string
@@ -12,48 +15,19 @@ interface AlarmRow {
   state: 'active' | 'unacknowledged' | 'acknowledged'
 }
 
-const MOCK_ALARMS: AlarmRow[] = [
-  {
-    id: '1',
-    priority: 'critical',
-    tag: 'TIC-101',
-    message: 'High temperature limit exceeded',
-    time: '14:32:01',
-    state: 'active',
-  },
-  {
-    id: '2',
-    priority: 'high',
-    tag: 'PIC-204',
-    message: 'Pressure deviation from setpoint',
-    time: '14:28:45',
-    state: 'unacknowledged',
-  },
-  {
-    id: '3',
-    priority: 'medium',
-    tag: 'FIC-312',
-    message: 'Flow below minimum threshold',
-    time: '14:15:30',
-    state: 'acknowledged',
-  },
-  {
-    id: '4',
-    priority: 'high',
-    tag: 'LIC-103',
-    message: 'Level transmitter fault',
-    time: '13:58:12',
-    state: 'active',
-  },
-  {
-    id: '5',
-    priority: 'low',
-    tag: 'TE-405',
-    message: 'Temperature sensor drift detected',
-    time: '13:42:00',
-    state: 'acknowledged',
-  },
-]
+interface ApiAlarm {
+  id: string
+  title: string
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  source: string
+  state: string
+  triggered_at: string
+  acknowledged_at?: string | null
+  tag?: string
+  message?: string
+}
+
+// ─── Colors / labels ────────────────────────────────────────────────────────
 
 const PRIORITY_COLOR: Record<AlarmRow['priority'], string> = {
   critical: '#EF4444',
@@ -104,6 +78,28 @@ function StateBadge({ state }: { state: AlarmRow['state'] }) {
   )
 }
 
+// ─── Adapter ────────────────────────────────────────────────────────────────
+
+function toAlarmRow(a: ApiAlarm): AlarmRow {
+  const priority: AlarmRow['priority'] =
+    a.severity === 'info' ? 'low' :
+    (a.severity as AlarmRow['priority'])
+  const state: AlarmRow['state'] =
+    a.acknowledged_at ? 'acknowledged' :
+    a.state === 'active' ? 'active' : 'unacknowledged'
+  const ts = new Date(a.triggered_at)
+  return {
+    id: a.id,
+    priority,
+    tag: a.tag ?? a.source,
+    message: a.message ?? a.title,
+    time: ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    state,
+  }
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
 type FilterOption = 'all' | 'active' | 'unacknowledged'
 
 interface AlarmListPaneProps {
@@ -111,9 +107,42 @@ interface AlarmListPaneProps {
 }
 
 export default function AlarmListPane({ config }: AlarmListPaneProps) {
-  const [filter, setFilter] = useState<FilterOption>(config.alarmFilter ?? 'all')
+  const [filter, setFilter] = useState<FilterOption>(config.alarmFilter ?? 'active')
+  const qc = useQueryClient()
 
-  const filtered = MOCK_ALARMS.filter((a) => {
+  // Subscribe to alarm-related WebSocket messages to trigger refetch
+  useWebSocket([])  // establishes WS connection for side-effects
+
+  const { data: alarms = [], isLoading } = useQuery<AlarmRow[]>({
+    queryKey: ['console-alarms', filter],
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (filter === 'active') params['state'] = 'active'
+      if (filter === 'unacknowledged') params['unacknowledged'] = 'true'
+      const qs = Object.keys(params).length
+        ? '?' + Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&')
+        : ''
+      const result = await api.get<{ data: ApiAlarm[] } | ApiAlarm[]>(`/api/alarms/active${qs}`)
+      if (!result.success) return []
+      const list = Array.isArray(result.data) ? result.data : (result.data as { data: ApiAlarm[] }).data ?? []
+      return list.map(toAlarmRow)
+    },
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  })
+
+  const ackMutation = useMutation({
+    mutationFn: (alarmId: string) =>
+      api.post(`/api/alarms/${alarmId}/acknowledge`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['console-alarms'] }),
+  })
+
+  const handleAcknowledge = useCallback((alarmId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    ackMutation.mutate(alarmId)
+  }, [ackMutation])
+
+  const filtered = alarms.filter((a) => {
     if (filter === 'all') return true
     if (filter === 'active') return a.state === 'active'
     if (filter === 'unacknowledged') return a.state === 'unacknowledged'
@@ -159,23 +188,23 @@ export default function AlarmListPane({ config }: AlarmListPaneProps) {
             {f === 'unacknowledged' ? 'Unacked' : f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
-        <span
-          style={{
-            marginLeft: 'auto',
-            fontSize: 11,
-            color: 'var(--io-text-muted)',
-            fontStyle: 'italic',
-          }}
-        >
-          Mock data — Phase 9
-        </span>
+        {isLoading && (
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--io-text-muted)' }}>
+            Loading…
+          </span>
+        )}
+        {!isLoading && (
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--io-text-muted)' }}>
+            {filtered.length} alarm{filtered.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {/* Table header */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '60px 90px 1fr 80px 90px',
+          gridTemplateColumns: '60px 90px 1fr 80px 90px 70px',
           padding: '0 10px',
           height: 32,
           alignItems: 'center',
@@ -194,11 +223,12 @@ export default function AlarmListPane({ config }: AlarmListPaneProps) {
         <span>Message</span>
         <span>Time</span>
         <span>State</span>
+        <span></span>
       </div>
 
       {/* Table body */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {filtered.length === 0 && (
+        {!isLoading && filtered.length === 0 && (
           <div
             style={{
               display: 'flex',
@@ -217,13 +247,14 @@ export default function AlarmListPane({ config }: AlarmListPaneProps) {
             key={alarm.id}
             style={{
               display: 'grid',
-              gridTemplateColumns: '60px 90px 1fr 80px 90px',
+              gridTemplateColumns: '60px 90px 1fr 80px 90px 70px',
               padding: '0 10px',
               height: 38,
               alignItems: 'center',
               borderBottom: '1px solid var(--io-border)',
               fontSize: 12,
               color: 'var(--io-text-primary)',
+              background: alarm.state === 'active' ? 'rgba(239,68,68,0.04)' : 'transparent',
             }}
           >
             <span>
@@ -245,6 +276,26 @@ export default function AlarmListPane({ config }: AlarmListPaneProps) {
             </span>
             <span>
               <StateBadge state={alarm.state} />
+            </span>
+            <span>
+              {alarm.state !== 'acknowledged' && (
+                <button
+                  onClick={(e) => handleAcknowledge(alarm.id, e)}
+                  disabled={ackMutation.isPending}
+                  style={{
+                    padding: '2px 7px',
+                    fontSize: 10,
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 3,
+                    background: 'transparent',
+                    color: 'var(--io-text-muted)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Ack
+                </button>
+              )}
             </span>
           </div>
         ))}

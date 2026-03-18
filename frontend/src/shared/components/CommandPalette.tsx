@@ -42,6 +42,43 @@ const TYPE_LABELS: Record<SearchResult['type'], string> = {
   role: 'Role',
 }
 
+// ─── Prefix scope parsing ────────────────────────────────────────────────────
+
+type PrefixScope = 'commands' | 'users' | 'routes' | 'tags' | null
+
+interface ParsedQuery {
+  scope: PrefixScope
+  term: string
+  prefix: string
+}
+
+function parseQuery(raw: string): ParsedQuery {
+  if (raw.startsWith('>')) return { scope: 'commands', term: raw.slice(1).trimStart(), prefix: '>' }
+  if (raw.startsWith('@')) return { scope: 'users',    term: raw.slice(1).trimStart(), prefix: '@' }
+  if (raw.startsWith('/')) return { scope: 'routes',   term: raw.slice(1).trimStart(), prefix: '/' }
+  if (raw.startsWith('#')) return { scope: 'tags',     term: raw.slice(1).trimStart(), prefix: '#' }
+  return { scope: null, term: raw, prefix: '' }
+}
+
+const SCOPE_PLACEHOLDER: Record<NonNullable<PrefixScope>, string> = {
+  commands: 'Search navigation commands…',
+  users:    'Search users and operators…',
+  routes:   'Jump to a route…',
+  tags:     'Search points and equipment by tag…',
+}
+
+const SCOPE_TYPES: Partial<Record<NonNullable<PrefixScope>, string[]>> = {
+  users: ['user'],
+  tags:  ['point', 'equipment'],
+}
+
+const SCOPE_HINTS: Array<{ prefix: string; label: string }> = [
+  { prefix: '>', label: 'commands' },
+  { prefix: '@', label: 'users' },
+  { prefix: '/', label: 'routes' },
+  { prefix: '#', label: 'tags' },
+]
+
 interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -87,16 +124,23 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
   const listRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const { scope, term } = parseQuery(query)
+
+  // Whether to show nav commands for this scope
+  const showNavCommands = scope === null || scope === 'commands' || scope === 'routes'
+
   // Filtered navigation commands
-  const filteredCommands = COMMANDS.filter((cmd) => {
-    if (!query.trim()) return true
-    const q = query.toLowerCase()
-    return (
-      cmd.label.toLowerCase().includes(q) ||
-      cmd.description.toLowerCase().includes(q) ||
-      cmd.keywords.some((k) => k.includes(q))
-    )
-  })
+  const filteredCommands = showNavCommands
+    ? COMMANDS.filter((cmd) => {
+        if (!term.trim()) return true
+        const q = term.toLowerCase()
+        return (
+          cmd.label.toLowerCase().includes(q) ||
+          cmd.description.toLowerCase().includes(q) ||
+          cmd.keywords.some((k) => k.includes(q))
+        )
+      })
+    : []
 
   // Build unified list: search results first (when query >= 3 chars), then nav commands
   const items: ListItem[] = [
@@ -118,20 +162,23 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     }
   }, [open])
 
-  // Debounced API search
+  // Debounced API search — skipped for command/route scopes (nav-only)
+  const apiSearchEnabled = scope !== 'commands' && scope !== 'routes'
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
-    if (query.length < 3) {
+    if (!apiSearchEnabled || term.length < 2) {
       setSearchResults([])
       setIsSearching(false)
       return
     }
 
     setIsSearching(true)
+    const types = scope ? (SCOPE_TYPES[scope] ?? undefined) : undefined
     debounceRef.current = setTimeout(() => {
       searchApi
-        .search(query, undefined, 8)
+        .search(term, types, 8)
         .then((result) => {
           if (result.success) {
             setSearchResults(result.data.results)
@@ -146,7 +193,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [query])
+  }, [query, term, scope, apiSearchEnabled])
 
   const handleSelectItem = useCallback(
     (item: ListItem) => {
@@ -236,7 +283,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
               aria-controls="cmd-results"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search pages, points, equipment..."
+              placeholder={scope ? SCOPE_PLACEHOLDER[scope] : 'Search pages, points, equipment…'}
               style={{
                 flex: 1,
                 background: 'none',
@@ -281,7 +328,11 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                   fontSize: '13px',
                 }}
               >
-                {query.trim() ? <>No results for &ldquo;{query}&rdquo;</> : 'No commands found'}
+                {term.trim()
+                  ? <>No results for &ldquo;{term}&rdquo;</>
+                  : scope
+                    ? `Type to search ${SCOPE_PLACEHOLDER[scope].toLowerCase().replace('…', '')}`
+                    : 'No commands found'}
               </div>
             )}
 
@@ -298,7 +349,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                     padding: '4px 12px 2px',
                   }}
                 >
-                  Search Results
+                  {scope === 'users' ? 'Users' : scope === 'tags' ? 'Points & Equipment' : 'Search Results'}
                 </div>
                 {searchResults.map((result, i) => {
                   const globalIdx = i
@@ -348,12 +399,12 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                             color: isSelected ? 'var(--io-accent)' : 'var(--io-text-primary)',
                           }}
                         >
-                          {highlight(result.name, query)}
+                          {highlight(result.name, term)}
                         </span>
                       </div>
                       {result.description && (
                         <span style={{ fontSize: '12px', color: 'var(--io-text-muted)', paddingLeft: 2 }}>
-                          {highlight(result.description, query)}
+                          {highlight(result.description, term)}
                         </span>
                       )}
                     </button>
@@ -411,7 +462,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                           color: isSelected ? 'var(--io-accent)' : 'var(--io-text-primary)',
                         }}
                       >
-                        {highlight(cmd.label, query)}
+                        {highlight(cmd.label, term)}
                       </span>
                       <span
                         style={{
@@ -419,7 +470,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                           color: 'var(--io-text-muted)',
                         }}
                       >
-                        {highlight(cmd.description, query)}
+                        {highlight(cmd.description, term)}
                       </span>
                     </button>
                   )
@@ -437,12 +488,34 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
               gap: '16px',
               fontSize: '11px',
               color: 'var(--io-text-muted)',
+              flexWrap: 'wrap',
             }}
           >
             <span><kbd style={{ fontFamily: 'inherit' }}>↑↓</kbd> navigate</span>
             <span><kbd style={{ fontFamily: 'inherit' }}>↵</kbd> open</span>
             <span><kbd style={{ fontFamily: 'inherit' }}>Esc</kbd> close</span>
-            {query.length >= 3 && (
+            {!scope && (
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                {SCOPE_HINTS.map(({ prefix, label }) => (
+                  <span key={prefix}>
+                    <kbd
+                      style={{
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        background: 'var(--io-surface-secondary)',
+                        border: '1px solid var(--io-border)',
+                        borderRadius: 3,
+                        padding: '0 4px',
+                      }}
+                    >
+                      {prefix}
+                    </kbd>{' '}
+                    {label}
+                  </span>
+                ))}
+              </span>
+            )}
+            {scope && apiSearchEnabled && term.length >= 2 && (
               <span style={{ marginLeft: 'auto' }}>
                 {isSearching ? 'Searching…' : `${searchResults.length} results`}
               </span>

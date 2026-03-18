@@ -23,6 +23,8 @@ import { useDesignerPermissions } from '../../shared/hooks/usePermission'
 export interface DesignerToolbarProps {
   onSave: () => void
   isSaving: boolean
+  onPublish?: () => void
+  isPublishing?: boolean
   onShowVersionHistory?: () => void
   onValidateBindings?: () => void
 }
@@ -96,6 +98,15 @@ function IconImage() {
       <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
       <circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" strokeWidth="1.1" fill="none"/>
       <path d="M2 11L5 8L7.5 10.5L10 8.5L14 11" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" fill="none"/>
+    </svg>
+  )
+}
+
+function IconFreehand() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M2 13 C3 10 4 7 6 5 C8 3 10 4 10 6 C10 8 8 9 7 11 C6 13 7 14.5 9 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none"/>
+      <circle cx="9" cy="14" r="1" fill="currentColor"/>
     </svg>
   )
 }
@@ -198,14 +209,15 @@ interface ToolDef {
 
 const TOOLS: ToolDef[] = [
   { id: 'select',    label: 'Select',    shortcut: 'V', icon: <IconSelect />,  modes: ['graphic', 'dashboard', 'report'] },
-  { id: 'pen',       label: 'Pen',       shortcut: 'P', icon: <IconPen />,     modes: ['graphic'] },
-  { id: 'rect',      label: 'Rectangle', shortcut: 'R', icon: <IconRect />,    modes: ['graphic'] },
-  { id: 'ellipse',   label: 'Ellipse',   shortcut: 'E', icon: <IconEllipse />, modes: ['graphic'] },
-  { id: 'line',      label: 'Line',      shortcut: 'L', icon: <IconLine />,    modes: ['graphic'] },
-  { id: 'text',      label: 'Text',      shortcut: 'T', icon: <IconText />,    modes: ['graphic', 'dashboard', 'report'] },
-  { id: 'pipe',      label: 'Pipe',      shortcut: 'I', icon: <IconPipe />,    modes: ['graphic'] },
-  { id: 'image',     label: 'Image',     shortcut: 'M', icon: <IconImage />,   modes: ['graphic', 'dashboard', 'report'] },
-  { id: 'pan',       label: 'Pan',       shortcut: 'H', icon: <IconPan />,     modes: ['graphic', 'dashboard', 'report'] },
+  { id: 'pen',       label: 'Pen',       shortcut: 'P',       icon: <IconPen />,      modes: ['graphic'] },
+  { id: 'freehand',  label: 'Freehand',  shortcut: 'B',       icon: <IconFreehand />, modes: ['graphic'] },
+  { id: 'rect',      label: 'Rectangle', shortcut: 'R',       icon: <IconRect />,     modes: ['graphic', 'dashboard', 'report'] },
+  { id: 'ellipse',   label: 'Ellipse',   shortcut: 'E',       icon: <IconEllipse />,  modes: ['graphic', 'dashboard', 'report'] },
+  { id: 'line',      label: 'Line',      shortcut: 'L',       icon: <IconLine />,     modes: ['graphic', 'dashboard', 'report'] },
+  { id: 'text',      label: 'Text',      shortcut: 'T',       icon: <IconText />,     modes: ['graphic', 'dashboard', 'report'] },
+  { id: 'pipe',      label: 'Pipe',      shortcut: 'Shift+P', icon: <IconPipe />,     modes: ['graphic'] },
+  { id: 'image',     label: 'Image',     shortcut: 'M',       icon: <IconImage />,    modes: ['graphic', 'dashboard', 'report'] },
+  { id: 'pan',       label: 'Pan',       shortcut: 'H',       icon: <IconPan />,      modes: ['graphic', 'dashboard', 'report'] },
 ]
 
 // ---------------------------------------------------------------------------
@@ -277,7 +289,7 @@ function IconBtn({ onClick, disabled = false, active = false, title, children }:
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function DesignerToolbar({ onSave, isSaving, onShowVersionHistory, onValidateBindings }: DesignerToolbarProps) {
+export default function DesignerToolbar({ onSave, isSaving, onPublish, isPublishing, onShowVersionHistory, onValidateBindings }: DesignerToolbarProps) {
   const perms = useDesignerPermissions()
   // Read-only mode if user lacks write permission
   const readOnly = !perms.canWrite
@@ -288,8 +300,10 @@ export default function DesignerToolbar({ onSave, isSaving, onShowVersionHistory
   const setGrid      = useUiStore(s => s.setGrid)
   const snapToGrid   = useUiStore(s => s.snapToGrid)
   const setSnap      = useUiStore(s => s.setSnap)
-  const testMode     = useUiStore(s => s.testMode)
-  const setTestMode  = useUiStore(s => s.setTestMode)
+  const testMode          = useUiStore(s => s.testMode)
+  const setTestMode       = useUiStore(s => s.setTestMode)
+  const phonePreviewActive = useUiStore(s => s.phonePreviewActive)
+  const setPhonePreview   = useUiStore(s => s.setPhonePreview)
   const viewport     = useUiStore(s => s.viewport)
   const zoomTo       = useUiStore(s => s.zoomTo)
   const fitToCanvas  = useUiStore(s => s.fitToCanvas)
@@ -484,6 +498,24 @@ export default function DesignerToolbar({ onSave, isSaving, onShowVersionHistory
         <span style={{ fontSize: 11, marginLeft: 2 }}>Test</span>
       </IconBtn>
 
+      {/* Phone preview — only in dashboard mode */}
+      {designMode === 'dashboard' && (
+        <>
+          <Sep />
+          <IconBtn
+            onClick={() => setPhonePreview(!phonePreviewActive)}
+            active={phonePreviewActive}
+            title={phonePreviewActive ? 'Exit phone preview' : 'Phone preview (~375px)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="3.5" y="1" width="7" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+              <circle cx="7" cy="10.5" r="0.7" fill="currentColor"/>
+            </svg>
+            <span style={{ fontSize: 11, marginLeft: 2 }}>Phone</span>
+          </IconBtn>
+        </>
+      )}
+
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
@@ -557,6 +589,30 @@ export default function DesignerToolbar({ onSave, isSaving, onShowVersionHistory
       >
         {isSaving ? 'Saving…' : 'Save'}
       </button>
+
+      {onPublish && (
+        <button
+          onClick={onPublish}
+          disabled={!!isPublishing || readOnly}
+          title={readOnly ? 'designer:publish permission required' : 'Publish — create a permanent version snapshot'}
+          style={{
+            height: 28,
+            padding: '0 14px',
+            background: !isPublishing && !readOnly ? 'var(--io-success, #22c55e)' : 'var(--io-surface-elevated)',
+            color: !isPublishing && !readOnly ? '#fff' : 'var(--io-text-muted)',
+            border: 'none',
+            borderRadius: 'var(--io-radius)',
+            cursor: !isPublishing && !readOnly ? 'pointer' : 'not-allowed',
+            fontSize: 13,
+            fontWeight: 600,
+            flexShrink: 0,
+            transition: 'background 0.15s',
+            opacity: (isPublishing || readOnly) ? 0.5 : 1,
+          }}
+        >
+          {isPublishing ? 'Publishing…' : 'Publish'}
+        </button>
+      )}
     </div>
   )
 }

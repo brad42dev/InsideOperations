@@ -27,6 +27,7 @@ import type { Transform } from '../../shared/types/graphics'
 export type DrawingTool =
   | 'select'
   | 'pen'
+  | 'freehand'
   | 'rect'
   | 'ellipse'
   | 'line'
@@ -187,6 +188,10 @@ export interface UiStore {
   // ----- Marquee -----
   marquee: MarqueeState | null
 
+  // ----- Active group scope (double-click into group) -----
+  /** Node ID of the group currently being edited in-scope. null = top-level. */
+  activeGroupId: string | null
+
   // ----- Actions -----
   setTool(tool: DrawingTool): void
   setViewport(vp: Partial<DesignerViewport>): void
@@ -204,6 +209,7 @@ export interface UiStore {
   addGuide(axis: 'h' | 'v', position: number): void
   removeGuide(id: string): void
   clearGuides(): void
+  setActiveGroup(id: string | null): void
 
   startDrag(
     startX: number,
@@ -320,6 +326,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   drawPreview: null,
   pipeDrawState: null,
   marquee: null,
+  activeGroupId: null,
 
   // ----- Actions -----
 
@@ -407,6 +414,10 @@ export const useUiStore = create<UiStore>((set, get) => ({
 
   clearGuides() {
     set({ guides: [] })
+  },
+
+  setActiveGroup(id) {
+    set({ activeGroupId: id })
   },
 
   // ----- Drag -----

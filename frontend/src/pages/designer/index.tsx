@@ -21,7 +21,10 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useSceneStore, useHistoryStore } from '../../store/designer'
 import { graphicsApi } from '../../api/graphics'
+import { pointsApi } from '../../api/points'
+import type { SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import { wsManager } from '../../shared/hooks/useWebSocket'
+import { useDesignerPermissions } from '../../shared/hooks/usePermission'
 import DesignerToolbar from './DesignerToolbar'
 import DesignerModeTabs from './DesignerModeTabs'
 import DesignerStatusBar from './DesignerStatusBar'
@@ -295,6 +298,7 @@ export default function DesignerPage() {
 
   const graphicIdInStore = useSceneStore(s => s.graphicId)
   const doc = useSceneStore(s => s.doc)
+  const { canPublish } = useDesignerPermissions()
 
   // Panel widths
   const [leftWidth, setLeftWidth]   = useState(240)
@@ -306,6 +310,11 @@ export default function DesignerPage() {
   const [loading, setLoading]   = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
+
+  // Pessimistic lock state — non-null means WE do NOT hold the lock
+  const [lockState, setLockState] = useState<{ lockedByName: string; lockedAt: string } | null>(null)
+  const lockHeldRef = useRef(false) // true when this session holds the lock
 
   // New doc dialog
   const [showNewDialog, setShowNewDialog] = useState(false)
@@ -318,6 +327,13 @@ export default function DesignerPage() {
   const [showValidateBindings, setShowValidateBindings] = useState(false)
   const [showImportWizard, setShowImportWizard] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
+
+  // Validate bindings results
+  const [bindingValidation, setBindingValidation] = useState<{
+    unresolvedBindings: { elementId: string; tag: string; reason: string }[]
+    totalBound: number
+    resolvedCount: number
+  }>({ unresolvedBindings: [], totalBound: 0, resolvedCount: 0 })
 
   // Auto-save timestamp (updated whenever IndexedDB auto-save fires)
   const [lastAutoSave, setLastAutoSave] = useState<number | null>(null)
@@ -354,6 +370,31 @@ export default function DesignerPage() {
       const record = resp.data.data
       loadGraphic(record.id, record.scene_data)
       historyClear()
+
+      // Try to acquire the pessimistic edit lock
+      const lockResp = await graphicsApi.acquireLock(gid).catch(() => null)
+      if (lockResp?.success) {
+        if (lockResp.data.data.acquired) {
+          lockHeldRef.current = true
+          setLockState(null)
+        } else {
+          // Lock held by another user — open read-only
+          lockHeldRef.current = false
+          setLockState({
+            lockedByName: lockResp.data.data.locked_by_name ?? 'another user',
+            lockedAt: lockResp.data.data.locked_at ?? new Date().toISOString(),
+          })
+        }
+      } else if (record.locked_by && record.locked_by_name) {
+        // Fallback: use info from the GET response
+        lockHeldRef.current = false
+        setLockState({
+          lockedByName: record.locked_by_name,
+          lockedAt: record.locked_at ?? new Date().toISOString(),
+        })
+      } else {
+        lockHeldRef.current = true
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -366,6 +407,17 @@ export default function DesignerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphicId])
 
+  // Release lock on unmount
+  useEffect(() => {
+    return () => {
+      if (lockHeldRef.current && graphicId && graphicId !== 'new') {
+        graphicsApi.releaseLock(graphicId).catch(() => {/* best-effort */})
+        lockHeldRef.current = false
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphicId])
+
   // -------------------------------------------------------------------------
   // Save
   // -------------------------------------------------------------------------
@@ -373,7 +425,7 @@ export default function DesignerPage() {
   const handleSave = useCallback(async () => {
     const currentDoc = useSceneStore.getState().doc
     const currentId  = useSceneStore.getState().graphicId
-    if (!currentDoc || isSaving) return
+    if (!currentDoc || isSaving || lockHeldRef.current === false) return
 
     setIsSaving(true)
     try {
@@ -403,12 +455,134 @@ export default function DesignerPage() {
       }
       markClean()
       historyMarkClean()
+      // Re-acquire lock after save to confirm we still hold it (release + re-acquire cycle)
+      const gid = useSceneStore.getState().graphicId
+      if (gid && lockHeldRef.current) {
+        graphicsApi.releaseLock(gid).catch(() => {/* best-effort */})
+        const relock = await graphicsApi.acquireLock(gid).catch(() => null)
+        if (relock?.success && relock.data.data.acquired) {
+          lockHeldRef.current = true
+        }
+      }
     } catch (err) {
       console.error('[DesignerPage] Save failed:', err)
     } finally {
       setIsSaving(false)
     }
   }, [isSaving, markClean, historyMarkClean, loadGraphic])
+
+  // -------------------------------------------------------------------------
+  // Publish — create permanent version snapshot
+  // -------------------------------------------------------------------------
+
+  const handlePublish = useCallback(async () => {
+    const currentId = useSceneStore.getState().graphicId
+    if (!currentId || isPublishing || lockHeldRef.current === false) return
+    if (!window.confirm('Publish this graphic? This creates a permanent, immutable snapshot that cannot be deleted.')) return
+
+    setIsPublishing(true)
+    try {
+      // Save first to ensure the snapshot captures the latest content
+      await handleSave()
+      const result = await graphicsApi.publishGraphic(currentId)
+      if (result.success) {
+        // Show brief success indication via the version history panel
+        setShowVersionHistory(true)
+      } else {
+        console.error('[DesignerPage] Publish failed:', (result as { error: { message: string } }).error?.message)
+      }
+    } catch (err) {
+      console.error('[DesignerPage] Publish failed:', err)
+    } finally {
+      setIsPublishing(false)
+    }
+  }, [isPublishing, handleSave])
+
+  // -------------------------------------------------------------------------
+  // Version history — preview and restore
+  // -------------------------------------------------------------------------
+
+  const handlePreviewVersion = useCallback((_versionId: string, doc: import('../../shared/types/graphics').GraphicDocument) => {
+    // Load the version content into the scene for preview (non-destructive — user can still close without saving)
+    loadGraphic(useSceneStore.getState().graphicId ?? '', doc)
+  }, [loadGraphic])
+
+  const handleRestoreVersion = useCallback(async (versionId: string) => {
+    const currentId = useSceneStore.getState().graphicId
+    if (!currentId) return
+    // Restore creates a new draft server-side; reload the graphic to show the restored content
+    const result = await graphicsApi.restoreVersion(currentId, versionId).catch(() => null)
+    if (result?.success) {
+      const fresh = await graphicsApi.get(currentId).catch(() => null)
+      if (fresh?.success && fresh.data.data.scene_data) {
+        loadGraphic(currentId, fresh.data.data.scene_data)
+      }
+    }
+  }, [loadGraphic])
+
+  // -------------------------------------------------------------------------
+  // Validate bindings — scan scene graph, check point resolution
+  // -------------------------------------------------------------------------
+
+  const handleValidateBindings = useCallback(async () => {
+    const currentDoc = useSceneStore.getState().doc
+    if (!currentDoc) { setShowValidateBindings(true); return }
+
+    // Collect all point IDs from the scene graph
+    type BindingEntry = { elementId: string; pointId: string; elementName: string }
+    const bindings: BindingEntry[] = []
+
+    function walk(nodes: SceneNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'display_element') {
+          const de = n as DisplayElement
+          if (de.binding.pointId) {
+            bindings.push({ elementId: de.id, pointId: de.binding.pointId, elementName: de.name ?? de.id })
+          }
+        }
+        if (n.type === 'symbol_instance') {
+          const si = n as SymbolInstance
+          if (si.stateBinding?.pointId) {
+            bindings.push({ elementId: si.id, pointId: si.stateBinding.pointId, elementName: si.name ?? si.id })
+          }
+          if (si.children) walk(si.children as SceneNode[])
+        }
+        if ('children' in n && Array.isArray(n.children)) {
+          walk(n.children as SceneNode[])
+        }
+      }
+    }
+    walk(currentDoc.children)
+
+    if (bindings.length === 0) {
+      setBindingValidation({ unresolvedBindings: [], totalBound: 0, resolvedCount: 0 })
+      setShowValidateBindings(true)
+      return
+    }
+
+    // Check unique point IDs in batch via search
+    const uniqueIds = [...new Set(bindings.map(b => b.pointId))]
+    const resolvedIds = new Set<string>()
+
+    await Promise.all(uniqueIds.map(async (pid) => {
+      const result = await pointsApi.list({ search: pid, limit: 5 }).catch(() => null)
+      if (result?.success) {
+        const exact = result.data.data.find(p => p.id === pid || p.tagname === pid)
+        if (exact) resolvedIds.add(pid)
+      }
+    }))
+
+    const unresolvedBindings = bindings
+      .filter(b => !resolvedIds.has(b.pointId))
+      .map(b => ({ elementId: b.elementName || b.elementId, tag: b.pointId, reason: 'Not found' }))
+
+    setBindingValidation({
+      unresolvedBindings,
+      totalBound: bindings.length,
+      resolvedCount: bindings.filter(b => resolvedIds.has(b.pointId)).length,
+    })
+    setShowValidateBindings(true)
+  }, [])
 
   // -------------------------------------------------------------------------
   // Ctrl+S global save
@@ -599,22 +773,68 @@ export default function DesignerPage() {
         </div>
       )}
 
+      {/* Pessimistic lock banner — shown when the graphic is locked by someone else */}
+      {lockState && (
+        <div style={{
+          background: '#7c3aed22',
+          borderBottom: '1px solid #7c3aed55',
+          padding: '6px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          fontSize: 12,
+          color: 'var(--io-text-primary)',
+          flexShrink: 0,
+        }}>
+          <span style={{ color: '#a78bfa', fontWeight: 600 }}>Read-only</span>
+          <span style={{ color: 'var(--io-text-muted)' }}>
+            Locked by <strong style={{ color: 'var(--io-text-primary)' }}>{lockState.lockedByName}</strong> since{' '}
+            {new Date(lockState.lockedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button
+              onClick={async () => {
+                // Fork: Save As — create a copy the current user can edit
+                const currentDoc = useSceneStore.getState().doc
+                if (!currentDoc) return
+                const copyName = `${currentDoc.name ?? 'Untitled'} (copy)`
+                const resp = await graphicsApi.create({ name: copyName, scene_data: currentDoc }).catch(() => null)
+                if (resp?.success) {
+                  navigate(`/designer/graphics/${resp.data.data.id}/edit`)
+                }
+              }}
+              style={{
+                padding: '3px 10px',
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                color: 'var(--io-text-primary)',
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              Fork (Save As)
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Version history dialog */}
       <VersionHistoryDialog
         open={showVersionHistory}
         onClose={() => setShowVersionHistory(false)}
         graphicId={graphicId ?? null}
-        onPreview={() => {}}
-        onRestore={() => {}}
+        onPreview={handlePreviewVersion}
+        onRestore={handleRestoreVersion}
       />
 
       {/* Validate bindings dialog */}
       <ValidateBindingsDialog
         open={showValidateBindings}
         onClose={() => setShowValidateBindings(false)}
-        unresolvedBindings={[]}
-        totalBound={0}
-        resolvedCount={0}
+        unresolvedBindings={bindingValidation.unresolvedBindings}
+        totalBound={bindingValidation.totalBound}
+        resolvedCount={bindingValidation.resolvedCount}
       />
 
       {/* Import wizard */}
@@ -644,7 +864,7 @@ export default function DesignerPage() {
       <DesignerModeTabs
         onSave={handleSave}
         onShowVersionHistory={() => setShowVersionHistory(true)}
-        onValidateBindings={() => setShowValidateBindings(true)}
+        onValidateBindings={handleValidateBindings}
         onImport={() => setShowImportWizard(true)}
         onExport={() => setShowExportDialog(true)}
         onNew={() => setShowNewDialog(true)}
@@ -655,8 +875,10 @@ export default function DesignerPage() {
       <DesignerToolbar
         onSave={handleSave}
         isSaving={isSaving}
+        onPublish={canPublish ? handlePublish : undefined}
+        isPublishing={isPublishing}
         onShowVersionHistory={() => setShowVersionHistory(true)}
-        onValidateBindings={() => setShowValidateBindings(true)}
+        onValidateBindings={handleValidateBindings}
       />
 
       {/* Body */}
@@ -742,7 +964,7 @@ export default function DesignerPage() {
       <DesignerStatusBar
         wsConnected={wsConnected}
         lastAutoSave={lastAutoSave}
-        onValidateBindings={() => setShowValidateBindings(true)}
+        onValidateBindings={handleValidateBindings}
       />
     </div>
   )

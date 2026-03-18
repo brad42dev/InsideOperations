@@ -66,6 +66,8 @@ import { PIPE_SERVICE_COLORS } from '../../shared/types/graphics'
 import { routePipe } from '../../shared/graphics/pipeRouter'
 import { usePointValues } from '../../shared/hooks/usePointValues'
 import type { PointValue } from '../../shared/hooks/usePointValues'
+import { SaveAsStencilDialog } from './components/SaveAsStencilDialog'
+import { PromoteToShapeWizard } from './components/PromoteToShapeWizard'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -94,10 +96,42 @@ const RESIZE_HANDLES: Array<{ id: ResizeHandle; cx: number; cy: number; cursor: 
 ]
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const RULER_SIZE = 16 // px — thickness of ruler strips (also used by RulersOverlay)
+
+// ---------------------------------------------------------------------------
 // Module-level clipboard (survives across renders)
 // ---------------------------------------------------------------------------
 
 let _clipboard: SceneNode[] = []
+
+// ---------------------------------------------------------------------------
+// Ramer-Douglas-Peucker path simplification for freehand draw
+// ---------------------------------------------------------------------------
+
+function ptLineDist(p: {x:number;y:number}, a: {x:number;y:number}, b: {x:number;y:number}): number {
+  const dx = b.x - a.x, dy = b.y - a.y
+  if (dx === 0 && dy === 0) return Math.hypot(p.x - a.x, p.y - a.y)
+  const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+}
+
+function rdpSimplify(pts: Array<{x:number;y:number}>, eps: number): Array<{x:number;y:number}> {
+  if (pts.length <= 2) return pts
+  let maxD = 0, maxI = 0
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = ptLineDist(pts[i], pts[0], pts[pts.length - 1])
+    if (d > maxD) { maxD = d; maxI = i }
+  }
+  if (maxD > eps) {
+    const l = rdpSimplify(pts.slice(0, maxI + 1), eps)
+    const r = rdpSimplify(pts.slice(maxI), eps)
+    return [...l.slice(0, -1), ...r]
+  }
+  return [pts[0], pts[pts.length - 1]]
+}
 
 // ---------------------------------------------------------------------------
 // Selection state — local module-level set (avoids uiStore extension)
@@ -123,7 +157,10 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
       return { x: minX, y: minY, w: Math.abs(p.geometry.x2 - p.geometry.x1) || 4, h: Math.abs(p.geometry.y2 - p.geometry.y1) || 4 }
     }
   }
-  if (node.type === 'text_block') return { x, y, w: 120, h: 20 }
+  if (node.type === 'text_block') {
+    const tb = node as TextBlock
+    return { x, y, w: tb.maxWidth ?? 120, h: tb.fontSize ? tb.fontSize * 2 : 20 }
+  }
   if (node.type === 'image') {
     const img = node as ImageNode
     return { x, y, w: img.displayWidth, h: img.displayHeight }
@@ -144,7 +181,35 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
     const esn = node as EmbeddedSvgNode
     return { x, y, w: esn.width || 64, h: esn.height || 64 }
   }
-  // Default generous bbox for symbols, display elements, etc.
+  if (node.type === 'symbol_instance') {
+    const si = node as SymbolInstance
+    const shapeData = useLibraryStore.getState().getShape(si.shapeRef.shapeId)
+    const geo = shapeData?.sidecar.geometry
+    const bw = geo?.baseSize?.[0] ?? geo?.width ?? 64
+    const bh = geo?.baseSize?.[1] ?? geo?.height ?? 64
+    return { x, y, w: bw, h: bh }
+  }
+  if (node.type === 'display_element') {
+    const de = node as DisplayElement
+    const cfg = de.config
+    switch (cfg.displayType) {
+      case 'text_readout':    return { x, y, w: 92, h: 22 }
+      case 'analog_bar':      return { x, y, w: 25, h: 'barHeight' in cfg ? (cfg.barHeight as number) : 100 }
+      case 'fill_gauge':      return { x, y, w: 'barWidth' in cfg ? (cfg.barWidth as number) : 24, h: 'barHeight' in cfg ? (cfg.barHeight as number) : 80 }
+      case 'sparkline':       return { x, y, w: 'sparkWidth' in cfg ? (cfg.sparkWidth as number) : 110, h: 18 }
+      case 'alarm_indicator': return { x, y, w: 24, h: 20 }
+      case 'digital_status':  return { x, y, w: 52, h: 20 }
+      default:                return { x, y, w: 80, h: 24 }
+    }
+  }
+  if (node.type === 'annotation') {
+    const an = node as import('../../shared/types/graphics').Annotation
+    const cfg = an.config as unknown as Record<string, number>
+    const w = cfg.width ?? 200
+    const h = cfg.height ?? (an.annotationType === 'section_break' || an.annotationType === 'page_break' ? 20 : 40)
+    return { x, y, w, h }
+  }
+  // Default generous bbox for stencils, etc.
   return { x, y, w: 64, h: 64 }
 }
 
@@ -376,16 +441,105 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
     }
   }
 
-  // ── Design mode (static) placeholder ─────────────────────────────────────
-  return (
-    <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
-      <rect x={0} y={0} width={80} height={24} fill="var(--io-surface-elevated)" stroke="var(--io-border)" rx={2}/>
-      <text x={4} y={16} fontSize={9} fill="var(--io-text-muted)">{de.displayType.replace(/_/g, ' ')}</text>
-      {de.binding.pointId && (
-        <text x={4} y={8} fontSize={7} fill="rgba(99,102,241,0.6)">⬤</text>
-      )}
-    </g>
-  )
+  // ── Design mode (static) spec-accurate preview ──────────────────────────
+  const tagLabel = de.binding.pointId ? '⬤' : ''
+  switch (cfg.displayType) {
+    case 'text_readout': {
+      const label = 'showLabel' in cfg && cfg.showLabel && 'label' in cfg && cfg.label
+        ? (cfg.label as string) : null
+      const unit = 'showUnit' in cfg && cfg.showUnit && 'unit' in cfg && cfg.unit
+        ? ` ${cfg.unit as string}` : ''
+      const boxW = 92, boxH = label ? 32 : 22
+      return (
+        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <rect x={0} y={0} width={boxW} height={boxH} rx={2} fill="#27272A" stroke="#3F3F46" strokeWidth={1}/>
+          {label && <text x={4} y={10} fontSize={8} fill="#71717A" fontFamily="Inter, sans-serif">{label}</text>}
+          <text x={46} y={label ? 24 : 14} textAnchor="middle" dominantBaseline="central"
+            fontFamily="'JetBrains Mono', monospace" fontSize={11} fill="#A1A1AA"
+            fontVariant="tabular-nums">
+            — <tspan fontFamily="Inter, sans-serif" fontSize={9} fill="#71717A">{unit}</tspan>
+          </text>
+          {de.binding.pointId && (
+            <text x={boxW - 3} y={8} textAnchor="end" fontSize={7} fill="#2DD4BF" opacity={0.7}>{tagLabel}</text>
+          )}
+        </g>
+      )
+    }
+    case 'analog_bar': {
+      const bW = 18, bH = 'barHeight' in cfg ? (cfg.barHeight as number) : 100
+      return (
+        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <rect x={0} y={0} width={bW} height={bH} fill="#27272A" stroke="#52525B" strokeWidth={0.5}/>
+          <rect x={1} y={1}              width={bW-2} height={Math.round(bH*0.1)} fill="#5C3A3A" stroke="#52525B" strokeWidth={0.5}/>
+          <rect x={1} y={Math.round(bH*0.1)+1} width={bW-2} height={Math.round(bH*0.17)} fill="#5C4A32" stroke="#52525B" strokeWidth={0.5}/>
+          <rect x={1} y={Math.round(bH*0.27)+1} width={bW-2} height={Math.round(bH*0.46)} fill="#404048" stroke="#52525B" strokeWidth={0.5}/>
+          <rect x={1} y={Math.round(bH*0.73)+1} width={bW-2} height={Math.round(bH*0.17)} fill="#32445C" stroke="#52525B" strokeWidth={0.5}/>
+          <rect x={1} y={Math.round(bH*0.9)+1}  width={bW-2} height={Math.round(bH*0.09)} fill="#2E3A5C" stroke="#52525B" strokeWidth={0.5}/>
+          {/* Zone labels */}
+          <text x={-3} y={Math.round(bH*0.08)} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={7} fill="#71717A">HH</text>
+          <text x={-3} y={Math.round(bH*0.2)}  textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={7} fill="#71717A">H</text>
+          <text x={-3} y={Math.round(bH*0.78)} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={7} fill="#71717A">L</text>
+          <text x={-3} y={Math.round(bH*0.95)} textAnchor="end" fontFamily="'JetBrains Mono', monospace" fontSize={7} fill="#71717A">LL</text>
+          {/* Pointer at mid-range */}
+          <polygon points={`${bW},${bH/2-3} ${bW+7},${bH/2} ${bW},${bH/2+3}`} fill="#A1A1AA"/>
+          <line x1={1} y1={bH/2} x2={bW-1} y2={bH/2} stroke="#A1A1AA" strokeWidth={0.8}/>
+        </g>
+      )
+    }
+    case 'fill_gauge': {
+      const gW = 'barWidth' in cfg ? (cfg.barWidth as number) : 24
+      const gH = 'barHeight' in cfg ? (cfg.barHeight as number) : 80
+      return (
+        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <rect x={0} y={0} width={gW} height={gH} rx={2} fill="none" stroke="#52525B" strokeWidth={0.5}/>
+          <rect x={1} y={Math.round(gH*0.38)} width={gW-2} height={Math.round(gH*0.61)} rx={1} fill="#475569" opacity={0.6}/>
+          <line x1={1} y1={Math.round(gH*0.38)} x2={gW-1} y2={Math.round(gH*0.38)} stroke="#64748B" strokeWidth={0.8} strokeDasharray="5 3"/>
+        </g>
+      )
+    }
+    case 'sparkline': {
+      const sW = 'sparkWidth' in cfg ? (cfg.sparkWidth as number) : 110
+      const sH = 18
+      return (
+        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <rect x={0} y={0} width={sW} height={sH} rx={1} fill="#27272A"/>
+          <polyline
+            points={`3,14 ${sW*0.09|0},11 ${sW*0.17|0},13 ${sW*0.26|0},8 ${sW*0.35|0},10 ${sW*0.43|0},6 ${sW*0.51|0},11 ${sW*0.59|0},9 ${sW*0.68|0},5 ${sW*0.76|0},10 ${sW*0.84|0},8 ${sW*0.92|0},13 ${sW-3},10`}
+            fill="none" stroke="#A1A1AA" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round"
+          />
+        </g>
+      )
+    }
+    case 'alarm_indicator': {
+      // Ghost indicator in design mode — 25% opacity, gray, dash inside
+      return (
+        <g transform={tx} data-node-id={de.id} opacity={0.3 * de.opacity}>
+          <rect x={-12} y={-9} width={24} height={18} rx={2} fill="none" stroke="#808080" strokeWidth={1.8}/>
+          <text x={0} y={0} textAnchor="middle" dominantBaseline="central"
+            fontFamily="'JetBrains Mono', monospace" fontSize={9} fontWeight={600} fill="#808080">—</text>
+        </g>
+      )
+    }
+    case 'digital_status': {
+      const stateText = de.binding.pointId ? 'AUTO' : '—'
+      const dW = stateText.length * 6 + 12
+      return (
+        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <rect x={0} y={0} width={dW} height={20} rx={2} fill="#3F3F46"/>
+          <text x={dW/2} y={10} textAnchor="middle" dominantBaseline="central"
+            fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="#A1A1AA">{stateText}</text>
+        </g>
+      )
+    }
+    default: {
+      return (
+        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <rect x={0} y={0} width={80} height={22} fill="#27272A" stroke="#3F3F46" rx={2}/>
+          <text x={4} y={14} fontSize={9} fill="#71717A">{de.displayType.replace(/_/g, ' ')}</text>
+        </g>
+      )
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -493,33 +647,67 @@ function RenderNode({
         strokeWidth: pipe.strokeWidth,
         strokeLinecap: 'round' as const,
         strokeLinejoin: 'round' as const,
+        strokeDasharray: pipe.dashPattern,
       }
+      // Insulation: parallel offset lines on each side
+      const insulationOffset = pipe.strokeWidth + 2
+      const renderPipePath = (d: string | null, pts: string | null) => (
+        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+          {pipe.insulated && d && (
+            <>
+              <path d={d} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.5}
+                strokeDasharray="4 2"
+                style={{ transform: `translate(0, ${-insulationOffset}px)`, pointerEvents: 'none' as const }} />
+              <path d={d} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.5}
+                strokeDasharray="4 2"
+                style={{ transform: `translate(0, ${insulationOffset}px)`, pointerEvents: 'none' as const }} />
+            </>
+          )}
+          {pipe.insulated && pts && (
+            <>
+              <polyline points={pts} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.5}
+                strokeDasharray="4 2"
+                style={{ transform: `translate(0, ${-insulationOffset}px)`, pointerEvents: 'none' as const }} />
+              <polyline points={pts} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.5}
+                strokeDasharray="4 2"
+                style={{ transform: `translate(0, ${insulationOffset}px)`, pointerEvents: 'none' as const }} />
+            </>
+          )}
+          {d && <path d={d} {...commonStrokeProps} />}
+          {pts && <polyline points={pts} {...commonStrokeProps} />}
+        </g>
+      )
       if (pipe.routingMode === 'auto' && pipe.waypoints.length >= 2) {
         const [start, ...rest] = pipe.waypoints
         const end = rest[rest.length - 1]
         const midWaypoints = rest.slice(0, -1)
         const pathD = routePipe(start, end, new Set(), midWaypoints)
-        return (
-          <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
-            <path d={pathD} {...commonStrokeProps} />
-          </g>
-        )
+        return renderPipePath(pathD, null)
       }
       const pts = pipe.waypoints.map(p => `${p.x},${p.y}`).join(' ')
-      return (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
-          <polyline points={pts} {...commonStrokeProps} />
-        </g>
-      )
+      return renderPipePath(null, pts)
     }
 
     case 'text_block': {
       const tb = node as TextBlock
+      const bgPad = tb.background?.padding ?? 0
+      const tbW = (tb.maxWidth ?? 120) + bgPad * 2
+      const tbH = (tb.fontSize ? tb.fontSize * 1.4 : 20) + bgPad * 2
       return (
         <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+          {tb.background && (
+            <rect
+              x={0} y={0}
+              width={tbW} height={tbH}
+              rx={tb.background.borderRadius ?? 2}
+              fill={tb.background.fill}
+              stroke={tb.background.stroke}
+              strokeWidth={tb.background.strokeWidth}
+            />
+          )}
           <text
-            x={0}
-            y={0}
+            x={bgPad}
+            y={bgPad}
             fontFamily={tb.fontFamily}
             fontSize={tb.fontSize}
             fontWeight={tb.fontWeight}
@@ -536,25 +724,33 @@ function RenderNode({
 
     case 'symbol_instance': {
       const si = node as SymbolInstance
-      const svgStr = getShapeSvg(si.shapeRef.shapeId)
+      const shapeEntry = useLibraryStore.getState().getShape(si.shapeRef.shapeId)
+      const svgStr = shapeEntry?.svg ?? null
+      const geo = shapeEntry?.sidecar.geometry
+      const bw = geo?.baseSize?.[0] ?? geo?.width ?? 64
+      const bh = geo?.baseSize?.[1] ?? geo?.height ?? 64
+      const viewBox = svgStr?.match(/viewBox=["']([^"']+)["']/)?.[1] ?? `0 0 ${bw} ${bh}`
       if (!svgStr) {
         // Placeholder box while shape loads
         return (
           <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
-            <rect x={0} y={0} width={64} height={64} fill="none" stroke="var(--io-border)" strokeDasharray="4 2"/>
-            <text x={32} y={36} textAnchor="middle" fontSize={9} fill="var(--io-text-muted)">{si.shapeRef.shapeId}</text>
+            <rect x={0} y={0} width={bw} height={bh} fill="none" stroke="var(--io-border)" strokeDasharray="4 2" rx={2}/>
+            <text x={bw/2} y={bh/2+4} textAnchor="middle" fontSize={9} fill="var(--io-text-muted)">
+              {si.shapeRef.shapeId.replace(/_/g, ' ')}
+            </text>
           </g>
         )
       }
+      // Extract inner SVG content (strip outer <svg> wrapper tag)
+      const innerMatch = svgStr.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i)
+      const inner = innerMatch ? innerMatch[1] : svgStr
       return (
-        <g
-          key={node.id}
-          transform={tx}
-          data-node-id={node.id}
-          opacity={node.opacity}
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: svgStr }}
-        />
+        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+          <svg x={0} y={0} width={bw} height={bh} viewBox={viewBox} overflow="visible"
+            // eslint-disable-next-line react/no-danger
+            dangerouslySetInnerHTML={{ __html: inner }}
+          />
+        </g>
       )
     }
 
@@ -604,7 +800,54 @@ function RenderNode({
       return <WidgetRenderer key={node.id} node={wn} tx={tx} />
     }
 
-    case 'annotation':
+    case 'annotation': {
+      const an = node as import('../../shared/types/graphics').Annotation
+      const cfg = an.config as unknown as Record<string, number | string>
+      const aw = (cfg.width as number) ?? 200
+      const ah = (cfg.height as number) ?? 20
+      switch (an.annotationType) {
+        case 'section_break':
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              <line x1={0} y1={10} x2={aw} y2={10} stroke="var(--io-accent)" strokeWidth={1.5} strokeLinecap="round"/>
+              <line x1={0} y1={4}  x2={aw} y2={4}  stroke="var(--io-border)" strokeWidth={0.5}/>
+              <line x1={0} y1={16} x2={aw} y2={16} stroke="var(--io-border)" strokeWidth={0.5}/>
+            </g>
+          )
+        case 'page_break':
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              <line x1={0} y1={10} x2={aw} y2={10} stroke="#EF4444" strokeWidth={2} strokeLinecap="round" strokeDasharray="6 4"/>
+              <rect x={aw / 2 - 28} y={2} width={56} height={14} rx={2} fill="rgba(239,68,68,0.15)"/>
+              <text x={aw / 2} y={12} textAnchor="middle" fontSize={8} fill="#EF4444" fontWeight={600} fontFamily="Inter">PAGE BREAK</text>
+            </g>
+          )
+        case 'header':
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              <rect x={0} y={0} width={aw} height={ah} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
+              <text x={8} y={ah / 2 + 4} fontSize={9} fill="#93c5fd" fontWeight={500} fontFamily="Inter">HEADER</text>
+              <line x1={0} y1={ah} x2={aw} y2={ah} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3"/>
+            </g>
+          )
+        case 'footer':
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              <line x1={0} y1={0} x2={aw} y2={0} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3"/>
+              <rect x={0} y={0} width={aw} height={ah} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
+              <text x={8} y={ah / 2 + 4} fontSize={9} fill="#93c5fd" fontWeight={500} fontFamily="Inter">FOOTER</text>
+            </g>
+          )
+        default:
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              <rect x={0} y={0} width={Math.max(aw, 60)} height={Math.max(ah, 20)} fill="none" stroke="var(--io-border)" strokeDasharray="3 2" rx={2}/>
+              <text x={6} y={14} fontSize={8} fill="var(--io-text-muted)">{an.annotationType}</text>
+            </g>
+          )
+      }
+    }
+
     case 'stencil':
     default:
       // Placeholder for unimplemented types
@@ -962,6 +1205,106 @@ function PenDrawOverlay({
 }
 
 // ---------------------------------------------------------------------------
+// Freehand draw preview overlay
+// ---------------------------------------------------------------------------
+
+function FreehandPreviewOverlay({
+  points,
+  zoom,
+}: {
+  points: Array<{ x: number; y: number }> | null
+  zoom: number
+}) {
+  if (!points || points.length < 2) return null
+  const pts = points.map(p => `${p.x},${p.y}`).join(' ')
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="var(--io-accent)"
+        strokeWidth={1.5 / zoom}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.7}
+      />
+    </g>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Connection points overlay — teal dots shown when pipe tool is active
+// ---------------------------------------------------------------------------
+
+function ConnectionPointsOverlay({
+  doc,
+  zoom,
+  activeTool,
+}: {
+  doc: import('../../shared/types/graphics').GraphicDocument
+  zoom: number
+  activeTool: string
+}) {
+  const cache = useLibraryStore(s => s.cache)
+
+  if (activeTool !== 'pipe') return null
+
+  const dots: Array<{ key: string; wx: number; wy: number }> = []
+
+  for (const node of doc.children) {
+    if (node.type !== 'symbol_instance') continue
+    const si = node as SymbolInstance
+    const entry = cache.get(si.shapeRef.shapeId)
+    if (!entry) continue
+
+    const geo = entry.sidecar.geometry
+    const bw = geo.baseSize?.[0] ?? geo.width ?? 64
+    const bh = geo.baseSize?.[1] ?? geo.height ?? 64
+
+    // Parse viewBox to get natural dimensions
+    const vbParts = geo.viewBox.split(/[\s,]+/).map(Number)
+    const vbW = vbParts.length >= 4 ? vbParts[2] : bw
+    const vbH = vbParts.length >= 4 ? vbParts[3] : bh
+
+    const scaleX = bw / (vbW || 1)
+    const scaleY = bh / (vbH || 1)
+
+    const { x: ix, y: iy } = si.transform.position
+
+    for (const cp of entry.sidecar.connections ?? []) {
+      const cx = cp.x ?? 0
+      const cy = cp.y ?? 0
+      dots.push({
+        key: `${si.id}-${cp.id}`,
+        wx: ix + cx * scaleX,
+        wy: iy + cy * scaleY,
+      })
+    }
+  }
+
+  if (dots.length === 0) return null
+
+  const r = Math.max(4 / zoom, 2)
+
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      {dots.map(d => (
+        <circle
+          key={d.key}
+          cx={d.wx}
+          cy={d.wy}
+          r={r}
+          fill="var(--io-accent)"
+          stroke="white"
+          strokeWidth={1 / zoom}
+          opacity={0.85}
+        />
+      ))}
+    </g>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main canvas component
 // ---------------------------------------------------------------------------
 
@@ -972,6 +1315,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   const doc         = useSceneStore(s => s.doc)
   const version     = useSceneStore(s => s.version)
   const sceneExecute = useSceneStore(s => s.execute)
+  const designMode  = useSceneStore(s => s.designMode)
 
   const activeTool      = useUiStore(s => s.activeTool)
   const viewport        = useUiStore(s => s.viewport)
@@ -991,6 +1335,13 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   const testMode         = useUiStore(s => s.testMode)
   const startDrag        = useUiStore(s => s.startDrag)
   const endDrag          = useUiStore(s => s.endDrag)
+  const setGrid          = useUiStore(s => s.setGrid)
+  const setSnap          = useUiStore(s => s.setSnap)
+  const guides           = useUiStore(s => s.guides)
+  const guidesVisible    = useUiStore(s => s.guidesVisible)
+  const activeGroupId    = useUiStore(s => s.activeGroupId)
+  const setActiveGroup      = useUiStore(s => s.setActiveGroup)
+  const phonePreviewActive  = useUiStore(s => s.phonePreviewActive)
 
   const historyPush = useHistoryStore(s => s.push)
   const historyUndo = useHistoryStore(s => s.undo)
@@ -1013,9 +1364,14 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   const [penWaypoints, setPenWaypoints] = useState<Array<{ x: number; y: number }> | null>(null)
   const [penCursor, setPenCursor] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
 
+  // Freehand draw tool
+  const freehandPointsRef = useRef<Array<{ x: number; y: number }>>([])
+  const [freehandPreview, setFreehandPreview] = useState<Array<{ x: number; y: number }> | null>(null)
+
   // Image tool: stores click position for after file picker returns
   const imagePendingPosRef = useRef<{ x: number; y: number } | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const spacebarPrevToolRef = useRef<string | null>(null)
 
   // Smart alignment guides — cleared on drag end
   const [alignGuides, setAlignGuides] = useState<Array<{ axis: 'h' | 'v'; pos: number }>>([])
@@ -1026,6 +1382,12 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   const [ctxMenu, setCtxMenu] = useState<{
     x: number; y: number; nodeId: NodeId | null
   } | null>(null)
+
+  // Save-as-stencil dialog — holds the selected nodes to save
+  const [stencilNodes, setStencilNodes] = useState<SceneNode[] | null>(null)
+
+  // Promote-to-shape wizard — holds selected nodes to promote
+  const [promoteNodes, setPromoteNodes] = useState<SceneNode[] | null>(null)
 
   // Track currently selected IDs in a ref for use inside event handlers
   // (avoids stale closures in mouse handlers)
@@ -1091,8 +1453,61 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   // Helper: snap
   // -------------------------------------------------------------------------
 
-  function snap(v: number): number {
+  function snap(v: number, axis?: 'h' | 'v'): number {
+    // Guide snap takes priority over grid snap (threshold: 6 canvas units)
+    const GUIDE_SNAP = 6
+    if (guidesVisible && guides.length > 0 && axis) {
+      for (const g of guides) {
+        if (g.axis === axis && Math.abs(v - g.position) < GUIDE_SNAP) {
+          return g.position
+        }
+      }
+    }
     return snapToGridValue(v, gridSize, snapToGrid)
+  }
+
+  // -------------------------------------------------------------------------
+  // Helper: snap to nearest connection point (for pipe tool)
+  // Returns world-space coords snapped to a connection point if within threshold,
+  // otherwise returns the input unchanged.
+  // -------------------------------------------------------------------------
+
+  function snapToConnectionPoint(cx: number, cy: number, thresholdPx = 12): { x: number; y: number } {
+    const d = docRef.current
+    if (!d) return { x: cx, y: cy }
+    const vp = viewportRef.current
+    // threshold in world space
+    const threshold = thresholdPx / vp.zoom
+    let bestDist = threshold
+    let best = { x: cx, y: cy }
+
+    for (const node of d.children) {
+      if (node.type !== 'symbol_instance') continue
+      const si = node as SymbolInstance
+      const entry = useLibraryStore.getState().cache.get(si.shapeRef.shapeId)
+      if (!entry) continue
+
+      const geo = entry.sidecar.geometry
+      const bw = geo.baseSize?.[0] ?? geo.width ?? 64
+      const bh = geo.baseSize?.[1] ?? geo.height ?? 64
+      const vbParts = geo.viewBox.split(/[\s,]+/).map(Number)
+      const vbW = vbParts.length >= 4 ? vbParts[2] : bw
+      const vbH = vbParts.length >= 4 ? vbParts[3] : bh
+      const scaleX = bw / (vbW || 1)
+      const scaleY = bh / (vbH || 1)
+      const { x: ix, y: iy } = si.transform.position
+
+      for (const cp of entry.sidecar.connections ?? []) {
+        const wx = ix + (cp.x ?? 0) * scaleX
+        const wy = iy + (cp.y ?? 0) * scaleY
+        const dist = Math.hypot(wx - cx, wy - cy)
+        if (dist < bestDist) {
+          bestDist = dist
+          best = { x: wx, y: wy }
+        }
+      }
+    }
+    return best
   }
 
   // -------------------------------------------------------------------------
@@ -1127,6 +1542,16 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       }
       return null
     }
+
+    // When inside a group scope, only test against that group's children
+    const groupId = useUiStore.getState().activeGroupId
+    if (groupId) {
+      const groupNode = d.children.find(n => n.id === groupId)
+      if (groupNode && 'children' in groupNode && Array.isArray(groupNode.children)) {
+        return search(groupNode.children as SceneNode[])
+      }
+    }
+
     return search(d.children)
   }
 
@@ -1136,7 +1561,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
   // Track interaction state in refs to avoid stale closures
   const interactionRef = useRef<{
-    type: 'none' | 'drag' | 'draw' | 'pan' | 'pipe' | 'marquee' | 'rotate' | 'resize'
+    type: 'none' | 'drag' | 'draw' | 'pan' | 'pipe' | 'marquee' | 'rotate' | 'resize' | 'freehand'
     startCanvasX: number
     startCanvasY: number
     startScreenX: number
@@ -1250,10 +1675,14 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     }
 
     if (tool === 'pipe') {
+      // Prefer connection point snap over grid snap
+      const cpSnapped = snapToConnectionPoint(cx, cy)
+      const px = cpSnapped.x !== cx ? cpSnapped.x : snap(cx)
+      const py = cpSnapped.y !== cy ? cpSnapped.y : snap(cy)
       if (!pipeDrawState) {
-        setPipeDrawState({ waypoints: [{ x: snap(cx), y: snap(cy) }], cursorX: snap(cx), cursorY: snap(cy) })
+        setPipeDrawState({ waypoints: [{ x: px, y: py }], cursorX: px, cursorY: py })
       } else {
-        addPipeWaypoint(snap(cx), snap(cy))
+        addPipeWaypoint(px, py)
       }
       inter.type = 'pipe'
       return
@@ -1302,6 +1731,14 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       return
     }
 
+    // Freehand draw tool — start capturing on mousedown
+    if (tool === 'freehand') {
+      inter.type = 'freehand'
+      freehandPointsRef.current = [{ x: cx, y: cy }]
+      setFreehandPreview([{ x: cx, y: cy }])
+      return
+    }
+
     // Shape drawing tools
     if (tool === 'rect' || tool === 'ellipse' || tool === 'line') {
       inter.type = 'draw'
@@ -1313,7 +1750,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         endY: snap(cy),
       })
     }
-  }, [snap, pipeDrawState, setPipeDrawState, addPipeWaypoint, setMarquee, startDrag, setDrawPreview, setPenWaypoints, setPenCursor])
+  }, [snap, pipeDrawState, setPipeDrawState, addPipeWaypoint, setMarquee, startDrag, setDrawPreview, setPenWaypoints, setPenCursor, setFreehandPreview])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = getRect()
@@ -1425,7 +1862,16 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     if (penWaypoints) {
       setPenCursor({ x: snap(cx), y: snap(cy) })
     }
-  }, [drawPreview, penWaypoints, pipeDrawState, snap, setAlignGuides, setRotationPreview, setDrawPreview, setMarquee, setPenCursor, setPipeDrawState, setViewport])
+
+    // Freehand: collect points on each mousemove while button held
+    if (inter.type === 'freehand') {
+      freehandPointsRef.current.push({ x: cx, y: cy })
+      // Update preview every 4 points to keep rendering smooth
+      if (freehandPointsRef.current.length % 4 === 0) {
+        setFreehandPreview([...freehandPointsRef.current])
+      }
+    }
+  }, [drawPreview, penWaypoints, pipeDrawState, snap, setAlignGuides, setRotationPreview, setDrawPreview, setMarquee, setPenCursor, setPipeDrawState, setViewport, setFreehandPreview])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     const inter = interactionRef.current
@@ -1669,9 +2115,16 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         const rw = Math.abs(cx - inter.startCanvasX)
         const rh = Math.abs(cy - inter.startCanvasY)
         if (rw > 2 && rh > 2) {
-          // Collect all root-level nodes whose bounds overlap the marquee rect
+          // When inside a group scope, select only from that group's children
+          const scopeGroupId = useUiStore.getState().activeGroupId
+          const scopeNodes = scopeGroupId
+            ? (() => {
+                const gn = d.children.find(n => n.id === scopeGroupId)
+                return gn && 'children' in gn && Array.isArray(gn.children) ? gn.children as SceneNode[] : d.children
+              })()
+            : d.children
           const hit: NodeId[] = []
-          for (const node of d.children) {
+          for (const node of scopeNodes) {
             if (!node.visible || node.locked) continue
             if (boundsOverlap(getNodeBounds(node), rx, ry, rw, rh)) hit.push(node.id)
           }
@@ -1708,16 +2161,66 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       return
     }
 
+    // Freehand: commit path on mouseup
+    if (inter.type === 'freehand') {
+      const raw = freehandPointsRef.current
+      if (raw.length >= 2) {
+        const simplified = rdpSimplify(raw, 2)
+        // Convert to SVG path d string
+        const d = simplified.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
+        const prim: Primitive = {
+          id: crypto.randomUUID(),
+          type: 'primitive',
+          primitiveType: 'path',
+          name: 'Freehand',
+          transform: { position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+          visible: true,
+          locked: false,
+          opacity: 1,
+          geometry: { type: 'path', d },
+          style: { fill: 'none', fillOpacity: 1, stroke: '#6366f1', strokeWidth: 1.5 },
+        }
+        executeCmd(new AddNodeCommand(prim, null))
+        selectedIdsRef.current = new Set([prim.id])
+        emitSelection([prim.id])
+      }
+      freehandPointsRef.current = []
+      setFreehandPreview(null)
+      inter.type = 'none'
+      setTool('select')
+      return
+    }
+
     inter.type = 'none'
-  }, [drawPreview, snap, endDrag, setAlignGuides, setRotationPreview, setDrawPreview, setMarquee, setTool])
+  }, [drawPreview, snap, endDrag, setAlignGuides, setRotationPreview, setDrawPreview, setMarquee, setTool, setFreehandPreview])
 
   // -------------------------------------------------------------------------
   // Double-click — commit pipe draw
   // -------------------------------------------------------------------------
 
-  const handleDoubleClick = useCallback((_e: React.MouseEvent) => {
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const d = docRef.current
     if (!d) return
+
+    // Double-click on a group node → enter group editing scope
+    if (!pipeDrawState && !penWaypoints) {
+      const rect = getRect()
+      if (rect) {
+        const vp = viewportRef.current
+        const cx = (e.clientX - rect.left - vp.panX) / vp.zoom
+        const cy = (e.clientY - rect.top  - vp.panY) / vp.zoom
+        const hitId = hitTest(cx, cy)
+        if (hitId) {
+          const node = d.children.find(n => n.id === hitId)
+          if (node && node.type === 'group') {
+            setActiveGroup(hitId)
+            selectedIdsRef.current = new Set()
+            emitSelection([])
+            return
+          }
+        }
+      }
+    }
 
     if (pipeDrawState && pipeDrawState.waypoints.length >= 2) {
       const pipe: Pipe = {
@@ -1762,7 +2265,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       setPenWaypoints(null)
       setTool('select')
     }
-  }, [penWaypoints, pipeDrawState, setPenWaypoints, setPipeDrawState, setTool])
+  }, [penWaypoints, pipeDrawState, setPenWaypoints, setPipeDrawState, setTool, setActiveGroup])
 
   // -------------------------------------------------------------------------
   // Wheel — zoom centered on cursor
@@ -1930,6 +2433,13 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     }
 
     if (e.key === 'Escape') {
+      // If inside a group scope, exit it first; second Escape clears selection
+      if (useUiStore.getState().activeGroupId !== null) {
+        setActiveGroup(null)
+        selectedIdsRef.current = new Set()
+        emitSelection([])
+        return
+      }
       selectedIdsRef.current = new Set()
       emitSelection([])
       setPipeDrawState(null)
@@ -1969,7 +2479,110 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       return
     }
 
-    if (!ctrl) {
+    // Ctrl+Shift+0 — zoom to selection
+    if (ctrl && e.shiftKey && e.key === ')') {
+      e.preventDefault()
+      const ids = Array.from(selectedIdsRef.current)
+      const d = docRef.current
+      const el = containerRef.current
+      if (ids.length > 0 && d && el) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const id of ids) {
+          const n = d.children.find(c => c.id === id)
+          if (!n) continue
+          const b = getNodeBounds(n)
+          minX = Math.min(minX, b.x); minY = Math.min(minY, b.y)
+          maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h)
+        }
+        if (isFinite(minX)) {
+          const { width: sw, height: sh } = el.getBoundingClientRect()
+          const pad = 40
+          const zoom = Math.min((sw - pad*2) / (maxX - minX), (sh - pad*2) / (maxY - minY), 4)
+          const panX = (sw - (maxX - minX) * zoom) / 2 - minX * zoom
+          const panY = (sh - (maxY - minY) * zoom) / 2 - minY * zoom
+          setViewport({ zoom, panX, panY })
+        }
+      }
+      return
+    }
+
+    // Ctrl+' — toggle grid visibility; Ctrl+Shift+' — toggle snap to grid
+    if (ctrl && (e.key === "'" || e.key === '"')) {
+      e.preventDefault()
+      if (e.shiftKey) {
+        setSnap(!snapToGrid)
+      } else {
+        setGrid(!gridVisible)
+      }
+      return
+    }
+
+    // Enter — finish active pipe or pen path
+    if (e.key === 'Enter') {
+      if (pipeDrawState && pipeDrawState.waypoints.length >= 2) {
+        e.preventDefault()
+        const pipe: import('../../shared/types/graphics').Pipe = {
+          id: crypto.randomUUID(),
+          type: 'pipe',
+          name: 'Pipe',
+          transform: { position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+          visible: true,
+          locked: false,
+          opacity: 1,
+          serviceType: 'process',
+          pathData: '',
+          strokeWidth: 2,
+          routingMode: 'manual',
+          waypoints: [...pipeDrawState.waypoints],
+        }
+        executeCmd(new AddNodeCommand(pipe, null))
+        selectedIdsRef.current = new Set([pipe.id])
+        emitSelection([pipe.id])
+        setPipeDrawState(null)
+        setTool('select')
+        return
+      }
+      if (penWaypoints && penWaypoints.length >= 2) {
+        e.preventDefault()
+        const prim: import('../../shared/types/graphics').Primitive = {
+          id: crypto.randomUUID(),
+          type: 'primitive',
+          primitiveType: 'polyline',
+          name: 'Path',
+          transform: { position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+          visible: true,
+          locked: false,
+          opacity: 1,
+          geometry: { type: 'polyline', points: penWaypoints },
+          style: { fill: 'none', fillOpacity: 1, stroke: '#6366f1', strokeWidth: 1 },
+        }
+        executeCmd(new AddNodeCommand(prim, null))
+        selectedIdsRef.current = new Set([prim.id])
+        emitSelection([prim.id])
+        setPenWaypoints(null)
+        setTool('select')
+        return
+      }
+    }
+
+    // Spacebar — temporary pan mode (handled in keydown; restored in keyup)
+    if (e.key === ' ' && !isInput) {
+      e.preventDefault()
+      if (activeTool !== 'pan') {
+        spacebarPrevToolRef.current = activeTool
+        setTool('pan')
+      }
+      return
+    }
+
+    // Shift+P — pipe tool
+    if (e.shiftKey && e.key === 'P' && !ctrl) {
+      e.preventDefault()
+      setTool('pipe')
+      return
+    }
+
+    if (!ctrl && !e.shiftKey) {
       switch (e.key.toLowerCase()) {
         case 'v': setTool('select'); break
         case 'r': setTool('rect'); break
@@ -1977,11 +2590,20 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         case 't': setTool('text'); break
         case 'h': setTool('pan'); break
         case 'p': setTool('pen'); break
+        case 'b': setTool('freehand'); break
         case 'l': setTool('line'); break
         case 'i': setTool('pipe'); break
       }
     }
-  }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee, zoomTo, fitToCanvas])
+  }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee, zoomTo, fitToCanvas, setGrid, setSnap, gridVisible, snapToGrid, activeTool, pipeDrawState, penWaypoints, setViewport, setActiveGroup])
+
+  // Spacebar keyup — restore previous tool
+  const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === ' ' && spacebarPrevToolRef.current !== null) {
+      setTool(spacebarPrevToolRef.current as Parameters<typeof setTool>[0])
+      spacebarPrevToolRef.current = null
+    }
+  }, [setTool])
 
   // -------------------------------------------------------------------------
   // Right-click context menu
@@ -2164,6 +2786,73 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   }, [snap])
 
   // -------------------------------------------------------------------------
+  // Handle report element drops from left palette
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    function onReportElementDrop(e: Event) {
+      const ce = e as CustomEvent<{ elementType: string; x: number; y: number }>
+      const rect = getRect()
+      if (!rect || !docRef.current) return
+      const vp = viewportRef.current
+      const cx = snap((ce.detail.x - rect.left - vp.panX) / vp.zoom)
+      const cy = snap((ce.detail.y - rect.top  - vp.panY) / vp.zoom)
+      const et = ce.detail.elementType as 'text_block' | 'section_break' | 'page_break' | 'header' | 'footer'
+
+      // Report elements map to either TextBlock or Annotation nodes
+      if (et === 'text_block') {
+        const node: TextBlock = {
+          id: crypto.randomUUID(),
+          type: 'text_block',
+          name: 'Text Block',
+          transform: { position: { x: cx, y: cy }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+          visible: true,
+          locked: false,
+          opacity: 1,
+          content: 'Enter text here...',
+          fontFamily: 'Inter',
+          fontSize: 14,
+          fontWeight: 400,
+          fontStyle: 'normal',
+          textAnchor: 'start',
+          fill: '#A1A1AA',
+          background: { fill: '#27272A', stroke: '#3F3F46', strokeWidth: 1, padding: 8, borderRadius: 2 },
+          maxWidth: 300,
+        }
+        executeCmd(new AddNodeCommand(node, null))
+        selectedIdsRef.current = new Set([node.id])
+        emitSelection([node.id])
+      } else {
+        type ReportAnnotationType = 'section_break' | 'page_break' | 'header' | 'footer'
+        const rat = et as ReportAnnotationType
+        const cfgWidth = 600
+        const config = rat === 'section_break' ? { annotationType: rat, width: cfgWidth } as const
+                      : rat === 'page_break'    ? { annotationType: rat, width: cfgWidth } as const
+                      : rat === 'header'        ? { annotationType: rat, width: cfgWidth, height: 40 } as const
+                      :                           { annotationType: rat, width: cfgWidth, height: 40 } as const
+
+        const annotationNode = {
+          id: crypto.randomUUID(),
+          type: 'annotation' as const,
+          name: et.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          annotationType: rat,
+          transform: { position: { x: cx, y: cy }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+          visible: true,
+          locked: false,
+          opacity: 1,
+          config,
+        }
+        executeCmd(new AddNodeCommand(annotationNode as SceneNode, null))
+        selectedIdsRef.current = new Set([annotationNode.id])
+        emitSelection([annotationNode.id])
+      }
+    }
+
+    document.addEventListener('io:report-element-drop', onReportElementDrop)
+    return () => document.removeEventListener('io:report-element-drop', onReportElementDrop)
+  }, [snap])
+
+  // -------------------------------------------------------------------------
   // Cursor style based on active tool
   // -------------------------------------------------------------------------
 
@@ -2174,6 +2863,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     ellipse: 'crosshair',
     line: 'crosshair',
     pen: 'crosshair',
+    freehand: 'crosshair',
     text: 'text',
     pipe: 'crosshair',
     image: 'copy',
@@ -2192,6 +2882,75 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   const getShapeSvgMemo = useCallback((id: string) => getShapeSvg(id), [getShapeSvg])
   void version // consumed to trigger re-render when doc changes
 
+  // -------------------------------------------------------------------------
+  // Quick Bind: drop a point from Point Browser onto a symbol with valueAnchors
+  // -------------------------------------------------------------------------
+
+  function handleDragOver(e: React.DragEvent) {
+    if (e.dataTransfer.types.includes('application/io-point')) {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    const raw = e.dataTransfer.getData('application/io-point')
+    if (!raw) return
+    e.preventDefault()
+
+    let pointData: { type: string; pointId: string; tagname: string; displayName: string; unit: string }
+    try { pointData = JSON.parse(raw) } catch { return }
+    if (pointData.type !== 'point') return
+
+    const d = docRef.current
+    const r = containerRef.current?.getBoundingClientRect()
+    if (!d || !r) return
+
+    const { panX, panY, zoom } = useUiStore.getState().viewport
+    const cx = (e.clientX - r.left - panX) / zoom
+    const cy = (e.clientY - r.top  - panY) / zoom
+
+    // Find what's under the drop point
+    const hitId = hitTest(cx, cy)
+    if (!hitId) return
+
+    const hitNode = d.children.find(n => n.id === hitId)
+    if (!hitNode || hitNode.type !== 'symbol_instance') return
+
+    const sym = hitNode as SymbolInstance
+
+    // Determine anchor position: place the readout slightly offset from the symbol
+    const bounds = getNodeBounds(sym)
+    const anchorX = bounds.x
+    const anchorY = bounds.y + bounds.h + 4
+
+    // Create a DisplayElement (text_readout) at the anchor position
+    const de: DisplayElement = {
+      id: crypto.randomUUID(),
+      type: 'display_element',
+      name: `${pointData.displayName} readout`,
+      transform: { position: { x: anchorX, y: anchorY }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+      visible: true,
+      locked: false,
+      opacity: 1,
+      displayType: 'text_readout',
+      config: {
+        displayType: 'text_readout',
+        showBox: true,
+        showLabel: true,
+        labelText: pointData.displayName,
+        showUnits: !!pointData.unit,
+        valueFormat: '%.2f',
+        minWidth: 60,
+      },
+      binding: { pointId: pointData.pointId },
+    }
+
+    executeCmd(new AddNodeCommand(de, null))
+    selectedIdsRef.current = new Set([de.id])
+    emitSelection([de.id])
+  }
+
   return (
     <div
       ref={containerRef}
@@ -2202,7 +2961,10 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       onMouseUp={handleMouseUp}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
       onContextMenu={handleContextMenu}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       style={{
         flex: 1,
         overflow: 'hidden',
@@ -2314,6 +3076,14 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
           {/* Pen draw preview */}
           <PenDrawOverlay waypoints={penWaypoints} cursorX={penCursor.x} cursorY={penCursor.y} zoom={zoom} />
+
+          {/* Freehand draw preview */}
+          <FreehandPreviewOverlay points={freehandPreview} zoom={zoom} />
+
+          {/* Connection point dots (pipe tool) */}
+          {doc && (
+            <ConnectionPointsOverlay doc={doc} zoom={zoom} activeTool={activeTool} />
+          )}
         </g>
       </svg>
 
@@ -2380,6 +3150,42 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
           pointerEvents: 'none',
         }}>
           Open or create a graphic to begin
+        </div>
+      )}
+
+      {/* Phone preview frame — dashboard mode only */}
+      {phonePreviewActive && designMode === 'dashboard' && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div style={{
+            width: 375 * viewport.zoom,
+            height: '100%',
+            border: `2px solid var(--io-accent)`,
+            borderRadius: 16 * viewport.zoom,
+            boxSizing: 'border-box',
+            boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+            position: 'relative',
+          }}>
+            <div style={{
+              position: 'absolute',
+              top: -20,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: 10,
+              color: 'var(--io-accent)',
+              fontWeight: 600,
+              letterSpacing: '0.05em',
+              whiteSpace: 'nowrap',
+            }}>
+              Phone preview — 375px
+            </div>
+          </div>
         </div>
       )}
 
@@ -2453,9 +3259,266 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
             }
             setCtxMenu(null)
           }}
+          onZoomFit={() => {
+            const d = docRef.current; const el = containerRef.current
+            if (d && el) { const r = el.getBoundingClientRect(); fitToCanvas(d.canvas.width, d.canvas.height, r.width, r.height) }
+            setCtxMenu(null)
+          }}
+          onToggleGrid={() => { setGrid(!gridVisible); setCtxMenu(null) }}
+          onSaveAsStencil={() => {
+            if (!docRef.current) return
+            const nodes = Array.from(selectedIdsRef.current)
+              .map(id => docRef.current!.children.find(n => n.id === id))
+              .filter((n): n is SceneNode => n !== undefined)
+            setStencilNodes(nodes)
+            setCtxMenu(null)
+          }}
+          onPromoteToShape={() => {
+            if (!docRef.current) return
+            const nodes = Array.from(selectedIdsRef.current)
+              .map(id => docRef.current!.children.find(n => n.id === id))
+              .filter((n): n is SceneNode => n !== undefined)
+            setPromoteNodes(nodes)
+            setCtxMenu(null)
+          }}
+        />
+      )}
+
+      {/* Group scope indicator */}
+      {activeGroupId && (
+        <div style={{
+          position: 'absolute', top: RULER_SIZE + 4, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--io-accent)', color: '#fff', fontSize: 11, padding: '3px 10px',
+          borderRadius: 'var(--io-radius)', zIndex: 10, pointerEvents: 'none',
+        }}>
+          Editing group — press Esc to exit
+        </div>
+      )}
+
+      {/* Rulers + user guides */}
+      <RulersOverlay panX={panX} panY={panY} zoom={zoom} canvasW={canvasW} canvasH={canvasH} containerRef={containerRef} />
+
+      {/* Save as Stencil dialog */}
+      {stencilNodes && (
+        <SaveAsStencilDialog
+          nodes={stencilNodes}
+          onClose={() => setStencilNodes(null)}
+          onSaved={() => setStencilNodes(null)}
+        />
+      )}
+
+      {/* Promote to Shape wizard */}
+      {promoteNodes && (
+        <PromoteToShapeWizard
+          selectedNodes={promoteNodes}
+          onClose={() => setPromoteNodes(null)}
+          onSaved={() => setPromoteNodes(null)}
         />
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Rulers + User Guides overlay
+// ---------------------------------------------------------------------------
+
+interface RulersOverlayProps {
+  panX: number
+  panY: number
+  zoom: number
+  canvasW: number
+  canvasH: number
+  containerRef: React.RefObject<HTMLDivElement>
+}
+
+function RulersOverlay({ panX, panY, zoom, canvasW, canvasH, containerRef }: RulersOverlayProps) {
+  const guides         = useUiStore(s => s.guides)
+  const guidesVisible  = useUiStore(s => s.guidesVisible)
+  const addGuide       = useUiStore(s => s.addGuide)
+  const removeGuide    = useUiStore(s => s.removeGuide)
+
+  function screenToCanvas(screenX: number, screenY: number) {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+    return {
+      x: (screenX - rect.left - panX) / zoom,
+      y: (screenY - rect.top  - panY) / zoom,
+    }
+  }
+
+  function startGuideCreate(e: React.MouseEvent, axis: 'h' | 'v') {
+    e.preventDefault()
+    e.stopPropagation()
+    let liveId: string | null = null
+
+    const moveFn = (me: MouseEvent) => {
+      const canvasPos = screenToCanvas(me.clientX, me.clientY)
+      const pos = axis === 'v' ? canvasPos.x : canvasPos.y
+      if (liveId !== null) removeGuide(liveId)
+      addGuide(axis, pos)
+      liveId = useUiStore.getState().guides.at(-1)?.id ?? null
+    }
+
+    const upFn = () => {
+      document.removeEventListener('mousemove', moveFn)
+      document.removeEventListener('mouseup', upFn)
+    }
+
+    document.addEventListener('mousemove', moveFn)
+    document.addEventListener('mouseup', upFn)
+  }
+
+  // Render ruler tick marks
+  function renderTicks(axis: 'h' | 'v', length: number): React.ReactNode {
+    const ticks: React.ReactNode[] = []
+    const step = zoom >= 2 ? 10 : zoom >= 0.5 ? 50 : 100
+    const offset = axis === 'h' ? panX : panY
+    const start = Math.ceil(-offset / zoom / step) * step
+    const end = start + length / zoom + step
+
+    for (let pos = start; pos <= end; pos += step) {
+      const screenPos = pos * zoom + offset
+      if (screenPos < 0 || screenPos > length) continue
+      const major = pos % (step * 5) === 0
+      if (axis === 'h') {
+        ticks.push(
+          <g key={pos}>
+            <line x1={screenPos} y1={major ? 4 : 8} x2={screenPos} y2={RULER_SIZE} stroke="var(--io-text-muted)" strokeWidth={0.5} />
+            {major && <text x={screenPos + 2} y={RULER_SIZE - 3} fontSize={7} fill="var(--io-text-muted)">{pos}</text>}
+          </g>
+        )
+      } else {
+        ticks.push(
+          <g key={pos}>
+            <line x1={major ? 4 : 8} y1={screenPos} x2={RULER_SIZE} y2={screenPos} stroke="var(--io-text-muted)" strokeWidth={0.5} />
+            {major && (
+              <text x={RULER_SIZE - 3} y={screenPos - 1} fontSize={7} fill="var(--io-text-muted)"
+                transform={`rotate(-90,${RULER_SIZE - 3},${screenPos - 1})`}
+              >{pos}</text>
+            )}
+          </g>
+        )
+      }
+    }
+    return ticks
+  }
+
+  const rect = containerRef.current?.getBoundingClientRect()
+  const W = rect?.width  ?? 800
+  const H = rect?.height ?? 600
+
+  return (
+    <>
+      {/* Horizontal ruler (top) */}
+      <svg
+        style={{ position: 'absolute', top: 0, left: RULER_SIZE, width: `calc(100% - ${RULER_SIZE}px)`, height: RULER_SIZE, zIndex: 10, cursor: 's-resize', pointerEvents: 'all' }}
+        onMouseDown={e => startGuideCreate(e, 'h')}
+      >
+        <rect width="100%" height={RULER_SIZE} fill="var(--io-surface-elevated)" />
+        {renderTicks('h', W)}
+      </svg>
+
+      {/* Vertical ruler (left) */}
+      <svg
+        style={{ position: 'absolute', top: RULER_SIZE, left: 0, width: RULER_SIZE, height: `calc(100% - ${RULER_SIZE}px)`, zIndex: 10, cursor: 'e-resize', pointerEvents: 'all' }}
+        onMouseDown={e => startGuideCreate(e, 'v')}
+      >
+        <rect width={RULER_SIZE} height="100%" fill="var(--io-surface-elevated)" />
+        {renderTicks('v', H)}
+      </svg>
+
+      {/* Corner square */}
+      <div style={{ position: 'absolute', top: 0, left: 0, width: RULER_SIZE, height: RULER_SIZE, background: 'var(--io-surface-elevated)', zIndex: 11, borderRight: '1px solid var(--io-border)', borderBottom: '1px solid var(--io-border)' }} />
+
+      {/* User guides rendered over the canvas (screen-space) */}
+      {guidesVisible && guides.map(g => {
+        const screenPos = g.axis === 'v'
+          ? g.position * zoom + panX + RULER_SIZE
+          : g.position * zoom + panY + RULER_SIZE
+
+        return g.axis === 'v' ? (
+          <div
+            key={g.id}
+            title="Drag to move, drag off canvas to delete"
+            onMouseDown={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              const origId = g.id
+              removeGuide(origId)
+              let liveId: string | null = null
+              const moveFn = (me: MouseEvent) => {
+                const cp = screenToCanvas(me.clientX, me.clientY)
+                if (liveId !== null) removeGuide(liveId)
+                if (cp.x >= 0 && cp.x <= canvasW) {
+                  addGuide('v', cp.x)
+                  // The latest guide is in store — find its id
+                  liveId = useUiStore.getState().guides.at(-1)?.id ?? null
+                } else {
+                  liveId = null
+                }
+              }
+              const upFn = () => {
+                document.removeEventListener('mousemove', moveFn)
+                document.removeEventListener('mouseup', upFn)
+              }
+              document.addEventListener('mousemove', moveFn)
+              document.addEventListener('mouseup', upFn)
+            }}
+            style={{
+              position: 'absolute',
+              top: RULER_SIZE,
+              left: screenPos,
+              width: 1,
+              height: `calc(100% - ${RULER_SIZE}px)`,
+              background: 'rgba(0,200,255,0.5)',
+              cursor: 'ew-resize',
+              zIndex: 9,
+              pointerEvents: 'all',
+            }}
+          />
+        ) : (
+          <div
+            key={g.id}
+            title="Drag to move, drag off canvas to delete"
+            onMouseDown={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              const origId = g.id
+              removeGuide(origId)
+              let liveId: string | null = null
+              const moveFn = (me: MouseEvent) => {
+                const cp = screenToCanvas(me.clientX, me.clientY)
+                if (liveId !== null) removeGuide(liveId)
+                if (cp.y >= 0 && cp.y <= canvasH) {
+                  addGuide('h', cp.y)
+                  liveId = useUiStore.getState().guides.at(-1)?.id ?? null
+                } else {
+                  liveId = null
+                }
+              }
+              const upFn = () => {
+                document.removeEventListener('mousemove', moveFn)
+                document.removeEventListener('mouseup', upFn)
+              }
+              document.addEventListener('mousemove', moveFn)
+              document.addEventListener('mouseup', upFn)
+            }}
+            style={{
+              position: 'absolute',
+              top: screenPos,
+              left: RULER_SIZE,
+              height: 1,
+              width: `calc(100% - ${RULER_SIZE}px)`,
+              background: 'rgba(0,200,255,0.5)',
+              cursor: 'ns-resize',
+              zIndex: 9,
+              pointerEvents: 'all',
+            }}
+          />
+        )
+      })}
+    </>
   )
 }
 
@@ -2475,9 +3538,13 @@ interface ContextMenuProps {
   onCopy: () => void
   onCut: () => void
   onPaste: () => void
+  onZoomFit: () => void
+  onToggleGrid: () => void
+  onSaveAsStencil: () => void
+  onPromoteToShape: () => void
 }
 
-function ContextMenu({ x, y, nodeId, selectedIds, doc, onClose, onExec, onSelectAll, onCopy, onCut, onPaste }: ContextMenuProps) {
+function ContextMenu({ x, y, nodeId, selectedIds, doc, onClose, onExec, onSelectAll, onCopy, onCut, onPaste, onZoomFit, onToggleGrid, onSaveAsStencil, onPromoteToShape }: ContextMenuProps) {
   const hasSelection = selectedIds.size > 0
   const hasDoc = !!doc
 
@@ -2579,6 +3646,12 @@ function ContextMenu({ x, y, nodeId, selectedIds, doc, onClose, onExec, onSelect
       disabled: !nodeId || !hasDoc || fromIdx < 0,
       onClick: () => { if (nodeId && doc && fromIdx >= 0) onExec(new ReorderNodeCommand(0, fromIdx, null)) },
     },
+    'sep',
+    { label: 'Zoom to Fit', disabled: false, onClick: onZoomFit },
+    { label: 'Toggle Grid', disabled: false, onClick: onToggleGrid },
+    'sep',
+    { label: 'Save as Stencil…', disabled: !hasSelection || !hasDoc, onClick: onSaveAsStencil },
+    { label: 'Promote to Shape…', disabled: !hasSelection || !hasDoc, onClick: onPromoteToShape },
   ]
 
   return (

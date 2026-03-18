@@ -7,10 +7,13 @@
  *  3. Layers — layer list with visibility/lock toggles, rename, add
  */
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useLibraryStore, useSceneStore, useHistoryStore } from '../../store/designer'
 import type { ShapeIndexItem } from '../../store/designer'
 import type { DisplayElementType, WidgetType } from '../../shared/types/graphics'
+import { graphicsApi } from '../../api/graphics'
+import { pointsApi } from '../../api/points'
+import type { PointMeta } from '../../api/points'
 import {
   AddLayerCommand,
   ChangeLayerPropertyCommand,
@@ -145,6 +148,38 @@ function SkeletonTile() {
 // Shape tile
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// SVG Thumbnail helper
+// ---------------------------------------------------------------------------
+
+function SvgThumbnail({ svgText, size }: { svgText: string; size: number }) {
+  // Extract viewBox from the SVG string (needed for proper scaling)
+  const viewBox = useMemo(() => {
+    const m = svgText.match(/viewBox=["']([^"']+)["']/)
+    return m ? m[1] : '0 0 100 100'
+  }, [svgText])
+
+  // Extract inner SVG content (everything between <svg ...> and </svg>)
+  const inner = useMemo(() => {
+    const m = svgText.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i)
+    return m ? m[1] : ''
+  }, [svgText])
+
+  if (!inner) return null
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={viewBox}
+      style={{ pointerEvents: 'none', overflow: 'visible', flexShrink: 0 }}
+      // SVG equipment shapes use #808080 stroke which is fine on dark bg
+      // eslint-disable-next-line react/no-danger
+      dangerouslySetInnerHTML={{ __html: inner }}
+    />
+  )
+}
+
 function ShapeTile({
   item,
   collapsed,
@@ -152,6 +187,16 @@ function ShapeTile({
   item: ShapeIndexItem
   collapsed: boolean
 }) {
+  const shape = useLibraryStore(s => s.cache.get(item.id) ?? null)
+  const loadShape = useLibraryStore(s => s.loadShape)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!shape) {
+      void loadShape(item.id)
+    }
+  }, [item.id, shape, loadShape])
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Initiate a custom drag event the canvas can listen for
     e.preventDefault()
@@ -216,49 +261,147 @@ function ShapeTile({
           border: '1px solid var(--io-border)',
           borderRadius: 'var(--io-radius)',
           cursor: 'grab',
-          fontSize: 10,
-          color: 'var(--io-text-muted)',
           overflow: 'hidden',
           userSelect: 'none',
         }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
       >
-        {item.label.slice(0, 2).toUpperCase()}
+        {shape?.svg
+          ? <SvgThumbnail svgText={shape.svg} size={26} />
+          : <span style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{item.label.slice(0, 2).toUpperCase()}</span>
+        }
       </div>
     )
   }
 
   return (
-    <div
-      onMouseDown={handleMouseDown}
-      title={item.label}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 3,
-        width: 48,
-        height: 48,
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab',
-        fontSize: 9,
-        color: 'var(--io-text-muted)',
-        overflow: 'hidden',
-        userSelect: 'none',
-        padding: 2,
-        textAlign: 'center',
-        flexShrink: 0,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-    >
-      <div style={{ fontSize: 18, lineHeight: 1 }}>⬡</div>
-      <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%' }}>
-        {item.label.length > 12 ? item.label.slice(0, 11) + '…' : item.label}
+    <>
+      <div
+        onMouseDown={handleMouseDown}
+        onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }) }}
+        title={item.label}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 3,
+          width: 64,
+          height: 64,
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          cursor: 'grab',
+          overflow: 'hidden',
+          userSelect: 'none',
+          padding: 4,
+          textAlign: 'center',
+          flexShrink: 0,
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+      >
+        {shape?.svg
+          ? <SvgThumbnail svgText={shape.svg} size={36} />
+          : <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.25 }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <rect x="2" y="5" width="16" height="10" rx="1" stroke="#808080" strokeWidth="1.5" fill="none"/>
+              </svg>
+            </div>
+        }
+        <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
+          {item.label.length > 12 ? item.label.slice(0, 11) + '…' : item.label}
+        </div>
       </div>
-    </div>
+
+      {/* Shape context menu */}
+      {ctxMenu && (
+        <div
+          style={{
+            position: 'fixed',
+            left: ctxMenu.x,
+            top: ctxMenu.y,
+            zIndex: 9999,
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            minWidth: 140,
+            padding: '4px 0',
+          }}
+          onMouseLeave={() => setCtxMenu(null)}
+        >
+          <button
+            onClick={async () => {
+              setCtxMenu(null)
+              try {
+                const svgContent = await graphicsApi.exportShapeSvg(item.id)
+                const blob = new Blob([svgContent], { type: 'image/svg+xml' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${item.id}.svg`
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch (err) {
+                console.error('SVG export failed:', err)
+              }
+            }}
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '6px 12px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--io-text-primary)',
+              fontSize: 12,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--io-surface)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+          >
+            Export SVG
+          </button>
+          {item.source !== 'library' && (
+            <button
+              onClick={() => {
+                setCtxMenu(null)
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.accept = '.svg,image/svg+xml'
+                input.onchange = async () => {
+                  const file = input.files?.[0]
+                  if (!file) return
+                  const text = await file.text()
+                  const result = await graphicsApi.reimportShapeSvg(item.id, text).catch(() => null)
+                  if (result?.success && result.data.data.viewBoxChanged) {
+                    alert('Shape dimensions changed significantly. Connection points and value anchors may need repositioning.')
+                  }
+                }
+                input.click()
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '6px 12px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--io-text-primary)',
+                fontSize: 12,
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--io-surface)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            >
+              Replace SVG…
+            </button>
+          )}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -266,25 +409,94 @@ function ShapeTile({
 // Display element types
 // ---------------------------------------------------------------------------
 
-const DISPLAY_ELEMENT_TYPES: Array<{ type: DisplayElementType; label: string; icon: string }> = [
-  { type: 'text_readout',      label: 'Text Readout',      icon: '123' },
-  { type: 'numeric_indicator', label: 'Numeric',            icon: '#' },
-  { type: 'analog_bar',        label: 'Analog Bar',         icon: '▐▌' },
-  { type: 'fill_gauge',        label: 'Fill Gauge',         icon: '▓' },
-  { type: 'sparkline',         label: 'Sparkline',          icon: '∿' },
-  { type: 'alarm_indicator',   label: 'Alarm Indicator',    icon: '⚠' },
-  { type: 'digital_status',    label: 'Digital Status',     icon: '●' },
+const DISPLAY_ELEMENT_TYPES: Array<{ type: DisplayElementType; label: string }> = [
+  { type: 'text_readout',      label: 'Text Readout'    },
+  { type: 'analog_bar',        label: 'Analog Bar'      },
+  { type: 'fill_gauge',        label: 'Fill Gauge'      },
+  { type: 'sparkline',         label: 'Sparkline'       },
+  { type: 'alarm_indicator',   label: 'Alarm Indicator' },
+  { type: 'digital_status',    label: 'Digital Status'  },
 ]
+
+// Spec-accurate mini SVG previews for each display element type
+function DisplayElementPreview({ type, size }: { type: DisplayElementType; size: number }) {
+  const s = size
+  switch (type) {
+    case 'text_readout':
+      // Box with "123.4" value text
+      return (
+        <svg width={s} height={Math.round(s * 0.5)} viewBox="0 0 60 22" style={{ pointerEvents: 'none' }}>
+          <rect x="0" y="0" width="60" height="22" rx="2" fill="#27272A" stroke="#3F3F46" strokeWidth="1"/>
+          <text x="30" y="14" textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#A1A1AA">123.4</text>
+          <text x="50" y="14" textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill="#71717A">°F</text>
+        </svg>
+      )
+    case 'analog_bar':
+      // Vertical bar with zones and pointer
+      return (
+        <svg width={Math.round(s * 0.45)} height={s} viewBox="0 0 20 46" style={{ pointerEvents: 'none' }}>
+          <rect x="2" y="0" width="14" height="46" fill="#27272A" stroke="#52525B" strokeWidth="0.5"/>
+          <rect x="3" y="1" width="12" height="7" fill="#5C3A3A"/>
+          <rect x="3" y="8" width="12" height="10" fill="#5C4A32"/>
+          <rect x="3" y="18" width="12" height="14" fill="#404048"/>
+          <rect x="3" y="32" width="12" height="7" fill="#32445C"/>
+          <rect x="3" y="39" width="12" height="6" fill="#2E3A5C"/>
+          <polygon points="16,21 22,24 16,27" fill="#A1A1AA"/>
+          <line x1="3" y1="24" x2="15" y2="24" stroke="#A1A1AA" strokeWidth="0.8"/>
+        </svg>
+      )
+    case 'fill_gauge':
+      // Vertical bar with fill
+      return (
+        <svg width={Math.round(s * 0.45)} height={s} viewBox="0 0 20 46" style={{ pointerEvents: 'none' }}>
+          <rect x="2" y="0" width="14" height="46" rx="1" fill="none" stroke="#52525B" strokeWidth="0.5"/>
+          <rect x="3" y="16" width="12" height="29" rx="0.5" fill="#475569" opacity="0.6"/>
+          <line x1="3" y1="16" x2="15" y2="16" stroke="#64748B" strokeWidth="0.8" strokeDasharray="3 2"/>
+        </svg>
+      )
+    case 'sparkline':
+      // Sparkline chart
+      return (
+        <svg width={s} height={Math.round(s * 0.4)} viewBox="0 0 60 16" style={{ pointerEvents: 'none' }}>
+          <rect x="0" y="0" width="60" height="16" rx="1" fill="#27272A"/>
+          <polyline points="3,12 10,9 17,11 24,6 31,8 38,4 45,9 52,7 59,10"
+            fill="none" stroke="#A1A1AA" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round"/>
+        </svg>
+      )
+    case 'alarm_indicator':
+      // ISA-101 alarm shapes
+      return (
+        <svg width={s} height={Math.round(s * 0.6)} viewBox="0 0 52 24" style={{ pointerEvents: 'none' }}>
+          <rect x="1" y="3" width="16" height="12" rx="1.5" fill="none" stroke="#EF4444" strokeWidth="1.5"/>
+          <text x="9" y="11" textAnchor="middle" fontFamily="monospace" fontSize="7" fontWeight="600" fill="#EF4444">1</text>
+          <polygon points="27,2 37,18 17,18" fill="none" stroke="#F97316" strokeWidth="1.5"/>
+          <text x="27" y="14" textAnchor="middle" fontFamily="monospace" fontSize="7" fontWeight="600" fill="#F97316">2</text>
+          <ellipse cx="46" cy="12" rx="5" ry="4" fill="none" stroke="#06B6D4" strokeWidth="1.5"/>
+          <text x="46" y="14" textAnchor="middle" fontFamily="monospace" fontSize="7" fontWeight="600" fill="#06B6D4">4</text>
+        </svg>
+      )
+    case 'digital_status':
+      // Pill with RUN / STOP
+      return (
+        <svg width={s} height={Math.round(s * 0.55)} viewBox="0 0 56 24" style={{ pointerEvents: 'none' }}>
+          <rect x="1" y="5" width="24" height="14" rx="2" fill="#3F3F46"/>
+          <text x="13" y="14" textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#A1A1AA">OPEN</text>
+          <rect x="29" y="5" width="26" height="14" rx="2" fill="#059669"/>
+          <text x="42" y="14" textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#F9FAFB">RUN</text>
+        </svg>
+      )
+    default:
+      return <span style={{ fontSize: Math.round(s * 0.4), color: 'var(--io-text-muted)' }}>⊞</span>
+  }
+}
 
 function DisplayElementTile({
   type,
   label,
-  icon,
   collapsed,
 }: {
   type: DisplayElementType
   label: string
-  icon: string
   collapsed: boolean
 }) {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -318,7 +530,32 @@ function DisplayElementTile({
     document.addEventListener('mouseup', onUp)
   }, [type, label])
 
-  const size = collapsed ? 32 : 48
+  if (collapsed) {
+    return (
+      <div
+        onMouseDown={handleMouseDown}
+        title={label}
+        style={{
+          width: 32,
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          cursor: 'grab',
+          overflow: 'hidden',
+          userSelect: 'none',
+          flexShrink: 0,
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+      >
+        <DisplayElementPreview type={type} size={26} />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -329,27 +566,26 @@ function DisplayElementTile({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 3,
-        width: size,
-        height: size,
+        gap: 4,
+        width: 72,
+        height: 64,
         background: 'var(--io-surface-elevated)',
         border: '1px solid var(--io-border)',
         borderRadius: 'var(--io-radius)',
         cursor: 'grab',
-        fontSize: collapsed ? 14 : 18,
-        color: 'var(--io-text-secondary)',
+        overflow: 'hidden',
         userSelect: 'none',
+        padding: 4,
+        textAlign: 'center',
         flexShrink: 0,
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
     >
-      <span>{icon}</span>
-      {!collapsed && (
-        <span style={{ fontSize: 9, color: 'var(--io-text-muted)', textAlign: 'center', lineHeight: 1.2 }}>
-          {label.length > 10 ? label.slice(0, 9) + '…' : label}
-        </span>
-      )}
+      <DisplayElementPreview type={type} size={40} />
+      <span style={{ fontSize: 9, color: 'var(--io-text-muted)', lineHeight: 1.2, textAlign: 'center' }}>
+        {label.length > 12 ? label.slice(0, 11) + '…' : label}
+      </span>
     </div>
   )
 }
@@ -811,10 +1047,15 @@ function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolea
 }
 
 function StencilsSection({ collapsed }: { collapsed: boolean }) {
-  // Stencils are fetched from design_objects with type='stencil'.
-  // The API endpoint doesn't yet support type filtering, so we use an empty list
-  // as a placeholder. When the API is ready, replace with a TanStack Query call.
-  const stencils: StencilItem[] = []
+  const [stencils, setStencils] = useState<StencilItem[]>([])
+
+  useEffect(() => {
+    graphicsApi.listStencils().then(result => {
+      if (result.success) {
+        setStencils(result.data.data.map(s => ({ id: s.id, name: s.name })))
+      }
+    }).catch(() => {/* silent — stencil list is non-critical */})
+  }, [])
 
   if (collapsed) {
     return (
@@ -945,18 +1186,283 @@ function WidgetsSection({ collapsed }: { collapsed: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
+// Report Elements section (report mode only)
+// ---------------------------------------------------------------------------
+
+type ReportElementDef = {
+  elementType: 'text_block' | 'section_break' | 'page_break' | 'header' | 'footer'
+  label: string
+}
+
+const REPORT_ELEMENTS: ReportElementDef[] = [
+  { elementType: 'text_block',    label: 'Text Block' },
+  { elementType: 'section_break', label: 'Section Break' },
+  { elementType: 'page_break',    label: 'Page Break' },
+  { elementType: 'header',        label: 'Header' },
+  { elementType: 'footer',        label: 'Footer' },
+]
+
+function ReportElementPreview({ elementType, size }: { elementType: ReportElementDef['elementType']; size: number }) {
+  switch (elementType) {
+    case 'text_block':
+      return (
+        <svg width={size} height={size} viewBox="0 0 40 40" style={{ pointerEvents: 'none' }}>
+          <rect x={2} y={2} width={36} height={36} rx={2} fill="#27272A" stroke="#3F3F46" strokeWidth={1}/>
+          <line x1={6} y1={10} x2={34} y2={10} stroke="#71717A" strokeWidth={1.5} strokeLinecap="round"/>
+          <line x1={6} y1={16} x2={30} y2={16} stroke="#71717A" strokeWidth={1.5} strokeLinecap="round"/>
+          <line x1={6} y1={22} x2={34} y2={22} stroke="#71717A" strokeWidth={1.5} strokeLinecap="round"/>
+          <line x1={6} y1={28} x2={22} y2={28} stroke="#71717A" strokeWidth={1.5} strokeLinecap="round"/>
+        </svg>
+      )
+    case 'section_break':
+      return (
+        <svg width={size} height={size} viewBox="0 0 40 40" style={{ pointerEvents: 'none' }}>
+          <line x1={4} y1={20} x2={36} y2={20} stroke="#6366f1" strokeWidth={2} strokeLinecap="round"/>
+          <line x1={4} y1={14} x2={36} y2={14} stroke="#3F3F46" strokeWidth={1} strokeLinecap="round"/>
+          <line x1={4} y1={26} x2={36} y2={26} stroke="#3F3F46" strokeWidth={1} strokeLinecap="round"/>
+        </svg>
+      )
+    case 'page_break':
+      return (
+        <svg width={size} height={size} viewBox="0 0 40 40" style={{ pointerEvents: 'none' }}>
+          <line x1={4} y1={20} x2={36} y2={20} stroke="#EF4444" strokeWidth={2} strokeLinecap="round" strokeDasharray="4,3"/>
+          <text x={20} y={16} textAnchor="middle" fontSize={6} fill="#EF4444" fontWeight={600}>PAGE BREAK</text>
+        </svg>
+      )
+    case 'header':
+      return (
+        <svg width={size} height={size} viewBox="0 0 40 40" style={{ pointerEvents: 'none' }}>
+          <rect x={2} y={2} width={36} height={12} rx={2} fill="#1e3a5f" stroke="#3b82f6" strokeWidth={1}/>
+          <line x1={6} y1={8} x2={26} y2={8} stroke="#93c5fd" strokeWidth={1.5} strokeLinecap="round"/>
+          <line x1={2} y1={16} x2={38} y2={16} stroke="#3F3F46" strokeWidth={1} strokeLinecap="round" strokeDasharray="3,2"/>
+          <line x1={6} y1={22} x2={34} y2={22} stroke="#52525B" strokeWidth={1} strokeLinecap="round"/>
+          <line x1={6} y1={27} x2={30} y2={27} stroke="#52525B" strokeWidth={1} strokeLinecap="round"/>
+        </svg>
+      )
+    case 'footer':
+      return (
+        <svg width={size} height={size} viewBox="0 0 40 40" style={{ pointerEvents: 'none' }}>
+          <line x1={6} y1={10} x2={34} y2={10} stroke="#52525B" strokeWidth={1} strokeLinecap="round"/>
+          <line x1={6} y1={16} x2={30} y2={16} stroke="#52525B" strokeWidth={1} strokeLinecap="round"/>
+          <line x1={2} y1={22} x2={38} y2={22} stroke="#3F3F46" strokeWidth={1} strokeLinecap="round" strokeDasharray="3,2"/>
+          <rect x={2} y={26} width={36} height={12} rx={2} fill="#1e3a5f" stroke="#3b82f6" strokeWidth={1}/>
+          <line x1={6} y1={32} x2={26} y2={32} stroke="#93c5fd" strokeWidth={1.5} strokeLinecap="round"/>
+        </svg>
+      )
+  }
+}
+
+function ReportElementTile({ elementType, label, collapsed }: ReportElementDef & { collapsed: boolean }) {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const ghost = document.createElement('div')
+    ghost.style.cssText = `
+      position: fixed; pointer-events: none; z-index: 9999;
+      padding: 4px 8px; background: var(--io-accent); color: #09090b;
+      border-radius: 4px; font-size: 11px; font-weight: 600;
+      transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
+    `
+    ghost.textContent = label
+    document.body.appendChild(ghost)
+    const onMove = (ev: MouseEvent) => {
+      ghost.style.left = `${ev.clientX}px`
+      ghost.style.top  = `${ev.clientY}px`
+    }
+    const onUp = (ev: MouseEvent) => {
+      ghost.remove()
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.dispatchEvent(new CustomEvent('io:report-element-drop', {
+        detail: { elementType, x: ev.clientX, y: ev.clientY },
+      }))
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [elementType, label])
+
+  const size = collapsed ? 32 : 48
+  const previewSize = collapsed ? 20 : 32
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      title={label}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        width: size,
+        height: size,
+        background: 'var(--io-surface-elevated)',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        color: 'var(--io-text-secondary)',
+        userSelect: 'none',
+        flexShrink: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+    >
+      <ReportElementPreview elementType={elementType} size={previewSize} />
+      {!collapsed && (
+        <span style={{ fontSize: 8, color: 'var(--io-text-muted)', textAlign: 'center', lineHeight: 1.1 }}>
+          {label.length > 11 ? label.slice(0, 10) + '…' : label}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function ReportElementsSection({ collapsed }: { collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 4px', alignItems: 'center' }}>
+        {REPORT_ELEMENTS.map(r => <ReportElementTile key={r.elementType} {...r} collapsed />)}
+      </div>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, flexShrink: 0 }}>
+      {REPORT_ELEMENTS.map(r => <ReportElementTile key={r.elementType} {...r} collapsed={false} />)}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Point Browser — for Quick Bind (drag point onto symbol with valueAnchors)
+// ---------------------------------------------------------------------------
+
+function PointBrowserSection({ collapsed }: { collapsed: boolean }) {
+  const [search, setSearch] = useState('')
+  const [points, setPoints] = useState<PointMeta[]>([])
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const PAGE_SIZE = 30
+
+  const fetchPoints = useCallback(async (q: string, p: number) => {
+    setLoading(true)
+    const result = await pointsApi.list({ search: q || undefined, page: p, limit: PAGE_SIZE }).catch(() => null)
+    if (result?.success) {
+      setPoints(prev => p === 1 ? result.data.data : [...prev, ...result.data.data])
+      setTotal(result.data.pagination.total)
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1)
+      fetchPoints(search, 1)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [search, fetchPoints])
+
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 6, fontSize: 14 }} title="Points">
+        ⌗
+      </div>
+    )
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '4px 6px',
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    color: 'var(--io-text-primary)',
+    fontSize: 11,
+    outline: 'none',
+    boxSizing: 'border-box',
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 240, overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ padding: '4px 8px' }}>
+        <input
+          type="search"
+          placeholder="Search points…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        {points.map(pt => (
+          <div
+            key={pt.id}
+            draggable
+            onDragStart={e => {
+              e.dataTransfer.setData('application/io-point', JSON.stringify({
+                type: 'point',
+                pointId: pt.id,
+                tagname: pt.tagname,
+                displayName: pt.display_name ?? pt.tagname,
+                unit: pt.unit ?? '',
+              }))
+              e.dataTransfer.effectAllowed = 'copy'
+            }}
+            title={`${pt.tagname}${pt.unit ? ` [${pt.unit}]` : ''}`}
+            style={{
+              padding: '4px 8px',
+              fontSize: 11,
+              cursor: 'grab',
+              borderBottom: '1px solid var(--io-border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+            }}
+          >
+            <span style={{ color: 'var(--io-text-primary)', fontFamily: 'var(--io-font-mono)', fontSize: 10 }}>
+              {pt.tagname}
+            </span>
+            {pt.display_name && pt.display_name !== pt.tagname && (
+              <span style={{ color: 'var(--io-text-muted)', fontSize: 10 }}>{pt.display_name}</span>
+            )}
+          </div>
+        ))}
+        {!loading && points.length === 0 && (
+          <div style={{ padding: '8px', fontSize: 11, color: 'var(--io-text-muted)', textAlign: 'center' }}>
+            {search ? 'No matching points' : 'No points configured'}
+          </div>
+        )}
+        {loading && (
+          <div style={{ padding: '8px', fontSize: 11, color: 'var(--io-text-muted)', textAlign: 'center' }}>Loading…</div>
+        )}
+        {!loading && points.length < total && (
+          <button
+            onClick={() => { const next = page + 1; setPage(next); fetchPoints(search, next) }}
+            style={{ width: '100%', padding: '4px', fontSize: 10, background: 'transparent', border: 'none', borderTop: '1px solid var(--io-border)', color: 'var(--io-accent)', cursor: 'pointer' }}
+          >
+            Load more ({total - points.length} remaining)
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPaletteProps) {
   const designMode = useSceneStore(s => s.designMode)
   const isGraphicMode = designMode === 'graphic'
+  const isReportMode  = designMode === 'report'
 
-  const [equipOpen,    setEquipOpen]    = useState(true)
-  const [stencilsOpen, setStencilsOpen] = useState(false)
-  const [elemOpen,     setElemOpen]     = useState(true)
-  const [widgetsOpen,  setWidgetsOpen]  = useState(true)
-  const [layersOpen,   setLayersOpen]   = useState(true)
+  const [equipOpen,       setEquipOpen]       = useState(true)
+  const [stencilsOpen,    setStencilsOpen]    = useState(false)
+  const [elemOpen,        setElemOpen]        = useState(true)
+  const [pointsOpen,      setPointsOpen]      = useState(false)
+  const [widgetsOpen,     setWidgetsOpen]     = useState(true)
+  const [reportElemOpen,  setReportElemOpen]  = useState(true)
+  const [layersOpen,      setLayersOpen]      = useState(true)
 
   const containerStyle: React.CSSProperties = {
     width,
@@ -983,7 +1489,15 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
             </div>
           </>
         ) : (
-          <WidgetsSection collapsed />
+          <>
+            <WidgetsSection collapsed />
+            {isReportMode && (
+              <>
+                <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+                <ReportElementsSection collapsed />
+              </>
+            )}
+          </>
         )}
         <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
         <LayersSection collapsed />
@@ -1016,12 +1530,24 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
               ))}
             </div>
           )}
+
+          {/* Point Browser section — drag points onto shapes for Quick Bind */}
+          <SectionHeader label="Points" open={pointsOpen} onToggle={() => setPointsOpen(v => !v)} />
+          {pointsOpen && <PointBrowserSection collapsed={false} />}
         </>
       ) : (
         <>
           {/* Widgets section (dashboard / report modes) */}
           <SectionHeader label="Widgets" open={widgetsOpen} onToggle={() => setWidgetsOpen(v => !v)} />
           {widgetsOpen && <WidgetsSection collapsed={false} />}
+
+          {/* Report Elements section — only in report mode */}
+          {isReportMode && (
+            <>
+              <SectionHeader label="Report Elements" open={reportElemOpen} onToggle={() => setReportElemOpen(v => !v)} />
+              {reportElemOpen && <ReportElementsSection collapsed={false} />}
+            </>
+          )}
         </>
       )}
 

@@ -31,54 +31,57 @@ import { create } from 'zustand'
 // Exported sidecar types (mirror the .iographic shape sidecar schema)
 // ---------------------------------------------------------------------------
 
+/** Connection point — actual JSON uses absolute x/y coords */
 export interface ConnectionPoint {
   id: string
-  /** Normalized [x, y] relative to viewBox, range 0–1 */
-  position: [number, number]
-  direction: 'left' | 'right' | 'up' | 'down'
+  /** Absolute x coordinate in viewBox space */
+  x?: number
+  /** Absolute y coordinate in viewBox space */
+  y?: number
+  direction: 'left' | 'right' | 'up' | 'down' | 'top' | 'bottom'
   type: 'process' | 'signal' | 'actuator' | 'electrical'
-  rotatesWithShape: boolean
+  rotatesWithShape?: boolean
 }
 
+/** Text zone — actual JSON uses absolute x/y with width */
 export interface TextZone {
   id: string
-  position: 'above' | 'below' | 'left' | 'right' | 'center'
-  offset: [number, number]
-  anchor: 'start' | 'middle' | 'end'
-  fontSize: number
-  binding: 'tagName' | 'processValue' | 'description' | 'units' | 'status'
-  format?: string
-  visible: boolean
+  x?: number
+  y?: number
+  width?: number
+  anchor?: 'start' | 'middle' | 'end'
+  fontSize?: number
 }
 
+/** Value anchor — actual JSON uses normalized nx/ny with preferredElement */
 export interface ValueAnchor {
-  id: string
-  /** Normalized [x, y] relative to viewBox, range 0–1 */
-  position: [number, number]
-  type: 'text_readout' | 'analog_bar' | 'fill_gauge' | 'sparkline' | 'alarm_indicator' | 'digital_status'
-  label: string
+  /** Normalized x (0–1) relative to shape width */
+  nx?: number
+  /** Normalized y (0–1) relative to shape height */
+  ny?: number
+  preferredElement?: string
 }
 
 export interface ShapeSidecar {
-  shape_id: string
-  version: string
-  display_name: string
-  category: string
-  subcategory?: string
-  tags: string[]
+  id?: string
+  category?: string
   geometry: {
     viewBox: string
-    baseSize: [number, number]
-    gridSnap: number
-    orientations: number[]
-    mirrorable: boolean
+    /** Preferred: [width, height] tuple */
+    baseSize?: [number, number]
+    /** Flat format used by most sidecar files */
+    width?: number
+    height?: number
+    gridSnap?: number
+    orientations?: number[]
+    mirrorable?: boolean
   }
-  connections: ConnectionPoint[]
-  textZones: TextZone[]
-  valueAnchors: ValueAnchor[]
-  /** Normalized [x, y] alarm indicator anchor, if any */
-  alarmAnchor?: [number, number]
-  states: string[]
+  connections?: ConnectionPoint[]
+  textZones?: TextZone[]
+  valueAnchors?: ValueAnchor[]
+  /** Alarm anchor — either normalized [nx, ny] tuple or {nx, ny} object */
+  alarmAnchor?: [number, number] | { nx: number; ny: number }
+  states?: Record<string, string> | string[]
   /** Optional variant files */
   options?: Array<{ id: string; file: string; label: string }>
   /** Optional configuration files */
@@ -104,6 +107,8 @@ export interface ShapeIndexItem {
   category: string
   label: string
   subcategory?: string
+  /** 'library' = built-in Tier 1 shape (read-only for reimport), 'user' = custom shape */
+  source?: 'library' | 'user'
 }
 
 // ---------------------------------------------------------------------------

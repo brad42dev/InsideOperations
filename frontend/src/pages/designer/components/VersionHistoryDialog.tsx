@@ -1,10 +1,13 @@
 import React from 'react'
+import { graphicsApi } from '../../../api/graphics'
+import type { GraphicDocument } from '../../../shared/types/graphics'
 
 interface VersionEntry {
   id: string
   version: number
   type: 'published' | 'draft'
   author: string
+  author_name: string
   timestamp: string
   isCurrent?: boolean
 }
@@ -13,13 +16,8 @@ interface VersionHistoryDialogProps {
   open: boolean
   onClose: () => void
   graphicId: string | null
-  onPreview: (versionId: string) => void
+  onPreview: (versionId: string, doc: GraphicDocument) => void
   onRestore: (versionId: string) => void
-}
-
-// Stub: graphicsApi.getVersions not yet available, return mock empty
-async function fetchVersions(_graphicId: string): Promise<{ success: true; data: VersionEntry[] }> {
-  return { success: true, data: [] }
 }
 
 const panelStyle: React.CSSProperties = {
@@ -73,6 +71,18 @@ const smallBtnStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+function formatTimestamp(ts: string): string {
+  try {
+    const d = new Date(ts)
+    return d.toLocaleString(undefined, {
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch {
+    return ts
+  }
+}
+
 export default function VersionHistoryDialog({
   open,
   onClose,
@@ -82,12 +92,14 @@ export default function VersionHistoryDialog({
 }: VersionHistoryDialogProps) {
   const [versions, setVersions] = React.useState<VersionEntry[]>([])
   const [loading, setLoading] = React.useState(false)
+  const [actionId, setActionId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!open || !graphicId) return
     setLoading(true)
-    fetchVersions(graphicId)
-      .then((r) => { if (r.success) setVersions(r.data) })
+    graphicsApi.getVersions(graphicId)
+      .then((r) => { if (r.success) setVersions(r.data.data) })
+      .catch(() => setVersions([]))
       .finally(() => setLoading(false))
   }, [open, graphicId])
 
@@ -95,6 +107,81 @@ export default function VersionHistoryDialog({
 
   const published = versions.filter((v) => v.type === 'published')
   const drafts = versions.filter((v) => v.type === 'draft')
+
+  async function handlePreview(versionId: string) {
+    if (!graphicId) return
+    setActionId(versionId)
+    try {
+      const r = await graphicsApi.getVersionContent(graphicId, versionId)
+      if (r.success) onPreview(versionId, r.data.data.scene_data)
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  async function handleRestore(versionId: string) {
+    if (!graphicId) return
+    if (!window.confirm('Restore this version? A new draft will be created from the selected version. Unsaved changes will be lost.')) return
+    setActionId(versionId)
+    try {
+      const r = await graphicsApi.restoreVersion(graphicId, versionId)
+      if (r.success) {
+        onRestore(versionId)
+        onClose()
+      }
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  function renderEntries(entries: VersionEntry[], section: 'published' | 'draft') {
+    return entries.map((v) => (
+      <div key={v.id} style={entryStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+          {section === 'published' ? (
+            <span style={{
+              fontWeight: 600,
+              color: 'var(--io-success)',
+              fontSize: '11px',
+              background: 'var(--io-success-subtle, rgba(34,197,94,0.1))',
+              borderRadius: 4,
+              padding: '1px 5px',
+            }}>
+              v{v.version}
+            </span>
+          ) : (
+            <span style={{ fontWeight: v.isCurrent ? 600 : 400, color: 'var(--io-text-primary)' }}>
+              Draft {v.version}{v.isCurrent ? ' (current)' : ''}
+            </span>
+          )}
+          <span style={{ color: 'var(--io-text-muted)', fontSize: '11px' }}>
+            {v.author_name ?? v.author}
+          </span>
+          <span style={{ color: 'var(--io-text-muted)', marginLeft: 'auto', fontSize: '10px', whiteSpace: 'nowrap' }}>
+            {formatTimestamp(v.timestamp)}
+          </span>
+        </div>
+        {!v.isCurrent && (
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              style={smallBtnStyle}
+              disabled={actionId === v.id}
+              onClick={() => handlePreview(v.id)}
+            >
+              {actionId === v.id ? '…' : 'Preview'}
+            </button>
+            <button
+              style={smallBtnStyle}
+              disabled={actionId === v.id}
+              onClick={() => handleRestore(v.id)}
+            >
+              Restore
+            </button>
+          </div>
+        )}
+      </div>
+    ))
+  }
 
   return (
     <>
@@ -117,58 +204,27 @@ export default function VersionHistoryDialog({
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {loading && (
             <div style={{ padding: '24px 16px', color: 'var(--io-text-muted)', fontSize: '12px', textAlign: 'center' }}>
-              Loading versions...
+              Loading versions…
             </div>
           )}
 
           {!loading && versions.length === 0 && (
             <div style={{ padding: '24px 16px', color: 'var(--io-text-muted)', fontSize: '12px', textAlign: 'center' }}>
-              No version history available yet.
+              No version history yet. Save the graphic to create drafts, or publish to create a permanent snapshot.
             </div>
           )}
 
           {published.length > 0 && (
             <>
-              <div style={sectionLabel}>Published Versions</div>
-              {published.map((v) => (
-                <div key={v.id} style={entryStyle}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--io-text-primary)' }}>v{v.version}</span>
-                    <span style={{ color: 'var(--io-text-muted)' }}>{v.author}</span>
-                    <span style={{ color: 'var(--io-text-muted)', marginLeft: 'auto', fontSize: '11px' }}>
-                      {v.timestamp}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button style={smallBtnStyle} onClick={() => onPreview(v.id)}>Preview</button>
-                    <button style={smallBtnStyle} onClick={() => onRestore(v.id)}>Restore</button>
-                  </div>
-                </div>
-              ))}
+              <div style={sectionLabel}>Published Snapshots</div>
+              {renderEntries(published, 'published')}
             </>
           )}
 
           {drafts.length > 0 && (
             <>
               <div style={sectionLabel}>Drafts (rolling 10)</div>
-              {drafts.map((v) => (
-                <div key={v.id} style={entryStyle}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <span style={{ fontWeight: v.isCurrent ? 600 : 400, color: 'var(--io-text-primary)' }}>
-                      Draft {v.version}{v.isCurrent ? ' (current)' : ''}
-                    </span>
-                    <span style={{ color: 'var(--io-text-muted)', marginLeft: 'auto', fontSize: '11px' }}>
-                      {v.timestamp}
-                    </span>
-                  </div>
-                  {!v.isCurrent && (
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button style={smallBtnStyle} onClick={() => onPreview(v.id)}>Preview</button>
-                      <button style={smallBtnStyle} onClick={() => onRestore(v.id)}>Restore</button>
-                    </div>
-                  )}
-                </div>
-              ))}
+              {renderEntries(drafts, 'draft')}
             </>
           )}
         </div>

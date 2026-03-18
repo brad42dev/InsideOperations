@@ -29,9 +29,23 @@ export const graphicsApi = {
 
   /** Get a single graphic by ID */
   get: (id: string) =>
-    api.get<{ data: { id: string; name: string; scene_data: GraphicDocument; version: number; updatedAt: string } }>(
+    api.get<{ data: { id: string; name: string; scene_data: GraphicDocument; version: number; updatedAt: string; locked_by: string | null; locked_by_name: string | null; locked_at: string | null } }>(
       `/api/v1/design-objects/${id}`
     ),
+
+  /**
+   * Acquire pessimistic edit lock on a design object.
+   * Returns { acquired: true } if the lock was granted, or
+   * { acquired: false; locked_by_name: string; locked_at: string } if already locked.
+   */
+  acquireLock: (id: string) =>
+    api.post<{ data: { acquired: boolean; locked_by_name?: string; locked_at?: string } }>(
+      `/api/v1/design-objects/${id}/lock`, {}
+    ),
+
+  /** Release the edit lock on a design object. */
+  releaseLock: (id: string) =>
+    api.delete(`/api/v1/design-objects/${id}/lock`),
 
   /** Create a new graphic */
   create: (payload: DesignObjectCreateRequest) =>
@@ -58,6 +72,21 @@ export const graphicsApi = {
    */
   tileUrl: (id: string) => `/api/v1/design-objects/${id}/tiles/{z}/{x}/{y}.png`,
 
+  /** List stencils from the design_objects table */
+  listStencils: () =>
+    api.get<{ data: Array<{ id: string; name: string; type: string; svg_data?: string; metadata?: Record<string, unknown> }> }>(
+      '/api/v1/design-objects?type=stencil'
+    ),
+
+  /** Save selected elements as a stencil */
+  createStencil: (payload: { name: string; category: string; tags?: string; svgData?: string; nodes?: unknown }) =>
+    api.post<{ data: { id: string } }>('/api/v1/design-objects', {
+      name: payload.name,
+      type: 'stencil',
+      svg_data: payload.svgData ?? '',
+      metadata: { category: payload.category, tags: payload.tags ?? '', nodes: payload.nodes ?? null },
+    }),
+
   /** Upload an image asset */
   uploadImage: (file: File) => {
     const form = new FormData()
@@ -67,6 +96,67 @@ export const graphicsApi = {
 
   /** Get image asset URL by hash */
   imageUrl: (hash: string) => `/api/v1/image-assets/${hash}`,
+
+  /**
+   * Export a shape's raw SVG content as a standalone file.
+   * Returns the SVG as a text string.
+   * Available for all shapes (library + user-created).
+   */
+  exportShapeSvg: async (shapeId: string): Promise<string> => {
+    const resp = await fetch(`/api/v1/shapes/${shapeId}/svg`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+    if (!resp.ok) throw new Error(`Export failed: ${resp.statusText}`)
+    return resp.text()
+  },
+
+  /**
+   * Replace a user-created shape's SVG content.
+   * Library shapes (source=library) are read-only.
+   * Sidecar metadata is preserved — only the visual geometry changes.
+   */
+  reimportShapeSvg: (shapeId: string, svgContent: string) =>
+    api.put<{ data: { viewBoxChanged: boolean; oldViewBox: string; newViewBox: string } }>(
+      `/api/v1/shapes/${shapeId}/svg`,
+      { svg_content: svgContent }
+    ),
+
+  // ── Versioning ──────────────────────────────────────────────────────────
+
+  /** List all versions (drafts + published) for a graphic. */
+  getVersions: (id: string) =>
+    api.get<{ data: Array<{
+      id: string
+      version: number
+      type: 'published' | 'draft'
+      author: string
+      author_name: string
+      timestamp: string
+      isCurrent?: boolean
+    }> }>(`/api/v1/design-objects/${id}/versions`),
+
+  /** Get the scene_data for a specific version. */
+  getVersionContent: (id: string, versionId: string) =>
+    api.get<{ data: { scene_data: import('../shared/types/graphics').GraphicDocument } }>(
+      `/api/v1/design-objects/${id}/versions/${versionId}`
+    ),
+
+  /**
+   * Publish the current draft as a permanent immutable snapshot.
+   * Returns the new version number.
+   */
+  publishGraphic: (id: string) =>
+    api.post<{ data: { version: number } }>(`/api/v1/design-objects/${id}/publish`, {}),
+
+  /**
+   * Restore a previous version — creates a new draft from the old version's content.
+   * Returns the new draft version number.
+   */
+  restoreVersion: (id: string, versionId: string) =>
+    api.post<{ data: { version: number } }>(
+      `/api/v1/design-objects/${id}/versions/${versionId}/restore`, {}
+    ),
 
   /** Export a graphic as a .iographic ZIP (returns Blob) */
   exportIographic: async (id: string, description?: string): Promise<Blob> => {

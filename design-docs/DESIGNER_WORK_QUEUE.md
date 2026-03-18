@@ -181,13 +181,70 @@ The following items may need user input before proceeding:
 1. ~~Fix resize handles (broken, high impact)~~ — **CONFIRMED WORKING** (analysis pass 2026-03-18)
 2. ~~Fix multi-select (broken, high impact)~~ — **CONFIRMED WORKING** (Ctrl+Click, Shift+Click, marquee)
 3. ~~Fix zoom controls (broken, high impact)~~ — **CONFIRMED WORKING** (wheel, Ctrl+/-, Ctrl+0)
-4. Icon-based toolbar
+4. ~~Icon-based toolbar~~ — **CONFIRMED DONE** (SVG icons for all tools in DesignerToolbar.tsx)
 5. ~~Rubber-band selection~~ — **CONFIRMED WORKING**
 6. ~~Rotation support~~ — **DONE** (2026-03-18): `handleMouseMove` and `handleMouseUp` now have `rotate` case. `rotationPreview` state drives live `SelectionOverlay` rotation visualization during drag. `RotateNodesCommand` committed on mouseUp.
 7. ~~Smart alignment snap~~ — **DONE** (2026-03-18): `handleMouseUp` drag case now computes alignment snap corrections and applies them to the final delta before calling `MoveNodesCommand`.
-8. Freehand draw tool
-9. Image import
-10. iographic import editing
-11. Compact asset palette with thumbnails
-12. Navigation collapse
-13. Report objects functioning
+8. ~~Freehand draw tool~~ — **DONE** (2026-03-18): `freehand` tool added to DrawingTool type, DesignerToolbar, DesignerCanvas. Mouse hold + drag captures points via `freehandPointsRef`, RDP path simplification on mouseUp creates `path` primitive. Keyboard shortcut B. `FreehandPreviewOverlay` shows live path during drag.
+9. ~~Image import~~ — **CONFIRMED DONE** (image tool in toolbar + `imageInputRef` file picker in canvas)
+10. iographic import editing — PARTIALLY DONE (embedded_svg bounding box fixed; full decomposition deferred)
+11. ~~Compact asset palette with thumbnails~~ — **DONE** (2026-03-18): SVG thumbnails for shapes via `SvgThumbnail`, spec-accurate `DisplayElementPreview` for display elements.
+12. ~~Navigation collapse~~ — **CONFIRMED DONE** (AppShell has 3-state sidebar: expanded/collapsed/hidden)
+13. ~~Report objects functioning~~ — **DONE** (2026-03-18): Report Elements section added to report mode palette (Text Block, Section Break, Page Break, Header, Footer with SVG previews). `io:report-element-drop` handler creates TextBlock and Annotation nodes. Canvas renders section_break (accent line), page_break (red dashed + label), header/footer (blue bars). Annotation bounding box uses config.width/height. Text Block rendered with background box.
+
+## 7. Spec Pass 2 — Session 2026-03-18 (continued)
+
+### Completed this session
+
+- **ShapeSidecar type fix**: `baseSize` made optional, `width?/height?` added to geometry. Canvas uses `geo?.baseSize?.[0] ?? geo?.width ?? 64` pattern.
+- **DesignerRightPanel — new panels**: Added `ImageNodePanel`, `EmbeddedSvgPanel`, `GroupPanel`, `AnnotationPanel`, `StencilPanel`. All node types now have dedicated panels (no more default fallthrough).
+- **DesignerRightPanel — panel enhancements**: MultiSelectionPanel has alignment/distribution buttons; PrimitivePanel has position X/Y/rotation/fill opacity/stroke dash; TextBlockPanel has font family, max width, background section.
+- **DesignerRightPanel — text zone overrides**: SymbolInstancePanel now shows editable text zone override fields from the sidecar.
+- **DesignerRightPanel — display elements list**: SymbolInstancePanel shows child display elements list.
+- **Layer Panel**: Added `LayersPanel` component (always visible at bottom of right panel per spec §15). Full CRUD: toggle visibility, toggle lock, inline rename, add layer, delete layer, duplicate layer, right-click context menu.
+- **Keyboard shortcuts**: Added `Ctrl+Shift+0` (zoom to selection), `Ctrl+'` (toggle grid), `Ctrl+Shift+'` (toggle snap), `Enter` (finish pipe/pen path), `Spacebar` hold (temporary pan), `Shift+P` (pipe tool).
+- **Tool modes**: Added `rect`/`ellipse`/`line` to dashboard and report modes per spec §11.2-11.3.
+- **Connection points overlay**: `ConnectionPointsOverlay` renders teal dots for all SymbolInstance connection points when pipe tool is active (spec §11.1). Snaps pipe waypoints to nearest connection point within 12px screen threshold.
+- **Pipe shortcut**: Updated TOOLS array to show `Shift+P` as the pipe shortcut (spec §12).
+- **AddLayerCommand / RemoveLayerCommand**: Imported and used in LayersPanel.
+
+## 8. Spec Pass 3 — Session 2026-03-18 (continued)
+
+### Completed this session
+
+- **AnalogBar panel enhancements**: Added Show Setpoint, Show Zone Labels checkboxes; Thresholds section (HH/H/L/LL numeric inputs) — uses `cfg.thresholds?.hh` etc.
+- **DigitalStatus state labels table**: Full editable key-value table per spec §5.3. Each row: [Value] input → [Label] input → [Normal State checkbox] → [×] remove. [+ Add State] button.
+- **Context menu — canvas items**: Added "Zoom to Fit" and "Toggle Grid" to context menu (always present, near bottom). Wired `fitToCanvas()` and `setGrid(!gridVisible)`.
+- **Context menu — Save as Stencil**: "Save as Stencil…" item (enabled when elements selected) triggers `SaveAsStencilDialog`.
+- **SaveAsStencilDialog**: New component in `components/`. Dialog: name, category (flat list + "New Category…"), optional tags. Calls `graphicsApi.createStencil()`. Per spec §"Save as Stencil".
+- **graphicsApi.createStencil**: New API method `POST /api/v1/design-objects` with `type='stencil'`, `svg_data`, `metadata.category/tags/nodes`.
+- **graphicsApi.listStencils**: New API method `GET /api/v1/design-objects?type=stencil`.
+- **StencilsSection**: Updated to fetch from `graphicsApi.listStencils()` instead of returning empty placeholder array.
+- **Rulers & guides**: `RulersOverlay` component added to canvas. Thin top + left rulers with tick marks at configurable step. Drag from ruler → creates guide line. Guide lines rendered as colored (teal) divs over canvas with drag-to-move / drag-off-to-delete behavior. Guide snap in `snap()` function — guide lines take priority over grid snap within 6 canvas units.
+- **Snap to guides**: `snap(v, axis?)` updated to check `guidesVisible && guides` first (6-unit threshold). Axis-aware: pass `'v'` for x-coords, `'h'` for y-coords.
+- **PromoteToShapeWizard**: 8-step wizard component in `components/`. Steps: Name & Category, Boundary & Sizing, Connection Points (click-to-place on SVG preview), Stateful Elements, Text Zones, Value Display Anchors, Orientation & Mirror, Preview & Save. Saves via `graphicsApi.createStencil()` with shape metadata in payload.
+- **Context menu — Promote to Shape**: "Promote to Shape…" item (enabled when elements selected) triggers PromoteToShapeWizard.
+- **Double-click into group scope**: `handleDoubleClick` detects group nodes and calls `setActiveGroup(hitId)`. Visual indicator banner shows "Editing group — press Esc to exit". Escape first exits group scope. `uiStore.activeGroupId` and `setActiveGroup` added to store.
+- **react-resizable**: Installed missing `react-resizable` package (peer dep of `react-grid-layout`) to fix Vite build error in `WorkspaceGrid.tsx`.
+
+## 9. Spec Pass 4 — Session 2026-03-18 (continued)
+
+### Completed this session
+
+- **Group scope hit-testing**: `hitTest()` now respects `activeGroupId` — when inside a group, tests only against that group's children. Marquee selection also scoped to active group.
+- **Concurrent editing / pessimistic lock**: `graphicsApi.acquireLock()` + `releaseLock()` added. `DesignerPage` acquires lock after loading a graphic, releases on unmount. If lock is held by another user, a purple read-only banner shows "Locked by [Name] since [time]" with a "Fork (Save As)" button. Save is blocked when not holding the lock. Lock is released + re-acquired after each save.
+- **Point Browser section**: Added `PointBrowserSection` to `DesignerLeftPalette` (graphic mode, collapsible). Fetches from `pointsApi.list()` with debounced search. Each point row is draggable with `application/io-point` data transfer payload.
+- **Quick Bind drag-and-drop**: `DesignerCanvas` now handles `onDragOver` / `onDrop` events. Dropping a point from Point Browser onto a `symbol_instance` auto-creates a `DisplayElement` (text_readout) positioned below the symbol, bound to the dropped point. Fully typed, zero TypeScript errors.
+- **Unresolved Tag Indicator**: `PointResolutionIndicator` component added to `DesignerRightPanel`. Shown next to both `stateBinding` (SymbolInstance) and `binding` (DisplayElement) point ID fields. Debounced `pointsApi.list()` check → green ✓ (found) or yellow ⚠ not found indicator.
+- **Phone Preview Mode**: `phonePreviewActive`/`setPhonePreview` wired into `DesignerToolbar` (dashboard mode only — phone icon button). Canvas renders a teal 375px frame overlay with dimming outside the frame when active.
+- **Shape SVG Export**: `graphicsApi.exportShapeSvg()` + `graphicsApi.reimportShapeSvg()` added. `ShapeTile` in palette has right-click context menu with "Export SVG" (triggers download) and "Replace SVG…" (file picker → PUT, warns on viewBox change). Library shapes show only "Export SVG".
+- **ShapeIndexItem.source**: Added optional `source?: 'library' | 'user'` field to distinguish built-in vs custom shapes.
+- **Validate Bindings — real data**: `handleValidateBindings()` in `DesignerPage` walks the scene graph, collects all `pointId` values, batch-checks them via `pointsApi.list()`, and passes real resolved/unresolved counts to `ValidateBindingsDialog`. Dialog is now populated with actual data instead of hardcoded zeros.
+
+## 10. Spec Pass 5 — Session 2026-03-18 (continued)
+
+### Completed this session
+
+- **Graphic Versioning**: `graphicsApi.getVersions()`, `getVersionContent()`, `publishGraphic()`, `restoreVersion()` added. `VersionHistoryDialog` upgraded from stub to real API calls. Preview loads version content into scene; Restore creates new draft server-side then reloads. Publish button added to `DesignerToolbar` (only shown when `canPublish` permission present). `isPublishing` state in `DesignerPage`.
+- **Pipe insulation + dash pattern**: `Pipe` type gets `insulated?: boolean` + `dashPattern?: string` fields. `PipePanel` adds "Line Style" dropdown (solid/dashed/dotted/dash-dot) and "Insulated" checkbox. Canvas renders `strokeDasharray` for dash patterns; insulated pipes render two parallel offset lines (ISA P&ID convention).
+- **Console historical playback wired to panes**: `GraphicPane`, `TrendPane`, `PointTablePane` all check `usePlaybackStore().mode`. In historical mode: WebSocket suspended, values fetched via `useHistoricalValues`. TrendPane fetches full time-range series via `pointsApi.getHistory()`. Process module also wired.

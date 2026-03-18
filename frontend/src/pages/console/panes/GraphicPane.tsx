@@ -4,6 +4,8 @@ import { graphicsApi } from '../../../api/graphics'
 import { SceneRenderer } from '../../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../../shared/graphics/SceneRenderer'
 import { useWebSocket, detectDeviceType } from '../../../shared/hooks/useWebSocket'
+import { useHistoricalValues } from '../../../shared/hooks/useHistoricalValues'
+import { usePlaybackStore } from '../../../store/playback'
 import TileGraphicViewer from '../../../shared/components/TileGraphicViewer'
 import type { SceneNode, GraphicDocument } from '../../../shared/types/graphics'
 
@@ -90,13 +92,20 @@ export default function GraphicPane({ graphicId, onNavigate }: Props) {
     [data],
   )
 
-  // Subscribe to live values for all bound points
-  const { values: wsValues } = useWebSocket(pointIds)
+  const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore()
+  const isHistorical = playbackMode === 'historical'
+
+  // Subscribe to live values for all bound points (only when in live mode)
+  const { values: wsValues } = useWebSocket(isHistorical ? [] : pointIds)
+
+  // Fetch historical values at playback timestamp (only when in historical mode)
+  const historicalValues = useHistoricalValues(isHistorical ? pointIds : [], isHistorical ? playbackTs : undefined)
 
   // Adapt wire-format PointValue → SceneRenderer PointValue
   const pointValues = useMemo(() => {
+    const source = isHistorical ? historicalValues : wsValues
     const out = new Map<string, ScenePointValue>()
-    for (const [id, pv] of wsValues) {
+    for (const [id, pv] of source) {
       out.set(id, {
         pointId: pv.pointId,
         value: pv.value,
@@ -106,7 +115,7 @@ export default function GraphicPane({ graphicId, onNavigate }: Props) {
       })
     }
     return out
-  }, [wsValues])
+  }, [isHistorical, wsValues, historicalValues])
 
   // Phone: derive tile overlay bindings from scene node positions
   const tileBindings = useMemo(

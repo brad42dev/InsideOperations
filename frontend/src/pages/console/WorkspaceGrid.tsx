@@ -160,10 +160,93 @@ export default function WorkspaceGrid({
     minH: MIN_ITEM_H,
   }))
 
+  // ── Box selection ──────────────────────────────────────────────────────────
+
+  const [boxRect, setBoxRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
+  const boxStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  const handleGridPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!editMode || !onSelectPane) return
+      // Only start box-select when clicking on empty grid background (not on a pane)
+      const target = e.target as HTMLElement
+      if (target.closest('[data-pane-id]')) return
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      e.currentTarget.setPointerCapture(e.pointerId)
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      boxStartRef.current = { x, y }
+      setBoxRect({ x1: x, y1: y, x2: x, y2: y })
+    },
+    [editMode, onSelectPane],
+  )
+
+  const handleGridPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!boxStartRef.current) return
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      setBoxRect({ x1: boxStartRef.current.x, y1: boxStartRef.current.y, x2: x, y2: y })
+    },
+    [],
+  )
+
+  const handleGridPointerUp = useCallback(
+    (_e: React.PointerEvent<HTMLDivElement>) => {
+      if (!boxStartRef.current || !boxRect || !onSelectPane) {
+        boxStartRef.current = null
+        setBoxRect(null)
+        return
+      }
+      boxStartRef.current = null
+
+      // Normalize the selection rect to min/max
+      const selLeft   = Math.min(boxRect.x1, boxRect.x2)
+      const selTop    = Math.min(boxRect.y1, boxRect.y2)
+      const selRight  = Math.max(boxRect.x1, boxRect.x2)
+      const selBottom = Math.max(boxRect.y1, boxRect.y2)
+
+      // Only select if dragged at least 6px
+      if (selRight - selLeft < 6 && selBottom - selTop < 6) {
+        setBoxRect(null)
+        return
+      }
+
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      if (!containerRect) { setBoxRect(null); return }
+
+      // Collect all pane elements and check overlap
+      const paneEls = containerRef.current?.querySelectorAll<HTMLElement>('[data-pane-id]')
+      paneEls?.forEach((el) => {
+        const paneId = el.dataset.paneId
+        if (!paneId) return
+        const r = el.getBoundingClientRect()
+        const paneLeft   = r.left - containerRect.left
+        const paneTop    = r.top  - containerRect.top
+        const paneRight  = paneLeft + r.width
+        const paneBottom = paneTop  + r.height
+        // AABB overlap
+        const overlaps = paneLeft < selRight && paneRight > selLeft && paneTop < selBottom && paneBottom > selTop
+        if (overlaps) {
+          onSelectPane(paneId, true)
+        }
+      })
+
+      setBoxRect(null)
+    },
+    [boxRect, onSelectPane],
+  )
+
   return (
     <div
       ref={containerRef}
       style={{ flex: 1, overflow: 'hidden', position: 'relative', height: '100%' }}
+      onPointerDown={handleGridPointerDown}
+      onPointerMove={handleGridPointerMove}
+      onPointerUp={handleGridPointerUp}
     >
       <GridLayout
         layout={layoutWithConstraints}
@@ -195,7 +278,7 @@ export default function WorkspaceGrid({
           const pane = paneById.get(item.i)
           if (!pane) return null
           return (
-            <div key={pane.id} style={{ overflow: 'hidden' }}>
+            <div key={pane.id} data-pane-id={pane.id} style={{ overflow: 'hidden' }}>
               <PaneWrapper
                 config={pane}
                 editMode={editMode}
@@ -209,6 +292,23 @@ export default function WorkspaceGrid({
           )
         })}
       </GridLayout>
+
+      {/* Box selection rect */}
+      {boxRect && editMode && (
+        <div
+          style={{
+            position: 'absolute',
+            left:   Math.min(boxRect.x1, boxRect.x2),
+            top:    Math.min(boxRect.y1, boxRect.y2),
+            width:  Math.abs(boxRect.x2 - boxRect.x1),
+            height: Math.abs(boxRect.y2 - boxRect.y1),
+            border: '1px solid var(--io-accent)',
+            background: 'var(--io-accent-subtle)',
+            pointerEvents: 'none',
+            zIndex: 50,
+          }}
+        />
+      )}
     </div>
   )
 }

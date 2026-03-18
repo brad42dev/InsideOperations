@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useWebSocket } from '../../../shared/hooks/useWebSocket'
+import { useHistoricalValues } from '../../../shared/hooks/useHistoricalValues'
+import { usePlaybackStore } from '../../../store/playback'
 import DataTable, { type ColumnDef } from '../../../shared/components/DataTable'
 import { pointsApi } from '../../../api/points'
 import type { PaneConfig } from '../types'
@@ -132,8 +134,13 @@ export default function PointTablePane({
 }: PointTablePaneProps) {
   const pointIds = config.tablePointIds ?? []
 
+  const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore()
+  const isHistorical = playbackMode === 'historical'
+
   const { data: metaMap } = usePointsMeta(pointIds)
-  const { values } = useWebSocket(pointIds)
+  const { values: wsValues } = useWebSocket(isHistorical ? [] : pointIds)
+  const historicalValues = useHistoricalValues(isHistorical ? pointIds : [], isHistorical ? playbackTs : undefined)
+  const values = isHistorical ? historicalValues : wsValues
 
   if (pointIds.length === 0) {
     return (
@@ -188,13 +195,16 @@ export default function PointTablePane({
   const tableData: PointRow[] = pointIds.map((id) => {
     const meta = metaMap?.get(id)
     const lv = values.get(id)
-    const ts = lv?.timestamp
-      ? new Date(lv.timestamp).toLocaleTimeString([], {
+    const lvTs = (lv as { timestamp?: string } | undefined)?.timestamp
+    const ts = lvTs
+      ? new Date(lvTs).toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
         })
-      : '—'
+      : isHistorical
+        ? new Date(playbackTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : '—'
 
     return {
       id,

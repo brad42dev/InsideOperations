@@ -130,19 +130,16 @@ function buildBreadcrumbs(pathname: string): string[] {
   return parts.map(segmentLabel)
 }
 
-function AlertBell() {
-  const navigate = useNavigate()
+/** Fetch unacknowledged alert count for sidebar badge */
+function useUnacknowledgedAlertCount(): number {
   const { data } = useQuery<number>({
     queryKey: ['alerts-unacknowledged-count'],
     queryFn: async () => {
       const res = await fetch('/api/alarms/active?unacknowledged=true', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}`,
-        },
+        headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
       })
       if (!res.ok) return 0
       const json = await res.json()
-      // Support both a count field and an array response
       if (typeof json?.count === 'number') return json.count
       if (Array.isArray(json?.data)) return json.data.length
       return 0
@@ -150,7 +147,32 @@ function AlertBell() {
     refetchInterval: 30_000,
     staleTime: 25_000,
   })
-  const count = data ?? 0
+  return data ?? 0
+}
+
+/** Fetch active (in-progress) rounds count for sidebar badge */
+function useActiveRoundsCount(): number {
+  const { data } = useQuery<number>({
+    queryKey: ['rounds-active-count'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/rounds?status=in_progress&limit=1', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
+      })
+      if (!res.ok) return 0
+      const json = await res.json()
+      if (typeof json?.total === 'number') return json.total
+      if (Array.isArray(json?.data)) return json.data.length
+      return 0
+    },
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+  })
+  return data ?? 0
+}
+
+function AlertBell() {
+  const navigate = useNavigate()
+  const count = useUnacknowledgedAlertCount()
 
   return (
     <button
@@ -213,6 +235,14 @@ export default function AppShell() {
   const [sidebarPeek, setSidebarPeek] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+
+  // Sidebar badge counts
+  const alertBadgeCount = useUnacknowledgedAlertCount()
+  const roundsBadgeCount = useActiveRoundsCount()
+  const sidebarBadges: Record<string, number> = {
+    '/alerts': alertBadgeCount,
+    '/rounds': roundsBadgeCount,
+  }
 
   // Use a ref for the idle timer so the callback is always stable and never stale
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -575,10 +605,33 @@ export default function AppShell() {
                           : '2px solid transparent',
                       })}
                     >
-                      <span style={{ width: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <span style={{ width: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
                         <item.icon size={18} />
+                        {sidebarCollapsed && (sidebarBadges[item.path] ?? 0) > 0 && (
+                          <span style={{
+                            position: 'absolute', top: -3, right: -3,
+                            background: 'var(--io-alarm-critical, #ef4444)',
+                            color: '#fff', borderRadius: '50%',
+                            minWidth: 14, height: 14, fontSize: 9, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            lineHeight: 1, padding: '0 2px',
+                          }}>
+                            {(sidebarBadges[item.path] ?? 0) > 99 ? '99+' : sidebarBadges[item.path]}
+                          </span>
+                        )}
                       </span>
-                      {!sidebarCollapsed && <span>{item.label}</span>}
+                      {!sidebarCollapsed && <span style={{ flex: 1 }}>{item.label}</span>}
+                      {!sidebarCollapsed && (sidebarBadges[item.path] ?? 0) > 0 && (
+                        <span style={{
+                          background: 'var(--io-alarm-critical, #ef4444)',
+                          color: '#fff', borderRadius: 10,
+                          minWidth: 18, height: 18, fontSize: 10, fontWeight: 700,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          padding: '0 4px', flexShrink: 0,
+                        }}>
+                          {(sidebarBadges[item.path] ?? 0) > 99 ? '99+' : sidebarBadges[item.path]}
+                        </span>
+                      )}
                     </NavLink>
                   ))}
                 </div>

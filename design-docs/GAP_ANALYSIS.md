@@ -26,15 +26,15 @@ Each design document (00–10, 38) was read in full and compared to the current 
 | 06 | Design tokens — missing ~90 of 138 specified tokens | MEDIUM | **DONE** (pass 2: all 138 tokens now in tokens.ts for all 3 themes) |
 | 06 | Typography — Inter/JetBrains Mono fonts not loaded | MEDIUM | **DONE** (Google Fonts preloaded in index.html) |
 | 06 | Sidebar — width 220px vs spec 240px | LOW | **DONE** (tokens.ts: 240px/48px) |
-| 06 | Sidebar — Hidden (0px) state not implemented | MEDIUM | Deferred (low user impact) |
+| 06 | Sidebar — Hidden (0px) state not implemented | MEDIUM | **DONE** (sidebarState 3-state: expanded/collapsed/hidden; Ctrl+Shift+B cycles; edge-reveal strip shown when hidden) |
 | 06 | Sidebar — Collapsed hover-to-expand overlay not implemented | LOW | Deferred |
 | 06 | Sidebar — Navigation grouping (Monitoring/Analysis/Operations/Management) not implemented | MEDIUM | **DONE** (NAV_GROUPS already in AppShell) |
-| 06 | Sidebar — Badge counts (unread alerts, active rounds) not implemented | LOW | Deferred |
+| 06 | Sidebar — Badge counts (unread alerts, active rounds) not implemented | LOW | **DONE** (useUnacknowledgedAlertCount + useActiveRoundsCount hooks in AppShell) |
 | 06 | Top bar — hide/show (Ctrl+Shift+T) not implemented | LOW | Deferred |
 | 06 | Top bar — alert notification bell not implemented | MEDIUM | **DONE** (AlertBell component in AppShell) |
 | 06 | Top bar — breadcrumbs not implemented | LOW | **DONE** (buildBreadcrumbs in AppShell) |
 | 06 | Command palette — G-key navigation not implemented | LOW | **DONE** (G_KEY_MAP in AppShell) |
-| 06 | Command palette — prefix scopes (> @ / #) not implemented | LOW | Deferred |
+| 06 | Command palette — prefix scopes (> @ / #) not implemented | LOW | **DONE** (parseQuery() in CommandPalette.tsx; SCOPE_TYPES filters API search; scope-aware placeholder and footer hints) |
 | 06 | Command palette — uses Radix Dialog not cmdk library | LOW | Acceptable |
 | 06 | Kiosk mode — Ctrl+Shift+T not implemented, kiosk flag exists | LOW | Acceptable |
 | 06 | Print stylesheet not implemented | LOW | **DONE** (@media print in index.css) |
@@ -995,9 +995,16 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 - Fix 6 (Lucide React icons) — already implemented; confirmed and documented
 - Updated `ImportSettingsPage` to accept `defaultTab` prop for URL-driven tab selection
 
+### Completed in pass 6 (2026-03-18)
+- Command Palette prefix scopes — `parseQuery()` splits `> @ / #` prefixes from term; API search filtered by `SCOPE_TYPES`; placeholder updates per scope; footer shows scope hints when no prefix typed; section header labels updated per scope — DONE
+- Sidebar badge counts (6.6 entry) — `useUnacknowledgedAlertCount` + `useActiveRoundsCount` hooks; badge rendered in AppShell collapsed (absolute) and expanded (pill) states — DONE
+- AlarmListPane real data — `useQuery`/`useMutation` against `/api/alarms/active`, `toAlarmRow()` adapter, 15s polling — DONE
+- Console/Process historical playback wired — `GraphicPane`, `TrendPane`, `PointTablePane`, `AlarmListPane`, `ProcessPage` all check `usePlaybackStore().mode`; WS suspended in historical mode; values from `useHistoricalValues` — DONE
+- Test suite expanded — 107 tests passing (was 66); new file `commandPalette.test.ts` with `parseQuery`, `toAlarmRow`, `relativeTime` test coverage (41 tests) — DONE
+- Updated summary table entries: 6.6 DONE, L14 DONE, L6 DONE, command palette DONE
+
 ### Deferred (require user decision or backend work)
 - L7: Multi-Window / Detached Windows (large architectural — SharedWorker, BroadcastChannel, detached routes)
-- L8: Process Viewport-Aware Subscriptions (already done per 8.1 — no remaining gap)
 - 7.5 box selection drag / pane swap (minor UX polish)
 - 30.2 Drag-and-Drop Schedule Calendar (low priority — pattern wizard is adequate)
 - 11.1 Report Config Slide-Out (low priority — modal is functionally equivalent)
