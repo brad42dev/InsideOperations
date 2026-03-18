@@ -657,11 +657,9 @@ Implementation: `index.html` has no `<link rel="manifest">` and `public/manifest
 
 **This is a straightforward fix** — create `public/manifest.json` and add the link tag to `index.html`.
 
-### 20.2 PWA Icons — **PARTIAL** (pass 5)
+### 20.2 PWA Icons — **DONE**
 
-Spec: App requires PWA icons (192×192, 512×512 PNG, maskable). Only `favicon.svg` exists in public. No PNG icons for the manifest.
-
-**This is straightforward but requires generating icon files.**
+Generated `public/icon-192.png` and `public/icon-512.png` from the I/O brand mark (dark #09090b background, cyan #2dd4bf "I" bar + "O" circle) using a pure Node.js PNG encoder (`scripts/generate-pwa-icons.cjs`). Updated `manifest.json` to reference all three icon entries (SVG any, PNG 192 any, PNG 512 maskable).
 
 ### 20.3 Bottom Tab Bar for Mobile — **DONE** (pass 3 confirmed)
 
