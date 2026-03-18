@@ -79,7 +79,7 @@ export default function ReportTemplates() {
           {templates.map((t) => (
             <div
               key={t.id}
-              onClick={() => navigate(`/reports/generate?template=${t.id}`)}
+              onClick={() => navigate(`/reports/generate/${t.id}`)}
               style={{ padding: '16px', background: 'var(--io-surface)', border: '1px solid var(--io-border)', borderRadius: '8px', cursor: 'pointer', transition: 'border-color 0.15s' }}
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--io-accent)')}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--io-border)')}

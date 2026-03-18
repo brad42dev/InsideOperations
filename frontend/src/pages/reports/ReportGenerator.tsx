@@ -1,13 +1,44 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { reportsApi } from '../../api/reports'
+import ReportConfigPanel from './ReportConfigPanel'
 
 export default function ReportGenerator() {
   const { template_id } = useParams<{ template_id: string }>()
+  const navigate = useNavigate()
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['reports', 'template', template_id],
+    queryFn: () => reportsApi.getTemplate(template_id!),
+    enabled: !!template_id,
+  })
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--io-text-muted)', fontSize: '14px' }}>
+        Loading template…
+      </div>
+    )
+  }
+
+  if (!data?.success) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ color: '#ef4444', fontSize: '14px' }}>Template not found.</div>
+        <button
+          onClick={() => navigate('/reports')}
+          style={{ padding: '8px 16px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', color: 'var(--io-text-secondary)' }}
+        >
+          Back to Reports
+        </button>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ padding: 'var(--io-space-6)' }}>
-      <h2 style={{ color: 'var(--io-text-primary)' }}>Generate Report</h2>
-      <p style={{ color: 'var(--io-text-secondary)' }}>
-        Template ID: {template_id} — async report generation (Phase 9)
-      </p>
-    </div>
+    <ReportConfigPanel
+      template={data.data}
+      onClose={() => navigate('/reports')}
+    />
   )
 }
