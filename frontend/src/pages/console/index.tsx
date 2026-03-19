@@ -10,6 +10,88 @@ import type { WorkspaceLayout, PaneConfig, LayoutPreset } from './types'
 import { uuidv4 } from '../../lib/uuid'
 import { consoleApi } from '../../api/console'
 import { useAuthStore } from '../../store/auth'
+import { usePlaybackStore } from '../../store/playback'
+
+// ---------------------------------------------------------------------------
+// ConsoleStatusBar
+// ---------------------------------------------------------------------------
+
+function ConsoleStatusBar({
+  workspaceName,
+  subscribedPoints,
+}: {
+  workspaceName: string
+  subscribedPoints: number
+}) {
+  const { mode } = usePlaybackStore()
+  const isHistorical = mode === 'historical'
+
+  return (
+    <div
+      style={{
+        height: 24,
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '0 10px',
+        background: 'var(--io-surface-secondary)',
+        borderTop: '1px solid var(--io-border)',
+        fontSize: 11,
+        color: 'var(--io-text-muted)',
+        userSelect: 'none',
+      }}
+    >
+      {/* Connection dot */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: '#22C55E',
+            display: 'inline-block',
+          }}
+        />
+        Connected
+      </span>
+      <span style={{ color: 'var(--io-border)' }}>|</span>
+      {/* Points */}
+      <span>{subscribedPoints} points subscribed</span>
+      <span style={{ color: 'var(--io-border)' }}>|</span>
+      {/* Workspace name */}
+      {workspaceName && (
+        <>
+          <span
+            style={{
+              color: 'var(--io-text-primary)',
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {workspaceName}
+          </span>
+          <span style={{ color: 'var(--io-border)' }}>|</span>
+        </>
+      )}
+      {/* Mode */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: isHistorical ? '#F59E0B' : '#22C55E',
+            display: 'inline-block',
+          }}
+        />
+        {isHistorical ? 'Historical' : 'Live'}
+      </span>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // LocalStorage fallback (used when not authenticated or API unavailable)
@@ -278,12 +360,18 @@ export default function ConsolePage() {
   const [paletteVisible, setPaletteVisible] = useState(true)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
   const [selectedPaneIds, setSelectedPaneIds] = useState<Set<string>>(new Set())
+  const [preserveAspectRatio, setPreserveAspectRatio] = useState(true)
   const copiedPanesRef = useRef<PaneConfig[]>([])
   const [tabContextMenu, setTabContextMenu] = useState<{
     x: number
     y: number
     workspaceId: string
   } | null>(null)
+  const [workspaceBgCtxMenu, setWorkspaceBgCtxMenu] = useState<{ x: number; y: number } | null>(null)
+
+  const handleWorkspaceContextMenu = useCallback((x: number, y: number) => {
+    setWorkspaceBgCtxMenu({ x, y })
+  }, [])
 
   const activeWorkspace = workspaces.find((w) => w.id === activeId) ?? null
 
@@ -391,6 +479,15 @@ export default function ConsolePage() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const ctrl = e.ctrlKey || e.metaKey
+      // Ctrl+S — save active workspace
+      if (ctrl && e.key === 's') {
+        e.preventDefault()
+        if (activeId) {
+          const ws = workspaces.find((w) => w.id === activeId)
+          if (ws) persistWorkspace(ws)
+        }
+        return
+      }
       // Undo / redo
       if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return }
       if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return }
@@ -444,7 +541,7 @@ export default function ConsolePage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleUndo, handleRedo, editMode, activeId, workspaces, updateWorkspace, selectedPaneIds])
+  }, [handleUndo, handleRedo, editMode, activeId, workspaces, updateWorkspace, selectedPaneIds, persistWorkspace])
 
   // ---- Pane management ----------------------------------------------------
 
@@ -528,6 +625,73 @@ export default function ConsolePage() {
       }))
     },
     [activeId, updateWorkspace],
+  )
+
+  // ---- Palette double-click quick-place (§5.4) ----------------------------
+
+  const handleQuickPlace = useCallback(
+    (item: ConsoleDragItem) => {
+      if (!activeId) return
+      updateWorkspace(activeId, (w) => {
+        const applyItem = (p: PaneConfig): PaneConfig => {
+          switch (item.itemType) {
+            case 'trend':
+              return { ...p, type: 'trend' as const, trendPointIds: item.pointIds ?? [], title: item.label ?? p.title }
+            case 'point_table':
+              return { ...p, type: 'point_table' as const, tablePointIds: item.pointIds ?? [], title: item.label ?? p.title }
+            case 'alarm_list':
+              return { ...p, type: 'alarm_list' as const, title: item.label ?? p.title }
+            case 'graphic':
+              return { ...p, type: 'graphic' as const, graphicId: item.graphicId, title: item.label ?? p.title }
+            default:
+              return p
+          }
+        }
+
+        const newPane = (): PaneConfig => applyItem({ id: uuidv4(), type: 'blank' as const })
+
+        if (w.panes.length === 0) {
+          // No panes: create a 1×1 layout
+          const firstPane = newPane()
+          return { ...w, panes: [firstPane], gridItems: [{ i: firstPane.id, x: 0, y: 0, w: 12, h: 8 }] }
+        }
+
+        // Priority 1: replace first selected pane
+        const selIds = [...selectedPaneIds]
+        if (selIds.length > 0) {
+          return {
+            ...w,
+            panes: w.panes.map((p) => (p.id === selIds[0] ? applyItem(p) : p)),
+          }
+        }
+
+        // Priority 2: first blank pane (row-major order by grid item y then x)
+        const sorted = [...w.panes].sort((a, b) => {
+          const ga = w.gridItems?.find((gi) => gi.i === a.id)
+          const gb = w.gridItems?.find((gi) => gi.i === b.id)
+          if (!ga || !gb) return 0
+          return ga.y !== gb.y ? ga.y - gb.y : ga.x - gb.x
+        })
+        const blankPane = sorted.find((p) => p.type === 'blank')
+        if (blankPane) {
+          return {
+            ...w,
+            panes: w.panes.map((p) => (p.id === blankPane.id ? applyItem(p) : p)),
+          }
+        }
+
+        // Priority 3: add new pane appended to grid
+        const np = newPane()
+        const maxRow = Math.max(0, ...(w.gridItems ?? []).map((gi) => gi.y + gi.h))
+        const newGridItem = { i: np.id, x: 0, y: maxRow, w: 6, h: 6 }
+        return {
+          ...w,
+          panes: [...w.panes, np],
+          gridItems: [...(w.gridItems ?? []), newGridItem],
+        }
+      })
+    },
+    [activeId, updateWorkspace, selectedPaneIds],
   )
 
   // ---- Configuring pane object --------------------------------------------
@@ -732,6 +896,29 @@ export default function ConsolePage() {
                 ))}
               </select>
 
+              {/* Clear Grid button */}
+              <button
+                onClick={() => {
+                  if (!activeId) return
+                  updateWorkspace(activeId, (w) => ({
+                    ...w,
+                    panes: w.panes.map(() => ({ id: uuidv4(), type: 'blank' as const })),
+                  }))
+                }}
+                title="Clear all panes"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  color: 'var(--io-text-muted)',
+                }}
+              >
+                Clear
+              </button>
+
               {/* Rename button */}
               <button
                 onClick={() => {
@@ -812,6 +999,40 @@ export default function ConsolePage() {
             </>
           )}
 
+          {/* Aspect ratio toggle — always visible when a workspace is active */}
+          {activeWorkspace && (
+            <button
+              onClick={() => setPreserveAspectRatio((v) => !v)}
+              title={preserveAspectRatio ? 'Preserve aspect ratio (click to stretch to fill pane)' : 'Stretch to fill pane (click to preserve aspect ratio)'}
+              style={{
+                background: preserveAspectRatio ? 'transparent' : 'var(--io-accent)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 6,
+                padding: '4px 8px',
+                cursor: 'pointer',
+                fontSize: 12,
+                color: preserveAspectRatio ? 'var(--io-text-muted)' : '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              {/* Lock/unlock icon */}
+              {preserveAspectRatio ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                </svg>
+              )}
+              AR
+            </button>
+          )}
+
           {/* Edit toggle */}
           {activeWorkspace && !editMode && (
             <button
@@ -851,7 +1072,7 @@ export default function ConsolePage() {
       {/* Body */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
         {/* Left palette */}
-        <ConsolePalette visible={paletteVisible} onToggle={() => setPaletteVisible((v) => !v)} />
+        <ConsolePalette visible={paletteVisible} onToggle={() => setPaletteVisible((v) => !v)} onQuickPlace={handleQuickPlace} />
 
         {/* Workspace area */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -911,11 +1132,13 @@ export default function ConsolePage() {
               workspace={activeWorkspace}
               editMode={editMode}
               selectedPaneIds={selectedPaneIds}
+              preserveAspectRatio={preserveAspectRatio}
               onConfigurePane={handleConfigurePane}
               onRemovePane={handleRemovePane}
               onSelectPane={handlePaneSelect}
               onPaletteDrop={handlePaletteDrop}
               onGridLayoutChange={handleGridLayoutChange}
+              onWorkspaceContextMenu={handleWorkspaceContextMenu}
             />
           ) : (
             <div
@@ -934,6 +1157,14 @@ export default function ConsolePage() {
 
           {/* Historical Playback Bar — always shown at bottom of workspace area */}
           {workspaces.length > 0 && <HistoricalPlaybackBar />}
+
+          {/* Status bar */}
+          {workspaces.length > 0 && (
+            <ConsoleStatusBar
+              workspaceName={activeWorkspace?.name ?? ''}
+              subscribedPoints={0}
+            />
+          )}
         </div>
       </div>
 
@@ -943,6 +1174,53 @@ export default function ConsolePage() {
           pane={configuringPane}
           onSave={handleSavePane}
           onClose={() => setConfiguringPaneId(null)}
+        />
+      )}
+
+      {/* Workspace background right-click menu (§14.1) */}
+      {workspaceBgCtxMenu && (
+        <ContextMenu
+          x={workspaceBgCtxMenu.x}
+          y={workspaceBgCtxMenu.y}
+          onClose={() => setWorkspaceBgCtxMenu(null)}
+          items={[
+            {
+              label: 'Add Pane',
+              onClick: () => {
+                if (activeId) {
+                  updateWorkspace(activeId, (w) => ({
+                    ...w,
+                    panes: [...w.panes, {
+                      id: `pane-${Date.now()}`,
+                      type: 'blank' as const,
+                      title: 'New Pane',
+                    }],
+                  }))
+                }
+                setWorkspaceBgCtxMenu(null)
+              },
+            },
+            {
+              label: 'Select All',
+              onClick: () => {
+                if (activeId) {
+                  const ws = workspaces.find((w) => w.id === activeId)
+                  if (ws) setSelectedPaneIds(new Set(ws.panes.map((p) => p.id)))
+                }
+                setWorkspaceBgCtxMenu(null)
+              },
+            },
+            {
+              label: 'Clear Grid',
+              divider: true,
+              onClick: () => {
+                if (activeId) {
+                  updateWorkspace(activeId, (w) => ({ ...w, panes: [] }))
+                }
+                setWorkspaceBgCtxMenu(null)
+              },
+            },
+          ]}
         />
       )}
 

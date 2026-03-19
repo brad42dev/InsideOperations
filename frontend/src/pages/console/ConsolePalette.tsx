@@ -156,9 +156,11 @@ function AccordionSection({ title, open, onToggle, badge, children }: AccordionS
 function DraggableItem({
   item,
   children,
+  onQuickPlace,
 }: {
   item: ConsoleDragItem
   children: React.ReactNode
+  onQuickPlace?: (item: ConsoleDragItem) => void
 }) {
   const [dragging, setDragging] = useState(false)
 
@@ -166,6 +168,7 @@ function DraggableItem({
     <div
       draggable
       style={listItem(dragging)}
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
       onDragStart={(e) => {
         e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
         e.dataTransfer.effectAllowed = 'copy'
@@ -226,11 +229,11 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
   },
 ]
 
-function WidgetsSection() {
+function WidgetsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
   return (
     <div style={{ padding: '6px 4px 4px' }}>
       {WIDGET_ITEMS.map((w) => (
-        <DraggableItem key={w.itemType} item={{ itemType: w.itemType, label: w.label }}>
+        <DraggableItem key={w.itemType} item={{ itemType: w.itemType, label: w.label }} onQuickPlace={onQuickPlace}>
           {w.icon}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12 }}>{w.label}</div>
@@ -334,13 +337,14 @@ function PointsSection() {
 // Graphic thumbnail tile — drag-to-drop onto console pane
 // ---------------------------------------------------------------------------
 
-function GraphicTile({ item, name, thumbUrl }: { item: ConsoleDragItem; name: string; thumbUrl: string }) {
+function GraphicTile({ item, name, thumbUrl, onQuickPlace }: { item: ConsoleDragItem; name: string; thumbUrl: string; onQuickPlace?: (item: ConsoleDragItem) => void }) {
   const [dragging, setDragging] = useState(false)
   const [thumbError, setThumbError] = useState(false)
 
   return (
     <div
       draggable
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
       style={{
         padding: '5px 6px',
         borderRadius: 'var(--io-radius)',
@@ -396,7 +400,7 @@ function GraphicTile({ item, name, thumbUrl }: { item: ConsoleDragItem; name: st
 // Graphics section — shows available graphics as thumbnail tiles
 // ---------------------------------------------------------------------------
 
-function GraphicsSection() {
+function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ['console-palette-graphics'],
     queryFn: async () => {
@@ -431,7 +435,7 @@ function GraphicsSection() {
         const thumbUrl = graphicsApi.thumbnailUrl(g.id)
         const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
         return (
-          <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} />
+          <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} onQuickPlace={onQuickPlace} />
         )
       })}
     </div>
@@ -445,9 +449,10 @@ function GraphicsSection() {
 interface ConsolePaletteProps {
   visible: boolean
   onToggle: () => void
+  onQuickPlace?: (item: ConsoleDragItem) => void
 }
 
-export default function ConsolePalette({ visible, onToggle }: ConsolePaletteProps) {
+export default function ConsolePalette({ visible, onToggle, onQuickPlace }: ConsolePaletteProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     graphics: true,
     widgets: false,
@@ -543,7 +548,7 @@ export default function ConsolePalette({ visible, onToggle }: ConsolePaletteProp
           open={openSections.graphics}
           onToggle={() => toggleSection('graphics')}
         >
-          <GraphicsSection />
+          <GraphicsSection onQuickPlace={onQuickPlace} />
         </AccordionSection>
 
         <AccordionSection
@@ -551,7 +556,7 @@ export default function ConsolePalette({ visible, onToggle }: ConsolePaletteProp
           open={openSections.widgets}
           onToggle={() => toggleSection('widgets')}
         >
-          <WidgetsSection />
+          <WidgetsSection onQuickPlace={onQuickPlace} />
         </AccordionSection>
 
         <AccordionSection

@@ -33,6 +33,7 @@ once_cell.workspace = true
 io-scan = { path = "../../crates/io-scan" }
 metrics.workspace = true
 zip.workspace = true
+sha2.workspace = true
 csv = "1"
 rust_xlsxwriter = "0.81"
 ndarray = "0.16"

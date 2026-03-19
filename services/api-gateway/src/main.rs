@@ -123,6 +123,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/refresh", post(proxy_auth))
         .route("/api/auth/logout", post(proxy_auth))
         .route("/api/auth/eula/current", get(proxy_auth))
+        .route("/api/auth/eula/pending", get(proxy_auth))
         .route("/api/auth/eula/accept", post(proxy_auth))
         .route("/api/auth/eula/status", get(proxy_auth))
         .route("/api/auth/ws-ticket", post(proxy_auth))
@@ -204,10 +205,18 @@ async fn main() -> anyhow::Result<()> {
             "/api/graphics",
             get(handlers::graphics::list_graphics).post(handlers::graphics::create_graphic),
         )
-        // iographic import — static path MUST be before parameterised /:id routes
+        // Static graphic routes MUST be before parameterised /:id routes
         .route(
             "/api/graphics/import",
             post(handlers::iographic::import_graphic),
+        )
+        .route(
+            "/api/graphics/hierarchy",
+            get(handlers::graphics::list_graphics_hierarchy),
+        )
+        .route(
+            "/api/graphics/images/:hash",
+            get(handlers::graphics::get_image_asset),
         )
         .route(
             "/api/graphics/:id",
@@ -223,7 +232,17 @@ async fn main() -> anyhow::Result<()> {
             "/api/graphics/:id/tile-info",
             get(handlers::graphics::get_tile_info),
         )
+        .route(
+            "/api/graphics/:id/points",
+            get(handlers::graphics::get_graphic_points),
+        )
+        // Batch shape / stencil loaders
+        .route("/api/shapes/batch", post(handlers::graphics::batch_shapes))
+        .route("/api/stencils/batch", post(handlers::graphics::batch_stencils))
         // Design objects (shapes / stencils)
+        // NOTE: routes registered under both /api/design-objects (legacy) and
+        //       /api/v1/design-objects (doc-21 canonical) so that the frontend
+        //       /v1/ prefix works without breaking any existing callers.
         .route(
             "/api/design-objects",
             get(handlers::graphics::list_design_objects)
@@ -232,6 +251,35 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/design-objects/:id",
             get(handlers::graphics::get_design_object)
+                .delete(handlers::graphics::delete_design_object),
+        )
+        .route(
+            "/api/v1/design-objects",
+            get(handlers::graphics::list_design_objects)
+                .post(handlers::graphics::create_design_object),
+        )
+        // Static sub-paths MUST come before parameterised /:id routes
+        .route(
+            "/api/v1/design-objects/:id/thumbnail.png",
+            get(handlers::graphics::get_thumbnail),
+        )
+        .route(
+            "/api/v1/design-objects/:id/tiles/:z/:x/:y",
+            get(handlers::graphics::get_tile),
+        )
+        // Image assets (content-addressed binary uploads from Designer Image Tool)
+        .route(
+            "/api/v1/image-assets",
+            post(handlers::graphics::upload_image_asset),
+        )
+        .route(
+            "/api/v1/image-assets/:hash",
+            get(handlers::graphics::get_image_asset_v1),
+        )
+        .route(
+            "/api/v1/design-objects/:id",
+            get(handlers::graphics::get_design_object)
+                .put(handlers::graphics::update_graphic)
                 .delete(handlers::graphics::delete_design_object),
         )
         // Console workspaces
@@ -243,7 +291,20 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/console/workspaces/:id",
             get(handlers::console::get_workspace)
+                .put(handlers::console::update_workspace)
                 .delete(handlers::console::delete_workspace),
+        )
+        .route(
+            "/api/console/workspaces/:id/publish",
+            post(handlers::console::publish_workspace),
+        )
+        .route(
+            "/api/console/workspaces/:id/share",
+            post(handlers::console::share_workspace),
+        )
+        .route(
+            "/api/console/workspaces/:id/duplicate",
+            post(handlers::console::duplicate_workspace),
         )
         // Bookmarks
         .route(
@@ -464,6 +525,10 @@ async fn main() -> anyhow::Result<()> {
         // Alert Service (proxied to alert-service)
         .route("/api/alerts/*path", any(proxy_alerts))
         .route("/api/alerts", any(proxy_alerts))
+        // Archive Service (proxied to archive-service)
+        .route("/api/archive/*path", any(proxy_archive))
+        // Batch historical point fetch (archive-service)
+        .route("/api/points/history-batch", post(proxy_history_batch))
         // Parser Service (proxied to parser-service)
         .route("/api/parse/*path", any(proxy_parser))
         // DCS Graphics Import — dedicated top-level route (proxies to parser-service /parse/dcs-import)
@@ -518,6 +583,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/bulk-update/template/:target_type", get(handlers::bulk_update::get_template))
         .route("/api/bulk-update/preview", post(handlers::bulk_update::preview_bulk_update))
         .route("/api/bulk-update/apply", post(handlers::bulk_update::apply_bulk_update))
+        // User preferences (viewport bookmarks, sidebar state, etc.)
+        .route(
+            "/api/user/preferences",
+            get(handlers::user_preferences::get_preferences)
+                .patch(handlers::user_preferences::patch_preferences),
+        )
         // System health aggregation
         .route("/api/health/services", get(service_health_handler))
         // Middleware — tower layers are applied outermost-last, so the last
@@ -647,6 +718,19 @@ async fn proxy_scim(State(state): State<AppState>, req: Request) -> Response {
 /// This is a dedicated top-level alias for the DCS Graphics Import wizard.
 async fn proxy_dcs_import(State(state): State<AppState>, req: Request) -> Response {
     proxy::proxy(&state, req, &state.config.parser_service_url, "/parse/dcs-import").await
+}
+
+/// Proxy all `/api/archive/...` requests to the archive-service, stripping `/api/archive`.
+async fn proxy_archive(State(state): State<AppState>, req: Request) -> Response {
+    let path = req.uri().path().to_string();
+    let downstream = path.strip_prefix("/api/archive").unwrap_or(&path).to_string();
+    proxy::proxy(&state, req, &state.config.archive_service_url, &downstream).await
+}
+
+/// Proxy `POST /api/points/history-batch` → archive-service `/history/points/batch`.
+/// Convenience alias for batch historical data fetching (Console §8.4, Process §8.3).
+async fn proxy_history_batch(State(state): State<AppState>, req: Request) -> Response {
+    proxy::proxy(&state, req, &state.config.archive_service_url, "/history/points/batch").await
 }
 
 /// GET /api/health/services — fan out to all 11 service /health/live endpoints

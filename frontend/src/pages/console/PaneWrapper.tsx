@@ -11,10 +11,21 @@ export interface PaneWrapperProps {
   config: PaneConfig
   editMode: boolean
   isSelected?: boolean
+  isFullscreen?: boolean
+  onToggleFullscreen?: () => void
   onConfigure: (paneId: string) => void
   onRemove: (paneId: string) => void
   onSelect?: (paneId: string, addToSelection: boolean) => void
   onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
+  preserveAspectRatio?: boolean
+  /** Called with a deep copy of the pane config when user selects Copy */
+  onCopy?: (pane: PaneConfig) => void
+  /** Called when user selects Duplicate */
+  onDuplicate?: (paneId: string) => void
+  /** Called when user selects Zoom to Fit (graphic panes only) */
+  onZoomToFit?: (paneId: string) => void
+  /** Called when user selects Reset Zoom (graphic panes only) */
+  onResetZoom?: (paneId: string) => void
 }
 
 const PANE_TYPE_LABELS: Record<string, string> = {
@@ -108,14 +119,22 @@ export default function PaneWrapper({
   config,
   editMode,
   isSelected = false,
+  isFullscreen = false,
+  onToggleFullscreen,
   onConfigure,
   onRemove,
   onSelect,
   onPaletteDrop,
+  preserveAspectRatio = true,
+  onCopy,
+  onDuplicate,
+  onZoomToFit,
+  onResetZoom,
 }: PaneWrapperProps) {
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
   const [paneCtxMenu, setPaneCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [hovered, setHovered] = useState(false)
 
   function handleDragOver(e: React.DragEvent) {
     if (e.dataTransfer.types.includes(CONSOLE_DRAG_KEY)) {
@@ -150,34 +169,62 @@ export default function PaneWrapper({
     onSelect?.(config.id, e.ctrlKey || e.metaKey || e.shiftKey)
   }
 
+  // Fullscreen wrapper style — fixed overlay when fullscreen
+  const fullscreenStyle: React.CSSProperties = isFullscreen
+    ? {
+        position: 'fixed',
+        inset: 0,
+        zIndex: 500,
+        transition: 'all 200ms ease',
+      }
+    : {
+        height: '100%',
+        transition: 'all 200ms ease',
+      }
+
   return (
     <div
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={handlePaneClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onContextMenu={(e) => {
+        // Only show pane context menu if the target is not an SVG element with a
+        // data-point-id (point context menus are handled inside GraphicPane).
+        const target = e.target as HTMLElement
+        if (target.closest('[data-point-id]')) return
+        e.preventDefault()
+        e.stopPropagation()
+        setPaneCtxMenu({ x: e.clientX, y: e.clientY })
+      }}
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
         background: 'var(--io-surface)',
         border: dragOver
-          ? '2px solid var(--io-accent)'
+          ? '2px dashed var(--io-accent)'
           : isSelected
             ? '2px solid var(--io-accent)'
-            : '1px solid var(--io-border)',
+            : hovered
+              ? '1px solid var(--io-border)'
+              : '1px solid transparent',
         borderRadius: 4,
         overflow: 'hidden',
         boxSizing: 'border-box',
         outline: isSelected ? '1px solid var(--io-accent)' : undefined,
         outlineOffset: isSelected ? '-1px' : undefined,
+        ...fullscreenStyle,
       }}
     >
       {/* Header — io-pane-drag-handle is the react-grid-layout drag target in edit mode */}
       <div
         className={editMode ? 'io-pane-drag-handle' : undefined}
         onContextMenu={(e) => {
+          // Header context menu — always show regardless of target
           e.preventDefault()
+          e.stopPropagation()
           setPaneCtxMenu({ x: e.clientX, y: e.clientY })
         }}
         style={{
@@ -207,6 +254,42 @@ export default function PaneWrapper({
         </span>
 
         <PaneTypeBadge type={config.type} />
+
+        {/* Fullscreen toggle button (always shown for non-edit mode, or when fullscreen) */}
+        {!editMode && (
+          <button
+            onClick={() => onToggleFullscreen?.()}
+            title={isFullscreen ? 'Exit full screen' : 'Full screen (F11)'}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--io-text-muted)',
+              padding: '3px 5px',
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {isFullscreen ? (
+              /* Compress icon */
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+              </svg>
+            ) : (
+              /* Expand icon */
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+              </svg>
+            )}
+          </button>
+        )}
 
         {editMode && (
           <>
@@ -271,7 +354,7 @@ export default function PaneWrapper({
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {config.type === 'trend' && (
           <TrendPane
             config={config}
@@ -288,7 +371,10 @@ export default function PaneWrapper({
         )}
         {config.type === 'alarm_list' && <AlarmListPane config={config} />}
         {config.type === 'graphic' && config.graphicId && (
-          <GraphicPane graphicId={config.graphicId} />
+          <GraphicPane
+            graphicId={config.graphicId}
+            preserveAspectRatio={preserveAspectRatio}
+          />
         )}
         {config.type === 'graphic' && !config.graphicId && (
           <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
@@ -296,9 +382,39 @@ export default function PaneWrapper({
         {config.type === 'blank' && (
           <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
         )}
+
+        {/* Exit Full Screen button — absolute overlay when fullscreen */}
+        {isFullscreen && (
+          <button
+            onClick={() => onToggleFullscreen?.()}
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 501,
+              background: 'rgba(9,9,11,0.85)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 6,
+              padding: '5px 10px',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 500,
+              color: 'var(--io-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Exit Full Screen
+          </button>
+        )}
       </div>
 
-      {/* Pane header context menu */}
+      {/* Pane context menu */}
       {paneCtxMenu && (
         <ContextMenu
           x={paneCtxMenu.x}
@@ -306,9 +422,56 @@ export default function PaneWrapper({
           onClose={() => setPaneCtxMenu(null)}
           items={[
             {
+              label: isFullscreen ? 'Exit Full Screen' : 'Full Screen',
+              onClick: () => onToggleFullscreen?.(),
+            },
+            {
+              label: 'Copy',
+              onClick: () => {
+                if (onCopy) {
+                  onCopy({ ...config })
+                } else {
+                  console.log('[Console] Copy pane', config.id)
+                }
+              },
+            },
+            {
+              label: 'Duplicate',
+              onClick: () => {
+                if (onDuplicate) {
+                  onDuplicate(config.id)
+                } else {
+                  console.log('[Console] Duplicate pane', config.id)
+                }
+              },
+            },
+            {
               label: 'Configure Pane…',
+              divider: true,
               onClick: () => onConfigure(config.id),
             },
+            ...(config.type === 'graphic' ? [
+              {
+                label: 'Zoom to Fit',
+                onClick: () => {
+                  if (onZoomToFit) {
+                    onZoomToFit(config.id)
+                  } else {
+                    console.log('[Console] Zoom to fit pane', config.id)
+                  }
+                },
+              },
+              {
+                label: 'Reset Zoom',
+                onClick: () => {
+                  if (onResetZoom) {
+                    onResetZoom(config.id)
+                  } else {
+                    console.log('[Console] Reset zoom pane', config.id)
+                  }
+                },
+              },
+            ] : []),
             {
               label: 'Remove Pane',
               divider: true,

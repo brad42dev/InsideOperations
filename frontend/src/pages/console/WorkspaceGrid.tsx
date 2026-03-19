@@ -7,6 +7,22 @@ import type { ConsoleDragItem } from './ConsolePalette'
 import type { WorkspaceLayout, PaneConfig, LayoutPreset, GridItem } from './types'
 
 // ---------------------------------------------------------------------------
+// AABB overlap ratio helper — returns the fraction of rectA's area that
+// overlaps with rectB.
+// ---------------------------------------------------------------------------
+
+function overlapRatio(
+  aX: number, aY: number, aW: number, aH: number,
+  bX: number, bY: number, bW: number, bH: number,
+): number {
+  const ix = Math.max(0, Math.min(aX + aW, bX + bW) - Math.max(aX, bX))
+  const iy = Math.max(0, Math.min(aY + aH, bY + bH) - Math.max(aY, bY))
+  const area = aW * aH
+  if (area === 0) return 0
+  return (ix * iy) / area
+}
+
+// ---------------------------------------------------------------------------
 // Preset → default grid items (12-column × 12-row coordinate system)
 // ---------------------------------------------------------------------------
 
@@ -88,11 +104,14 @@ export interface WorkspaceGridProps {
   workspace: WorkspaceLayout
   editMode: boolean
   selectedPaneIds?: Set<string>
+  preserveAspectRatio?: boolean
   onConfigurePane: (paneId: string) => void
   onRemovePane: (paneId: string) => void
   onSelectPane?: (paneId: string, addToSelection: boolean) => void
   onPaletteDrop?: (paneId: string, item: ConsoleDragItem) => void
   onGridLayoutChange?: (items: GridItem[]) => void
+  /** Called when user right-clicks the workspace background (not on a pane) */
+  onWorkspaceContextMenu?: (x: number, y: number) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +127,9 @@ export default function WorkspaceGrid({
   workspace,
   editMode,
   selectedPaneIds,
+  preserveAspectRatio = true,
   onConfigurePane,
+  onWorkspaceContextMenu,
   onRemovePane,
   onSelectPane,
   onPaletteDrop,
@@ -117,6 +138,41 @@ export default function WorkspaceGrid({
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
   const [containerHeight, setContainerHeight] = useState(600)
+
+  // ── Swap target visual indicator ─────────────────────────────────────────
+  const [swapTargetId, setSwapTargetId] = useState<string | null>(null)
+
+  // ── Fullscreen state ─────────────────────────────────────────────────────
+  const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
+
+  const toggleFullscreen = useCallback((paneId: string) => {
+    setFullscreenPaneId((prev) => (prev === paneId ? null : paneId))
+  }, [])
+
+  // F11 keyboard shortcut: toggle fullscreen on single selected pane
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'F11') {
+        e.preventDefault()
+        // If already fullscreen, exit
+        if (fullscreenPaneId !== null) {
+          setFullscreenPaneId(null)
+          return
+        }
+        // If exactly one pane is selected, enter fullscreen on it
+        if (selectedPaneIds && selectedPaneIds.size === 1) {
+          const [paneId] = selectedPaneIds
+          setFullscreenPaneId(paneId)
+        }
+      }
+      // Escape exits fullscreen
+      if (e.key === 'Escape' && fullscreenPaneId !== null) {
+        setFullscreenPaneId(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [fullscreenPaneId, selectedPaneIds])
 
   useEffect(() => {
     const el = containerRef.current
@@ -151,6 +207,79 @@ export default function WorkspaceGrid({
       onGridLayoutChange(layout.map((item) => ({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h })))
     },
     [editMode, onGridLayoutChange],
+  )
+
+  // ── Pane swap on drag stop ────────────────────────────────────────────────
+  // When a dragged pane overlaps another pane by >50%, swap their grid positions.
+
+  const handleDragStop = useCallback(
+    (layout: readonly LayoutItem[], _oldItem: LayoutItem | null, newItem: LayoutItem | null) => {
+      if (!editMode || !onGridLayoutChange) return
+      setSwapTargetId(null)
+
+      if (!newItem) {
+        onGridLayoutChange(layout.map((item) => ({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h })))
+        return
+      }
+
+      // Find if the dragged item overlaps another pane by more than 50%
+      let swapCandidate: LayoutItem | null = null
+      for (const other of layout) {
+        if (other.i === newItem.i) continue
+        const ratio = overlapRatio(
+          newItem.x, newItem.y, newItem.w, newItem.h,
+          other.x, other.y, other.w, other.h,
+        )
+        if (ratio > 0.5) {
+          swapCandidate = other
+          break
+        }
+      }
+
+      if (!swapCandidate) {
+        // No swap — just emit the normal layout
+        onGridLayoutChange(layout.map((item) => ({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h })))
+        return
+      }
+
+      // Perform swap: the dragged pane takes candidate's slot, candidate takes dragged pane's original slot
+      const candidateId = swapCandidate.i
+      const swapped = layout.map((item): GridItem => {
+        if (item.i === newItem.i) {
+          // Dragged pane goes to where the candidate was
+          return { i: item.i, x: swapCandidate!.x, y: swapCandidate!.y, w: swapCandidate!.w, h: swapCandidate!.h }
+        }
+        if (item.i === candidateId) {
+          // Candidate goes to where the dragged pane now is (newItem position)
+          return { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
+        }
+        return { i: item.i, x: item.x, y: item.y, w: item.w, h: item.h }
+      })
+      onGridLayoutChange(swapped)
+    },
+    [editMode, onGridLayoutChange],
+  )
+
+  // During drag, update visual swap indicator
+  const handleDrag = useCallback(
+    (layout: readonly LayoutItem[], _oldItem: LayoutItem | null, newItem: LayoutItem | null) => {
+      if (!editMode) return
+      if (!newItem) { setSwapTargetId(null); return }
+      let candidateId: string | null = null
+      for (const other of layout) {
+        if (other.i === newItem.i) continue
+        const ratio = overlapRatio(
+          newItem.x, newItem.y, newItem.w, newItem.h,
+          other.x, other.y, other.w, other.h,
+        )
+        if (ratio > 0.5) {
+          candidateId = other.i
+          break
+        }
+      }
+      setSwapTargetId(candidateId)
+    },
+    [editMode],
   )
 
   // Augment grid items with min size constraints
@@ -240,6 +369,19 @@ export default function WorkspaceGrid({
     [boxRect, onSelectPane],
   )
 
+  const handleGridContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      // Only fire for clicks on the grid background, not on pane elements
+      const target = e.target as HTMLElement
+      const isPaneArea = !!target.closest('[data-pane-id]')
+      if (!isPaneArea && onWorkspaceContextMenu) {
+        e.preventDefault()
+        onWorkspaceContextMenu(e.clientX, e.clientY)
+      }
+    },
+    [onWorkspaceContextMenu],
+  )
+
   return (
     <div
       ref={containerRef}
@@ -247,6 +389,7 @@ export default function WorkspaceGrid({
       onPointerDown={handleGridPointerDown}
       onPointerMove={handleGridPointerMove}
       onPointerUp={handleGridPointerUp}
+      onContextMenu={handleGridContextMenu}
     >
       <GridLayout
         layout={layoutWithConstraints}
@@ -272,21 +415,40 @@ export default function WorkspaceGrid({
         autoSize={false}
         style={{ height: '100%' }}
         onLayoutChange={handleLayoutChange}
+        onDragStop={handleDragStop}
+        onDrag={handleDrag}
         className="io-workspace-grid"
       >
         {layoutWithConstraints.map((item) => {
           const pane = paneById.get(item.i)
           if (!pane) return null
+          const isPaneFullscreen = fullscreenPaneId === pane.id
+          // When another pane is fullscreen, hide this one
+          const isHidden = fullscreenPaneId !== null && !isPaneFullscreen
+          const isSwapTarget = swapTargetId === pane.id
           return (
-            <div key={pane.id} data-pane-id={pane.id} style={{ overflow: 'hidden' }}>
+            <div
+              key={pane.id}
+              data-pane-id={pane.id}
+              data-swap-target={isSwapTarget ? 'true' : undefined}
+              style={{
+                overflow: 'hidden',
+                display: isHidden ? 'none' : undefined,
+                outline: isSwapTarget ? '2px dashed var(--io-accent)' : undefined,
+                outlineOffset: isSwapTarget ? '-2px' : undefined,
+              }}
+            >
               <PaneWrapper
                 config={pane}
                 editMode={editMode}
                 isSelected={selectedPaneIds?.has(pane.id) ?? false}
+                isFullscreen={isPaneFullscreen}
+                onToggleFullscreen={() => toggleFullscreen(pane.id)}
                 onConfigure={onConfigurePane}
                 onRemove={onRemovePane}
                 onSelect={onSelectPane}
                 onPaletteDrop={onPaletteDrop}
+                preserveAspectRatio={preserveAspectRatio}
               />
             </div>
           )

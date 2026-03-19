@@ -144,6 +144,13 @@ export const pointsApi = {
   /** POST /api/points/batch-latest — bulk latest values */
   batchLatest: (pointIds: string[]): Promise<ApiResult<PointLatest[]>> =>
     api.post<PointLatest[]>('/api/points/batch-latest', { point_ids: pointIds }),
+
+  /** POST /api/points/history-batch — bulk historical data for multiple points */
+  historyBatch: (
+    pointIds: string[],
+    params: { start: string; end: string; resolution?: string; limit?: number },
+  ): Promise<ApiResult<HistoryResult[]>> =>
+    api.post<HistoryResult[]>('/api/points/history-batch', { point_ids: pointIds, ...params }),
 }
 
 // ---------------------------------------------------------------------------
