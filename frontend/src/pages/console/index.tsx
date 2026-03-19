@@ -1201,6 +1201,20 @@ export default function ConsolePage() {
               },
             },
             {
+              label: 'Paste',
+              disabled: copiedPanesRef.current.length === 0,
+              onClick: () => {
+                if (activeId && copiedPanesRef.current.length > 0) {
+                  const pasted = copiedPanesRef.current.map((p) => ({
+                    ...p,
+                    id: `pane-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  }))
+                  updateWorkspace(activeId, (w) => ({ ...w, panes: [...w.panes, ...pasted] }))
+                }
+                setWorkspaceBgCtxMenu(null)
+              },
+            },
+            {
               label: 'Select All',
               onClick: () => {
                 if (activeId) {
@@ -1218,6 +1232,20 @@ export default function ConsolePage() {
                   updateWorkspace(activeId, (w) => ({ ...w, panes: [] }))
                 }
                 setWorkspaceBgCtxMenu(null)
+              },
+            },
+            {
+              label: 'Workspace Properties…',
+              onClick: () => {
+                setWorkspaceBgCtxMenu(null)
+                // Reuse the rename flow via tab context menu dialog
+                if (activeId) {
+                  const ws = workspaces.find((w) => w.id === activeId)
+                  const newName = prompt('Workspace name:', ws?.name ?? '')
+                  if (newName?.trim()) {
+                    updateWorkspace(activeId, (w) => ({ ...w, name: newName.trim() }))
+                  }
+                }
               },
             },
           ]}

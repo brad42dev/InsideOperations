@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import TrendPane from './panes/TrendPane'
 import PointTablePane from './panes/PointTablePane'
 import AlarmListPane from './panes/AlarmListPane'
@@ -131,6 +132,7 @@ export default function PaneWrapper({
   onZoomToFit,
   onResetZoom,
 }: PaneWrapperProps) {
+  const navigate = useNavigate()
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
   const [paneCtxMenu, setPaneCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -471,6 +473,13 @@ export default function PaneWrapper({
                   }
                 },
               },
+              ...(config.graphicId ? [{
+                label: 'Open in Designer',
+                divider: true,
+                onClick: () => {
+                  navigate(`/designer/graphics/${config.graphicId}/edit`)
+                },
+              }] : []),
             ] : []),
             {
               label: 'Remove Pane',

@@ -29,7 +29,11 @@ const SERVICE_NAMES: { key: string; label: string }[] = [
 
 async function fetchHealth(): Promise<ServiceHealth[]> {
   try {
-    const r = await fetch('/api/health/services', { signal: AbortSignal.timeout(3000) })
+    const token = localStorage.getItem('io_access_token') ?? ''
+    const r = await fetch('/api/health/services', {
+      signal: AbortSignal.timeout(3000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
     if (!r.ok) {
       // All unknown when unreachable
       return SERVICE_NAMES.map(({ key, label }) => ({ name: label, status: 'unknown', key }))

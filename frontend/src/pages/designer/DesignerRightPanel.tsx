@@ -27,7 +27,6 @@ import type {
   AnalogBarConfig,
   FillGaugeConfig,
   SparklineConfig,
-  NumericIndicatorConfig,
   DigitalStatusConfig,
   ImageNode,
   EmbeddedSvgNode,
@@ -885,7 +884,6 @@ function PipePanel({ node }: { node: Pipe }) {
 
 const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{ value: DisplayElementType; label: string }> = [
   { value: 'text_readout',       label: 'Text Readout' },
-  { value: 'numeric_indicator',  label: 'Numeric Indicator' },
   { value: 'analog_bar',         label: 'Analog Bar' },
   { value: 'fill_gauge',         label: 'Fill Gauge' },
   { value: 'sparkline',          label: 'Sparkline' },
@@ -897,7 +895,6 @@ const DISPLAY_ELEMENT_TYPE_OPTIONS: Array<{ value: DisplayElementType; label: st
 function defaultConfig(type: DisplayElementType): DisplayElementConfig {
   switch (type) {
     case 'text_readout':       return { displayType: 'text_readout', showBox: false, showLabel: false, showUnits: false, valueFormat: '0.##', minWidth: 60 }
-    case 'numeric_indicator':  return { displayType: 'numeric_indicator', fontSize: 24, decimalPlaces: 1, showUnit: true, showLabel: false, width: 100 }
     case 'analog_bar':         return { displayType: 'analog_bar', orientation: 'vertical', barWidth: 20, barHeight: 80, rangeLo: 0, rangeHi: 100, showZoneLabels: false, showPointer: true, showSetpoint: false, showNumericReadout: false, showSignalLine: false }
     case 'fill_gauge':         return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: false, showValue: false, valueFormat: '0.#' }
     case 'sparkline':          return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
@@ -913,42 +910,6 @@ function DisplayElementTypeFields({ node, executeCmd }: { node: DisplayElement; 
   }
 
   switch (node.displayType) {
-    case 'numeric_indicator': {
-      const cfg = node.config as NumericIndicatorConfig
-      return (
-        <>
-          <Field label="Font Size">
-            <NumberInput value={cfg.fontSize} min={8} max={120}
-              onChange={v => patchConfig({ fontSize: v } as Partial<NumericIndicatorConfig>)} />
-          </Field>
-          <Field label="Decimal Places">
-            <NumberInput value={cfg.decimalPlaces} min={0} max={6}
-              onChange={v => patchConfig({ decimalPlaces: v } as Partial<NumericIndicatorConfig>)} />
-          </Field>
-          <Field label="Width">
-            <NumberInput value={cfg.width} min={40} max={400}
-              onChange={v => patchConfig({ width: v } as Partial<NumericIndicatorConfig>)} />
-          </Field>
-          <Field label="Show Unit">
-            <input type="checkbox" checked={cfg.showUnit}
-              onChange={e => patchConfig({ showUnit: e.target.checked } as Partial<NumericIndicatorConfig>)}
-              style={{ cursor: 'pointer' }} />
-          </Field>
-          <Field label="Show Label">
-            <input type="checkbox" checked={cfg.showLabel}
-              onChange={e => patchConfig({ showLabel: e.target.checked } as Partial<NumericIndicatorConfig>)}
-              style={{ cursor: 'pointer' }} />
-          </Field>
-          {cfg.showLabel && (
-            <Field label="Label Text">
-              <input type="text" defaultValue={cfg.labelText ?? ''}
-                onBlur={e => patchConfig({ labelText: e.target.value || undefined } as Partial<NumericIndicatorConfig>)}
-                style={inputStyle} placeholder="(use tag name)" />
-            </Field>
-          )}
-        </>
-      )
-    }
     case 'text_readout': {
       const cfg = node.config as TextReadoutConfig
       return (

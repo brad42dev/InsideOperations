@@ -1,25 +1,21 @@
 /**
  * DesignerLeftPalette.tsx
  *
- * Left sidebar with three sections:
- *  1. Equipment — shape library with search + category groups
- *  2. Display Elements — 6 draggable element type tiles
- *  3. Layers — layer list with visibility/lock toggles, rename, add
+ * Left sidebar palette. Content is mode-dependent:
+ *  - Graphic mode: Equipment, Stencils, Display Elements, Points
+ *  - Dashboard mode: Widgets, Equipment, Display Elements
+ *  - Report mode: Widgets, Report Elements, Equipment, Display Elements
+ *
+ * Layers belong in the right panel only (spec §15).
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
-import { useLibraryStore, useSceneStore, useHistoryStore } from '../../store/designer'
+import { useLibraryStore, useSceneStore } from '../../store/designer'
 import type { ShapeIndexItem } from '../../store/designer'
 import type { DisplayElementType, WidgetType } from '../../shared/types/graphics'
 import { graphicsApi } from '../../api/graphics'
 import { pointsApi } from '../../api/points'
 import type { PointMeta } from '../../api/points'
-import {
-  AddLayerCommand,
-  ChangeLayerPropertyCommand,
-  ReorderNodeCommand,
-} from '../../shared/graphics/commands'
-import type { LayerDefinition } from '../../shared/types/graphics'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -28,47 +24,6 @@ import type { LayerDefinition } from '../../shared/types/graphics'
 export interface DesignerLeftPaletteProps {
   collapsed: boolean
   width: number
-}
-
-// ---------------------------------------------------------------------------
-// Small inline icons
-// ---------------------------------------------------------------------------
-
-function IconEye({ visible }: { visible: boolean }) {
-  return visible ? (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <ellipse cx="7" cy="7" rx="5.5" ry="4" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-      <circle cx="7" cy="7" r="1.8" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-    </svg>
-  ) : (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M2 2L12 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      <path d="M4.5 4.5A5.5 4 0 0114 7c-.8 1.5-2.5 3-5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
-    </svg>
-  )
-}
-
-function IconLock({ locked }: { locked: boolean }) {
-  return locked ? (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="3" y="6" width="8" height="6.5" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-      <path d="M4.5 6V4.5a2.5 2.5 0 015 0V6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
-    </svg>
-  ) : (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="3" y="6" width="8" height="6.5" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-      <path d="M4.5 6V4.5a2.5 2.5 0 015 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
-    </svg>
-  )
-}
-
-function IconPlus() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
 }
 
 function IconChevron({ open }: { open: boolean }) {
@@ -591,114 +546,6 @@ function DisplayElementTile({
 }
 
 // ---------------------------------------------------------------------------
-// Layer row
-// ---------------------------------------------------------------------------
-
-function LayerRow({
-  layer,
-  onVisibilityToggle,
-  onLockToggle,
-  onRename,
-}: {
-  layer: LayerDefinition
-  onVisibilityToggle: () => void
-  onLockToggle: () => void
-  onRename: (name: string) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState(layer.name)
-
-  function commitRename() {
-    const trimmed = editValue.trim()
-    if (trimmed && trimmed !== layer.name) onRename(trimmed)
-    setEditing(false)
-  }
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 8px',
-        height: 28,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'var(--io-surface-elevated)' }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-    >
-      {/* Visibility */}
-      <button
-        onClick={onVisibilityToggle}
-        title={layer.visible ? 'Hide layer' : 'Show layer'}
-        style={{
-          width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0,
-          color: layer.visible ? 'var(--io-text-secondary)' : 'var(--io-text-muted)',
-          padding: 0,
-        }}
-      >
-        <IconEye visible={layer.visible} />
-      </button>
-
-      {/* Lock */}
-      <button
-        onClick={onLockToggle}
-        title={layer.locked ? 'Unlock layer' : 'Lock layer'}
-        style={{
-          width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0,
-          color: layer.locked ? 'var(--io-accent)' : 'var(--io-text-muted)',
-          padding: 0,
-        }}
-      >
-        <IconLock locked={layer.locked} />
-      </button>
-
-      {/* Name */}
-      {editing ? (
-        <input
-          value={editValue}
-          onChange={e => setEditValue(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={e => {
-            if (e.key === 'Enter') commitRename()
-            if (e.key === 'Escape') setEditing(false)
-          }}
-          autoFocus
-          style={{
-            flex: 1,
-            background: 'var(--io-surface)',
-            border: '1px solid var(--io-accent)',
-            borderRadius: 'var(--io-radius)',
-            color: 'var(--io-text-primary)',
-            fontSize: 12,
-            padding: '1px 4px',
-            outline: 'none',
-          }}
-        />
-      ) : (
-        <span
-          onDoubleClick={() => { setEditValue(layer.name); setEditing(true) }}
-          style={{
-            flex: 1,
-            fontSize: 12,
-            color: layer.visible ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            cursor: 'default',
-            userSelect: 'none',
-          }}
-          title={layer.name}
-        >
-          {layer.name}
-        </span>
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Equipment section
 // ---------------------------------------------------------------------------
 
@@ -833,136 +680,6 @@ function EquipmentSection({ collapsed }: { collapsed: boolean }) {
       </div>
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// Layers section
-// ---------------------------------------------------------------------------
-
-function LayersSection({ collapsed }: { collapsed: boolean }) {
-  const doc     = useSceneStore(s => s.doc)
-  const execute = useSceneStore(s => s.execute)
-  const push    = useHistoryStore(s => s.push)
-
-  function executeAndRecord<T extends { description: string; execute(d: import('../../shared/types/graphics').GraphicDocument): import('../../shared/types/graphics').GraphicDocument; undo(d: import('../../shared/types/graphics').GraphicDocument): import('../../shared/types/graphics').GraphicDocument }>(cmd: T) {
-    if (!doc) return
-    const before = doc
-    execute(cmd)
-    push(cmd, before)
-  }
-
-  function handleVisibilityToggle(layer: LayerDefinition) {
-    executeAndRecord(new ChangeLayerPropertyCommand(
-      layer.id,
-      { visible: !layer.visible },
-      { visible: layer.visible },
-    ))
-  }
-
-  function handleLockToggle(layer: LayerDefinition) {
-    executeAndRecord(new ChangeLayerPropertyCommand(
-      layer.id,
-      { locked: !layer.locked },
-      { locked: layer.locked },
-    ))
-  }
-
-  function handleRename(layer: LayerDefinition, name: string) {
-    executeAndRecord(new ChangeLayerPropertyCommand(
-      layer.id,
-      { name },
-      { name: layer.name },
-    ))
-  }
-
-  function handleAddLayer() {
-    if (!doc) return
-    const newLayer: LayerDefinition = {
-      id: crypto.randomUUID(),
-      name: `Layer ${(doc.layers.length + 1)}`,
-      visible: true,
-      locked: false,
-      order: doc.layers.length,
-    }
-    executeAndRecord(new AddLayerCommand(newLayer))
-  }
-
-  function handleDragLayer(fromIdx: number, toIdx: number) {
-    if (!doc || fromIdx === toIdx) return
-    executeAndRecord(new ReorderNodeCommand(toIdx, fromIdx, null))
-  }
-
-  const layers = doc?.layers ?? []
-
-  if (collapsed) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 2px', alignItems: 'center' }}>
-        {layers.map(layer => (
-          <div
-            key={layer.id}
-            title={layer.name}
-            style={{
-              width: 24, height: 24,
-              background: 'var(--io-surface-elevated)',
-              border: '1px solid var(--io-border)',
-              borderRadius: 'var(--io-radius)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 10, color: 'var(--io-text-muted)',
-            }}
-          >
-            {layer.name.slice(0, 1).toUpperCase()}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ overflowY: 'auto', flex: 1 }}>
-        {layers.map((layer) => (
-          <LayerRow
-            key={layer.id}
-            layer={layer}
-            onVisibilityToggle={() => handleVisibilityToggle(layer)}
-            onLockToggle={() => handleLockToggle(layer)}
-            onRename={name => handleRename(layer, name)}
-          />
-        ))}
-        {layers.length === 0 && (
-          <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--io-text-muted)' }}>
-            No layers
-          </div>
-        )}
-      </div>
-      <button
-        onClick={handleAddLayer}
-        disabled={!doc}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          width: '100%',
-          padding: '6px 10px',
-          background: 'transparent',
-          border: 'none',
-          borderTop: '1px solid var(--io-border)',
-          color: 'var(--io-text-muted)',
-          fontSize: 12,
-          cursor: doc ? 'pointer' : 'not-allowed',
-          flexShrink: 0,
-        }}
-        onMouseEnter={e => { if (doc) e.currentTarget.style.background = 'var(--io-surface-elevated)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-      >
-        <IconPlus />
-        Add Layer
-      </button>
-    </div>
-  )
-
-  // Suppressed: handleDragLayer declared but not yet wired to actual drag UI
-  void handleDragLayer
 }
 
 // ---------------------------------------------------------------------------
@@ -1462,7 +1179,6 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
   const [pointsOpen,      setPointsOpen]      = useState(false)
   const [widgetsOpen,     setWidgetsOpen]     = useState(true)
   const [reportElemOpen,  setReportElemOpen]  = useState(true)
-  const [layersOpen,      setLayersOpen]      = useState(true)
 
   const containerStyle: React.CSSProperties = {
     width,
@@ -1497,10 +1213,16 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
                 <ReportElementsSection collapsed />
               </>
             )}
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <EquipmentSection collapsed />
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 4 }}>
+              {DISPLAY_ELEMENT_TYPES.map(t => (
+                <DisplayElementTile key={t.type} {...t} collapsed />
+              ))}
+            </div>
           </>
         )}
-        <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
-        <LayersSection collapsed />
       </div>
     )
   }
@@ -1548,12 +1270,25 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
               {reportElemOpen && <ReportElementsSection collapsed={false} />}
             </>
           )}
+
+          {/* Shapes + Display Elements — available in dashboard/report per spec §4.3/§4.4 */}
+          <SectionHeader label="Equipment" open={equipOpen} onToggle={() => setEquipOpen(v => !v)} />
+          {equipOpen && (
+            <div style={{ flex: '0 0 auto', maxHeight: 200, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <EquipmentSection collapsed={false} />
+            </div>
+          )}
+          <SectionHeader label="Display Elements" open={elemOpen} onToggle={() => setElemOpen(v => !v)} />
+          {elemOpen && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, flexShrink: 0 }}>
+              {DISPLAY_ELEMENT_TYPES.map(t => (
+                <DisplayElementTile key={t.type} {...t} collapsed={false} />
+              ))}
+            </div>
+          )}
         </>
       )}
 
-      {/* Layers section — always shown */}
-      <SectionHeader label="Layers" open={layersOpen} onToggle={() => setLayersOpen(v => !v)} />
-      {layersOpen && <LayersSection collapsed={false} />}
     </div>
   )
 }

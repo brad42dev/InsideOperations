@@ -53,6 +53,7 @@ Each design document (00–10, 38) was read in full and compared to the current 
 | 08 | Process — viewport-aware point subscriptions not implemented | MEDIUM | **DONE** (getVisiblePointIds() in process/index.tsx; debounced 500ms, useWebSocket on visible point set) |
 | 08 | Process — hotspot navigation not implemented | LOW | **DONE** (SceneRenderer handles node.navigationLink; targetGraphicId calls onNavigate, targetUrl opens tab) |
 | 08 | Process — view hierarchy / breadcrumbs not implemented | LOW | **DONE** (bookmark toggle + recent ▾ dropdown in Process; bookmarksApi integration) |
+| 08 | Process — graphic picker has no thumbnails (plain select) | LOW | **DONE** (pass 7: `GraphicThumbnail` tile grid, search input, click-outside to close, `graphicsApi.thumbnailUrl()` matching Console palette + Designer) |
 | 08 | Process — historical playback not implemented | LOW | **DONE** (HistoricalPlaybackBar at bottom of ProcessPage; shares usePlaybackStore) |
 | 09 | Designer — covered by DESIGNER_WORK_QUEUE.md | SKIP | Skip |
 | 10 | Dashboards — widget real-time updates via WebSocket not implemented | HIGH | **DONE** (usePointValues hook in KpiCard, LineChart, GaugeWidget) |
@@ -952,7 +953,7 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 - L7: Multi-Window / Detached Windows (Deferred — large architectural; requires SharedWorker + BroadcastChannel + detached routes)
 
 ### MEDIUM priority gaps (features missing but core works)
-- L17: Frontend Test Suite — 210 tests pass across 13 files; more integration-level and component tests still needed per doc 33
+- L17: Frontend Test Suite — 326 tests pass across 19 files; more E2E tests (Playwright) and MSW-mocked integration tests still needed per doc 33
 
 ### LOW priority gaps (polish / enhancements)
 - 7.5 pane swap-by-drag (box selection DONE, copy/paste DONE)
@@ -1004,6 +1005,16 @@ Already implemented: `Login.tsx` uses `authProvidersApi.listPublic()`, renders O
 - Top bar hide/show (6.x) — Ctrl+Shift+T keyboard shortcut, ▲ hide button (right of topbar), 8px edge-hover strip + 200ms dwell timer, peek overlay with 400ms hide delay — DONE
 - Console box selection — pointer drag on empty grid background, AABB overlap with `data-pane-id` DOM query, visual selection rect (accent border/bg), 6px threshold — DONE
 - Updated summary table entries: topbar hide/show DONE, Console box-select DONE
+
+### Completed in pass 7 (2026-03-18)
+- Process thumbnail graphic picker — replaced plain `<select>` with `GraphicThumbnail` tile grid overlay. Button shows selected graphic name (or "— Select graphic —"), clicking opens a floating panel with search input + thumbnail tiles (108×68px, `graphicsApi.thumbnailUrl()`); click-outside closes; thumbnails fall back to SVG icon on error. Console palette already had thumbnails; Designer already had thumbnails. Process is now complete — `thumbnailUrl` used in all 3 graphic pickers.
+- Test suite expanded: 210 → 269 tests (16 files). New test files:
+  - `rbacVisibility.test.tsx` (20) — PermissionGuard component: unauthenticated redirect, loading spinner, permission granted/denied, null permission, exact-match semantics, full console permission set, ForbiddenPage, LoadingSpinner, inline canDo() permission checks covering console/rounds/settings gating patterns
+  - `pointExtractor.test.ts` (16) — `extractPointIds` and `extractViewportPointIds`: empty doc, single display element, symbol instance state binding, multi-node dedup, missing bindings, expression AST point_ref extraction (including nested), AnalogBar setpointBinding, AlarmIndicator additionalBindings, viewport culling pass-through
+  - `graphicsUtils.test.ts` (23) — `routePipe()` (pipe routing A* / orthogonal path generation: basic cases, obstacles, waypoints, negative coords, large canvas, edge cases) + `queryString()` (query string building: undefined/null omission, special char encoding, booleans, empty cases)
+  - `designerStores.test.ts` (28) — `useSelectionStore` (initial state, select/replace, multi-select, scope/marquee, isSelected, toggle, addToSelection) + `useClipboardStore` (copy/clear, deep-clone verification, originalBounds for 0/1/N nodes)
+  - `sceneCommands.test.ts` (20) — `MoveNodesCommand`, `ResizeNodeCommand`, `AddNodeCommand`, `DeleteNodesCommand`: execute+undo round-trips, multi-node operations, immutability, missing-node no-ops
+  - `shapeCache.test.ts` (9) — LRU shape cache: get/set/has/clear, size(), overwrite, MRU promotion, large capacity
 
 ### Deferred (require user decision or backend work)
 - L7: Multi-Window / Detached Windows (large architectural — SharedWorker, BroadcastChannel, detached routes)

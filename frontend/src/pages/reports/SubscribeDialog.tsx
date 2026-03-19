@@ -137,7 +137,7 @@ export default function SubscribeDialog({ template, open, onOpenChange }: Subscr
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay style={overlayStyle} />
-        <Dialog.Content style={contentStyle}>
+        <Dialog.Content style={contentStyle} aria-describedby={undefined}>
           <Dialog.Title style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
             Subscribe to Report
           </Dialog.Title>

@@ -24,7 +24,7 @@ export function DigitalStatus({ config, rawValue, x = 0, y = 0 }: Props) {
   const charWidth = 7.5
   const padding = 6
   const w = Math.max(40, label.length * charWidth + padding * 2)
-  const h = 18
+  const h = 22
 
   return (
     <g className="io-display-element" data-type="digital_status" transform={`translate(${x},${y})`}>

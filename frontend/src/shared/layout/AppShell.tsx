@@ -150,24 +150,11 @@ function useUnacknowledgedAlertCount(): number {
   return data ?? 0
 }
 
-/** Fetch active (in-progress) rounds count for sidebar badge */
+/** Fetch active (in-progress) rounds count for sidebar badge.
+ *  Disabled until the Rounds module backend is implemented (Phase 13). */
 function useActiveRoundsCount(): number {
-  const { data } = useQuery<number>({
-    queryKey: ['rounds-active-count'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/rounds?status=in_progress&limit=1', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
-      })
-      if (!res.ok) return 0
-      const json = await res.json()
-      if (typeof json?.total === 'number') return json.total
-      if (Array.isArray(json?.data)) return json.data.length
-      return 0
-    },
-    refetchInterval: 60_000,
-    staleTime: 55_000,
-  })
-  return data ?? 0
+  // TODO: enable when /api/v1/rounds is implemented
+  return 0
 }
 
 function AlertBell() {
@@ -243,6 +230,8 @@ export default function AppShell() {
   const [topbarPeek, setTopbarPeek] = useState(false)
   const topbarPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuBtnRef = useRef<HTMLButtonElement>(null)
+  const [userMenuPos, setUserMenuPos] = useState({ top: 0, right: 0 })
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   // Sidebar badge counts
@@ -782,7 +771,9 @@ export default function AppShell() {
             </button>
           </div>
         )}
-        {/* Topbar */}
+        {/* Topbar — must form its own stacking context (position+zIndex) so that
+            dropdown menus appear above module workspace content regardless of what
+            z-index values modules use internally. */}
         <header
           style={{
             height: (!isKiosk && topbarHidden) ? 0 : 'var(--io-topbar-height)',
@@ -794,6 +785,8 @@ export default function AppShell() {
             justifyContent: 'space-between',
             padding: (!isKiosk && topbarHidden) ? 0 : '0 20px',
             flexShrink: 0,
+            position: 'relative',
+            zIndex: 3000,
             transition: 'height 0.25s ease',
           }}
         >
@@ -935,7 +928,14 @@ export default function AppShell() {
             {!isKiosk && (
               <div style={{ position: 'relative' }}>
                 <button
-                  onClick={() => setUserMenuOpen((v) => !v)}
+                  ref={userMenuBtnRef}
+                  onClick={() => {
+                    if (!userMenuOpen && userMenuBtnRef.current) {
+                      const r = userMenuBtnRef.current.getBoundingClientRect()
+                      setUserMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
+                    }
+                    setUserMenuOpen((v) => !v)
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -975,19 +975,19 @@ export default function AppShell() {
                   <>
                     <div
                       onClick={() => setUserMenuOpen(false)}
-                      style={{ position: 'fixed', inset: 0, zIndex: 98 }}
+                      style={{ position: 'fixed', inset: 0, zIndex: 2999 }}
                     />
                     <div
                       style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: 'calc(100% + 6px)',
+                        position: 'fixed',
+                        top: userMenuPos.top,
+                        right: userMenuPos.right,
                         minWidth: '180px',
                         background: 'var(--io-surface-elevated)',
                         border: '1px solid var(--io-border)',
                         borderRadius: 'var(--io-radius)',
                         boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                        zIndex: 99,
+                        zIndex: 3000,
                         overflow: 'hidden',
                       }}
                     >

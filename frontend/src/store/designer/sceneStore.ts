@@ -79,12 +79,12 @@ const CANVAS_SIZES: Record<'graphic' | 'dashboard' | 'report', { width: number; 
 // ---------------------------------------------------------------------------
 
 function makeDefaultLayers(): LayerDefinition[] {
-  const names = ['Background', 'Equipment', 'Pipes', 'Annotations', 'Values']
+  const names = ['Background', 'Equipment', 'Instruments', 'Labels']
   return names.map((name, order) => ({
     id: crypto.randomUUID(),
     name,
     visible: true,
-    locked: false,
+    locked: name === 'Background', // Background layer is locked by default (spec §15)
     order,
   }))
 }
@@ -112,7 +112,7 @@ function makeEmptyDocument(
       tags: [],
       designMode: mode,
       graphicScope: 'console',
-      gridSize: 8,
+      gridSize: 10,
       gridVisible: true,
       snapToGrid: true,
     },

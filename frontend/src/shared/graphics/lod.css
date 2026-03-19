@@ -1,24 +1,66 @@
 /*
- * Level-of-Detail (LOD) visibility rules for SVG graphics (doc 19 §LOD)
+ * Level-of-Detail (LOD) visibility rules for process graphics
+ * (process-implementation-spec.md §4.3.3)
  *
- * Zoom thresholds:
- *   lod-1 (zoom < 0.3)  — show only LOD-1 elements
- *   lod-2 (zoom 0.3–0.7) — show LOD-1 and LOD-2 elements
- *   lod-3 (zoom ≥ 0.7)  — show all elements (full detail)
+ * The canvas container gets class: io-canvas-container lod-0|1|2|3
+ * Each rendered SVG element carries: data-lod="0|1|2|3"
  *
- * Elements are tagged with data-lod="2" or data-lod="3" on their SVG <g>.
- * LOD-1 elements have no data-lod attribute (always visible).
+ * LOD 0 (Overview, zoom < 15%)  — major equipment, pipes, large labels
+ * LOD 1 (Area,     zoom 15–40%) — + text readouts, alarm indicators, medium labels
+ * LOD 2 (Unit,     zoom 40–80%) — + all display elements, fill gauges, sparklines
+ * LOD 3 (Detail,   zoom > 80%)  — everything
+ *
+ * Adjacent tier: opacity transition (smooth fade)
+ * Non-adjacent tier: display: none (fully removed from compositing)
  */
 
-/* At low zoom: hide LOD-2 and LOD-3 detail elements */
-.io-lod-1 [data-lod="2"],
-.io-lod-1 [data-lod="3"] {
-  visibility: hidden;
+/* Default: all elements visible at full LOD */
+.io-canvas-container [data-lod] {
+  transition: opacity 200ms ease;
 }
 
-/* At medium zoom: hide only LOD-3 detail elements */
-.io-lod-2 [data-lod="3"] {
-  visibility: hidden;
+/* ── LOD 0 (Overview) ─────────────────────────────────────────────────────── */
+
+/* LOD 1 elements: adjacent tier — fade out */
+.io-canvas-container.lod-0 [data-lod="1"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
 }
 
-/* io-lod-3: all elements visible (no rules needed) */
+/* LOD 2 and LOD 3: non-adjacent — fully removed */
+.io-canvas-container.lod-0 [data-lod="2"],
+.io-canvas-container.lod-0 [data-lod="3"] {
+  display: none;
+}
+
+/* ── LOD 1 (Area) ─────────────────────────────────────────────────────────── */
+
+/* LOD 2 elements: adjacent tier — fade out */
+.io-canvas-container.lod-1 [data-lod="2"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+/* LOD 3: non-adjacent — fully removed */
+.io-canvas-container.lod-1 [data-lod="3"] {
+  display: none;
+}
+
+/* ── LOD 2 (Unit) ─────────────────────────────────────────────────────────── */
+
+/* LOD 3 elements: adjacent tier — fade out */
+.io-canvas-container.lod-2 [data-lod="3"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+/* ── LOD 3 (Detail) — everything visible ────────────────────────────────── */
+
+.io-canvas-container.lod-3 [data-lod] {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 200ms ease;
+}

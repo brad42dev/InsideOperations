@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { authApi } from '../api/auth'
+import type { EulaPendingItem } from '../api/auth'
 import { wsManager } from '../shared/hooks/useWebSocket'
 
 const TOKEN_KEY = 'io_access_token'
@@ -17,11 +18,15 @@ interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
   isLoading: boolean
+  /** null = not yet fetched; [] = none pending; [...] = one or more pending */
+  pendingEulas: EulaPendingItem[] | null
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   setAccessToken: (token: string) => void
   clearAuth: () => void
   setEulaAccepted: (v: boolean) => void
+  setPendingEulas: (eulas: EulaPendingItem[]) => void
+  removePendingEula: (eulaType: 'installer' | 'end_user') => void
 }
 
 interface JwtPayload {
@@ -87,6 +92,7 @@ function getInitialState(): Pick<AuthState, 'user' | 'isAuthenticated' | 'isLoad
 
 export const useAuthStore = create<AuthState>((set) => ({
   ...getInitialState(),
+  pendingEulas: null,
 
   login: async (username: string, password: string) => {
     set({ isLoading: true })
@@ -131,7 +137,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     wsManager.disconnect()
     localStorage.removeItem(TOKEN_KEY)
-    set({ user: null, isAuthenticated: false, isLoading: false })
+    set({ user: null, isAuthenticated: false, isLoading: false, pendingEulas: null })
   },
 
   setAccessToken: (token: string) => {
@@ -149,11 +155,30 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearAuth: () => {
     localStorage.removeItem(TOKEN_KEY)
-    set({ user: null, isAuthenticated: false, isLoading: false })
+    set({ user: null, isAuthenticated: false, isLoading: false, pendingEulas: null })
   },
 
   setEulaAccepted: (v: boolean) =>
     set((state) => ({
       user: state.user ? { ...state.user, eula_accepted: v } : null,
     })),
+
+  setPendingEulas: (eulas: EulaPendingItem[]) =>
+    set((state) => ({
+      pendingEulas: eulas,
+      user: state.user
+        ? { ...state.user, eula_accepted: eulas.length === 0 }
+        : null,
+    })),
+
+  removePendingEula: (eulaType: 'installer' | 'end_user') =>
+    set((state) => {
+      const remaining = (state.pendingEulas ?? []).filter((e) => e.eula_type !== eulaType)
+      return {
+        pendingEulas: remaining,
+        user: state.user
+          ? { ...state.user, eula_accepted: remaining.length === 0 }
+          : null,
+      }
+    }),
 }))

@@ -9,6 +9,7 @@ import { api } from '../../api/client'
 
 interface EulaVersionAdmin {
   id: string
+  eula_type: 'installer' | 'end_user'
   version: string
   title: string
   content: string
@@ -23,11 +24,14 @@ interface EulaAcceptanceRow {
   username: string
   full_name: string | null
   email: string
+  eula_type: 'installer' | 'end_user'
   eula_version: string
   eula_version_id: string
   accepted_at: string
   accepted_from_ip: string
   accepted_as_role: string
+  acceptance_context: string
+  receipt_token: string
   content_hash: string
 }
 
@@ -121,14 +125,15 @@ interface CreateVersionDialogProps {
 }
 
 function CreateVersionDialog({ open, onClose, onCreated }: CreateVersionDialogProps) {
+  const [eulaType, setEulaType] = useState<'installer' | 'end_user'>('end_user')
   const [version, setVersion] = useState('')
-  const [title, setTitle] = useState('Inside/Operations — Terms of Use')
+  const [title, setTitle] = useState('Inside/Operations — End User License Agreement')
   const [content, setContent] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.post<EulaVersionAdmin>('/api/auth/admin/eula/versions', { version, title, content }),
+      api.post<EulaVersionAdmin>('/api/auth/admin/eula/versions', { eula_type: eulaType, version, title, content }),
     onSuccess: () => {
       onCreated()
       onClose()
@@ -156,7 +161,24 @@ function CreateVersionDialog({ open, onClose, onCreated }: CreateVersionDialogPr
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '12px' }}>
+              <div>
+                <label style={labelStyle}>Type *</label>
+                <select
+                  style={inputStyle}
+                  value={eulaType}
+                  onChange={(e) => {
+                    const t = e.target.value as 'installer' | 'end_user'
+                    setEulaType(t)
+                    setTitle(t === 'installer'
+                      ? 'Inside/Operations — Software License Agreement'
+                      : 'Inside/Operations — End User License Agreement')
+                  }}
+                >
+                  <option value="end_user">End User (EULA)</option>
+                  <option value="installer">Installer (Software License)</option>
+                </select>
+              </div>
               <div>
                 <label style={labelStyle}>Version string *</label>
                 <input
@@ -182,7 +204,7 @@ function CreateVersionDialog({ open, onClose, onCreated }: CreateVersionDialogPr
                 style={{ ...inputStyle, minHeight: '320px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="# Inside/Operations — Terms of Use&#10;&#10;Version 1.x | Effective: ..."
+                placeholder="# Inside/Operations — End User License Agreement&#10;&#10;Version 1.x | Effective: ..."
               />
               <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '4px' }}>
                 Content is stored as-is in the database. A SHA-256 hash is recorded in every
@@ -298,7 +320,7 @@ function AcceptancesPanel({ versionId }: { versionId?: string }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--io-border)' }}>
-              {['User', 'Version', 'Accepted At', 'Role', 'IP', 'Content Hash'].map((h) => (
+              {['User', 'Type', 'Version', 'Context', 'Accepted At', 'IP', 'Content Hash'].map((h) => (
                 <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--io-text-muted)', whiteSpace: 'nowrap' }}>
                   {h}
                 </th>
@@ -312,11 +334,24 @@ function AcceptancesPanel({ versionId }: { versionId?: string }) {
                   <div style={{ fontWeight: 500 }}>{row.username}</div>
                   <div style={{ color: 'var(--io-text-muted)', fontSize: '11px' }}>{row.email}</div>
                 </td>
+                <td style={{ padding: '6px 10px' }}>
+                  <span style={{
+                    padding: '1px 6px', borderRadius: '999px', fontSize: '10px', fontWeight: 600,
+                    background: row.eula_type === 'installer' ? 'var(--io-accent-subtle)' : 'var(--io-surface-sunken)',
+                    color: row.eula_type === 'installer' ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                    border: '1px solid var(--io-border)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {row.eula_type === 'installer' ? 'Installer' : 'End User'}
+                  </span>
+                </td>
                 <td style={{ padding: '6px 10px', color: 'var(--io-text-secondary)' }}>{row.eula_version}</td>
+                <td style={{ padding: '6px 10px', color: 'var(--io-text-muted)', fontSize: '11px' }}>
+                  {row.acceptance_context ?? '—'}
+                </td>
                 <td style={{ padding: '6px 10px', color: 'var(--io-text-secondary)', whiteSpace: 'nowrap' }}>
                   {new Date(row.accepted_at).toLocaleString()}
                 </td>
-                <td style={{ padding: '6px 10px', color: 'var(--io-text-secondary)' }}>{row.accepted_as_role}</td>
                 <td style={{ padding: '6px 10px', color: 'var(--io-text-muted)', fontFamily: 'monospace', fontSize: '11px' }}>{row.accepted_from_ip}</td>
                 <td style={{ padding: '6px 10px', color: 'var(--io-text-muted)', fontFamily: 'monospace', fontSize: '11px' }}>
                   {row.content_hash.slice(0, 12)}…
@@ -325,7 +360,7 @@ function AcceptancesPanel({ versionId }: { versionId?: string }) {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: 'var(--io-text-muted)' }}>
+                <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: 'var(--io-text-muted)' }}>
                   No acceptances found
                 </td>
               </tr>
@@ -399,12 +434,13 @@ export default function EulaAdminPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
         <div>
           <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
-            Terms of Use Management
+            License &amp; Terms Management
           </h2>
           <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-secondary)' }}>
-            Manage end-user Terms of Use versions and view the acceptance audit log.
-            Every version is retained permanently. Every user acceptance is permanently recorded
-            with a SHA-256 hash of the exact text they agreed to.
+            Manage both the <strong>Installer EULA</strong> (organizational software license) and
+            the <strong>End User EULA</strong> (individual use agreement).
+            All versions are retained permanently and every acceptance is recorded with a
+            chained SHA-256 hash for tamper-evident audit.
           </p>
         </div>
         <button style={{ ...btnPrimary, whiteSpace: 'nowrap', marginLeft: '16px' }} onClick={() => setCreateOpen(true)}>
@@ -459,6 +495,17 @@ export default function EulaAdminPage() {
                       {v.is_active ? 'Active' : 'Draft'}
                     </span>
 
+                    {/* Type badge */}
+                    <span style={{
+                      padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 600,
+                      background: v.eula_type === 'installer' ? 'color-mix(in srgb, var(--io-accent) 12%, transparent)' : 'var(--io-surface-sunken)',
+                      color: v.eula_type === 'installer' ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                      border: '1px solid var(--io-border)',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {v.eula_type === 'installer' ? 'Installer' : 'End User'}
+                    </span>
+
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--io-text-primary)' }}>
                         {v.title}
@@ -510,7 +557,7 @@ export default function EulaAdminPage() {
                   Confirm publish
                 </div>
                 <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--io-text-secondary)' }}>
-                  Publishing this version will make it the active Terms of Use. All users will
+                  Publishing this version will make it the active EULA. All users will
                   be required to re-accept on their next login. This action cannot be undone.
                 </p>
                 {publishError && (

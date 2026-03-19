@@ -25,9 +25,11 @@ export const useClipboardStore = create<ClipboardState>((set) => ({
 
   copy(nodes, sourceGraphicId) {
     const data: ClipboardData = {
+      source: 'io-designer',
       version: '1.0',
       sourceGraphicId,
       nodes: JSON.parse(JSON.stringify(nodes)),
+      expressions: {},
       originalBounds: computeBounds(nodes),
     }
     set({ data })
@@ -50,7 +52,7 @@ export async function readClipboard(fallback: ClipboardData | null): Promise<Cli
   try {
     const text = await navigator.clipboard.readText()
     const parsed = JSON.parse(text) as ClipboardData
-    if (parsed.version === '1.0' && Array.isArray(parsed.nodes)) {
+    if (parsed.source === 'io-designer' && parsed.version === '1.0' && Array.isArray(parsed.nodes)) {
       return parsed
     }
   } catch {/* ignore */}

@@ -37,8 +37,9 @@ async fn main() -> anyhow::Result<()> {
     // Seed Phase 1 system report templates (idempotent — skips existing)
     handlers::reports::seed_report_templates(&db).await;
 
-    // Seed initial EULA version 1.0 (idempotent — ON CONFLICT DO NOTHING)
-    seed_eula_v1(&db).await;
+    // Seed EULA documents — insert-only, never overwrites published versions
+    seed_installer_eula(&db).await;   // installer (org) EULA — v1.0
+    seed_end_user_eula(&db).await;    // end-user EULA — v1.1
 
     let health = io_health::HealthRegistry::new("auth-service", env!("CARGO_PKG_VERSION"));
     health.mark_startup_complete();
@@ -61,6 +62,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/refresh", post(handlers::auth::refresh))
         .route("/auth/logout", post(handlers::auth::logout))
         // EULA — end-user routes
+        // NOTE: /auth/eula/pending must be before /auth/eula/current (avoid path conflict)
+        .route("/auth/eula/pending", get(handlers::eula::get_pending_eulas))
         .route("/auth/eula/current", get(handlers::eula::get_current_eula))
         .route("/auth/eula/accept", post(handlers::eula::accept_eula))
         .route("/auth/eula/status", get(handlers::eula::eula_status))
@@ -239,15 +242,359 @@ async fn main() -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
-// Seed: EULA v1.0 — Inside/Operations Terms of Use (idempotent)
+// Seed helpers — shared INSERT logic
 // ---------------------------------------------------------------------------
 
+async fn seed_eula(db: &io_db::DbPool, eula_type: &str, version: &str, title: &str, content: &str) {
+    let content_hash = {
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        format!("{:x}", hasher.finalize())
+    };
+
+    // Never overwrite a published EULA version — prior signatures reference it.
+    let result = sqlx::query(
+        "INSERT INTO eula_versions
+             (eula_type, version, title, content, is_active, content_hash, published_at)
+         VALUES ($1, $2, $3, $4, true, $5, NOW())
+         ON CONFLICT (eula_type, version) DO NOTHING",
+    )
+    .bind(eula_type)
+    .bind(version)
+    .bind(title)
+    .bind(content)
+    .bind(&content_hash)
+    .execute(db)
+    .await;
+
+    match result {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!(eula_type, version, "Seeded EULA {} v{}", eula_type, version);
+        }
+        Ok(_) => {
+            tracing::debug!(eula_type, version, "EULA {} v{} already exists, skipping", eula_type, version);
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to seed EULA {} v{}", eula_type, version);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Seed: Installer EULA v1.0 — organizational license (insert-only)
+// Shown during package installation (CLI) and to the first admin after
+// install/upgrade (web UI).  Covers the organization's rights and restrictions.
+// ---------------------------------------------------------------------------
+
+async fn seed_installer_eula(db: &io_db::DbPool) {
+    seed_eula(db, "installer", "1.0",
+        "Inside/Operations — Software License Agreement",
+        r#"# Inside/Operations — Software License Agreement
+
+**Version 1.0 | Effective March 2026**
+
+---
+
+> **To the System Administrator**
+>
+> This Software License Agreement governs your organization's rights to install, operate, and update Inside/Operations. By completing installation you represent that you are authorized to accept these terms on your organization's behalf.
+>
+> A separate End User License Agreement governs the rights and responsibilities of each individual who logs in to the application.
+
+---
+
+## 1. Grant of License
+
+Inside Operations LLC grants Licensee a non-exclusive, non-transferable, limited license to install and operate Inside/Operations solely for Licensee's internal process monitoring and operational purposes at the facilities identified in the associated Order or Statement of Work.
+
+This license is granted only to Licensee and may not be assigned, sublicensed, or transferred without the prior written consent of Inside Operations LLC.
+
+---
+
+## 2. Permitted Deployment
+
+Subject to the terms of this Agreement, Licensee may:
+
+- Install Inside/Operations on servers owned or controlled by Licensee at the licensed facility or facilities
+- Permit authorized employees and contractors to access Inside/Operations through the web interface for job-related purposes
+- Create a reasonable number of backup copies solely for disaster recovery purposes
+
+Licensee may not install or operate Inside/Operations at facilities not identified in the associated Order without executing a separate license amendment.
+
+---
+
+## 3. Updates and Upgrades
+
+Inside Operations LLC may, from time to time, make updates, patches, or new versions of Inside/Operations available. This Agreement governs all such updates and upgrades received by Licensee unless a separate agreement is presented at the time of delivery.
+
+Installing an update constitutes Licensee's acceptance of any updated terms presented during the installation process. Inside Operations LLC will not reduce the scope of the license granted herein without Licensee's written consent.
+
+---
+
+## 4. Restrictions
+
+Licensee must not, and must not permit others to:
+
+- Copy, distribute, or sublicense Inside/Operations to any third party
+- Modify, adapt, translate, or create derivative works of Inside/Operations
+- Reverse engineer, disassemble, decompile, or attempt to derive the source code of Inside/Operations
+- Remove or alter any copyright notices, trademarks, or other proprietary markings
+- Use Inside/Operations to provide services to third parties (service bureau, outsourcing, or SaaS use)
+- Transfer Inside/Operations to any other party without Inside Operations LLC's prior written consent
+- Use Inside/Operations in any jurisdiction in violation of applicable laws or regulations
+
+---
+
+## 5. Intellectual Property
+
+Inside/Operations, including all software code, algorithms, user interface designs, graphics, documentation, and related materials, is and remains the exclusive property of Inside Operations LLC and is protected by copyright, trade secret, patent, and other intellectual property laws.
+
+This Agreement does not transfer any ownership interest in Inside/Operations to Licensee. All rights not expressly granted herein are reserved by Inside Operations LLC.
+
+Data generated by Licensee's facility and displayed in Inside/Operations — including process values, alarm records, reports, and logs — belongs to Licensee. Inside Operations LLC makes no claim to Licensee's operational data.
+
+---
+
+## 6. Confidentiality
+
+Licensee acknowledges that Inside/Operations contains proprietary and confidential information of Inside Operations LLC. Licensee must take reasonable steps to prevent unauthorized disclosure or use of the software and its components, no less protective than Licensee's measures for its own confidential information, but in no event less than reasonable care.
+
+---
+
+## 7. Safety and High-Risk Use Disclaimer
+
+**Inside/Operations is a process monitoring and information management application. It is not designed, tested, certified, or intended for use as a Safety Instrumented System (SIS), emergency shutdown system (ESD), process safety management (PSM) tool, or any other safety-critical application.**
+
+Licensee must not deploy Inside/Operations as a primary or backup safety control system. All safety-critical monitoring, control, and intervention must be performed by certified safety systems in accordance with applicable standards including IEC 61511 and IEC 61508. Licensee is solely responsible for maintaining appropriate safety systems, procedures, and controls at its facilities.
+
+Inside Operations LLC expressly disclaims any liability for incidents, injuries, environmental damage, or other consequences arising from reliance on Inside/Operations for safety-critical functions.
+
+---
+
+## 8. Warranty Disclaimer
+
+INSIDE OPERATIONS LLC PROVIDES INSIDE/OPERATIONS "AS IS" WITHOUT WARRANTY OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, INSIDE OPERATIONS LLC EXPRESSLY DISCLAIMS ALL WARRANTIES, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, OR NON-INFRINGEMENT.
+
+Inside Operations LLC does not warrant that Inside/Operations will be uninterrupted, error-free, or free from security vulnerabilities, or that defects will be corrected.
+
+---
+
+## 9. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL INSIDE OPERATIONS LLC BE LIABLE TO LICENSEE OR ANY THIRD PARTY FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES, INCLUDING WITHOUT LIMITATION DAMAGES FOR LOSS OF PROFITS, REVENUE, DATA, BUSINESS, OR GOODWILL, ARISING OUT OF OR RELATED TO THIS AGREEMENT OR THE USE OR INABILITY TO USE INSIDE/OPERATIONS, EVEN IF INSIDE OPERATIONS LLC HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+Inside Operations LLC's total cumulative liability to Licensee arising out of or related to this Agreement shall not exceed the fees paid by Licensee for Inside/Operations in the twelve (12) months immediately preceding the event giving rise to the claim.
+
+---
+
+## 10. Term and Termination
+
+This Agreement is effective from the date of installation and continues until terminated. Inside Operations LLC may terminate this Agreement immediately upon written notice if Licensee materially breaches any provision hereof and fails to cure such breach within thirty (30) days of written notice.
+
+Upon termination, Licensee must cease all use of Inside/Operations, destroy all copies in its possession or control, and certify such destruction in writing upon request.
+
+---
+
+## 11. Governing Law and Jurisdiction
+
+This Agreement is governed by the laws of the **State of Texas**, without regard to its conflict of laws provisions. Any dispute arising out of or relating to this Agreement shall be subject to the exclusive jurisdiction of the state and federal courts located in Harris County, Texas.
+
+---
+
+## 12. Entire Agreement
+
+This Agreement, together with any associated Order or Statement of Work, constitutes the entire agreement between the parties with respect to Inside/Operations and supersedes all prior negotiations, representations, warranties, and understandings. This Agreement may only be amended by a written document signed by authorized representatives of both parties.
+
+---
+
+## Acceptance
+
+By accepting below, you represent and warrant that:
+
+1. You are an authorized representative of the licensed organization with authority to bind it to these terms
+2. Your organization agrees to comply with all terms of this Software License Agreement
+3. You will ensure that all individuals who access Inside/Operations agree to the End User License Agreement presented at login
+
+---
+
+*Inside/Operations is a product of Inside Operations LLC. All rights reserved.*
+*For licensing inquiries: legal@in-ops.com*"#,
+    ).await;
+}
+
+// ---------------------------------------------------------------------------
+// Seed: End User EULA v1.1 — individual user agreement (insert-only)
+// Shown to every user on first login and whenever a new version is published.
+// Covers personal use rights, safety disclaimer, and prohibited conduct.
+// ---------------------------------------------------------------------------
+
+async fn seed_end_user_eula(db: &io_db::DbPool) {
+    seed_eula(db, "end_user", "1.1",
+        "Inside/Operations — End User License Agreement",
+        r#"# Inside/Operations — End User License Agreement
+
+**Version 1.1 | Effective March 2026**
+
+---
+
+> **Plain-English Summary** *(for convenience only — not legally binding)*
+>
+> - Your employer has licensed Inside/Operations. These terms govern your personal use of the application.
+> - Use it only for your assigned job duties within your granted permissions.
+> - This is a monitoring and information tool — **it is not a safety system**. Never use it as your primary source for safety-critical decisions.
+> - Your usage is logged and may be monitored by your organization.
+> - Keep your login credentials confidential and notify your administrator if they are compromised.
+> - The software is proprietary. Do not copy, reverse engineer, or redistribute it.
+
+---
+
+## 1. Who This Applies To
+
+This End User License Agreement applies to you as an individual employee, contractor, or authorized representative accessing Inside/Operations on behalf of an organization that has licensed it from Inside Operations LLC.
+
+Your employer or organization has agreed to a separate Software License Agreement that covers the organization's rights to install and operate the software. This agreement covers your personal rights and responsibilities while using it.
+
+By logging in to Inside/Operations, you confirm that you have read, understood, and agree to be bound by these terms. If you do not agree, do not use the application.
+
+---
+
+## 2. Authorized Use Only
+
+You are authorized to use Inside/Operations solely for the performance of your assigned job duties at your facility. Authorized use means:
+
+- Accessing only the data, views, and functions for which you have been granted permission by your system administrator
+- Using the application in connection with legitimate operational, monitoring, engineering, or administrative tasks within the scope of your role
+- Complying with your organization's internal policies governing use of process control and monitoring systems
+
+Use of Inside/Operations for any other purpose is not authorized.
+
+---
+
+## 3. This Is Not a Safety System
+
+**Inside/Operations is a monitoring and information tool only.**
+
+The application displays data sourced from your facility's connected systems. It is designed to support operational awareness, process monitoring, and data analysis. It is **not** a safety system, safety interlock, emergency shutdown system (ESD), or process safety management (PSM) tool.
+
+**You must not:**
+- Use Inside/Operations as a primary or backup safety system
+- Rely on data displayed in this application to make safety-critical decisions in place of your facility's approved safety instrumented systems (SIS), DCS interlocks, or other safety controls
+- Use this application as a substitute for direct instrument readings or certified safety system outputs during emergency or safety-critical situations
+
+All safety-critical decisions must be made using your facility's approved safety systems and procedures. In any emergency or safety-critical situation, follow your facility's established emergency response procedures.
+
+---
+
+## 4. Data Accuracy Disclaimer
+
+Data displayed in Inside/Operations is sourced from your facility's OPC UA servers, historians, and other connected systems configured and maintained by your organization. **Inside Operations LLC does not control, verify, or guarantee the accuracy, completeness, timeliness, or reliability of that data.**
+
+Displayed values reflect what the connected source systems are reporting at the time of transmission. Data may be delayed, incomplete, or incorrect due to network conditions, source system issues, configuration errors, or other factors outside Inside Operations LLC's control.
+
+Do not treat displayed data as authoritative for any purpose where independent verification is required.
+
+---
+
+## 5. Prohibited Uses
+
+You must not use Inside/Operations to:
+
+- Conduct personal, non-work-related activities
+- Access, view, or modify data, configurations, or records that you have not been authorized to access
+- Attempt to bypass, circumvent, or test security controls, authentication mechanisms, or permission boundaries
+- Introduce malware, scripts, or unauthorized code into the application or its connected systems
+- Share your login credentials with any other person
+- Access the application using another person's credentials
+- Harvest, extract, copy, or export data or system information for purposes outside your authorized job duties
+- Interfere with the operation of Inside/Operations or any connected system
+
+---
+
+## 6. Monitoring and Audit Logging
+
+Your organization may log, monitor, and audit your use of Inside/Operations for operational, safety, security, and compliance purposes. This may include records of login events, pages accessed, data queried, actions performed, reports generated, and changes made.
+
+By using this application, you acknowledge and consent to such monitoring and logging in accordance with your organization's policies and applicable law. Audit logs are retained as configured by your organization's system administrator.
+
+---
+
+## 7. Credentials and Account Security
+
+Your login credentials are personal to you. You are responsible for maintaining the confidentiality of your username, password, and any multi-factor authentication methods associated with your account.
+
+You must:
+- Keep your credentials confidential and not share them with anyone
+- Lock or log out of the application when leaving your workstation unattended
+- Promptly notify your system administrator if you suspect your credentials have been compromised or that unauthorized access has occurred
+
+Inside Operations LLC is not responsible for any loss, damage, or unauthorized access resulting from your failure to protect your credentials.
+
+---
+
+## 8. Intellectual Property
+
+Inside/Operations is the proprietary intellectual property of Inside Operations LLC. You must not:
+
+- Copy, reproduce, or redistribute any part of the application
+- Attempt to decompile, disassemble, or reverse engineer any part of the application
+- Remove or alter any proprietary notices, copyright markings, or labels
+
+These terms do not grant you any ownership interest in the software. Your organization's rights are defined in its separate Software License Agreement with Inside Operations LLC.
+
+---
+
+## 9. No Warranty
+
+Inside/Operations is provided to you through your organization. **Inside Operations LLC makes no warranty of any kind, express or implied, directly to you as an end user.** For application support, contact your system administrator. You may also reach support at support@in-ops.com.
+
+---
+
+## 10. Limitation of Liability
+
+To the fullest extent permitted by applicable law, Inside Operations LLC shall not be liable to you for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of Inside/Operations, including damages resulting from data inaccuracies, system unavailability, unauthorized access, or reliance on displayed information for safety-critical decisions.
+
+---
+
+## 11. Governing Law
+
+These terms are governed by the laws of the **State of Texas**, without regard to its conflict of law provisions.
+
+---
+
+## 12. Changes to These Terms
+
+Inside Operations LLC may update these terms from time to time. You will be presented with any updated version at your next login and must accept it before continuing.
+
+---
+
+## 13. Contact
+
+**Legal inquiries:** legal@in-ops.com
+**Support:** support@in-ops.com
+**System access:** Contact your organization's system administrator
+
+---
+
+## Acceptance
+
+By checking the boxes and clicking **"I Accept"** below, you confirm that you have read and agree to these terms, and separately, that you understand this application is not a safety system.
+
+---
+
+*Inside/Operations is a product of Inside Operations LLC. All rights reserved.*"#,
+    ).await;
+}
+
+// ---------------------------------------------------------------------------
+// Seed: End User EULA v1.1 — stub kept for historical name compatibility
+// ---------------------------------------------------------------------------
+#[allow(dead_code)]
 async fn seed_eula_v1(db: &io_db::DbPool) {
-    const EULA_VERSION: &str = "1.0";
+    const EULA_VERSION: &str = "1.1";
     const EULA_TITLE: &str = "Inside/Operations — Terms of Use";
     const EULA_CONTENT: &str = r#"# Inside/Operations — End User Terms of Use
 
-**Version 1.0 | Effective March 2026**
+**Version 1.1 | Effective March 2026**
 
 ---
 
@@ -412,16 +759,12 @@ By clicking **"I Accept"** below, you confirm that:
         format!("{:x}", hasher.finalize())
     };
 
+    // Never overwrite a published EULA version — users may have signed it.
+    // If this version already exists, skip silently.
     let result = sqlx::query(
         "INSERT INTO eula_versions (version, title, content, is_active, content_hash, published_at)
          VALUES ($1, $2, $3, true, $4, NOW())
-         ON CONFLICT (version) DO UPDATE
-           SET title        = EXCLUDED.title,
-               content      = EXCLUDED.content,
-               content_hash = EXCLUDED.content_hash,
-               is_active    = true,
-               published_at = COALESCE(eula_versions.published_at, NOW())
-         WHERE eula_versions.content_hash != EXCLUDED.content_hash",
+         ON CONFLICT (version) DO NOTHING",
     )
     .bind(EULA_VERSION)
     .bind(EULA_TITLE)
@@ -432,13 +775,13 @@ By clicking **"I Accept"** below, you confirm that:
 
     match result {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!(version = EULA_VERSION, "Seeded/updated EULA version 1.0");
+            tracing::info!(version = EULA_VERSION, "Seeded EULA version {}", EULA_VERSION);
         }
         Ok(_) => {
-            tracing::debug!(version = EULA_VERSION, "EULA version 1.0 content unchanged, skipping update");
+            tracing::debug!(version = EULA_VERSION, "EULA version {} already exists, skipping", EULA_VERSION);
         }
         Err(e) => {
-            tracing::error!(error = %e, "Failed to seed EULA version 1.0");
+            tracing::error!(error = %e, "Failed to seed EULA version {}", EULA_VERSION);
         }
     }
 }

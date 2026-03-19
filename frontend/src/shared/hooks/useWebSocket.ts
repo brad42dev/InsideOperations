@@ -400,3 +400,86 @@ export function useWebSocket(
 
   return { values, connectionState }
 }
+
+// ---------------------------------------------------------------------------
+// RAF-coalesced hook — same as useWebSocket but batches state updates to
+// one per animation frame (~60fps). Use this for high-frequency graphics
+// panes where the broker may push 100s of updates/sec (spec §6.2).
+// ---------------------------------------------------------------------------
+
+export function useWebSocketRaf(
+  pointIds: string[],
+  options?: UseWebSocketOptions,
+): {
+  values: Map<string, PointValue>
+  connectionState: WsConnectionState
+} {
+  const [values, setValues] = useState<Map<string, PointValue>>(new Map())
+  const [connectionState, setConnectionState] = useState<WsConnectionState>(wsManager.getState())
+  const optionsRef = useRef(options)
+  optionsRef.current = options
+
+  // Mutable buffer — incoming updates accumulate here without touching React state
+  const pendingRef = useRef<Map<string, PointValue>>(new Map())
+  const rafPendingRef = useRef(false)
+
+  // Connect + track connection state
+  useEffect(() => {
+    if (wsManager.getState() === 'disconnected') {
+      void wsManager.connect()
+    }
+    return wsManager.onStateChange(setConnectionState)
+  }, [])
+
+  // Subscribe to point IDs with RAF coalescing
+  const pointIdsKey = pointIds.join(',')
+  useEffect(() => {
+    if (pointIds.length === 0) return
+
+    const handler: PointUpdateHandler = (update) => {
+      // Write to mutable buffer — no React state update on each message
+      pendingRef.current.set(update.pointId, update)
+      if (!rafPendingRef.current) {
+        rafPendingRef.current = true
+        requestAnimationFrame(() => {
+          rafPendingRef.current = false
+          const pending = pendingRef.current
+          if (pending.size === 0) return
+          const batch = new Map(pending)
+          pending.clear()
+          setValues((prev) => {
+            const next = new Map(prev)
+            for (const [id, pv] of batch) next.set(id, pv)
+            return next
+          })
+        })
+      }
+    }
+
+    pointIds.forEach((id) => wsManager.subscribe(id, handler))
+    return () => {
+      pointIds.forEach((id) => wsManager.unsubscribe(id, handler))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pointIdsKey])
+
+  // Stale handler
+  useEffect(() => {
+    return wsManager.onStale((id, ts) => {
+      optionsRef.current?.onStale?.(id, ts)
+    })
+  }, [])
+
+  // Source status handler
+  useEffect(() => {
+    return wsManager.onSource((id, name, online) => {
+      if (online) {
+        optionsRef.current?.onSourceOnline?.(id, name)
+      } else {
+        optionsRef.current?.onSourceOffline?.(id, name)
+      }
+    })
+  }, [])
+
+  return { values, connectionState }
+}

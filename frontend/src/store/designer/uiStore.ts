@@ -300,7 +300,7 @@ export const useUiStore = create<UiStore>((set, get) => ({
   },
 
   gridVisible: true,
-  gridSize: 8,
+  gridSize: 10,
   snapToGrid: true,
   guidesVisible: true,
   guides: [],

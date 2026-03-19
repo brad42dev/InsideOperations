@@ -426,16 +426,6 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
           </g>
         )
       }
-      case 'numeric_indicator': {
-        const formatted = typeof v === 'number' ? v.toFixed(cfg.decimalPlaces) : String(v)
-        return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
-            <text x={cfg.width / 2} y={cfg.fontSize} textAnchor="middle" fontSize={cfg.fontSize} fontWeight="600" fill={textColor} fontFamily="var(--io-font-mono)" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {formatted}
-            </text>
-          </g>
-        )
-      }
       default:
         break
     }
@@ -802,18 +792,25 @@ function RenderNode({
 
     case 'annotation': {
       const an = node as import('../../shared/types/graphics').Annotation
-      const cfg = an.config as unknown as Record<string, number | string>
+      const cfg = an.config as unknown as Record<string, unknown>
       const aw = (cfg.width as number) ?? 200
       const ah = (cfg.height as number) ?? 20
       switch (an.annotationType) {
-        case 'section_break':
+        case 'section_break': {
+          const sbCfg = an.config as import('../../shared/types/graphics').SectionBreakConfig
+          const thickness = sbCfg.thickness ?? 1.5
+          const color = sbCfg.color ?? 'var(--io-accent)'
+          const dasharray = sbCfg.style === 'dotted' ? '2 4' : sbCfg.style === 'space' ? undefined : undefined
+          const isSpace = sbCfg.style === 'space'
           return (
             <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
-              <line x1={0} y1={10} x2={aw} y2={10} stroke="var(--io-accent)" strokeWidth={1.5} strokeLinecap="round"/>
-              <line x1={0} y1={4}  x2={aw} y2={4}  stroke="var(--io-border)" strokeWidth={0.5}/>
-              <line x1={0} y1={16} x2={aw} y2={16} stroke="var(--io-border)" strokeWidth={0.5}/>
+              {isSpace
+                ? <rect x={0} y={0} width={aw} height={thickness} fill="none"/>
+                : <line x1={0} y1={thickness / 2} x2={aw} y2={thickness / 2} stroke={color} strokeWidth={thickness} strokeLinecap="round" strokeDasharray={dasharray}/>
+              }
             </g>
           )
+        }
         case 'page_break':
           return (
             <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
@@ -822,22 +819,158 @@ function RenderNode({
               <text x={aw / 2} y={12} textAnchor="middle" fontSize={8} fill="#EF4444" fontWeight={600} fontFamily="Inter">PAGE BREAK</text>
             </g>
           )
-        case 'header':
+        case 'header': {
+          const hCfg = an.config as import('../../shared/types/graphics').HeaderConfig
+          const hH = hCfg.height ?? 40
+          const hFs = hCfg.fontSize ?? 11
+          const hContent = hCfg.content ?? 'Header'
+          const hAnchor = hCfg.textAlign === 'center' ? 'middle' : hCfg.textAlign === 'right' ? 'end' : 'start'
+          const hTx = hCfg.textAlign === 'center' ? aw / 2 : hCfg.textAlign === 'right' ? aw - 8 : 8
           return (
             <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
-              <rect x={0} y={0} width={aw} height={ah} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
-              <text x={8} y={ah / 2 + 4} fontSize={9} fill="#93c5fd" fontWeight={500} fontFamily="Inter">HEADER</text>
-              <line x1={0} y1={ah} x2={aw} y2={ah} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3"/>
+              <rect x={0} y={0} width={aw} height={hH} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
+              <text x={hTx} y={hH / 2 + hFs * 0.35} textAnchor={hAnchor} fontSize={hFs} fill="#93c5fd" fontWeight={500} fontFamily="Inter">{hContent}</text>
+              <line x1={0} y1={hH} x2={aw} y2={hH} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3"/>
             </g>
           )
-        case 'footer':
+        }
+        case 'footer': {
+          const fCfg = an.config as import('../../shared/types/graphics').FooterConfig
+          const fH = fCfg.height ?? 40
+          const fFs = fCfg.fontSize ?? 11
+          const fContent = fCfg.content ?? 'Footer'
+          const fAnchor = fCfg.textAlign === 'center' ? 'middle' : fCfg.textAlign === 'right' ? 'end' : 'start'
+          const fTx = fCfg.textAlign === 'center' ? aw / 2 : fCfg.textAlign === 'right' ? aw - 8 : 8
           return (
             <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
               <line x1={0} y1={0} x2={aw} y2={0} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3"/>
-              <rect x={0} y={0} width={aw} height={ah} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
-              <text x={8} y={ah / 2 + 4} fontSize={9} fill="#93c5fd" fontWeight={500} fontFamily="Inter">FOOTER</text>
+              <rect x={0} y={0} width={aw} height={fH} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
+              <text x={fTx} y={fH / 2 + fFs * 0.35} textAnchor={fAnchor} fontSize={fFs} fill="#93c5fd" fontWeight={500} fontFamily="Inter">{fContent}</text>
             </g>
           )
+        }
+        case 'callout': {
+          const cCfg = an.config as import('../../shared/types/graphics').CalloutConfig
+          const cFs = cCfg.fontSize ?? 11
+          const cPad = cCfg.padding ?? 6
+          const cBg = cCfg.backgroundColor ?? '#27272A'
+          const cBorder = cCfg.borderColor ?? '#3F3F46'
+          const cFill = cCfg.fill ?? '#F4F4F5'
+          const cRx = cCfg.borderRadius ?? 4
+          const cText = cCfg.text ?? ''
+          const cW = Math.max(60, cText.length * cFs * 0.6 + cPad * 2)
+          const cH = cFs + cPad * 2
+          const tp = cCfg.targetPoint ?? { x: cW / 2, y: cH + 20 }
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              {/* Leader line */}
+              <line x1={cW / 2} y1={cH} x2={tp.x} y2={tp.y} stroke={cBorder} strokeWidth={1.5} strokeLinecap="round"/>
+              <circle cx={tp.x} cy={tp.y} r={3} fill={cBorder}/>
+              {/* Callout box */}
+              <rect x={0} y={0} width={cW} height={cH} rx={cRx} fill={cBg} stroke={cBorder} strokeWidth={1}/>
+              <text x={cPad} y={cPad + cFs * 0.8} fontSize={cFs} fill={cFill} fontFamily="Inter">{cText}</text>
+            </g>
+          )
+        }
+        case 'dimension_line': {
+          const dCfg = an.config as import('../../shared/types/graphics').DimensionLineConfig
+          const dColor = dCfg.color ?? '#A1A1AA'
+          const dFs = dCfg.fontSize ?? 9
+          const sp = dCfg.startPoint ?? { x: 0, y: 0 }
+          const ep = dCfg.endPoint ?? { x: 100, y: 0 }
+          const offset = dCfg.offset ?? 16
+          const dist = Math.round(Math.hypot(ep.x - sp.x, ep.y - sp.y))
+          const label = dCfg.label ?? `${dist}`
+          const mx = (sp.x + ep.x) / 2
+          const my = (sp.y + ep.y) / 2 - offset - 4
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              {/* Extension lines */}
+              <line x1={sp.x} y1={sp.y} x2={sp.x} y2={sp.y - offset} stroke={dColor} strokeWidth={1} strokeDasharray="3 2"/>
+              <line x1={ep.x} y1={ep.y} x2={ep.x} y2={ep.y - offset} stroke={dColor} strokeWidth={1} strokeDasharray="3 2"/>
+              {/* Dimension line with arrows */}
+              <line x1={sp.x} y1={sp.y - offset} x2={ep.x} y2={ep.y - offset} stroke={dColor} strokeWidth={1} markerStart="url(#arrow-start)" markerEnd="url(#arrow-end)"/>
+              {/* Label */}
+              <rect x={mx - label.length * dFs * 0.3 - 2} y={my - dFs} width={label.length * dFs * 0.6 + 4} height={dFs + 2} fill="var(--io-surface)" rx={2}/>
+              <text x={mx} y={my} textAnchor="middle" fontSize={dFs} fill={dColor} fontFamily="Inter">{label}</text>
+            </g>
+          )
+        }
+        case 'north_arrow': {
+          const nCfg = an.config as import('../../shared/types/graphics').NorthArrowConfig
+          const nSize = nCfg.size ?? 40
+          const nColor = nCfg.color ?? '#A1A1AA'
+          const r = nSize / 2
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              {nCfg.style === 'compass' ? (
+                <>
+                  <circle cx={r} cy={r} r={r - 1} fill="none" stroke={nColor} strokeWidth={1}/>
+                  <polygon points={`${r},2 ${r - 5},${r} ${r},${r - 4} ${r + 5},${r}`} fill={nColor}/>
+                  <polygon points={`${r},${nSize - 2} ${r - 5},${r} ${r},${r + 4} ${r + 5},${r}`} fill="none" stroke={nColor} strokeWidth={1}/>
+                  <text x={r} y={nSize + 10} textAnchor="middle" fontSize={9} fill={nColor} fontFamily="Inter" fontWeight={600}>N</text>
+                </>
+              ) : (
+                <>
+                  <polygon points={`${r},0 ${r - 5},${nSize - 8} ${r},${nSize - 4} ${r + 5},${nSize - 8}`} fill={nColor}/>
+                  <text x={r} y={nSize + 10} textAnchor="middle" fontSize={9} fill={nColor} fontFamily="Inter" fontWeight={600}>N</text>
+                </>
+              )}
+            </g>
+          )
+        }
+        case 'legend': {
+          const lCfg = an.config as import('../../shared/types/graphics').LegendConfig
+          const lFs = lCfg.fontSize ?? 10
+          const lBg = lCfg.backgroundColor ?? '#27272A'
+          const lBorder = lCfg.borderColor ?? '#3F3F46'
+          const entries = lCfg.entries ?? []
+          const rowH = lFs + 8
+          const lW = 140
+          const lH = entries.length * rowH + 16
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              <rect x={0} y={0} width={lW} height={Math.max(lH, 24)} rx={3} fill={lBg} stroke={lBorder} strokeWidth={1}/>
+              {entries.map((entry, i) => {
+                const y = 8 + i * rowH
+                return (
+                  <g key={i}>
+                    {entry.symbol === 'line'
+                      ? <line x1={8} y1={y + rowH / 2} x2={24} y2={y + rowH / 2} stroke={entry.color} strokeWidth={2}/>
+                      : entry.symbol === 'circle'
+                        ? <circle cx={16} cy={y + rowH / 2} r={5} fill={entry.color}/>
+                        : <rect x={8} y={y + 2} width={16} height={rowH - 4} fill={entry.color} rx={1}/>
+                    }
+                    <text x={30} y={y + lFs} fontSize={lFs} fill="#D4D4D8" fontFamily="Inter">{entry.label}</text>
+                  </g>
+                )
+              })}
+            </g>
+          )
+        }
+        case 'border': {
+          const bCfg = an.config as import('../../shared/types/graphics').BorderConfig
+          const bW = bCfg.width ?? 200
+          const bH = bCfg.height ?? 150
+          const bStroke = bCfg.strokeColor ?? '#3F3F46'
+          const bSW = bCfg.strokeWidth ?? 1
+          const bRx = bCfg.cornerStyle === 'rounded' ? (bCfg.cornerRadius ?? 4) : 0
+          const bDash = bCfg.strokeDasharray
+          const tb = bCfg.titleBlock
+          return (
+            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+              <rect x={0} y={0} width={bW} height={bH} rx={bRx} fill="none" stroke={bStroke} strokeWidth={bSW} strokeDasharray={bDash}/>
+              {tb && (
+                <>
+                  <line x1={0} y1={bH - 24} x2={bW} y2={bH - 24} stroke={bStroke} strokeWidth={bSW}/>
+                  <text x={8} y={bH - 14} fontSize={9} fill="#A1A1AA" fontFamily="Inter" fontWeight={600}>{tb.title}</text>
+                  <text x={bW - 8} y={bH - 14} textAnchor="end" fontSize={8} fill="#71717A" fontFamily="Inter">{tb.drawingNumber} Rev {tb.revision}</text>
+                  <text x={8} y={bH - 4} fontSize={7} fill="#71717A" fontFamily="Inter">By: {tb.drawnBy}  {tb.date}</text>
+                </>
+              )}
+            </g>
+          )
+        }
         default:
           return (
             <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
@@ -2479,8 +2612,8 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       return
     }
 
-    // Ctrl+Shift+0 — zoom to selection
-    if (ctrl && e.shiftKey && e.key === ')') {
+    // Ctrl+Shift+0 — zoom to selection (key is '0' on US keyboards; ')' when Shift is held but some browsers report '0')
+    if (ctrl && e.shiftKey && (e.key === '0' || e.key === ')')) {
       e.preventDefault()
       const ids = Array.from(selectedIdsRef.current)
       const d = docRef.current
@@ -2593,6 +2726,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         case 'b': setTool('freehand'); break
         case 'l': setTool('line'); break
         case 'i': setTool('pipe'); break
+        case 'a': setTool('annotation'); break
       }
     }
   }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee, zoomTo, fitToCanvas, setGrid, setSnap, gridVisible, snapToGrid, activeTool, pipeDrawState, penWaypoints, setViewport, setActiveGroup])
@@ -2699,8 +2833,34 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       const rect = getRect()
       if (!rect || !docRef.current) return
       const vp = viewportRef.current
-      const cx = snap((ce.detail.x - rect.left - vp.panX) / vp.zoom)
-      const cy = snap((ce.detail.y - rect.top  - vp.panY) / vp.zoom)
+      const rawX = (ce.detail.x - rect.left - vp.panX) / vp.zoom
+      const rawY = (ce.detail.y - rect.top  - vp.panY) / vp.zoom
+
+      // In dashboard mode, snap to 12-column grid (spec §11.2)
+      const currentDoc = docRef.current
+      const mode = useSceneStore.getState().designMode
+      let cx: number
+      let cy: number
+      let defaultW = 320
+      let defaultH = 200
+      let gridSpan: { cols: number; rows: number } | undefined
+      if (mode === 'dashboard') {
+        const COLS = 12
+        const ROW_H = (currentDoc.metadata as Record<string, unknown> & { rowHeight?: number }).rowHeight ?? 80
+        const colW = currentDoc.canvas.width / COLS
+        const col = Math.max(0, Math.min(COLS - 1, Math.round(rawX / colW)))
+        const row = Math.max(0, Math.round(rawY / ROW_H))
+        const spanCols = Math.max(1, Math.round(defaultW / colW))
+        const spanRows = Math.max(1, Math.round(defaultH / ROW_H))
+        cx = col * colW
+        cy = row * ROW_H
+        defaultW = spanCols * colW
+        defaultH = spanRows * ROW_H
+        gridSpan = { cols: spanCols, rows: spanRows }
+      } else {
+        cx = snap(rawX)
+        cy = snap(rawY)
+      }
 
       const wt = ce.detail.widgetType
       const defaultLabel = wt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -2728,8 +2888,9 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         visible: true,
         locked: false,
         opacity: 1,
-        width: 320,
-        height: 200,
+        width: defaultW,
+        height: defaultH,
+        ...(gridSpan ? { gridSpan } : {}),
         config: defaultConfig,
       }
       executeCmd(new AddNodeCommand(node, null))
@@ -2755,7 +2916,6 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       const config: DisplayElementConfig = (() => {
         switch (et) {
           case 'text_readout':      return { displayType: 'text_readout', showBox: false, showLabel: false, showUnits: true, valueFormat: '%.2f', minWidth: 60 }
-          case 'numeric_indicator': return { displayType: 'numeric_indicator', fontSize: 24, decimalPlaces: 1, showUnit: true, showLabel: false, width: 100 }
           case 'analog_bar':        return { displayType: 'analog_bar', orientation: 'vertical', barWidth: 20, barHeight: 80, rangeLo: 0, rangeHi: 100, showZoneLabels: true, showPointer: true, showSetpoint: false, showNumericReadout: true, showSignalLine: false }
           case 'fill_gauge':        return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: true, showValue: true, valueFormat: '%.0f' }
           case 'sparkline':         return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
@@ -3021,6 +3181,39 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
           fill={bgColor}
           style={{ pointerEvents: 'none' }}
         />
+
+        {/* Dashboard 12-column grid overlay (spec §11.2) */}
+        {gridVisible && designMode === 'dashboard' && doc && (() => {
+          const COLS = 12
+          const ROW_H = (doc.metadata as Record<string, unknown> & { rowHeight?: number }).rowHeight ?? 80
+          const colW = canvasW / COLS
+          return (
+            <g transform={`translate(${panX},${panY}) scale(${zoom})`} style={{ pointerEvents: 'none' }}>
+              {/* Column lines */}
+              {Array.from({ length: COLS - 1 }, (_, i) => (
+                <line
+                  key={`col-${i}`}
+                  x1={(i + 1) * colW} y1={0}
+                  x2={(i + 1) * colW} y2={canvasH}
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth={1}
+                  strokeDasharray="4 6"
+                />
+              ))}
+              {/* Row lines */}
+              {Array.from({ length: Math.ceil(canvasH / ROW_H) - 1 }, (_, i) => (
+                <line
+                  key={`row-${i}`}
+                  x1={0} y1={(i + 1) * ROW_H}
+                  x2={canvasW} y2={(i + 1) * ROW_H}
+                  stroke="rgba(255,255,255,0.04)"
+                  strokeWidth={1}
+                  strokeDasharray="4 6"
+                />
+              ))}
+            </g>
+          )
+        })()}
 
         {/* Canvas border */}
         <rect

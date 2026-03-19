@@ -2,9 +2,10 @@ import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { graphicsApi } from '../../../api/graphics'
+import { pointsApi } from '../../../api/points'
 import { SceneRenderer } from '../../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../../shared/graphics/SceneRenderer'
-import { useWebSocket, detectDeviceType } from '../../../shared/hooks/useWebSocket'
+import { useWebSocketRaf, detectDeviceType } from '../../../shared/hooks/useWebSocket'
 import { useHistoricalValues } from '../../../shared/hooks/useHistoricalValues'
 import { usePlaybackStore } from '../../../store/playback'
 import TileGraphicViewer from '../../../shared/components/TileGraphicViewer'
@@ -75,6 +76,27 @@ function extractPointIds(nodes: SceneNode[]): string[] {
   return Array.from(ids)
 }
 
+/** Walk a SceneNode tree and collect pointIds for sparkline display elements. */
+function extractSparklinePointIds(nodes: SceneNode[]): string[] {
+  const ids = new Set<string>()
+  function walk(n: SceneNode) {
+    if (
+      n.type === 'display_element' &&
+      'displayType' in n &&
+      (n as { displayType: string }).displayType === 'sparkline' &&
+      'binding' in n
+    ) {
+      const pid = (n.binding as { pointId?: string }).pointId
+      if (pid) ids.add(pid)
+    }
+    if ('children' in n && Array.isArray(n.children)) {
+      for (const child of n.children) walk(child as SceneNode)
+    }
+  }
+  for (const n of nodes) walk(n)
+  return Array.from(ids)
+}
+
 const isPhone = detectDeviceType() === 'phone'
 
 /** Extract point bindings with fractional positions for TileGraphicViewer overlays. */
@@ -126,11 +148,38 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
     [data],
   )
 
+  // Derive sparkline point IDs for history fetching
+  const sparklinePointIds = useMemo(
+    () => (data ? extractSparklinePointIds(data.scene_data.children ?? []) : []),
+    [data],
+  )
+
+  // Fetch sparkline history — last 30 minutes, 14 samples, refresh every 60s
+  const { data: sparklineHistories } = useQuery({
+    queryKey: ['sparkline-history', sparklinePointIds],
+    queryFn: async () => {
+      if (sparklinePointIds.length === 0) return new Map<string, number[]>()
+      const end = new Date().toISOString()
+      const start = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      const result = await pointsApi.historyBatch(sparklinePointIds, { start, end, limit: 14 })
+      if (!result.success) return new Map<string, number[]>()
+      const map = new Map<string, number[]>()
+      for (const r of result.data) {
+        const values = r.rows.map((row) => row.value ?? row.avg).filter((v): v is number => typeof v === 'number')
+        map.set(r.point_id, values)
+      }
+      return map
+    },
+    staleTime: 60_000,
+    enabled: sparklinePointIds.length > 0,
+  })
+
   const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore()
   const isHistorical = playbackMode === 'historical'
 
-  // Subscribe to live values for all bound points (only when in live mode)
-  const { values: wsValues } = useWebSocket(isHistorical ? [] : pointIds)
+  // Subscribe to live values with RAF coalescing — batches React state updates to
+  // ~60fps regardless of broker push rate (spec §6.2 Real-Time Update Pipeline)
+  const { values: wsValues } = useWebSocketRaf(isHistorical ? [] : pointIds)
 
   // Fetch historical values at playback timestamp (only when in historical mode)
   const historicalValues = useHistoricalValues(isHistorical ? pointIds : [], isHistorical ? playbackTs : undefined)
@@ -395,6 +444,7 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
       <SceneRenderer
         document={data.scene_data}
         pointValues={pointValues}
+        sparklineHistories={sparklineHistories ?? undefined}
         onNavigate={onNavigate}
         viewport={viewport}
         preserveAspectRatio={preserveAspectRatio ? 'xMidYMid meet' : 'none'}

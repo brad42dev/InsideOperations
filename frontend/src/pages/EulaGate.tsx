@@ -10,19 +10,18 @@ interface EulaGateProps {
 }
 
 export default function EulaGate({ children }: EulaGateProps) {
-  const { user, setEulaAccepted } = useAuthStore()
+  const { user, pendingEulas, setPendingEulas } = useAuthStore()
 
-  // Only fetch when status is unknown (hydrated session, not fresh login)
-  const needsCheck = user?.eula_accepted === undefined
+  // Fetch pending EULAs when state is unknown (hydrated session, not fresh login)
+  // After a fresh login the store already has eula_accepted set from login response.
+  const needsCheck = user !== null && pendingEulas === null
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['eula-status'],
+    queryKey: ['eula-pending'],
     queryFn: async () => {
-      const result = await authApi.eulaStatus()
+      const result = await authApi.eulaGetPending()
       if (result.success) return result.data
-      // Throw so isError is set — do NOT return accepted:false, which would
-      // redirect to /eula even when the failure is a network error or expired JWT.
-      throw new Error(result.error?.message ?? 'Failed to check EULA status')
+      throw new Error(result.error?.message ?? 'Failed to check pending EULAs')
     },
     enabled: needsCheck,
     staleTime: 5 * 60 * 1000,
@@ -31,22 +30,23 @@ export default function EulaGate({ children }: EulaGateProps) {
 
   useEffect(() => {
     if (data !== undefined) {
-      setEulaAccepted(data.accepted)
+      setPendingEulas(data)
     }
-  }, [data, setEulaAccepted])
+  }, [data, setPendingEulas])
 
   // Still checking
   if (needsCheck && isLoading) return <LoadingSpinner />
 
-  // If the status check itself fails (network error, expired JWT, etc.), let the user
-  // through — PermissionGuard will handle any real auth failure, and we should not
-  // redirect to /eula based on a transient query error.
+  // If the check fails (network error, expired JWT, etc.), let through —
+  // PermissionGuard will handle any real auth failure.
   if (needsCheck && isError) return <>{children}</>
 
-  // Determine accepted state: from store if known, from query result if just fetched
-  const accepted = user?.eula_accepted !== undefined ? user.eula_accepted : data?.accepted
+  // Determine pending state
+  const pending = pendingEulas ?? (data ?? null)
 
-  if (accepted === false) return <Navigate to="/eula" replace />
+  if (pending !== null && pending.length > 0) {
+    return <Navigate to="/eula" replace />
+  }
 
   return <>{children}</>
 }

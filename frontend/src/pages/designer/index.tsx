@@ -31,6 +31,7 @@ import DesignerStatusBar from './DesignerStatusBar'
 import DesignerLeftPalette from './DesignerLeftPalette'
 import DesignerRightPanel from './DesignerRightPanel'
 import DesignerCanvas from './DesignerCanvas'
+import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import VersionHistoryDialog from './components/VersionHistoryDialog'
 import ValidateBindingsDialog from './components/ValidateBindingsDialog'
 import IographicImportWizard from './components/IographicImportWizard'
@@ -319,8 +320,9 @@ export default function DesignerPage() {
   // New doc dialog
   const [showNewDialog, setShowNewDialog] = useState(false)
 
-  // Crash recovery
-  const [crashRecovery, setCrashRecovery] = useState<{ id: string; savedAt: number } | null>(null)
+  // Crash recovery — includes the saved doc so Recover action can load it
+  const [crashRecovery, setCrashRecovery] = useState<{ id: string; savedAt: number; savedDoc: unknown } | null>(null)
+  const [showCrashPreview, setShowCrashPreview] = useState(false)
 
   // Dialogs
   const [showVersionHistory, setShowVersionHistory] = useState(false)
@@ -631,7 +633,7 @@ export default function DesignerPage() {
           const { doc: savedDoc, savedAt } = req.result as { doc: unknown; savedAt: number }
           // Only offer recovery if there's something meaningful
           if (savedDoc && !doc && !isNew) {
-            setCrashRecovery({ id: key, savedAt })
+            setCrashRecovery({ id: key, savedAt, savedDoc })
           }
         }
       }
@@ -745,33 +747,133 @@ export default function DesignerPage() {
       {crashRecovery && (
         <div style={{
           position: 'fixed',
-          top: 60,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 2000,
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-          padding: '12px 20px',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          zIndex: 2100,
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          fontSize: 13,
-          color: 'var(--io-text-primary)',
+          justifyContent: 'center',
         }}>
-          <span>⚠ Unsaved work from {new Date(crashRecovery.savedAt).toLocaleTimeString()} was recovered.</span>
-          <button
-            onClick={() => {
-              // Dismiss — clear the auto-save
-              setCrashRecovery(null)
-            }}
-            style={{ background: 'transparent', border: 'none', color: 'var(--io-text-muted)', cursor: 'pointer', fontSize: 12 }}
-          >
-            Dismiss
-          </button>
+          <div style={{
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+            padding: '24px 28px',
+            maxWidth: 460,
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--io-text-primary)' }}>
+              Recover Unsaved Changes?
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--io-text-secondary)', lineHeight: 1.5 }}>
+              Auto-saved changes were found from{' '}
+              <strong>{new Date(crashRecovery.savedAt).toLocaleTimeString()}</strong>{' '}
+              ({new Date(crashRecovery.savedAt).toLocaleDateString()}).
+              Would you like to recover them?
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowCrashPreview(true)}
+                style={{ padding: '6px 14px', fontSize: 12, background: 'transparent', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', color: 'var(--io-text-secondary)', cursor: 'pointer' }}
+              >
+                Preview
+              </button>
+              <button
+                onClick={() => {
+                  // Discard — delete the auto-save from IndexedDB and load normally
+                  const STORE = 'designer-autosave'
+                  const openReq = indexedDB.open('io-designer', 1)
+                  openReq.onsuccess = () => {
+                    try {
+                      const db = openReq.result
+                      const tx = db.transaction(STORE, 'readwrite')
+                      tx.objectStore(STORE).delete(crashRecovery.id)
+                      db.close()
+                    } catch { /* best-effort */ }
+                  }
+                  setCrashRecovery(null)
+                }}
+                style={{ padding: '6px 14px', fontSize: 12, background: 'transparent', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', color: 'var(--io-text-secondary)', cursor: 'pointer' }}
+              >
+                Discard
+              </button>
+              <button
+                onClick={() => {
+                  // Recover — load the auto-saved doc into the editor
+                  if (crashRecovery.savedDoc) {
+                    try {
+                      const savedSceneGraph = crashRecovery.savedDoc
+                      if (graphicId) {
+                        loadGraphic(graphicId, savedSceneGraph as Parameters<typeof loadGraphic>[1])
+                      }
+                    } catch { /* ignore parse errors */ }
+                    // Delete auto-save after recovery
+                    const STORE = 'designer-autosave'
+                    const openReq = indexedDB.open('io-designer', 1)
+                    openReq.onsuccess = () => {
+                      try {
+                        const db = openReq.result
+                        const tx = db.transaction(STORE, 'readwrite')
+                        tx.objectStore(STORE).delete(crashRecovery.id)
+                        db.close()
+                      } catch { /* best-effort */ }
+                    }
+                  }
+                  setCrashRecovery(null)
+                }}
+                style={{ padding: '6px 14px', fontSize: 12, background: 'var(--io-accent)', border: 'none', borderRadius: 'var(--io-radius)', color: '#000', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Recover
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Crash recovery split-view preview overlay (spec §18 [Preview]) */}
+      {crashRecovery && showCrashPreview && (() => {
+        const currentDoc = useSceneStore.getState().doc
+        const savedDoc = crashRecovery.savedDoc as import('../../shared/types/graphics').GraphicDocument | null
+        return (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.85)', zIndex: 2200,
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ padding: '10px 16px', background: 'var(--io-surface)', borderBottom: '1px solid var(--io-border)', display: 'flex', alignItems: 'center', gap: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--io-text-primary)' }}>
+                Preview: Compare Versions
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--io-text-secondary)' }}>
+                Left: Current server version — Right: Auto-saved {new Date(crashRecovery.savedAt).toLocaleTimeString()}
+              </span>
+              <button
+                onClick={() => setShowCrashPreview(false)}
+                style={{ marginLeft: 'auto', padding: '4px 12px', fontSize: 12, background: 'transparent', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', color: 'var(--io-text-secondary)', cursor: 'pointer' }}
+              >
+                Close Preview
+              </button>
+            </div>
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              <div style={{ flex: 1, borderRight: '2px solid var(--io-border)', overflow: 'hidden', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 11, fontWeight: 600, color: 'var(--io-text-secondary)', background: 'var(--io-surface)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--io-border)' }}>Server version</div>
+                {currentDoc && <SceneRenderer document={currentDoc} />}
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 11, fontWeight: 600, color: 'var(--io-accent)', background: 'var(--io-surface)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--io-accent)', zIndex: 1 }}>Auto-saved version</div>
+                {savedDoc && <SceneRenderer document={savedDoc} />}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Pessimistic lock banner — shown when the graphic is locked by someone else */}
       {lockState && (

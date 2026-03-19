@@ -22,7 +22,7 @@ const SUB_NAV: SubNavItem[] = [
   { path: '/settings/auth-providers', label: 'Auth Providers' },
   { path: '/settings/import', label: 'Import' },
   { path: '/settings/recognition', label: 'Recognition' },
-  { path: '/settings/eula', label: 'Terms of Use' },
+  { path: '/settings/eula', label: 'EULA' },
   { path: '/settings/about', label: 'About' },
 ]
 

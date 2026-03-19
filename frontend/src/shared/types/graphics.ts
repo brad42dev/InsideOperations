@@ -136,7 +136,6 @@ export type DisplayElementType =
   | 'sparkline'
   | 'alarm_indicator'
   | 'digital_status'
-  | 'numeric_indicator'
 
 export interface TextReadoutConfig {
   displayType: 'text_readout'
@@ -207,21 +206,6 @@ export interface DigitalStatusConfig {
   abnormalPriority: 1 | 2 | 3 | 4 | 5
 }
 
-export interface NumericIndicatorConfig {
-  displayType: 'numeric_indicator'
-  /** Font size for the value (default 24) */
-  fontSize: number
-  /** Number of decimal places to show */
-  decimalPlaces: number
-  /** Show the engineering unit label below the value */
-  showUnit: boolean
-  /** Show a tag/label above the value */
-  showLabel: boolean
-  labelText?: string
-  /** Width of the bounding box */
-  width: number
-}
-
 export type DisplayElementConfig =
   | TextReadoutConfig
   | AnalogBarConfig
@@ -229,7 +213,6 @@ export type DisplayElementConfig =
   | SparklineConfig
   | AlarmIndicatorConfig
   | DigitalStatusConfig
-  | NumericIndicatorConfig
 
 export interface DisplayElement extends SceneNodeBase {
   type: 'display_element'
@@ -409,10 +392,30 @@ export interface BorderConfig {
   }
 }
 
-export interface SectionBreakConfig { annotationType: 'section_break'; width: number }
-export interface PageBreakConfig    { annotationType: 'page_break';    width: number }
-export interface HeaderConfig       { annotationType: 'header';        width: number; height: number; content?: string }
-export interface FooterConfig       { annotationType: 'footer';        width: number; height: number; content?: string }
+export interface SectionBreakConfig {
+  annotationType: 'section_break'
+  style: 'line' | 'space' | 'dotted'
+  thickness: number
+  color: Color
+}
+
+export interface PageBreakConfig { annotationType: 'page_break' }
+
+export interface HeaderConfig {
+  annotationType: 'header'
+  content: string
+  height: number
+  fontSize: number
+  textAlign: 'left' | 'center' | 'right'
+}
+
+export interface FooterConfig {
+  annotationType: 'footer'
+  content: string
+  height: number
+  fontSize: number
+  textAlign: 'left' | 'center' | 'right'
+}
 
 export type AnnotationConfig =
   | CalloutConfig
@@ -674,9 +677,11 @@ export const ALARM_COLORS: Record<number, string> = {
 // ---- Clipboard ----
 
 export interface ClipboardData {
+  source: 'io-designer'
   version: '1.0'
   sourceGraphicId: string
   nodes: SceneNode[]
+  expressions: Record<string, GraphicExpression>
   originalBounds: { x: number; y: number; width: number; height: number }
 }
 

@@ -30,7 +30,7 @@ export interface DesignerStatusBarProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const GRID_CYCLE = [4, 8, 16, 32] as const
+const GRID_CYCLE = [4, 8, 10, 16, 32] as const
 const ZOOM_PRESETS = [25, 50, 75, 100, 150, 200, 400] as const
 
 /**

@@ -114,32 +114,51 @@ function loadSidebarVisible(): boolean {
 // Viewport-visible point extraction
 // ---------------------------------------------------------------------------
 
+/** Return [width, height] estimate for a display element based on its config. */
+function displayElementSize(node: DisplayElement): [number, number] {
+  const cfg = node.config as unknown as Record<string, number> | undefined
+  switch (node.displayType) {
+    case 'text_readout': return [Math.max(cfg?.minWidth ?? 60, 80), 36]
+    case 'analog_bar':   return [cfg?.barWidth ?? 20, cfg?.barHeight ?? 100]
+    case 'fill_gauge':   return [cfg?.barWidth ?? 22, cfg?.barHeight ?? 90]
+    case 'sparkline':    return [110, 18]
+    case 'alarm_indicator': return [20, 20]
+    case 'digital_status':  return [80, 18]
+    default:             return [60, 24]
+  }
+}
+
 function getVisiblePointIds(
   doc: { children: SceneNode[] },
   vp: ViewportState,
 ): string[] {
   const visible = new Set<string>()
-  const vLeft = vp.panX
-  const vTop = vp.panY
-  const vRight = vp.panX + vp.screenWidth / vp.zoom
-  const vBottom = vp.panY + vp.screenHeight / vp.zoom
+  // 10% pre-fetch buffer (spec §4.2)
+  const buf = Math.max(vp.screenWidth, vp.screenHeight) * 0.1 / vp.zoom
+  const vLeft = vp.panX - buf
+  const vTop = vp.panY - buf
+  const vRight = vp.panX + vp.screenWidth / vp.zoom + buf
+  const vBottom = vp.panY + vp.screenHeight / vp.zoom + buf
 
   function scanNode(node: SceneNode) {
     if (!node.visible) return
     const { x, y } = node.transform.position
-    const nRight = x + 200
-    const nBottom = y + 200
-    const inViewport = x < vRight && nRight > vLeft && y < vBottom && nBottom > vTop
 
-    if (inViewport) {
-      if (node.type === 'display_element') {
-        const de = node as DisplayElement
+    if (node.type === 'display_element') {
+      const de = node as DisplayElement
+      const [w, h] = displayElementSize(de)
+      if (x < vRight && x + w > vLeft && y < vBottom && y + h > vTop) {
         if (de.binding?.pointId) visible.add(de.binding.pointId)
       }
-      if (node.type === 'symbol_instance') {
-        const si = node as SymbolInstance
+    } else if (node.type === 'symbol_instance') {
+      // No size info without fetching the shape SVG — use 200px estimate
+      const si = node as SymbolInstance
+      if (x < vRight && x + 200 > vLeft && y < vBottom && y + 200 > vTop) {
         if (si.stateBinding?.pointId) visible.add(si.stateBinding.pointId)
+        // Also collect display element children
+        for (const child of si.children) scanNode(child as SceneNode)
       }
+      return // children already handled above
     }
 
     if ('children' in node && Array.isArray(node.children)) {

@@ -247,6 +247,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
         />
         <Dialog.Content
           aria-label="Command palette"
+          aria-describedby={undefined}
           style={{
             position: 'fixed',
             top: '20%',
@@ -263,6 +264,10 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
           }}
           onKeyDown={handleKeyDown}
         >
+          {/* Visually-hidden title for screen readers */}
+          <Dialog.Title style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}>
+            Command Palette
+          </Dialog.Title>
           {/* Search input row */}
           <div
             style={{

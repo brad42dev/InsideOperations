@@ -4,7 +4,6 @@ import type {
   Pipe, TextBlock, Group, Annotation, ImageNode, EmbeddedSvgNode,
   WidgetNode, ViewportState, LayerDefinition,
   TextReadoutConfig, AnalogBarConfig, FillGaugeConfig, DigitalStatusConfig,
-  NumericIndicatorConfig,
 } from '../types/graphics'
 import { PIPE_SERVICE_COLORS, canvasToScreen } from '../types/graphics'
 import { fetchShapes } from './shapeCache'
@@ -34,6 +33,8 @@ export interface SceneRendererProps {
   viewport?: ViewportState
   /** Live point values keyed by pointId */
   pointValues?: Map<string, PointValue>
+  /** Sparkline history data keyed by pointId — array of numeric values, oldest first */
+  sparklineHistories?: Map<string, number[]>
   /** Called when a node with a navigationLink is clicked */
   onNavigate?: (targetGraphicId: string, targetUrl?: string) => void
   /** Designer mode — show selection handles, grid, locked indicators */
@@ -42,6 +43,8 @@ export interface SceneRendererProps {
   selectedNodeIds?: Set<string>
   /** Callback when a node is clicked (designer mode) */
   onNodeClick?: (nodeId: string, event: React.MouseEvent) => void
+  /** SVG preserveAspectRatio attribute — 'xMidYMid meet' (default) or 'none' to stretch */
+  preserveAspectRatio?: string
   className?: string
   style?: React.CSSProperties
 }
@@ -52,10 +55,12 @@ export function SceneRenderer({
   document,
   viewport,
   pointValues = new Map(),
+  sparklineHistories = new Map(),
   onNavigate,
   designerMode = false,
   selectedNodeIds = new Set(),
   onNodeClick,
+  preserveAspectRatio = 'xMidYMid meet',
   className,
   style,
 }: SceneRendererProps) {
@@ -72,15 +77,17 @@ export function SceneRenderer({
     screenHeight: canvas.height,
   }
 
-  // Apply LOD class to SVG element based on viewport zoom (doc 19 §LOD)
+  // LOD level from zoom (process-implementation-spec §4.3)
+  const lodLevel = vp.zoom < 0.15 ? 0 : vp.zoom < 0.4 ? 1 : vp.zoom < 0.8 ? 2 : 3
+
+  // Apply LOD class to container div (process-implementation-spec §4.3.3)
+  const containerDivRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const el = svgRef.current
+    const el = containerDivRef.current
     if (!el) return
-    el.classList.remove('io-lod-1', 'io-lod-2', 'io-lod-3')
-    if (vp.zoom < 0.3) el.classList.add('io-lod-1')
-    else if (vp.zoom < 0.7) el.classList.add('io-lod-2')
-    else el.classList.add('io-lod-3')
-  }, [vp.zoom])
+    el.classList.remove('lod-0', 'lod-1', 'lod-2', 'lod-3')
+    el.classList.add(`lod-${lodLevel}`)
+  }, [lodLevel])
 
   // Build layer lookup
   const layerMap = new Map<string, LayerDefinition>()
@@ -196,6 +203,7 @@ export function SceneRenderer({
         transform={getTransformAttr(node)}
         opacity={node.opacity}
         data-node-id={node.id}
+        data-lod="1"
         onClick={(e) => handleNodeClick(node, e)}
         style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}
       >
@@ -207,7 +215,7 @@ export function SceneRenderer({
   function renderPipe(node: Pipe): React.ReactElement {
     const color = PIPE_SERVICE_COLORS[node.serviceType] ?? '#6B8CAE'
     return (
-      <g key={node.id} data-node-id={node.id} opacity={node.opacity}>
+      <g key={node.id} data-node-id={node.id} data-lod="0" opacity={node.opacity}>
         <path
           d={node.pathData}
           stroke={color}
@@ -229,8 +237,9 @@ export function SceneRenderer({
 
   function renderTextBlock(node: TextBlock): React.ReactElement {
     const { content, fontFamily, fontSize, fontWeight, fontStyle, textAnchor, fill } = node
+    const textLod = fontSize >= 24 ? 0 : fontSize >= 14 ? 1 : 2
     return (
-      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id}>
+      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod={String(textLod)}>
         {node.background && (
           <rect
             x={0} y={0} width={200} height={fontSize + node.background.padding * 2}
@@ -257,7 +266,7 @@ export function SceneRenderer({
   function renderImage(node: ImageNode): React.ReactElement {
     const url = graphicsApi.imageUrl(node.assetRef.hash)
     return (
-      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id}>
+      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
         <image
           href={url}
           width={node.displayWidth}
@@ -276,6 +285,7 @@ export function SceneRenderer({
         transform={getTransformAttr(node)}
         opacity={node.opacity}
         data-node-id={node.id}
+        data-lod="0"
         dangerouslySetInnerHTML={{ __html: node.svgContent }}
       />
     )
@@ -304,7 +314,7 @@ export function SceneRenderer({
         const valueY = cfg.showLabel && label ? h * 0.65 : h / 2
         const flashClass = unacked && alarmColor ? 'io-alarm-flash' : ''
         return (
-          <g key={node.id} className={`io-display-element ${flashClass}`} transform={`translate(${x},${y})`} opacity={node.opacity} data-node-id={node.id} data-point-id={node.binding.pointId}>
+          <g key={node.id} className={`io-display-element ${flashClass}`} transform={`translate(${x},${y})`} opacity={node.opacity} data-node-id={node.id} data-lod="1" data-point-id={node.binding.pointId} data-display-type="text_readout">
             {cfg.showBox && <rect x={0} y={0} width={w} height={h} rx={2} fill={boxFill} stroke={boxStroke} strokeWidth={strokeWidth} />}
             {cfg.showLabel && label && <text x={w/2} y={6} textAnchor="middle" dominantBaseline="hanging" fontFamily="Inter" fontSize={8} fill="#71717A">{label}</text>}
             <text x={w/2} y={valueY} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={11} fill={valueColor} style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -325,7 +335,7 @@ export function SceneRenderer({
         const label = isGhost ? '—' : String(priority)
         const shapeEl = renderAlarmShape(priority, isGhost, color)
         return (
-          <g key={node.id} className={`io-alarm-indicator ${flashClass}`} data-node-id={node.id} opacity={isGhost ? 0.25 : node.opacity} transform={`translate(${x},${y})`}>
+          <g key={node.id} className={`io-alarm-indicator ${flashClass}`} data-node-id={node.id} data-lod="1" opacity={isGhost ? 0.25 : node.opacity} transform={`translate(${x},${y})`} data-display-type="alarm_indicator" data-point-id={node.binding.pointId}>
             {shapeEl}
             <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fontWeight={600} fill={color}>{label}</text>
           </g>
@@ -341,7 +351,7 @@ export function SceneRenderer({
         const textColor = isNormal ? '#A1A1AA' : '#F9FAFB'
         const w = Math.max(40, label.length * 7.5 + 12)
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} opacity={node.opacity} transform={`translate(${x},${y})`}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="digital_status" data-point-id={node.binding.pointId}>
             <rect x={0} y={0} width={w} height={18} rx={2} fill={fill} />
             <text x={w/2} y={9} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fill={textColor}>{label}</text>
           </g>
@@ -369,7 +379,7 @@ export function SceneRenderer({
           { fill: '#2E3A5C', y: hhH + hH + normalH + lH, h: llH, label: 'LL' },
         ]
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} opacity={node.opacity} transform={`translate(${x},${y})`}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="analog_bar" data-point-id={node.binding.pointId}>
             <rect x={0} y={0} width={bw} height={bh} fill="#27272A" stroke="#52525B" strokeWidth={0.5} />
             {zones.map((z, i) => <rect key={i} x={1} y={z.y} width={bw-2} height={Math.max(0,z.h)} fill={z.fill} stroke="#52525B" strokeWidth={0.5} />)}
             {cfg.showZoneLabels && zones.filter(z => z.label).map((z, i) => (
@@ -387,10 +397,30 @@ export function SceneRenderer({
         const W = 110, H = 18
         const alarmPriority = pv?.alarmPriority as number | null | undefined
         const strokeColor = alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'
+        const history = node.binding.pointId ? sparklineHistories.get(node.binding.pointId) : undefined
+        let polylinePoints = ''
+        if (history && history.length >= 2) {
+          const nums = history.filter((v) => typeof v === 'number' && isFinite(v))
+          if (nums.length >= 2) {
+            const lo = Math.min(...nums)
+            const hi = Math.max(...nums)
+            const range = hi - lo || 1
+            const pad = 2
+            polylinePoints = nums.map((v, i) => {
+              const px = pad + (i / (nums.length - 1)) * (W - pad * 2)
+              const py = pad + (1 - (v - lo) / range) * (H - pad * 2)
+              return `${px.toFixed(1)},${py.toFixed(1)}`
+            }).join(' ')
+          }
+        }
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} opacity={node.opacity} transform={`translate(${x},${y})`}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="sparkline" data-point-id={node.binding.pointId}>
             <rect x={0} y={0} width={W} height={H} rx={1} fill="#27272A" />
-            <line x1={3} y1={H/2} x2={W-3} y2={H/2} stroke={strokeColor} strokeWidth={1.5} strokeLinecap="round" />
+            {polylinePoints ? (
+              <polyline points={polylinePoints} fill="none" stroke={strokeColor} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+            ) : (
+              <line x1={3} y1={H/2} x2={W-3} y2={H/2} stroke={strokeColor} strokeWidth={1.5} strokeLinecap="round" opacity={0.3} />
+            )}
           </g>
         )
       }
@@ -408,38 +438,11 @@ export function SceneRenderer({
         const fillY = bh - 1 - fillH
         const fmtPct = `${(pct * 100).toFixed(0)}%`
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} opacity={node.opacity} transform={`translate(${x},${y})`}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={node.binding.pointId}>
             <rect x={0} y={0} width={bw} height={bh} rx={2} fill="none" stroke="#52525B" strokeWidth={0.5} />
             <rect x={1} y={fillY} width={bw-2} height={fillH} rx={1} fill={fillColor} />
             {cfg.showLevelLine && fillH > 0 && <line x1={1} y1={fillY} x2={bw-1} y2={fillY} stroke="#64748B" strokeWidth={1} strokeDasharray="5 3" />}
             {cfg.showValue && <text x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
-          </g>
-        )
-      }
-
-      case 'numeric_indicator': {
-        const cfg = node.config as NumericIndicatorConfig
-        const raw = pv?.value ?? null
-        const priority = pv?.alarmPriority as (1|2|3|4|5) | null | undefined
-        const unacked = pv?.unacknowledged ?? false
-        let displayValue = '---'
-        if (raw !== null) {
-          const num = typeof raw === 'number' ? raw : parseFloat(String(raw))
-          displayValue = isNaN(num) ? String(raw) : num.toFixed(cfg.decimalPlaces)
-        }
-        const alarmColor = priority ? ALARM_COLORS[priority] : null
-        const valueColor = alarmColor ?? '#F9FAFB'
-        const flashClass = unacked && alarmColor ? 'io-alarm-flash' : ''
-        const label = cfg.showLabel ? (cfg.labelText ?? pv?.tag ?? '') : null
-        const unitStr = cfg.showUnit && pv?.units ? pv.units : null
-        const labelH = label ? 14 : 0
-        const unitH = unitStr ? 14 : 0
-        const cy = labelH + cfg.fontSize / 2 + 3
-        return (
-          <g key={node.id} className={`io-display-element ${flashClass}`} data-node-id={node.id} opacity={node.opacity} transform={`translate(${x},${y})`}>
-            {label && <text x={cfg.width/2} y={10} textAnchor="middle" dominantBaseline="middle" fontFamily="Inter" fontSize={9} fill="#71717A" style={{ letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</text>}
-            <text x={cfg.width/2} y={cy} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={cfg.fontSize} fontWeight="600" fill={valueColor} style={{ fontVariantNumeric: 'tabular-nums' }}>{displayValue}</text>
-            {unitStr && <text x={cfg.width/2} y={labelH + cfg.fontSize + unitH/2 + 3} textAnchor="middle" dominantBaseline="middle" fontFamily="Inter" fontSize={10} fill="#71717A">{unitStr}</text>}
           </g>
         )
       }
@@ -474,6 +477,7 @@ export function SceneRenderer({
         transform={getTransformAttr(node)}
         opacity={node.opacity}
         data-node-id={node.id}
+        data-lod="0"
         className={[stateClass, isSelected ? 'io-selected' : ''].filter(Boolean).join(' ')}
         onClick={(e) => handleNodeClick(node, e)}
         style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}
@@ -490,7 +494,7 @@ export function SceneRenderer({
     const { config } = node
     if (config.annotationType === 'border') {
       return (
-        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id}>
+        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
           <rect
             x={0} y={0}
             width={config.width} height={config.height}
@@ -510,7 +514,7 @@ export function SceneRenderer({
     }
     if (config.annotationType === 'callout') {
       return (
-        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id}>
+        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
           <text fontFamily="Inter" fontSize={config.fontSize} fill={config.fill}>{config.text}</text>
         </g>
       )
@@ -563,7 +567,8 @@ export function SceneRenderer({
 
   return (
     <div
-      className={className}
+      ref={containerDivRef}
+      className={['io-canvas-container', `lod-${lodLevel}`, className].filter(Boolean).join(' ')}
       style={{
         position: 'relative',
         width: '100%',
@@ -578,6 +583,7 @@ export function SceneRenderer({
         ref={svgRef}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         viewBox={`0 0 ${canvas.width} ${canvas.height}`}
+        preserveAspectRatio={preserveAspectRatio}
         xmlns="http://www.w3.org/2000/svg"
       >
         <g transform={svgTransform}>

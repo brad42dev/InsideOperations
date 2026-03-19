@@ -34,10 +34,21 @@ export interface AuthProvider {
 
 export interface EulaVersion {
   id: string
+  eula_type: 'installer' | 'end_user'
   version: string
   title: string
   content: string
   published_at: string | null
+}
+
+/** One item returned by GET /auth/eula/pending */
+export interface EulaPendingItem {
+  eula_type: 'installer' | 'end_user'
+  id: string
+  version: string
+  title: string
+  content: string
+  published_at: string
 }
 
 export interface EulaStatus {
@@ -51,7 +62,25 @@ export const authApi = {
   logout: () => api.post<void>('/api/auth/logout', {}),
   refresh: () => api.post<RefreshResponse>('/api/auth/refresh', {}),
   providers: () => api.get<AuthProvider[]>('/api/auth/providers'),
-  eulaGetCurrent: () => api.get<EulaVersion>('/api/auth/eula/current'),
+
+  /** Fetch the active EULA for the given type (default: end_user) */
+  eulaGetCurrent: (type: 'installer' | 'end_user' = 'end_user') =>
+    api.get<EulaVersion>(`/api/auth/eula/current?type=${type}`),
+
+  /** Returns ordered list of EULAs this user still needs to accept */
+  eulaGetPending: () => api.get<EulaPendingItem[]>('/api/auth/eula/pending'),
+
+  /** Accept a specific EULA version */
+  eulaAccept: (
+    version: string,
+    eula_type: 'installer' | 'end_user' = 'end_user',
+    acceptance_context: 'installer' | 'installer_admin' | 'login' | 'version_update' = 'login',
+  ) =>
+    api.post<{ accepted: boolean; receipt_token: string }>(
+      '/api/auth/eula/accept',
+      { version, eula_type, acceptance_context },
+    ),
+
+  /** @deprecated use eulaGetPending instead */
   eulaStatus: () => api.get<EulaStatus>('/api/auth/eula/status'),
-  eulaAccept: (version: string) => api.post<{ accepted: boolean }>('/api/auth/eula/accept', { version }),
 }
