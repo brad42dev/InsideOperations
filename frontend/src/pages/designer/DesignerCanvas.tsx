@@ -3086,10 +3086,18 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
 
     const sym = hitNode as SymbolInstance
 
-    // Determine anchor position: place the readout slightly offset from the symbol
+    // Determine anchor position from sidecar valueAnchors first, else fall back below-shape
     const bounds = getNodeBounds(sym)
-    const anchorX = bounds.x
-    const anchorY = bounds.y + bounds.h + 4
+    let anchorX = bounds.x
+    let anchorY = bounds.y + bounds.h + 4
+    const libEntry = useLibraryStore.getState().cache.get(sym.shapeRef.shapeId)
+    const valueAnchors = libEntry?.sidecar?.valueAnchors as Array<{ nx: number; ny: number; preferredElement?: string }> | undefined
+    const anchor = valueAnchors?.[0]
+    if (anchor) {
+      // Normalized anchor coordinates → absolute position using shape bounds
+      anchorX = sym.transform.position.x + anchor.nx * bounds.w
+      anchorY = sym.transform.position.y + anchor.ny * bounds.h
+    }
 
     // Create a DisplayElement (text_readout) at the anchor position
     const de: DisplayElement = {
