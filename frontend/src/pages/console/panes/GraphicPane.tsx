@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { graphicsApi } from '../../../api/graphics'
 import { SceneRenderer } from '../../../shared/graphics/SceneRenderer'
@@ -107,6 +108,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio = true }: Props) {
+  const navigate = useNavigate()
   const [statusView, setStatusView] = useState(false)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['graphic', graphicId],
@@ -502,25 +504,30 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
             {
               label: 'Trend Point',
               onClick: () => {
-                console.log('[Console] Trend point:', pointCtxMenu.pointId)
+                // Open a forensics trend pre-loaded with this point
+                navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}&mode=trend`)
+                setPointCtxMenu(null)
               },
             },
             {
               label: 'Investigate Point',
               onClick: () => {
-                console.log('[Console] Investigate point:', pointCtxMenu.pointId)
+                navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
+                setPointCtxMenu(null)
               },
             },
             {
               label: 'Report on Point',
               onClick: () => {
-                console.log('[Console] Report on point:', pointCtxMenu.pointId)
+                navigate(`/reports?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
+                setPointCtxMenu(null)
               },
             },
             {
               label: 'Investigate Alarm',
               onClick: () => {
-                console.log('[Console] Investigate alarm:', pointCtxMenu.pointId)
+                navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}&mode=alarm`)
+                setPointCtxMenu(null)
               },
             },
           ]}
