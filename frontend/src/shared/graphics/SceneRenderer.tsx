@@ -455,11 +455,15 @@ export function SceneRenderer({
   function renderSymbolInstance(node: SymbolInstance): React.ReactElement {
     const shapeData = shapeMap.get(node.shapeRef.shapeId)
     const svgContent = shapeData?.svg ?? ''
+    const sidecar = shapeData?.sidecar as {
+      textZones?: Array<{ id: string; x: number; y: number; width?: number; anchor?: string; fontSize?: number }>
+    } | undefined
+
     // Derive operational state CSS class from stateBinding point value
     let stateClass = ''
-    if (node.stateBinding?.pointId) {
-      const statePv = pointValues.get(node.stateBinding.pointId)
-      const stateVal = statePv?.value !== undefined ? String(statePv.value).toLowerCase() : ''
+    const statePv = node.stateBinding?.pointId ? pointValues.get(node.stateBinding.pointId) : undefined
+    if (statePv) {
+      const stateVal = statePv.value !== undefined ? String(statePv.value).toLowerCase() : ''
       if (stateVal === 'running' || stateVal === '1' || stateVal === 'true' || stateVal === 'on') {
         stateClass = 'io-running'
       } else if (stateVal === 'fault' || stateVal === 'error' || stateVal === 'fail') {
@@ -470,6 +474,41 @@ export function SceneRenderer({
         stateClass = 'io-oos'
       }
     }
+
+    // Render text zones from shape sidecar (spec §Shape Library: Text Zones)
+    const textZoneElements = (sidecar?.textZones ?? []).map((zone) => {
+      const override = node.textZoneOverrides?.[zone.id]
+      if (override?.visible === false) return null
+      // Determine text content: static override > tag from bound point > empty
+      const text = override?.staticText ?? statePv?.tag ?? ''
+      if (!text && !designerMode) return null
+      const displayText = text || (designerMode ? `[${zone.id}]` : '')
+      return (
+        <text
+          key={`tz-${zone.id}`}
+          x={zone.x}
+          y={zone.y}
+          textAnchor={(zone.anchor as 'start' | 'middle' | 'end') ?? 'middle'}
+          dominantBaseline="auto"
+          fontFamily="Inter"
+          fontSize={override?.fontSize ?? zone.fontSize ?? 10}
+          fill="#71717A"
+          data-lod="2"
+        >
+          {displayText}
+        </text>
+      )
+    })
+
+    // Render composable parts (actuators, supports, etc.) — spec §Shape Library: Composable Parts
+    const composablePartElements = (node.composableParts ?? []).map((part) => {
+      const partData = shapeMap.get(part.partId)
+      if (!partData?.svg) return null
+      return (
+        <g key={`part-${part.partId}`} dangerouslySetInnerHTML={{ __html: partData.svg }} />
+      )
+    })
+
     const isSelected = designerMode && selectedNodeIds.has(node.id)
     return (
       <g
@@ -485,6 +524,8 @@ export function SceneRenderer({
         {svgContent && (
           <g dangerouslySetInnerHTML={{ __html: svgContent }} />
         )}
+        {composablePartElements}
+        {textZoneElements}
         {node.children.map((child) => renderDisplayElement(child))}
       </g>
     )
@@ -586,6 +627,12 @@ export function SceneRenderer({
         preserveAspectRatio={preserveAspectRatio}
         xmlns="http://www.w3.org/2000/svg"
       >
+        {/* Shared pattern definitions — OOS hatch (spec §Shape Library: Operational State CSS) */}
+        <defs>
+          <pattern id="io-hatch-pattern" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#52525B" strokeWidth="2" />
+          </pattern>
+        </defs>
         <g transform={svgTransform}>
           {/* Grid (designer mode only) */}
           {designerMode && document.metadata.gridVisible && (

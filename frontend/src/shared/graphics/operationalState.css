@@ -53,9 +53,15 @@
 }
 
 /* ── OUT OF SERVICE ──────────────────────────────────────── */
-/* Dashed stroke — equipment is OOS / maintenance */
+/* Dashed stroke + hatch fill — equipment is OOS / maintenance */
 .io-oos .io-stateful {
   stroke: #808080 !important;
   stroke-dasharray: 4 3 !important;
-  fill: none !important;
+  fill: url(#io-hatch-pattern) !important;
+}
+/* Non-SVG fill fallback for environments where pattern refs aren't resolved */
+@supports not (fill: url(#io-hatch-pattern)) {
+  .io-oos .io-stateful {
+    fill: none !important;
+  }
 }
