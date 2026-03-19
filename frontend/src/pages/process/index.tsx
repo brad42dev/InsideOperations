@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { graphicsApi } from '../../api/graphics'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
@@ -200,6 +201,7 @@ function countTotalPoints(doc: { children: SceneNode[] }): number {
 // ---------------------------------------------------------------------------
 
 export default function ProcessPage() {
+  const navigate = useNavigate()
   const qc = useQueryClient()
 
   // ---- View selection -------------------------------------------------------
@@ -308,6 +310,32 @@ export default function ProcessPage() {
 
   function handleSelectBookmark(bm: { panX: number; panY: number; zoom: number }) {
     setViewport((vp) => ({ ...vp, panX: bm.panX, panY: bm.panY, zoom: bm.zoom }))
+  }
+
+  const deleteViewportBookmarkMutation = useMutation({
+    mutationFn: (id: string) => bookmarksApi.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookmarks', 'viewport'] }),
+  })
+
+  const renameViewportBookmarkMutation = useMutation({
+    mutationFn: ({ id, name, bm }: { id: string; name: string; bm: ViewportBookmark }) => {
+      const newData = JSON.stringify({ label: name, panX: bm.panX, panY: bm.panY, zoom: bm.zoom })
+      // Bookmarks API doesn't support update — delete + re-add
+      return bookmarksApi.remove(id).then(() =>
+        bookmarksApi.add({ entity_type: 'viewport', entity_id: selectedId ?? 'process', name: newData }),
+      )
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookmarks', 'viewport'] }),
+  })
+
+  function handleDeleteBookmark(id: string) {
+    deleteViewportBookmarkMutation.mutate(id)
+  }
+
+  function handleRenameBookmark(id: string, newName: string) {
+    const bm = viewportBookmarks.find((b) => b.id === id)
+    if (!bm) return
+    renameViewportBookmarkMutation.mutate({ id, name: newName, bm })
   }
 
   // ---- View selection handler -----------------------------------------------
@@ -696,6 +724,8 @@ export default function ProcessPage() {
           bookmarks={viewportBookmarks}
           onSelectBookmark={handleSelectBookmark}
           onAddBookmark={handleAddBookmark}
+          onDeleteBookmark={handleDeleteBookmark}
+          onRenameBookmark={handleRenameBookmark}
           recentViews={recentViews}
           graphicsList={graphicsList}
           graphicsLoading={graphicsLoading}
@@ -863,7 +893,7 @@ export default function ProcessPage() {
                 { label: 'Zoom to Fit', onClick: () => { zoomFit(); setCanvasCtxMenu(null) } },
                 { label: 'Zoom to 100%', onClick: () => { zoom100(); setCanvasCtxMenu(null) } },
                 { label: 'Bookmark This View…', onClick: () => { handleAddBookmark(); setCanvasCtxMenu(null) } },
-                { label: 'Open in Designer', onClick: () => { console.log('[Process] Open in Designer', selectedId) } },
+                { label: 'Open in Designer', onClick: () => { if (selectedId) navigate(`/designer/graphics/${selectedId}/edit`) } },
               ]}
             />
           )}

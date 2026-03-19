@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { DesignObjectSummary } from '../../api/graphics'
 import { graphicsApi } from '../../api/graphics'
+import ContextMenu from '../../shared/components/ContextMenu'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,6 +23,8 @@ export interface ProcessSidebarProps {
   bookmarks: ViewportBookmark[]
   onSelectBookmark: (bookmark: { panX: number; panY: number; zoom: number }) => void
   onAddBookmark: () => void
+  onDeleteBookmark?: (id: string) => void
+  onRenameBookmark?: (id: string, name: string) => void
   recentViews: Array<{ id: string; name: string }>
   graphicsList: DesignObjectSummary[] | undefined
   graphicsLoading: boolean
@@ -172,11 +175,14 @@ export default function ProcessSidebar({
   bookmarks,
   onSelectBookmark,
   onAddBookmark,
+  onDeleteBookmark,
+  onRenameBookmark,
   recentViews,
   graphicsList,
   graphicsLoading,
 }: ProcessSidebarProps) {
   const [viewSearch, setViewSearch] = useState('')
+  const [bmCtxMenu, setBmCtxMenu] = useState<{ x: number; y: number; id: string; name: string } | null>(null)
 
   const filteredGraphics = (graphicsList ?? []).filter(
     (g) => !viewSearch || g.name.toLowerCase().includes(viewSearch.toLowerCase()),
@@ -322,6 +328,10 @@ export default function ProcessSidebar({
               <button
                 key={bm.id}
                 onClick={() => onSelectBookmark(bm)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setBmCtxMenu({ x: e.clientX, y: e.clientY, id: bm.id, name: bm.name })
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -343,6 +353,30 @@ export default function ProcessSidebar({
                 </span>
               </button>
             ))}
+            {bmCtxMenu && (
+              <ContextMenu
+                x={bmCtxMenu.x}
+                y={bmCtxMenu.y}
+                onClose={() => setBmCtxMenu(null)}
+                items={[
+                  {
+                    label: 'Rename…',
+                    onClick: () => {
+                      const newName = prompt('Bookmark name:', bmCtxMenu.name)
+                      if (newName?.trim()) onRenameBookmark?.(bmCtxMenu.id, newName.trim())
+                      setBmCtxMenu(null)
+                    },
+                  },
+                  {
+                    label: 'Delete',
+                    onClick: () => {
+                      onDeleteBookmark?.(bmCtxMenu.id)
+                      setBmCtxMenu(null)
+                    },
+                  },
+                ]}
+              />
+            )}
           </div>
         </AccordionSection>
 
