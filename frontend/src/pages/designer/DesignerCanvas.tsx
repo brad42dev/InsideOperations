@@ -1403,15 +1403,18 @@ function ConnectionPointsOverlay({
     const scaleY = bh / (vbH || 1)
 
     const { x: ix, y: iy } = si.transform.position
+    const rotDeg = si.transform.rotation ?? 0
+    const rotRad = (rotDeg * Math.PI) / 180
 
     for (const cp of entry.sidecar.connections ?? []) {
-      const cx = cp.x ?? 0
-      const cy = cp.y ?? 0
-      dots.push({
-        key: `${si.id}-${cp.id}`,
-        wx: ix + cx * scaleX,
-        wy: iy + cy * scaleY,
-      })
+      // Local position within the shape (scaled to canvas units)
+      const lx = (cp.x ?? 0) * scaleX
+      const ly = (cp.y ?? 0) * scaleY
+      // Apply rotation around shape origin (0,0), then translate to world space
+      // (Matches SVG transform: translate(ix,iy) rotate(rotDeg))
+      const wx = ix + lx * Math.cos(rotRad) - ly * Math.sin(rotRad)
+      const wy = iy + lx * Math.sin(rotRad) + ly * Math.cos(rotRad)
+      dots.push({ key: `${si.id}-${cp.id}`, wx, wy })
     }
   }
 
@@ -1629,10 +1632,14 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       const scaleX = bw / (vbW || 1)
       const scaleY = bh / (vbH || 1)
       const { x: ix, y: iy } = si.transform.position
+      const rotDeg = si.transform.rotation ?? 0
+      const rotRad = (rotDeg * Math.PI) / 180
 
       for (const cp of entry.sidecar.connections ?? []) {
-        const wx = ix + (cp.x ?? 0) * scaleX
-        const wy = iy + (cp.y ?? 0) * scaleY
+        const lx = (cp.x ?? 0) * scaleX
+        const ly = (cp.y ?? 0) * scaleY
+        const wx = ix + lx * Math.cos(rotRad) - ly * Math.sin(rotRad)
+        const wy = iy + lx * Math.sin(rotRad) + ly * Math.cos(rotRad)
         const dist = Math.hypot(wx - cx, wy - cy)
         if (dist < bestDist) {
           bestDist = dist
