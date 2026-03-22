@@ -396,7 +396,17 @@ export default function AppShell() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // 3-state sidebar: 'expanded' | 'collapsed' | 'hidden'
-  const [sidebarState, setSidebarState] = useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
+  // Read from localStorage on first mount as the interim persistence mechanism
+  // (user_preferences API replaces this in Phase 15 — key: 'sidebar_state' in JSONB)
+  const [sidebarState, setSidebarState] = useState<'expanded' | 'collapsed' | 'hidden'>(() => {
+    try {
+      const stored = localStorage.getItem('io_sidebar_state')
+      if (stored === 'expanded' || stored === 'collapsed' || stored === 'hidden') return stored
+    } catch {
+      // ignore localStorage errors (e.g. private browsing restrictions)
+    }
+    return 'expanded'
+  })
   const sidebarCollapsed = sidebarState === 'collapsed'
   // sidebarHidden drives the edge-reveal strip
   const sidebarHidden = sidebarState === 'hidden'
@@ -423,6 +433,19 @@ export default function AppShell() {
   // Refs to hold kiosk helpers — avoids stale closures in the keyboard effect
   const isKioskRef = useRef(isKiosk)
   isKioskRef.current = isKiosk
+
+  // Persist sidebar state to localStorage whenever it changes.
+  // Kiosk mode forces 'hidden' — we do not persist that transient state
+  // so that exiting kiosk restores the user's preferred sidebar state.
+  useEffect(() => {
+    if (!isKiosk) {
+      try {
+        localStorage.setItem('io_sidebar_state', sidebarState)
+      } catch {
+        // ignore
+      }
+    }
+  }, [sidebarState, isKiosk])
 
   function enterKiosk() {
     preKioskSidebarRef.current = sidebarState

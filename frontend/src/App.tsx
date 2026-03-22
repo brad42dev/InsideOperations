@@ -1,122 +1,174 @@
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import * as echarts from 'echarts'
 import { ioLightTheme, ioDarkTheme, ioHighContrastTheme } from './shared/theme/echarts-themes'
 import { ThemeProvider } from './shared/theme/ThemeContext'
+import AppShell from './shared/layout/AppShell'
+import PermissionGuard from './shared/components/PermissionGuard'
+import { ErrorBoundary } from './shared/components/ErrorBoundary'
+import { useAuthStore } from './store/auth'
+import { useUiStore } from './store/ui'
+import { subscribeToSync } from './lib/broadcastSync'
+import PointDetailPanel from './shared/components/PointDetailPanel'
+import { usePointDetailStore } from './store/pointDetailStore'
+import ToastProvider from './shared/components/Toast'
+import LoginPage from './pages/Login'
+import NotFound from './pages/NotFound'
+import ResetPassword from './pages/ResetPassword'
+import EulaAcceptance from './pages/EulaAcceptance'
+import EulaGate from './pages/EulaGate'
+import OidcCallback from './pages/OidcCallback'
 
 // Register named ECharts themes at module load time (once, before any chart renders).
 // Names are prefixed 'io-' to avoid collision with ECharts built-in 'light' / 'dark'.
 echarts.registerTheme('io-light', ioLightTheme)
 echarts.registerTheme('io-dark', ioDarkTheme)
 echarts.registerTheme('io-high-contrast', ioHighContrastTheme)
-import AppShell from './shared/layout/AppShell'
-import PermissionGuard from './shared/components/PermissionGuard'
-import DesignerPage from './pages/designer/index'
-import DesignerHome from './pages/designer/DesignerHome'
-import DesignerGraphicsList from './pages/designer/DesignerGraphicsList'
-import DesignerReportsList from './pages/designer/DesignerReportsList'
-import DesignerImport from './pages/designer/DesignerImport'
-import DesignerDashboardsList from './pages/designer/DesignerDashboardsList'
-import ConsolePage from './pages/console/index'
-import WorkspaceView from './pages/console/WorkspaceView'
-import WorkspaceEditor from './pages/console/WorkspaceEditor'
-import ProcessPage from './pages/process/index'
-import ProcessView from './pages/process/ProcessView'
-import ProcessEditor from './pages/process/ProcessEditor'
-import LoginPage from './pages/Login'
-import NotFound from './pages/NotFound'
-import ResetPassword from './pages/ResetPassword'
-import EulaAcceptance from './pages/EulaAcceptance'
-import EulaGate from './pages/EulaGate'
-import SettingsShell from './pages/settings/index'
-import UsersPage from './pages/settings/Users'
-import UserDetail from './pages/settings/UserDetail'
-import RolesPage from './pages/settings/Roles'
-import Groups from './pages/settings/Groups'
-import OpcSourcesPage from './pages/settings/OpcSources'
-import AppearancePage from './pages/settings/Appearance'
-import HealthPage from './pages/settings/Health'
-import AboutPage from './pages/settings/About'
-import EulaAdminPage from './pages/settings/EulaAdmin'
-import CertificatesPage from './pages/settings/Certificates'
-import BackupRestorePage from './pages/settings/BackupRestore'
-import ExpressionLibrary from './pages/settings/ExpressionLibrary'
-import ReportScheduling from './pages/settings/ReportScheduling'
-import ExportPresets from './pages/settings/ExportPresets'
-import EmailSettingsPage from './pages/settings/Email'
-import SecurityPage from './pages/settings/Security'
-import ImportSettingsPage from './pages/settings/Import'
-import RecognitionPage from './pages/settings/Recognition'
-import AuthProvidersPage from './pages/settings/AuthProviders'
-import MfaSettingsPage from './pages/settings/MfaSettings'
-import ApiKeysPage from './pages/settings/ApiKeys'
-import ScimTokensPage from './pages/settings/ScimTokens'
-import SmsProvidersPage from './pages/settings/SmsProviders'
-import SystemHealth from './pages/settings/SystemHealth'
-import Sessions from './pages/settings/Sessions'
-import Display from './pages/settings/Display'
-import DataSources from './pages/settings/DataSources'
-import OpcConfig from './pages/settings/OpcConfig'
-import PointManagement from './pages/settings/PointManagement'
-import EventConfig from './pages/settings/EventConfig'
-import AlertConfig from './pages/settings/AlertConfig'
-import Badges from './pages/settings/Badges'
-import BulkUpdate from './pages/settings/BulkUpdate'
-import Snapshots from './pages/settings/Snapshots'
-import OidcCallback from './pages/OidcCallback'
-import ReportsPage from './pages/reports/index'
-import ReportViewer from './pages/reports/ReportViewer'
-import ReportTemplates from './pages/reports/ReportTemplates'
-import ReportGenerator from './pages/reports/ReportGenerator'
-import ReportHistory from './pages/reports/ReportHistory'
-import ReportSchedules from './pages/reports/ReportSchedules'
-import MyExports from './pages/reports/MyExports'
-import DashboardsPage from './pages/dashboards/index'
-import DashboardViewer from './pages/dashboards/DashboardViewer'
-import DashboardBuilder from './pages/dashboards/DashboardBuilder'
-import PlaylistPlayer from './pages/dashboards/PlaylistPlayer'
-import ForensicsPage from './pages/forensics/index'
-import InvestigationWorkspace from './pages/forensics/InvestigationWorkspace'
-import ForensicsNew from './pages/forensics/ForensicsNew'
-import InvestigationEditor from './pages/forensics/InvestigationEditor'
-import RoundsPage from './pages/rounds/index'
-import RoundPlayer from './pages/rounds/RoundPlayer'
-import TemplateDesigner from './pages/rounds/TemplateDesigner'
-import ActiveRounds from './pages/rounds/ActiveRounds'
-import RoundTemplates from './pages/rounds/RoundTemplates'
-import RoundExecution from './pages/rounds/RoundExecution'
-import RoundSchedules from './pages/rounds/RoundSchedules'
-import RoundHistory from './pages/rounds/RoundHistory'
-import LogPage from './pages/log/index'
-import LogEditor from './pages/log/LogEditor'
-import LogNew from './pages/log/LogNew'
-import LogEntryEdit from './pages/log/LogEntryEdit'
-import LogTemplates from './pages/log/LogTemplates'
-import LogSchedules from './pages/log/LogSchedules'
-import TemplateEditor from './pages/log/TemplateEditor'
-import AlertsPage from './pages/alerts/index'
-import MusterDashboard from './pages/alerts/MusterDashboard'
-import ActiveAlerts from './pages/alerts/ActiveAlerts'
-import AlertHistory from './pages/alerts/AlertHistory'
-import AlertComposer from './pages/alerts/AlertComposer'
-import AlertTemplates from './pages/alerts/AlertTemplates'
-import AlertGroups from './pages/alerts/AlertGroups'
-import MusterPage from './pages/alerts/MusterPage'
-import ShiftsPage from './pages/shifts/index'
-import ShiftSchedule from './pages/shifts/ShiftSchedule'
-import ShiftScheduleEditor from './pages/shifts/ShiftScheduleEditor'
-import CrewList from './pages/shifts/CrewList'
-import PresenceBoard from './pages/shifts/PresenceBoard'
-import MusterPointConfig from './pages/shifts/MusterPointConfig'
-import ToastProvider from './shared/components/Toast'
-import { ErrorBoundary } from './shared/components/ErrorBoundary'
-import { useAuthStore } from './store/auth'
-import PointDetailPanel from './shared/components/PointDetailPanel'
-import { usePointDetailStore } from './store/pointDetailStore'
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded module-level page components (code splitting)
+// spec: 06_FRONTEND_SHELL.md §Routing — "Lazy loading for all 11 modules"
+// ---------------------------------------------------------------------------
+
+// Console module
+const ConsolePage = lazy(() => import('./pages/console/index'))
+const WorkspaceView = lazy(() => import('./pages/console/WorkspaceView'))
+const WorkspaceEditor = lazy(() => import('./pages/console/WorkspaceEditor'))
+
+// Process module
+const ProcessPage = lazy(() => import('./pages/process/index'))
+const ProcessView = lazy(() => import('./pages/process/ProcessView'))
+const ProcessEditor = lazy(() => import('./pages/process/ProcessEditor'))
+
+// Designer module
+const DesignerPage = lazy(() => import('./pages/designer/index'))
+const DesignerHome = lazy(() => import('./pages/designer/DesignerHome'))
+const DesignerGraphicsList = lazy(() => import('./pages/designer/DesignerGraphicsList'))
+const DesignerReportsList = lazy(() => import('./pages/designer/DesignerReportsList'))
+const DesignerImport = lazy(() => import('./pages/designer/DesignerImport'))
+const DesignerDashboardsList = lazy(() => import('./pages/designer/DesignerDashboardsList'))
+
+// Dashboards module
+const DashboardsPage = lazy(() => import('./pages/dashboards/index'))
+const DashboardViewer = lazy(() => import('./pages/dashboards/DashboardViewer'))
+const DashboardBuilder = lazy(() => import('./pages/dashboards/DashboardBuilder'))
+const PlaylistPlayer = lazy(() => import('./pages/dashboards/PlaylistPlayer'))
+
+// Reports module
+const ReportsPage = lazy(() => import('./pages/reports/index'))
+const ReportViewer = lazy(() => import('./pages/reports/ReportViewer'))
+const ReportTemplates = lazy(() => import('./pages/reports/ReportTemplates'))
+const ReportGenerator = lazy(() => import('./pages/reports/ReportGenerator'))
+const ReportHistory = lazy(() => import('./pages/reports/ReportHistory'))
+const ReportSchedules = lazy(() => import('./pages/reports/ReportSchedules'))
+const MyExports = lazy(() => import('./pages/reports/MyExports'))
+
+// Forensics module
+const ForensicsPage = lazy(() => import('./pages/forensics/index'))
+const InvestigationWorkspace = lazy(() => import('./pages/forensics/InvestigationWorkspace'))
+const ForensicsNew = lazy(() => import('./pages/forensics/ForensicsNew'))
+const InvestigationEditor = lazy(() => import('./pages/forensics/InvestigationEditor'))
+
+// Log module
+const LogPage = lazy(() => import('./pages/log/index'))
+const LogEditor = lazy(() => import('./pages/log/LogEditor'))
+const LogNew = lazy(() => import('./pages/log/LogNew'))
+const LogEntryEdit = lazy(() => import('./pages/log/LogEntryEdit'))
+const LogTemplates = lazy(() => import('./pages/log/LogTemplates'))
+const LogSchedules = lazy(() => import('./pages/log/LogSchedules'))
+const TemplateEditor = lazy(() => import('./pages/log/TemplateEditor'))
+
+// Rounds module
+const RoundsPage = lazy(() => import('./pages/rounds/index'))
+const RoundPlayer = lazy(() => import('./pages/rounds/RoundPlayer'))
+const TemplateDesigner = lazy(() => import('./pages/rounds/TemplateDesigner'))
+const ActiveRounds = lazy(() => import('./pages/rounds/ActiveRounds'))
+const RoundTemplates = lazy(() => import('./pages/rounds/RoundTemplates'))
+const RoundExecution = lazy(() => import('./pages/rounds/RoundExecution'))
+const RoundSchedules = lazy(() => import('./pages/rounds/RoundSchedules'))
+const RoundHistory = lazy(() => import('./pages/rounds/RoundHistory'))
+
+// Alerts module
+const AlertsPage = lazy(() => import('./pages/alerts/index'))
+const MusterDashboard = lazy(() => import('./pages/alerts/MusterDashboard'))
+const ActiveAlerts = lazy(() => import('./pages/alerts/ActiveAlerts'))
+const AlertHistory = lazy(() => import('./pages/alerts/AlertHistory'))
+const AlertComposer = lazy(() => import('./pages/alerts/AlertComposer'))
+const AlertTemplates = lazy(() => import('./pages/alerts/AlertTemplates'))
+const AlertGroups = lazy(() => import('./pages/alerts/AlertGroups'))
+const MusterPage = lazy(() => import('./pages/alerts/MusterPage'))
+
+// Shifts module
+const ShiftsPage = lazy(() => import('./pages/shifts/index'))
+const ShiftSchedule = lazy(() => import('./pages/shifts/ShiftSchedule'))
+const ShiftScheduleEditor = lazy(() => import('./pages/shifts/ShiftScheduleEditor'))
+const CrewList = lazy(() => import('./pages/shifts/CrewList'))
+const PresenceBoard = lazy(() => import('./pages/shifts/PresenceBoard'))
+const MusterPointConfig = lazy(() => import('./pages/shifts/MusterPointConfig'))
+
+// Settings module — kept lazy too for consistent splitting
+const SettingsShell = lazy(() => import('./pages/settings/index'))
+const UsersPage = lazy(() => import('./pages/settings/Users'))
+const UserDetail = lazy(() => import('./pages/settings/UserDetail'))
+const RolesPage = lazy(() => import('./pages/settings/Roles'))
+const Groups = lazy(() => import('./pages/settings/Groups'))
+const OpcSourcesPage = lazy(() => import('./pages/settings/OpcSources'))
+const AppearancePage = lazy(() => import('./pages/settings/Appearance'))
+const HealthPage = lazy(() => import('./pages/settings/Health'))
+const AboutPage = lazy(() => import('./pages/settings/About'))
+const EulaAdminPage = lazy(() => import('./pages/settings/EulaAdmin'))
+const CertificatesPage = lazy(() => import('./pages/settings/Certificates'))
+const BackupRestorePage = lazy(() => import('./pages/settings/BackupRestore'))
+const ExpressionLibrary = lazy(() => import('./pages/settings/ExpressionLibrary'))
+const ReportScheduling = lazy(() => import('./pages/settings/ReportScheduling'))
+const ExportPresets = lazy(() => import('./pages/settings/ExportPresets'))
+const EmailSettingsPage = lazy(() => import('./pages/settings/Email'))
+const SecurityPage = lazy(() => import('./pages/settings/Security'))
+const ImportSettingsPage = lazy(() => import('./pages/settings/Import'))
+const RecognitionPage = lazy(() => import('./pages/settings/Recognition'))
+const AuthProvidersPage = lazy(() => import('./pages/settings/AuthProviders'))
+const MfaSettingsPage = lazy(() => import('./pages/settings/MfaSettings'))
+const ApiKeysPage = lazy(() => import('./pages/settings/ApiKeys'))
+const ScimTokensPage = lazy(() => import('./pages/settings/ScimTokens'))
+const SmsProvidersPage = lazy(() => import('./pages/settings/SmsProviders'))
+const SystemHealth = lazy(() => import('./pages/settings/SystemHealth'))
+const Sessions = lazy(() => import('./pages/settings/Sessions'))
+const Display = lazy(() => import('./pages/settings/Display'))
+const DataSources = lazy(() => import('./pages/settings/DataSources'))
+const OpcConfig = lazy(() => import('./pages/settings/OpcConfig'))
+const PointManagement = lazy(() => import('./pages/settings/PointManagement'))
+const EventConfig = lazy(() => import('./pages/settings/EventConfig'))
+const AlertConfig = lazy(() => import('./pages/settings/AlertConfig'))
+const Badges = lazy(() => import('./pages/settings/Badges'))
+const BulkUpdate = lazy(() => import('./pages/settings/BulkUpdate'))
+const Snapshots = lazy(() => import('./pages/settings/Snapshots'))
+
+// ---------------------------------------------------------------------------
+// Minimal loading fallback used by Suspense boundaries
+// ---------------------------------------------------------------------------
+function RouteLoadingFallback() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        minHeight: '200px',
+        color: 'var(--io-text-muted)',
+        fontSize: '13px',
+      }}
+    >
+      Loading…
+    </div>
+  )
+}
 
 function AppRoutes() {
   const { isAuthenticated } = useAuthStore()
 
   return (
+    <Suspense fallback={<RouteLoadingFallback />}>
     <Routes>
       {/* Public */}
       <Route path="/login" element={<LoginPage />} />
@@ -1059,9 +1111,47 @@ function AppRoutes() {
         </Route>
       </Route>
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Detached window routes — no AppShell chrome (no sidebar/topbar)    */}
+      {/* Used for multi-monitor setups where a workspace or dashboard is    */}
+      {/* opened in a dedicated browser window.                              */}
+      {/* spec: 06_FRONTEND_SHELL.md §Detached Window Routes                 */}
+      {/* ------------------------------------------------------------------ */}
+      <Route
+        path="/detached/console/:workspaceId"
+        element={
+          <PermissionGuard permission="console:read">
+            <ErrorBoundary module="Console">
+              <WorkspaceView detached />
+            </ErrorBoundary>
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="/detached/process/:viewId"
+        element={
+          <PermissionGuard permission="process:read">
+            <ErrorBoundary module="Process">
+              <ProcessView detached />
+            </ErrorBoundary>
+          </PermissionGuard>
+        }
+      />
+      <Route
+        path="/detached/dashboard/:dashboardId"
+        element={
+          <PermissionGuard permission="dashboards:read">
+            <ErrorBoundary module="Dashboards">
+              <DashboardViewer kiosk />
+            </ErrorBoundary>
+          </PermissionGuard>
+        }
+      />
+
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   )
 }
 
@@ -1090,9 +1180,52 @@ function PinnedPointDetailPanels() {
   )
 }
 
+/**
+ * BroadcastChannel receiver — applies sync messages originating from other
+ * open windows.  Published by store/ui.ts and store/auth.ts.
+ * spec: 06_FRONTEND_SHELL.md §BroadcastChannel State Sync
+ */
+function BroadcastSyncReceiver() {
+  const { lockLocal, unlockLocal, setThemeLocal } = useUiStore()
+  const { setAccessToken } = useAuthStore()
+
+  useEffect(() => {
+    const unsub = subscribeToSync((msg) => {
+      switch (msg.type) {
+        case 'theme:change':
+          if (msg.theme) {
+            // Use the local (no-rebroadcast) setter to apply the theme
+            setThemeLocal(msg.theme as Parameters<typeof setThemeLocal>[0])
+          }
+          break
+        case 'session:lock':
+          lockLocal()
+          break
+        case 'session:unlock':
+          unlockLocal()
+          break
+        case 'auth:refresh':
+          if (msg.token) {
+            // setAccessToken already does localStorage + store update; it also
+            // broadcasts — but the channel will not echo back to the sender
+            // window (BroadcastChannel does not fire on the posting window).
+            setAccessToken(msg.token)
+          }
+          break
+        default:
+          break
+      }
+    })
+    return unsub
+  }, [lockLocal, unlockLocal, setThemeLocal, setAccessToken])
+
+  return null
+}
+
 export default function App() {
   return (
     <ThemeProvider>
+      <BroadcastSyncReceiver />
       <AppRoutes />
       <ToastProvider />
       {/* Pinned point detail panels — rendered outside the route outlet so they

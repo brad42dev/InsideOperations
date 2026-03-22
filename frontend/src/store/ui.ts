@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { type Theme, setTheme as applyTheme, initTheme } from '../shared/theme/tokens'
+import { publishThemeChange, publishSessionLock, publishSessionUnlock } from '../lib/broadcastSync'
 
 interface EmergencyAlert {
   active: boolean
@@ -28,8 +29,14 @@ interface UiState {
   emergencyAlert: EmergencyAlert
 
   setTheme: (theme: Theme) => void
+  /** Apply theme locally without broadcasting — used by BroadcastChannel receiver. */
+  setThemeLocal: (theme: Theme) => void
   lock: (meta?: Partial<LockMeta>) => void
+  /** Lock locally without broadcasting — used by BroadcastChannel receiver. */
+  lockLocal: (meta?: Partial<LockMeta>) => void
   unlock: () => void
+  /** Unlock locally without broadcasting — used by BroadcastChannel receiver. */
+  unlockLocal: () => void
   setLockMeta: (meta: Partial<LockMeta>) => void
   setKiosk: (kiosk: boolean) => void
   showEmergencyAlert: (message: string) => void
@@ -52,15 +59,38 @@ export const useUiStore = create<UiState>((set) => ({
   setTheme: (theme: Theme) => {
     applyTheme(theme)
     set({ theme })
+    publishThemeChange(theme)
   },
 
-  lock: (meta?: Partial<LockMeta>) =>
+  setThemeLocal: (theme: Theme) => {
+    applyTheme(theme)
+    set({ theme })
+    // No broadcast — this is the receiving end
+  },
+
+  lock: (meta?: Partial<LockMeta>) => {
+    set((state) => ({
+      isLocked: true,
+      lockMeta: { ...state.lockMeta, ...meta },
+    }))
+    publishSessionLock()
+  },
+
+  lockLocal: (meta?: Partial<LockMeta>) =>
     set((state) => ({
       isLocked: true,
       lockMeta: { ...state.lockMeta, ...meta },
     })),
 
-  unlock: () =>
+  unlock: () => {
+    set({
+      isLocked: false,
+      lockMeta: { ...DEFAULT_LOCK_META },
+    })
+    publishSessionUnlock()
+  },
+
+  unlockLocal: () =>
     set({
       isLocked: false,
       lockMeta: { ...DEFAULT_LOCK_META },

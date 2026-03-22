@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T11:50:09.936847Z",
+  "last_updated": "2026-03-22T11:56:28.117131+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -269,7 +269,7 @@
       "completed_at": "2026-03-21",
       "notes": "10 tasks.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     },
     {
       "unit": "DD-10",
@@ -1430,7 +1430,7 @@
       "wave": 3,
       "title": "Fix ErrorBoundary button label and add nested boundaries for large modules",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1450,7 +1450,7 @@
       "wave": 3,
       "title": "Implement sidebar state persistence, BroadcastChannel sync, lazy module loading, and detached window routes",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-06-002"
       ],

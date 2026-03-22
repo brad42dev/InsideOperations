@@ -1,6 +1,11 @@
 import { useParams } from 'react-router-dom'
 
-export default function WorkspaceView() {
+interface Props {
+  /** When true, rendered in a detached window — no AppShell chrome. */
+  detached?: boolean
+}
+
+export default function WorkspaceView({ detached: _detached }: Props) {
   const { workspace_id } = useParams<{ workspace_id: string }>()
   return (
     <div style={{ padding: 'var(--io-space-6)' }}>

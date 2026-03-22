@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { authApi } from '../api/auth'
 import type { EulaPendingItem } from '../api/auth'
 import { wsManager } from '../shared/hooks/useWebSocket'
+import { publishAuthRefresh } from '../lib/broadcastSync'
 
 const TOKEN_KEY = 'io_access_token'
 
@@ -150,6 +151,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: { ...user, eula_accepted: state.user?.eula_accepted },
         isAuthenticated: true,
       }))
+      // Propagate the refreshed token to all other open windows
+      publishAuthRefresh(token)
     }
   },
 

@@ -1,6 +1,11 @@
 import { useParams } from 'react-router-dom'
 
-export default function ProcessView() {
+interface Props {
+  /** When true, rendered in a detached window — no AppShell chrome. */
+  detached?: boolean
+}
+
+export default function ProcessView({ detached: _detached }: Props) {
   const { view_id } = useParams<{ view_id: string }>()
   return (
     <div style={{ padding: 'var(--io-space-6)' }}>
