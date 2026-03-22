@@ -43,6 +43,8 @@ pub struct HistoryQuery {
     pub resolution: String,
     #[serde(default = "default_limit")]
     pub limit: i64,
+    #[serde(default)]
+    pub agg: Option<String>, // "avg", "sum", "min", "max", "count"
 }
 
 fn default_resolution() -> String {
@@ -142,6 +144,54 @@ fn parse_window_seconds(window: &str) -> Result<i64, IoError> {
 }
 
 // ---------------------------------------------------------------------------
+// Aggregation type validation
+// ---------------------------------------------------------------------------
+
+/// Validate that the requested aggregation type is permitted for the point.
+/// Looks up `aggregation_types` from `points_metadata` and checks the bitmask.
+/// Bit 0 (value 1): allow averaging; Bit 1 (value 2): allow sum/totaling.
+/// `min`, `max`, and `count` are always permitted (no bitmask check).
+/// Raw resolution callers must NOT call this (raw bypasses agg type checks).
+async fn validate_agg_type(
+    db: &sqlx::PgPool,
+    point_id: Uuid,
+    agg: &Option<String>,
+) -> IoResult<()> {
+    let Some(ref agg_str) = agg else {
+        return Ok(());
+    };
+
+    match agg_str.as_str() {
+        "min" | "max" | "count" => return Ok(()),
+        "avg" | "sum" => {}
+        other => {
+            return Err(IoError::BadRequest(format!(
+                "Unknown aggregation type '{}'. Valid values: avg, sum, min, max, count",
+                other
+            )));
+        }
+    }
+
+    let agg_types: i32 = sqlx::query_scalar(
+        "SELECT aggregation_types FROM points_metadata WHERE id = $1",
+    )
+    .bind(point_id)
+    .fetch_optional(db)
+    .await?
+    .unwrap_or(0);
+
+    match agg_str.as_str() {
+        "avg" if (agg_types & 1) == 0 => Err(IoError::BadRequest(
+            "This point does not permit averaging (aggregation_types bit 0 not set)".to_string(),
+        )),
+        "sum" if (agg_types & 2) == 0 => Err(IoError::BadRequest(
+            "This point does not permit summing (aggregation_types bit 1 not set)".to_string(),
+        )),
+        _ => Ok(()),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Batch request / response
 // ---------------------------------------------------------------------------
 
@@ -152,6 +202,8 @@ pub struct BatchHistoryRequest {
     pub end: String,
     #[serde(default = "default_resolution")]
     pub resolution: String,
+    #[serde(default)]
+    pub agg: Option<String>, // "avg", "sum", "min", "max", "count"
 }
 
 #[derive(Debug, Serialize)]
@@ -187,6 +239,11 @@ pub async fn get_point_history(
     }
 
     let limit = params.limit.clamp(1, 100_000);
+
+    // Aggregation type validation: only applies to aggregate resolutions, not raw.
+    if params.resolution != "raw" {
+        validate_agg_type(&state.db, point_id, &params.agg).await?;
+    }
 
     let rows = match params.resolution.as_str() {
         "raw" => {
@@ -474,6 +531,11 @@ pub async fn get_batch_history(
     let mut results: Vec<HistoryResponse> = Vec::with_capacity(body.point_ids.len());
 
     for point_id in &body.point_ids {
+        // Aggregation type validation: only applies to aggregate resolutions, not raw.
+        if body.resolution != "raw" {
+            validate_agg_type(&state.db, *point_id, &body.agg).await?;
+        }
+
         let rows = match body.resolution.as_str() {
             "raw" => {
                 let raw_rows = sqlx::query(

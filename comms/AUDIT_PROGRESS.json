@@ -108,7 +108,9 @@
     "DD-15-006": 1,
     "DD-16-002": 1,
     "DD-16-005": 1,
-    "DD-21-001": 1
+    "DD-21-001": 1,
+    "DD-18-003": 1,
+    "DD-18-004": 1
   },
   "queue": [
     {
@@ -2118,7 +2120,7 @@
       "wave": 3,
       "title": "Add 15m and 1d resolution tiers to archive REST API",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2128,7 +2130,7 @@
       "wave": 3,
       "title": "Add 15m and 1d aggregate retention and refresh to maintenance loop",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2138,7 +2140,7 @@
       "wave": 3,
       "title": "Change points_history_raw FK to ON DELETE CASCADE",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2148,7 +2150,7 @@
       "wave": 3,
       "title": "Implement rolling average endpoint for archive service",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2158,7 +2160,7 @@
       "wave": 3,
       "title": "Implement aggregation type validation in history API",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
