@@ -416,11 +416,19 @@ export default function ProcessPage() {
     return () => ro.disconnect()
   }, [])
 
-  // Update canvas size when graphic loads
+  // Update canvas size when graphic loads and auto zoom-to-fit (spec §Non-Negotiable #9)
   useEffect(() => {
     if (!graphic?.scene_data) return
     const { width, height } = graphic.scene_data.canvas
-    setViewport((vp) => ({ ...vp, canvasWidth: width, canvasHeight: height, panX: 0, panY: 0, zoom: 1 }))
+    setViewport((vp) => {
+      const PADDING = 20
+      const sw = vp.screenWidth - PADDING * 2
+      const sh = vp.screenHeight - PADDING * 2
+      const fitZoom = sw > 0 && sh > 0
+        ? Math.min(sw / width, sh / height)
+        : 1
+      return { ...vp, canvasWidth: width, canvasHeight: height, panX: -PADDING / fitZoom, panY: -PADDING / fitZoom, zoom: fitZoom }
+    })
   }, [graphic?.scene_data])
 
   // ---- Zoom / pan handlers -------------------------------------------------
