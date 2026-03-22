@@ -6,6 +6,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDraggable,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
@@ -1293,8 +1294,16 @@ function PaletteTile({
   const theme = useThemeName()
   const depth0Style = getNestingStyle(0, theme)
 
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `palette-${item.type}`,
+    data: { source: 'palette', tileType: item.type },
+  })
+
   return (
     <button
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
       onClick={() => onClickAdd(item.type)}
       title={`Add ${item.label}`}
       style={{
@@ -1308,12 +1317,13 @@ function PaletteTile({
         color: '#fff',
         fontSize: '12px',
         fontWeight: 500,
-        cursor: 'pointer',
+        cursor: isDragging ? 'grabbing' : 'pointer',
         whiteSpace: 'nowrap',
         transition: 'opacity 0.15s',
+        opacity: isDragging ? 0.4 : 1,
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.8' }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+      onMouseEnter={(e) => { if (!isDragging) (e.currentTarget as HTMLButtonElement).style.opacity = '0.8' }}
+      onMouseLeave={(e) => { if (!isDragging) (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
     >
       {item.label}
     </button>
@@ -1564,6 +1574,22 @@ export function ExpressionBuilder({
     const { active, over } = event
     setActiveDragId(null)
     if (!over || active.id === over.id) return
+
+    // Detect palette-sourced drags
+    const isPaletteSource = String(active.id).startsWith('palette-')
+    if (isPaletteSource) {
+      const tileType = active.data.current?.tileType as TileType
+      if (!tileType) return
+      const tile = createTile(tileType)
+      const toLoc = findTileLocation(state.tiles, String(over.id))
+      dispatch({
+        type: 'INSERT_TILE',
+        tile,
+        parentId: null,
+        index: toLoc?.index ?? state.tiles.length,
+      })
+      return
+    }
 
     // Find in tree
     const activeIds = collectIds(state.tiles)
@@ -1971,6 +1997,13 @@ export function ExpressionBuilder({
         )}
       </div>
 
+      {/* Palette + Workspace share a single DndContext so palette→workspace drag works */}
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+
       {/* Palette */}
       <div
         style={{
@@ -1999,11 +2032,6 @@ export function ExpressionBuilder({
       </div>
 
       {/* Workspace */}
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
         <div
           role="application"
           aria-label="Equation workspace"
@@ -2036,6 +2064,27 @@ export function ExpressionBuilder({
 
         <DragOverlay>
           {activeDragId && (() => {
+            // Palette drag ghost
+            if (activeDragId.startsWith('palette-')) {
+              const tileType = activeDragId.slice('palette-'.length) as TileType
+              const paletteItem = paletteItems.find((p) => p.type === tileType)
+              if (!paletteItem) return null
+              return (
+                <div style={{
+                  padding: '4px 10px',
+                  borderRadius: 'var(--io-radius)',
+                  background: getTileColor(tileType),
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                  pointerEvents: 'none',
+                }}>
+                  {paletteItem.label}
+                </div>
+              )
+            }
+            // Workspace tile drag ghost
             const loc = findTileLocation(state.tiles, activeDragId)
             const tile = loc ? loc.arr[loc.index] : null
             if (!tile) return null
