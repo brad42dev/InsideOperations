@@ -45,6 +45,9 @@ export interface DcsImportResult {
   elements: DcsElement[]
   unresolved_symbols: string[]
   platform: string
+  tags: string[]
+  manifest_platform: string | null
+  import_warnings: string[]
 }
 
 export type DcsPlatform =

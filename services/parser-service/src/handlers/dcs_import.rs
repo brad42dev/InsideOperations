@@ -41,6 +41,45 @@ pub struct DcsImportResult {
     pub elements: Vec<DcsElement>,
     pub unresolved_symbols: Vec<String>,
     pub platform: String,
+    pub tags: Vec<String>,
+    pub manifest_platform: Option<String>,
+    pub import_warnings: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Manifest / import-report types (present in every compliant extraction kit)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct KitManifest {
+    platform: Option<String>,
+    version: Option<String>,
+    extraction_date: Option<String>,
+    display_count: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TagEntry {
+    tag: Option<String>,
+    // kit may include extra fields — ignore them
+    #[serde(flatten)]
+    _extra: serde_json::Map<String, Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum TagsJson {
+    Strings(Vec<String>),
+    Objects(Vec<TagEntry>),
+}
+
+#[derive(Debug, Deserialize)]
+struct ImportReport {
+    warnings: Option<Vec<String>>,
+    // kit may include stats and other fields — ignore them
+    #[serde(flatten)]
+    _extra: serde_json::Map<String, Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -391,6 +430,9 @@ fn stub_result(platform: &str) -> DcsImportResult {
         elements: vec![],
         unresolved_symbols: vec![],
         platform: platform.to_string(),
+        tags: vec![],
+        manifest_platform: None,
+        import_warnings: vec![],
     }
 }
 
@@ -506,49 +548,111 @@ fn parse_zip(
     let mut archive = zip::ZipArchive::new(cursor)
         .map_err(|e| IoError::BadRequest(format!("Invalid ZIP file: {}", e)))?;
 
-    // Try to find display.json first (works for generic_json and kits that produce intermediate format)
-    let display_json_bytes: Option<Vec<u8>> = {
-        let mut found = None;
-        for i in 0..archive.len() {
-            let mut entry = archive
-                .by_index(i)
-                .map_err(|e| IoError::BadRequest(format!("ZIP read error: {}", e)))?;
-            let name = entry.name().to_lowercase();
-            if name == "display.json" || name.ends_with("/display.json") {
-                let mut buf = Vec::new();
-                entry
-                    .read_to_end(&mut buf)
-                    .map_err(|e| IoError::BadRequest(format!("Failed to read display.json: {}", e)))?;
-                found = Some(buf);
-                break;
+    // Single pass: collect all relevant file contents
+    let mut display_json_bytes: Option<Vec<u8>> = None;
+    let mut manifest_bytes: Option<Vec<u8>> = None;
+    let mut tags_bytes: Option<Vec<u8>> = None;
+    let mut import_report_bytes: Option<Vec<u8>> = None;
+    let mut svg_files: Vec<(String, Vec<u8>)> = Vec::new();
+
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| IoError::BadRequest(format!("ZIP read error: {}", e)))?;
+        let raw_name = entry.name().to_string();
+        let lower = raw_name.to_lowercase();
+
+        // Match by base file name (ignore directory prefix)
+        let base = lower
+            .rsplit('/')
+            .next()
+            .unwrap_or(lower.as_str());
+
+        match base {
+            "display.json" => {
+                if display_json_bytes.is_none() {
+                    let mut buf = Vec::new();
+                    entry
+                        .read_to_end(&mut buf)
+                        .map_err(|e| IoError::BadRequest(format!("Failed to read display.json: {}", e)))?;
+                    display_json_bytes = Some(buf);
+                }
             }
-        }
-        found
-    };
-
-    if let Some(json_bytes) = display_json_bytes {
-        // Parse intermediate JSON format
-        return parse_from_intermediate_json(&json_bytes, platform);
-    }
-
-    // No display.json — try SVG files (generic_svg or any platform)
-    let svg_files: Vec<(String, Vec<u8>)> = {
-        let mut svgs = Vec::new();
-        for i in 0..archive.len() {
-            let mut entry = archive
-                .by_index(i)
-                .map_err(|e| IoError::BadRequest(format!("ZIP read error: {}", e)))?;
-            let name = entry.name().to_string();
-            if name.to_lowercase().ends_with(".svg") {
+            "manifest.json" => {
+                if manifest_bytes.is_none() {
+                    let mut buf = Vec::new();
+                    entry
+                        .read_to_end(&mut buf)
+                        .map_err(|e| IoError::BadRequest(format!("Failed to read manifest.json: {}", e)))?;
+                    manifest_bytes = Some(buf);
+                }
+            }
+            "tags.json" => {
+                if tags_bytes.is_none() {
+                    let mut buf = Vec::new();
+                    entry
+                        .read_to_end(&mut buf)
+                        .map_err(|e| IoError::BadRequest(format!("Failed to read tags.json: {}", e)))?;
+                    tags_bytes = Some(buf);
+                }
+            }
+            "import_report.json" => {
+                if import_report_bytes.is_none() {
+                    let mut buf = Vec::new();
+                    entry
+                        .read_to_end(&mut buf)
+                        .map_err(|e| IoError::BadRequest(format!("Failed to read import_report.json: {}", e)))?;
+                    import_report_bytes = Some(buf);
+                }
+            }
+            _ if lower.ends_with(".svg") => {
                 let mut buf = Vec::new();
                 entry
                     .read_to_end(&mut buf)
                     .map_err(|e| IoError::BadRequest(format!("Failed to read SVG: {}", e)))?;
-                svgs.push((name, buf));
+                svg_files.push((raw_name, buf));
             }
+            _ => {}
         }
-        svgs
-    };
+    }
+
+    // Parse manifest.json — platform from manifest takes precedence
+    let manifest_platform: Option<String> = manifest_bytes.as_deref().and_then(|b| {
+        serde_json::from_slice::<KitManifest>(b)
+            .ok()
+            .and_then(|m| m.platform)
+    });
+
+    // Parse tags.json — optional; absent is not an error
+    let tags: Vec<String> = tags_bytes
+        .as_deref()
+        .and_then(|b| serde_json::from_slice::<TagsJson>(b).ok())
+        .map(|t| match t {
+            TagsJson::Strings(v) => v,
+            TagsJson::Objects(v) => v.into_iter().filter_map(|e| e.tag).collect(),
+        })
+        .unwrap_or_default();
+
+    // Parse import_report.json — optional; absent is not an error
+    let import_warnings: Vec<String> = import_report_bytes
+        .as_deref()
+        .and_then(|b| serde_json::from_slice::<ImportReport>(b).ok())
+        .and_then(|r| r.warnings)
+        .unwrap_or_default();
+
+    // Effective platform: manifest takes precedence over multipart field
+    let effective_platform = manifest_platform
+        .as_deref()
+        .unwrap_or(platform);
+
+    if let Some(json_bytes) = display_json_bytes {
+        // Parse intermediate JSON format
+        let mut result = parse_from_intermediate_json(&json_bytes, effective_platform)?;
+        result.tags = tags;
+        result.manifest_platform = manifest_platform;
+        result.import_warnings = import_warnings;
+        return Ok(result);
+    }
 
     if !svg_files.is_empty() {
         // Use the first SVG file found
@@ -568,7 +672,10 @@ fn parse_zip(
                     element_count,
                     elements,
                     unresolved_symbols: vec![],
-                    platform: platform.to_string(),
+                    platform: effective_platform.to_string(),
+                    tags,
+                    manifest_platform,
+                    import_warnings,
                 });
             }
             Err(e) => {
@@ -577,9 +684,13 @@ fn parse_zip(
         }
     }
 
-    // For kit-required platforms with no parseable content, return stub
+    // For kit-required platforms with no parseable content, return stub with metadata
     let _ = file_name; // suppress unused warning
-    Ok(stub_result(platform))
+    let mut result = stub_result(effective_platform);
+    result.tags = tags;
+    result.manifest_platform = manifest_platform;
+    result.import_warnings = import_warnings;
+    Ok(result)
 }
 
 fn parse_from_intermediate_json(bytes: &[u8], platform: &str) -> IoResult<DcsImportResult> {
@@ -612,5 +723,8 @@ fn parse_from_intermediate_json(bytes: &[u8], platform: &str) -> IoResult<DcsImp
         elements,
         unresolved_symbols,
         platform: platform.to_string(),
+        tags: vec![],
+        manifest_platform: None,
+        import_warnings: vec![],
     })
 }
