@@ -179,7 +179,7 @@ pub async fn recover_escalations(state: AppState) {
 async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     // Load alert status and policy_id
     let alert_row = sqlx::query(
-        "SELECT status, severity, escalation_policy, title, message FROM alerts WHERE id = $1",
+        "SELECT status, severity, escalation_policy, title, message, roster_id FROM alerts WHERE id = $1",
     )
     .bind(alert_id)
     .fetch_optional(&state.db)
@@ -203,6 +203,7 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     let escalation_policy: Option<serde_json::Value> = alert_row.get("escalation_policy");
     let title: String = alert_row.get("title");
     let message: Option<String> = alert_row.get("message");
+    let alert_roster_id: Option<Uuid> = alert_row.get("roster_id");
 
     // Only dispatch if still active
     if status != "active" {
@@ -253,8 +254,21 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     };
 
     let escalate_after_mins: i16 = tier_row.get("escalate_after_mins");
-    let notify_users: Vec<Uuid> = tier_row.get("notify_users");
     let channels: Vec<String> = tier_row.get("channels");
+
+    // Resolve recipients: prefer the roster_id on the alert; fall back to notify_users
+    // UUID array on the tier for backwards compatibility.
+    let email_recipients: Vec<Uuid> = if let Some(roster_id) = alert_roster_id {
+        // Resolve via roster — get user_ids from ChannelRecipient list
+        crate::handlers::rosters::resolve_roster_members(&state, roster_id)
+            .await
+            .into_iter()
+            .filter_map(|r| r.user_id)
+            .collect()
+    } else {
+        // Fall back to the static notify_users array on the tier
+        tier_row.get("notify_users")
+    };
 
     // Update current_escalation on the alert
     if let Err(e) = sqlx::query(
@@ -272,7 +286,7 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     for channel in &channels {
         match channel.as_str() {
             "email" => {
-                dispatch_email(&state, alert_id, tier, &title, message.as_deref(), &notify_users)
+                dispatch_email(&state, alert_id, tier, &title, message.as_deref(), &email_recipients)
                     .await;
             }
             "websocket" => {

@@ -67,7 +67,9 @@
     "DD-20-001": 1,
     "DD-23-007": 1,
     "DD-23-011": 1,
-    "DD-26-003": 1
+    "DD-26-003": 1,
+    "GFX-CORE-002": 1,
+    "DD-06-001": 1
   },
   "queue": [
     {
@@ -868,7 +870,7 @@
       "wave": 1,
       "title": "Add NavigationLink click handling to all 6 missing node types",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 3
     },
@@ -1341,7 +1343,7 @@
       "wave": 3,
       "title": "Implement correct sidebar keyboard shortcuts (Ctrl+\\, Ctrl+Shift+\\)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2709,7 +2711,7 @@
       "wave": 3,
       "title": "Implement recognition import wizard in Designer module",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-26-001",
         "DD-26-002",
@@ -2782,7 +2784,7 @@
       "wave": 3,
       "title": "Implement recipient rosters with CRUD and shift-aware member resolution",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-27-001"
       ],

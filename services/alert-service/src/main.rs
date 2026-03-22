@@ -72,6 +72,17 @@ async fn main() -> anyhow::Result<()> {
             "/alerts/policies/:id/tiers/:tier_id",
             put(handlers::policies::update_tier).delete(handlers::policies::delete_tier),
         )
+        // Roster endpoints (static /rosters before /:id)
+        .route(
+            "/alerts/rosters",
+            get(handlers::rosters::list_rosters).post(handlers::rosters::create_roster),
+        )
+        .route(
+            "/alerts/rosters/:id",
+            get(handlers::rosters::get_roster)
+                .put(handlers::rosters::update_roster)
+                .delete(handlers::rosters::delete_roster),
+        )
         // Alert instance endpoints with :id (after static routes)
         .route("/alerts/:id", get(handlers::alerts::get_alert))
         .route(
