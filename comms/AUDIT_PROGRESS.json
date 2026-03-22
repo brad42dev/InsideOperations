@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T14:50:29.791456+00:00",
+  "last_updated": "2026-03-22",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -99,7 +99,8 @@
     "DD-12-008": 1,
     "DD-13-004": 1,
     "DD-13-007": 1,
-    "DD-14-001": 1
+    "DD-14-001": 1,
+    "DD-14-002": 1
   },
   "queue": [
     {
@@ -1883,7 +1884,7 @@
       "wave": 3,
       "title": "Implement video and audio media capture in RoundPlayer checkpoint inputs",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1893,7 +1894,7 @@
       "wave": 3,
       "title": "Implement round transfer API endpoint and transfer request UI",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

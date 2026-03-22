@@ -7,6 +7,235 @@ import { useAuthStore } from '../../store/auth'
 import { shiftsApi } from '../../api/shifts'
 
 // ---------------------------------------------------------------------------
+// Transfer request banner — shown when the round is locked to another user
+// ---------------------------------------------------------------------------
+
+function LockedByOtherBanner({
+  lockedToUser,
+  instanceId,
+  onTransferRequested,
+}: {
+  lockedToUser: string
+  instanceId: string
+  onTransferRequested: () => void
+}) {
+  const [requesting, setRequesting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleRequest = async () => {
+    setRequesting(true)
+    setError(null)
+    const result = await roundsApi.transferInstance(instanceId)
+    setRequesting(false)
+    if (!result.success) {
+      setError(result.error.message)
+      return
+    }
+    onTransferRequested()
+  }
+
+  return (
+    <div
+      style={{
+        background: 'rgba(251,191,36,0.1)',
+        border: '1px solid rgba(251,191,36,0.4)',
+        borderRadius: '10px',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--io-text-primary)' }}>
+        Round Locked
+      </div>
+      <div style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+        This round is currently locked to <strong>{lockedToUser}</strong>. You can request a transfer.
+        If the current owner does not acknowledge within 1 minute, the round will be automatically
+        transferred to you.
+      </div>
+      {error && (
+        <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>
+      )}
+      <button
+        onClick={handleRequest}
+        disabled={requesting}
+        style={{
+          padding: '10px 20px',
+          background: 'var(--io-accent, #4A9EFF)',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: requesting ? 'not-allowed' : 'pointer',
+          color: '#fff',
+          fontSize: '14px',
+          fontWeight: 600,
+          opacity: requesting ? 0.7 : 1,
+          alignSelf: 'flex-start',
+        }}
+      >
+        {requesting ? 'Requesting…' : 'Request Transfer'}
+      </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Transfer pending banner — shown to requester while waiting for grant
+// ---------------------------------------------------------------------------
+
+function TransferPendingBanner({
+  instanceId,
+  onTransferCancelled,
+}: {
+  instanceId: string
+  onTransferCancelled: () => void
+}) {
+  return (
+    <div
+      style={{
+        background: 'rgba(74,158,255,0.1)',
+        border: '1px solid rgba(74,158,255,0.4)',
+        borderRadius: '10px',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--io-text-primary)' }}>
+        Transfer Pending
+      </div>
+      <div style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+        A transfer request has been sent to the current owner. The round will be automatically
+        transferred to you if they do not acknowledge within 1 minute.
+      </div>
+      <button
+        onClick={onTransferCancelled}
+        style={{
+          padding: '8px 16px',
+          background: 'none',
+          border: '1px solid var(--io-border)',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          color: 'var(--io-text-secondary)',
+          fontSize: '13px',
+          alignSelf: 'flex-start',
+        }}
+      >
+        Cancel Request
+      </button>
+      <div style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
+        Instance: {instanceId} — polling for transfer grant every 10 seconds…
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Incoming transfer request banner — shown to current owner
+// ---------------------------------------------------------------------------
+
+function IncomingTransferBanner({
+  requestedByUser,
+  instanceId,
+  onResponded,
+}: {
+  requestedByUser: string
+  instanceId: string
+  onResponded: () => void
+}) {
+  const [accepting, setAccepting] = useState(false)
+  const [declining, setDeclining] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleAccept = async () => {
+    setAccepting(true)
+    setError(null)
+    const result = await roundsApi.acceptTransfer(instanceId)
+    setAccepting(false)
+    if (!result.success) {
+      setError(result.error.message)
+      return
+    }
+    onResponded()
+  }
+
+  const handleDecline = async () => {
+    setDeclining(true)
+    setError(null)
+    const result = await roundsApi.declineTransfer(instanceId)
+    setDeclining(false)
+    if (!result.success) {
+      setError(result.error.message)
+      return
+    }
+    onResponded()
+  }
+
+  return (
+    <div
+      style={{
+        background: 'rgba(239,68,68,0.08)',
+        border: '1px solid rgba(239,68,68,0.35)',
+        borderRadius: '10px',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        flexShrink: 0,
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--io-text-primary)' }}>
+        Transfer Requested
+      </div>
+      <div style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+        <strong>{requestedByUser}</strong> has requested to take over this round. If you do not
+        respond within 1 minute, it will be automatically transferred.
+      </div>
+      {error && (
+        <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>
+      )}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={handleAccept}
+          disabled={accepting || declining}
+          style={{
+            padding: '8px 16px',
+            background: '#22c55e',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: accepting || declining ? 'not-allowed' : 'pointer',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 600,
+            opacity: accepting || declining ? 0.7 : 1,
+          }}
+        >
+          {accepting ? 'Accepting…' : 'Accept'}
+        </button>
+        <button
+          onClick={handleDecline}
+          disabled={accepting || declining}
+          style={{
+            padding: '8px 16px',
+            background: 'none',
+            border: '1px solid var(--io-border)',
+            borderRadius: '6px',
+            cursor: accepting || declining ? 'not-allowed' : 'pointer',
+            color: 'var(--io-text-secondary)',
+            fontSize: '13px',
+            fontWeight: 600,
+            opacity: accepting || declining ? 0.7 : 1,
+          }}
+        >
+          {declining ? 'Declining…' : 'Decline'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Barcode gate — scans via BarcodeDetector API or manual entry fallback
 // ---------------------------------------------------------------------------
 
@@ -608,6 +837,8 @@ export default function RoundPlayer() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const userId = useAuthStore((s) => s.user?.id)
+  const permissions = useAuthStore((s) => s.user?.permissions ?? [])
+  const canExecute = permissions.includes('rounds:execute')
 
   const [checkpointIdx, setCheckpointIdx] = useState(0)
   const [values, setValues] = useState<Record<number, string>>({})
@@ -621,6 +852,8 @@ export default function RoundPlayer() {
   const [gpsUnlocked, setGpsUnlocked] = useState<Record<number, boolean>>({})
   const [videoBlobs, setVideoBlobs] = useState<Record<number, Blob | null>>({})
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob | null>>({})
+  // Transfer state — set to true after calling transferInstance so we know to poll
+  const [transferPending, setTransferPending] = useState(false)
 
   const { isOnline, pendingCount, saveOfflineResponse, getPendingResponses, clearSynced, syncPending } = useOfflineRounds()
 
@@ -641,7 +874,19 @@ export default function RoundPlayer() {
     queryKey: ['rounds', 'instance', id],
     queryFn: () => roundsApi.getInstance(id!),
     enabled: !!id,
+    // Poll every 10 seconds while a transfer is pending so we can detect grant
+    refetchInterval: transferPending ? 10_000 : false,
   })
+
+  // Clear transferPending once the server grants the lock to us
+  const latestLockedToUser = detailResult?.success
+    ? (detailResult.data as typeof detailResult.data & { locked_to_user?: string }).locked_to_user
+    : undefined
+  useEffect(() => {
+    if (transferPending && latestLockedToUser === userId) {
+      setTransferPending(false)
+    }
+  }, [transferPending, latestLockedToUser, userId])
 
   // Silently capture GPS
   useEffect(() => {
@@ -853,6 +1098,82 @@ export default function RoundPlayer() {
   }
 
   const { template } = detailResult.data
+  const { locked_to_user, transfer_requested_by } = detailResult.data as typeof detailResult.data & {
+    transfer_requested_by?: string
+  }
+  const currentStatus = detailResult.data.status
+
+  // ---- Transfer gate: if round is locked to another user (and not completed/missed) ----
+  const isLockedToOther = currentStatus === 'in_progress' && !!locked_to_user && locked_to_user !== userId
+  const hasIncomingRequest = currentStatus === 'in_progress' && locked_to_user === userId && !!transfer_requested_by
+
+  if (isLockedToOther) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          maxWidth: '600px',
+          margin: '0 auto',
+          padding: '24px 16px',
+          gap: '16px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={() => navigate('/rounds')}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--io-text-secondary)',
+              padding: '4px',
+              fontSize: '18px',
+            }}
+          >
+            ←
+          </button>
+          <div style={{ fontWeight: 700, fontSize: '16px', color: 'var(--io-text-primary)' }}>
+            {template?.name ?? 'Round'}
+          </div>
+        </div>
+
+        {transferPending ? (
+          <TransferPendingBanner
+            instanceId={id!}
+            onTransferCancelled={() => {
+              setTransferPending(false)
+              queryClient.invalidateQueries({ queryKey: ['rounds', 'instance', id] })
+            }}
+          />
+        ) : canExecute ? (
+          <LockedByOtherBanner
+            lockedToUser={locked_to_user}
+            instanceId={id!}
+            onTransferRequested={() => {
+              setTransferPending(true)
+              queryClient.invalidateQueries({ queryKey: ['rounds', 'instance', id] })
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '10px',
+              padding: '20px',
+              fontSize: '14px',
+              color: 'var(--io-text-secondary)',
+            }}
+          >
+            This round is locked to <strong>{locked_to_user}</strong>. You do not have permission to request a transfer.
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const checkpoints: Checkpoint[] = Array.isArray(template?.checkpoints) ? template.checkpoints : []
   const totalCheckpoints = checkpoints.length
 
@@ -950,6 +1271,18 @@ export default function RoundPlayer() {
         >
           <span>Syncing {pendingCount} offline response{pendingCount !== 1 ? 's' : ''}…</span>
         </div>
+      )}
+
+      {/* Incoming transfer request banner — shown to current owner when another user has requested a transfer */}
+      {hasIncomingRequest && transfer_requested_by && (
+        <IncomingTransferBanner
+          requestedByUser={transfer_requested_by}
+          instanceId={id!}
+          onResponded={() => {
+            queryClient.invalidateQueries({ queryKey: ['rounds', 'instance', id] })
+            queryClient.invalidateQueries({ queryKey: ['rounds'] })
+          }}
+        />
       )}
 
       {/* Header */}

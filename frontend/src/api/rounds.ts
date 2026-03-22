@@ -190,6 +190,15 @@ export const roundsApi = {
   startInstance: (id: string): Promise<ApiResult<RoundInstance>> =>
     api.post<RoundInstance>(`/api/rounds/instances/${id}/start`, {}),
 
+  transferInstance: (id: string): Promise<ApiResult<RoundInstance>> =>
+    api.post<RoundInstance>(`/api/rounds/instances/${id}/transfer`, {}),
+
+  acceptTransfer: (id: string): Promise<ApiResult<RoundInstance>> =>
+    api.post<RoundInstance>(`/api/rounds/instances/${id}/transfer/accept`, {}),
+
+  declineTransfer: (id: string): Promise<ApiResult<RoundInstance>> =>
+    api.post<RoundInstance>(`/api/rounds/instances/${id}/transfer/decline`, {}),
+
   saveResponses: (id: string, responses: ResponseItem[]): Promise<ApiResult<{ saved: number }>> =>
     api.post<{ saved: number }>(`/api/rounds/instances/${id}/responses`, { responses }),
 
