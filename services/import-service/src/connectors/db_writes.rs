@@ -69,6 +69,23 @@ pub async fn write_supplemental_metadata(
         }
     }
     debug!("supplemental metadata: updated {updated}/{} points for source {source_id}", items.len());
+
+    // NOTIFY point_metadata_changed so the OPC Service can refresh its subscription registry
+    if updated > 0 {
+        if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+            .bind("point_metadata_changed")
+            .bind("{}")
+            .execute(db)
+            .await
+        {
+            warn!(
+                %source_id,
+                error = %e,
+                "supplemental metadata: failed to emit point_metadata_changed NOTIFY"
+            );
+        }
+    }
+
     Ok(())
 }
 

@@ -557,6 +557,22 @@ pub async fn execute(
     .execute(db)
     .await?;
 
+    // NOTIFY import_status — running
+    let running_payload = serde_json::json!({
+        "run_id": run_id.to_string(),
+        "status": "running",
+        "definition_id": def_id.to_string(),
+    })
+    .to_string();
+    if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+        .bind("import_status")
+        .bind(&running_payload)
+        .execute(db)
+        .await
+    {
+        warn!(%run_id, error = %e, "failed to emit import_status NOTIFY (running)");
+    }
+
     // ── Fetch import definition ───────────────────────────────────────────────
     let def_row = sqlx::query(
         "SELECT source_config, field_mappings, transforms, target_table \
@@ -580,6 +596,38 @@ pub async fn execute(
             .bind(&msg)
             .execute(db)
             .await?;
+
+            // NOTIFY import_status — failed
+            let failed_payload = serde_json::json!({
+                "run_id": run_id.to_string(),
+                "status": "failed",
+                "definition_id": def_id.to_string(),
+                "error": &msg,
+            })
+            .to_string();
+            let alert_payload = serde_json::json!({
+                "run_id": run_id.to_string(),
+                "definition_id": def_id.to_string(),
+                "error": &msg,
+            })
+            .to_string();
+            if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+                .bind("import_status")
+                .bind(&failed_payload)
+                .execute(db)
+                .await
+            {
+                warn!(%run_id, error = %e, "failed to emit import_status NOTIFY (failed)");
+            }
+            if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+                .bind("import_alert")
+                .bind(&alert_payload)
+                .execute(db)
+                .await
+            {
+                warn!(%run_id, error = %e, "failed to emit import_alert NOTIFY");
+            }
+
             return Err(anyhow!(msg));
         }
     };
@@ -634,6 +682,38 @@ pub async fn execute(
             .bind(&msg)
             .execute(db)
             .await?;
+
+            // NOTIFY import_status — failed
+            let failed_payload = serde_json::json!({
+                "run_id": run_id.to_string(),
+                "status": "failed",
+                "definition_id": def_id.to_string(),
+                "error": &msg,
+            })
+            .to_string();
+            let alert_payload = serde_json::json!({
+                "run_id": run_id.to_string(),
+                "definition_id": def_id.to_string(),
+                "error": &msg,
+            })
+            .to_string();
+            if let Err(ne) = sqlx::query("SELECT pg_notify($1, $2)")
+                .bind("import_status")
+                .bind(&failed_payload)
+                .execute(db)
+                .await
+            {
+                warn!(%run_id, error = %ne, "failed to emit import_status NOTIFY (failed)");
+            }
+            if let Err(ne) = sqlx::query("SELECT pg_notify($1, $2)")
+                .bind("import_alert")
+                .bind(&alert_payload)
+                .execute(db)
+                .await
+            {
+                warn!(%run_id, error = %ne, "failed to emit import_alert NOTIFY");
+            }
+
             return Err(e);
         }
     };
@@ -693,6 +773,48 @@ pub async fn execute(
         total_ms = stats.total_duration_ms,
         "import run complete"
     );
+
+    // NOTIFY import_status — completed / partial
+    // Skip NOTIFY in dry-run mode: no real commit happened so there is nothing to announce.
+    if !dry_run {
+        let completed_payload = serde_json::json!({
+            "run_id": run_id.to_string(),
+            "status": final_status,
+            "definition_id": def_id.to_string(),
+            "rows_extracted": stats.rows_extracted,
+            "rows_loaded": stats.rows_loaded,
+            "rows_errored": stats.rows_errored,
+            "total_duration_ms": stats.total_duration_ms,
+        })
+        .to_string();
+        if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+            .bind("import_status")
+            .bind(&completed_payload)
+            .execute(db)
+            .await
+        {
+            warn!(%run_id, error = %e, "failed to emit import_status NOTIFY (completed)");
+        }
+
+        // If the run had errors (partial or all-failed), also emit import_alert
+        if stats.rows_errored > 0 {
+            let alert_payload = serde_json::json!({
+                "run_id": run_id.to_string(),
+                "definition_id": def_id.to_string(),
+                "status": final_status,
+                "rows_errored": stats.rows_errored,
+            })
+            .to_string();
+            if let Err(e) = sqlx::query("SELECT pg_notify($1, $2)")
+                .bind("import_alert")
+                .bind(&alert_payload)
+                .execute(db)
+                .await
+            {
+                warn!(%run_id, error = %e, "failed to emit import_alert NOTIFY");
+            }
+        }
+    }
 
     Ok(())
 }
