@@ -263,7 +263,7 @@ function NameGroupPrompt({ defaultName, title = 'Name Group', onConfirm, onCance
 // Node bounding box (canvas coordinates)
 // ---------------------------------------------------------------------------
 
-function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: number } {
+export function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: number } {
   const { x, y } = node.transform.position
   if (node.type === 'primitive') {
     const p = node as Primitive
@@ -3888,6 +3888,56 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
 
         {/* Scene graph — transformed by viewport */}
         <g transform={`translate(${panX},${panY}) scale(${zoom})`}>
+          {/* Canvas boundary visual — dashed 1px border, designer mode only (not view-only/kiosk/test) */}
+          {!testMode && doc && (() => {
+            const containerRect = containerRef.current?.getBoundingClientRect()
+            const viewportW = containerRect?.width ?? 0
+            const viewportH = containerRect?.height ?? 0
+            const boundaryVisible =
+              panX < 0 || panY < 0 ||
+              (panX + viewportW / zoom) > canvasW ||
+              (panY + viewportH / zoom) > canvasH
+            if (!boundaryVisible) return null
+            const autoH = (doc.canvas as Record<string, unknown> & { autoHeight?: boolean }).autoHeight === true
+            if (autoH) {
+              // autoHeight: top, left, right edges only (no bottom) + horizontal guide line at canvasH
+              const edgeD = `M0,${canvasH} L0,0 L${canvasW},0 L${canvasW},${canvasH}`
+              return (
+                <>
+                  <path
+                    d={edgeD}
+                    fill="none"
+                    stroke="var(--io-border-subtle)"
+                    strokeOpacity={0.5}
+                    strokeWidth={1 / zoom}
+                    strokeDasharray={`${8 / zoom} ${4 / zoom}`}
+                    pointerEvents="none"
+                  />
+                  <line
+                    x1={0} y1={canvasH} x2={canvasW} y2={canvasH}
+                    stroke="var(--io-border-subtle)"
+                    strokeOpacity={0.4}
+                    strokeWidth={1 / zoom}
+                    strokeDasharray={`${6 / zoom} ${4 / zoom}`}
+                    pointerEvents="none"
+                  />
+                </>
+              )
+            }
+            return (
+              <rect
+                x={0} y={0}
+                width={canvasW} height={canvasH}
+                fill="none"
+                stroke="var(--io-border-subtle)"
+                strokeOpacity={0.5}
+                strokeWidth={1 / zoom}
+                strokeDasharray={`${8 / zoom} ${4 / zoom}`}
+                pointerEvents="none"
+                style={{ zIndex: -1 } as React.CSSProperties}
+              />
+            )
+          })()}
           <TestModeContext.Provider value={testModeValues}>
             {doc?.children.map(node => {
               // In group edit mode: dim nodes that are NOT the active group

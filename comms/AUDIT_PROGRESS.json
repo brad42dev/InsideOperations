@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T10:43:25.476231Z",
+  "last_updated": "2026-03-22T10:52:20.622848+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -3872,7 +3872,7 @@
       "wave": 2,
       "title": "Enable multi-node resize (CompoundCommand wrapping per-node resize commands)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "MOD-DESIGNER-011",
         "MOD-DESIGNER-012",
@@ -3912,7 +3912,7 @@
       "wave": 2,
       "title": "Render canvas boundary visual and add out-of-bounds save warning toast",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"

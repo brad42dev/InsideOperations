@@ -32,7 +32,7 @@ import DesignerModeTabs from './DesignerModeTabs'
 import DesignerStatusBar from './DesignerStatusBar'
 import DesignerLeftPalette from './DesignerLeftPalette'
 import DesignerRightPanel from './DesignerRightPanel'
-import DesignerCanvas from './DesignerCanvas'
+import DesignerCanvas, { getNodeBounds } from './DesignerCanvas'
 import DesignerTabBar from './DesignerTabBar'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import VersionHistoryDialog from './components/VersionHistoryDialog'
@@ -710,7 +710,7 @@ export default function DesignerPage() {
   // Save
   // -------------------------------------------------------------------------
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async ({ explicit = false }: { explicit?: boolean } = {}) => {
     const currentDoc = useSceneStore.getState().doc
     const currentId  = useSceneStore.getState().graphicId
     if (!currentDoc || isSaving || lockHeldRef.current === false) return
@@ -752,12 +752,42 @@ export default function DesignerPage() {
           lockHeldRef.current = true
         }
       }
+
+      // Out-of-bounds warning — only for explicit saves (Ctrl+S / File→Save), not auto-save
+      if (explicit && currentDoc.children.length > 0) {
+        const cw = currentDoc.canvas.width
+        const ch = currentDoc.canvas.height
+        const outOfBoundsIds = currentDoc.children
+          .filter(node => {
+            const b = getNodeBounds(node)
+            return b.x < 0 || b.y < 0 || (b.x + b.w) > cw || (b.y + b.h) > ch
+          })
+          .map(node => node.id)
+        if (outOfBoundsIds.length > 0) {
+          const n = outOfBoundsIds.length
+          const label = n === 1 ? 'element' : 'elements'
+          showToast({
+            title: `${n} ${label} outside the canvas boundary`,
+            variant: 'warning',
+            duration: 8000,
+            action: {
+              label: 'Select',
+              onClick: () => {
+                useUiStore.getState().setSelectedNodes(outOfBoundsIds)
+              },
+            },
+          })
+        }
+      }
     } catch (err) {
       console.error('[DesignerPage] Save failed:', err)
     } finally {
       setIsSaving(false)
     }
   }, [isSaving, markClean, historyMarkClean, loadGraphic])
+
+  /** Stable callback for UI-initiated saves (toolbar, menu) — marks explicit for toast warnings. */
+  const handleExplicitSave = useCallback(() => handleSave({ explicit: true }), [handleSave])
 
   // -------------------------------------------------------------------------
   // Publish — create permanent version snapshot
@@ -1167,7 +1197,7 @@ export default function DesignerPage() {
     function handler(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        handleSave()
+        handleSave({ explicit: true })
       }
     }
     window.addEventListener('keydown', handler)
@@ -1601,7 +1631,7 @@ export default function DesignerPage() {
 
       {/* Mode tabs */}
       <DesignerModeTabs
-        onSave={handleSave}
+        onSave={handleExplicitSave}
         onShowVersionHistory={() => setShowVersionHistory(true)}
         onValidateBindings={handleValidateBindings}
         onImport={() => setShowImportWizard(true)}
@@ -1629,7 +1659,7 @@ export default function DesignerPage() {
 
       {/* Toolbar */}
       <DesignerToolbar
-        onSave={handleSave}
+        onSave={handleExplicitSave}
         isSaving={isSaving}
         onPublish={canPublish ? handlePublish : undefined}
         isPublishing={isPublishing}
