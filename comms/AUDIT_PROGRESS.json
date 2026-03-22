@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T08:06:18.131559+00:00",
+  "last_updated": "2026-03-22T00:00:00Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -70,7 +70,9 @@
     "DD-26-003": 1,
     "GFX-CORE-002": 1,
     "DD-06-001": 1,
-    "DD-27-006": 1
+    "DD-27-006": 1,
+    "DD-28-003": 1,
+    "DD-31-003": 1
   },
   "queue": [
     {
@@ -632,7 +634,7 @@
       "completed_at": "2026-03-21",
       "notes": "8 tasks. Credentials stored plaintext; MiniJinja not used; 4 provider adapters missing.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     },
     {
       "unit": "DD-29",
@@ -2842,7 +2844,7 @@
       "wave": 3,
       "title": "Implement MS Graph, Gmail, SES, and SMTP-XOAUTH2 provider adapters",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3078,7 +3080,7 @@
       "wave": 3,
       "title": "Change template variable definitions from string[] to structured {name, label, default_value, required} objects",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3372,7 +3374,7 @@
       "wave": 3,
       "title": "Implement 6-step DCS Import Wizard in Designer",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-34-004"
       ],
@@ -3384,7 +3386,7 @@
       "wave": 3,
       "title": "Implement stateful 6-endpoint DCS import job API",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-34-001"
       ],
