@@ -361,16 +361,28 @@ export function SceneRenderer({
 
   function renderPipe(node: Pipe): React.ReactElement {
     const color = PIPE_SERVICE_COLORS[node.serviceType] ?? '#6B8CAE'
+    const gapColor = canvas.backgroundColor ?? '#1E1E2E'
+    const commonProps = {
+      d: node.pathData,
+      fill: 'none' as const,
+      strokeLinecap: 'round' as const,
+      strokeLinejoin: 'round' as const,
+      strokeDasharray: node.dashPattern,
+    }
+    const paths = node.insulated
+      ? (
+        <>
+          <path {...commonProps} stroke={color} strokeWidth={node.strokeWidth * 4} />
+          <path {...commonProps} stroke={gapColor} strokeWidth={node.strokeWidth * 2} />
+          <path {...commonProps} stroke={color} strokeWidth={node.strokeWidth * 0.5} />
+        </>
+      )
+      : (
+        <path {...commonProps} stroke={color} strokeWidth={node.strokeWidth} />
+      )
     return (
       <g key={node.id} data-node-id={node.id} data-lod="0" opacity={node.opacity} onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
-        <path
-          d={node.pathData}
-          stroke={color}
-          strokeWidth={node.strokeWidth}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {paths}
         {node.label && (
           <text fill="#71717A" fontSize={9} fontFamily="Inter">
             <textPath href={`#pipe-path-${node.id}`} startOffset="50%" textAnchor="middle">

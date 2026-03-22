@@ -72,7 +72,8 @@
     "DD-06-001": 1,
     "DD-27-006": 1,
     "DD-28-003": 1,
-    "DD-31-003": 1
+    "DD-31-003": 1,
+    "DD-34-003": 1
   },
   "queue": [
     {
@@ -90,7 +91,7 @@
       "completed_at": "2026-03-21",
       "notes": "Re-audited round 3. 2 tasks closed (GFX-CORE-001, GFX-CORE-005). 3 tasks remain open.",
       "last_audit_round": 3,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     },
     {
       "unit": "GFX-DISPLAY",
@@ -883,7 +884,7 @@
       "wave": 1,
       "title": "Implement all 9 annotation types in renderAnnotation",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 3
     },
@@ -893,7 +894,7 @@
       "wave": 1,
       "title": "Render insulated pipes (double line + hatching) and dashPattern",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 3
     },
@@ -3374,7 +3375,7 @@
       "wave": 3,
       "title": "Implement 6-step DCS Import Wizard in Designer",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-34-004"
       ],
