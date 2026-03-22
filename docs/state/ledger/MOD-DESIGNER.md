@@ -19,3 +19,4 @@ MOD-DESIGNER-024 | Group sub-tabs — open group content in a dedicated tab for 
 MOD-DESIGNER-005 | Add missing RC-DES-2 base items to node context menu (Lock/Unlock, Nav Link, Properties) | verified 2026-03-22 | commit 2303589 | npx tsc --noEmit | PASS
 MOD-DESIGNER-006 | Add missing node-type-specific context menu items (RC-DES-6/7/8/10/11) | verified 2026-03-22 | commit f5a00f8 | npx tsc --noEmit | PASS
 MOD-DESIGNER-007 | Add right-click context menus to shape palette (RC-DES-13/14/15) | verified 2026-03-22 | commit 3f30a43 | npx tsc --noEmit | PASS
+MOD-DESIGNER-025 | Extend PromoteToShapeWizard to accept groups with display elements as value anchors | verified 2026-03-22 | commit 295798f | npx tsc --noEmit | PASS

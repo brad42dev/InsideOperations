@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T12:54:34.765153+00:00",
+  "last_updated": "2026-03-22T13:20:31.217549+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -91,7 +91,8 @@
     "DD-10-004": 1,
     "DD-10-005": 1,
     "DD-10-006": 1,
-    "DD-10-008": 1
+    "DD-10-008": 1,
+    "MOD-DESIGNER-025": 1
   },
   "queue": [
     {
@@ -1569,7 +1570,7 @@
       "wave": 3,
       "title": "Wire typst-as-lib for real PDF generation (not HTML fallback)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -4008,7 +4009,7 @@
       "wave": 2,
       "title": "Extend Promote to Shape wizard to accept groups with display elements as value anchors",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "MOD-DESIGNER-021"
       ],

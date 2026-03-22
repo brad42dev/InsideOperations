@@ -1363,6 +1363,8 @@ fn compile_typst_pdf(
     rows: &[Vec<String>],
 ) -> Result<Vec<u8>, String> {
     use typst_as_lib::TypstEngine;
+    use typst_engine::layout::PagedDocument;
+    use typst_pdf_render::PdfOptions;
 
     let source = build_typst_template(title, headers, rows);
 
@@ -1370,9 +1372,13 @@ fn compile_typst_pdf(
         .main_file(source)
         .build();
 
-    engine
-        .compile_pdf()
-        .map_err(|e| format!("Typst compile error: {e:?}"))
+    let doc: PagedDocument = engine
+        .compile::<PagedDocument>()
+        .output
+        .map_err(|e| format!("Typst compile error: {e:?}"))?;
+
+    typst_pdf_render::pdf(&doc, &PdfOptions::default())
+        .map_err(|e| format!("Typst PDF render error: {e:?}"))
 }
 
 /// Minimal HTML escaping for report content.

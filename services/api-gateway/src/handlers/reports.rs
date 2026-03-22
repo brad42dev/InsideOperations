@@ -563,6 +563,7 @@ fn format_to_content_type(format: &str) -> (&'static str, &'static str) {
             "xlsx",
         ),
         "json" => ("application/json; charset=utf-8", "json"),
+        "pdf" => ("application/pdf", "pdf"),
         _ => ("text/html; charset=utf-8", "html"),
     }
 }
