@@ -63,6 +63,16 @@ export interface ThresholdExceedance {
   duration_seconds: number
 }
 
+export interface AlarmEvent {
+  id: string
+  point_id: string
+  occurred_at: string
+  cleared_at?: string
+  duration_seconds?: number
+  severity: string
+  message: string
+}
+
 export interface InvestigationPoint {
   point_id: string
   status: 'included' | 'suggested' | 'removed'
@@ -209,10 +219,11 @@ export const forensicsApi = {
 
   alarmSearch: (data: {
     point_id: string
+    aggregation_interval?: 'raw' | '1m' | '5m' | '15m' | '30m'
     start?: string
     end?: string
-  }): Promise<ApiResult<unknown[]>> =>
-    api.post<unknown[]>('/api/forensics/alarm-search', data),
+  }): Promise<ApiResult<AlarmEvent[]>> =>
+    api.post<AlarmEvent[]>('/api/forensics/alarm-search', data),
 
   // ---- Links ---------------------------------------------------------------
 

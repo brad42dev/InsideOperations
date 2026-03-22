@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { forensicsApi, type Investigation } from '../../api/forensics'
 import ThresholdSearch from './ThresholdSearch'
+import AlarmSearch from './AlarmSearch'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -284,7 +285,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
 // ForensicsPage
 // ---------------------------------------------------------------------------
 
-type Tab = 'investigations' | 'threshold'
+type Tab = 'investigations' | 'threshold' | 'alarm'
 type StatusFilter = 'all' | 'active' | 'closed' | 'cancelled'
 
 export default function ForensicsPage() {
@@ -368,6 +369,7 @@ export default function ForensicsPage() {
             {([
               { key: 'investigations', label: 'Investigations' },
               { key: 'threshold', label: 'Threshold Search' },
+              { key: 'alarm', label: 'Alarm Search' },
             ] as { key: Tab; label: string }[]).map((t) => (
               <button
                 key={t.key}
@@ -411,6 +413,8 @@ export default function ForensicsPage() {
       {/* Content */}
       {tab === 'threshold' ? (
         <ThresholdSearch />
+      ) : tab === 'alarm' ? (
+        <AlarmSearch />
       ) : (
         <>
           {/* Status filter tabs */}
