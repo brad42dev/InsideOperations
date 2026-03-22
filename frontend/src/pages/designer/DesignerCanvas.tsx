@@ -25,6 +25,7 @@ import {
   useUiStore,
   useHistoryStore,
   useLibraryStore,
+  useTabStore,
   snapToGridValue,
 } from '../../store/designer'
 import type { NodeId } from '../../shared/types/graphics'
@@ -89,6 +90,13 @@ export interface DesignerCanvasProps {
   className?: string
   style?: React.CSSProperties
   onPropertiesOpen?: () => void
+  /** Called when the user selects "Open in Tab" on a group node. */
+  onOpenGroupInTab?: (groupNodeId: NodeId, groupName: string) => void
+  /**
+   * When non-null, the canvas is in "group sub-tab" mode.
+   * Only the children of this group node are rendered.
+   */
+  groupSubTabNodeId?: NodeId | null
 }
 
 // ---------------------------------------------------------------------------
@@ -1393,6 +1401,64 @@ function LockOverlay({
 }
 
 // ---------------------------------------------------------------------------
+// Group tab indicator overlay — small "tab open" badge on group nodes that
+// have an open sub-tab. Rendered in the top-right of the group's bounding box.
+// ---------------------------------------------------------------------------
+
+function GroupTabIndicatorOverlay({
+  doc,
+  zoom,
+  openGroupTabNodeIds,
+}: {
+  doc: GraphicDocument
+  zoom: number
+  openGroupTabNodeIds: Set<string>
+}) {
+  const groups = doc.children.filter(
+    n => n.type === 'group' && n.visible && openGroupTabNodeIds.has(n.id)
+  )
+  if (groups.length === 0) return null
+
+  const sz = 10 / zoom
+
+  return (
+    <g className="io-group-tab-indicator" style={{ pointerEvents: 'none' }}>
+      {groups.map(node => {
+        const bounds = getNodeBounds(node)
+        // Position in the top-right corner of the bounding box
+        const px = bounds.x + bounds.w
+        const py = bounds.y
+        return (
+          <g key={node.id} transform={`translate(${px},${py})`}>
+            {/* Small tab shape: rectangle with a notched top-left corner */}
+            <path
+              d={`M ${-sz * 1.4} ${-sz * 1.6} L ${-sz * 0.2} ${-sz * 1.6} L ${-sz * 0.2} ${-sz * 0.4} L ${-sz * 1.4} ${-sz * 0.4} Z`}
+              fill="var(--io-accent)"
+              opacity={0.85}
+            />
+            {/* Tiny horizontal lines suggesting tab content */}
+            <line
+              x1={-sz * 1.2} y1={-sz * 1.3}
+              x2={-sz * 0.4} y2={-sz * 1.3}
+              stroke="rgba(0,0,0,0.6)"
+              strokeWidth={0.8 / zoom}
+              strokeLinecap="round"
+            />
+            <line
+              x1={-sz * 1.2} y1={-sz * 0.9}
+              x2={-sz * 0.4} y2={-sz * 0.9}
+              stroke="rgba(0,0,0,0.6)"
+              strokeWidth={0.8 / zoom}
+              strokeLinecap="round"
+            />
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Smart alignment guides overlay
 // ---------------------------------------------------------------------------
 
@@ -1664,7 +1730,7 @@ function ConnectionPointsOverlay({
 // Main canvas component
 // ---------------------------------------------------------------------------
 
-export default function DesignerCanvas({ className, style, onPropertiesOpen }: DesignerCanvasProps) {
+export default function DesignerCanvas({ className, style, onPropertiesOpen, onOpenGroupInTab, groupSubTabNodeId }: DesignerCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Store subscriptions
@@ -1698,6 +1764,15 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
   const activeGroupId    = useUiStore(s => s.activeGroupId)
   const setActiveGroup      = useUiStore(s => s.setActiveGroup)
   const phonePreviewActive  = useUiStore(s => s.phonePreviewActive)
+
+  // Compute which group node IDs have open sub-tabs (for the tab indicator overlay)
+  const openGroupTabNodeIds = useTabStore(s => {
+    const ids = new Set<string>()
+    for (const t of s.tabs) {
+      if (t.type === 'group' && t.groupNodeId) ids.add(t.groupNodeId)
+    }
+    return ids
+  })
 
   const historyPush = useHistoryStore(s => s.push)
   const historyUndo = useHistoryStore(s => s.undo)
@@ -3958,23 +4033,41 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
             )
           })()}
           <TestModeContext.Provider value={testModeValues}>
-            {doc?.children.map(node => {
-              // In group edit mode: dim nodes that are NOT the active group
-              const isDimmed = activeGroupId !== null && node.id !== activeGroupId
-              return (
-                <g
-                  key={node.id}
-                  opacity={isDimmed ? 0.3 : 1}
-                  style={isDimmed ? { pointerEvents: 'none' } : undefined}
-                >
-                  <RenderNode
-                    node={node}
-                    getShapeSvg={getShapeSvgMemo}
-                    selectedIds={selectedIdsRef.current}
-                  />
-                </g>
-              )
-            })}
+            {groupSubTabNodeId
+              ? (() => {
+                  // Group sub-tab mode: only render children of the target group node
+                  const groupNode = doc?.children.find(n => n.id === groupSubTabNodeId)
+                  const children = (groupNode && 'children' in groupNode)
+                    ? (groupNode as import('../../shared/types/graphics').Group).children
+                    : []
+                  return children.map(node => (
+                    <g key={node.id}>
+                      <RenderNode
+                        node={node}
+                        getShapeSvg={getShapeSvgMemo}
+                        selectedIds={selectedIdsRef.current}
+                      />
+                    </g>
+                  ))
+                })()
+              : doc?.children.map(node => {
+                  // In group edit mode: dim nodes that are NOT the active group
+                  const isDimmed = activeGroupId !== null && node.id !== activeGroupId
+                  return (
+                    <g
+                      key={node.id}
+                      opacity={isDimmed ? 0.3 : 1}
+                      style={isDimmed ? { pointerEvents: 'none' } : undefined}
+                    >
+                      <RenderNode
+                        node={node}
+                        getShapeSvg={getShapeSvgMemo}
+                        selectedIds={selectedIdsRef.current}
+                      />
+                    </g>
+                  )
+                })
+            }
           </TestModeContext.Provider>
 
           {/* Group edit mode: teal dashed border around active group bounding box */}
@@ -4012,6 +4105,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
 
           {/* Lock indicators */}
           {doc && <LockOverlay doc={doc} zoom={zoom} />}
+
+          {/* Group sub-tab open indicator — small badge on groups that have an open sub-tab */}
+          {doc && !groupSubTabNodeId && openGroupTabNodeIds.size > 0 && (
+            <GroupTabIndicatorOverlay doc={doc} zoom={zoom} openGroupTabNodeIds={openGroupTabNodeIds} />
+          )}
 
           {/* Smart alignment guides */}
           <AlignmentGuidesOverlay guides={alignGuides} canvasW={canvasW} canvasH={canvasH} zoom={zoom} />
@@ -4331,6 +4429,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       fitToCanvas={fitToCanvas}
       setGroupPrompt={setGroupPrompt}
       onPropertiesOpen={onPropertiesOpen}
+      onOpenGroupInTab={onOpenGroupInTab}
     />
     </ContextMenuPrimitive.Root>
   )
@@ -4591,6 +4690,7 @@ interface DesignerContextMenuContentProps {
     currentName?: string
   } | null>>
   onPropertiesOpen?: () => void
+  onOpenGroupInTab?: (groupNodeId: NodeId, groupName: string) => void
 }
 
 function DesignerContextMenuContent({
@@ -4614,6 +4714,7 @@ function DesignerContextMenuContent({
   fitToCanvas,
   setGroupPrompt,
   onPropertiesOpen,
+  onOpenGroupInTab,
 }: DesignerContextMenuContentProps) {
   const getShape = useLibraryStore(s => s.getShape)
 
@@ -5274,7 +5375,14 @@ function DesignerContextMenuContent({
                   }}>
                   Enter Group
                 </ContextMenuPrimitive.Item>
-                <ContextMenuPrimitive.Item style={itemStyle} disabled={true}>
+                <ContextMenuPrimitive.Item
+                  style={itemStyle}
+                  disabled={!nodeId || !onOpenGroupInTab}
+                  onSelect={() => {
+                    if (!nodeId || !groupNode || !onOpenGroupInTab) return
+                    onOpenGroupInTab(nodeId, groupNode.name ?? 'Group')
+                  }}
+                >
                   Open in Tab
                 </ContextMenuPrimitive.Item>
                 <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId} onSelect={() => {

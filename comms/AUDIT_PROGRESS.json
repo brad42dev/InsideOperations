@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T10:59:54.094027+00:00",
+  "last_updated": "2026-03-22T11:06:27.514972+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -3937,7 +3937,7 @@
       "wave": 2,
       "title": "Implement auto-height scrollable canvas for Report and Dashboard modes",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "MOD-DESIGNER-016",
         "MOD-DESIGNER-017",
@@ -3987,7 +3987,7 @@
       "wave": 2,
       "title": "Group sub-tabs \u2014 open group content in a dedicated tab for deep editing",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-021",
         "MOD-DESIGNER-023"

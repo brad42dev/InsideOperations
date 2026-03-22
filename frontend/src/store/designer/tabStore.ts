@@ -36,7 +36,7 @@ export interface SavedTabState {
 export interface DesignerTab {
   /** Stable tab UUID (not the graphic ID). */
   id: string
-  /** The graphic's database ID. */
+  /** The graphic's database ID (same for all sub-tabs of a graphic). */
   graphicId: string
   /** Cached display name (from server, updated on load). */
   graphicName: string
@@ -44,15 +44,26 @@ export interface DesignerTab {
   isModified: boolean
   /** Per-tab viewport (pan/zoom), saved and restored on tab switch. */
   viewport: DesignerViewport
-  /** Discriminator — 'group' tabs are added in MOD-DESIGNER-024. */
-  type: 'graphic'
+  /** Discriminator — 'graphic' = a normal file tab; 'group' = a group sub-tab. */
+  type: 'graphic' | 'group'
   /** Unix timestamp (ms) of the last time this tab was focused. */
   lastFocusedAt: number
   /**
    * Saved scene graph for this tab (populated when switching away from the tab).
    * Null means the tab is currently active (scene is in sceneStore) or not yet loaded.
+   * Group sub-tabs do not own a separate scene — they share the parent graphic's sceneStore.
    */
   savedScene: SavedTabState | null
+  /**
+   * For type === 'group': the group node's ID in the scene graph.
+   * Undefined for type === 'graphic'.
+   */
+  groupNodeId?: string
+  /**
+   * For type === 'group': the group's display name.
+   * Undefined for type === 'graphic'.
+   */
+  groupName?: string
 }
 
 export interface TabStore {
@@ -107,6 +118,31 @@ export interface TabStore {
 
   /** Get a tab by its tab ID. */
   getTab(tabId: string): DesignerTab | null
+
+  /**
+   * Open a group sub-tab for the given group node within the currently active graphic tab.
+   * If a sub-tab for this groupNodeId already exists, returns it (isNew: false).
+   * Otherwise creates a new sub-tab (isNew: true).
+   */
+  openGroupTab(
+    graphicId: string,
+    graphicName: string,
+    groupNodeId: string,
+    groupName: string,
+    viewport: DesignerViewport,
+  ): { tabId: string; isNew: boolean }
+
+  /**
+   * Close all group sub-tabs that belong to the given graphicId.
+   * Called when the parent graphic tab is about to be closed.
+   * Returns the array of closed sub-tab IDs.
+   */
+  closeGroupTabsForGraphic(graphicId: string): string[]
+
+  /**
+   * Find a group sub-tab by its groupNodeId. Returns null if not found.
+   */
+  findGroupTab(groupNodeId: string): DesignerTab | null
 
   /** Reset all tabs (e.g. on logout or page unload). */
   reset(): void
@@ -263,11 +299,79 @@ export const useTabStore = create<TabStore>((set, get) => ({
   },
 
   findTabByGraphicId(graphicId) {
-    return get().tabs.find(t => t.graphicId === graphicId) ?? null
+    // Find the first 'graphic' type tab matching this graphicId
+    return get().tabs.find(t => t.graphicId === graphicId && t.type === 'graphic') ?? null
   },
 
   getTab(tabId) {
     return get().tabs.find(t => t.id === tabId) ?? null
+  },
+
+  openGroupTab(graphicId, graphicName, groupNodeId, groupName, viewport) {
+    const { tabs } = get()
+
+    // Idempotency: if a sub-tab for this groupNodeId already exists, focus it
+    const existing = tabs.find(t => t.type === 'group' && t.groupNodeId === groupNodeId)
+    if (existing) {
+      set((state) => ({
+        activeTabId: existing.id,
+        tabs: state.tabs.map(t =>
+          t.id === existing.id ? { ...t, lastFocusedAt: Date.now() } : t
+        ),
+      }))
+      return { tabId: existing.id, isNew: false }
+    }
+
+    const tabId = crypto.randomUUID()
+    const newTab: DesignerTab = {
+      id: tabId,
+      type: 'group',
+      graphicId,
+      graphicName,
+      groupNodeId,
+      groupName,
+      isModified: false,
+      viewport,
+      lastFocusedAt: Date.now(),
+      savedScene: null,
+    }
+
+    set((state) => ({
+      tabs: [...state.tabs, newTab],
+      activeTabId: tabId,
+    }))
+
+    return { tabId, isNew: true }
+  },
+
+  closeGroupTabsForGraphic(graphicId) {
+    const { tabs, activeTabId } = get()
+    const toClose = tabs.filter(t => t.type === 'group' && t.graphicId === graphicId)
+    if (toClose.length === 0) return []
+
+    const closeIds = new Set(toClose.map(t => t.id))
+    const remaining = tabs.filter(t => !closeIds.has(t.id))
+
+    let newActiveId = activeTabId
+    if (activeTabId && closeIds.has(activeTabId)) {
+      // Find a new active: prefer the parent graphic tab
+      const parentTab = remaining.find(t => t.graphicId === graphicId && t.type === 'graphic')
+      if (parentTab) {
+        newActiveId = parentTab.id
+      } else if (remaining.length > 0) {
+        const sorted = [...remaining].sort((a, b) => b.lastFocusedAt - a.lastFocusedAt)
+        newActiveId = sorted[0].id
+      } else {
+        newActiveId = null
+      }
+    }
+
+    set({ tabs: remaining, activeTabId: newActiveId })
+    return toClose.map(t => t.id)
+  },
+
+  findGroupTab(groupNodeId) {
+    return get().tabs.find(t => t.type === 'group' && t.groupNodeId === groupNodeId) ?? null
   },
 
   reset() {

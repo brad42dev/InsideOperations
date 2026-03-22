@@ -36,6 +36,16 @@ function truncate(name: string, max = 20): string {
   return name.slice(0, max) + '\u2026'
 }
 
+/** Build the display label for a tab. Group sub-tabs show "Graphic › Group" (truncated). */
+function tabLabel(tab: DesignerTab): string {
+  if (tab.type === 'group' && tab.groupName) {
+    const g = tab.graphicName.length > 12 ? tab.graphicName.slice(0, 12) + '\u2026' : tab.graphicName
+    const n = tab.groupName.length > 12 ? tab.groupName.slice(0, 12) + '\u2026' : tab.groupName
+    return `${g} \u203a ${n}`
+  }
+  return truncate(tab.graphicName)
+}
+
 // ---------------------------------------------------------------------------
 // Single tab item
 // ---------------------------------------------------------------------------
@@ -52,9 +62,14 @@ interface TabItemProps {
 function TabItem({ tab, active, onSwitch, onClose, onCloseOthers, onCloseAll }: TabItemProps) {
   const [hovered, setHovered] = useState(false)
 
+  const displayLabel = tabLabel(tab)
+  const fullTitle = tab.type === 'group' && tab.groupName
+    ? `${tab.graphicName} › ${tab.groupName}`
+    : tab.graphicName
+
   const handleCopyName = useCallback(() => {
-    navigator.clipboard.writeText(tab.graphicName).catch(() => {/* best-effort */})
-  }, [tab.graphicName])
+    navigator.clipboard.writeText(fullTitle).catch(() => {/* best-effort */})
+  }, [fullTitle])
 
   const handleClose = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -67,7 +82,7 @@ function TabItem({ tab, active, onSwitch, onClose, onCloseOthers, onCloseAll }: 
         <div
           role="tab"
           aria-selected={active}
-          title={tab.graphicName}
+          title={fullTitle}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           onClick={onSwitch}
@@ -108,7 +123,7 @@ function TabItem({ tab, active, onSwitch, onClose, onCloseOthers, onCloseAll }: 
 
           {/* Label */}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>
-            {truncate(tab.graphicName)}
+            {displayLabel}
           </span>
 
           {/* Close button — always visible on active, visible on hover otherwise */}
@@ -116,7 +131,7 @@ function TabItem({ tab, active, onSwitch, onClose, onCloseOthers, onCloseAll }: 
             <button
               onClick={handleClose}
               title="Close tab"
-              aria-label={`Close ${tab.graphicName}`}
+              aria-label={`Close ${fullTitle}`}
               style={{
                 flexShrink: 0,
                 marginLeft: 4,

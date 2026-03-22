@@ -567,16 +567,22 @@ export default function DesignerPage() {
   // Tab store
   const tabs        = useTabStore(s => s.tabs)
   const activeTabId = useTabStore(s => s.activeTabId)
-  const tabStoreOpenTab      = useTabStore(s => s.openTab)
-  const tabStoreSetActive    = useTabStore(s => s.setActiveTab)
-  const tabStoreCloseTab     = useTabStore(s => s.closeTab)
-  const tabStoreSetModified  = useTabStore(s => s.setTabModified)
-  const tabStoreSaveViewport = useTabStore(s => s.saveTabViewport)
-  const tabStoreSaveScene    = useTabStore(s => s.saveTabScene)
-  const tabStoreCloseOthers  = useTabStore(s => s.closeOtherTabs)
-  const tabStoreCloseAll     = useTabStore(s => s.closeAllTabs)
-  const tabStoreFindByGraphic = useTabStore(s => s.findTabByGraphicId)
-  const setViewport          = useUiStore(s => s.setViewport)
+  const tabStoreOpenTab          = useTabStore(s => s.openTab)
+  const tabStoreSetActive        = useTabStore(s => s.setActiveTab)
+  const tabStoreCloseTab         = useTabStore(s => s.closeTab)
+  const tabStoreSetModified      = useTabStore(s => s.setTabModified)
+  const tabStoreSaveViewport     = useTabStore(s => s.saveTabViewport)
+  const tabStoreSaveScene        = useTabStore(s => s.saveTabScene)
+  const tabStoreCloseOthers      = useTabStore(s => s.closeOtherTabs)
+  const tabStoreCloseAll         = useTabStore(s => s.closeAllTabs)
+  const tabStoreFindByGraphic    = useTabStore(s => s.findTabByGraphicId)
+  const tabStoreOpenGroupTab     = useTabStore(s => s.openGroupTab)
+  const tabStoreCloseGroupTabs   = useTabStore(s => s.closeGroupTabsForGraphic)
+  const setViewport              = useUiStore(s => s.setViewport)
+  const setActiveGroup           = useUiStore(s => s.setActiveGroup)
+
+  // Derived: current active tab object
+  const activeTab = useTabStore(s => s.tabs.find(t => t.id === s.activeTabId) ?? null)
 
   // Tab close prompt state
   const [tabClosePrompt, setTabClosePrompt] = useState<{
@@ -1002,6 +1008,59 @@ export default function DesignerPage() {
   ])
 
   /**
+   * Open a group node in a dedicated sub-tab.
+   * Called from DesignerCanvas's "Open in Tab" context menu item.
+   * Group sub-tabs share the parent graphic's sceneStore — no server fetch needed.
+   */
+  const openGroupInTab = useCallback((groupNodeId: string, groupName: string) => {
+    // The current active tab must be a graphic tab — get its info
+    const currentState = useTabStore.getState()
+    const currentTab = currentState.getTab(currentState.activeTabId ?? '')
+    if (!currentTab || currentTab.type !== 'graphic') return
+
+    // Save outgoing tab's viewport before switching
+    tabStoreSaveViewport(currentTab.id, useUiStore.getState().viewport)
+
+    // Compute a fit-to-group viewport using window dimensions as a proxy for canvas size
+    const doc = useSceneStore.getState().doc
+    const groupNode = doc?.children.find(n => n.id === groupNodeId)
+    let viewport = { panX: 0, panY: 0, zoom: 1 }
+    if (groupNode) {
+      const b = getNodeBounds(groupNode)
+      // Approximate canvas size: window minus toolbar/panel/tabbar chrome (~44+36+300+240 px)
+      const vw = Math.max(200, window.innerWidth - 240 - 300 - 4)
+      const vh = Math.max(200, window.innerHeight - 44 - 36 - 24)
+      const scaleX = vw / (b.w || 1)
+      const scaleY = vh / (b.h || 1)
+      const zoom = Math.min(scaleX, scaleY) * 0.9
+      const panX = vw / 2 - (b.x + b.w / 2) * zoom
+      const panY = vh / 2 - (b.y + b.h / 2) * zoom
+      viewport = { panX, panY, zoom }
+    }
+
+    const { tabId, isNew } = tabStoreOpenGroupTab(
+      currentTab.graphicId,
+      currentTab.graphicName,
+      groupNodeId,
+      groupName,
+      viewport,
+    )
+
+    if (!isNew) {
+      // Already open — just switch to it and restore its viewport
+      const existing = useTabStore.getState().getTab(tabId)
+      setViewport(existing?.viewport ?? viewport)
+      setActiveGroup(groupNodeId)
+      return
+    }
+
+    // New sub-tab — apply the computed viewport
+    setViewport(viewport)
+    // Enter the group context so palette drops and commands target group children
+    setActiveGroup(groupNodeId)
+  }, [tabStoreOpenGroupTab, tabStoreSaveViewport, setViewport, setActiveGroup])
+
+  /**
    * Switch to an existing tab. Saves the current scene/viewport into the
    * outgoing tab, then restores the incoming tab's saved state.
    */
@@ -1009,11 +1068,14 @@ export default function DesignerPage() {
     const currentActiveId = useTabStore.getState().activeTabId
     if (tabId === currentActiveId) return
 
-    // Save outgoing tab state
+    // Save outgoing tab's viewport (and scene if it's a graphic tab)
     if (currentActiveId) {
-      const currentDoc = useSceneStore.getState().doc
-      if (currentDoc) {
-        tabStoreSaveScene(currentActiveId, currentDoc)
+      const outgoingTab = useTabStore.getState().getTab(currentActiveId)
+      if (outgoingTab?.type === 'graphic') {
+        const currentDoc = useSceneStore.getState().doc
+        if (currentDoc) {
+          tabStoreSaveScene(currentActiveId, currentDoc)
+        }
       }
       tabStoreSaveViewport(currentActiveId, useUiStore.getState().viewport)
     }
@@ -1022,6 +1084,17 @@ export default function DesignerPage() {
 
     const incomingTab = useTabStore.getState().getTab(tabId)
     if (!incomingTab) return
+
+    // Group sub-tab: the scene is already loaded (shared sceneStore). Just restore
+    // viewport and set the active group context.
+    if (incomingTab.type === 'group') {
+      setViewport(incomingTab.viewport)
+      setActiveGroup(incomingTab.groupNodeId ?? null)
+      return
+    }
+
+    // Graphic tab: switching back from a group sub-tab — clear group context
+    setActiveGroup(null)
 
     if (incomingTab.savedScene) {
       // Restore from cached scene
@@ -1050,7 +1123,7 @@ export default function DesignerPage() {
     }
   }, [
     tabStoreSetActive, tabStoreSaveScene, tabStoreSaveViewport,
-    loadGraphic, historyClear, setViewport,
+    loadGraphic, historyClear, setViewport, setActiveGroup,
   ])
 
   /**
@@ -1062,9 +1135,16 @@ export default function DesignerPage() {
     if (!tab) return
 
     const doClose = async () => {
-      // If closing the active tab, save its current scene first
+      // If closing a graphic tab, first silently close all its group sub-tabs
+      if (tab.type === 'graphic') {
+        tabStoreCloseGroupTabs(tab.graphicId)
+        // If we were in a group sub-tab context, clear the active group
+        setActiveGroup(null)
+      }
+
+      // If closing the active tab, save its current scene first (graphic tabs only)
       const currentActiveId = useTabStore.getState().activeTabId
-      if (currentActiveId === tabId) {
+      if (currentActiveId === tabId && tab.type === 'graphic') {
         const currentDoc = useSceneStore.getState().doc
         if (currentDoc) {
           tabStoreSaveScene(tabId, currentDoc)
@@ -1076,12 +1156,18 @@ export default function DesignerPage() {
       // If there's a new active tab, restore it
       if (newActiveId) {
         const nextTab = useTabStore.getState().getTab(newActiveId)
-        if (nextTab?.savedScene) {
+        if (nextTab?.type === 'group') {
+          // Switching to a group sub-tab — restore viewport and group context
+          setViewport(nextTab.viewport)
+          setActiveGroup(nextTab.groupNodeId ?? null)
+        } else if (nextTab?.savedScene) {
           loadGraphic(nextTab.graphicId, nextTab.savedScene.scene)
           historyClear()
           setViewport(nextTab.viewport)
+          setActiveGroup(null)
         } else if (nextTab) {
           // Load from server if no saved scene
+          setActiveGroup(null)
           setLoading(true)
           try {
             const resp = await graphicsApi.get(nextTab.graphicId)
@@ -1096,10 +1182,17 @@ export default function DesignerPage() {
         }
       } else {
         // No tabs left — clear scene, navigate to home
+        setActiveGroup(null)
         useSceneStore.getState().reset()
         navigate('/designer/graphics')
       }
       afterClose?.()
+    }
+
+    // Group sub-tabs: no independent save prompt — changes persist via parent graphic
+    if (tab.type === 'group') {
+      doClose()
+      return
     }
 
     if (tab.isModified) {
@@ -1112,7 +1205,7 @@ export default function DesignerPage() {
       doClose()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabStoreCloseTab, tabStoreSaveScene, loadGraphic, historyClear, setViewport, navigate])
+  }, [tabStoreCloseTab, tabStoreSaveScene, tabStoreCloseGroupTabs, loadGraphic, historyClear, setViewport, setActiveGroup, navigate])
 
   /**
    * Save handler for the tab close prompt (Save button).
@@ -1167,9 +1260,22 @@ export default function DesignerPage() {
   }, [tabClosePrompt, tabStoreSetModified, markClean, historyMarkClean, requestCloseTab])
 
   // Sync isDirty → active tab's isModified
+  // For group sub-tabs, also mark the parent graphic tab modified (changes go to shared scene).
   const isDirtyFromStore = useSceneStore(s => s.isDirty)
   useEffect(() => {
-    if (activeTabId) {
+    if (!activeTabId) return
+    const currentActiveTab = useTabStore.getState().getTab(activeTabId)
+    if (currentActiveTab?.type === 'group') {
+      // Mark the group sub-tab itself
+      tabStoreSetModified(activeTabId, isDirtyFromStore)
+      // Also mark the parent graphic tab so the save indicator appears there
+      const parentTab = useTabStore.getState().tabs.find(
+        t => t.type === 'graphic' && t.graphicId === currentActiveTab.graphicId
+      )
+      if (parentTab) {
+        tabStoreSetModified(parentTab.id, isDirtyFromStore)
+      }
+    } else {
       tabStoreSetModified(activeTabId, isDirtyFromStore)
     }
   }, [isDirtyFromStore, activeTabId, tabStoreSetModified])
@@ -1745,7 +1851,14 @@ export default function DesignerPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 200 }}>
           {loading && <LoadingSkeleton />}
           {loadError && <ErrorState message={loadError} onRetry={loadDoc} />}
-          {!loading && !loadError && <DesignerCanvas style={{ flex: 1 }} onPropertiesOpen={() => setShowPropertiesDialog(true)} />}
+          {!loading && !loadError && (
+            <DesignerCanvas
+              style={{ flex: 1 }}
+              onPropertiesOpen={() => setShowPropertiesDialog(true)}
+              onOpenGroupInTab={openGroupInTab}
+              groupSubTabNodeId={activeTab?.type === 'group' ? (activeTab.groupNodeId ?? null) : null}
+            />
+          )}
         </div>
 
         {/* Right divider */}
