@@ -30,10 +30,10 @@ type InstanceStatus = RoundInstance['status']
 
 function StatusBadge({ status }: { status: InstanceStatus }) {
   const colorMap: Record<InstanceStatus, { bg: string; text: string }> = {
-    pending: { bg: 'rgba(251,191,36,0.15)', text: '#f59e0b' },
+    pending: { bg: 'rgba(251,191,36,0.15)', text: 'var(--io-alarm-high)' },
     in_progress: { bg: 'var(--io-accent-subtle, rgba(74,158,255,0.15))', text: 'var(--io-accent, #4A9EFF)' },
-    completed: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e' },
-    missed: { bg: 'rgba(239,68,68,0.12)', text: '#ef4444' },
+    completed: { bg: 'rgba(34,197,94,0.12)', text: 'var(--io-alarm-normal)' },
+    missed: { bg: 'rgba(239,68,68,0.12)', text: 'var(--io-alarm-critical)' },
     transferred: { bg: 'var(--io-surface-secondary)', text: 'var(--io-text-muted)' },
   }
   const c = colorMap[status] ?? { bg: 'var(--io-surface-secondary)', text: 'var(--io-text-muted)' }
@@ -115,7 +115,7 @@ function InstanceCard({
             style={{
               padding: '8px 20px',
               background: 'var(--io-accent, #4A9EFF)',
-              color: '#fff',
+              color: 'var(--io-accent-foreground)',
               border: 'none',
               borderRadius: '6px',
               cursor: starting ? 'not-allowed' : 'pointer',
@@ -133,7 +133,7 @@ function InstanceCard({
             style={{
               padding: '8px 20px',
               background: 'var(--io-accent, #4A9EFF)',
-              color: '#fff',
+              color: 'var(--io-accent-foreground)',
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -206,7 +206,7 @@ const historyColumns: ColumnDef<RoundHistoryEntry>[] = [
     cell: (v) => {
       const n = v as number
       return (
-        <span style={{ color: n > 0 ? '#f59e0b' : 'var(--io-text-muted)', fontWeight: n > 0 ? 600 : 400 }}>
+        <span style={{ color: n > 0 ? 'var(--io-alarm-high)' : 'var(--io-text-muted)', fontWeight: n > 0 ? 600 : 400 }}>
           {n}
         </span>
       )
@@ -309,7 +309,7 @@ export default function RoundsPage() {
                   padding: '2px 8px',
                   borderRadius: '100px',
                   background: 'rgba(251,191,36,0.15)',
-                  color: '#b45309',
+                  color: 'var(--io-alarm-high)',
                   fontWeight: 700,
                   border: '1px solid rgba(251,191,36,0.4)',
                 }}
@@ -324,7 +324,7 @@ export default function RoundsPage() {
                   padding: '2px 8px',
                   borderRadius: '100px',
                   background: 'rgba(34,197,94,0.12)',
-                  color: '#166534',
+                  color: 'var(--io-alarm-normal)',
                   fontWeight: 700,
                   border: '1px solid rgba(34,197,94,0.3)',
                 }}
@@ -339,7 +339,7 @@ export default function RoundsPage() {
                   padding: '2px 8px',
                   borderRadius: '100px',
                   background: 'rgba(239,68,68,0.12)',
-                  color: '#b91c1c',
+                  color: 'var(--io-alarm-critical)',
                   fontWeight: 700,
                   border: '1px solid rgba(239,68,68,0.3)',
                 }}
@@ -354,7 +354,7 @@ export default function RoundsPage() {
               style={{
                 padding: '8px 16px',
                 background: 'var(--io-accent, #4A9EFF)',
-                color: '#fff',
+                color: 'var(--io-accent-foreground)',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
@@ -551,7 +551,7 @@ export default function RoundsPage() {
                     padding: '2px 8px',
                     borderRadius: '100px',
                     background: sched.is_active ? 'rgba(34,197,94,0.12)' : 'var(--io-surface-secondary)',
-                    color: sched.is_active ? '#22c55e' : 'var(--io-text-muted)',
+                    color: sched.is_active ? 'var(--io-alarm-normal)' : 'var(--io-text-muted)',
                     fontWeight: 700,
                   }}
                 >

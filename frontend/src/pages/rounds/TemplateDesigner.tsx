@@ -205,7 +205,7 @@ function Field({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
       <label style={{ fontSize: '12px', color: 'var(--io-text-secondary)', fontWeight: 600 }}>
         {label}
-        {required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+        {required && <span style={{ color: 'var(--io-alarm-critical)', marginLeft: '2px' }}>*</span>}
       </label>
       {children}
     </div>
@@ -302,7 +302,7 @@ function CheckpointEditor({
           <button
             onClick={onRemove}
             title="Remove checkpoint"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px 6px' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--io-alarm-critical)', padding: '2px 6px' }}
           >
             ×
           </button>
@@ -471,7 +471,7 @@ function CheckpointEditor({
                     <button
                       onClick={() => set('options', cp.options.filter((_, j) => j !== i))}
                       disabled={cp.options.length === 1}
-                      style={{ background: 'none', border: '1px solid var(--io-border)', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', padding: '0 10px' }}
+                      style={{ background: 'none', border: '1px solid var(--io-border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--io-alarm-critical)', padding: '0 10px' }}
                     >
                       ×
                     </button>
@@ -518,7 +518,7 @@ function CheckpointEditor({
                     <button
                       onClick={() => set('fields', cp.fields.filter((_, j) => j !== i))}
                       disabled={cp.fields.length === 1}
-                      style={{ background: 'none', border: '1px solid var(--io-border)', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', padding: '0 10px' }}
+                      style={{ background: 'none', border: '1px solid var(--io-border)', borderRadius: '6px', cursor: 'pointer', color: 'var(--io-alarm-critical)', padding: '0 10px' }}
                     >
                       ×
                     </button>
@@ -832,7 +832,7 @@ export default function TemplateDesigner() {
           style={{
             padding: '8px 20px',
             background: 'var(--io-accent, #4A9EFF)',
-            color: '#fff',
+            color: 'var(--io-accent-foreground)',
             border: 'none',
             borderRadius: '6px',
             cursor: saveMutation.isPending ? 'not-allowed' : 'pointer',
@@ -889,7 +889,7 @@ export default function TemplateDesigner() {
               background: 'rgba(239,68,68,0.1)',
               border: '1px solid rgba(239,68,68,0.3)',
               borderRadius: '6px',
-              color: '#ef4444',
+              color: 'var(--io-alarm-critical)',
               fontSize: '13px',
             }}
           >

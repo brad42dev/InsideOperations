@@ -91,7 +91,7 @@ export default function RoundSchedules() {
     cursor: 'pointer',
     fontSize: '13px',
     fontWeight: primary ? 600 : 400,
-    color: primary ? '#fff' : 'var(--io-text-secondary)',
+    color: primary ? 'var(--io-accent-foreground)' : 'var(--io-text-secondary)',
   })
 
   return (
@@ -155,7 +155,7 @@ export default function RoundSchedules() {
           )}
 
           {error && (
-            <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: '#ef4444' }}>
+            <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: 'var(--io-alarm-critical)' }}>
               {error}
             </div>
           )}
@@ -189,7 +189,7 @@ export default function RoundSchedules() {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '100px', background: s.is_active ? 'rgba(34,197,94,0.12)' : 'var(--io-surface-secondary)', color: s.is_active ? '#22c55e' : 'var(--io-text-muted)', fontWeight: 700 }}>
+                <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '100px', background: s.is_active ? 'rgba(34,197,94,0.12)' : 'var(--io-surface-secondary)', color: s.is_active ? 'var(--io-alarm-normal)' : 'var(--io-text-muted)', fontWeight: 700 }}>
                   {s.is_active ? 'Active' : 'Paused'}
                 </span>
                 <button

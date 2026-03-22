@@ -55,7 +55,7 @@ function LockedByOtherBanner({
         transferred to you.
       </div>
       {error && (
-        <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>
+        <div style={{ fontSize: '12px', color: 'var(--io-alarm-critical)' }}>{error}</div>
       )}
       <button
         onClick={handleRequest}
@@ -66,7 +66,7 @@ function LockedByOtherBanner({
           border: 'none',
           borderRadius: '8px',
           cursor: requesting ? 'not-allowed' : 'pointer',
-          color: '#fff',
+          color: 'var(--io-accent-foreground)',
           fontSize: '14px',
           fontWeight: 600,
           opacity: requesting ? 0.7 : 1,
@@ -193,7 +193,7 @@ function IncomingTransferBanner({
         respond within 1 minute, it will be automatically transferred.
       </div>
       {error && (
-        <div style={{ fontSize: '12px', color: '#ef4444' }}>{error}</div>
+        <div style={{ fontSize: '12px', color: 'var(--io-alarm-critical)' }}>{error}</div>
       )}
       <div style={{ display: 'flex', gap: '8px' }}>
         <button
@@ -201,11 +201,11 @@ function IncomingTransferBanner({
           disabled={accepting || declining}
           style={{
             padding: '8px 16px',
-            background: '#22c55e',
+            background: 'var(--io-alarm-normal)',
             border: 'none',
             borderRadius: '6px',
             cursor: accepting || declining ? 'not-allowed' : 'pointer',
-            color: '#fff',
+            color: 'var(--io-text-inverse)',
             fontSize: '13px',
             fontWeight: 600,
             opacity: accepting || declining ? 0.7 : 1,
@@ -353,14 +353,14 @@ function BarcodeGate({
       </div>
       {scanning ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <video ref={videoRef} style={{ width: '100%', maxHeight: '200px', borderRadius: '6px', background: '#000' }} playsInline muted />
+          <video ref={videoRef} style={{ width: '100%', maxHeight: '200px', borderRadius: '6px', background: 'var(--io-surface-primary)' }} playsInline muted />
           <button onClick={stopScan} style={{ padding: '8px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '6px', color: 'var(--io-text-secondary)', cursor: 'pointer', fontSize: '13px' }}>
             Cancel scan
           </button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button onClick={startScan} style={{ padding: '10px 16px', background: 'var(--io-accent)', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}>
+          <button onClick={startScan} style={{ padding: '10px 16px', background: 'var(--io-accent)', border: 'none', borderRadius: '6px', color: 'var(--io-accent-foreground)', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}>
             Scan Barcode
           </button>
           <div style={{ display: 'flex', gap: '6px' }}>
@@ -379,7 +379,7 @@ function BarcodeGate({
         </div>
       )}
       {scanError && (
-        <div style={{ marginTop: '8px', fontSize: '12px', color: '#ef4444' }}>{scanError}</div>
+        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--io-alarm-critical)' }}>{scanError}</div>
       )}
     </div>
   )
@@ -460,12 +460,12 @@ function GpsGate({
       <button
         onClick={checkLocation}
         disabled={checking}
-        style={{ padding: '10px 16px', background: checking ? 'var(--io-surface-elevated)' : 'var(--io-accent)', border: 'none', borderRadius: '6px', color: checking ? 'var(--io-text-muted)' : '#fff', fontWeight: 600, cursor: checking ? 'not-allowed' : 'pointer', fontSize: '14px' }}
+        style={{ padding: '10px 16px', background: checking ? 'var(--io-surface-elevated)' : 'var(--io-accent)', border: 'none', borderRadius: '6px', color: checking ? 'var(--io-text-muted)' : 'var(--io-accent-foreground)', fontWeight: 600, cursor: checking ? 'not-allowed' : 'pointer', fontSize: '14px' }}
       >
         {checking ? 'Getting location…' : 'Check My Location'}
       </button>
       {gpsError && (
-        <div style={{ marginTop: '8px', fontSize: '12px', color: '#ef4444' }}>{gpsError}</div>
+        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--io-alarm-critical)' }}>{gpsError}</div>
       )}
     </div>
   )
@@ -494,12 +494,12 @@ function evaluateNumericColor(value: string, cp: Checkpoint): string {
   const n = parseFloat(value)
   if (isNaN(n)) return 'var(--io-text-primary)'
   if ((v.hh !== undefined && n >= v.hh) || (v.ll !== undefined && n <= v.ll)) {
-    return '#ef4444' // alarm
+    return 'var(--io-alarm-critical)' // alarm
   }
   if ((v.h !== undefined && n > v.h) || (v.l !== undefined && n < v.l)) {
-    return '#f59e0b' // advisory
+    return 'var(--io-alarm-high)' // advisory
   }
-  return '#22c55e' // in range
+  return 'var(--io-alarm-normal)' // in range
 }
 
 // ---------------------------------------------------------------------------
@@ -730,15 +730,15 @@ function CheckpointInput({
           <label style={{ fontSize: '12px', color: 'var(--io-text-secondary)', display: 'block', marginBottom: '4px' }}>
             Video Recording
             {checkpoint.media_requirements.video === 'required' && (
-              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+              <span style={{ color: 'var(--io-alarm-critical)', marginLeft: '4px' }}>*</span>
             )}
           </label>
           {videoError && (
-            <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px' }}>{videoError}</div>
+            <div style={{ fontSize: '12px', color: 'var(--io-alarm-critical)', marginBottom: '6px' }}>{videoError}</div>
           )}
           {videoCaptured ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', color: '#22c55e' }}>Video recorded</span>
+              <span style={{ fontSize: '13px', color: 'var(--io-alarm-normal)' }}>Video recorded</span>
               <button
                 onClick={() => { onVideoCapture(null); setVideoError(null) }}
                 style={{ fontSize: '12px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', color: 'var(--io-text-secondary)' }}
@@ -751,11 +751,11 @@ function CheckpointInput({
               onClick={videoRecording ? stopVideoRecording : startVideoRecording}
               style={{
                 padding: '10px 16px',
-                background: videoRecording ? '#ef4444' : 'var(--io-surface-secondary)',
-                border: `1px solid ${videoRecording ? '#ef4444' : 'var(--io-border)'}`,
+                background: videoRecording ? 'var(--io-alarm-critical)' : 'var(--io-surface-secondary)',
+                border: `1px solid ${videoRecording ? 'var(--io-alarm-critical)' : 'var(--io-border)'}`,
                 borderRadius: '6px',
                 cursor: 'pointer',
-                color: videoRecording ? '#fff' : 'var(--io-text-primary)',
+                color: videoRecording ? 'var(--io-text-inverse)' : 'var(--io-text-primary)',
                 fontSize: '13px',
                 fontWeight: 600,
               }}
@@ -772,15 +772,15 @@ function CheckpointInput({
           <label style={{ fontSize: '12px', color: 'var(--io-text-secondary)', display: 'block', marginBottom: '4px' }}>
             Audio Note
             {checkpoint.media_requirements.audio === 'required' && (
-              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+              <span style={{ color: 'var(--io-alarm-critical)', marginLeft: '4px' }}>*</span>
             )}
           </label>
           {audioError && (
-            <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px' }}>{audioError}</div>
+            <div style={{ fontSize: '12px', color: 'var(--io-alarm-critical)', marginBottom: '6px' }}>{audioError}</div>
           )}
           {audioCaptured ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '13px', color: '#22c55e' }}>Audio recorded</span>
+              <span style={{ fontSize: '13px', color: 'var(--io-alarm-normal)' }}>Audio recorded</span>
               <button
                 onClick={() => { onAudioCapture(null); setAudioError(null) }}
                 style={{ fontSize: '12px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', color: 'var(--io-text-secondary)' }}
@@ -793,11 +793,11 @@ function CheckpointInput({
               onClick={audioRecording ? stopAudioRecording : startAudioRecording}
               style={{
                 padding: '10px 16px',
-                background: audioRecording ? '#ef4444' : 'var(--io-surface-secondary)',
-                border: `1px solid ${audioRecording ? '#ef4444' : 'var(--io-border)'}`,
+                background: audioRecording ? 'var(--io-alarm-critical)' : 'var(--io-surface-secondary)',
+                border: `1px solid ${audioRecording ? 'var(--io-alarm-critical)' : 'var(--io-border)'}`,
                 borderRadius: '6px',
                 cursor: 'pointer',
-                color: audioRecording ? '#fff' : 'var(--io-text-primary)',
+                color: audioRecording ? 'var(--io-text-inverse)' : 'var(--io-text-primary)',
                 fontSize: '13px',
                 fontWeight: 600,
               }}
@@ -813,7 +813,7 @@ function CheckpointInput({
         <label style={{ fontSize: '12px', color: 'var(--io-text-secondary)', display: 'block', marginBottom: '4px' }}>
           Comments
           {checkpoint.media_requirements?.comments === 'required' && (
-            <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            <span style={{ color: 'var(--io-alarm-critical)', marginLeft: '4px' }}>*</span>
           )}
         </label>
         <textarea
@@ -1126,7 +1126,7 @@ export default function RoundPlayer() {
 
   if (!detailResult?.success) {
     return (
-      <div style={{ padding: '24px', color: '#ef4444' }}>
+      <div style={{ padding: '24px', color: 'var(--io-alarm-critical)' }}>
         {detailResult?.error?.message ?? 'Failed to load round.'}
       </div>
     )
@@ -1278,7 +1278,7 @@ export default function RoundPlayer() {
             borderBottom: '1px solid rgba(239,68,68,0.3)',
             padding: '8px 16px',
             fontSize: '12px',
-            color: '#ef4444',
+            color: 'var(--io-alarm-critical)',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
@@ -1298,7 +1298,7 @@ export default function RoundPlayer() {
             borderBottom: '1px solid rgba(251,191,36,0.4)',
             padding: '8px 16px',
             fontSize: '12px',
-            color: '#92400e',
+            color: 'var(--io-alarm-high)',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
@@ -1331,7 +1331,7 @@ export default function RoundPlayer() {
             borderBottom: '1px solid rgba(34,197,94,0.3)',
             padding: '8px 16px',
             fontSize: '12px',
-            color: '#166534',
+            color: 'var(--io-alarm-normal)',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
@@ -1421,7 +1421,7 @@ export default function RoundPlayer() {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
             <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--io-text-primary)', flex: 1 }}>
               {cp.title}
-              {cp.required && <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>}
+              {cp.required && <span style={{ color: 'var(--io-alarm-critical)', marginLeft: '4px' }}>*</span>}
             </h2>
             <span
               style={{
@@ -1493,7 +1493,7 @@ export default function RoundPlayer() {
               background: 'rgba(239,68,68,0.1)',
               border: '1px solid rgba(239,68,68,0.3)',
               borderRadius: '6px',
-              color: '#ef4444',
+              color: 'var(--io-alarm-critical)',
               fontSize: '13px',
               marginBottom: '16px',
             }}
@@ -1550,7 +1550,7 @@ export default function RoundPlayer() {
               border: 'none',
               borderRadius: '8px',
               cursor: saving ? 'not-allowed' : 'pointer',
-              color: '#fff',
+              color: 'var(--io-accent-foreground)',
               fontSize: '14px',
               fontWeight: 600,
               opacity: saving ? 0.7 : 1,
@@ -1565,11 +1565,11 @@ export default function RoundPlayer() {
             style={{
               flex: 2,
               padding: '12px',
-              background: '#22c55e',
+              background: 'var(--io-alarm-normal)',
               border: 'none',
               borderRadius: '8px',
               cursor: saving || completing ? 'not-allowed' : 'pointer',
-              color: '#fff',
+              color: 'var(--io-text-inverse)',
               fontSize: '14px',
               fontWeight: 700,
               opacity: saving || completing ? 0.7 : 1,

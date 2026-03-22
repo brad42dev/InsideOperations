@@ -4,11 +4,11 @@ import { roundsApi, type RoundInstance } from '../../api/rounds'
 
 function statusBadge(status: RoundInstance['status']) {
   const map: Record<string, { bg: string; text: string }> = {
-    pending:     { bg: 'rgba(251,191,36,0.15)', text: '#fbbf24' },
+    pending:     { bg: 'rgba(251,191,36,0.15)', text: 'var(--io-alarm-high)' },
     in_progress: { bg: 'rgba(74,158,255,0.15)', text: 'var(--io-accent)' },
-    completed:   { bg: 'rgba(34,197,94,0.12)',  text: '#22c55e' },
-    missed:      { bg: 'rgba(239,68,68,0.12)',  text: '#ef4444' },
-    transferred: { bg: 'rgba(168,85,247,0.12)', text: '#a855f7' },
+    completed:   { bg: 'rgba(34,197,94,0.12)',  text: 'var(--io-alarm-normal)' },
+    missed:      { bg: 'rgba(239,68,68,0.12)',  text: 'var(--io-alarm-critical)' },
+    transferred: { bg: 'rgba(168,85,247,0.12)', text: 'var(--io-alarm-suppressed)' },
   }
   const c = map[status] ?? { bg: 'var(--io-surface-secondary)', text: 'var(--io-text-muted)' }
   return (
@@ -23,8 +23,8 @@ function DueBadge({ due }: { due?: string }) {
   const d = new Date(due)
   const now = new Date()
   const diff = d.getTime() - now.getTime()
-  if (diff < 0) return <span style={{ color: '#ef4444', fontWeight: 600, fontSize: '12px' }}>Overdue</span>
-  if (diff < 60 * 60 * 1000) return <span style={{ color: '#fbbf24', fontWeight: 600, fontSize: '12px' }}>Due in {Math.round(diff / 60000)}m</span>
+  if (diff < 0) return <span style={{ color: 'var(--io-alarm-critical)', fontWeight: 600, fontSize: '12px' }}>Overdue</span>
+  if (diff < 60 * 60 * 1000) return <span style={{ color: 'var(--io-alarm-high)', fontWeight: 600, fontSize: '12px' }}>Due in {Math.round(diff / 60000)}m</span>
   return <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>Due {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
 }
 
@@ -141,7 +141,7 @@ export default function ActiveRounds() {
                   <button
                     onClick={() => startMutation.mutate(inst.id)}
                     disabled={startMutation.isPending}
-                    style={{ padding: '6px 14px', background: 'var(--io-accent)', border: 'none', borderRadius: '6px', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                    style={{ padding: '6px 14px', background: 'var(--io-accent)', border: 'none', borderRadius: '6px', color: 'var(--io-accent-foreground)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
                   >
                     Start
                   </button>

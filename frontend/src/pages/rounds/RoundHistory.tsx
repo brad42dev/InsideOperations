@@ -5,9 +5,9 @@ import { ExportButton } from '../../shared/components/ExportDialog'
 
 function statusBadge(status: string) {
   const map: Record<string, { bg: string; text: string }> = {
-    completed:   { bg: 'rgba(34,197,94,0.12)',  text: '#22c55e' },
-    missed:      { bg: 'rgba(239,68,68,0.12)',  text: '#ef4444' },
-    transferred: { bg: 'rgba(168,85,247,0.12)', text: '#a855f7' },
+    completed:   { bg: 'rgba(34,197,94,0.12)',  text: 'var(--io-alarm-normal)' },
+    missed:      { bg: 'rgba(239,68,68,0.12)',  text: 'var(--io-alarm-critical)' },
+    transferred: { bg: 'rgba(168,85,247,0.12)', text: 'var(--io-alarm-suppressed)' },
   }
   const c = map[status] ?? { bg: 'var(--io-surface-secondary)', text: 'var(--io-text-muted)' }
   return (
@@ -130,7 +130,7 @@ export default function RoundHistory() {
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     {entry.out_of_range_count > 0 ? (
-                      <span style={{ color: '#ef4444', fontWeight: 600 }}>{entry.out_of_range_count}</span>
+                      <span style={{ color: 'var(--io-alarm-critical)', fontWeight: 600 }}>{entry.out_of_range_count}</span>
                     ) : (
                       <span style={{ color: 'var(--io-text-muted)' }}>0</span>
                     )}
