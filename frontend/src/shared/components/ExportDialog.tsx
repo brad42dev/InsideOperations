@@ -799,7 +799,7 @@ export interface ExportButtonProps {
   sortOrder?: 'asc' | 'desc'
 }
 
-const QUICK_FORMATS: ExportFormat[] = ['csv', 'xlsx', 'pdf', 'json', 'parquet']
+const QUICK_FORMATS: ExportFormat[] = ['csv', 'xlsx', 'pdf', 'json', 'parquet', 'html']
 
 export function ExportButton({
   module,

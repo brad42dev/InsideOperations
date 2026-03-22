@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { roundsApi } from '../../api/rounds'
+import { ExportButton } from '../../shared/components/ExportDialog'
 
 function statusBadge(status: string) {
   const map: Record<string, { bg: string; text: string }> = {
@@ -20,6 +21,15 @@ function formatDate(iso?: string) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
 }
+
+const HISTORY_COLUMNS = [
+  { id: 'template_name', label: 'Template' },
+  { id: 'status', label: 'Status' },
+  { id: 'started_at', label: 'Started' },
+  { id: 'completed_at', label: 'Completed' },
+  { id: 'response_count', label: 'Responses' },
+  { id: 'out_of_range_count', label: 'Out of Range' },
+]
 
 export default function RoundHistory() {
   const today = new Date()
@@ -68,6 +78,17 @@ export default function RoundHistory() {
         <span style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
           {isLoading ? 'Loading…' : `${entries.length} record${entries.length !== 1 ? 's' : ''}`}
         </span>
+        <div style={{ marginLeft: 'auto' }}>
+          <ExportButton
+            module="rounds"
+            entity="Round History"
+            filteredRowCount={entries.length}
+            totalRowCount={entries.length}
+            activeFilters={{ from: from ? `${from}T00:00:00Z` : undefined, to: to ? `${to}T23:59:59Z` : undefined }}
+            availableColumns={HISTORY_COLUMNS}
+            visibleColumns={HISTORY_COLUMNS.map((c) => c.id)}
+          />
+        </div>
       </div>
 
       {/* Results table */}

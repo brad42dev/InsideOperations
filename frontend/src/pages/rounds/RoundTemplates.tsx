@@ -1,6 +1,15 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { roundsApi } from '../../api/rounds'
+import { ExportButton } from '../../shared/components/ExportDialog'
+
+const TEMPLATE_COLUMNS = [
+  { id: 'name', label: 'Name' },
+  { id: 'description', label: 'Description' },
+  { id: 'version', label: 'Version' },
+  { id: 'is_active', label: 'Active' },
+  { id: 'checkpoints', label: 'Checkpoints' },
+]
 
 export default function RoundTemplates() {
   const navigate = useNavigate()
@@ -33,9 +42,19 @@ export default function RoundTemplates() {
             Equipment inspection checklist templates.
           </p>
         </div>
-        <button style={btnStyle(true)} onClick={() => navigate('/rounds/templates/new/edit')}>
-          + New Template
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ExportButton
+            module="rounds"
+            entity="Round Templates"
+            filteredRowCount={templates.length}
+            totalRowCount={templates.length}
+            availableColumns={TEMPLATE_COLUMNS}
+            visibleColumns={TEMPLATE_COLUMNS.map((c) => c.id)}
+          />
+          <button style={btnStyle(true)} onClick={() => navigate('/rounds/templates/new/edit')}>
+            + New Template
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

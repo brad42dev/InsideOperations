@@ -1,8 +1,15 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { roundsApi } from '../../api/rounds'
+import { ExportButton } from '../../shared/components/ExportDialog'
 
 type RecurrenceType = 'per_shift' | 'daily' | 'interval' | 'weekly' | 'custom'
+
+const SCHEDULE_COLUMNS = [
+  { id: 'template_name', label: 'Template' },
+  { id: 'recurrence_type', label: 'Recurrence' },
+  { id: 'is_active', label: 'Active' },
+]
 
 function recurrenceLabel(type: RecurrenceType, config: Record<string, unknown>): string {
   switch (type) {
@@ -96,7 +103,17 @@ export default function RoundSchedules() {
             Automatically create round instances on a recurring schedule.
           </p>
         </div>
-        <button style={btnStyle(true)} onClick={() => setShowNew(true)}>+ Add Schedule</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ExportButton
+            module="rounds"
+            entity="Round Schedules"
+            filteredRowCount={schedules.length}
+            totalRowCount={schedules.length}
+            availableColumns={SCHEDULE_COLUMNS}
+            visibleColumns={SCHEDULE_COLUMNS.map((c) => c.id)}
+          />
+          <button style={btnStyle(true)} onClick={() => setShowNew(true)}>+ Add Schedule</button>
+        </div>
       </div>
 
       {/* New schedule form */}
