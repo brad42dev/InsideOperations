@@ -3903,8 +3903,13 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       doc={doc}
       docRef={docRef}
       gridVisible={gridVisible}
+      gridSize={gridSize}
+      snapToGrid={snapToGrid}
+      zoom={viewport.zoom}
       executeCmd={executeCmd}
       setGrid={setGrid}
+      setSnap={setSnap}
+      zoomTo={zoomTo}
       setStencilNodes={setStencilNodes}
       setPromoteNodes={setPromoteNodes}
       setBindingNodeId={setBindingNodeId}
@@ -4153,8 +4158,13 @@ interface DesignerContextMenuContentProps {
   doc: GraphicDocument | null
   docRef: React.MutableRefObject<GraphicDocument | null>
   gridVisible: boolean
+  gridSize: number
+  snapToGrid: boolean
+  zoom: number
   executeCmd: (cmd: SceneCommand) => void
-  setGrid: (v: boolean) => void
+  setGrid: (v: boolean, size?: number) => void
+  setSnap: (enabled: boolean) => void
+  zoomTo: (zoom: number, cx?: number, cy?: number) => void
   setStencilNodes: (nodes: SceneNode[] | null) => void
   setPromoteNodes: (nodes: SceneNode[] | null) => void
   setBindingNodeId: (id: NodeId | null) => void
@@ -4178,8 +4188,13 @@ function DesignerContextMenuContent({
   doc,
   docRef,
   gridVisible,
+  gridSize,
+  snapToGrid,
+  zoom,
   executeCmd,
   setGrid,
+  setSnap,
+  zoomTo,
   setStencilNodes,
   setPromoteNodes,
   setBindingNodeId,
@@ -4295,457 +4310,594 @@ function DesignerContextMenuContent({
     margin: '2px 0',
   }
 
+  // RC-DES-1 grid size presets
+  const GRID_SIZE_PRESETS = [4, 8, 10, 16, 32] as const
+
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content style={contentStyle}>
 
-        {/* Select All */}
-        <ContextMenuPrimitive.Item
-          style={itemStyle}
-          disabled={!hasDoc}
-          onSelect={() => {
-            if (!doc) return
-            const allIds = doc.children.filter(n => n.visible && !n.locked).map(n => n.id)
-            selectedIdsRef.current = new Set(allIds)
-            emitSelection(allIds)
-          }}
-        >Select All</ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Separator style={sepStyle} />
-
-        {/* Edit operations */}
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection} onSelect={() => {
-          if (!doc) return
-          const ids = Array.from(selectedIdsRef.current)
-          _clipboard = ids.map(id => doc.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
-          if (ids.length > 0) { executeCmd(new DeleteNodesCommand(ids)); selectedIdsRef.current = new Set(); emitSelection([]) }
-        }}>Cut</ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection} onSelect={() => {
-          if (!doc) return
-          _clipboard = Array.from(selectedIdsRef.current).map(id => doc.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
-        }}>Copy</ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={_clipboard.length === 0} onSelect={() => {
-          if (!docRef.current || _clipboard.length === 0) return
-          const cmd = new PasteNodesCommand(_clipboard)
-          const oldIds = new Set(docRef.current.children.map(n => n.id))
-          executeCmd(cmd)
-          const d2 = docRef.current
-          if (d2) {
-            const pastedIds = d2.children.filter(n => !oldIds.has(n.id)).map(n => n.id)
-            selectedIdsRef.current = new Set(pastedIds)
-            emitSelection(pastedIds)
-          }
-        }}>Paste</ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Separator style={sepStyle} />
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
-          onSelect={() => executeCmd(new DuplicateNodesCommand(Array.from(selectedIds)))}>
-          Duplicate
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
-          onSelect={() => executeCmd(new DeleteNodesCommand(Array.from(selectedIds)))}>
-          Delete
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Separator style={sepStyle} />
-
-        {/* Group Selection — shown for multi-selection with no locked nodes */}
-        {selectedIds.size >= 2 && (() => {
-          const hasLocked = doc ? Array.from(selectedIds).some(id => doc.children.find(n => n.id === id)?.locked) : false
-          return !hasLocked ? (
-            <>
-              <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasDoc}
-                onSelect={() => {
-                  if (!doc) return
-                  const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
-                  if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
-                }}>
-                Group Selection… (Ctrl+G)
-              </ContextMenuPrimitive.Item>
-              <ContextMenuPrimitive.Separator style={sepStyle} />
-            </>
-          ) : null
-        })()}
-
-        {/* Group / Ungroup */}
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={selectedIds.size < 2 || !hasDoc}
-          onSelect={() => {
-            if (!doc) return
-            const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
-            if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
-          }}>
-          Group
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle}
-          disabled={!nodeId || !doc?.children.find(n => n.id === nodeId && n.type === 'group')}
-          onSelect={() => { if (nodeId) executeCmd(new UngroupCommand(nodeId)) }}>
-          Ungroup
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Separator style={sepStyle} />
-
-        {/* Transform */}
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
-          onSelect={() => { const cmd = buildRotateCmd(90); if (cmd) executeCmd(cmd) }}>
-          Rotate 90° CW
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
-          onSelect={() => { const cmd = buildRotateCmd(-90); if (cmd) executeCmd(cmd) }}>
-          Rotate 90° CCW
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
-          onSelect={() => { const cmd = buildFlipCmd('horizontal'); if (cmd) executeCmd(cmd) }}>
-          Flip Horizontal
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
-          onSelect={() => { const cmd = buildFlipCmd('vertical'); if (cmd) executeCmd(cmd) }}>
-          Flip Vertical
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Separator style={sepStyle} />
-
-        {/* Z-order */}
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId || !hasDoc || fromIdx < 0}
-          onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(doc.children.length - 1, fromIdx, null)) }}>
-          Bring to Front
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle}
-          disabled={!nodeId || !hasDoc || fromIdx < 0 || fromIdx >= (doc?.children.length ?? 0) - 1}
-          onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(Math.min(fromIdx + 1, doc.children.length - 1), fromIdx, null)) }}>
-          Bring Forward
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId || !hasDoc || fromIdx <= 0}
-          onSelect={() => { if (nodeId && doc && fromIdx > 0) executeCmd(new ReorderNodeCommand(Math.max(fromIdx - 1, 0), fromIdx, null)) }}>
-          Send Backward
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId || !hasDoc || fromIdx < 0}
-          onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(0, fromIdx, null)) }}>
-          Send to Back
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Separator style={sepStyle} />
-
-        {/* View */}
-        <ContextMenuPrimitive.Item style={itemStyle} onSelect={() => {
-          const d = docRef.current; const el = containerRef.current
-          if (d && el) { const r = el.getBoundingClientRect(); fitToCanvas(d.canvas.width, d.canvas.height, r.width, r.height) }
-        }}>Zoom to Fit</ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle}
-          onSelect={() => setGrid(!gridVisible)}>
-          {gridVisible ? 'Hide Grid' : 'Show Grid'}
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle}
-          onSelect={() => onPropertiesOpen?.()}>
-          Properties…
-        </ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Separator style={sepStyle} />
-
-        {/* Stencil / Shape promotion */}
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc} onSelect={() => {
-          if (!docRef.current) return
-          const nodes = Array.from(selectedIdsRef.current).map(id => docRef.current!.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
-          setStencilNodes(nodes)
-        }}>Save as Stencil…</ContextMenuPrimitive.Item>
-
-        <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc} onSelect={() => {
-          if (!docRef.current) return
-          const nodes = Array.from(selectedIdsRef.current).map(id => docRef.current!.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
-          setPromoteNodes(nodes)
-        }}>Promote to Shape…</ContextMenuPrimitive.Item>
-
-        {/* Symbol-instance: Switch Variant sub-menu */}
-        {symbolInstance && shapeOptions.length > 0 && (
+        {nodeId === null ? (
+          // ----------------------------------------------------------------
+          // RC-DES-1: Empty-canvas context menu
+          // ----------------------------------------------------------------
           <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Sub>
-              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
-                Switch Variant
-              </ContextMenuPrimitive.SubTrigger>
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.SubContent style={subContentStyle}>
-                  {shapeOptions.map(opt => (
-                    <ContextMenuPrimitive.Item
-                      key={opt.id}
-                      style={itemStyle}
-                      onSelect={() => {
-                        if (!nodeId || !symbolInstance) return
-                        executeCmd(new ChangeShapeVariantCommand(nodeId, opt.id, symbolInstance.shapeRef.variant ?? 'default'))
-                      }}
-                    >
-                      {symbolInstance.shapeRef.variant === opt.id ? `✓ ${opt.label}` : opt.label}
-                    </ContextMenuPrimitive.Item>
-                  ))}
-                </ContextMenuPrimitive.SubContent>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Sub>
-          </>
-        )}
-
-        {/* Symbol-instance: Switch Configuration sub-menu */}
-        {symbolInstance && shapeConfigurations.length > 0 && (
-          <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Sub>
-              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
-                Switch Configuration
-              </ContextMenuPrimitive.SubTrigger>
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.SubContent style={subContentStyle}>
-                  {shapeConfigurations.map(cfg => (
-                    <ContextMenuPrimitive.Item
-                      key={cfg.id}
-                      style={itemStyle}
-                      onSelect={() => {
-                        if (!nodeId || !symbolInstance) return
-                        executeCmd(new ChangeShapeConfigurationCommand(
-                          nodeId,
-                          symbolInstance.shapeRef.configuration === cfg.id ? undefined : cfg.id,
-                          symbolInstance.shapeRef.configuration,
-                        ))
-                      }}
-                    >
-                      {symbolInstance.shapeRef.configuration === cfg.id ? `✓ ${cfg.label}` : cfg.label}
-                    </ContextMenuPrimitive.Item>
-                  ))}
-                </ContextMenuPrimitive.SubContent>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Sub>
-          </>
-        )}
-
-        {/* Symbol-instance: Export Shape SVG, Bind Point, Add Display Element */}
-        {symbolInstance && (
-          <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={!shapeEntry?.svg} onSelect={() => {
-              if (!shapeEntry?.svg) return
-              const blob = new Blob([shapeEntry.svg], { type: 'image/svg+xml' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url; a.download = `${symbolInstance.shapeRef.shapeId}.svg`
-              a.click()
-              URL.revokeObjectURL(url)
-            }}>Export Shape SVG</ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
-              onSelect={() => { if (nodeId) setBindingNodeId(nodeId) }}>
-              Bind Point…
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Sub>
-              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
-                Add Display Element
-              </ContextMenuPrimitive.SubTrigger>
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.SubContent style={subContentStyle}>
-                  {(['text_readout', 'analog_bar', 'fill_gauge', 'sparkline', 'alarm_indicator', 'digital_status'] as DisplayElementType[]).map(dtype => (
-                    <ContextMenuPrimitive.Item key={dtype} style={itemStyle} disabled={!nodeId} onSelect={() => {
-                      if (!nodeId) return
-                      const id = crypto.randomUUID()
-                      const newEl: DisplayElement = {
-                        id,
-                        type: 'display_element',
-                        displayType: dtype,
-                        transform: { position: { x: 0, y: -20 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
-                        binding: {},
-                        config: makeDefaultDisplayConfig(dtype),
-                        opacity: 1,
-                        visible: true,
-                        locked: false,
-                        name: dtype,
-                      }
-                      executeCmd(new AddDisplayElementCommand(nodeId, newEl))
-                    }}>
-                      {dtype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                    </ContextMenuPrimitive.Item>
-                  ))}
-                </ContextMenuPrimitive.SubContent>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Sub>
-          </>
-        )}
-
-        {/* DisplayElement-specific items */}
-        {displayElementNode && (
-          <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Sub>
-              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
-                Change Type
-              </ContextMenuPrimitive.SubTrigger>
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.SubContent style={subContentStyle}>
-                  {(['text_readout', 'analog_bar', 'fill_gauge', 'sparkline', 'alarm_indicator', 'digital_status'] as DisplayElementType[]).map(dtype => (
-                    <ContextMenuPrimitive.Item
-                      key={dtype}
-                      style={itemStyle}
-                      disabled={displayElementNode.displayType === dtype}
-                      onSelect={() => {
-                        if (!nodeId || !displayElementNode) return
-                        executeCmd(new ChangeDisplayElementTypeCommand(
-                          nodeId, dtype, makeDefaultDisplayConfig(dtype),
-                          displayElementNode.displayType, displayElementNode.config,
-                        ))
-                      }}
-                    >
-                      {displayElementNode.displayType === dtype
-                        ? `✓ ${dtype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`
-                        : dtype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                    </ContextMenuPrimitive.Item>
-                  ))}
-                </ContextMenuPrimitive.SubContent>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Sub>
-
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
-              onSelect={() => { if (nodeId) setBindingNodeId(nodeId) }}>
-              Bind Point…
-            </ContextMenuPrimitive.Item>
-
-            {displayElementParent && (
-              <ContextMenuPrimitive.Item style={itemStyle} onSelect={() => {
-                if (!nodeId || !displayElementNode || !displayElementParent) return
-                const parentPos = displayElementParent.transform.position
-                const absX = parentPos.x + displayElementNode.transform.position.x
-                const absY = parentPos.y + displayElementNode.transform.position.y
-                executeCmd(new DetachDisplayElementCommand(
-                  nodeId, displayElementParent.id, displayElementNode, { x: absX, y: absY },
-                ))
-              }}>Detach from Shape</ContextMenuPrimitive.Item>
-            )}
-          </>
-        )}
-
-        {/* Pipe-specific items (§6.5) */}
-        {pipeNode && (
-          <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Item style={itemStyle} onSelect={() => {
-              if (!nodeId || !pipeNode) return
-              const newMode = pipeNode.routingMode === 'auto' ? 'manual' : 'auto'
-              executeCmd(new ChangePropertyCommand(nodeId, 'routingMode', newMode, pipeNode.routingMode))
-            }}>
-              {pipeNode.routingMode === 'auto' ? 'Switch to Manual Routing' : 'Switch to Auto Routing'}
-            </ContextMenuPrimitive.Item>
-
-            <ContextMenuPrimitive.Sub>
-              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
-                Change Service Type
-              </ContextMenuPrimitive.SubTrigger>
-              <ContextMenuPrimitive.Portal>
-                <ContextMenuPrimitive.SubContent style={subContentStyle}>
-                  {Object.keys(PIPE_SERVICE_COLORS).map(stype => (
-                    <ContextMenuPrimitive.Item
-                      key={stype}
-                      style={itemStyle}
-                      disabled={pipeNode.serviceType === stype}
-                      onSelect={() => {
-                        if (!nodeId || !pipeNode) return
-                        executeCmd(new ChangePropertyCommand(nodeId, 'serviceType', stype, pipeNode.serviceType))
-                      }}
-                    >
-                      {pipeNode.serviceType === stype
-                        ? `✓ ${stype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`
-                        : stype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                    </ContextMenuPrimitive.Item>
-                  ))}
-                </ContextMenuPrimitive.SubContent>
-              </ContextMenuPrimitive.Portal>
-            </ContextMenuPrimitive.Sub>
-
-            <ContextMenuPrimitive.Item style={itemStyle}
-              disabled={!pipeNode.startConnection && !pipeNode.endConnection}
+            {/* Paste — disabled (not hidden) when clipboard is empty */}
+            <ContextMenuPrimitive.Item
+              style={itemStyle}
+              disabled={_clipboard.length === 0}
               onSelect={() => {
-                if (!nodeId || !pipeNode) return
-                executeCmd(new CompoundCommand('Reverse Pipe Direction', [
-                  new ChangePropertyCommand(nodeId, 'startConnection', pipeNode.endConnection, pipeNode.startConnection),
-                  new ChangePropertyCommand(nodeId, 'endConnection', pipeNode.startConnection, pipeNode.endConnection),
-                ]))
-              }}>
-              Reverse Direction
-            </ContextMenuPrimitive.Item>
-          </>
-        )}
-
-        {/* Group-specific items (§6.9) */}
-        {groupNode && (
-          <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
-              onSelect={() => {
-                if (!nodeId || !groupNode) return
-                setGroupPrompt({ defaultName: '', pendingIds: [], renameNodeId: nodeId, currentName: groupNode.name ?? '' })
-              }}>
-              Rename…
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
-              onSelect={() => {
-                if (!nodeId || !doc) return
-                const children = (doc.children.find(n => n.id === nodeId) as Group | undefined)?.children ?? []
-                const childIds = children.map(c => c.id)
-                executeCmd(new UngroupCommand(nodeId))
-                selectedIdsRef.current = new Set(childIds)
-                emitSelection(childIds)
-              }}>
-              Ungroup (Ctrl+Shift+G)
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
-              onSelect={() => {
-                if (nodeId) {
-                  setActiveGroup(nodeId)
-                  selectedIdsRef.current = new Set()
-                  emitSelection([])
+                if (!docRef.current || _clipboard.length === 0) return
+                const cmd = new PasteNodesCommand(_clipboard)
+                const oldIds = new Set(docRef.current.children.map(n => n.id))
+                executeCmd(cmd)
+                const d2 = docRef.current
+                if (d2) {
+                  const pastedIds = d2.children.filter(n => !oldIds.has(n.id)).map(n => n.id)
+                  selectedIdsRef.current = new Set(pastedIds)
+                  emitSelection(pastedIds)
                 }
+              }}
+            >Paste</ContextMenuPrimitive.Item>
+
+            {/* Select All — disabled when doc has no children */}
+            <ContextMenuPrimitive.Item
+              style={itemStyle}
+              disabled={!hasDoc || (doc?.children.length ?? 0) === 0}
+              onSelect={() => {
+                if (!doc) return
+                const allIds = doc.children.filter(n => n.visible && !n.locked).map(n => n.id)
+                selectedIdsRef.current = new Set(allIds)
+                emitSelection(allIds)
+              }}
+            >Select All</ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* Grid submenu */}
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                Grid
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  {/* Show Grid toggle */}
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    onSelect={() => setGrid(!gridVisible, gridSize)}
+                  >
+                    {gridVisible ? 'Hide Grid' : 'Show Grid'}
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Snap to Grid toggle */}
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    onSelect={() => setSnap(!snapToGrid)}
+                  >
+                    {snapToGrid ? 'Disable Snap to Grid' : 'Enable Snap to Grid'}
+                  </ContextMenuPrimitive.Item>
+
+                  <ContextMenuPrimitive.Separator style={sepStyle} />
+
+                  {/* Grid Size sub-submenu */}
+                  <ContextMenuPrimitive.Sub>
+                    <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                      Grid Size ({gridSize}px)
+                    </ContextMenuPrimitive.SubTrigger>
+                    <ContextMenuPrimitive.Portal>
+                      <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                        {GRID_SIZE_PRESETS.map(size => (
+                          <ContextMenuPrimitive.Item
+                            key={size}
+                            style={itemStyle}
+                            disabled={gridSize === size}
+                            onSelect={() => setGrid(gridVisible, size)}
+                          >
+                            {gridSize === size ? `✓ ${size}px` : `${size}px`}
+                          </ContextMenuPrimitive.Item>
+                        ))}
+                      </ContextMenuPrimitive.SubContent>
+                    </ContextMenuPrimitive.Portal>
+                  </ContextMenuPrimitive.Sub>
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
+
+            {/* Zoom submenu */}
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                Zoom
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    onSelect={() => zoomTo(zoom * 1.25)}
+                  >Zoom In</ContextMenuPrimitive.Item>
+
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    onSelect={() => zoomTo(zoom * 0.8)}
+                  >Zoom Out</ContextMenuPrimitive.Item>
+
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    onSelect={() => {
+                      const d = docRef.current; const el = containerRef.current
+                      if (d && el) { const r = el.getBoundingClientRect(); fitToCanvas(d.canvas.width, d.canvas.height, r.width, r.height) }
+                    }}
+                  >Zoom to Fit</ContextMenuPrimitive.Item>
+
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    onSelect={() => zoomTo(1.0)}
+                  >Zoom to 100%</ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* Canvas Properties */}
+            <ContextMenuPrimitive.Item
+              style={itemStyle}
+              onSelect={() => onPropertiesOpen?.()}
+            >Properties…</ContextMenuPrimitive.Item>
+          </>
+        ) : (
+          // ----------------------------------------------------------------
+          // RC-DES-2+: Node context menu (existing content)
+          // ----------------------------------------------------------------
+          <>
+            {/* Select All */}
+            <ContextMenuPrimitive.Item
+              style={itemStyle}
+              disabled={!hasDoc}
+              onSelect={() => {
+                if (!doc) return
+                const allIds = doc.children.filter(n => n.visible && !n.locked).map(n => n.id)
+                selectedIdsRef.current = new Set(allIds)
+                emitSelection(allIds)
+              }}
+            >Select All</ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* Edit operations */}
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection} onSelect={() => {
+              if (!doc) return
+              const ids = Array.from(selectedIdsRef.current)
+              _clipboard = ids.map(id => doc.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
+              if (ids.length > 0) { executeCmd(new DeleteNodesCommand(ids)); selectedIdsRef.current = new Set(); emitSelection([]) }
+            }}>Cut</ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection} onSelect={() => {
+              if (!doc) return
+              _clipboard = Array.from(selectedIdsRef.current).map(id => doc.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
+            }}>Copy</ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={_clipboard.length === 0} onSelect={() => {
+              if (!docRef.current || _clipboard.length === 0) return
+              const cmd = new PasteNodesCommand(_clipboard)
+              const oldIds = new Set(docRef.current.children.map(n => n.id))
+              executeCmd(cmd)
+              const d2 = docRef.current
+              if (d2) {
+                const pastedIds = d2.children.filter(n => !oldIds.has(n.id)).map(n => n.id)
+                selectedIdsRef.current = new Set(pastedIds)
+                emitSelection(pastedIds)
+              }
+            }}>Paste</ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
+              onSelect={() => executeCmd(new DuplicateNodesCommand(Array.from(selectedIds)))}>
+              Duplicate
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
+              onSelect={() => executeCmd(new DeleteNodesCommand(Array.from(selectedIds)))}>
+              Delete
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* Group Selection — shown for multi-selection with no locked nodes */}
+            {selectedIds.size >= 2 && (() => {
+              const hasLocked = doc ? Array.from(selectedIds).some(id => doc.children.find(n => n.id === id)?.locked) : false
+              return !hasLocked ? (
+                <>
+                  <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasDoc}
+                    onSelect={() => {
+                      if (!doc) return
+                      const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
+                      if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
+                    }}>
+                    Group Selection… (Ctrl+G)
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Separator style={sepStyle} />
+                </>
+              ) : null
+            })()}
+
+            {/* Group / Ungroup */}
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={selectedIds.size < 2 || !hasDoc}
+              onSelect={() => {
+                if (!doc) return
+                const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
+                if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
               }}>
-              Enter Group
+              Group
             </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={true}>
-              Open in Tab
-            </ContextMenuPrimitive.Item>
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId} onSelect={() => {
-              if (!nodeId || !docRef.current) return
-              const node = docRef.current.children.find(n => n.id === nodeId)
-              if (node) setPromoteNodes([node])
-            }}>
-              Promote to Shape…
-            </ContextMenuPrimitive.Item>
-          </>
-        )}
 
-        {/* TextBlock-specific items (§6.10) */}
-        {textBlockNode && (
-          <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
-            <ContextMenuPrimitive.Item style={itemStyle} disabled={textBlockNode.locked}
-              onSelect={() => { /* text edit mode triggered via double-click UX */ }}>
-              Edit Text
-            </ContextMenuPrimitive.Item>
-          </>
-        )}
-
-        {/* Widget-specific items (§6.12) */}
-        {widgetNode && (
-          <>
-            <ContextMenuPrimitive.Separator style={sepStyle} />
             <ContextMenuPrimitive.Item style={itemStyle}
-              onSelect={() => { /* focuses right panel — already shows widget config when selected */ }}>
-              Configure Widget…
+              disabled={!nodeId || !doc?.children.find(n => n.id === nodeId && n.type === 'group')}
+              onSelect={() => { if (nodeId) executeCmd(new UngroupCommand(nodeId)) }}>
+              Ungroup
             </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* Transform */}
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
+              onSelect={() => { const cmd = buildRotateCmd(90); if (cmd) executeCmd(cmd) }}>
+              Rotate 90° CW
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
+              onSelect={() => { const cmd = buildRotateCmd(-90); if (cmd) executeCmd(cmd) }}>
+              Rotate 90° CCW
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
+              onSelect={() => { const cmd = buildFlipCmd('horizontal'); if (cmd) executeCmd(cmd) }}>
+              Flip Horizontal
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc}
+              onSelect={() => { const cmd = buildFlipCmd('vertical'); if (cmd) executeCmd(cmd) }}>
+              Flip Vertical
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* Z-order */}
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId || !hasDoc || fromIdx < 0}
+              onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(doc.children.length - 1, fromIdx, null)) }}>
+              Bring to Front
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle}
+              disabled={!nodeId || !hasDoc || fromIdx < 0 || fromIdx >= (doc?.children.length ?? 0) - 1}
+              onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(Math.min(fromIdx + 1, doc.children.length - 1), fromIdx, null)) }}>
+              Bring Forward
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId || !hasDoc || fromIdx <= 0}
+              onSelect={() => { if (nodeId && doc && fromIdx > 0) executeCmd(new ReorderNodeCommand(Math.max(fromIdx - 1, 0), fromIdx, null)) }}>
+              Send Backward
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId || !hasDoc || fromIdx < 0}
+              onSelect={() => { if (nodeId && doc && fromIdx >= 0) executeCmd(new ReorderNodeCommand(0, fromIdx, null)) }}>
+              Send to Back
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* View */}
+            <ContextMenuPrimitive.Item style={itemStyle} onSelect={() => {
+              const d = docRef.current; const el = containerRef.current
+              if (d && el) { const r = el.getBoundingClientRect(); fitToCanvas(d.canvas.width, d.canvas.height, r.width, r.height) }
+            }}>Zoom to Fit</ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle}
+              onSelect={() => setGrid(!gridVisible, gridSize)}>
+              {gridVisible ? 'Hide Grid' : 'Show Grid'}
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle}
+              onSelect={() => onPropertiesOpen?.()}>
+              Properties…
+            </ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
+            {/* Stencil / Shape promotion */}
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc} onSelect={() => {
+              if (!docRef.current) return
+              const nodes = Array.from(selectedIdsRef.current).map(id => docRef.current!.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
+              setStencilNodes(nodes)
+            }}>Save as Stencil…</ContextMenuPrimitive.Item>
+
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection || !hasDoc} onSelect={() => {
+              if (!docRef.current) return
+              const nodes = Array.from(selectedIdsRef.current).map(id => docRef.current!.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
+              setPromoteNodes(nodes)
+            }}>Promote to Shape…</ContextMenuPrimitive.Item>
+
+            {/* Symbol-instance: Switch Variant sub-menu */}
+            {symbolInstance && shapeOptions.length > 0 && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                    Switch Variant
+                  </ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {shapeOptions.map(opt => (
+                        <ContextMenuPrimitive.Item
+                          key={opt.id}
+                          style={itemStyle}
+                          onSelect={() => {
+                            if (!nodeId || !symbolInstance) return
+                            executeCmd(new ChangeShapeVariantCommand(nodeId, opt.id, symbolInstance.shapeRef.variant ?? 'default'))
+                          }}
+                        >
+                          {symbolInstance.shapeRef.variant === opt.id ? `✓ ${opt.label}` : opt.label}
+                        </ContextMenuPrimitive.Item>
+                      ))}
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
+              </>
+            )}
+
+            {/* Symbol-instance: Switch Configuration sub-menu */}
+            {symbolInstance && shapeConfigurations.length > 0 && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                    Switch Configuration
+                  </ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {shapeConfigurations.map(cfg => (
+                        <ContextMenuPrimitive.Item
+                          key={cfg.id}
+                          style={itemStyle}
+                          onSelect={() => {
+                            if (!nodeId || !symbolInstance) return
+                            executeCmd(new ChangeShapeConfigurationCommand(
+                              nodeId,
+                              symbolInstance.shapeRef.configuration === cfg.id ? undefined : cfg.id,
+                              symbolInstance.shapeRef.configuration,
+                            ))
+                          }}
+                        >
+                          {symbolInstance.shapeRef.configuration === cfg.id ? `✓ ${cfg.label}` : cfg.label}
+                        </ContextMenuPrimitive.Item>
+                      ))}
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
+              </>
+            )}
+
+            {/* Symbol-instance: Export Shape SVG, Bind Point, Add Display Element */}
+            {symbolInstance && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={!shapeEntry?.svg} onSelect={() => {
+                  if (!shapeEntry?.svg) return
+                  const blob = new Blob([shapeEntry.svg], { type: 'image/svg+xml' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = `${symbolInstance.shapeRef.shapeId}.svg`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}>Export Shape SVG</ContextMenuPrimitive.Item>
+
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
+                  onSelect={() => { if (nodeId) setBindingNodeId(nodeId) }}>
+                  Bind Point…
+                </ContextMenuPrimitive.Item>
+
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                    Add Display Element
+                  </ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {(['text_readout', 'analog_bar', 'fill_gauge', 'sparkline', 'alarm_indicator', 'digital_status'] as DisplayElementType[]).map(dtype => (
+                        <ContextMenuPrimitive.Item key={dtype} style={itemStyle} disabled={!nodeId} onSelect={() => {
+                          if (!nodeId) return
+                          const id = crypto.randomUUID()
+                          const newEl: DisplayElement = {
+                            id,
+                            type: 'display_element',
+                            displayType: dtype,
+                            transform: { position: { x: 0, y: -20 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+                            binding: {},
+                            config: makeDefaultDisplayConfig(dtype),
+                            opacity: 1,
+                            visible: true,
+                            locked: false,
+                            name: dtype,
+                          }
+                          executeCmd(new AddDisplayElementCommand(nodeId, newEl))
+                        }}>
+                          {dtype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </ContextMenuPrimitive.Item>
+                      ))}
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
+              </>
+            )}
+
+            {/* DisplayElement-specific items */}
+            {displayElementNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                    Change Type
+                  </ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {(['text_readout', 'analog_bar', 'fill_gauge', 'sparkline', 'alarm_indicator', 'digital_status'] as DisplayElementType[]).map(dtype => (
+                        <ContextMenuPrimitive.Item
+                          key={dtype}
+                          style={itemStyle}
+                          disabled={displayElementNode.displayType === dtype}
+                          onSelect={() => {
+                            if (!nodeId || !displayElementNode) return
+                            executeCmd(new ChangeDisplayElementTypeCommand(
+                              nodeId, dtype, makeDefaultDisplayConfig(dtype),
+                              displayElementNode.displayType, displayElementNode.config,
+                            ))
+                          }}
+                        >
+                          {displayElementNode.displayType === dtype
+                            ? `✓ ${dtype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`
+                            : dtype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </ContextMenuPrimitive.Item>
+                      ))}
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
+
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
+                  onSelect={() => { if (nodeId) setBindingNodeId(nodeId) }}>
+                  Bind Point…
+                </ContextMenuPrimitive.Item>
+
+                {displayElementParent && (
+                  <ContextMenuPrimitive.Item style={itemStyle} onSelect={() => {
+                    if (!nodeId || !displayElementNode || !displayElementParent) return
+                    const parentPos = displayElementParent.transform.position
+                    const absX = parentPos.x + displayElementNode.transform.position.x
+                    const absY = parentPos.y + displayElementNode.transform.position.y
+                    executeCmd(new DetachDisplayElementCommand(
+                      nodeId, displayElementParent.id, displayElementNode, { x: absX, y: absY },
+                    ))
+                  }}>Detach from Shape</ContextMenuPrimitive.Item>
+                )}
+              </>
+            )}
+
+            {/* Pipe-specific items (§6.5) */}
+            {pipeNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle} onSelect={() => {
+                  if (!nodeId || !pipeNode) return
+                  const newMode = pipeNode.routingMode === 'auto' ? 'manual' : 'auto'
+                  executeCmd(new ChangePropertyCommand(nodeId, 'routingMode', newMode, pipeNode.routingMode))
+                }}>
+                  {pipeNode.routingMode === 'auto' ? 'Switch to Manual Routing' : 'Switch to Auto Routing'}
+                </ContextMenuPrimitive.Item>
+
+                <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                    Change Service Type
+                  </ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {Object.keys(PIPE_SERVICE_COLORS).map(stype => (
+                        <ContextMenuPrimitive.Item
+                          key={stype}
+                          style={itemStyle}
+                          disabled={pipeNode.serviceType === stype}
+                          onSelect={() => {
+                            if (!nodeId || !pipeNode) return
+                            executeCmd(new ChangePropertyCommand(nodeId, 'serviceType', stype, pipeNode.serviceType))
+                          }}
+                        >
+                          {pipeNode.serviceType === stype
+                            ? `✓ ${stype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`
+                            : stype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </ContextMenuPrimitive.Item>
+                      ))}
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
+
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  disabled={!pipeNode.startConnection && !pipeNode.endConnection}
+                  onSelect={() => {
+                    if (!nodeId || !pipeNode) return
+                    executeCmd(new CompoundCommand('Reverse Pipe Direction', [
+                      new ChangePropertyCommand(nodeId, 'startConnection', pipeNode.endConnection, pipeNode.startConnection),
+                      new ChangePropertyCommand(nodeId, 'endConnection', pipeNode.startConnection, pipeNode.endConnection),
+                    ]))
+                  }}>
+                  Reverse Direction
+                </ContextMenuPrimitive.Item>
+              </>
+            )}
+
+            {/* Group-specific items (§6.9) */}
+            {groupNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
+                  onSelect={() => {
+                    if (!nodeId || !groupNode) return
+                    setGroupPrompt({ defaultName: '', pendingIds: [], renameNodeId: nodeId, currentName: groupNode.name ?? '' })
+                  }}>
+                  Rename…
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
+                  onSelect={() => {
+                    if (!nodeId || !doc) return
+                    const children = (doc.children.find(n => n.id === nodeId) as Group | undefined)?.children ?? []
+                    const childIds = children.map(c => c.id)
+                    executeCmd(new UngroupCommand(nodeId))
+                    selectedIdsRef.current = new Set(childIds)
+                    emitSelection(childIds)
+                  }}>
+                  Ungroup (Ctrl+Shift+G)
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
+                  onSelect={() => {
+                    if (nodeId) {
+                      setActiveGroup(nodeId)
+                      selectedIdsRef.current = new Set()
+                      emitSelection([])
+                    }
+                  }}>
+                  Enter Group
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={true}>
+                  Open in Tab
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId} onSelect={() => {
+                  if (!nodeId || !docRef.current) return
+                  const node = docRef.current.children.find(n => n.id === nodeId)
+                  if (node) setPromoteNodes([node])
+                }}>
+                  Promote to Shape…
+                </ContextMenuPrimitive.Item>
+              </>
+            )}
+
+            {/* TextBlock-specific items (§6.10) */}
+            {textBlockNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle} disabled={textBlockNode.locked}
+                  onSelect={() => { /* text edit mode triggered via double-click UX */ }}>
+                  Edit Text
+                </ContextMenuPrimitive.Item>
+              </>
+            )}
+
+            {/* Widget-specific items (§6.12) */}
+            {widgetNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => { /* focuses right panel — already shows widget config when selected */ }}>
+                  Configure Widget…
+                </ContextMenuPrimitive.Item>
+              </>
+            )}
           </>
         )}
 
