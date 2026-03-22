@@ -523,9 +523,12 @@ interface WorkspaceTileProps {
   depth: number
   dispatch: React.Dispatch<Action>
   allSelectedIds: string[]
+  cursorParentId: string | null
+  cursorIndex: number
+  isDragging: boolean
 }
 
-function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds }: WorkspaceTileProps) {
+function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds, cursorParentId, cursorIndex, isDragging: isGlobalDragging }: WorkspaceTileProps) {
   const {
     attributes,
     listeners,
@@ -619,9 +622,9 @@ function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds }: Work
       ) : tile.type === 'field_ref' ? (
         <FieldRefEditor tile={tile} dispatch={dispatch} />
       ) : isContainer ? (
-        <ContainerTileContent tile={tile} depth={depth} dispatch={dispatch} allSelectedIds={allSelectedIds} />
+        <ContainerTileContent tile={tile} depth={depth} dispatch={dispatch} allSelectedIds={allSelectedIds} cursorParentId={cursorParentId} cursorIndex={cursorIndex} isDragging={isGlobalDragging} />
       ) : isControlFlow ? (
-        <IfThenElseContent tile={tile} depth={depth} dispatch={dispatch} allSelectedIds={allSelectedIds} />
+        <IfThenElseContent tile={tile} depth={depth} dispatch={dispatch} allSelectedIds={allSelectedIds} cursorParentId={cursorParentId} cursorIndex={cursorIndex} isDragging={isGlobalDragging} />
       ) : (
         <span>{tileLabel}</span>
       )}
@@ -865,11 +868,17 @@ function ContainerTileContent({
   depth,
   dispatch,
   allSelectedIds,
+  cursorParentId,
+  cursorIndex,
+  isDragging,
 }: {
   tile: ExpressionTile
   depth: number
   dispatch: React.Dispatch<Action>
   allSelectedIds: string[]
+  cursorParentId: string | null
+  cursorIndex: number
+  isDragging: boolean
 }) {
   const children = tile.children ?? []
   const label = getTileLabel(tile)
@@ -885,6 +894,9 @@ function ContainerTileContent({
         depth={depth + 1}
         dispatch={dispatch}
         allSelectedIds={allSelectedIds}
+        cursorParentId={cursorParentId}
+        cursorIndex={cursorIndex}
+        isDragging={isDragging}
       />
       {tile.type === 'round' && (
         <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -921,11 +933,17 @@ function IfThenElseContent({
   depth,
   dispatch,
   allSelectedIds,
+  cursorParentId,
+  cursorIndex,
+  isDragging,
 }: {
   tile: ExpressionTile
   depth: number
   dispatch: React.Dispatch<Action>
   allSelectedIds: string[]
+  cursorParentId: string | null
+  cursorIndex: number
+  isDragging: boolean
 }) {
   const sections = [
     { label: 'IF', tiles: tile.condition ?? [], key: 'condition' as const },
@@ -947,6 +965,9 @@ function IfThenElseContent({
             dispatch={dispatch}
             allSelectedIds={allSelectedIds}
             sectionKey={sec.key}
+            cursorParentId={cursorParentId}
+            cursorIndex={cursorIndex}
+            isDragging={isDragging}
           />
         </div>
       ))}
@@ -965,12 +986,68 @@ interface DropZoneRowProps {
   dispatch: React.Dispatch<Action>
   allSelectedIds: string[]
   sectionKey?: 'condition' | 'thenBranch' | 'elseBranch' | 'children'
+  cursorParentId: string | null
+  cursorIndex: number
+  isDragging: boolean
 }
 
-function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds }: DropZoneRowProps) {
+// Inject CSS keyframe for cursor blink once per page load
+let _cursorStyleInjected = false
+function ensureCursorStyle() {
+  if (_cursorStyleInjected) return
+  _cursorStyleInjected = true
+  const style = document.createElement('style')
+  style.textContent = `@keyframes io-cursor-blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }`
+  document.head.appendChild(style)
+}
+
+function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds, cursorParentId, cursorIndex, isDragging }: DropZoneRowProps) {
+  // Inject cursor blink animation once
+  React.useEffect(() => { ensureCursorStyle() }, [])
+
   // When the depth at this zone equals or exceeds MAX_NESTING_DEPTH, container
   // tiles cannot be dropped here. We show a subtle visual hint.
   const depthBlocked = depth >= MAX_NESTING_DEPTH
+
+  const showCursorHere = cursorParentId === parentId
+
+  function renderCursor(index: number) {
+    if (!showCursorHere || cursorIndex !== index) return null
+    return (
+      <div
+        key={`cursor-${index}`}
+        style={{
+          width: '2px',
+          height: '36px',
+          background: 'var(--io-accent)',
+          animation: isDragging ? 'none' : 'io-cursor-blink 1.06s step-end infinite',
+          flexShrink: 0,
+          alignSelf: 'center',
+        }}
+        aria-hidden="true"
+      />
+    )
+  }
+
+  function renderHitbox(index: number) {
+    return (
+      <div
+        key={`hitbox-${index}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          dispatch({ type: 'SET_CURSOR', parentId, index })
+        }}
+        style={{
+          width: '10px',
+          height: '36px',
+          flexShrink: 0,
+          cursor: 'text',
+          alignSelf: 'center',
+        }}
+        aria-hidden="true"
+      />
+    )
+  }
 
   return (
     <SortableContext
@@ -981,7 +1058,7 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds }: DropZ
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          gap: '4px',
+          gap: '0',
           minHeight: '36px',
           padding: '4px',
           border: depthBlocked
@@ -997,15 +1074,25 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds }: DropZ
         data-depth-blocked={depthBlocked ? 'true' : undefined}
         title={depthBlocked ? 'Maximum nesting depth (5 levels) reached.' : undefined}
       >
-        {tiles.map((tile) => (
-          <WorkspaceTile
-            key={tile.id}
-            tile={tile}
-            selected={allSelectedIds.includes(tile.id)}
-            depth={depth}
-            dispatch={dispatch}
-            allSelectedIds={allSelectedIds}
-          />
+        {/* Cursor/hitbox before index 0 */}
+        {renderCursor(0)}
+        {renderHitbox(0)}
+        {tiles.map((tile, i) => (
+          <React.Fragment key={tile.id}>
+            <WorkspaceTile
+              tile={tile}
+              selected={allSelectedIds.includes(tile.id)}
+              depth={depth}
+              dispatch={dispatch}
+              allSelectedIds={allSelectedIds}
+              cursorParentId={cursorParentId}
+              cursorIndex={cursorIndex}
+              isDragging={isDragging}
+            />
+            {/* Cursor/hitbox after tile at index i+1 */}
+            {renderCursor(i + 1)}
+            {renderHitbox(i + 1)}
+          </React.Fragment>
         ))}
         {tiles.length === 0 && (
           <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', padding: '4px 6px', alignSelf: 'center' }}>
@@ -1728,6 +1815,9 @@ export function ExpressionBuilder({
             depth={0}
             dispatch={dispatch}
             allSelectedIds={state.selectedIds}
+            cursorParentId={state.cursorParentId}
+            cursorIndex={state.cursorIndex}
+            isDragging={activeDragId !== null}
           />
         </div>
 
