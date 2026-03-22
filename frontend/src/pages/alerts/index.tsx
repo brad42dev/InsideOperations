@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { usePermission } from '../../shared/hooks/usePermission'
 import { wsManager } from '../../shared/hooks/useWebSocket'
+import { exportsApi, type ExportFormat } from '../../api/exports'
 import {
   notificationsApi,
   type NotificationTemplate,
@@ -31,6 +32,26 @@ const SEVERITY_COLORS: Record<NotificationSeverity, { bg: string; text: string; 
 // loaded from the Alert Service config at runtime via getEnabledChannels().
 // The fallback below is used only while the query is loading or if it fails.
 const FALLBACK_CHANNELS: NotificationChannel[] = ['websocket']
+
+// ---------------------------------------------------------------------------
+// Export helpers (shared by HistoryPanel)
+// ---------------------------------------------------------------------------
+
+const HISTORY_EXPORT_FORMATS: { label: string; fmt: ExportFormat }[] = [
+  { label: 'CSV',     fmt: 'csv'     },
+  { label: 'XLSX',    fmt: 'xlsx'    },
+  { label: 'JSON',    fmt: 'json'    },
+  { label: 'PDF',     fmt: 'pdf'     },
+  { label: 'Parquet', fmt: 'parquet' },
+  { label: 'HTML',    fmt: 'html'    },
+]
+
+function historyExportFilename(format: ExportFormat): string {
+  const now = new Date()
+  const date = now.toISOString().slice(0, 10)
+  const time = now.toTimeString().slice(0, 5).replace(':', '')
+  return `alerts_history_${date}_${time}.${format}`
+}
 
 // ---------------------------------------------------------------------------
 // Severity badge
@@ -797,6 +818,9 @@ function ActiveAlertsPanel() {
 function HistoryPanel() {
   const [page, setPage] = useState(1)
   const [severity, setSeverity] = useState<NotificationSeverity | ''>('')
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
+  const [exportNotice, setExportNotice] = useState<string | null>(null)
+  const canExport = usePermission('alerts:export')
 
   const { data: result, isLoading } = useQuery({
     queryKey: ['notification-messages', { page, severity: severity || undefined }],
@@ -810,6 +834,30 @@ function HistoryPanel() {
 
   const messages: NotificationMessage[] = (result?.success && result.data) ? result.data : []
   const pagination = (result as { pagination?: { total: number; pages: number } } | undefined)?.pagination
+
+  const handleExport = useCallback(async (format: ExportFormat) => {
+    setExportDropdownOpen(false)
+    setExportNotice(null)
+    const filters: Record<string, unknown> = {}
+    if (severity) filters['severity'] = severity
+    try {
+      const exportResult = await exportsApi.create({
+        module: 'alerts',
+        entity: 'history',
+        format,
+        scope: 'filtered',
+        columns: ['severity', 'title', 'channels', 'recipient_count', 'sent_by', 'sent_at'],
+        filters,
+      })
+      if (exportResult.type === 'download') {
+        exportsApi.triggerDownload(exportResult.blob, historyExportFilename(format))
+      } else if (exportResult.type === 'queued') {
+        setExportNotice(`Export queued (job ${exportResult.job.job_id}). You will be notified when it is ready.`)
+      }
+    } catch (err) {
+      setExportNotice(err instanceof Error ? err.message : 'Export failed')
+    }
+  }, [severity])
 
   const thStyle: React.CSSProperties = {
     textAlign: 'left',
@@ -833,28 +881,104 @@ function HistoryPanel() {
 
   return (
     <div>
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
-        <label style={{ fontSize: 13, color: 'var(--io-text-muted)' }}>Severity:</label>
-        <select
-          value={severity}
-          onChange={(e) => { setSeverity(e.target.value as NotificationSeverity | ''); setPage(1) }}
-          style={{
-            padding: '6px 10px',
-            borderRadius: 6,
-            border: '1px solid var(--io-border)',
-            background: 'var(--io-surface-secondary)',
-            color: 'var(--io-text)',
-            fontSize: 13,
-          }}
-        >
-          <option value="">All severities</option>
-          <option value="emergency">Emergency</option>
-          <option value="critical">Critical</option>
-          <option value="warning">Warning</option>
-          <option value="info">Info</option>
-        </select>
+      {/* Filters + Export */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <label style={{ fontSize: 13, color: 'var(--io-text-muted)' }}>Severity:</label>
+          <select
+            value={severity}
+            onChange={(e) => { setSeverity(e.target.value as NotificationSeverity | ''); setPage(1) }}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--io-border)',
+              background: 'var(--io-surface-secondary)',
+              color: 'var(--io-text)',
+              fontSize: 13,
+            }}
+          >
+            <option value="">All severities</option>
+            <option value="emergency">Emergency</option>
+            <option value="critical">Critical</option>
+            <option value="warning">Warning</option>
+            <option value="info">Info</option>
+          </select>
+        </div>
+
+        {canExport && (
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              onClick={() => setExportDropdownOpen((v) => !v)}
+              title="Export alert history"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--io-border)',
+                borderRadius: 6,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: 13,
+                color: 'var(--io-text)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Export
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <polygon points="2,3 8,3 5,7" />
+              </svg>
+            </button>
+            {exportDropdownOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                  onClick={() => setExportDropdownOpen(false)}
+                />
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, zIndex: 1000,
+                  background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)',
+                  borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.3)', overflow: 'hidden',
+                  minWidth: 140, marginTop: 4,
+                }}>
+                  {HISTORY_EXPORT_FORMATS.map(({ label, fmt }) => (
+                    <button
+                      key={fmt}
+                      onClick={() => { void handleExport(fmt) }}
+                      style={{
+                        display: 'block', width: '100%', padding: '8px 14px',
+                        background: 'none', border: 'none', textAlign: 'left',
+                        cursor: 'pointer', fontSize: 13, color: 'var(--io-text)',
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {exportNotice && (
+        <div style={{
+          marginBottom: 12, padding: '8px 12px', borderRadius: 6,
+          background: 'rgba(74,158,255,0.1)', border: '1px solid var(--io-accent)',
+          color: 'var(--io-text-secondary)', fontSize: 13,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span>{exportNotice}</span>
+          <button
+            onClick={() => setExportNotice(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: 16, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {isLoading ? (
         <p style={{ color: 'var(--io-text-muted)', fontSize: 14 }}>Loading…</p>
