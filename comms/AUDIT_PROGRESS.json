@@ -733,7 +733,7 @@
       "completed_at": "2026-03-21",
       "notes": "7 tasks. Badge polling engine absent; /current endpoints missing; wrong RBAC on badge endpoints.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     },
     {
       "unit": "DD-31",
