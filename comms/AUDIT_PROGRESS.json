@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T22:06:45.168343+00:00",
+  "last_updated": "2026-03-22T22:26:50.394734+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -126,7 +126,8 @@
     "DD-27-008": 1,
     "DD-28-001": 1,
     "DD-28-007": 1,
-    "DD-28-008": 1
+    "DD-28-008": 1,
+    "DD-29-006": 1
   },
   "queue": [
     {
@@ -3000,7 +3001,7 @@
       "wave": 3,
       "title": "Implement Duo Security MFA (Universal Prompt via OIDC Auth API)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-29-004"
       ],
@@ -3012,7 +3013,7 @@
       "wave": 3,
       "title": "Implement SCIM 2.0 Groups endpoints",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3022,7 +3023,7 @@
       "wave": 3,
       "title": "Fix IdP role mapping column name mismatch and add regex match type",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3062,7 +3063,7 @@
       "wave": 3,
       "title": "Add POST /api/presence/clear/:badge_id endpoint for manual stale-presence clear",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

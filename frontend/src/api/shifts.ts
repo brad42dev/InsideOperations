@@ -297,6 +297,9 @@ export const shiftsApi = {
   getPresence(userId: string): Promise<ApiResult<PresenceStatus>> {
     return api.get(`/api/presence/${userId}`)
   },
+  clearPresence(badgeId: string): Promise<ApiResult<{ cleared: boolean; badge_id: string }>> {
+    return api.post(`/api/presence/clear/${badgeId}`, {})
+  },
 
   // --- Muster points ---
   listMusterPoints(): Promise<ApiResult<MusterPoint[]>> {

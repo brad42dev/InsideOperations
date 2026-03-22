@@ -1270,6 +1270,45 @@ pub async fn get_presence(
 }
 
 // ---------------------------------------------------------------------------
+// POST /api/presence/clear/:badge_id — manually clear stale on-site status
+// ---------------------------------------------------------------------------
+
+pub async fn clear_presence(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(badge_id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "presence:manage") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "presence:manage required")
+            .into_response();
+    }
+
+    let result = sqlx::query(
+        r#"UPDATE presence_status
+           SET on_site = false,
+               stale_at = NULL,
+               updated_at = now()
+           WHERE user_id = $1
+           RETURNING user_id"#,
+    )
+    .bind(badge_id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match result {
+        Ok(Some(_)) => ok(json!({ "cleared": true, "badge_id": badge_id })).into_response(),
+        Ok(None) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Badge ID not found").into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "clear_presence failed");
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to clear presence")
+                .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/muster/points — list muster points
 // ---------------------------------------------------------------------------
 
@@ -2228,6 +2267,7 @@ pub fn shifts_routes() -> axum::Router<AppState> {
         // Presence
         .route("/api/presence", get(list_presence))
         .route("/api/presence/:user_id", get(get_presence))
+        .route("/api/presence/clear/:badge_id", post(clear_presence))
         // Muster points (static before /events)
         .route(
             "/api/muster/points",

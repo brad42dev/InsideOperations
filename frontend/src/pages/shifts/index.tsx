@@ -15,6 +15,7 @@ import {
   type AccountPersonPayload,
   type CreateBadgeSourcePayload,
 } from '../../api/shifts'
+import { useAuthStore } from '../../store/auth'
 
 // ---------------------------------------------------------------------------
 // Shared style tokens
@@ -625,9 +626,21 @@ function CrewRow({ crew, onDelete }: { crew: ShiftCrew; onDelete: (id: string) =
 // ---------------------------------------------------------------------------
 
 function PresenceTab({ presence }: { presence: PresenceStatus[] }) {
+  const qc = useQueryClient()
+  const { user } = useAuthStore()
+  const canManagePresence =
+    user?.permissions.includes('presence:manage') || user?.permissions.includes('*') || false
+
+  const clearPresenceMut = useMutation({
+    mutationFn: (badgeId: string) => shiftsApi.clearPresence(badgeId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['presence'] }),
+  })
+
   const onSite = presence.filter((p) => p.on_site).length
   const onShift = presence.filter((p) => p.on_shift).length
   const both = presence.filter((p) => p.on_site && p.on_shift).length
+
+  const colTemplate = canManagePresence ? '1fr 80px 140px 140px 80px 80px' : '1fr 80px 140px 140px 80px'
 
   return (
     <div>
@@ -642,7 +655,7 @@ function PresenceTab({ presence }: { presence: PresenceStatus[] }) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 80px 140px 140px 80px',
+            gridTemplateColumns: colTemplate,
             gap: 12,
             padding: '10px 16px',
             borderBottom: '1px solid var(--io-border)',
@@ -658,6 +671,7 @@ function PresenceTab({ presence }: { presence: PresenceStatus[] }) {
           <span>Last Area</span>
           <span>Last Seen</span>
           <span>On Shift</span>
+          {canManagePresence && <span>Actions</span>}
         </div>
         {presence.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--io-text-muted)', fontSize: 14 }}>
@@ -669,7 +683,7 @@ function PresenceTab({ presence }: { presence: PresenceStatus[] }) {
             key={p.user_id}
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 80px 140px 140px 80px',
+              gridTemplateColumns: colTemplate,
               gap: 12,
               padding: '10px 16px',
               borderBottom: '1px solid var(--io-border)',
@@ -704,6 +718,28 @@ function PresenceTab({ presence }: { presence: PresenceStatus[] }) {
                 {p.on_shift ? 'Yes' : 'No'}
               </span>
             </div>
+            {canManagePresence && (
+              <div>
+                {p.stale_at != null && (
+                  <button
+                    style={{
+                      padding: '4px 10px',
+                      border: '1px solid var(--io-border)',
+                      borderRadius: 4,
+                      background: 'none',
+                      color: 'var(--io-text-muted)',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                    }}
+                    disabled={clearPresenceMut.isPending}
+                    onClick={() => clearPresenceMut.mutate(p.user_id)}
+                    title="Manually clear stale on-site status"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
