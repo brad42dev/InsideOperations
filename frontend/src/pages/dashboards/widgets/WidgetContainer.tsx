@@ -1,5 +1,6 @@
 import { memo, useState } from 'react'
 import type { WidgetConfig } from '../../../api/dashboards'
+import { useAuthStore } from '../../../store/auth'
 import KpiCard from './KpiCard'
 import LineChart from './LineChart'
 import BarChart from './BarChart'
@@ -8,6 +9,7 @@ import GaugeWidget from './GaugeWidget'
 import TableWidget from './TableWidget'
 import TextWidget from './TextWidget'
 import AlertStatusWidget from './AlertStatusWidget'
+import ExportDataDialog from './ExportDataDialog'
 
 interface Props {
   config: WidgetConfig
@@ -73,7 +75,10 @@ const WidgetContainer = memo(function WidgetContainer({
   onRemove,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showExport, setShowExport] = useState(false)
   const title = getWidgetTitle(config)
+  const user = useAuthStore((s) => s.user)
+  const canExport = user?.permissions.includes('dashboards:export') === true
 
   return (
     <div
@@ -154,11 +159,13 @@ const WidgetContainer = memo(function WidgetContainer({
                     overflow: 'hidden',
                   }}
                 >
-                  {[
+                  {([
                     { label: 'Edit', action: () => { onEdit?.(config.id); setMenuOpen(false) } },
-                    { label: 'Export Data', action: () => { setMenuOpen(false) } },
+                    ...(canExport
+                      ? [{ label: 'Export Data', action: () => { setShowExport(true); setMenuOpen(false) } }]
+                      : []),
                     { label: 'Remove', action: () => { onRemove?.(config.id); setMenuOpen(false) }, danger: true },
-                  ].map((item) => (
+                  ] as Array<{ label: string; action: () => void; danger?: boolean }>).map((item) => (
                     <button
                       key={item.label}
                       onClick={item.action}
@@ -195,6 +202,14 @@ const WidgetContainer = memo(function WidgetContainer({
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <WidgetBody config={config} variables={variables} />
       </div>
+
+      {/* Export Data dialog — rendered outside the widget body so it is not clipped */}
+      {showExport && (
+        <ExportDataDialog
+          widgetConfig={config}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   )
 })
