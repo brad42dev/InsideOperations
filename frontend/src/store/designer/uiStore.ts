@@ -19,6 +19,7 @@
 
 import { create } from 'zustand'
 import type { Transform } from '../../shared/types/graphics'
+import type { NodeId } from '../../shared/types/graphics'
 
 // ---------------------------------------------------------------------------
 // Exported Types
@@ -192,7 +193,13 @@ export interface UiStore {
   /** Node ID of the group currently being edited in-scope. null = top-level. */
   activeGroupId: string | null
 
+  // ----- Selection -----
+  /** Set of currently selected node IDs. Ephemeral; never persisted. */
+  selectedNodeIds: Set<NodeId>
+
   // ----- Actions -----
+  setSelectedNodes(ids: NodeId[]): void
+  clearSelection(): void
   setTool(tool: DrawingTool): void
   setViewport(vp: Partial<DesignerViewport>): void
   /**
@@ -327,8 +334,17 @@ export const useUiStore = create<UiStore>((set, get) => ({
   pipeDrawState: null,
   marquee: null,
   activeGroupId: null,
+  selectedNodeIds: new Set<NodeId>(),
 
   // ----- Actions -----
+
+  setSelectedNodes(ids) {
+    set({ selectedNodeIds: new Set(ids) })
+  },
+
+  clearSelection() {
+    set({ selectedNodeIds: new Set() })
+  },
 
   setTool(tool) {
     // Switching tools cancels any ongoing interaction

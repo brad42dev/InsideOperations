@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { useSceneStore, useHistoryStore, useLibraryStore } from '../../store/designer'
+import { useSceneStore, useHistoryStore, useLibraryStore, useUiStore } from '../../store/designer'
 import type { NodeId } from '../../shared/types/graphics'
 import type {
   SceneNode,
@@ -99,14 +99,6 @@ export interface DesignerRightPanelProps {
   collapsed: boolean
   width: number
 }
-
-// ---------------------------------------------------------------------------
-// Selection state — extend uiStore to track selectedIds
-// ---------------------------------------------------------------------------
-
-// We use a module-level set to track selection because uiStore doesn't have it.
-// The canvas sets this via CustomEvents; we subscribe via a simple React state.
-// If uiStore gains selectedIds, replace this.
 
 // ---------------------------------------------------------------------------
 // Find node by ID anywhere in the doc tree
@@ -1917,7 +1909,7 @@ function SceneTreePanel({ selectedIds }: { selectedIds: string[] }) {
   if (!doc) return null
 
   function handleSelect(id: string) {
-    document.dispatchEvent(new CustomEvent('io:selection-change', { detail: { ids: [id] } }))
+    useUiStore.getState().setSelectedNodes([id])
   }
 
   return (
@@ -2136,20 +2128,9 @@ function LayersPanel() {
 export default function DesignerRightPanel({ collapsed, width }: DesignerRightPanelProps) {
   const doc = useSceneStore(s => s.doc)
 
-  // Selection is tracked via a simple local state updated from uiStore selectedIds
-  // Since uiStore doesn't have selectedIds yet, we use a local state here
-  // that is populated by CustomEvents from the canvas.
-  const [selectedIds, setSelectedIds] = useState<NodeId[]>([])
-
-  // Listen for selection events from DesignerCanvas
-  React.useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ ids: NodeId[] }>
-      setSelectedIds(ce.detail.ids)
-    }
-    document.addEventListener('io:selection-change', handler)
-    return () => document.removeEventListener('io:selection-change', handler)
-  }, [])
+  // Subscribe to selection from uiStore — reactive, no CustomEvents needed
+  const selectedNodeIds = useUiStore(s => s.selectedNodeIds)
+  const selectedIds = Array.from(selectedNodeIds)
 
   if (collapsed) {
     return (

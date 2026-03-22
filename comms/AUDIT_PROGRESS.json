@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T10:10:53.018640+00:00",
+  "last_updated": "2026-03-22T10:35:21.267255+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -81,7 +81,8 @@
     "MOD-PROCESS-003": 1,
     "GFX-SHAPES-005": 1,
     "MOD-PROCESS-007": 1,
-    "OPC-BACKEND-003": 1
+    "OPC-BACKEND-003": 1,
+    "MOD-CONSOLE-007": 1
   },
   "queue": [
     {
@@ -1103,7 +1104,7 @@
       "title": "Make PointDetailPanel resizable, pinnable, minimizable, and session-position-persisted",
       "priority": "medium",
       "depends_on": [],
-      "status": "implementing",
+      "status": "verified",
       "audit_round": 8
     },
     {
@@ -1112,7 +1113,7 @@
       "title": "Fix playback bar speed options, add loop region, reverse transport, step interval dropdown, and keyboard shortcuts",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 8
     },
     {
@@ -1121,7 +1122,7 @@
       "title": "Fix ErrorBoundary button label to \"[Reload Module]\" and add nested per-pane boundaries",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 8
     },
     {
@@ -1267,7 +1268,7 @@
       "title": "Move selection state from local useRef into uiStore",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "implementing",
       "audit_round": 3
     },
     {

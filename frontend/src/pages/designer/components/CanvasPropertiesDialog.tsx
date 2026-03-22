@@ -12,7 +12,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useSceneStore, useHistoryStore } from '../../../store/designer'
+import { useSceneStore, useHistoryStore, useUiStore } from '../../../store/designer'
 import { ChangePropertyCommand } from '../../../shared/graphics/commands'
 import { getNodeBounds } from '../../../shared/graphics/pointExtractor'
 import type { SceneNode } from '../../../shared/types/graphics'
@@ -260,9 +260,7 @@ export default function CanvasPropertiesDialog({ onClose }: CanvasPropertiesDial
 
   function handleSelectOobNodes() {
     if (oobIds.length === 0) return
-    document.dispatchEvent(new CustomEvent('io:selection-change', { detail: { ids: oobIds } }))
-    // Also update the selection store
-    document.dispatchEvent(new CustomEvent('io:set-selection', { detail: { ids: oobIds } }))
+    useUiStore.getState().setSelectedNodes(oobIds)
   }
 
   // Styles

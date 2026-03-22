@@ -4,7 +4,7 @@
  * The main SVG canvas for the Designer module.
  * Renders the scene graph as React SVG elements.
  * Handles mouse interaction for select, draw, pan, and pipe tools.
- * Dispatches io:selection-change CustomEvents so DesignerRightPanel can react.
+ * Writes selection to uiStore so DesignerRightPanel can reactively subscribe.
  *
  * IMPORTANT: This replaces the older SVG.js-based implementation.
  * All mutations go through SceneCommands + historyStore.
@@ -147,12 +147,9 @@ function rdpSimplify(pts: Array<{x:number;y:number}>, eps: number): Array<{x:num
 }
 
 // ---------------------------------------------------------------------------
-// Selection state — local module-level set (avoids uiStore extension)
+// Selection state — written to uiStore; selectedIdsRef is a synchronous cache
+// kept in sync with the store so callbacks can read without triggering renders.
 // ---------------------------------------------------------------------------
-
-function emitSelection(ids: NodeId[]) {
-  document.dispatchEvent(new CustomEvent('io:selection-change', { detail: { ids } }))
-}
 
 // ---------------------------------------------------------------------------
 // Group naming helpers
@@ -1959,7 +1956,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
             setActiveGroup(null)
             setGroupBreadcrumb([])
             selectedIdsRef.current = new Set()
-            emitSelection([])
+            useUiStore.getState().setSelectedNodes([])
             return
           }
         }
@@ -1972,7 +1969,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
           ? new Set([...selectedIdsRef.current, hitId])
           : new Set([hitId])
         selectedIdsRef.current = newSelection
-        emitSelection(Array.from(newSelection))
+        useUiStore.getState().setSelectedNodes(Array.from(newSelection))
 
         // Prepare drag
         const d = docRef.current
@@ -1999,7 +1996,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         // Start marquee selection
         if (!e.shiftKey) {
           selectedIdsRef.current = new Set()
-          emitSelection([])
+          useUiStore.getState().setSelectedNodes([])
         }
         inter.type = 'marquee'
         setMarquee({ startX: cx, startY: cy, endX: cx, endY: cy })
@@ -2047,7 +2044,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       }
       executeCmd(new AddNodeCommand(newNode, null))
       selectedIdsRef.current = new Set([newNode.id])
-      emitSelection([newNode.id])
+      useUiStore.getState().setSelectedNodes([newNode.id])
       return
     }
 
@@ -2672,7 +2669,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
         executeCmd(new AddNodeCommand(prim, null))
         selectedIdsRef.current = new Set([prim.id])
-        emitSelection([prim.id])
+        useUiStore.getState().setSelectedNodes([prim.id])
       }
 
       setDrawPreview(null)
@@ -2706,7 +2703,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
               ? new Set([...selectedIdsRef.current, ...hit])
               : new Set(hit)
             selectedIdsRef.current = newSel
-            emitSelection(Array.from(newSel))
+            useUiStore.getState().setSelectedNodes(Array.from(newSel))
           }
         }
       }
@@ -2755,7 +2752,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
         executeCmd(new AddNodeCommand(prim, null))
         selectedIdsRef.current = new Set([prim.id])
-        emitSelection([prim.id])
+        useUiStore.getState().setSelectedNodes([prim.id])
       }
       freehandPointsRef.current = []
       setFreehandPreview(null)
@@ -2800,7 +2797,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
             setActiveGroup(hitId)
             setTool('select')
             selectedIdsRef.current = new Set()
-            emitSelection([])
+            useUiStore.getState().setSelectedNodes([])
             // Extend breadcrumb: append this group
             setGroupBreadcrumb(prev => {
               // If already in breadcrumb, truncate to that level (shouldn't happen but be safe)
@@ -2831,7 +2828,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       }
       executeCmd(new AddNodeCommand(pipe, null))
       selectedIdsRef.current = new Set([pipe.id])
-      emitSelection([pipe.id])
+      useUiStore.getState().setSelectedNodes([pipe.id])
       setPipeDrawState(null)
       setTool('select')
       return
@@ -2853,7 +2850,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       }
       executeCmd(new AddNodeCommand(prim, null))
       selectedIdsRef.current = new Set([prim.id])
-      emitSelection([prim.id])
+      useUiStore.getState().setSelectedNodes([prim.id])
       setPenWaypoints(null)
       setTool('select')
     }
@@ -2907,7 +2904,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       if (d) {
         const allIds = d.children.filter(n => n.visible && !n.locked).map(n => n.id)
         selectedIdsRef.current = new Set(allIds)
-        emitSelection(allIds)
+        useUiStore.getState().setSelectedNodes(allIds)
       }
       return
     }
@@ -2936,7 +2933,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       if (ids.length > 0) {
         executeCmd(new DeleteNodesCommand(ids))
         selectedIdsRef.current = new Set()
-        emitSelection([])
+        useUiStore.getState().setSelectedNodes([])
       }
       return
     }
@@ -2954,7 +2951,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         if (d2) {
           const pastedIds = d2.children.filter(n => !oldIds.has(n.id)).map(n => n.id)
           selectedIdsRef.current = new Set(pastedIds)
-          emitSelection(pastedIds)
+          useUiStore.getState().setSelectedNodes(pastedIds)
         }
         void newDoc
       }
@@ -3019,7 +3016,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
       }
       selectedIdsRef.current = new Set(ungroupedChildIds)
-      emitSelection(ungroupedChildIds)
+      useUiStore.getState().setSelectedNodes(ungroupedChildIds)
       return
     }
 
@@ -3030,7 +3027,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       if (ids.length > 0 && docRef.current) {
         executeCmd(new DeleteNodesCommand(ids))
         selectedIdsRef.current = new Set()
-        emitSelection([])
+        useUiStore.getState().setSelectedNodes([])
       }
       return
     }
@@ -3058,11 +3055,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         setActiveGroup(null)
         setGroupBreadcrumb([])
         selectedIdsRef.current = new Set()
-        emitSelection([])
+        useUiStore.getState().setSelectedNodes([])
         return
       }
       selectedIdsRef.current = new Set()
-      emitSelection([])
+      useUiStore.getState().setSelectedNodes([])
       setPipeDrawState(null)
       setPenWaypoints(null)
       setDrawPreview(null)
@@ -3158,7 +3155,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
         executeCmd(new AddNodeCommand(pipe, null))
         selectedIdsRef.current = new Set([pipe.id])
-        emitSelection([pipe.id])
+        useUiStore.getState().setSelectedNodes([pipe.id])
         setPipeDrawState(null)
         setTool('select')
         return
@@ -3179,7 +3176,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
         executeCmd(new AddNodeCommand(prim, null))
         selectedIdsRef.current = new Set([prim.id])
-        emitSelection([prim.id])
+        useUiStore.getState().setSelectedNodes([prim.id])
         setPenWaypoints(null)
         setTool('select')
         return
@@ -3256,7 +3253,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
       }
       selectedIdsRef.current = new Set(ungroupedChildIds)
-      emitSelection(ungroupedChildIds)
+      useUiStore.getState().setSelectedNodes(ungroupedChildIds)
     }
 
     document.addEventListener('io:toolbar-group', onToolbarGroup)
@@ -3282,7 +3279,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     const hitId = hitTest(cx, cy)
     if (hitId && !selectedIdsRef.current.has(hitId)) {
       selectedIdsRef.current = new Set([hitId])
-      emitSelection([hitId])
+      useUiStore.getState().setSelectedNodes([hitId])
     }
     ctxNodeIdRef.current = hitId
   }, [])
@@ -3317,7 +3314,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       const dropParentId = useUiStore.getState().activeGroupId
       executeCmd(new AddNodeCommand(si, dropParentId))
       selectedIdsRef.current = new Set([si.id])
-      emitSelection([si.id])
+      useUiStore.getState().setSelectedNodes([si.id])
 
       // Load the shape SVG in the background
       useLibraryStore.getState().loadShape(ce.detail.shapeId)
@@ -3350,7 +3347,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       const stencilParentId = useUiStore.getState().activeGroupId
       executeCmd(new AddNodeCommand(node, stencilParentId))
       selectedIdsRef.current = new Set([node.id])
-      emitSelection([node.id])
+      useUiStore.getState().setSelectedNodes([node.id])
     }
 
     document.addEventListener('io:stencil-drop', onStencilDrop)
@@ -3426,7 +3423,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       }
       executeCmd(new AddNodeCommand(node, null))
       selectedIdsRef.current = new Set([node.id])
-      emitSelection([node.id])
+      useUiStore.getState().setSelectedNodes([node.id])
     }
 
     document.addEventListener('io:widget-drop', onWidgetDrop)
@@ -3470,7 +3467,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       const deParentId = useUiStore.getState().activeGroupId
       executeCmd(new AddNodeCommand(node, deParentId))
       selectedIdsRef.current = new Set([node.id])
-      emitSelection([node.id])
+      useUiStore.getState().setSelectedNodes([node.id])
     }
 
     document.addEventListener('io:display-element-drop', onDisplayElementDrop)
@@ -3513,7 +3510,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
         executeCmd(new AddNodeCommand(node, null))
         selectedIdsRef.current = new Set([node.id])
-        emitSelection([node.id])
+        useUiStore.getState().setSelectedNodes([node.id])
       } else {
         type ReportAnnotationType = 'section_break' | 'page_break' | 'header' | 'footer'
         const rat = et as ReportAnnotationType
@@ -3540,7 +3537,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         }
         executeCmd(new AddNodeCommand(annotationNode as SceneNode, null))
         selectedIdsRef.current = new Set([annotationNode.id])
-        emitSelection([annotationNode.id])
+        useUiStore.getState().setSelectedNodes([annotationNode.id])
       }
     }
 
@@ -3652,7 +3649,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
 
     executeCmd(new AddNodeCommand(de, null))
     selectedIdsRef.current = new Set([de.id])
-    emitSelection([de.id])
+    useUiStore.getState().setSelectedNodes([de.id])
   }
 
   return (
@@ -3894,7 +3891,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
               }
               executeCmd(new AddNodeCommand(node, null))
               selectedIdsRef.current = new Set([node.id])
-              emitSelection([node.id])
+              useUiStore.getState().setSelectedNodes([node.id])
               setTool('select')
             }
             img.src = dataUrl
@@ -4002,7 +3999,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
               setActiveGroup(null)
               setGroupBreadcrumb([])
               selectedIdsRef.current = new Set()
-              emitSelection([])
+              useUiStore.getState().setSelectedNodes([])
             }}
             style={{
               background: 'none',
@@ -4027,7 +4024,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
                   setActiveGroup(crumb.id)
                   setGroupBreadcrumb(prev => prev.slice(0, idx + 1))
                   selectedIdsRef.current = new Set()
-                  emitSelection([])
+                  useUiStore.getState().setSelectedNodes([])
                 }}
                 style={{
                   background: 'none',
@@ -4094,7 +4091,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
                 const newGroup = newDoc.children.find(n => n.type === 'group' && n.name === name)
                 if (newGroup) {
                   selectedIdsRef.current = new Set([newGroup.id])
-                  emitSelection([newGroup.id])
+                  useUiStore.getState().setSelectedNodes([newGroup.id])
                 }
               }
             }
@@ -4144,7 +4141,6 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       setPromoteNodes={setPromoteNodes}
       setBindingNodeId={setBindingNodeId}
       setActiveGroup={setActiveGroup}
-      emitSelection={emitSelection}
       containerRef={containerRef}
       fitToCanvas={fitToCanvas}
       setGroupPrompt={setGroupPrompt}
@@ -4399,7 +4395,6 @@ interface DesignerContextMenuContentProps {
   setPromoteNodes: (nodes: SceneNode[] | null) => void
   setBindingNodeId: (id: NodeId | null) => void
   setActiveGroup: (id: NodeId | null) => void
-  emitSelection: (ids: NodeId[]) => void
   containerRef: React.RefObject<HTMLDivElement>
   fitToCanvas: (w: number, h: number, vw: number, vh: number) => void
   setGroupPrompt: React.Dispatch<React.SetStateAction<{
@@ -4429,7 +4424,6 @@ function DesignerContextMenuContent({
   setPromoteNodes,
   setBindingNodeId,
   setActiveGroup,
-  emitSelection,
   containerRef,
   fitToCanvas,
   setGroupPrompt,
@@ -4565,7 +4559,7 @@ function DesignerContextMenuContent({
                 if (d2) {
                   const pastedIds = d2.children.filter(n => !oldIds.has(n.id)).map(n => n.id)
                   selectedIdsRef.current = new Set(pastedIds)
-                  emitSelection(pastedIds)
+                  useUiStore.getState().setSelectedNodes(pastedIds)
                 }
               }}
             >Paste</ContextMenuPrimitive.Item>
@@ -4578,7 +4572,7 @@ function DesignerContextMenuContent({
                 if (!doc) return
                 const allIds = doc.children.filter(n => n.visible && !n.locked).map(n => n.id)
                 selectedIdsRef.current = new Set(allIds)
-                emitSelection(allIds)
+                useUiStore.getState().setSelectedNodes(allIds)
               }}
             >Select All</ContextMenuPrimitive.Item>
 
@@ -4687,7 +4681,7 @@ function DesignerContextMenuContent({
                 if (!doc) return
                 const allIds = doc.children.filter(n => n.visible && !n.locked).map(n => n.id)
                 selectedIdsRef.current = new Set(allIds)
-                emitSelection(allIds)
+                useUiStore.getState().setSelectedNodes(allIds)
               }}
             >Select All</ContextMenuPrimitive.Item>
 
@@ -4698,7 +4692,7 @@ function DesignerContextMenuContent({
               if (!doc) return
               const ids = Array.from(selectedIdsRef.current)
               _clipboard = ids.map(id => doc.children.find(n => n.id === id)).filter((n): n is SceneNode => n !== undefined)
-              if (ids.length > 0) { executeCmd(new DeleteNodesCommand(ids)); selectedIdsRef.current = new Set(); emitSelection([]) }
+              if (ids.length > 0) { executeCmd(new DeleteNodesCommand(ids)); selectedIdsRef.current = new Set(); useUiStore.getState().setSelectedNodes([]) }
             }}>Cut</ContextMenuPrimitive.Item>
 
             <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasSelection} onSelect={() => {
@@ -4715,7 +4709,7 @@ function DesignerContextMenuContent({
               if (d2) {
                 const pastedIds = d2.children.filter(n => !oldIds.has(n.id)).map(n => n.id)
                 selectedIdsRef.current = new Set(pastedIds)
-                emitSelection(pastedIds)
+                useUiStore.getState().setSelectedNodes(pastedIds)
               }
             }}>Paste</ContextMenuPrimitive.Item>
 
@@ -5080,7 +5074,7 @@ function DesignerContextMenuContent({
                     const childIds = children.map(c => c.id)
                     executeCmd(new UngroupCommand(nodeId))
                     selectedIdsRef.current = new Set(childIds)
-                    emitSelection(childIds)
+                    useUiStore.getState().setSelectedNodes(childIds)
                   }}>
                   Ungroup (Ctrl+Shift+G)
                 </ContextMenuPrimitive.Item>
@@ -5089,7 +5083,7 @@ function DesignerContextMenuContent({
                     if (nodeId) {
                       setActiveGroup(nodeId)
                       selectedIdsRef.current = new Set()
-                      emitSelection([])
+                      useUiStore.getState().setSelectedNodes([])
                     }
                   }}>
                   Enter Group

@@ -5,10 +5,9 @@
  * Mode-aware: different tool sets for graphic / dashboard / report modes.
  */
 
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { useSceneStore, useUiStore, useHistoryStore } from '../../store/designer'
 import type { DrawingTool } from '../../store/designer'
-import type { NodeId } from '../../shared/types/graphics'
 import type { SceneNode } from '../../shared/types/graphics'
 import {
   AlignNodesCommand,
@@ -344,15 +343,9 @@ export default function DesignerToolbar({ onSave, isSaving, onPublish, isPublish
   const redo             = useHistoryStore(s => s.redo)
   const historyPush      = useHistoryStore(s => s.push)
 
-  // Track selected IDs from canvas via CustomEvent
-  const [selectedIds, setSelectedIds] = useState<NodeId[]>([])
-  useEffect(() => {
-    function onSel(e: Event) {
-      setSelectedIds((e as CustomEvent<{ ids: NodeId[] }>).detail.ids)
-    }
-    document.addEventListener('io:selection-change', onSel)
-    return () => document.removeEventListener('io:selection-change', onSel)
-  }, [])
+  // Track selected IDs from uiStore — reactive Zustand subscription
+  const selectedNodeIds = useUiStore(s => s.selectedNodeIds)
+  const selectedIds = Array.from(selectedNodeIds)
 
   // Compute Group / Ungroup button enabled state from selection + scene doc
   // Group: ≥2 non-pipe nodes selected
