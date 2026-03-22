@@ -78,7 +78,8 @@
     "GFX-DISPLAY-004": 1,
     "GFX-SHAPES-003": 1,
     "DD-06-005": 1,
-    "MOD-PROCESS-003": 1
+    "MOD-PROCESS-003": 1,
+    "GFX-SHAPES-005": 1
   },
   "queue": [
     {
@@ -1024,7 +1025,7 @@
       "depends_on": [
         "GFX-SHAPES-002"
       ],
-      "status": "implementing",
+      "status": "verified",
       "audit_round": 3
     },
     {
