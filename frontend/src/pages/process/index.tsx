@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import RBush from 'rbush'
 import { graphicsApi } from '../../api/graphics'
@@ -10,6 +10,7 @@ import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneR
 import { useWebSocketRaf } from '../../shared/hooks/useWebSocket'
 import { useHistoricalValues } from '../../shared/hooks/useHistoricalValues'
 import { usePlaybackStore } from '../../store/playback'
+import { useUiStore } from '../../store/ui'
 import { bookmarksApi } from '../../api/bookmarks'
 import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import type { DesignObjectSummary } from '../../api/graphics'
@@ -335,6 +336,35 @@ function countTotalPoints(doc: { children: SceneNode[] }): number {
 export default function ProcessPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [searchParams] = useSearchParams()
+  const { isKiosk, setKiosk } = useUiStore()
+
+  // ---- Kiosk mode -----------------------------------------------------------
+
+  const kioskExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Track whether this component instance set kiosk to true, so cleanup
+  // doesn't accidentally clear kiosk state set by another module.
+  const didSetKioskRef = useRef(false)
+
+  useEffect(() => {
+    const kioskParam = searchParams.get('kiosk') === 'true'
+    if (kioskParam) {
+      didSetKioskRef.current = true
+      setKiosk(true)
+    }
+    return () => {
+      if (didSetKioskRef.current) {
+        didSetKioskRef.current = false
+        setKiosk(false)
+      }
+    }
+  }, [searchParams, setKiosk])
+
+  // Cleanup corner-hover timer on unmount
+  useEffect(() => () => {
+    if (kioskExitTimerRef.current) clearTimeout(kioskExitTimerRef.current)
+  }, [])
 
   // ---- View selection -------------------------------------------------------
 
@@ -911,8 +941,9 @@ export default function ProcessPage() {
         if (e.key === '-') { e.preventDefault(); zoomOut(); return }
         // [ — toggle sidebar (not in historical mode per §12.2)
         if (e.key === '[' && !isHistoricalRef.current) { e.preventDefault(); toggleSidebar(); return }
-        // Escape — close context menus and tooltip
+        // Escape — exit kiosk mode if active, otherwise close context menus and tooltip
         if (e.key === 'Escape') {
+          if (isKiosk) { setKiosk(false); return }
           setCanvasCtxMenu(null); setPointCtxMenu(null); setTooltip(null)
           return
         }
@@ -935,7 +966,7 @@ export default function ProcessPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward, openPointDetail])
+  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward, openPointDetail, isKiosk, setKiosk])
 
   // ---- Debounced viewport for point subscriptions ─────────────────────────
 
@@ -1037,21 +1068,23 @@ export default function ProcessPage() {
       {/* Main content row: sidebar + viewport */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'row', minHeight: 0 }}>
 
-        {/* Left sidebar */}
-        <ProcessSidebar
-          visible={sidebarVisible}
-          onToggle={toggleSidebar}
-          selectedId={selectedId}
-          onSelectView={handleSelectView}
-          bookmarks={viewportBookmarks}
-          onSelectBookmark={handleSelectBookmark}
-          onAddBookmark={handleAddBookmark}
-          onDeleteBookmark={handleDeleteBookmark}
-          onRenameBookmark={handleRenameBookmark}
-          recentViews={recentViews}
-          graphicsList={graphicsList}
-          graphicsLoading={graphicsLoading}
-        />
+        {/* Left sidebar — hidden in kiosk mode */}
+        {!isKiosk && (
+          <ProcessSidebar
+            visible={sidebarVisible}
+            onToggle={toggleSidebar}
+            selectedId={selectedId}
+            onSelectView={handleSelectView}
+            bookmarks={viewportBookmarks}
+            onSelectBookmark={handleSelectBookmark}
+            onAddBookmark={handleAddBookmark}
+            onDeleteBookmark={handleDeleteBookmark}
+            onRenameBookmark={handleRenameBookmark}
+            recentViews={recentViews}
+            graphicsList={graphicsList}
+            graphicsLoading={graphicsLoading}
+          />
+        )}
 
         {/* Viewport area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
@@ -1169,6 +1202,22 @@ export default function ProcessPage() {
                 onViewportChange={handleMinimapViewportChange}
                 sceneData={graphic.scene_data}
                 visible={minimapVisible}
+              />
+            )}
+
+            {/* Kiosk mode — corner-hover exit trigger (1.5s dwell in bottom-right corner) */}
+            {isKiosk && (
+              <div
+                style={{ position: 'fixed', bottom: 0, right: 0, width: 48, height: 48, zIndex: 9999 }}
+                onMouseEnter={() => {
+                  kioskExitTimerRef.current = setTimeout(() => setKiosk(false), 1500)
+                }}
+                onMouseLeave={() => {
+                  if (kioskExitTimerRef.current) {
+                    clearTimeout(kioskExitTimerRef.current)
+                    kioskExitTimerRef.current = null
+                  }
+                }}
               />
             )}
 
@@ -1436,42 +1485,44 @@ export default function ProcessPage() {
           {/* Historical Playback Bar (only in historical mode) */}
           {isHistorical && <HistoricalPlaybackBar />}
 
-          {/* Status bar */}
-          <div style={{
-            height: 24,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '0 10px',
-            background: 'var(--io-surface-secondary)',
-            borderTop: '1px solid var(--io-border)',
-            fontSize: 11,
-            color: 'var(--io-text-muted)',
-            userSelect: 'none',
-          }}>
-            {/* Connection status */}
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: connectedDot.color, display: 'inline-block' }} />
-              {connectedDot.label}
-            </span>
-            <span style={{ color: 'var(--io-border)' }}>|</span>
-            {/* Points subscribed */}
-            <span>{visiblePointIds.length}/{totalPoints} points</span>
-            <span style={{ color: 'var(--io-border)' }}>|</span>
-            {/* View name */}
-            {viewName && (
-              <>
-                <span style={{ color: 'var(--io-text-primary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewName}</span>
-                <span style={{ color: 'var(--io-border)' }}>|</span>
-              </>
-            )}
-            {/* LOD */}
-            <span>LOD {lodLevel} – {lodName}</span>
-            <span style={{ color: 'var(--io-border)' }}>|</span>
-            {/* Zoom */}
-            <span>{zoomPct}%</span>
-          </div>
+          {/* Status bar — hidden in kiosk mode */}
+          {!isKiosk && (
+            <div style={{
+              height: 24,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '0 10px',
+              background: 'var(--io-surface-secondary)',
+              borderTop: '1px solid var(--io-border)',
+              fontSize: 11,
+              color: 'var(--io-text-muted)',
+              userSelect: 'none',
+            }}>
+              {/* Connection status */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: connectedDot.color, display: 'inline-block' }} />
+                {connectedDot.label}
+              </span>
+              <span style={{ color: 'var(--io-border)' }}>|</span>
+              {/* Points subscribed */}
+              <span>{visiblePointIds.length}/{totalPoints} points</span>
+              <span style={{ color: 'var(--io-border)' }}>|</span>
+              {/* View name */}
+              {viewName && (
+                <>
+                  <span style={{ color: 'var(--io-text-primary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewName}</span>
+                  <span style={{ color: 'var(--io-border)' }}>|</span>
+                </>
+              )}
+              {/* LOD */}
+              <span>LOD {lodLevel} – {lodName}</span>
+              <span style={{ color: 'var(--io-border)' }}>|</span>
+              {/* Zoom */}
+              <span>{zoomPct}%</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
