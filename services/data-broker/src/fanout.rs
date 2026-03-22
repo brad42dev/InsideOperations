@@ -84,6 +84,7 @@ pub fn fanout_batch(
             new_value,
             quality_str.clone(),
             timestamp,
+            Some(batch.source_id),
         );
 
         let was_stale = prev.as_ref().map(|p| p.stale).unwrap_or(false);
@@ -701,6 +702,7 @@ mod tests {
                 quality: "good".to_string(),
                 timestamp: chrono::Utc::now(),
                 stale: true,
+                source_id: None,
             },
         );
 
@@ -754,6 +756,7 @@ mod tests {
                 quality: "good".to_string(),
                 timestamp: chrono::Utc::now(),
                 stale: true,
+                source_id: None,
             },
         );
 

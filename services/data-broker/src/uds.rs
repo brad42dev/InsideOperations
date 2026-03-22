@@ -147,9 +147,24 @@ async fn dispatch_frame(
                     timestamp: now,
                 },
                 SourceStatusChange::Offline => {
-                    // Mark all cached points stale — we don't know which points
-                    // belong to this source here, so staleness sweep will catch them.
-                    // However we do broadcast source_offline to all clients.
+                    // Immediately mark all cached points belonging to this source
+                    // as stale and notify subscribed clients, so clients don't
+                    // continue to display stale data as current for up to a sweep
+                    // interval.  The periodic staleness sweep still runs to catch
+                    // points whose source never sent an explicit offline event.
+                    let stale_points = cache.mark_source_stale(status.source_id);
+                    for (point_id, last_updated_at) in stale_points {
+                        let stale_msg = WsServerMessage::PointStale {
+                            point_id,
+                            last_updated_at: last_updated_at.to_rfc3339(),
+                        };
+                        let client_ids = registry.get_clients_for_point(&point_id);
+                        for client_id in client_ids {
+                            if let Some(tx) = connections.get(&client_id) {
+                                let _ = tx.try_send(stale_msg.clone());
+                            }
+                        }
+                    }
                     WsServerMessage::SourceOffline {
                         source_id: status.source_id,
                         source_name: source_name.clone(),

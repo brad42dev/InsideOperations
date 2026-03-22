@@ -8,6 +8,7 @@ pub struct CachedValue {
     pub quality: String,
     pub timestamp: DateTime<Utc>,
     pub stale: bool,
+    pub source_id: Option<Uuid>,
 }
 
 pub struct ShadowCache {
@@ -30,6 +31,7 @@ impl ShadowCache {
         value: f64,
         quality: String,
         timestamp: DateTime<Utc>,
+        source_id: Option<Uuid>,
     ) -> Option<CachedValue> {
         self.inner.insert(
             point_id,
@@ -38,6 +40,7 @@ impl ShadowCache {
                 quality,
                 timestamp,
                 stale: false,
+                source_id,
             },
         )
     }
@@ -63,6 +66,22 @@ impl ShadowCache {
         if let Some(mut entry) = self.inner.get_mut(point_id) {
             entry.stale = false;
         }
+    }
+
+    /// Immediately mark all points belonging to `source_id` as stale.
+    /// Returns `(point_id, last_updated_at)` pairs for each point that
+    /// transitioned from fresh → stale. Already-stale points are skipped so
+    /// callers do not re-broadcast `PointStale` for points that were already
+    /// known to be stale.
+    pub fn mark_source_stale(&self, source_id: Uuid) -> Vec<(Uuid, DateTime<Utc>)> {
+        let mut transitioned = Vec::new();
+        for mut entry in self.inner.iter_mut() {
+            if entry.source_id == Some(source_id) && !entry.stale {
+                entry.stale = true;
+                transitioned.push((*entry.key(), entry.timestamp));
+            }
+        }
+        transitioned
     }
 
     /// Returns all `(point_id, CachedValue)` pairs for points whose last
@@ -131,6 +150,7 @@ mod tests {
                 quality: "good".to_string(),
                 timestamp: ts,
                 stale,
+                source_id: None,
             },
         );
         cache
@@ -221,7 +241,7 @@ mod tests {
         let point_id = Uuid::new_v4();
         let cache = make_cache_with_entry(point_id, 120, true);
         // A fresh value arriving must reset the stale flag.
-        cache.update(point_id, 55.0, "good".to_string(), Utc::now());
+        cache.update(point_id, 55.0, "good".to_string(), Utc::now(), None);
         let entry = cache.get(&point_id).expect("entry should exist after update");
         assert!(!entry.stale, "update() must clear the stale flag");
     }
@@ -239,7 +259,7 @@ mod tests {
         let cache = ShadowCache::new();
         let point_id = Uuid::new_v4();
         let ts = Utc::now();
-        cache.update(point_id, 3.14, "good".to_string(), ts);
+        cache.update(point_id, 3.14, "good".to_string(), ts, None);
         let entry = cache.get(&point_id).expect("entry must be present");
         assert!((entry.value - 3.14).abs() < f64::EPSILON);
         assert_eq!(entry.quality, "good");

@@ -229,7 +229,7 @@ async fn warm_cache(cache: &ShadowCache, db: &io_db::DbPool) {
     use sqlx::Row;
 
     let result = sqlx::query(
-        "SELECT point_id, value, quality, timestamp FROM points_current",
+        "SELECT point_id, value, quality, timestamp, source_id FROM points_current",
     )
     .fetch_all(db)
     .await;
@@ -247,6 +247,8 @@ async fn warm_cache(cache: &ShadowCache, db: &io_db::DbPool) {
                     let timestamp: Option<chrono::DateTime<chrono::Utc>> =
                         row.try_get("timestamp").ok().flatten();
                     let timestamp = timestamp.unwrap_or_else(chrono::Utc::now);
+                    let source_id: Option<uuid::Uuid> =
+                        row.try_get("source_id").ok().flatten();
                     Some((
                         point_id,
                         cache::CachedValue {
@@ -254,6 +256,7 @@ async fn warm_cache(cache: &ShadowCache, db: &io_db::DbPool) {
                             quality,
                             timestamp,
                             stale: false,
+                            source_id,
                         },
                     ))
                 })

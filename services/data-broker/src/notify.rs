@@ -23,6 +23,7 @@ use uuid::Uuid;
 ///
 /// `export_complete` delivers targeted "your report is ready" notifications to
 /// the user who requested the job, via that user's active WebSocket connections.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_notify_listener(
     db: DbPool,
     cache: Arc<ShadowCache>,
