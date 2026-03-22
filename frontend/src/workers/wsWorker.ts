@@ -42,8 +42,31 @@ let isDestroyed = false
 let isPaused = false
 let connectionState: 'connecting' | 'connected' | 'disconnected' | 'error' = 'disconnected'
 
-// Subscriptions known to the worker (so they can be re-sent after reconnect)
-const subscribedPoints = new Set<string>()
+// Map from MessagePort → Set<pointId> (per-window subscription tracking)
+const windowSubscriptions = new Map<MessagePort, Set<string>>()
+// Union of all window sets — the active server subscription
+const serverSubscription = new Set<string>()
+
+// Recompute the union of all window subscription sets and diff against the
+// current server subscription, sending only the delta to the WebSocket.
+function recomputeAndSync(socket: WebSocket | null) {
+  const newUnion = new Set<string>()
+  for (const pts of windowSubscriptions.values()) {
+    for (const p of pts) newUnion.add(p)
+  }
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    // Keep serverSubscription in sync so reconnect re-subscribes correctly
+    serverSubscription.clear()
+    for (const p of newUnion) serverSubscription.add(p)
+    return
+  }
+  const toAdd = [...newUnion].filter(p => !serverSubscription.has(p))
+  const toRemove = [...serverSubscription].filter(p => !newUnion.has(p))
+  if (toAdd.length > 0) socket.send(JSON.stringify({ type: 'subscribe', points: toAdd }))
+  if (toRemove.length > 0) socket.send(JSON.stringify({ type: 'unsubscribe', points: toRemove }))
+  serverSubscription.clear()
+  for (const p of newUnion) serverSubscription.add(p)
+}
 
 // ---------------------------------------------------------------------------
 // Port management
@@ -63,11 +86,18 @@ sharedSelf.onconnect = (e: MessageEvent) => {
   }
 
   port.start()
+
+  port.addEventListener('close', () => {
+    // removePort handles windowSubscriptions.delete and recomputeAndSync
+    removePort(port)
+  })
 }
 
 function removePort(port: MessagePort) {
   const idx = ports.indexOf(port)
   if (idx !== -1) ports.splice(idx, 1)
+  windowSubscriptions.delete(port)
+  recomputeAndSync(ws)
 }
 
 // ---------------------------------------------------------------------------
@@ -88,18 +118,17 @@ function handlePortMessage(port: MessagePort, msg: Record<string, unknown>) {
     }
     case 'subscribe': {
       const points = msg.points as string[]
-      for (const p of points) subscribedPoints.add(p)
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'subscribe', points }))
-      }
+      const set = windowSubscriptions.get(port) ?? new Set<string>()
+      for (const p of points) set.add(p)
+      windowSubscriptions.set(port, set)
+      recomputeAndSync(ws)
       break
     }
     case 'unsubscribe': {
       const points = msg.points as string[]
-      for (const p of points) subscribedPoints.delete(p)
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'unsubscribe', points }))
-      }
+      const set = windowSubscriptions.get(port)
+      if (set) { for (const p of points) set.delete(p) }
+      recomputeAndSync(ws)
       break
     }
     case 'status_report':
@@ -176,8 +205,8 @@ function openSocket(ticket: string) {
     reconnectDelay = 1000
     setState('connected')
 
-    // Re-subscribe to all known points
-    const all = Array.from(subscribedPoints)
+    // Re-subscribe to all known points (full union from per-window map)
+    const all = Array.from(serverSubscription)
     if (all.length > 0) {
       socket.send(JSON.stringify({ type: 'subscribe', points: all }))
     }
@@ -217,17 +246,19 @@ function closeSocket() {
   }
   ws?.close()
   ws = null
-  subscribedPoints.clear()
+  serverSubscription.clear()
+  windowSubscriptions.clear()
   reconnectDelay = 1000
   setState('disconnected')
 }
 
 function scheduleReconnect() {
   if (isDestroyed || isPaused || reconnectTimer) return
+  const jitter = Math.random() * reconnectDelay * 0.3
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null
     reconnectDelay = Math.min(reconnectDelay * 2, 30_000)
     // On reconnect, we need a fresh ticket — ask all connected ports
     broadcast({ type: 'need_ticket' })
-  }, reconnectDelay)
+  }, reconnectDelay + jitter)
 }
