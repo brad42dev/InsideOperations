@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T15:50:56.350252+00:00",
+  "last_updated": "2026-03-22T16:06:52.270898+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -103,7 +103,8 @@
     "DD-14-002": 1,
     "DD-14-003": 1,
     "DD-14-006": 1,
-    "DD-14-007": 1
+    "DD-14-007": 1,
+    "DD-15-003": 1
   },
   "queue": [
     {
@@ -1969,7 +1970,7 @@
       "wave": 3,
       "title": "Add client certificate dropdown, platform dropdown, and minimum publish interval to OPC source form",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1979,7 +1980,7 @@
       "wave": 3,
       "title": "Implement Group Management CRUD (create groups, assign roles, manage membership)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3826,7 +3827,7 @@
       "title": "Wire PointContextMenu to point-bound display elements in designer",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "implementing",
       "audit_round": 3
     },
     {

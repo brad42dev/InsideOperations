@@ -81,6 +81,7 @@ import type { PointValue } from '../../shared/hooks/usePointValues'
 import { SaveAsStencilDialog } from './components/SaveAsStencilDialog'
 import { PromoteToShapeWizard } from './components/PromoteToShapeWizard'
 import PointPickerModal from './components/PointPickerModal'
+import PointContextMenu from '../../shared/components/PointContextMenu'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -384,6 +385,10 @@ function getNodeParent(nodeId: NodeId, nodes: SceneNode[]): SceneNode | null {
 
 const TestModeContext = createContext<Map<string, PointValue>>(new Map())
 
+// Context that provides a setter for triggering PointContextMenu from DisplayElementRenderer
+type PointCtxMenuTrigger = { pointId: string; tagName: string; x: number; y: number }
+const PointCtxMenuSetterContext = createContext<((data: PointCtxMenuTrigger) => void) | null>(null)
+
 // Extract all unique point IDs from a doc for WebSocket subscription
 function extractPointIds(doc: GraphicDocument): string[] {
   const ids = new Set<string>()
@@ -503,9 +508,20 @@ function renderPrimitiveGeometry(node: Primitive): React.ReactNode {
 
 function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string }) {
   const liveValues = useContext(TestModeContext)
+  const pointCtxMenuSetter = useContext(PointCtxMenuSetterContext)
   const live = node.binding.pointId ? liveValues.get(node.binding.pointId) : undefined
   const cfg = node.config
   const de = node
+
+  // Shared right-click handler for test mode — only fires when setter is available and node has a binding
+  const handleContextMenu = useCallback((e: React.MouseEvent<SVGGElement>) => {
+    if (!pointCtxMenuSetter) return
+    const pid = de.binding.pointId
+    if (!pid) return
+    e.preventDefault()
+    e.stopPropagation()
+    pointCtxMenuSetter({ pointId: pid, tagName: pid, x: e.clientX, y: e.clientY })
+  }, [pointCtxMenuSetter, de.binding.pointId])
 
   // ── Live rendering (test mode has a value) ────────────────────────────────
   if (live !== undefined) {
@@ -517,7 +533,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
       case 'text_readout': {
         const formatted = formatValue(v, cfg.valueFormat ?? '%.2f')
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={Math.max(cfg.minWidth ?? 60, formatted.length * 8 + 8)} height={22}
               fill="rgba(0,0,0,0.6)" stroke={stale ? '#6b7280' : 'var(--io-accent)'} strokeWidth={0.5} rx={2} />
             <text x={4} y={14} fontSize={11} fill={textColor} fontFamily="var(--io-font-mono)">{formatted}</text>
@@ -533,7 +549,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
         const fillH = cfg.orientation === 'vertical' ? barH * pct : barH
         const fillY = cfg.orientation === 'vertical' ? barH - fillH : 0
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={barW} height={barH} fill="rgba(0,0,0,0.4)" stroke="var(--io-border)" strokeWidth={0.5} rx={1} />
             <rect x={0} y={fillY} width={fillW} height={fillH}
               fill={stale ? '#6b7280' : 'var(--io-accent)'} rx={1} style={{ transition: 'height 0.3s, width 0.3s, y 0.3s' }} />
@@ -548,7 +564,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
       case 'alarm_indicator': {
         const alarming = v !== 0
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <circle cx={8} cy={8} r={7}
               fill={alarming ? '#ef4444' : '#22c55e'}
               stroke={alarming ? '#dc2626' : '#16a34a'}
@@ -561,7 +577,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
         const label = cfg.stateLabels[String(Math.round(v))] ?? String(Math.round(v))
         const isNormal = cfg.normalStates.includes(String(Math.round(v)))
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={60} height={20} fill={isNormal ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'} stroke={isNormal ? '#22c55e' : '#ef4444'} strokeWidth={0.5} rx={2} />
             <text x={4} y={13} fontSize={9} fill={isNormal ? '#22c55e' : '#ef4444'}>{label}</text>
           </g>
@@ -573,7 +589,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
         const w = (cfg.barWidth ?? 40), h = (cfg.barHeight ?? 80)
         const fillH = h * pct
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={w} height={h} fill="rgba(0,0,0,0.4)" stroke="var(--io-border)" strokeWidth={0.5} rx={2} />
             <rect x={0} y={h - fillH} width={w} height={fillH} fill={stale ? '#6b7280' : '#3b82f6'} rx={1} />
             {cfg.showValue && (
@@ -1813,6 +1829,9 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   // nodeId of the node right-clicked — stored in a ref so Radix ContextMenu
   // content can read it synchronously when the menu opens.
   const ctxNodeIdRef = useRef<NodeId | null>(null)
+
+  // Point context menu (test mode only) — tracks trigger position + point identity
+  const [pointCtxMenu, setPointCtxMenu] = useState<PointCtxMenuTrigger | null>(null)
 
   // Bind Point dialog — holds the nodeId to bind when PointPickerModal confirms
   const [bindingNodeId, setBindingNodeId] = useState<NodeId | null>(null)
@@ -4035,6 +4054,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
               />
             )
           })()}
+          <PointCtxMenuSetterContext.Provider value={testMode ? setPointCtxMenu : null}>
           <TestModeContext.Provider value={testModeValues}>
             {groupSubTabNodeId
               ? (() => {
@@ -4072,6 +4092,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
                 })
             }
           </TestModeContext.Provider>
+          </PointCtxMenuSetterContext.Provider>
 
           {/* Group edit mode: teal dashed border around active group bounding box */}
           {activeGroupId && doc && (() => {
@@ -4411,6 +4432,30 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
             setGroupPrompt(null)
           }}
         />
+      )}
+
+      {/* Point context menu — test mode only: right-clicking a point-bound display element */}
+      {testMode && pointCtxMenu && (
+        <PointContextMenu
+          pointId={pointCtxMenu.pointId}
+          tagName={pointCtxMenu.tagName}
+          isAlarm={false}
+          isAlarmElement={false}
+          open={true}
+          onOpenChange={(open) => { if (!open) setPointCtxMenu(null) }}
+        >
+          {/* Invisible anchor positioned at the cursor so the dropdown appears near the click */}
+          <div
+            style={{
+              position: 'fixed',
+              left: pointCtxMenu.x,
+              top: pointCtxMenu.y,
+              width: 1,
+              height: 1,
+              pointerEvents: 'none',
+            }}
+          />
+        </PointContextMenu>
       )}
 
       {/* Bind Point modal */}
