@@ -8,7 +8,9 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { api } from '../../api/client'
 import { pointsApi } from '../../api/points'
+import type { PointDetailResponse } from '../../api/points'
 import { useWebSocket } from '../hooks/useWebSocket'
 import TimeSeriesChart from './charts/TimeSeriesChart'
 import { usePointDetailStore } from '../../store/pointDetailStore'
@@ -105,15 +107,22 @@ function QualityBadge({ quality }: { quality: string }) {
 // Sparkline helper
 // ---------------------------------------------------------------------------
 
-function useSparklineData(pointId: string | null) {
+function useSparklineData(pointId: string | null, startTime?: string, endTime?: string) {
   return useQuery({
-    queryKey: ['point-sparkline', pointId],
+    queryKey: ['point-sparkline', pointId, startTime, endTime],
     enabled: pointId !== null,
     queryFn: async () => {
       if (!pointId) return null
-      const now = new Date()
-      const end = now.toISOString()
-      const start = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+      let start: string
+      let end: string
+      if (startTime && endTime) {
+        start = startTime
+        end = endTime
+      } else {
+        const now = new Date()
+        end = now.toISOString()
+        start = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+      }
       const result = await pointsApi.getHistory(pointId, { start, end, limit: 20 })
       if (!result.success) return null
       return result.data
@@ -128,7 +137,7 @@ function useSparklineData(pointId: string | null) {
 
 export interface PointDetailPanelProps {
   pointId: string | null
-  onClose: () => void
+  onClose?: () => void
   anchorPosition?: { x: number; y: number }
   /**
    * When true, the panel is rendered at the shell level (App.tsx) so it
@@ -140,6 +149,21 @@ export interface PointDetailPanelProps {
    * Required when isPinned=true.
    */
   panelId?: string
+  /**
+   * When true, renders inline (no floating/draggable behaviour) suitable for
+   * embedding inside evidence cards or other container layouts.
+   */
+  inline?: boolean
+  /**
+   * Start of the time window to scope historical data queries.
+   * When provided together with endTime, overrides the default "last hour" range.
+   */
+  startTime?: string
+  /**
+   * End of the time window to scope historical data queries.
+   * When provided together with startTime, overrides the default "last hour" range.
+   */
+  endTime?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +215,9 @@ export default function PointDetailPanel({
   anchorPosition,
   isPinned = false,
   panelId,
+  inline = false,
+  startTime,
+  endTime,
 }: PointDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const { pinPanel, unpinPanel } = usePointDetailStore()
@@ -299,35 +326,39 @@ export default function PointDetailPanel({
     if (isPinned && panelId) {
       // Unpin: remove from shell store, also close the local panel
       unpinPanel(panelId)
-      onClose()
+      onClose?.()
     } else {
       // Pin: add to shell store. The shell will render this panel; the local
       // instance (inside GraphicPane) should close.
       const id = panelId ?? crypto.randomUUID()
       pinPanel({ id, pointId, anchorPosition })
-      onClose()
+      onClose?.()
     }
   }
 
-  // ── Dismiss on Escape ─────────────────────────────────────────────────────
+  // ── Dismiss on Escape — only in floating mode ─────────────────────────────
 
   useEffect(() => {
-    if (!pointId) return
+    if (!pointId || inline) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onClose?.()
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [pointId, onClose])
+  }, [pointId, onClose, inline])
 
   // ── Data fetching — single /detail endpoint, fallback to getMeta+getLatest ─
 
   const detailQuery = useQuery({
-    queryKey: ['point-detail', pointId],
+    queryKey: ['point-detail', pointId, startTime, endTime],
     enabled: pointId !== null,
     queryFn: async () => {
       if (!pointId) return null
-      const result = await pointsApi.getDetail(pointId)
+      // When time range is provided (inline/evidence mode), scope the detail query
+      const url = startTime && endTime
+        ? `/api/v1/points/${encodeURIComponent(pointId)}/detail?start=${encodeURIComponent(startTime)}&end=${encodeURIComponent(endTime)}`
+        : `/api/v1/points/${encodeURIComponent(pointId)}/detail`
+      const result = await api.get<PointDetailResponse>(url)
       if (!result.success) return null
       return result.data
     },
@@ -364,8 +395,8 @@ export default function PointDetailPanel({
   const { values: wsValues } = useWebSocket(pointIds)
   const liveValue = pointId ? wsValues.get(pointId) : undefined
 
-  // Sparkline data
-  const sparkQuery = useSparklineData(pointId)
+  // Sparkline data — scoped to startTime/endTime if provided (inline evidence mode)
+  const sparkQuery = useSparklineData(pointId, startTime, endTime)
 
   // Resolve displayed data: prefer /detail, fall back to getMeta+getLatest
   const meta = detailQuery.data ?? metaFallbackQuery.data
@@ -396,6 +427,118 @@ export default function PointDetailPanel({
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!pointId) return null
+
+  // Shared body content (used in both inline and floating modes)
+  const sparkLabel = (startTime && endTime)
+    ? `${new Date(startTime).toLocaleDateString()} – ${new Date(endTime).toLocaleDateString()}`
+    : 'Last Hour'
+
+  const panelBody = (
+    <div style={{ padding: '12px 14px', overflowY: 'auto', flex: 1 }}>
+      {/* Current / historical value */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
+          {startTime && endTime ? 'Value at Window Start' : 'Current Value'}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span
+            style={{
+              fontSize: '28px',
+              fontWeight: 700,
+              color: 'var(--io-text-primary)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {displayValue?.value !== undefined ? String(displayValue.value) : '—'}
+          </span>
+          {(meta as { engineering_unit?: string | null } | null | undefined)?.engineering_unit && (
+            <span style={{ fontSize: '14px', color: 'var(--io-text-muted)' }}>
+              {(meta as { engineering_unit?: string | null }).engineering_unit}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          {displayValue?.quality && <QualityBadge quality={displayValue.quality} />}
+          {displayTimestamp && (
+            <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
+              {displayTimestamp}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Description */}
+      {(meta as { description?: string | null } | null | undefined)?.description && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 2 }}>
+            Description
+          </div>
+          <div
+            style={{ fontSize: '12px', color: 'var(--io-text-secondary, var(--io-text-primary))' }}
+          >
+            {(meta as { description?: string | null }).description}
+          </div>
+        </div>
+      )}
+
+      {/* Sparkline / trend */}
+      <div style={{ marginTop: 8 }}>
+        <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
+          {sparkLabel}
+        </div>
+        <TimeSeriesChart
+          timestamps={sparkTimestamps}
+          series={
+            sparkTimestamps.length > 0
+              ? [{ label: (meta as { name?: string } | null | undefined)?.name ?? pointId, data: sparkValues }]
+              : []
+          }
+          height={80}
+        />
+      </div>
+
+      {/* Point ID footer */}
+      <div
+        style={{
+          marginTop: 10,
+          paddingTop: 8,
+          borderTop: '1px solid var(--io-border)',
+          fontSize: '10px',
+          color: 'var(--io-text-muted)',
+          fontFamily: 'monospace',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {pointId}
+      </div>
+    </div>
+  )
+
+  // ── Inline mode: render flat inside the parent container ─────────────────
+
+  if (inline) {
+    const inlineMeta = meta as { name?: string; source_name?: string } | null | undefined
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* Inline header: point name + source */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
+            {inlineMeta?.name ?? pointId}
+          </div>
+          {inlineMeta?.source_name && (
+            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: 2 }}>
+              {inlineMeta.source_name}
+            </div>
+          )}
+        </div>
+        {panelBody}
+      </div>
+    )
+  }
+
+  // ── Floating mode: draggable, resizable, pinnable ─────────────────────────
 
   const { top, left, width, height, minimized } = panelState
 
@@ -498,7 +641,7 @@ export default function PointDetailPanel({
           </IconButton>
 
           {/* Close button */}
-          <IconButton onClick={onClose} title="Close">
+          <IconButton onClick={() => onClose?.()} title="Close">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
               <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
             </svg>
@@ -507,88 +650,7 @@ export default function PointDetailPanel({
       </div>
 
       {/* Body — hidden when minimized */}
-      {!minimized && (
-        <div style={{ padding: '12px 14px', overflowY: 'auto', flex: 1 }}>
-          {/* Current value */}
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
-              Current Value
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <span
-                style={{
-                  fontSize: '28px',
-                  fontWeight: 700,
-                  color: 'var(--io-text-primary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {displayValue?.value !== undefined ? String(displayValue.value) : '—'}
-              </span>
-              {(meta as { engineering_unit?: string | null } | null | undefined)?.engineering_unit && (
-                <span style={{ fontSize: '14px', color: 'var(--io-text-muted)' }}>
-                  {(meta as { engineering_unit?: string | null }).engineering_unit}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              {displayValue?.quality && <QualityBadge quality={displayValue.quality} />}
-              {displayTimestamp && (
-                <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
-                  {displayTimestamp}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Description */}
-          {(meta as { description?: string | null } | null | undefined)?.description && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 2 }}>
-                Description
-              </div>
-              <div
-                style={{ fontSize: '12px', color: 'var(--io-text-secondary, var(--io-text-primary))' }}
-              >
-                {(meta as { description?: string | null }).description}
-              </div>
-            </div>
-          )}
-
-          {/* Sparkline */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
-              Last Hour
-            </div>
-            <TimeSeriesChart
-              timestamps={sparkTimestamps}
-              series={
-                sparkTimestamps.length > 0
-                  ? [{ label: (meta as { name?: string } | null | undefined)?.name ?? pointId, data: sparkValues }]
-                  : []
-              }
-              height={80}
-            />
-          </div>
-
-          {/* Point ID footer */}
-          <div
-            style={{
-              marginTop: 10,
-              paddingTop: 8,
-              borderTop: '1px solid var(--io-border)',
-              fontSize: '10px',
-              color: 'var(--io-text-muted)',
-              fontFamily: 'monospace',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {pointId}
-          </div>
-        </div>
-      )}
+      {!minimized && panelBody}
     </div>
   )
 }

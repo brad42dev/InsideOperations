@@ -8,6 +8,7 @@ import { graphicsApi } from '../../api/graphics'
 import { extractPointIds } from '../../shared/graphics/pointExtractor'
 import { useHistoricalValues } from '../../shared/hooks/useHistoricalValues'
 import PointContextMenu from '../../shared/components/PointContextMenu'
+import PointDetailPanel from '../../shared/components/PointDetailPanel'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -699,36 +700,14 @@ export default function EvidenceRenderer({ item, stageStart, stageEnd, onDelete,
 
       case 'point_detail': {
         const pointId = item.config.point_id as string | undefined
+        if (!pointId) return <span style={{ color: 'var(--io-text-muted)' }}>No point configured.</span>
         return (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
-                {pointId ?? 'Unknown point'}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', marginTop: '4px' }}>
-                Last value: —
-              </div>
-            </div>
-            {pointId && (
-              <a
-                href={`/process?highlight=${encodeURIComponent(pointId)}`}
-                style={{
-                  fontSize: '12px',
-                  color: 'var(--io-accent)',
-                  textDecoration: 'none',
-                }}
-              >
-                View full detail →
-              </a>
-            )}
-          </div>
+          <PointDetailPanel
+            pointId={pointId}
+            startTime={stageStart}
+            endTime={stageEnd}
+            inline={true}
+          />
         )
       }
 
