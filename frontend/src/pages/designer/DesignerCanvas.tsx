@@ -331,6 +331,21 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
     const an = node as import('../../shared/types/graphics').Annotation
     return { x, y, w: an.width, h: an.height }
   }
+  if (node.type === 'group') {
+    const grp = node as Group
+    if (!grp.children || grp.children.length === 0) {
+      return { x, y, w: 64, h: 64 }
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const child of grp.children) {
+      const cb = getNodeBounds(child)
+      if (cb.x < minX) minX = cb.x
+      if (cb.y < minY) minY = cb.y
+      if (cb.x + cb.w > maxX) maxX = cb.x + cb.w
+      if (cb.y + cb.h > maxY) maxY = cb.y + cb.h
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+  }
   // Default generous bbox for stencils, etc.
   return { x, y, w: 64, h: 64 }
 }
@@ -2444,6 +2459,110 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
             new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
             new ChangePropertyCommand(inter.resizeNodeId, 'size', { width: newW, height: newH }, prevSize),
           ]))
+        } else if (target?.type === 'group') {
+          const grp = target as Group
+          const origBBox = inter.resizeOrigBounds
+          // Enforce minimum group size
+          const finalW = Math.max(20, nw)
+          const finalH = Math.max(20, nh)
+          // Scale factors
+          const sx = origBBox.w > 0 ? finalW / origBBox.w : 1
+          const sy = origBBox.h > 0 ? finalH / origBBox.h : 1
+
+          // Helper: returns scaled explicit dimension properties for nodes that have them
+          function getScaledDims(child: SceneNode, scaleX: number, scaleY: number): { width: number; height: number } {
+            if (child.type === 'widget') {
+              const wn = child as WidgetNode
+              return { width: wn.width * scaleX, height: wn.height * scaleY }
+            }
+            if (child.type === 'text_block') {
+              const tb = child as TextBlock
+              return { width: (tb.maxWidth ?? 120) * scaleX, height: (tb.fontSize ? tb.fontSize * 2 : 20) * scaleY }
+            }
+            if (child.type === 'stencil') {
+              const st = child as Stencil
+              return { width: (st.size?.width ?? 48) * scaleX, height: (st.size?.height ?? 24) * scaleY }
+            }
+            if (child.type === 'embedded_svg') {
+              const esn = child as EmbeddedSvgNode
+              return { width: esn.width * scaleX, height: esn.height * scaleY }
+            }
+            // primitives, symbol_instances, groups, and others scale via transform.scale
+            return { width: 0, height: 0 }
+          }
+
+          // Helper: returns the original explicit dims (same shape as getScaledDims)
+          function getOriginalDims(child: SceneNode): { width: number; height: number } {
+            if (child.type === 'widget') {
+              const wn = child as WidgetNode
+              return { width: wn.width, height: wn.height }
+            }
+            if (child.type === 'text_block') {
+              const tb = child as TextBlock
+              return { width: tb.maxWidth ?? 120, height: tb.fontSize ? tb.fontSize * 2 : 20 }
+            }
+            if (child.type === 'stencil') {
+              const st = child as Stencil
+              return { width: st.size?.width ?? 48, height: st.size?.height ?? 24 }
+            }
+            if (child.type === 'embedded_svg') {
+              const esn = child as EmbeddedSvgNode
+              return { width: esn.width, height: esn.height }
+            }
+            return { width: 0, height: 0 }
+          }
+
+          // Build one command per non-pipe child
+          const childCommands: SceneCommand[] = grp.children
+            .filter(child => child.type !== 'pipe')
+            .map(child => {
+              // Child positions are in canvas coordinates
+              const relX = child.transform.position.x - origBBox.x
+              const relY = child.transform.position.y - origBBox.y
+              const newChildX = origBBox.x + relX * sx
+              const newChildY = origBBox.y + relY * sy
+              const newChildScaleX = child.transform.scale.x * sx
+              const newChildScaleY = child.transform.scale.y * sy
+              const newChildTransform: Transform = {
+                ...child.transform,
+                position: { x: newChildX, y: newChildY },
+                scale: { x: newChildScaleX, y: newChildScaleY },
+              }
+
+              const scaledDims = getScaledDims(child, sx, sy)
+              const origDims = getOriginalDims(child)
+
+              if (child.type === 'image') {
+                const img = child as ImageNode
+                // image uses displayWidth/displayHeight keys
+                return new ResizeNodeWithDimsCommand(
+                  child.id,
+                  newChildTransform,
+                  { width: img.displayWidth * sx, height: img.displayHeight * sy },
+                  child.transform,
+                  { width: img.displayWidth, height: img.displayHeight },
+                  ['displayWidth', 'displayHeight'],
+                )
+              }
+              if (scaledDims.width > 0 || scaledDims.height > 0) {
+                return new ResizeNodeWithDimsCommand(
+                  child.id,
+                  newChildTransform,
+                  scaledDims,
+                  child.transform,
+                  origDims,
+                )
+              }
+              // Primitives, symbol_instances, nested groups — transform only
+              return new ResizeNodeCommand(child.id, newChildTransform, child.transform)
+            })
+
+          // Update the group node's own transform position
+          const prevGrpT = inter.resizeOrigTransform
+          const newGrpT: Transform = { ...prevGrpT, position: { x: nx, y: ny } }
+          const groupPositionCmd = new ResizeNodeCommand(grp.id, newGrpT, prevGrpT)
+
+          executeCmd(new CompoundCommand('Resize Group', [groupPositionCmd, ...childCommands]))
         }
       }
       inter.type = 'none'

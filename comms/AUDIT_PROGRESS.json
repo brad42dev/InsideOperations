@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T00:00:00Z",
+  "last_updated": "2026-03-22T06:34:36.293035Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -3552,7 +3552,7 @@
       "wave": 3,
       "title": "Create RouteConfig registry at src/shared/routes/registry.ts",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3825,7 +3825,7 @@
       "wave": 2,
       "title": "Add group proportional resize (Figma model \u2014 scale all children)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-011"
       ],
