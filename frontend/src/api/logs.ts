@@ -61,6 +61,17 @@ export interface SearchResult extends LogEntry {
   instance_status?: string
 }
 
+export interface LogSchedule {
+  id: string
+  template_id: string
+  template_name?: string
+  recurrence_type: 'per_shift' | 'time_window' | 'per_team'
+  interval_hours?: number
+  team_name?: string
+  is_active: boolean
+  created_at: string
+}
+
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
@@ -148,4 +159,30 @@ export const logsApi = {
     form.append('file', file)
     return api.postForm(`/api/logs/instances/${instanceId}/attachments`, form)
   },
+
+  listSchedules: (): Promise<ApiResult<LogSchedule[]>> =>
+    api.get<LogSchedule[]>('/api/logs/schedules'),
+
+  createSchedule: (data: {
+    template_id: string
+    recurrence_type: 'per_shift' | 'time_window' | 'per_team'
+    interval_hours?: number
+    team_name?: string
+    is_active?: boolean
+  }): Promise<ApiResult<LogSchedule>> => api.post<LogSchedule>('/api/logs/schedules', data),
+
+  updateSchedule: (
+    id: string,
+    data: {
+      template_id?: string
+      recurrence_type?: 'per_shift' | 'time_window' | 'per_team'
+      interval_hours?: number
+      team_name?: string
+      is_active?: boolean
+    },
+  ): Promise<ApiResult<LogSchedule>> =>
+    api.put<LogSchedule>(`/api/logs/schedules/${id}`, data),
+
+  deleteSchedule: (id: string): Promise<ApiResult<void>> =>
+    api.delete<void>(`/api/logs/schedules/${id}`),
 }
