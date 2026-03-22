@@ -647,23 +647,27 @@ pub async fn apply_group_role_mappings(
     user_id: Uuid,
     groups: &[String],
 ) -> IoResult<()> {
-    // Fetch all mappings for this provider
+    // Fetch all active mappings for this provider
     let mapping_rows = sqlx::query(
-        "SELECT idp_group, role_id, match_type FROM idp_role_mappings WHERE provider_config_id = $1",
+        "SELECT match_value, role_id, match_type FROM idp_role_mappings WHERE provider_id = $1 AND is_active = true",
     )
     .bind(provider_config_id)
     .fetch_all(db)
     .await?;
 
     for mapping in mapping_rows {
-        let idp_group: String = mapping.get("idp_group");
+        let match_value: String = mapping.get("match_value");
         let role_id: Uuid = mapping.get("role_id");
         let match_type: String = mapping.get("match_type");
 
         let matched = groups.iter().any(|g| match match_type.as_str() {
-            "exact" => g == &idp_group,
-            "prefix" => g.starts_with(&idp_group),
-            "contains" => g.contains(&idp_group),
+            "exact" => g == &match_value,
+            "prefix" => g.starts_with(&match_value),
+            "regex" => {
+                regex::Regex::new(&match_value)
+                    .map(|re| re.is_match(g))
+                    .unwrap_or(false)
+            }
             _ => false,
         });
 
