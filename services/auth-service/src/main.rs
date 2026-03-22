@@ -12,6 +12,7 @@ mod audit;
 mod config;
 mod expression_eval;
 mod handlers;
+mod oidc_jwks;
 mod sms;
 mod state;
 

@@ -39,6 +39,7 @@ openidconnect.workspace = true
 ldap3.workspace = true
 reqwest.workspace = true
 base64.workspace = true
+jsonwebtoken.workspace = true
 samael.workspace = true
 urlencoding.workspace = true
 metrics.workspace = true

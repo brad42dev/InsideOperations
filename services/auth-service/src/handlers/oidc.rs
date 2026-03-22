@@ -15,6 +15,7 @@ use io_error::{IoError, IoResult};
 use io_models::ApiResponse;
 
 use crate::handlers::auth::fetch_user_permissions;
+use crate::oidc_jwks::verify_id_token;
 use crate::state::{AppState, EulaPendingEntry};
 
 // ---------------------------------------------------------------------------
@@ -264,6 +265,11 @@ async fn oidc_callback_inner(
         .as_str()
         .map(String::from);
 
+    let jwks_uri = metadata["jwks_uri"]
+        .as_str()
+        .ok_or_else(|| IoError::Internal("OIDC metadata missing jwks_uri".into()))?
+        .to_string();
+
     // Exchange authorization code for tokens
     let token_resp: serde_json::Value = http
         .post(&token_endpoint)
@@ -292,55 +298,64 @@ async fn oidc_callback_inner(
         .ok_or_else(|| IoError::Internal("No access_token in token response".into()))?
         .to_string();
 
-    // Decode ID token claims (without full signature validation for simplicity)
-    // In production, full JWT verification against JWKS is required.
-    let id_token_str = token_resp["id_token"].as_str().unwrap_or("");
-    let id_claims = decode_jwt_payload(id_token_str)?;
-
-    // Validate nonce
-    if let Some(token_nonce) = id_claims["nonce"].as_str() {
-        if token_nonce != expected_nonce {
-            return Err(IoError::BadRequest("OIDC nonce mismatch".into()));
-        }
-    }
-
-    // Extract user identity from ID token claims
-    let oidc_sub = id_claims["sub"]
+    // Verify id_token signature against JWKS, and validate iss, aud, exp, nonce.
+    let id_token_str = token_resp["id_token"]
         .as_str()
-        .ok_or_else(|| IoError::Internal("ID token missing sub claim".into()))?
-        .to_string();
+        .unwrap_or("");
+    let id_claims = verify_id_token(
+        &state.http,
+        &state.jwks_cache,
+        id_token_str,
+        &jwks_uri,
+        &issuer_url,
+        &client_id,
+        &expected_nonce,
+    )
+    .await?;
 
-    // Try userinfo endpoint first for richer claims, fall back to ID token
-    let user_claims = if let Some(ref ui_endpoint) = userinfo_endpoint {
+    // Extract user identity from the verified ID token claims.
+    let oidc_sub = id_claims.sub.clone();
+
+    // Try userinfo endpoint first for richer claims, fall back to ID token.
+    let user_claims: serde_json::Value = if let Some(ref ui_endpoint) = userinfo_endpoint {
         match http.get(ui_endpoint).bearer_auth(&access_token_oidc).send().await {
             Ok(resp) if resp.status().is_success() => {
-                resp.json::<serde_json::Value>().await.unwrap_or(id_claims.clone())
+                resp.json::<serde_json::Value>().await.unwrap_or_else(|_| {
+                    serde_json::json!({
+                        "sub": id_claims.sub,
+                        "email": id_claims.email,
+                        "name": id_claims.name,
+                        "given_name": id_claims.given_name,
+                        "family_name": id_claims.family_name,
+                    })
+                })
             }
-            _ => id_claims.clone(),
+            _ => serde_json::json!({
+                "sub": id_claims.sub,
+                "email": id_claims.email,
+                "name": id_claims.name,
+                "given_name": id_claims.given_name,
+                "family_name": id_claims.family_name,
+            }),
         }
     } else {
-        id_claims.clone()
+        serde_json::json!({
+            "sub": id_claims.sub,
+            "email": id_claims.email,
+            "name": id_claims.name,
+            "given_name": id_claims.given_name,
+            "family_name": id_claims.family_name,
+        })
     };
 
     let email = user_claims["email"]
         .as_str()
-        .or_else(|| id_claims["email"].as_str())
+        .or_else(|| id_claims.email.as_deref())
         .unwrap_or(&oidc_sub)
         .to_string();
 
     let full_name = user_claims["name"]
         .as_str()
-        .or_else(|| {
-            // Try given_name + family_name
-            let given = user_claims["given_name"].as_str().unwrap_or("");
-            let family = user_claims["family_name"].as_str().unwrap_or("");
-            if !given.is_empty() || !family.is_empty() {
-                // Leak-free: store in a temporary — caller borrows the value before returning
-                None // We'll handle below
-            } else {
-                None
-            }
-        })
         .map(String::from)
         .or_else(|| {
             let given = user_claims["given_name"].as_str().unwrap_or("");
@@ -550,28 +565,6 @@ async fn oidc_callback_inner(
     Ok(response)
 }
 
-// ---------------------------------------------------------------------------
-// Helper: decode JWT payload without verification (parse claims only)
-// ---------------------------------------------------------------------------
-
-fn decode_jwt_payload(token: &str) -> IoResult<serde_json::Value> {
-    let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() < 2 {
-        return Err(IoError::BadRequest("Invalid ID token format".into()));
-    }
-    let payload_b64 = parts[1];
-    // Add padding if needed
-    let padded = match payload_b64.len() % 4 {
-        0 => payload_b64.to_string(),
-        2 => format!("{payload_b64}=="),
-        3 => format!("{payload_b64}="),
-        _ => payload_b64.to_string(),
-    };
-    let decoded = base64_decode_url_safe(&padded)
-        .map_err(|e| IoError::Internal(format!("ID token decode error: {e}")))?;
-    serde_json::from_slice(&decoded)
-        .map_err(|e| IoError::Internal(format!("ID token claims parse: {e}")))
-}
 
 // ---------------------------------------------------------------------------
 // Helper: BASE64URL encode (no padding)
@@ -580,13 +573,6 @@ fn decode_jwt_payload(token: &str) -> IoResult<serde_json::Value> {
 fn base64_url_encode(data: &[u8]) -> String {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     URL_SAFE_NO_PAD.encode(data)
-}
-
-fn base64_decode_url_safe(s: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-    // Strip padding for URL-safe no-pad decoder
-    let stripped = s.trim_end_matches('=');
-    URL_SAFE_NO_PAD.decode(stripped)
 }
 
 // ---------------------------------------------------------------------------

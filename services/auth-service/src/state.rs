@@ -5,6 +5,7 @@ use dashmap::DashMap;
 use uuid::Uuid;
 
 use crate::config::Config;
+use crate::oidc_jwks::{CachedJwks, JwksCache};
 use io_db::DbPool;
 
 // ---------------------------------------------------------------------------
@@ -56,6 +57,9 @@ pub struct AppState {
     /// Short-lived tokens issued when EULA acceptance is required during login.
     /// Key: opaque 32-byte hex string.  Value: pending entry with 5-minute TTL.
     pub eula_pending_tokens: Arc<DashMap<String, EulaPendingEntry>>,
+    /// JWKS cache for OIDC signature verification.
+    /// Key: issuer URL.  Value: cached JWKS document with 1-hour TTL.
+    pub jwks_cache: JwksCache,
 }
 
 impl AppState {
@@ -66,6 +70,7 @@ impl AppState {
             http: reqwest::Client::new(),
             mfa_pending_tokens: Arc::new(DashMap::new()),
             eula_pending_tokens: Arc::new(DashMap::new()),
+            jwks_cache: Arc::new(DashMap::<String, CachedJwks>::new()),
         }
     }
 }
