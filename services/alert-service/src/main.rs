@@ -38,6 +38,13 @@ async fn main() -> anyhow::Result<()> {
     let health = io_health::HealthRegistry::new("alert-service", env!("CARGO_PKG_VERSION"));
     health.mark_startup_complete();
 
+    // Recover any in-flight escalations from before the service restarted.
+    // This runs as a background task so the HTTP listener is never blocked.
+    let recovery_state = state.clone();
+    tokio::spawn(async move {
+        handlers::escalation::recover_escalations(recovery_state).await;
+    });
+
     // Alert routes
     // NOTE: static routes (/trigger, /policies) must be registered before
     // parameterised routes (/:id) to avoid routing conflicts.

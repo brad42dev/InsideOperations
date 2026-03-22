@@ -1,4 +1,6 @@
 use chrono::Utc;
+use sqlx::Row;
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -17,6 +19,161 @@ pub fn dispatch_tier(
     Box::pin(async move {
         dispatch_tier_impl(state, alert_id, tier).await;
     })
+}
+
+/// On startup, resume escalation for all active alerts that have a policy configured.
+///
+/// For each active alert this function determines which tier should fire next, queries
+/// `alert_deliveries` to find when the current tier was actually dispatched, computes the
+/// remaining delay, and either fires the next tier immediately (if overdue) or arms a
+/// cancellable timer for the remaining duration. The HTTP listener is never blocked — callers
+/// must spawn this as a background task.
+pub async fn recover_escalations(state: AppState) {
+    let now = Utc::now();
+
+    // Query active alerts that have an escalation policy configured.
+    // `escalation_policy` is stored as JSONB containing at minimum {"policy_id": "<uuid>"}.
+    let rows = match sqlx::query(
+        "SELECT id, escalation_policy, current_escalation
+         FROM alerts
+         WHERE status = 'active' AND escalation_policy IS NOT NULL",
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!(error = %e, "recover_escalations: failed to query active alerts");
+            return;
+        }
+    };
+
+    info!(count = rows.len(), "recover_escalations: found active alerts with policies");
+
+    for row in &rows {
+        let alert_id: Uuid = row.get("id");
+        let current_escalation: i16 = row.get("current_escalation");
+        let escalation_policy: Option<serde_json::Value> = row.get("escalation_policy");
+
+        // Extract policy_id from the JSONB escalation_policy field.
+        let policy_id: Option<Uuid> = escalation_policy
+            .as_ref()
+            .and_then(|v| v.get("policy_id"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<Uuid>().ok());
+
+        let policy_id = match policy_id {
+            Some(p) => p,
+            None => {
+                warn!(
+                    alert_id = %alert_id,
+                    "recover_escalations: no valid policy_id in escalation_policy JSONB, skipping"
+                );
+                continue;
+            }
+        };
+
+        let next_tier = current_escalation + 1;
+
+        // Find the next tier configuration.
+        let tier_row = match sqlx::query(
+            "SELECT escalate_after_mins FROM escalation_tiers
+             WHERE policy_id = $1 AND tier_order = $2",
+        )
+        .bind(policy_id)
+        .bind(next_tier)
+        .fetch_optional(&state.db)
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                error!(
+                    alert_id = %alert_id,
+                    error = %e,
+                    "recover_escalations: failed to query next tier config"
+                );
+                continue;
+            }
+        };
+
+        let tier_row = match tier_row {
+            Some(r) => r,
+            None => {
+                info!(
+                    alert_id = %alert_id,
+                    next_tier,
+                    "recover_escalations: no next tier exists, escalation chain complete"
+                );
+                continue;
+            }
+        };
+
+        let delay_mins: i16 = tier_row.get("escalate_after_mins");
+
+        // Determine when the current tier was actually dispatched by querying alert_deliveries.
+        // We must NOT use created_at — the current tier may have been dispatched well after alert creation.
+        let last_dispatch: Option<chrono::DateTime<Utc>> = match sqlx::query_scalar(
+            "SELECT MAX(sent_at) FROM alert_deliveries
+             WHERE alert_id = $1 AND escalation_level = $2",
+        )
+        .bind(alert_id)
+        .bind(current_escalation)
+        .fetch_one(&state.db)
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                warn!(
+                    alert_id = %alert_id,
+                    error = %e,
+                    "recover_escalations: failed to query last dispatch time, treating as overdue"
+                );
+                None
+            }
+        };
+
+        // Compute remaining seconds until next tier should fire.
+        // If no delivery record exists for the current tier, treat the alert as overdue.
+        let elapsed_secs = match last_dispatch {
+            Some(t) => (now - t).num_seconds().max(0) as u64,
+            None => {
+                // No delivery record — either tier 0 never recorded or we have no data.
+                // Fire immediately to avoid missing escalations.
+                delay_mins as u64 * 60
+            }
+        };
+        let total_delay_secs = delay_mins as u64 * 60;
+        let remaining_secs = total_delay_secs.saturating_sub(elapsed_secs);
+
+        info!(
+            alert_id = %alert_id,
+            next_tier,
+            elapsed_secs,
+            remaining_secs,
+            "recover_escalations: scheduling recovery timer"
+        );
+
+        // Create a CancellationToken and register it so callers can cancel escalation
+        // (e.g. when the alert is acknowledged).
+        let token = CancellationToken::new();
+        state.escalation_tokens.insert(alert_id, token.clone());
+
+        let state_clone = state.clone();
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = token.cancelled() => {
+                    info!(alert_id = %alert_id, "recover_escalations: timer cancelled");
+                    state_clone.escalation_tokens.remove(&alert_id);
+                    return;
+                }
+                _ = tokio::time::sleep(Duration::from_secs(remaining_secs)) => {}
+            }
+
+            // Remove the token before dispatching (dispatch_tier_impl will insert a new one).
+            state_clone.escalation_tokens.remove(&alert_id);
+            dispatch_tier(state_clone, alert_id, next_tier).await;
+        });
+    }
 }
 
 async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
