@@ -16,3 +16,4 @@ MOD-DESIGNER-015 | Enable multi-node resize (CompoundCommand wrapping per-node r
 MOD-DESIGNER-018 | Render canvas boundary visual and add out-of-bounds save warning toast | verified 2026-03-22 | commit a6e5f6d | npx tsc --noEmit | PASS
 MOD-DESIGNER-020 | Implement auto-height scrollable canvas for Report and Dashboard modes | verified 2026-03-22 | commit e6b609d | npx tsc --noEmit | PASS
 MOD-DESIGNER-024 | Group sub-tabs — open group content in a dedicated tab for deep editing | verified 2026-03-22 | commit a51c6db | npx tsc --noEmit | PASS
+MOD-DESIGNER-005 | Add missing RC-DES-2 base items to node context menu (Lock/Unlock, Nav Link, Properties) | verified 2026-03-22 | commit 2303589 | npx tsc --noEmit | PASS

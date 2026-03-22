@@ -4752,6 +4752,10 @@ function DesignerContextMenuContent({
   const groupNode = targetNode?.type === 'group' ? (targetNode as Group) : null
   const textBlockNode = targetNode?.type === 'text_block' ? (targetNode as TextBlock) : null
   const widgetNode = targetNode?.type === 'widget' ? (targetNode as WidgetNode) : null
+  const imageNode = targetNode?.type === 'image' ? (targetNode as ImageNode) : null
+  const stencilNode = targetNode?.type === 'stencil' ? (targetNode as Stencil) : null
+  const embeddedSvgNode = targetNode?.type === 'embedded_svg' ? (targetNode as EmbeddedSvgNode) : null
+  const annotationNode = targetNode?.type === 'annotation' ? (targetNode as Annotation) : null
   const shapeEntry = symbolInstance ? getShape(symbolInstance.shapeRef.shapeId) : null
   const shapeOptions = shapeEntry?.sidecar.options ?? []
   const shapeConfigurations = shapeEntry?.sidecar.configurations ?? []
@@ -5456,7 +5460,7 @@ function DesignerContextMenuContent({
               </>
             )}
 
-            {/* TextBlock-specific items (§6.10) */}
+            {/* TextBlock-specific items (§6.10 RC-DES-10) */}
             {textBlockNode && (
               <>
                 <ContextMenuPrimitive.Separator style={sepStyle} />
@@ -5464,6 +5468,32 @@ function DesignerContextMenuContent({
                   onSelect={() => { /* text edit mode triggered via double-click UX */ }}>
                   Edit Text
                 </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => { /* TODO: open font picker dialog */ }}>
+                  Change Font…
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>Text Alignment</ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {(['start', 'middle', 'end'] as const).map(anchor => {
+                        const label = anchor === 'start' ? 'Left' : anchor === 'middle' ? 'Center' : 'Right'
+                        return (
+                          <ContextMenuPrimitive.Item key={anchor} style={itemStyle}
+                            onSelect={() => {
+                              if (!nodeId || !textBlockNode) return
+                              executeCmd(new ChangePropertyCommand(nodeId, 'textAnchor', anchor, textBlockNode.textAnchor))
+                            }}>
+                            {textBlockNode.textAnchor === anchor ? `\u2713 ${label}` : label}
+                          </ContextMenuPrimitive.Item>
+                        )
+                      })}
+                      <ContextMenuPrimitive.Item style={{ ...itemStyle, opacity: 0.4 }} disabled>
+                        Justify
+                      </ContextMenuPrimitive.Item>
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
               </>
             )}
 
@@ -5475,6 +5505,111 @@ function DesignerContextMenuContent({
                   onSelect={() => { /* focuses right panel — already shows widget config when selected */ }}>
                   Configure Widget…
                 </ContextMenuPrimitive.Item>
+              </>
+            )}
+
+            {/* RC-DES-6: ImageNode-specific items */}
+            {imageNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    /* TODO: trigger hidden file input to replace the image asset */
+                  }}>
+                  Replace Image…
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    if (!nodeId || !imageNode) return
+                    executeCmd(new CompoundCommand('Reset Image Size', [
+                      new ChangePropertyCommand(nodeId, 'displayWidth', imageNode.assetRef.originalWidth, imageNode.displayWidth),
+                      new ChangePropertyCommand(nodeId, 'displayHeight', imageNode.assetRef.originalHeight, imageNode.displayHeight),
+                    ]))
+                  }}>
+                  Reset to Original Size
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={{ ...itemStyle, opacity: 0.4 }} disabled>
+                  Crop… (coming soon)
+                </ContextMenuPrimitive.Item>
+              </>
+            )}
+
+            {/* RC-DES-7: Stencil-specific items */}
+            {stencilNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    if (!doc || !nodeId) return
+                    setPromoteNodes([stencilNode])
+                  }}>
+                  Promote to Shape…
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    /* TODO: trigger file input to replace the stencil SVG */
+                  }}>
+                  Replace SVG…
+                </ContextMenuPrimitive.Item>
+              </>
+            )}
+
+            {/* RC-DES-8: EmbeddedSvg-specific items */}
+            {embeddedSvgNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    /* TODO: implement ExplodeToPrimitivesCommand — parses svgContent into Primitive nodes */
+                  }}>
+                  Explode to Primitives
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    if (!doc) return
+                    setPromoteNodes([embeddedSvgNode])
+                  }}>
+                  Promote to Shape…
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    if (!doc) return
+                    setStencilNodes([embeddedSvgNode])
+                  }}>
+                  Save as Stencil…
+                </ContextMenuPrimitive.Item>
+              </>
+            )}
+
+            {/* RC-DES-11: Annotation-specific items */}
+            {annotationNode && (
+              <>
+                <ContextMenuPrimitive.Separator style={sepStyle} />
+                <ContextMenuPrimitive.Item style={itemStyle}
+                  onSelect={() => {
+                    /* TODO: open annotation edit dialog */
+                  }}>
+                  Edit Annotation
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>Change Style</ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {(['callout', 'legend', 'border', 'title_block'] as const).map(atype => {
+                        const label = atype === 'title_block' ? 'Title Block' : atype.charAt(0).toUpperCase() + atype.slice(1)
+                        return (
+                          <ContextMenuPrimitive.Item key={atype} style={itemStyle}
+                            onSelect={() => {
+                              if (!nodeId) return
+                              executeCmd(new ChangePropertyCommand(nodeId, 'annotationType', atype, annotationNode.annotationType))
+                            }}>
+                            {annotationNode.annotationType === atype ? `\u2713 ${label}` : label}
+                          </ContextMenuPrimitive.Item>
+                        )
+                      })}
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
               </>
             )}
           </>
