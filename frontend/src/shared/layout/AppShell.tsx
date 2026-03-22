@@ -19,6 +19,10 @@ import { showToast } from '../components/Toast'
 import LockOverlay from '../components/LockOverlay'
 import EmergencyAlert from '../components/EmergencyAlert'
 import CommandPalette from '../components/CommandPalette'
+import PopupBlockedBanner, {
+  PopupBlockedIndicator,
+  usePopupBlockedState,
+} from '../components/PopupBlockedBanner'
 import { SystemHealthDot, SystemHealthDotRow } from '../components/SystemHealthDot'
 import { authApi } from '../../api/auth'
 import { wsManager } from '../hooks/useWebSocket'
@@ -425,6 +429,9 @@ export default function AppShell() {
   const [userMenuPos, setUserMenuPos] = useState({ top: 0, right: 0 })
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+
+  // Popup detection — runs at app init (post-auth). Not shown in kiosk mode.
+  const popupBlockedState = usePopupBlockedState()
 
   // Refs to save pre-kiosk sidebar/topbar state for restoration on exit
   const preKioskSidebarRef = useRef<'expanded' | 'collapsed' | 'hidden'>('expanded')
@@ -1260,6 +1267,9 @@ export default function AppShell() {
               </button>
             )}
 
+            {/* Popup blocked compact indicator — shown when full banner is dismissed */}
+            {!isKiosk && <PopupBlockedIndicator state={popupBlockedState} />}
+
             {/* Alert notification bell */}
             {!isKiosk && <AlertBell />}
 
@@ -1493,6 +1503,10 @@ export default function AppShell() {
             )}
           </div>
         </header>
+
+        {/* Popup blocked banner — below top bar, above content, pushes layout down.
+            Not shown in kiosk mode (top bar is hidden in kiosk). */}
+        {!isKiosk && <PopupBlockedBanner state={popupBlockedState} />}
 
         {/* Content — pointer-events disabled when locked so data renders but interaction is blocked */}
         <main
