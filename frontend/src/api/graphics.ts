@@ -20,7 +20,18 @@ export interface ShapeBatchResponse {
   }
 }
 
+export interface GraphicHierarchyNode {
+  id: string
+  name: string
+  graphicId?: string
+  children: GraphicHierarchyNode[]
+}
+
 export const graphicsApi = {
+  /** Get the view hierarchy tree for navigation (scope=process) */
+  getHierarchy: () =>
+    api.get<{ tree: GraphicHierarchyNode[] }>('/api/graphics/hierarchy?scope=process'),
+
   /** List all design objects (graphics) */
   list: (params?: { scope?: 'console' | 'process'; mode?: 'graphic' | 'dashboard' | 'report' }) =>
     api.get<{ data: DesignObjectSummary[]; total: number }>(

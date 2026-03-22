@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { DesignObjectSummary } from '../../api/graphics'
+import { useQuery } from '@tanstack/react-query'
+import type { DesignObjectSummary, GraphicHierarchyNode } from '../../api/graphics'
 import { graphicsApi } from '../../api/graphics'
 import ContextMenu from '../../shared/components/ContextMenu'
 
@@ -87,6 +88,129 @@ function ChevronIcon({ open }: { open: boolean }) {
     >
       <path d="M4 2l4 4-4 4" />
     </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// TreeNode — recursive hierarchy node for the Navigation section
+// ---------------------------------------------------------------------------
+
+function TreeNode({
+  node,
+  depth,
+  selectedId,
+  onSelectView,
+}: {
+  node: GraphicHierarchyNode
+  depth: number
+  selectedId: string | null
+  onSelectView: (id: string, name: string) => void
+}) {
+  const hasChildren = node.children && node.children.length > 0
+  const isLeaf = !!node.graphicId && !hasChildren
+  const isSelected = node.graphicId != null && node.graphicId === selectedId
+  const [expanded, setExpanded] = useState(depth < 2)
+
+  const handleClick = () => {
+    if (node.graphicId) {
+      onSelectView(node.graphicId, node.name)
+    } else {
+      setExpanded((v) => !v)
+    }
+  }
+
+  return (
+    <div>
+      <button
+        onClick={handleClick}
+        title={node.name}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          width: '100%',
+          paddingLeft: depth * 12 + 10,
+          paddingRight: 8,
+          paddingTop: 4,
+          paddingBottom: 4,
+          border: 'none',
+          borderLeft: isSelected ? '2px solid var(--io-accent)' : '2px solid transparent',
+          background: isSelected ? 'var(--io-accent-subtle)' : 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontSize: 12,
+          color: 'var(--io-text-primary)',
+          overflow: 'hidden',
+        }}
+      >
+        <span style={{ flexShrink: 0, fontSize: 10, color: 'var(--io-text-muted)', width: 10 }}>
+          {hasChildren ? (expanded ? '▼' : '▶') : isLeaf ? '•' : ''}
+        </span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {node.name}
+        </span>
+      </button>
+      {expanded && hasChildren && node.children.map((child) => (
+        <TreeNode
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          selectedId={selectedId}
+          onSelectView={onSelectView}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// NavigationTree — fetches hierarchy and renders the tree
+// ---------------------------------------------------------------------------
+
+function NavigationTree({
+  selectedId,
+  onSelectView,
+}: {
+  selectedId: string | null
+  onSelectView: (id: string, name: string) => void
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['graphics', 'hierarchy'],
+    queryFn: () => graphicsApi.getHierarchy(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+
+  const nodes: GraphicHierarchyNode[] =
+    data && data.success && data.data.tree ? data.data.tree : []
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--io-text-muted)' }}>
+        Loading…
+      </div>
+    )
+  }
+
+  if (nodes.length === 0) {
+    return (
+      <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--io-text-muted)' }}>
+        No views available
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '4px 0' }}>
+      {nodes.map((node) => (
+        <TreeNode
+          key={node.id}
+          node={node}
+          depth={0}
+          selectedId={selectedId}
+          onSelectView={onSelectView}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -382,9 +506,7 @@ export default function ProcessSidebar({
 
         {/* Section 3: Navigation */}
         <AccordionSection title="Navigation" defaultOpen={false}>
-          <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
-            Navigation hierarchy coming soon
-          </div>
+          <NavigationTree selectedId={selectedId} onSelectView={onSelectView} />
         </AccordionSection>
 
         {/* Section 4: Recent Views */}
