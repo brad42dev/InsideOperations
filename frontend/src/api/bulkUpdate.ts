@@ -57,11 +57,49 @@ export interface ModifiedRow {
   changed_fields: string[]
 }
 
+/** Describes how one file column maps to a system field. */
+export interface ColumnMapping {
+  /** Column name as it appears in the uploaded file. */
+  file_column: string
+  /** System field name (stripped of [READ-ONLY] suffix). */
+  system_field: string
+  /** "matched" | "read_only" | "unmapped" */
+  status: 'matched' | 'read_only' | 'unmapped'
+}
+
+/** A single row-level validation problem. */
+export interface ValidationError {
+  row: number
+  id: string
+  error: string
+  field?: string
+}
+
+/** Summary of validation results from the preview call. */
+export interface ValidationSummary {
+  valid_id_count: number
+  duplicate_id_count: number
+  invalid_id_count: number
+  type_error_count: number
+  required_field_error_count: number
+  errors: ValidationError[]
+}
+
 export interface DiffPreview {
   added: Record<string, unknown>[]
   modified: ModifiedRow[]
   removed: Record<string, unknown>[]
   unchanged_count: number
+  column_mapping: ColumnMapping[]
+  validation: ValidationSummary
+}
+
+/** A row that failed validation or errored during apply. */
+export interface FailedRow {
+  row: number
+  id: string
+  reason_type: 'validation_error' | 'skipped_conflict' | 'apply_error'
+  reason: string
 }
 
 export interface ApplySummary {
@@ -70,6 +108,8 @@ export interface ApplySummary {
   modified: number
   removed: number
   unchanged: number
+  validation_failed: number
+  failed_rows: FailedRow[]
 }
 
 export interface RestoreResult {
@@ -192,5 +232,73 @@ export const bulkUpdateApi = {
     fd.append('target_type', targetType)
     fd.append('file', file)
     return multipartPost<ApplySummary>('/api/bulk-update/apply', fd)
+  },
+
+  /**
+   * Download an error report CSV for a given apply operation, identified by snapshot_id.
+   * Falls back to client-side CSV generation from failed rows when snapshotId is not available.
+   */
+  downloadErrorReport: async (snapshotId: string, failedRows?: FailedRow[]): Promise<void> => {
+    // If we have failed rows locally, generate the CSV client-side for immediacy
+    if (failedRows && failedRows.length > 0) {
+      const header = 'row,id,reason_type,reason\n'
+      const lines = failedRows.map((r) => {
+        const reasonEscaped = r.reason.includes(',') ? `"${r.reason.replace(/"/g, '""')}"` : r.reason
+        return `${r.row},${r.id},${r.reason_type},${reasonEscaped}`
+      })
+      const csv = header + lines.join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `bulk-update-error-report.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    // Otherwise fetch from the server endpoint
+    const token = localStorage.getItem(TOKEN_KEY)
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(`${API_BASE}/api/bulk-update/${snapshotId}/error-report`, {
+      headers,
+      credentials: 'include',
+    })
+
+    if (!res.ok) {
+      throw new Error(`Failed to download error report: ${res.status}`)
+    }
+
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `bulk-update-${snapshotId}-error-report.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
+
+  /**
+   * Download a "full results" CSV combining successful and failed rows.
+   */
+  downloadFullResults: (applyResult: ApplySummary, targetType: TargetType): void => {
+    const header = 'snapshot_id,target_type,modified,unchanged,added,removed,validation_failed\n'
+    const line = `${applyResult.snapshot_id},${targetType},${applyResult.modified},${applyResult.unchanged},${applyResult.added},${applyResult.removed},${applyResult.validation_failed}`
+    const csv = header + line + '\n'
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `bulk-update-full-results-${applyResult.snapshot_id}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   },
 }

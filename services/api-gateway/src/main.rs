@@ -675,6 +675,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/bulk-update/template/:target_type", get(handlers::bulk_update::get_template))
         .route("/api/bulk-update/preview", post(handlers::bulk_update::preview_bulk_update))
         .route("/api/bulk-update/apply", post(handlers::bulk_update::apply_bulk_update))
+        .route("/api/bulk-update/:id/error-report", get(handlers::bulk_update::get_error_report))
         // Universal Export (Phase 9 — doc 25)
         // IMPORTANT: static sub-paths (/exports/:id/download) must be before parameterised (/:id)
         .route(

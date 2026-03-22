@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T19:46:29.921632+00:00",
+  "last_updated": "2026-03-22T00:00:00Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -116,7 +116,8 @@
     "DD-22-005": 1,
     "DD-22-006": 1,
     "DD-23-006": 1,
-    "DD-23-008": 1
+    "DD-23-008": 1,
+    "DD-24-007": 1
   },
   "queue": [
     {
@@ -2605,7 +2606,7 @@
       "wave": 3,
       "title": "Add missing API endpoints and populate connector template_config",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2647,7 +2648,7 @@
       "wave": 3,
       "title": "Complete Bulk Update wizard \u2014 add Step 2 (Validate & Map) and full Step 4 Results",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-25-003"
       ],

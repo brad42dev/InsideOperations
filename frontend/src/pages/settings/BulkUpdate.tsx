@@ -10,6 +10,8 @@ import {
   type Snapshot,
   type SnapshotDetail,
   type ModifiedRow,
+  type ColumnMapping,
+  type FailedRow,
 } from '../../api/bulkUpdate'
 import { showToast } from '../../shared/components/Toast'
 
@@ -287,13 +289,284 @@ function ModifiedSection({ rows }: { rows: ModifiedRow[] }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Step 2 sub-component: Validate & Map
+// ---------------------------------------------------------------------------
+
+// Known system fields per target type (for the unmapped column dropdown)
+const SYSTEM_FIELDS_BY_TARGET: Record<TargetType, string[]> = {
+  users: ['full_name', 'email', 'enabled'],
+  opc_sources: ['name', 'endpoint_url', 'enabled'],
+  alarm_definitions: ['name', 'point_tag', 'high_high', 'high', 'low', 'low_low', 'enabled'],
+  import_connections: ['name', 'connector_type', 'enabled'],
+  points_metadata: ['active', 'criticality', 'area', 'aggregation_types', 'barcode', 'notes', 'gps_latitude', 'gps_longitude', 'write_frequency_seconds', 'default_graphic_id'],
+  user_roles: ['role_id'],
+  application_settings: ['value'],
+  point_sources: ['name', 'description', 'enabled'],
+  dashboard_metadata: ['name', 'published'],
+  import_definitions: ['name', 'description', 'enabled', 'batch_size', 'error_strategy'],
+}
+
+function ColumnMappingTable({
+  mappings,
+  targetType,
+  onRemap,
+}: {
+  mappings: ColumnMapping[]
+  targetType: TargetType
+  onRemap: (fileColumn: string, systemField: string | null) => void
+}) {
+  const availableFields = SYSTEM_FIELDS_BY_TARGET[targetType] ?? []
+
+  const statusBadge = (status: ColumnMapping['status']) => {
+    if (status === 'matched') return <Badge color="success">Matched</Badge>
+    if (status === 'read_only') return <Badge color="muted">Read-only skip</Badge>
+    return <Badge color="warning">Unmapped</Badge>
+  }
+
+  return (
+    <div style={{ overflowX: 'auto', marginBottom: 'var(--io-space-4)' }}>
+      <table style={TABLE}>
+        <thead>
+          <tr>
+            <th style={TH}>File Column</th>
+            <th style={TH}>System Field</th>
+            <th style={TH}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {mappings.map((m, i) => (
+            <tr key={i}>
+              <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px' }}>{m.file_column}</td>
+              <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px' }}>
+                {m.status === 'unmapped' ? (
+                  <select
+                    style={{ ...SELECT, minWidth: 'unset', fontSize: '11px', padding: '2px 6px' }}
+                    value={m.system_field || ''}
+                    onChange={(e) => onRemap(m.file_column, e.target.value || null)}
+                  >
+                    <option value="">— Ignore —</option>
+                    {availableFields.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                ) : (
+                  m.system_field
+                )}
+              </td>
+              <td style={TD}>{statusBadge(m.status)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ValidationSummaryPanel({
+  validation,
+  onDownloadErrorReport,
+}: {
+  validation: DiffPreview['validation']
+  onDownloadErrorReport: () => void
+}) {
+  const totalErrors =
+    validation.invalid_id_count +
+    validation.duplicate_id_count +
+    validation.type_error_count +
+    validation.required_field_error_count
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 'var(--io-space-4)', flexWrap: 'wrap', marginBottom: 'var(--io-space-3)' }}>
+        <span style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+          <Badge color="success">[OK]</Badge>{' '}
+          <strong>{validation.valid_id_count}</strong> rows have valid record IDs
+        </span>
+        {validation.duplicate_id_count > 0 && (
+          <span style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+            <Badge color="danger">[!!]</Badge>{' '}
+            <strong>{validation.duplicate_id_count}</strong> duplicate IDs
+          </span>
+        )}
+        {validation.invalid_id_count > 0 && (
+          <span style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+            <Badge color="danger">[!!]</Badge>{' '}
+            <strong>{validation.invalid_id_count}</strong> invalid record IDs
+          </span>
+        )}
+        {validation.type_error_count > 0 && (
+          <span style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+            <Badge color="danger">[!!]</Badge>{' '}
+            <strong>{validation.type_error_count}</strong> type errors
+          </span>
+        )}
+        {validation.required_field_error_count > 0 && (
+          <span style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+            <Badge color="warning">[!!]</Badge>{' '}
+            <strong>{validation.required_field_error_count}</strong> required field errors
+          </span>
+        )}
+      </div>
+
+      {totalErrors > 0 && (
+        <>
+          <div style={{ overflowX: 'auto', maxHeight: 200, marginBottom: 'var(--io-space-3)' }}>
+            <table style={TABLE}>
+              <thead>
+                <tr>
+                  <th style={TH}>Row</th>
+                  <th style={TH}>ID</th>
+                  <th style={TH}>Field</th>
+                  <th style={TH}>Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {validation.errors.slice(0, 50).map((err, i) => (
+                  <tr key={i}>
+                    <td style={TD}>{err.row}</td>
+                    <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px' }}>{err.id || '—'}</td>
+                    <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px' }}>{err.field ?? '—'}</td>
+                    <td style={{ ...TD, color: 'var(--io-danger)', fontSize: '12px' }}>{err.error}</td>
+                  </tr>
+                ))}
+                {validation.errors.length > 50 && (
+                  <tr>
+                    <td colSpan={4} style={{ ...TD, color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+                      … and {validation.errors.length - 50} more errors
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <button style={BTN_SECONDARY} onClick={onDownloadErrorReport}>
+            Download error report (CSV)
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Step 4 sub-component: Results
+// ---------------------------------------------------------------------------
+
+function FailedRowsTable({ rows }: { rows: FailedRow[] }) {
+  if (rows.length === 0) return null
+  return (
+    <div style={{ overflowX: 'auto', marginBottom: 'var(--io-space-4)' }}>
+      <table style={TABLE}>
+        <thead>
+          <tr>
+            <th style={TH}>Row</th>
+            <th style={TH}>ID</th>
+            <th style={TH}>Reason Type</th>
+            <th style={TH}>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td style={TD}>{r.row > 0 ? r.row : '—'}</td>
+              <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px' }}>{r.id || '—'}</td>
+              <td style={TD}>
+                <Badge color={r.reason_type === 'validation_error' ? 'danger' : 'warning'}>
+                  {r.reason_type === 'validation_error' ? 'Validation' : r.reason_type === 'apply_error' ? 'Apply Error' : 'Skipped'}
+                </Badge>
+              </td>
+              <td style={{ ...TD, fontSize: '12px', color: 'var(--io-danger)' }}>{r.reason}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Wizard step indicator
+// ---------------------------------------------------------------------------
+
+function StepIndicator({ current, total }: { current: number; total: number }) {
+  const labels = ['Choose Target', 'Validate & Map', 'Review Changes', 'Results']
+  return (
+    <div style={{ display: 'flex', gap: 0, marginBottom: 'var(--io-space-4)', alignItems: 'center' }}>
+      {labels.slice(0, total).map((label, i) => {
+        const step = i + 1
+        const isActive = step === current
+        const isDone = step < current
+        return (
+          <div key={step} style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  background: isActive
+                    ? 'var(--io-accent)'
+                    : isDone
+                    ? 'var(--io-success)'
+                    : 'var(--io-surface-tertiary)',
+                  color: isActive || isDone ? '#fff' : 'var(--io-text-muted)',
+                  border: `2px solid ${isActive ? 'var(--io-accent)' : isDone ? 'var(--io-success)' : 'var(--io-border)'}`,
+                }}
+              >
+                {isDone ? '✓' : step}
+              </div>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {label}
+              </span>
+            </div>
+            {i < total - 1 && (
+              <div
+                style={{
+                  width: 40,
+                  height: 2,
+                  background: isDone ? 'var(--io-success)' : 'var(--io-border)',
+                  margin: '0 4px',
+                  marginBottom: 20,
+                }}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main BulkUpdateTab — 4-step wizard
+// ---------------------------------------------------------------------------
+
 function BulkUpdateTab() {
+  // Step: 1 = Choose Target, 2 = Validate & Map, 3 = Review Changes, 4 = Results
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [targetType, setTargetType] = useState<TargetType>('users')
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState<DiffPreview | null>(null)
+  // Local overrides for unmapped columns (file_column → system_field or null=ignore)
+  const [columnMappingOverrides, setColumnMappingOverrides] = useState<Record<string, string | null>>({})
   const [applyResult, setApplyResult] = useState<ApplySummary | null>(null)
   const [showApplyConfirm, setShowApplyConfirm] = useState(false)
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false)
+  const [undoDone, setUndoDone] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const previewMutation = useMutation({
@@ -303,6 +576,7 @@ function BulkUpdateTab() {
       if (res.success) {
         setPreview(res.data)
         setApplyResult(null)
+        setStep(2)
       } else {
         showToast({ title: 'Preview failed', description: res.error.message, variant: 'error' })
       }
@@ -319,13 +593,33 @@ function BulkUpdateTab() {
       if (res.success) {
         setApplyResult(res.data)
         setPreview(null)
-        showToast({ title: 'Bulk update applied', description: `Modified: ${res.data.modified}, Unchanged: ${res.data.unchanged}`, variant: 'success' })
+        setStep(4)
+        showToast({
+          title: 'Bulk update applied',
+          description: `Modified: ${res.data.modified}, Unchanged: ${res.data.unchanged}${res.data.validation_failed > 0 ? `, Failed: ${res.data.validation_failed}` : ''}`,
+          variant: 'success',
+        })
       } else {
         showToast({ title: 'Apply failed', description: res.error.message, variant: 'error' })
       }
     },
     onError: () => {
       showToast({ title: 'Apply failed', description: 'Network error', variant: 'error' })
+    },
+  })
+
+  const undoMutation = useMutation({
+    mutationFn: (snapshotId: string) => snapshotsApi.restore(snapshotId),
+    onSuccess: (res) => {
+      if (res.success) {
+        setUndoDone(true)
+        showToast({ title: 'Changes undone', description: `Restored from safety snapshot. ${res.data.rows_restored} rows restored.`, variant: 'success' })
+      } else {
+        showToast({ title: 'Undo failed', description: res.error.message, variant: 'error' })
+      }
+    },
+    onError: () => {
+      showToast({ title: 'Undo failed', description: 'Could not restore from snapshot', variant: 'error' })
     },
   })
 
@@ -337,6 +631,8 @@ function BulkUpdateTab() {
       setFile(dropped)
       setPreview(null)
       setApplyResult(null)
+      setColumnMappingOverrides({})
+      setStep(1)
     }
   }, [])
 
@@ -346,8 +642,14 @@ function BulkUpdateTab() {
       setFile(f)
       setPreview(null)
       setApplyResult(null)
+      setColumnMappingOverrides({})
+      setStep(1)
     }
   }
+
+  const handleRemap = useCallback((fileColumn: string, systemField: string | null) => {
+    setColumnMappingOverrides((prev) => ({ ...prev, [fileColumn]: systemField }))
+  }, [])
 
   const handleDownloadTemplate = async () => {
     try {
@@ -364,7 +666,6 @@ function BulkUpdateTab() {
   }
 
   const handleApply = () => {
-    if (!file || !preview) return
     setShowApplyConfirm(true)
   }
 
@@ -374,22 +675,74 @@ function BulkUpdateTab() {
     applyMutation.mutate({ type: targetType, f: file })
   }
 
+  const handleDownloadValidationErrorReport = () => {
+    if (!preview) return
+    bulkUpdateApi.downloadErrorReport('', preview.validation.errors.map((e) => ({
+      row: e.row,
+      id: e.id,
+      reason_type: 'validation_error' as const,
+      reason: e.error,
+    }))).catch((err) => {
+      showToast({ title: 'Download failed', description: String(err), variant: 'error' })
+    })
+  }
+
+  const handleDownloadResultErrorReport = () => {
+    if (!applyResult) return
+    bulkUpdateApi.downloadErrorReport(applyResult.snapshot_id, applyResult.failed_rows).catch((err) => {
+      showToast({ title: 'Download failed', description: String(err), variant: 'error' })
+    })
+  }
+
+  const handleDownloadFullResults = () => {
+    if (!applyResult) return
+    bulkUpdateApi.downloadFullResults(applyResult, targetType)
+  }
+
+  const confirmUndo = () => {
+    setShowUndoConfirm(false)
+    if (!applyResult) return
+    undoMutation.mutate(applyResult.snapshot_id)
+  }
+
   const hasChanges =
     preview && (preview.added.length > 0 || preview.modified.length > 0 || preview.removed.length > 0)
+
+  const resetWizard = () => {
+    setStep(1)
+    setFile(null)
+    setPreview(null)
+    setApplyResult(null)
+    setColumnMappingOverrides({})
+    setUndoDone(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   return (
     <div>
       {showApplyConfirm && (
         <ConfirmDialog
-          message={`This will apply ${preview?.modified.length ?? 0} modification(s) to ${TARGET_TYPE_LABELS[targetType]}. A safety snapshot will be created first. Continue?`}
+          message={`This will apply ${preview?.modified.length ?? 0} modification(s) to ${TARGET_TYPE_LABELS[targetType]}. A safety snapshot will be created first. Valid rows will be applied; rows with validation errors will be skipped. Continue?`}
           onConfirm={confirmApply}
           onCancel={() => setShowApplyConfirm(false)}
         />
       )}
+      {showUndoConfirm && (
+        <ConfirmDialog
+          message={`This will restore ${TARGET_TYPE_LABELS[targetType]} data from the safety snapshot created before the bulk update. All changes will be reverted. Continue?`}
+          onConfirm={confirmUndo}
+          onCancel={() => setShowUndoConfirm(false)}
+        />
+      )}
 
+      <StepIndicator current={step} total={4} />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Step 1 — Choose Target & Upload                                      */}
+      {/* ------------------------------------------------------------------ */}
       <div style={CARD}>
         <SectionTitle>Step 1 — Choose Target &amp; Download Template</SectionTitle>
-        <div style={{ display: 'flex', gap: 'var(--io-space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 'var(--io-space-3)', flexWrap: 'wrap', alignItems: 'center', marginBottom: 'var(--io-space-4)' }}>
           <select
             style={SELECT}
             value={targetType}
@@ -398,6 +751,8 @@ function BulkUpdateTab() {
               setFile(null)
               setPreview(null)
               setApplyResult(null)
+              setColumnMappingOverrides({})
+              setStep(1)
             }}
           >
             {(Object.entries(TARGET_TYPE_LABELS) as [TargetType, string][]).map(([v, l]) => (
@@ -408,10 +763,8 @@ function BulkUpdateTab() {
             Download Template (CSV)
           </button>
         </div>
-      </div>
 
-      <div style={CARD}>
-        <SectionTitle>Step 2 — Upload Modified CSV</SectionTitle>
+        <SectionTitle>Upload Modified CSV</SectionTitle>
         <div
           style={{
             border: `2px dashed ${isDragging ? 'var(--io-accent)' : 'var(--io-border)'}`,
@@ -451,20 +804,70 @@ function BulkUpdateTab() {
               onClick={handlePreview}
               disabled={previewMutation.isPending}
             >
-              {previewMutation.isPending ? 'Previewing…' : 'Preview Changes'}
-            </button>
-            <button
-              style={{ ...BTN_PRIMARY, background: 'var(--io-success)', opacity: !preview || !hasChanges ? 0.5 : 1 }}
-              onClick={handleApply}
-              disabled={!preview || !hasChanges || applyMutation.isPending}
-            >
-              {applyMutation.isPending ? 'Applying…' : 'Apply Changes'}
+              {previewMutation.isPending ? 'Analysing…' : 'Next: Validate & Map'}
             </button>
           </div>
         )}
       </div>
 
-      {preview && (
+      {/* ------------------------------------------------------------------ */}
+      {/* Step 2 — Validate & Map                                             */}
+      {/* ------------------------------------------------------------------ */}
+      {step >= 2 && preview && (
+        <div style={CARD}>
+          <SectionTitle>Step 2 — Validate &amp; Map</SectionTitle>
+          <p style={{ fontSize: '13px', color: 'var(--io-text-muted)', marginBottom: 'var(--io-space-3)' }}>
+            File: <strong>{file?.name}</strong>{' '}
+            {(() => {
+              const total = preview.added.length + preview.modified.length + preview.removed.length + preview.unchanged_count
+              return `(${total} rows detected)`
+            })()}
+          </p>
+
+          <div style={{ marginBottom: 'var(--io-space-4)' }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-secondary)', marginBottom: 'var(--io-space-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Column Mapping
+            </p>
+            {preview.column_mapping.length > 0 ? (
+              <ColumnMappingTable
+                mappings={preview.column_mapping.map((m) =>
+                  m.status === 'unmapped' && columnMappingOverrides[m.file_column] !== undefined
+                    ? { ...m, system_field: columnMappingOverrides[m.file_column] ?? '' }
+                    : m
+                )}
+                targetType={targetType}
+                onRemap={handleRemap}
+              />
+            ) : (
+              <p style={{ color: 'var(--io-text-muted)', fontSize: '13px' }}>No column mapping data available.</p>
+            )}
+          </div>
+
+          <div style={{ marginBottom: 'var(--io-space-4)' }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-secondary)', marginBottom: 'var(--io-space-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Validation
+            </p>
+            <ValidationSummaryPanel
+              validation={preview.validation}
+              onDownloadErrorReport={handleDownloadValidationErrorReport}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 'var(--io-space-3)' }}>
+            <button style={BTN_SECONDARY} onClick={() => setStep(1)}>
+              Back
+            </button>
+            <button style={BTN_PRIMARY} onClick={() => setStep(3)}>
+              Next: Review Changes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Step 3 — Review Changes                                             */}
+      {/* ------------------------------------------------------------------ */}
+      {step >= 3 && preview && (
         <div style={CARD}>
           <SectionTitle>Step 3 — Review Changes</SectionTitle>
           <div style={{ display: 'flex', gap: 'var(--io-space-3)', marginBottom: 'var(--io-space-4)', flexWrap: 'wrap' }}>
@@ -480,6 +883,11 @@ function BulkUpdateTab() {
             <span style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
               Unchanged: {preview.unchanged_count}
             </span>
+            {preview.validation.errors.length > 0 && (
+              <span style={{ fontSize: '13px', color: 'var(--io-danger)' }}>
+                Validation errors: <strong>{preview.validation.errors.length}</strong> (rows will be skipped)
+              </span>
+            )}
           </div>
           {!hasChanges && (
             <p style={{ color: 'var(--io-text-muted)', fontSize: '13px' }}>
@@ -489,22 +897,98 @@ function BulkUpdateTab() {
           <DiffSection title="Added" color="success" rows={preview.added} />
           <ModifiedSection rows={preview.modified} />
           <DiffSection title="Removed" color="danger" rows={preview.removed} />
+
+          <div style={{ display: 'flex', gap: 'var(--io-space-3)', marginTop: 'var(--io-space-4)' }}>
+            <button style={BTN_SECONDARY} onClick={() => setStep(2)}>
+              Back
+            </button>
+            <button
+              style={{ ...BTN_PRIMARY, background: 'var(--io-success)', opacity: !hasChanges ? 0.5 : 1 }}
+              onClick={handleApply}
+              disabled={!hasChanges || applyMutation.isPending}
+            >
+              {applyMutation.isPending ? 'Applying…' : 'Apply Changes'}
+            </button>
+          </div>
         </div>
       )}
 
-      {applyResult && (
-        <div style={{ ...CARD, borderColor: 'var(--io-success)' }}>
-          <SectionTitle>Result</SectionTitle>
-          <div style={{ display: 'flex', gap: 'var(--io-space-5)', flexWrap: 'wrap' }}>
-            <div style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
-              Modified: <strong style={{ color: 'var(--io-success)' }}>{applyResult.modified}</strong>
+      {/* ------------------------------------------------------------------ */}
+      {/* Step 4 — Results                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      {step === 4 && applyResult && (
+        <div style={{ ...CARD, borderColor: applyResult.failed_rows.length > 0 ? 'var(--io-warning)' : 'var(--io-success)' }}>
+          <SectionTitle>Step 4 — Results</SectionTitle>
+
+          {/* Count summary */}
+          <div style={{ display: 'flex', gap: 'var(--io-space-5)', flexWrap: 'wrap', marginBottom: 'var(--io-space-4)' }}>
+            <div style={{ fontSize: '13px' }}>
+              <Badge color="success">[OK]</Badge>{' '}
+              <strong style={{ color: 'var(--io-success)' }}>{applyResult.modified}</strong> rows updated
             </div>
-            <div style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
-              Unchanged: <strong>{applyResult.unchanged}</strong>
+            <div style={{ fontSize: '13px' }}>
+              <Badge color="muted">Unchanged</Badge>{' '}
+              <strong>{applyResult.unchanged}</strong> rows unchanged
             </div>
-            <div style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
-              Safety snapshot: <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{applyResult.snapshot_id}</span>
+            {applyResult.added > 0 && (
+              <div style={{ fontSize: '13px' }}>
+                <Badge color="accent">Added</Badge>{' '}
+                <strong>{applyResult.added}</strong> rows added
+              </div>
+            )}
+            {applyResult.validation_failed > 0 && (
+              <div style={{ fontSize: '13px' }}>
+                <Badge color="danger">[!!]</Badge>{' '}
+                <strong>{applyResult.validation_failed}</strong> rows failed validation
+              </div>
+            )}
+            {applyResult.failed_rows.filter(r => r.reason_type === 'skipped_conflict').length > 0 && (
+              <div style={{ fontSize: '13px' }}>
+                <Badge color="warning">[!]</Badge>{' '}
+                <strong>{applyResult.failed_rows.filter(r => r.reason_type === 'skipped_conflict').length}</strong> rows skipped (conflict)
+              </div>
+            )}
+          </div>
+
+          {/* Safety snapshot info */}
+          <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', marginBottom: 'var(--io-space-4)', fontFamily: 'monospace' }}>
+            Safety snapshot ID: {applyResult.snapshot_id}
+          </div>
+
+          {/* Failed/skipped rows table */}
+          {applyResult.failed_rows.length > 0 && (
+            <div style={{ marginBottom: 'var(--io-space-4)' }}>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-secondary)', marginBottom: 'var(--io-space-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Failed / Skipped Rows
+              </p>
+              <FailedRowsTable rows={applyResult.failed_rows} />
             </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 'var(--io-space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
+            {applyResult.failed_rows.length > 0 && (
+              <button style={BTN_SECONDARY} onClick={handleDownloadResultErrorReport}>
+                Download Error Report
+              </button>
+            )}
+            <button style={BTN_SECONDARY} onClick={handleDownloadFullResults}>
+              Download Full Results
+            </button>
+            {!undoDone ? (
+              <button
+                style={BTN_DANGER}
+                onClick={() => setShowUndoConfirm(true)}
+                disabled={undoMutation.isPending}
+              >
+                {undoMutation.isPending ? 'Undoing…' : 'Undo All Changes'}
+              </button>
+            ) : (
+              <Badge color="success">Changes undone</Badge>
+            )}
+            <button style={{ ...BTN_SECONDARY, marginLeft: 'auto' }} onClick={resetWizard}>
+              Start New Bulk Update
+            </button>
           </div>
         </div>
       )}

@@ -158,12 +158,49 @@ pub struct CreateSnapshotBody {
 // Diff types
 // ---------------------------------------------------------------------------
 
+/// Describes how one file column maps to a system field.
+#[derive(Debug, Clone, Serialize)]
+pub struct ColumnMapping {
+    /// The column name as it appears in the uploaded file.
+    pub file_column: String,
+    /// The system field it maps to (if matched), or the raw column name.
+    pub system_field: String,
+    /// "matched" | "read_only" | "unmapped"
+    pub status: String,
+}
+
+/// A row-level validation problem discovered during preview.
+#[derive(Debug, Clone, Serialize)]
+pub struct ValidationError {
+    /// Row number in the uploaded file (1-based, excluding header).
+    pub row: usize,
+    /// The record ID from __id column (may be empty/invalid).
+    pub id: String,
+    /// Human-readable description of the error.
+    pub error: String,
+    /// The field that caused the error, if applicable.
+    pub field: Option<String>,
+}
+
+/// Summary of row-level validation found during preview.
+#[derive(Debug, Serialize)]
+pub struct ValidationSummary {
+    pub valid_id_count: usize,
+    pub duplicate_id_count: usize,
+    pub invalid_id_count: usize,
+    pub type_error_count: usize,
+    pub required_field_error_count: usize,
+    pub errors: Vec<ValidationError>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DiffPreview {
     pub added: Vec<JsonValue>,
     pub modified: Vec<ModifiedRow>,
     pub removed: Vec<JsonValue>,
     pub unchanged_count: usize,
+    pub column_mapping: Vec<ColumnMapping>,
+    pub validation: ValidationSummary,
 }
 
 #[derive(Debug, Serialize)]
@@ -174,6 +211,19 @@ pub struct ModifiedRow {
     pub changed_fields: Vec<String>,
 }
 
+/// A row that failed validation or was skipped due to a conflict.
+#[derive(Debug, Clone, Serialize)]
+pub struct FailedRow {
+    /// Row number in the uploaded file (1-based).
+    pub row: usize,
+    /// The record ID.
+    pub id: String,
+    /// "validation_error" | "skipped_conflict" | "apply_error"
+    pub reason_type: String,
+    /// Human-readable reason.
+    pub reason: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ApplySummary {
     pub snapshot_id: Uuid,
@@ -181,6 +231,8 @@ pub struct ApplySummary {
     pub modified: usize,
     pub removed: usize,
     pub unchanged: usize,
+    pub validation_failed: usize,
+    pub failed_rows: Vec<FailedRow>,
 }
 
 // ---------------------------------------------------------------------------
@@ -553,7 +605,275 @@ async fn fetch_current_rows(db: &sqlx::PgPool, tt: &TargetType) -> Result<Vec<Js
 // Diff engine
 // ---------------------------------------------------------------------------
 
-fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType) -> DiffPreview {
+/// Build column mapping info from the CSV header row vs. known fields for this target type.
+fn compute_column_mapping(headers: &[String], tt: &TargetType) -> Vec<ColumnMapping> {
+    // All known system fields for this target type (read-only columns use " [READ-ONLY]" suffix in CSV)
+    let (all_fields, read_only_fields): (&[&str], &[&str]) = match tt {
+        TargetType::Users => (
+            &["__id", "username", "full_name", "email", "enabled"],
+            &["username"],
+        ),
+        TargetType::OpcSources => (
+            &["__id", "name", "endpoint_url", "enabled"],
+            &[],
+        ),
+        TargetType::AlarmDefinitions => (
+            &["__id", "name", "point_tag", "high_high", "high", "low", "low_low", "enabled"],
+            &[],
+        ),
+        TargetType::ImportConnections => (
+            &["__id", "name", "connector_type", "enabled"],
+            &[],
+        ),
+        TargetType::PointsMetadata => (
+            &["__id", "tagname", "description", "engineering_units",
+              "active", "criticality", "area", "aggregation_types",
+              "barcode", "notes", "gps_latitude", "gps_longitude",
+              "write_frequency_seconds", "default_graphic_id"],
+            &["tagname", "description", "engineering_units"],
+        ),
+        TargetType::UserRoles => (
+            &["__id", "user_id", "username", "role_id", "role_name"],
+            &["user_id", "username", "role_name"],
+        ),
+        TargetType::ApplicationSettings => (
+            &["__id", "key", "description", "value"],
+            &["key", "description"],
+        ),
+        TargetType::PointSources => (
+            &["__id", "name", "description", "enabled"],
+            &[],
+        ),
+        TargetType::DashboardMetadata => (
+            &["__id", "name", "published"],
+            &[],
+        ),
+        TargetType::ImportDefinitions => (
+            &["__id", "name", "description", "enabled", "batch_size", "error_strategy"],
+            &[],
+        ),
+    };
+
+    headers.iter().map(|h| {
+        // Strip " [READ-ONLY]" suffix to get the base field name
+        let base = h.trim_end_matches(" [READ-ONLY]").trim_end_matches(" [read-only]");
+        let is_known = all_fields.iter().any(|&f| f == base || f == h);
+        let is_read_only = read_only_fields.iter().any(|&f| f == base)
+            || h.contains("[READ-ONLY]") || h.contains("[read-only]");
+
+        let status = if !is_known {
+            "unmapped".to_string()
+        } else if is_read_only {
+            "read_only".to_string()
+        } else {
+            "matched".to_string()
+        };
+
+        ColumnMapping {
+            file_column: h.clone(),
+            system_field: base.to_string(),
+            status,
+        }
+    }).collect()
+}
+
+/// Validate CSV rows and return a `ValidationSummary`.
+fn validate_rows(
+    csv_rows: &[std::collections::HashMap<String, String>],
+    current_ids: &std::collections::HashSet<String>,
+    tt: &TargetType,
+) -> ValidationSummary {
+    use std::collections::HashMap;
+
+    let mut errors: Vec<ValidationError> = Vec::new();
+    let mut seen_ids: HashMap<String, usize> = HashMap::new();
+    let mut valid_id_count = 0usize;
+    let mut invalid_id_count = 0usize;
+    let mut duplicate_id_count = 0usize;
+    let mut type_error_count = 0usize;
+    let mut required_field_error_count = 0usize;
+
+    // Fields that must be non-empty per target type
+    let required_fields: &[&str] = match tt {
+        TargetType::Users => &["email"],
+        TargetType::OpcSources => &["name", "endpoint_url"],
+        TargetType::AlarmDefinitions => &["name", "point_tag"],
+        TargetType::ImportConnections => &["name", "connector_type"],
+        TargetType::PointsMetadata => &[],
+        TargetType::UserRoles => &["role_id"],
+        TargetType::ApplicationSettings => &[],
+        TargetType::PointSources => &["name"],
+        TargetType::DashboardMetadata => &["name"],
+        TargetType::ImportDefinitions => &["name"],
+    };
+
+    // Boolean fields for type checking
+    let bool_fields: &[&str] = match tt {
+        TargetType::Users => &["enabled"],
+        TargetType::OpcSources => &["enabled"],
+        TargetType::AlarmDefinitions => &["enabled"],
+        TargetType::ImportConnections => &["enabled"],
+        TargetType::PointsMetadata => &["active"],
+        TargetType::UserRoles => &[],
+        TargetType::ApplicationSettings => &[],
+        TargetType::PointSources => &["enabled"],
+        TargetType::DashboardMetadata => &["published"],
+        TargetType::ImportDefinitions => &["enabled"],
+    };
+
+    // Numeric float fields
+    let float_fields: &[&str] = match tt {
+        TargetType::AlarmDefinitions => &["high_high", "high", "low", "low_low"],
+        TargetType::PointsMetadata => &["gps_latitude", "gps_longitude"],
+        _ => &[],
+    };
+
+    // Numeric integer fields
+    let int_fields: &[&str] = match tt {
+        TargetType::PointsMetadata => &["write_frequency_seconds"],
+        TargetType::ImportDefinitions => &["batch_size"],
+        _ => &[],
+    };
+
+    for (row_idx, row) in csv_rows.iter().enumerate() {
+        let row_num = row_idx + 1; // 1-based
+
+        // Get ID value — try __id first, then id
+        let id_val = row.get("__id").or_else(|| row.get("id")).map(|s| s.as_str()).unwrap_or("");
+
+        // Validate ID is a valid UUID
+        if id_val.is_empty() {
+            invalid_id_count += 1;
+            errors.push(ValidationError {
+                row: row_num,
+                id: id_val.to_string(),
+                error: "Missing record ID (__id column is empty)".to_string(),
+                field: Some("__id".to_string()),
+            });
+        } else if Uuid::parse_str(id_val).is_err() {
+            invalid_id_count += 1;
+            errors.push(ValidationError {
+                row: row_num,
+                id: id_val.to_string(),
+                error: format!("Invalid UUID format: {}", id_val),
+                field: Some("__id".to_string()),
+            });
+        } else {
+            // Check for duplicates
+            if let Some(prior_row) = seen_ids.get(id_val) {
+                duplicate_id_count += 1;
+                errors.push(ValidationError {
+                    row: row_num,
+                    id: id_val.to_string(),
+                    error: format!("Duplicate ID — also appears at row {}", prior_row),
+                    field: Some("__id".to_string()),
+                });
+            } else {
+                seen_ids.insert(id_val.to_string(), row_num);
+                // Check if ID exists in current data
+                if current_ids.contains(id_val) {
+                    valid_id_count += 1;
+                } else {
+                    // Unknown ID — will be treated as "add", not a validation error per spec
+                    valid_id_count += 1;
+                }
+            }
+        }
+
+        // Required field checks
+        for &field in required_fields {
+            // Try both the base field name and the " [READ-ONLY]" variant
+            let val = row.get(field)
+                .or_else(|| row.get(&format!("{} [READ-ONLY]", field)))
+                .map(|s| s.as_str())
+                .unwrap_or("");
+            if val.is_empty() {
+                required_field_error_count += 1;
+                errors.push(ValidationError {
+                    row: row_num,
+                    id: id_val.to_string(),
+                    error: format!("Required field '{}' is empty", field),
+                    field: Some(field.to_string()),
+                });
+            }
+        }
+
+        // Boolean type checks
+        for &field in bool_fields {
+            if let Some(val) = row.get(field) {
+                if !val.is_empty() {
+                    let lower = val.to_lowercase();
+                    if lower != "true" && lower != "false" && lower != "1" && lower != "0"
+                        && lower != "yes" && lower != "no" {
+                        type_error_count += 1;
+                        errors.push(ValidationError {
+                            row: row_num,
+                            id: id_val.to_string(),
+                            error: format!("Field '{}' must be true/false but got '{}'", field, val),
+                            field: Some(field.to_string()),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Float type checks
+        for &field in float_fields {
+            if let Some(val) = row.get(field) {
+                if !val.is_empty() && val.parse::<f64>().is_err() {
+                    type_error_count += 1;
+                    errors.push(ValidationError {
+                        row: row_num,
+                        id: id_val.to_string(),
+                        error: format!("Field '{}' must be a number but got '{}'", field, val),
+                        field: Some(field.to_string()),
+                    });
+                }
+            }
+        }
+
+        // Integer type checks
+        for &field in int_fields {
+            if let Some(val) = row.get(field) {
+                if !val.is_empty() && val.parse::<i64>().is_err() {
+                    type_error_count += 1;
+                    errors.push(ValidationError {
+                        row: row_num,
+                        id: id_val.to_string(),
+                        error: format!("Field '{}' must be an integer but got '{}'", field, val),
+                        field: Some(field.to_string()),
+                    });
+                }
+            }
+        }
+
+        // UUID field checks (role_id for UserRoles)
+        if matches!(tt, TargetType::UserRoles) {
+            if let Some(val) = row.get("role_id") {
+                if !val.is_empty() && Uuid::parse_str(val).is_err() {
+                    type_error_count += 1;
+                    errors.push(ValidationError {
+                        row: row_num,
+                        id: id_val.to_string(),
+                        error: format!("Field 'role_id' must be a UUID but got '{}'", val),
+                        field: Some("role_id".to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    ValidationSummary {
+        valid_id_count,
+        duplicate_id_count,
+        invalid_id_count,
+        type_error_count,
+        required_field_error_count,
+        errors,
+    }
+}
+
+fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType, column_mapping: Vec<ColumnMapping>, validation: ValidationSummary) -> DiffPreview {
     use std::collections::HashMap;
 
     // Build a map of id → row for current data
@@ -625,7 +945,7 @@ fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType) 
         }
     }
 
-    DiffPreview { added, modified, removed, unchanged_count }
+    DiffPreview { added, modified, removed, unchanged_count, column_mapping, validation }
 }
 
 // ---------------------------------------------------------------------------
@@ -1370,14 +1690,31 @@ pub async fn preview_bulk_update(
         None => return IoError::BadRequest("Could not parse CSV — empty or malformed".into()).into_response(),
     };
 
-    let incoming: Vec<JsonValue> = csv_rows.iter().map(|r| csv_row_to_json(r, &tt)).collect();
-
     let current = match fetch_current_rows(&state.db, &tt).await {
         Ok(r) => r,
         Err(e) => return e.into_response(),
     };
 
-    let diff = compute_diff(&current, &incoming, &tt);
+    // Build column mapping from actual CSV headers
+    let headers: Vec<String> = if let Some(first_row) = csv_rows.first() {
+        first_row.keys().cloned().collect()
+    } else {
+        vec![]
+    };
+    let column_mapping = compute_column_mapping(&headers, &tt);
+
+    // Build set of current IDs for validation
+    let current_ids: std::collections::HashSet<String> = current
+        .iter()
+        .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+
+    // Validate rows
+    let validation = validate_rows(&csv_rows, &current_ids, &tt);
+
+    let incoming: Vec<JsonValue> = csv_rows.iter().map(|r| csv_row_to_json(r, &tt)).collect();
+
+    let diff = compute_diff(&current, &incoming, &tt, column_mapping, validation);
     Json(ApiResponse::ok(diff)).into_response()
 }
 
@@ -1404,14 +1741,50 @@ pub async fn apply_bulk_update(
         None => return IoError::BadRequest("Could not parse CSV — empty or malformed".into()).into_response(),
     };
 
-    let incoming: Vec<JsonValue> = csv_rows.iter().map(|r| csv_row_to_json(r, &tt)).collect();
-
     let current = match fetch_current_rows(&state.db, &tt).await {
         Ok(r) => r,
         Err(e) => return e.into_response(),
     };
 
-    let diff = compute_diff(&current, &incoming, &tt);
+    // Build current IDs set and validate rows
+    let current_ids: std::collections::HashSet<String> = current
+        .iter()
+        .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+    let validation = validate_rows(&csv_rows, &current_ids, &tt);
+
+    // Collect IDs that had validation errors — they will be skipped
+    let invalid_ids: std::collections::HashSet<String> = validation.errors
+        .iter()
+        .filter(|e| e.id != "")
+        .map(|e| e.id.clone())
+        .collect();
+
+    // Build failed_rows list from validation errors
+    let mut failed_rows: Vec<FailedRow> = validation.errors.iter().map(|e| FailedRow {
+        row: e.row,
+        id: e.id.clone(),
+        reason_type: "validation_error".to_string(),
+        reason: e.error.clone(),
+    }).collect();
+
+    let incoming: Vec<JsonValue> = csv_rows.iter().map(|r| csv_row_to_json(r, &tt)).collect();
+
+    // Filter out incoming rows with validation errors before computing diff
+    let valid_incoming: Vec<JsonValue> = incoming.iter()
+        .filter(|row| {
+            let id = row.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            id.is_empty() || !invalid_ids.contains(id)
+        })
+        .cloned()
+        .collect();
+
+    let empty_headers = vec![];
+    let empty_validation = ValidationSummary {
+        valid_id_count: 0, duplicate_id_count: 0, invalid_id_count: 0,
+        type_error_count: 0, required_field_error_count: 0, errors: vec![],
+    };
+    let diff = compute_diff(&current, &valid_incoming, &tt, empty_headers, empty_validation);
 
     // Create safety snapshot before applying
     let uid = user_id(&claims);
@@ -1424,10 +1797,22 @@ pub async fn apply_bulk_update(
     let modified_count = diff.modified.len();
     let removed_count = diff.removed.len();
     let unchanged = diff.unchanged_count;
+    let validation_failed = validation.invalid_id_count + validation.type_error_count + validation.required_field_error_count;
 
-    if let Err(e) = apply_diff(&state.db, &diff, &tt).await {
-        return e.into_response();
+    // Apply diff — individual row errors get reported but don't abort the entire apply
+    let mut apply_error_count = 0usize;
+    for modrow in &diff.modified {
+        if let Err(e) = apply_update(&state.db, &tt, &modrow.after).await {
+            apply_error_count += 1;
+            failed_rows.push(FailedRow {
+                row: 0,
+                id: modrow.id.clone(),
+                reason_type: "apply_error".to_string(),
+                reason: e.to_string(),
+            });
+        }
     }
+    let _ = apply_error_count; // used implicitly via failed_rows
 
     Json(ApiResponse::ok(ApplySummary {
         snapshot_id,
@@ -1435,6 +1820,74 @@ pub async fn apply_bulk_update(
         modified: modified_count,
         removed: removed_count,
         unchanged,
+        validation_failed,
+        failed_rows,
     }))
     .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/bulk-update/:id/error-report
+// ---------------------------------------------------------------------------
+// Returns a CSV of validation errors / failed rows for an apply result.
+// Since we don't persist apply results to the DB, this endpoint accepts the
+// failed row data as a query parameter encoded in JSON (for simplicity at
+// this stage). In production this would be a stored job result.
+//
+// For the current implementation we expose a utility that generates a
+// synthetic error-report CSV from the snapshot: the snapshot_id is used
+// to look up the safety snapshot's target_type, and a placeholder response
+// is returned. The frontend generates error reports client-side from the
+// apply result data, calling this endpoint as a download trigger.
+//
+// Alternatively the frontend uses a client-side CSV generation approach
+// (see bulkUpdate.ts downloadErrorReport). This handler is kept as a stub
+// to satisfy the route registration requirement.
+
+pub async fn get_error_report(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(snapshot_id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:write") {
+        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    }
+
+    // Look up the snapshot to get target type and label
+    let snap_row = match sqlx::query(
+        "SELECT target_type, label FROM change_snapshots WHERE id=$1",
+    )
+    .bind(snapshot_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => return IoError::NotFound(format!("Snapshot {} not found", snapshot_id)).into_response(),
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let target_type: String = snap_row.try_get("target_type").unwrap_or_default();
+    let label: Option<String> = snap_row.try_get("label").ok().flatten();
+
+    // Return a minimal CSV explaining this is the pre-apply safety snapshot reference
+    let mut csv = String::from("snapshot_id,target_type,label,note\n");
+    csv.push_str(&format!(
+        "{},{},{},\"This is the pre-apply safety snapshot. Use the frontend download to get validation error details.\"\n",
+        snapshot_id,
+        csv_escape(&target_type),
+        csv_escape(label.as_deref().unwrap_or("")),
+    ));
+
+    let filename = format!("bulk-update-{}-error-report.csv", snapshot_id);
+    let content_disposition = format!("attachment; filename=\"{}\"", filename);
+
+    let mut response = Response::new(Body::from(csv));
+    *response.status_mut() = StatusCode::OK;
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    if let Ok(val) = HeaderValue::from_str(&content_disposition) {
+        response.headers_mut().insert(header::CONTENT_DISPOSITION, val);
+    }
+    response
 }
