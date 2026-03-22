@@ -1315,6 +1315,27 @@ export function ExpressionBuilder({
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [benchmarkRunning, setBenchmarkRunning] = useState(false)
 
+  // Cancel-confirmation dialog state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  // Capture initial header field values on mount for dirty tracking
+  const initialHeaderRef = useRef({
+    name: state.name,
+    description: state.description,
+    outputType: state.outputType,
+    saveForFuture: state.saveForFuture,
+    shareExpression: state.shareExpression,
+  })
+
+  // Dirty: tiles changed (past stack non-empty) OR any header field differs from initial
+  const isHeaderDirty =
+    state.name !== initialHeaderRef.current.name ||
+    state.description !== initialHeaderRef.current.description ||
+    state.outputType !== initialHeaderRef.current.outputType ||
+    state.saveForFuture !== initialHeaderRef.current.saveForFuture ||
+    state.shareExpression !== initialHeaderRef.current.shareExpression
+  const isDirty = state.past.length > 0 || isHeaderDirty
+
   // OK-flow dialog state
   const [nameError, setNameError] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
@@ -2078,7 +2099,17 @@ export function ExpressionBuilder({
 
       {/* Action buttons */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
-        <button style={btnSecondary} onClick={onCancel} disabled={okFlowRunning}>
+        <button
+          style={btnSecondary}
+          disabled={okFlowRunning}
+          onClick={() => {
+            if (isDirty) {
+              setShowCancelConfirm(true)
+            } else {
+              onCancel()
+            }
+          }}
+        >
           Cancel
         </button>
         <button style={btnPrimary} disabled={okDisabled} onClick={handleOkClick}>
@@ -2185,6 +2216,55 @@ export function ExpressionBuilder({
                   Save for Later
                 </button>
               )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* ---- Cancel confirmation dialog ---- */}
+      <Dialog.Root open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <Dialog.Portal>
+          <Dialog.Overlay style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+          }} />
+          <Dialog.Content style={{
+            position: 'fixed',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'var(--io-surface)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            padding: '24px',
+            minWidth: '360px',
+            maxWidth: '480px',
+            zIndex: 1001,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <Dialog.Title style={{ fontSize: '15px', fontWeight: 600, color: 'var(--io-text-primary)', marginBottom: '12px' }}>
+              You have unsaved changes.
+            </Dialog.Title>
+            <Dialog.Description style={{ fontSize: '14px', color: 'var(--io-text-secondary)', marginBottom: '20px' }}>
+              Discard changes and close the expression builder?
+            </Dialog.Description>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button style={btnSecondary} onClick={() => setShowCancelConfirm(false)}>
+                Keep Editing
+              </button>
+              <button
+                style={{
+                  ...btnSecondary,
+                  color: 'var(--io-danger)',
+                  borderColor: 'rgba(239,68,68,0.4)',
+                }}
+                onClick={() => {
+                  setShowCancelConfirm(false)
+                  onCancel()
+                }}
+              >
+                Discard
+              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
