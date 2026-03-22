@@ -2050,6 +2050,23 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       const d = docRef.current
       if (!d) return
 
+      // DRAG PREVIEW EXCEPTION — direct DOM manipulation for 60fps ghost position.
+      // The scene graph (sceneStore) is NOT updated here. Only on mouseup is a
+      // MoveNodesCommand committed. This matches the spec's "Drag Preview Exception".
+      const svgEl = containerRef.current?.querySelector('svg')
+      if (svgEl) {
+        for (const id of selectedIdsRef.current) {
+          const orig = inter.originalPositions.get(id)
+          if (!orig) continue
+          const ghostX = orig.x + dx
+          const ghostY = orig.y + dy
+          const gEl = svgEl.querySelector(`[data-node-id="${id}"]`)
+          if (gEl) {
+            gEl.setAttribute('transform', `translate(${ghostX},${ghostY})`)
+          }
+        }
+      }
+
       // Smart alignment guides — compare dragged node bounds vs all other node bounds
       const SNAP_THRESHOLD = 6 // canvas units
       const selIds = selectedIdsRef.current
@@ -2754,6 +2771,23 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     }
 
     if (e.key === 'Escape') {
+      // Cancel active drag — reset DOM ghost transforms to original positions
+      const inter = interactionRef.current
+      if (inter.type === 'drag') {
+        const svgEl = containerRef.current?.querySelector('svg')
+        if (svgEl) {
+          for (const [id, orig] of inter.originalPositions) {
+            const gEl = svgEl.querySelector(`[data-node-id="${id}"]`)
+            if (gEl) {
+              gEl.setAttribute('transform', `translate(${orig.x},${orig.y})`)
+            }
+          }
+        }
+        inter.type = 'none'
+        endDrag()
+        setAlignGuides([])
+        return
+      }
       // If inside a group scope, exit it first; second Escape clears selection
       if (useUiStore.getState().activeGroupId !== null) {
         setActiveGroup(null)
@@ -2917,7 +2951,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         case 'a': setTool('annotation'); break
       }
     }
-  }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee, zoomTo, fitToCanvas, setGrid, setSnap, gridVisible, snapToGrid, activeTool, pipeDrawState, penWaypoints, setViewport, setActiveGroup])
+  }, [historyUndo, historyRedo, setPenWaypoints, setTool, setPipeDrawState, setDrawPreview, setMarquee, zoomTo, fitToCanvas, setGrid, setSnap, gridVisible, snapToGrid, activeTool, pipeDrawState, penWaypoints, setViewport, setActiveGroup, endDrag, setAlignGuides])
 
   // Spacebar keyup — restore previous tool
   const handleKeyUp = useCallback((e: React.KeyboardEvent) => {

@@ -1224,7 +1224,7 @@
       "title": "Implement 60fps visual drag ghost (DOM-ahead-of-store preview)",
       "priority": "high",
       "depends_on": [],
-      "status": "pending",
+      "status": "implementing",
       "audit_round": 3
     },
     {
