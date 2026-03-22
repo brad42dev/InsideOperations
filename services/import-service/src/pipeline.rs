@@ -126,10 +126,12 @@ fn apply_field_mappings(
 /// Apply `transforms` JSON array to a MappedRecord in place.
 ///
 /// Supported ops (extensible):
+///
 /// - `{"op": "set_null_if_empty", "field": "x"}` — sets field to null when empty string.
 /// - `{"op": "trim", "field": "x"}` — trims whitespace from string fields.
 /// - `{"op": "to_lowercase", "field": "x"}` — lowercases string fields.
 /// - `{"op": "to_uppercase", "field": "x"}` — uppercases string fields.
+///
 /// Unknown ops are logged as warnings but do NOT fail the row.
 fn apply_transforms(record: &mut MappedRecord, transforms: &JsonValue) -> Vec<ErrorRecord> {
     let arr = match transforms.as_array() {

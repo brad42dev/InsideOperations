@@ -5,6 +5,14 @@ import type { ApiResult } from './client'
 // Interfaces
 // ---------------------------------------------------------------------------
 
+export interface TemplateFieldDef {
+  key: string
+  label: string
+  type: 'text' | 'secret' | 'number' | 'select'
+  placeholder?: string
+  options?: Array<{ value: string; label: string }>
+}
+
 export interface ConnectorTemplate {
   id: string
   slug: string
@@ -13,9 +21,19 @@ export interface ConnectorTemplate {
   vendor: string
   description: string | null
   template_config: Record<string, unknown>
-  required_fields: unknown[]
+  required_fields: TemplateFieldDef[]
   target_tables: string[]
   version: string
+}
+
+export interface InstantiateTemplateBody {
+  field_values: Record<string, string>
+  connection_name?: string
+}
+
+export interface InstantiateTemplateResult {
+  connection: ImportConnection
+  definitions: ImportDefinition[]
 }
 
 export interface ImportConnection {
@@ -185,6 +203,16 @@ export const importApi = {
 
   getTemplate(slug: string): Promise<ApiResult<ConnectorTemplate>> {
     return api.get<ConnectorTemplate>(`${BASE}/connector-templates/${encodeURIComponent(slug)}`)
+  },
+
+  instantiateTemplate(
+    slug: string,
+    body: InstantiateTemplateBody,
+  ): Promise<ApiResult<InstantiateTemplateResult>> {
+    return api.post<InstantiateTemplateResult>(
+      `${BASE}/connector-templates/${encodeURIComponent(slug)}/instantiate`,
+      body,
+    )
   },
 
   // Connections

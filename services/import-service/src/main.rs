@@ -380,7 +380,9 @@ async fn poll_import_schedules(db: &sqlx::PgPool) -> anyhow::Result<()> {
 
 // ---------------------------------------------------------------------------
 
-/// Seed the 40 connector templates on startup. Uses ON CONFLICT DO NOTHING for idempotency.
+/// Seed the 40 connector templates on startup.
+/// Uses ON CONFLICT (slug) DO UPDATE to refresh required_fields on every startup,
+/// so that new required_fields values are applied to existing rows.
 async fn seed_connector_templates(db: &sqlx::PgPool) {
     #[derive(Debug)]
     struct TemplateSpec {
@@ -390,6 +392,9 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
         vendor: &'static str,
         description: &'static str,
         target_tables: &'static [&'static str],
+        /// JSON array of required field descriptors, e.g.
+        /// [{"key":"base_url","label":"Instance URL","type":"text"},...]
+        required_fields: &'static str,
     }
 
     let templates: &[TemplateSpec] = &[
@@ -401,6 +406,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "SAP SE",
             description: "Import work orders, maintenance notifications, and PM schedules from SAP Plant Maintenance (ECC/S4HANA) via OData API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"SAP Server URL","placeholder":"https://your-sap-server","type":"text"},{"key":"sap_client","label":"SAP Client","placeholder":"100","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "ibm-maximo-work-orders",
@@ -409,6 +415,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "IBM",
             description: "Import work orders, preventive maintenance schedules, and failure reports from IBM Maximo / Maximo Application Suite via OSLC REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Maximo Server URL","placeholder":"https://your-maximo/maximo","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "emaint-fiix-cmms",
@@ -417,6 +424,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Fluke Reliability / Rockwell Automation",
             description: "Import work orders and maintenance records from eMaint CMMS (Fluke Reliability) or Fiix CMMS (Rockwell Automation) via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "hxgn-eam-work-orders",
@@ -425,6 +433,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Hexagon",
             description: "Import work orders, service requests, and maintenance data from Hexagon EAM (formerly Infor EAM) via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "oracle-eam-work-orders",
@@ -433,6 +442,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Oracle",
             description: "Import asset records and maintenance work orders from Oracle Enterprise Asset Management (EBS/Fusion) via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Oracle Instance URL","placeholder":"https://your-oracle-server","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── Equipment (5) ─────────────────────────────────────────────────────
         TemplateSpec {
@@ -442,6 +452,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "AVEVA",
             description: "Import equipment hierarchy, asset metadata, and tag lists from AVEVA AIM / PI Asset Framework via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "ge-apm-equipment",
@@ -450,6 +461,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "GE Vernova",
             description: "Import equipment records, risk-based inspection data, and asset health metrics from GE APM via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "hxgn-spf-equipment",
@@ -458,6 +470,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Hexagon",
             description: "Import equipment and tag data from Hexagon SmartPlant Foundation / HxGN SDx via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "sap-pm-equipment",
@@ -466,6 +479,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "SAP SE",
             description: "Import equipment master records and functional location hierarchies from SAP Plant Maintenance / S/4HANA via OData API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"SAP Server URL","placeholder":"https://your-sap-server","type":"text"},{"key":"sap_client","label":"SAP Client","placeholder":"100","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "ibm-maximo-assets",
@@ -474,6 +488,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "IBM",
             description: "Import asset records, operating locations, and equipment hierarchy from IBM Maximo / MAS via OSLC REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Maximo Server URL","placeholder":"https://your-maximo/maximo","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── ERP / Financial (5) ───────────────────────────────────────────────
         TemplateSpec {
@@ -483,6 +498,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Hitachi Energy",
             description: "Import financial, maintenance, and procurement data from Hitachi EAM (formerly ABB Ellipse) via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "infor-cloudsuite-erp",
@@ -491,6 +507,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Infor",
             description: "Import financial transactions, purchase orders, and maintenance records from Infor CloudSuite Industrial (SyteLine) via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "microsoft-dynamics-365",
@@ -499,6 +516,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Microsoft",
             description: "Import financial transactions, purchase orders, and work orders from Microsoft Dynamics 365 Finance & Operations via OData API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Dynamics 365 URL","placeholder":"https://yourorg.crm.dynamics.com","type":"text"},{"key":"tenant_id","label":"Azure Tenant ID","type":"text"},{"key":"client_id","label":"Client ID (App Registration)","type":"text"},{"key":"client_secret","label":"Client Secret","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "oracle-fusion-ebs",
@@ -507,6 +525,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Oracle",
             description: "Import financial data, purchase orders, and maintenance records from Oracle Fusion Cloud or E-Business Suite via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Oracle Instance URL","placeholder":"https://your-oracle-server","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "sap-s4hana-erp",
@@ -515,6 +534,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "SAP SE",
             description: "Import financial records, purchase orders, and procurement data from SAP S/4HANA Finance module via OData API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"SAP Server URL","placeholder":"https://your-sap-server","type":"text"},{"key":"sap_client","label":"SAP Client","placeholder":"100","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── Ticketing (5) ─────────────────────────────────────────────────────
         TemplateSpec {
@@ -524,6 +544,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "BMC Software",
             description: "Import incidents, change requests, and service tickets from BMC Helix ITSM (formerly Remedy) via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "ivanti-neurons-tickets",
@@ -532,6 +553,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Ivanti",
             description: "Import incident tickets, change requests, and problem records from Ivanti Neurons for ITSM via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "jira-service-management",
@@ -540,6 +562,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Atlassian",
             description: "Import service requests, incidents, and change tickets from Atlassian Jira Service Management via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Jira Instance URL","placeholder":"https://yourcompany.atlassian.net","type":"text"},{"key":"username","label":"Email Address","type":"text"},{"key":"api_token","label":"API Token","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "manageengine-servicedesk",
@@ -548,6 +571,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "ManageEngine (Zoho)",
             description: "Import service requests and ITSM tickets from ManageEngine ServiceDesk Plus via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"ServiceDesk Plus URL","placeholder":"https://your-sdp/api/v3","type":"text"},{"key":"api_key","label":"API Key (Technician Key)","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "servicenow-itsm",
@@ -556,6 +580,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "ServiceNow",
             description: "Import incidents, change requests, and CMDB records from ServiceNow IT Service Management via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"ServiceNow Instance URL","placeholder":"https://yourcompany.service-now.com","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── Environmental (5) ─────────────────────────────────────────────────
         TemplateSpec {
@@ -565,6 +590,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Cority",
             description: "Import environmental incidents, compliance events, and monitoring data from Cority EHS platform via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "enablon-environmental",
@@ -573,6 +599,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Wolters Kluwer",
             description: "Import environmental monitoring data, permit conditions, and compliance records from Enablon via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "intelex-environmental",
@@ -581,6 +608,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Intelex Technologies",
             description: "Import environmental incidents, audit findings, and compliance data from Intelex EHSQ platform via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "sap-ehs-environmental",
@@ -589,6 +617,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "SAP SE",
             description: "Import environmental compliance records, waste management data, and permit data from SAP Environment Health & Safety via OData API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"SAP Server URL","placeholder":"https://your-sap-server","type":"text"},{"key":"sap_client","label":"SAP Client","placeholder":"100","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "sphera-environmental",
@@ -597,6 +626,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Sphera Solutions",
             description: "Import emissions monitoring, environmental KPIs, and compliance records from Sphera Operations Management via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── LIMS / Lab (5) ────────────────────────────────────────────────────
         TemplateSpec {
@@ -606,6 +636,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "LabVantage Solutions",
             description: "Import laboratory samples, test results, and QC data from LabVantage LIMS via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "labware-lims",
@@ -614,6 +645,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "LabWare",
             description: "Import sample results, stability studies, and QC data from LabWare LIMS or Electronic Lab Notebook via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "siemens-opcenter-quality",
@@ -622,6 +654,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Siemens",
             description: "Import quality control data, non-conformances, and inspection results from Siemens Opcenter Quality (formerly Camstar) via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "starlims-lims",
@@ -630,6 +663,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Abbott Informatics",
             description: "Import laboratory data, sample workflow results, and audit records from Abbott STARLIMS via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "thermo-samplemanager-lims",
@@ -638,6 +672,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Thermo Fisher Scientific",
             description: "Import sample test results, specifications, and QC records from Thermo Fisher SampleManager LIMS via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── Access Control (5) ────────────────────────────────────────────────
         TemplateSpec {
@@ -647,6 +682,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Software House (Johnson Controls)",
             description: "Import badge events, access permissions, and cardholder data from C\u{2022}CURE 9000 security management system via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "gallagher-command-centre",
@@ -655,6 +691,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Gallagher Security",
             description: "Import cardholder events, access zones, and alarm events from Gallagher Command Centre via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Command Centre URL","placeholder":"https://gallagher-server/api","type":"text"},{"key":"api_key","label":"API Key","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "genetec-security-center",
@@ -663,6 +700,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Genetec",
             description: "Import cardholder access events and credential data from Genetec Security Center via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Security Center URL","placeholder":"https://your-genetec-server","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "honeywell-prowatch",
@@ -671,6 +709,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Honeywell Building Technologies",
             description: "Import access control events, badge transactions, and cardholder records from Honeywell Pro-Watch via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "lenel-onguard",
@@ -679,6 +718,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "LenelS2 (Carrier)",
             description: "Import cardholder access events and credential data from LenelS2 OnGuard physical security platform via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── Regulatory (5) ────────────────────────────────────────────────────
         TemplateSpec {
@@ -688,6 +728,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Cority",
             description: "Import regulatory filings, inspection records, and compliance tracking data from Cority regulatory modules via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "enablon-regulatory",
@@ -696,6 +737,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Wolters Kluwer",
             description: "Import regulatory obligation tracking, compliance schedules, and audit records from Enablon via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "intelex-regulatory",
@@ -704,6 +746,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Intelex Technologies",
             description: "Import regulatory compliance records, inspection findings, and submission data from Intelex EHSQ platform via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "sap-ehs-regulatory",
@@ -712,6 +755,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "SAP SE",
             description: "Import regulatory compliance requirements, substance records, and EHS reports from SAP EHS via OData API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"SAP Server URL","placeholder":"https://your-sap-server","type":"text"},{"key":"sap_client","label":"SAP Client","placeholder":"100","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "sphera-regulatory",
@@ -720,6 +764,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Sphera Solutions",
             description: "Import process safety management data, regulatory submissions, and compliance records from Sphera Operations Management via REST API.",
             target_tables: &["custom_import_data"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         // ── DCS Supplemental (8) ──────────────────────────────────────────────────
         TemplateSpec {
@@ -729,6 +774,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "AVEVA/OSIsoft",
             description: "Supplement OPC UA with PI tag metadata, engineering units, alarm limits, and alarm event frames from PI Web API. Primary integration path for PI Data Archive (no native OPC UA server).",
             target_tables: &["points_metadata", "events"],
+            required_fields: r##"[{"key":"base_url","label":"PI Web API URL","placeholder":"https://pi-server/piwebapi","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "honeywell-experion-epdoc",
@@ -737,6 +783,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Honeywell",
             description: "Supplement OPC UA with full tag metadata, alarm limits, and alarm history from Honeywell Experion PKS via EPDOC REST API (R500+).",
             target_tables: &["points_metadata", "events"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "siemens-sph-rest",
@@ -745,6 +792,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Siemens",
             description: "Supplement OPC UA with tag metadata and alarm history from Siemens SIMATIC Process Historian (SPH 2019 Update 3+).",
             target_tables: &["points_metadata", "events"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "siemens-wincc-oa-rest",
@@ -753,6 +801,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Siemens",
             description: "Supplement OPC UA with tag metadata and alarm history from Siemens WinCC OA (3.18+) via built-in REST API.",
             target_tables: &["points_metadata", "events"],
+            required_fields: r##"[{"key":"hostname","label":"WinCC OA Server Hostname","type":"text"},{"key":"port","label":"REST API Port","placeholder":"8443","type":"number"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "abb-information-manager-rest",
@@ -761,6 +810,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "ABB",
             description: "Supplement OPC UA with tag metadata and alarm/event records from ABB 800xA Information Manager (3.5+) REST API.",
             target_tables: &["points_metadata", "events"],
+            required_fields: r##"[{"key":"base_url","label":"Base URL","placeholder":"https://your-server/api","type":"text"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "kepware-rest",
@@ -769,6 +819,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "PTC Kepware",
             description: "Supplement OPC UA with tag engineering units and descriptions from Kepware KEPServerEX Configuration REST API.",
             target_tables: &["points_metadata"],
+            required_fields: r##"[{"key":"hostname","label":"KEPServerEX Hostname","placeholder":"kepware-server","type":"text"},{"key":"port","label":"Configuration API Port","placeholder":"57412","type":"number"},{"key":"username","label":"Username","type":"text"},{"key":"password","label":"Password","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "canary-labs-rest",
@@ -777,6 +828,7 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Canary Labs",
             description: "Supplement OPC UA with tag metadata and historical values from Canary Labs Historian (v22+) REST API.",
             target_tables: &["points_metadata"],
+            required_fields: r##"[{"key":"base_url","label":"Canary Historian URL","placeholder":"http://canary-server:55236","type":"text"},{"key":"api_key","label":"API Token","type":"secret"}]"##,
         },
         TemplateSpec {
             slug: "deltav-event-chronicle",
@@ -785,22 +837,26 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             vendor: "Emerson",
             description: "Supplement OPC UA with alarm history and tag metadata from the DeltaV Event Chronicle SQL Server database on the Application Station. Uses mssql connection type.",
             target_tables: &["points_metadata", "events"],
+            required_fields: r##"[{"key":"hostname","label":"SQL Server Hostname","placeholder":"deltav-appstation","type":"text"},{"key":"database","label":"Database Name","placeholder":"DeltaVEventChronicle","type":"text"},{"key":"username","label":"SQL Username","type":"text"},{"key":"password","label":"SQL Password","type":"secret"}]"##,
         },
     ];
 
     for t in templates {
         let target_tables: Vec<String> = t.target_tables.iter().map(|s| s.to_string()).collect();
+        let required_fields_json: serde_json::Value = serde_json::from_str(t.required_fields)
+            .unwrap_or(serde_json::Value::Array(vec![]));
         let result = sqlx::query(
             "INSERT INTO connector_templates \
              (slug, name, domain, vendor, description, template_config, required_fields, target_tables, version) \
-             VALUES ($1, $2, $3, $4, $5, '{}', '[]', $6, '1.0') \
-             ON CONFLICT (slug) DO NOTHING",
+             VALUES ($1, $2, $3, $4, $5, '{}', $6, $7, '1.0') \
+             ON CONFLICT (slug) DO UPDATE SET required_fields = EXCLUDED.required_fields",
         )
         .bind(t.slug)
         .bind(t.name)
         .bind(t.domain)
         .bind(t.vendor)
         .bind(t.description)
+        .bind(&required_fields_json)
         .bind(&target_tables)
         .execute(db)
         .await;

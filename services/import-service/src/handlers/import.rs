@@ -1,12 +1,13 @@
 //! Universal Import handlers: connector templates, connections, definitions, schedules, runs.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json, Router,
     routing::{get, post, put},
 };
+use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use io_error::IoError;
 use io_models::ApiResponse;
@@ -216,6 +217,38 @@ pub struct ListRunsParams {
 #[derive(Debug, Deserialize)]
 pub struct TriggerRunRequest {
     pub dry_run: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InstantiateTemplateRequest {
+    pub field_values: std::collections::HashMap<String, String>,
+    /// Optional name for the connection; defaults to the template name.
+    pub connection_name: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InstantiateTemplateResponse {
+    pub connection: ImportConnectionRow,
+    pub definitions: Vec<ImportDefinitionRow>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SchemaTable {
+    pub name: String,
+    pub fields: Vec<SchemaField>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SchemaField {
+    pub name: String,
+    pub data_type: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UploadFileResponse {
+    pub file_id: String,
+    pub filename: String,
+    pub size_bytes: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -1182,6 +1215,376 @@ pub async fn cancel_run(
 }
 
 // ---------------------------------------------------------------------------
+// instantiate_template
+// ---------------------------------------------------------------------------
+
+/// Perform {{key}} substitution across every string value in a JSON tree.
+fn substitute_placeholders(value: &JsonValue, fields: &std::collections::HashMap<String, String>) -> JsonValue {
+    match value {
+        JsonValue::String(s) => {
+            let mut result = s.clone();
+            for (key, val) in fields {
+                let placeholder = format!("{{{{{key}}}}}");
+                result = result.replace(&placeholder, val);
+            }
+            JsonValue::String(result)
+        }
+        JsonValue::Object(map) => {
+            let new_map: serde_json::Map<String, JsonValue> = map
+                .iter()
+                .map(|(k, v)| (k.clone(), substitute_placeholders(v, fields)))
+                .collect();
+            JsonValue::Object(new_map)
+        }
+        JsonValue::Array(arr) => {
+            JsonValue::Array(arr.iter().map(|v| substitute_placeholders(v, fields)).collect())
+        }
+        other => other.clone(),
+    }
+}
+
+pub async fn instantiate_template(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(slug): Path<String>,
+    Json(body): Json<InstantiateTemplateRequest>,
+) -> impl IntoResponse {
+    let Some(user_id) = user_id_from_headers(&headers) else {
+        return IoError::Unauthorized.into_response();
+    };
+
+    // Fetch the connector template
+    let tmpl_row = sqlx::query(
+        "SELECT id, slug, name, domain, vendor, description, \
+                template_config, required_fields, target_tables, version \
+         FROM connector_templates WHERE slug = $1",
+    )
+    .bind(&slug)
+    .fetch_optional(&state.db)
+    .await;
+
+    let tmpl = match tmpl_row {
+        Ok(Some(r)) => match row_to_connector_template(&r) {
+            Ok(t) => t,
+            Err(e) => return IoError::Internal(format!("Row mapping error: {e}")).into_response(),
+        },
+        Ok(None) => return IoError::NotFound(format!("Connector template '{slug}' not found")).into_response(),
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    // Apply {{key}} substitution to template_config
+    let substituted_config = substitute_placeholders(&tmpl.template_config, &body.field_values);
+
+    // Extract connection-level config from substituted template_config.
+    // By convention, template_config["connection"] holds connection-level fields.
+    let conn_config = substituted_config
+        .get("connection")
+        .cloned()
+        .unwrap_or(JsonValue::Object(Default::default()));
+    let auth_type = substituted_config
+        .get("auth_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("none")
+        .to_string();
+    let raw_auth_config = substituted_config
+        .get("auth_config")
+        .cloned()
+        .unwrap_or(JsonValue::Object(Default::default()));
+    let auth_config = crate::crypto::encrypt_sensitive_fields(&raw_auth_config, &state.config.master_key);
+
+    let conn_name = body.connection_name.unwrap_or_else(|| format!("{} Connection", tmpl.name));
+    let conn_type = tmpl.slug.clone();
+
+    // Insert the import_connection
+    let conn_row = sqlx::query(
+        "INSERT INTO import_connections \
+         (name, connection_type, config, auth_type, auth_config, is_supplemental_connector, created_by) \
+         VALUES ($1, $2, $3, $4, $5, false, $6) \
+         RETURNING id, name, connection_type, config, auth_type, enabled, \
+                   last_tested_at, last_test_status, last_test_message, created_at, \
+                   point_source_id, is_supplemental_connector",
+    )
+    .bind(&conn_name)
+    .bind(&conn_type)
+    .bind(&conn_config)
+    .bind(&auth_type)
+    .bind(&auth_config)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await;
+
+    let connection = match conn_row {
+        Ok(r) => match row_to_connection(&r) {
+            Ok(c) => c,
+            Err(e) => return IoError::Internal(format!("Row mapping error: {e}")).into_response(),
+        },
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    // Build import_definitions from template_config["definitions"] array (if present).
+    // Each entry should have: name, source_config, field_mappings, transforms, target_table.
+    let definitions_json = substituted_config
+        .get("definitions")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut definitions: Vec<ImportDefinitionRow> = Vec::new();
+
+    if definitions_json.is_empty() {
+        // Create one default definition when no definitions are in the template
+        let def_name = format!("{} Import", tmpl.name);
+        let target_table = tmpl.target_tables.first().cloned().unwrap_or_else(|| "custom_import_data".to_string());
+        let def_row = sqlx::query(
+            "INSERT INTO import_definitions \
+             (connection_id, name, source_config, field_mappings, transforms, \
+              target_table, error_strategy, batch_size, template_id, created_by) \
+             VALUES ($1, $2, '{}', '[]', '[]', $3, 'quarantine', 1000, $4, $5) \
+             RETURNING id, connection_id, name, description, source_config, field_mappings, \
+                       transforms, target_table, enabled, error_strategy, batch_size, \
+                       template_id, created_at",
+        )
+        .bind(connection.id)
+        .bind(&def_name)
+        .bind(&target_table)
+        .bind(tmpl.id)
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await;
+
+        match def_row {
+            Ok(r) => match row_to_definition(&r) {
+                Ok(d) => definitions.push(d),
+                Err(e) => return IoError::Internal(format!("Definition row mapping error: {e}")).into_response(),
+            },
+            Err(e) => return IoError::Database(e).into_response(),
+        }
+    } else {
+        for def_entry in &definitions_json {
+            let def_name = def_entry.get("name").and_then(|v| v.as_str()).unwrap_or("Import").to_string();
+            let source_config = def_entry.get("source_config").cloned().unwrap_or(JsonValue::Object(Default::default()));
+            let field_mappings = def_entry.get("field_mappings").cloned().unwrap_or(JsonValue::Array(vec![]));
+            let transforms = def_entry.get("transforms").cloned().unwrap_or(JsonValue::Array(vec![]));
+            let target_table = def_entry
+                .get("target_table")
+                .and_then(|v| v.as_str())
+                .or_else(|| tmpl.target_tables.first().map(|s| s.as_str()))
+                .unwrap_or("custom_import_data")
+                .to_string();
+            let error_strategy = def_entry.get("error_strategy").and_then(|v| v.as_str()).unwrap_or("quarantine").to_string();
+            let batch_size: i32 = def_entry.get("batch_size").and_then(|v| v.as_i64()).map(|n| n as i32).unwrap_or(1000);
+
+            let def_row = sqlx::query(
+                "INSERT INTO import_definitions \
+                 (connection_id, name, source_config, field_mappings, transforms, \
+                  target_table, error_strategy, batch_size, template_id, created_by) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
+                 RETURNING id, connection_id, name, description, source_config, field_mappings, \
+                           transforms, target_table, enabled, error_strategy, batch_size, \
+                           template_id, created_at",
+            )
+            .bind(connection.id)
+            .bind(&def_name)
+            .bind(&source_config)
+            .bind(&field_mappings)
+            .bind(&transforms)
+            .bind(&target_table)
+            .bind(&error_strategy)
+            .bind(batch_size)
+            .bind(tmpl.id)
+            .bind(user_id)
+            .fetch_one(&state.db)
+            .await;
+
+            match def_row {
+                Ok(r) => match row_to_definition(&r) {
+                    Ok(d) => definitions.push(d),
+                    Err(e) => return IoError::Internal(format!("Definition row mapping error: {e}")).into_response(),
+                },
+                Err(e) => return IoError::Database(e).into_response(),
+            }
+        }
+    }
+
+    (StatusCode::CREATED, Json(ApiResponse::ok(InstantiateTemplateResponse { connection, definitions }))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// discover_schema
+// ---------------------------------------------------------------------------
+
+pub async fn discover_schema(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    // Fetch the connection row to verify it exists
+    let row = sqlx::query(
+        "SELECT id, connection_type FROM import_connections WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match row {
+        Ok(Some(_)) => {
+            // Schema discovery is stubbed: return an empty table list.
+            // Full per-connector discovery will be implemented incrementally
+            // as integration profiles are written.
+            let stub: Vec<SchemaTable> = Vec::new();
+            Json(ApiResponse::ok(stub)).into_response()
+        }
+        Ok(None) => IoError::NotFound(format!("Connection {id} not found")).into_response(),
+        Err(e) => IoError::Database(e).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// upload_file
+// ---------------------------------------------------------------------------
+
+pub async fn upload_file(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    // Determine upload directory from config, falling back to /tmp/io-imports
+    let upload_dir = state.config.upload_dir.clone();
+    let upload_path = PathBuf::from(&upload_dir);
+
+    if let Err(e) = tokio::fs::create_dir_all(&upload_path).await {
+        return IoError::Internal(format!("Failed to create upload directory: {e}")).into_response();
+    }
+
+    const MAX_SIZE: usize = 100 * 1024 * 1024; // 100 MB
+
+    match multipart.next_field().await {
+        Ok(Some(field)) => {
+            let original_filename = field
+                .file_name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "upload".to_string());
+
+            // Sanitize filename: keep only the base name, strip directory traversal
+            let safe_filename = PathBuf::from(&original_filename)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "upload".to_string());
+
+            let file_id = Uuid::new_v4().to_string();
+            let ext = safe_filename.rsplit('.').next().map(|e| format!(".{e}")).unwrap_or_default();
+            let stored_name = format!("{file_id}{ext}");
+            let dest = upload_path.join(&stored_name);
+
+            // Ensure destination is within upload_dir (prevent path traversal)
+            let canonical_dir = upload_path.canonicalize().unwrap_or(upload_path.clone());
+            let dest_canonical = dest.parent().map(|p| p.to_path_buf()).unwrap_or(upload_path.clone());
+            if !dest_canonical.starts_with(&canonical_dir) {
+                return IoError::BadRequest("Invalid filename".into()).into_response();
+            }
+
+            let data = match field.bytes().await {
+                Ok(b) => b,
+                Err(e) => return IoError::Internal(format!("Failed to read upload data: {e}")).into_response(),
+            };
+
+            if data.len() > MAX_SIZE {
+                return IoError::BadRequest(format!("File exceeds 100 MB limit ({} bytes)", data.len())).into_response();
+            }
+
+            let size_bytes = data.len() as u64;
+
+            if let Err(e) = tokio::fs::write(&dest, &data).await {
+                return IoError::Internal(format!("Failed to write uploaded file: {e}")).into_response();
+            }
+
+            tracing::info!(file_id = %file_id, filename = %safe_filename, size_bytes, "File uploaded");
+
+            Json(ApiResponse::ok(UploadFileResponse {
+                file_id,
+                filename: safe_filename,
+                size_bytes,
+            })).into_response()
+        }
+        Ok(None) | Err(_) => {
+            IoError::BadRequest("No file field found in multipart request".into()).into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// clone_definition
+// ---------------------------------------------------------------------------
+
+pub async fn clone_definition(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let Some(user_id) = user_id_from_headers(&headers) else {
+        return IoError::Unauthorized.into_response();
+    };
+
+    // Fetch the original definition
+    let original = sqlx::query(
+        "SELECT connection_id, name, description, source_config, field_mappings, \
+                transforms, target_table, error_strategy, batch_size, template_id \
+         FROM import_definitions WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let orig_row = match original {
+        Ok(Some(r)) => r,
+        Ok(None) => return IoError::NotFound(format!("Definition {id} not found")).into_response(),
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let connection_id: Uuid = orig_row.try_get("connection_id").unwrap_or_default();
+    let name: String = orig_row.try_get("name").unwrap_or_default();
+    let description: Option<String> = orig_row.try_get("description").ok().flatten();
+    let source_config: JsonValue = orig_row.try_get("source_config").unwrap_or(JsonValue::Object(Default::default()));
+    let field_mappings: JsonValue = orig_row.try_get("field_mappings").unwrap_or(JsonValue::Array(vec![]));
+    let transforms: JsonValue = orig_row.try_get("transforms").unwrap_or(JsonValue::Array(vec![]));
+    let target_table: String = orig_row.try_get("target_table").unwrap_or_default();
+    let error_strategy: String = orig_row.try_get("error_strategy").unwrap_or_else(|_| "quarantine".to_string());
+    let batch_size: i32 = orig_row.try_get("batch_size").unwrap_or(1000);
+    let template_id: Option<Uuid> = orig_row.try_get("template_id").ok().flatten();
+
+    let copy_name = format!("{name} (Copy)");
+
+    let new_row = sqlx::query(
+        "INSERT INTO import_definitions \
+         (connection_id, name, description, source_config, field_mappings, transforms, \
+          target_table, error_strategy, batch_size, template_id, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+         RETURNING id, connection_id, name, description, source_config, field_mappings, \
+                   transforms, target_table, enabled, error_strategy, batch_size, \
+                   template_id, created_at",
+    )
+    .bind(connection_id)
+    .bind(&copy_name)
+    .bind(&description)
+    .bind(&source_config)
+    .bind(&field_mappings)
+    .bind(&transforms)
+    .bind(&target_table)
+    .bind(&error_strategy)
+    .bind(batch_size)
+    .bind(template_id)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await;
+
+    match new_row {
+        Ok(r) => match row_to_definition(&r) {
+            Ok(d) => (StatusCode::CREATED, Json(ApiResponse::ok(d))).into_response(),
+            Err(e) => IoError::Internal(format!("Row mapping error: {e}")).into_response(),
+        },
+        Err(e) => IoError::Database(e).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -1190,6 +1593,9 @@ pub fn import_routes() -> Router<AppState> {
         // Connector templates
         .route("/connector-templates", get(list_connector_templates))
         .route("/connector-templates/:slug", get(get_connector_template))
+        .route("/connector-templates/:slug/instantiate", post(instantiate_template))
+        // File upload
+        .route("/upload", post(upload_file))
         // Connections
         .route(
             "/connections",
@@ -1200,6 +1606,7 @@ pub fn import_routes() -> Router<AppState> {
             get(get_connection).put(update_connection).delete(delete_connection),
         )
         .route("/connections/:id/test", post(test_connection))
+        .route("/connections/:id/discover", post(discover_schema))
         // Definitions
         .route(
             "/definitions",
@@ -1209,6 +1616,7 @@ pub fn import_routes() -> Router<AppState> {
             "/definitions/:id",
             get(get_definition).put(update_definition).delete(delete_definition),
         )
+        .route("/definitions/:id/clone", post(clone_definition))
         // Schedules
         .route(
             "/definitions/:id/schedules",

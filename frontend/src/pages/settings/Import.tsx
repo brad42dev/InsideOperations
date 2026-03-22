@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   importApi,
   type ConnectorTemplate,
+  type TemplateFieldDef,
   type ImportConnection,
   type ImportDefinition,
   type ImportRun,
   type ImportError,
   type CreateConnectionBody,
   type CreateDefinitionBody,
+  type InstantiateTemplateBody,
 } from '../../api/import'
 import { showToast } from '../../shared/components/Toast'
 import { usePermission } from '../../shared/hooks/usePermission'
@@ -403,6 +405,66 @@ function ConnectorsTab() {
   )
 }
 
+function TemplateField({
+  field,
+  value,
+  onChange,
+}: {
+  field: TemplateFieldDef
+  value: string
+  onChange: (val: string) => void
+}) {
+  if (field.type === 'secret') {
+    return (
+      <input
+        type="password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field.placeholder ?? ''}
+        autoComplete="new-password"
+        style={inputStyle}
+      />
+    )
+  }
+  if (field.type === 'number') {
+    return (
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field.placeholder ?? ''}
+        style={inputStyle}
+      />
+    )
+  }
+  if (field.type === 'select' && field.options) {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={inputStyle}
+      >
+        <option value="">Select...</option>
+        {field.options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    )
+  }
+  // Default: text
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={field.placeholder ?? ''}
+      style={inputStyle}
+    />
+  )
+}
+
 function SetupConnectionDrawerContent({
   template,
   onClose,
@@ -412,16 +474,16 @@ function SetupConnectionDrawerContent({
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState(`${template.name} Connection`)
-  const [configJson, setConfigJson] = useState('{}')
-  const [authType, setAuthType] = useState('none')
-  const [authConfigJson, setAuthConfigJson] = useState('{}')
-  const [dataCategoryId, setDataCategoryId] = useState<string>('')
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries((template.required_fields ?? []).map((f) => [f.key, '']))
+  )
   const [error, setError] = useState<string | null>(null)
-  const catQuery = useDataCategories()
-  const categories = catQuery.data ?? []
+
+  const hasRequiredFields = Array.isArray(template.required_fields) && template.required_fields.length > 0
 
   const mutation = useMutation({
-    mutationFn: (body: CreateConnectionBody) => importApi.createConnection(body),
+    mutationFn: (body: InstantiateTemplateBody) =>
+      importApi.instantiateTemplate(template.slug, body),
     onSuccess: (res) => {
       if (res.success) {
         queryClient.invalidateQueries({ queryKey: ['import-connections'] })
@@ -434,23 +496,14 @@ function SetupConnectionDrawerContent({
 
   const handleSave = () => {
     setError(null)
-    let config: Record<string, unknown> = {}
-    let authConfig: Record<string, unknown> = {}
-    try {
-      config = JSON.parse(configJson)
-      authConfig = JSON.parse(authConfigJson)
-    } catch {
-      setError('Invalid JSON in config fields')
-      return
-    }
     mutation.mutate({
-      name,
-      connection_type: template.slug,
-      config,
-      auth_type: authType,
-      auth_config: authConfig,
-      data_category_id: dataCategoryId || undefined,
-    } as CreateConnectionBody)
+      field_values: fieldValues,
+      connection_name: name,
+    })
+  }
+
+  const setField = (key: string, val: string) => {
+    setFieldValues((prev) => ({ ...prev, [key]: val }))
   }
 
   return (
@@ -483,56 +536,17 @@ function SetupConnectionDrawerContent({
         />
       </Field>
 
-      <Field label="Data Category">
-        <select
-          value={dataCategoryId}
-          onChange={(e) => setDataCategoryId(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="">(none)</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <Field label="Auth Type">
-        <select
-          value={authType}
-          onChange={(e) => setAuthType(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="none">None</option>
-          <option value="basic">Basic Auth</option>
-          <option value="bearer">Bearer Token</option>
-          <option value="api_key">API Key</option>
-          <option value="oauth2">OAuth 2.0</option>
-        </select>
-      </Field>
-
-      <Field label="Connection Config (JSON)">
-        <textarea
-          value={configJson}
-          onChange={(e) => setConfigJson(e.target.value)}
-          rows={6}
-          style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
-          placeholder="{}"
-        />
-      </Field>
-
-      {authType !== 'none' && (
-        <Field label="Auth Config (JSON)">
-          <textarea
-            value={authConfigJson}
-            onChange={(e) => setAuthConfigJson(e.target.value)}
-            rows={4}
-            style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
-            placeholder="{}"
-          />
-        </Field>
-      )}
+      {hasRequiredFields
+        ? template.required_fields.map((field) => (
+            <Field key={field.key} label={field.label}>
+              <TemplateField
+                field={field}
+                value={fieldValues[field.key] ?? ''}
+                onChange={(val) => setField(field.key, val)}
+              />
+            </Field>
+          ))
+        : null}
 
       {error && (
         <div

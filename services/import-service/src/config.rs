@@ -9,6 +9,9 @@ pub struct Config {
     /// exactly 32 bytes. Startup fails with a clear error if the variable is
     /// absent or malformed.
     pub master_key: [u8; 32],
+    /// Directory where uploaded import files are stored temporarily.
+    /// Configurable via `IMPORT_UPLOAD_DIR`; defaults to `/tmp/io-imports`.
+    pub upload_dir: String,
 }
 
 impl Config {
@@ -22,6 +25,8 @@ impl Config {
                 .parse()?,
             service_secret: std::env::var("IO_SERVICE_SECRET").unwrap_or_default(),
             master_key,
+            upload_dir: std::env::var("IMPORT_UPLOAD_DIR")
+                .unwrap_or_else(|_| "/tmp/io-imports".to_string()),
         })
     }
 }
