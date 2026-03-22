@@ -192,6 +192,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/suppressions/:id", delete(handlers::email::delete_suppression))
         // Internal
         .route("/internal/send", post(handlers::email::internal_send))
+        // Spec-compliant detailed health endpoint
+        .route("/health", get(handlers::email::email_health))
         .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
         .with_state(state);
 

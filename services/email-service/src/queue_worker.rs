@@ -382,7 +382,7 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
 /// Attempt delivery via the configured provider.
 /// Returns the provider message ID on success (may be None → empty string).
 #[allow(clippy::too_many_arguments)]
-async fn attempt_delivery(
+pub async fn attempt_delivery(
     state: &AppState,
     provider_id: Option<Uuid>,
     to_addresses: &[String],

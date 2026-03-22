@@ -393,25 +393,171 @@ pub async fn delete_provider(
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TestProviderBody {
+    pub to_address: Option<String>,
+}
+
 pub async fn test_provider(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    Json(body): Json<TestProviderBody>,
 ) -> impl IntoResponse {
-    let result = sqlx::query(
-        r#"UPDATE email_providers
-           SET last_tested_at = now(), last_test_ok = true, last_test_error = NULL
-           WHERE id = $1
-           RETURNING id"#,
+    // Require the caller to supply a recipient address.
+    let to_address = match body.to_address {
+        Some(addr) if !addr.trim().is_empty() => addr,
+        _ => {
+            return err("MISSING_FIELD", "to_address is required").into_response();
+        }
+    };
+
+    // Fetch the provider row (including its encrypted config).
+    let provider_row = sqlx::query(
+        r#"SELECT id, provider_type, config, from_address
+           FROM email_providers
+           WHERE id = $1"#,
     )
     .bind(id)
     .fetch_optional(&state.db)
     .await;
 
-    match result {
-        Err(e) => server_err(e).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } }))).into_response(),
-        Ok(Some(_)) => ok(json!({ "tested": true, "ok": true })).into_response(),
+    let provider_row = match provider_row {
+        Err(e) => return server_err(e).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } })),
+            )
+                .into_response();
+        }
+        Ok(Some(r)) => r,
+    };
+
+    let provider_type: String = provider_row.get("provider_type");
+    let from_address: Option<String> = provider_row.get("from_address");
+    let mut raw_config: serde_json::Value = provider_row.get("config");
+
+    // Decrypt secrets before passing to the delivery adapter.
+    if let Err(e) = crate::crypto::decrypt_provider_secrets(&mut raw_config, &provider_type, &state.config.master_key) {
+        return server_err(format!("Failed to decrypt provider secrets: {e}")).into_response();
     }
+
+    let subject = "Test from Inside/Operations";
+    let body_html = "<p>This is a test email sent from <strong>Inside/Operations</strong> to verify your email provider configuration.</p>";
+    let body_text = Some("This is a test email sent from Inside/Operations to verify your email provider configuration.");
+
+    let started_at = std::time::Instant::now();
+
+    // Attempt delivery through the provider's adapter.
+    let send_result = crate::queue_worker::attempt_delivery(
+        &state,
+        Some(id),
+        &[to_address.clone()],
+        subject,
+        body_html,
+        body_text,
+        from_address.as_deref(),
+        Some(provider_type.as_str()),
+        Some(&raw_config),
+    )
+    .await;
+
+    let delivery_ms = started_at.elapsed().as_millis() as i64;
+
+    match send_result {
+        Ok(_) => {
+            let _ = sqlx::query(
+                r#"UPDATE email_providers
+                   SET last_tested_at = now(), last_test_ok = true, last_test_error = NULL
+                   WHERE id = $1"#,
+            )
+            .bind(id)
+            .execute(&state.db)
+            .await;
+
+            Json(json!({
+                "ok": true,
+                "error": null,
+                "delivery_ms": delivery_ms
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            let error_str = e.to_string();
+            let _ = sqlx::query(
+                r#"UPDATE email_providers
+                   SET last_tested_at = now(), last_test_ok = false, last_test_error = $2
+                   WHERE id = $1"#,
+            )
+            .bind(id)
+            .bind(&error_str)
+            .execute(&state.db)
+            .await;
+
+            Json(json!({
+                "ok": false,
+                "error": error_str,
+                "delivery_ms": delivery_ms
+            }))
+            .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Health (spec-compliant detailed health endpoint)
+// ---------------------------------------------------------------------------
+
+pub async fn email_health(State(state): State<AppState>) -> impl IntoResponse {
+    // Query queue counts by status.
+    let queue_counts = sqlx::query(
+        r#"SELECT
+            COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+            COUNT(*) FILTER (WHERE status = 'retry')   AS retry,
+            COUNT(*) FILTER (WHERE status = 'dead')    AS dead
+           FROM email_queue"#,
+    )
+    .fetch_one(&state.db)
+    .await;
+
+    let (pending, retry, dead): (i64, i64, i64) = match queue_counts {
+        Ok(r) => (r.get("pending"), r.get("retry"), r.get("dead")),
+        Err(_) => (0, 0, 0),
+    };
+
+    // Query provider summary.
+    let providers_rows = sqlx::query(
+        r#"SELECT name, provider_type, enabled, is_default, last_test_ok
+           FROM email_providers
+           ORDER BY name"#,
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    let providers: Vec<serde_json::Value> = providers_rows
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.get::<String, _>("name"),
+                "type": r.get::<String, _>("provider_type"),
+                "enabled": r.get::<bool, _>("enabled"),
+                "default": r.get::<bool, _>("is_default"),
+                "last_test_ok": r.get::<Option<bool>, _>("last_test_ok"),
+            })
+        })
+        .collect();
+
+    Json(json!({
+        "status": "healthy",
+        "queue": {
+            "pending": pending,
+            "retry": retry,
+            "dead": dead
+        },
+        "providers": providers
+    }))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
