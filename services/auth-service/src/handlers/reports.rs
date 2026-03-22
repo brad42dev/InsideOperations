@@ -1051,6 +1051,104 @@ pub async fn seed_report_templates(db: &sqlx::PgPool) {
             "Shift Operations",
             "Comprehensive end-of-shift bundle: active alarms, shelved alarms, recent log entries, shift roster, critical point summary",
         ),
+        // Phase 2 — Alarm Management (2)
+        (
+            "Time to Acknowledge",
+            "Alarm Management",
+            "Distribution of alarm acknowledgment times with percentile markers (median, p90, p95). Breakdown by priority.",
+        ),
+        (
+            "Shelved & Suppressed Alarms",
+            "Alarm Management",
+            "Currently shelved alarms with auto-unshelve countdown, shelving frequency, compliance with ISA-18.2 shelving time limits.",
+        ),
+        // Phase 2 — Process Data (3)
+        (
+            "Exceedance Report",
+            "Process Data",
+            "Time duration and percentage a value was above/below a configured threshold. Critical for environmental compliance.",
+        ),
+        (
+            "Data Quality Report",
+            "Process Data",
+            "Data gaps, bad OPC quality periods, stale data, points with persistent quality issues. Worst offenders ranked.",
+        ),
+        (
+            "Period Comparison",
+            "Process Data",
+            "Side-by-side comparison of same points across two time ranges (this week vs. last week, this month vs. same month last year).",
+        ),
+        // Phase 2 — Operational Logs (2)
+        (
+            "Log Entry Search",
+            "Operational Logs",
+            "Full-text search results across log entries for a date range, formatted for investigation/audit documentation.",
+        ),
+        (
+            "Operator Activity Report",
+            "Operational Logs",
+            "All log entries by a specific operator across all templates in a time range. Grouped by log instance/template.",
+        ),
+        // Phase 2 — Rounds & Inspections (1)
+        (
+            "Equipment Health Trend",
+            "Rounds & Inspections",
+            "Historical readings for a specific checkpoint/equipment over time. Shows degradation trends with alarm thresholds and statistical summary.",
+        ),
+        // Phase 2 — Equipment & Maintenance (4)
+        (
+            "Alarm Rationalization Status",
+            "Equipment & Maintenance",
+            "How many alarms are documented/rationalized/approved per ISA-18.2 lifecycle. Unrationalized alarms ranked by annunciation frequency.",
+        ),
+        (
+            "Disabled Alarms Audit",
+            "Equipment & Maintenance",
+            "Permanently suppressed alarms with reason, review date. Alarms disabled >90 days without review flagged. MOC compliance.",
+        ),
+        (
+            "OPC Connection Health",
+            "Equipment & Maintenance",
+            "OPC UA connection uptime, reconnection events, downtime per source, point quality summary per source.",
+        ),
+        (
+            "Missed Readings Report",
+            "Equipment & Maintenance",
+            "Checkpoints skipped within otherwise-completed rounds. Partial completion tracking by template over time.",
+        ),
+        // Phase 2 — Environmental & Compliance (2)
+        (
+            "Alert Channel Delivery",
+            "Environmental & Compliance",
+            "Delivery success rates across alert channels (WebSocket, email, SMS, voice, radio, PA, push). Failed delivery details.",
+        ),
+        (
+            "Escalation Report",
+            "Environmental & Compliance",
+            "Alert escalation frequency beyond Level 0. Indicates inadequate initial routing or insufficient staffing.",
+        ),
+        // Phase 2 — Security & Access (2)
+        (
+            "Attendance Report",
+            "Security & Access",
+            "Badge-in/badge-out history per person, hours on site per day/week.",
+        ),
+        (
+            "Audit Trail Report",
+            "Security & Access",
+            "Complete audit trail for configurable entity or time range. Chronological, filterable, searchable.",
+        ),
+        // Phase 2 — Executive & Management (2)
+        (
+            "Safety Metrics Summary",
+            "Executive & Management",
+            "Safety event count, emergency alerts, critical alarms, round exceptions, safety-tagged log entries. Trend vs. prior period.",
+        ),
+        (
+            "Operational Summary",
+            "Executive & Management",
+            "Configurable executive KPI report combining selected widgets. Template customizable per site.",
+        ),
     ];
 
     let default_params = serde_json::json!({
