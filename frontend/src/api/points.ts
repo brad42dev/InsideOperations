@@ -105,6 +105,48 @@ export interface PointDetailResponse {
   } | null
 }
 
+// ---------------------------------------------------------------------------
+// Alarm data types for PointDetailPanel
+// ---------------------------------------------------------------------------
+
+/** Alarm threshold row from GET /api/v1/points/:id/alarms */
+export interface PointAlarmThreshold {
+  level: 'HH' | 'H' | 'L' | 'LL'
+  value: number | null
+  enabled: boolean
+}
+
+/** Summary alarm event from the last 5 alarms list */
+export interface PointAlarmEvent {
+  id: string
+  timestamp: string
+  value: number | null
+  priority: 'critical' | 'high' | 'medium' | 'low' | string
+  state: string
+  message: string | null
+}
+
+/** Combined alarm data response for the Point Detail panel */
+export interface PointAlarmData {
+  thresholds: PointAlarmThreshold[]
+  alarm_count_30d: number
+  time_in_alarm_minutes: number
+  last_alarms: PointAlarmEvent[]
+}
+
+// ---------------------------------------------------------------------------
+// Linked graphics types for PointDetailPanel
+// ---------------------------------------------------------------------------
+
+/** A graphic that contains this point (reverse lookup) */
+export interface LinkedGraphic {
+  id: string
+  name: string
+  /** 'console' | 'process' | 'designer' */
+  type: string
+  route: string
+}
+
 /** Latest value snapshot from the archive */
 export interface PointLatest {
   point_id: string
@@ -192,6 +234,20 @@ export const pointsApi = {
     params: { start: string; end: string; resolution?: string; limit?: number },
   ): Promise<ApiResult<HistoryResult[]>> =>
     api.post<HistoryResult[]>('/api/points/history-batch', { point_ids: pointIds, ...params }),
+
+  /**
+   * GET /api/v1/points/:id/alarms — alarm thresholds, 30-day count, time in alarm,
+   * and last 5 alarm events for the Point Detail panel.
+   */
+  getAlarmData: (pointId: string): Promise<ApiResult<PointAlarmData>> =>
+    api.get<PointAlarmData>(`/api/v1/points/${encodeURIComponent(pointId)}/alarms`),
+
+  /**
+   * GET /api/v1/points/:id/graphics — reverse lookup against design_object_points
+   * returning all graphics that contain this point.
+   */
+  getLinkedGraphics: (pointId: string): Promise<ApiResult<LinkedGraphic[]>> =>
+    api.get<LinkedGraphic[]>(`/api/v1/points/${encodeURIComponent(pointId)}/graphics`),
 }
 
 // ---------------------------------------------------------------------------

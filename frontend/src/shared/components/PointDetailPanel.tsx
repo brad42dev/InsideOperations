@@ -5,9 +5,15 @@
  *   - Floating window (not a modal): draggable, resizable, pinnable, minimizable.
  *   - Session-persisted position and size under key `io-point-detail-{pointId}`.
  *   - Panel data from GET /api/v1/points/:id/detail (single request).
+ *   - Alarm Data section: HH/H/L/LL thresholds, alarm count 30d, time in alarm, last 5 alarms.
+ *   - Graphics section: clickable links to all graphics containing this point.
+ *   - Action buttons: "View in Forensics", "Open Trend".
+ *   - Resizable (default 400×600px, min 320×400px).
+ *   - Pin toggle, minimize to compact bar, instanceId for multi-instance support.
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { pointsApi } from '../../api/points'
 import type { PointDetailResponse } from '../../api/points'
@@ -49,9 +55,14 @@ function savePanelState(pointId: string, state: PanelState): void {
   }
 }
 
+const DEFAULT_WIDTH = 400
+const DEFAULT_HEIGHT = 600
+const MIN_WIDTH = 320
+const MIN_HEIGHT = 400
+
 function defaultPanelState(anchorPosition?: { x: number; y: number }): PanelState {
-  const width = 320
-  const height = 380
+  const width = DEFAULT_WIDTH
+  const height = DEFAULT_HEIGHT
   let left: number
   let top: number
 
@@ -132,6 +143,331 @@ function useSparklineData(pointId: string | null, startTime?: string, endTime?: 
 }
 
 // ---------------------------------------------------------------------------
+// Section container — collapsible with loading/error states
+// ---------------------------------------------------------------------------
+
+function SectionContainer({
+  title,
+  isLoading,
+  isError,
+  onRetry,
+  children,
+  defaultOpen = true,
+}: {
+  title: string
+  isLoading?: boolean
+  isError?: boolean
+  onRetry?: () => void
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        borderTop: '1px solid var(--io-border)',
+        paddingTop: 6,
+      }}
+    >
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          width: '100%',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '2px 0',
+          color: 'var(--io-text-muted)',
+          fontSize: '11px',
+          fontWeight: 600,
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+          textAlign: 'left',
+        }}
+        aria-expanded={open}
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+          style={{
+            flexShrink: 0,
+            transform: open ? 'rotate(90deg)' : 'none',
+            transition: 'transform 0.15s',
+          }}
+        >
+          <path d="M4 1l8 7-8 7V1z" />
+        </svg>
+        {title}
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 6 }}>
+          {isLoading && (
+            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', padding: '4px 0' }}>
+              Loading...
+            </div>
+          )}
+          {isError && !isLoading && (
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'var(--io-status-bad, #ef4444)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              Unable to load
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--io-accent, #3b82f6)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0 2px',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+          {!isLoading && !isError && children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Alarm Data section content
+// ---------------------------------------------------------------------------
+
+function AlarmDataSection({ pointId }: { pointId: string }) {
+  const alarmQuery = useQuery({
+    queryKey: ['point-alarm-data', pointId],
+    queryFn: async () => {
+      const result = await pointsApi.getAlarmData(pointId)
+      if (!result.success) throw new Error('Failed to load alarm data')
+      return result.data
+    },
+    staleTime: 60_000,
+    retry: 1,
+  })
+
+  return (
+    <SectionContainer
+      title="Alarm Data"
+      isLoading={alarmQuery.isLoading}
+      isError={alarmQuery.isError}
+      onRetry={() => alarmQuery.refetch()}
+    >
+      {alarmQuery.data && (
+        <>
+          {/* Threshold table */}
+          <div style={{ marginBottom: 8 }}>
+            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {(['HH', 'H', 'L', 'LL'] as const).map((level) => (
+                    <th
+                      key={level}
+                      style={{
+                        textAlign: 'right',
+                        padding: '2px 4px',
+                        color: 'var(--io-text-muted)',
+                        fontWeight: 600,
+                        fontSize: '10px',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {level}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {(['HH', 'H', 'L', 'LL'] as const).map((level) => {
+                    const threshold = alarmQuery.data!.thresholds.find((t) => t.level === level)
+                    return (
+                      <td
+                        key={level}
+                        style={{
+                          textAlign: 'right',
+                          padding: '2px 4px',
+                          color: threshold?.enabled
+                            ? 'var(--io-text-primary)'
+                            : 'var(--io-text-muted)',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {threshold?.value !== undefined && threshold?.value !== null
+                          ? String(threshold.value)
+                          : '—'}
+                      </td>
+                    )
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Summary stats */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              marginBottom: 8,
+              fontSize: '12px',
+            }}
+          >
+            <div>
+              <div style={{ color: 'var(--io-text-muted)', fontSize: '10px' }}>Count (30d)</div>
+              <div style={{ fontWeight: 600, color: 'var(--io-text-primary)' }}>
+                {alarmQuery.data.alarm_count_30d}
+              </div>
+            </div>
+            <div>
+              <div style={{ color: 'var(--io-text-muted)', fontSize: '10px' }}>Time in alarm</div>
+              <div style={{ fontWeight: 600, color: 'var(--io-text-primary)' }}>
+                {alarmQuery.data.time_in_alarm_minutes >= 60
+                  ? `${Math.round(alarmQuery.data.time_in_alarm_minutes / 60)}h`
+                  : `${alarmQuery.data.time_in_alarm_minutes}m`}
+              </div>
+            </div>
+          </div>
+
+          {/* Last 5 alarm events */}
+          {alarmQuery.data.last_alarms.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
+                Recent alarms
+              </div>
+              {alarmQuery.data.last_alarms.map((event) => (
+                <div
+                  key={event.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    padding: '3px 0',
+                    borderBottom: '1px solid var(--io-border)',
+                    fontSize: '11px',
+                  }}
+                >
+                  <div>
+                    <div style={{ color: 'var(--io-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {event.value !== null ? String(event.value) : '—'}
+                    </div>
+                    <div style={{ color: 'var(--io-text-muted)', fontSize: '10px' }}>
+                      {new Date(event.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      letterSpacing: '0.03em',
+                      textTransform: 'uppercase',
+                      color:
+                        event.priority === 'critical' || event.priority === 'high'
+                          ? 'var(--io-status-bad, #ef4444)'
+                          : 'var(--io-status-uncertain, #f59e0b)',
+                    }}
+                  >
+                    {event.priority}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {alarmQuery.data.last_alarms.length === 0 && (
+            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+              No recent alarms
+            </div>
+          )}
+        </>
+      )}
+    </SectionContainer>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Graphics section content
+// ---------------------------------------------------------------------------
+
+function GraphicsSection({ pointId }: { pointId: string }) {
+  const navigate = useNavigate()
+
+  const graphicsQuery = useQuery({
+    queryKey: ['point-linked-graphics', pointId],
+    queryFn: async () => {
+      const result = await pointsApi.getLinkedGraphics(pointId)
+      if (!result.success) throw new Error('Failed to load linked graphics')
+      return result.data
+    },
+    staleTime: 120_000,
+    retry: 1,
+  })
+
+  return (
+    <SectionContainer
+      title="Graphics"
+      isLoading={graphicsQuery.isLoading}
+      isError={graphicsQuery.isError}
+      onRetry={() => graphicsQuery.refetch()}
+    >
+      {graphicsQuery.data && graphicsQuery.data.length === 0 && (
+        <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+          No graphics contain this point
+        </div>
+      )}
+      {graphicsQuery.data && graphicsQuery.data.length > 0 && (
+        <div>
+          {graphicsQuery.data.map((graphic) => (
+            <button
+              key={graphic.id}
+              onClick={() => navigate(graphic.route)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px 0',
+                fontSize: '12px',
+                color: 'var(--io-accent, #3b82f6)',
+                textDecoration: 'none',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={graphic.name}
+            >
+              {graphic.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </SectionContainer>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
@@ -149,6 +485,11 @@ export interface PointDetailPanelProps {
    * Required when isPinned=true.
    */
   panelId?: string
+  /**
+   * Unique instance ID for multi-instance support (up to 3 concurrent panels).
+   * Parent manages an array of { instanceId, pointId } entries.
+   */
+  instanceId?: string
   /**
    * When true, renders inline (no floating/draggable behaviour) suitable for
    * embedding inside evidence cards or other container layouts.
@@ -215,12 +556,14 @@ export default function PointDetailPanel({
   anchorPosition,
   isPinned = false,
   panelId,
+  instanceId: _instanceId,
   inline = false,
   startTime,
   endTime,
 }: PointDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const { pinPanel, unpinPanel } = usePointDetailStore()
+  const navigate = useNavigate()
 
   // ── Panel state (position, size, minimized) — session-persisted ──────────
 
@@ -303,8 +646,8 @@ export default function PointDetailPanel({
         if (width > 0 && height > 0) {
           setPanelState((prev) => ({
             ...prev,
-            width: Math.round(width),
-            height: Math.round(height),
+            width: Math.max(MIN_WIDTH, Math.round(width)),
+            height: Math.max(MIN_HEIGHT, Math.round(height)),
           }))
         }
       }
@@ -497,6 +840,64 @@ export default function PointDetailPanel({
         />
       </div>
 
+      {/* Alarm Data section */}
+      <AlarmDataSection pointId={pointId} />
+
+      {/* Graphics section */}
+      <GraphicsSection pointId={pointId} />
+
+      {/* Action buttons */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          marginTop: 12,
+          paddingTop: 10,
+          borderTop: '1px solid var(--io-border)',
+        }}
+      >
+        <button
+          onClick={() => navigate(`/forensics?point=${encodeURIComponent(pointId)}`)}
+          style={{
+            flex: 1,
+            padding: '6px 8px',
+            fontSize: '12px',
+            fontWeight: 500,
+            background: 'var(--io-surface-secondary)',
+            border: '1px solid var(--io-border)',
+            borderRadius: '5px',
+            color: 'var(--io-text-primary)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          title="Open this point in Forensics for historical analysis"
+        >
+          View in Forensics
+        </button>
+        <button
+          onClick={() => navigate(`/console?trend=${encodeURIComponent(pointId)}`)}
+          style={{
+            flex: 1,
+            padding: '6px 8px',
+            fontSize: '12px',
+            fontWeight: 500,
+            background: 'var(--io-accent, #3b82f6)',
+            border: 'none',
+            borderRadius: '5px',
+            color: '#fff',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          title="Open trend for this point"
+        >
+          Open Trend
+        </button>
+      </div>
+
       {/* Point ID footer */}
       <div
         style={{
@@ -551,8 +952,8 @@ export default function PointDetailPanel({
         left,
         width: minimized ? width : width,
         height: minimized ? 'auto' : height,
-        minWidth: 240,
-        minHeight: minimized ? 'auto' : 200,
+        minWidth: MIN_WIDTH,
+        minHeight: minimized ? 'auto' : MIN_HEIGHT,
         // CSS resize: both — browser draws resize handles on all edges/corners
         resize: minimized ? 'none' : 'both',
         overflow: 'hidden',
@@ -595,7 +996,7 @@ export default function PointDetailPanel({
           >
             {(meta as { name?: string } | null | undefined)?.name ?? pointId}
           </div>
-          {(meta as { source_name?: string } | null | undefined)?.source_name && (
+          {!minimized && (meta as { source_name?: string } | null | undefined)?.source_name && (
             <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: 1 }}>
               {(meta as { source_name?: string }).source_name}
             </div>

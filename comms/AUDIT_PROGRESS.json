@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T23:22:24.070717Z",
+  "last_updated": "2026-03-22T23:44:57.983860Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -132,7 +132,8 @@
     "DD-30-005": 1,
     "DD-31-001": 1,
     "DD-31-007": 1,
-    "DD-31-008": 1
+    "DD-31-008": 1,
+    "DD-31-009": 1
   },
   "queue": [
     {
@@ -3202,7 +3203,7 @@
       "wave": 3,
       "title": "Add right-click context menus to template and group list rows (CX-ENTITY-CONTEXT)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3274,7 +3275,7 @@
       "wave": 3,
       "title": "Implement PointDetailPanel full section layout (Alarm Data, Graphics, action buttons, resize, pin, minimize, multi-instance)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
