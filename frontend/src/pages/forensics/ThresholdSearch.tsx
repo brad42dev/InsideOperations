@@ -1,8 +1,11 @@
-import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useState, useMemo, useCallback } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { forensicsApi, type ThresholdExceedance } from '../../api/forensics'
+import { pointsApi } from '../../api/points'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
+import EChart from '../../shared/components/charts/EChart'
+import type { EChartsOption } from 'echarts'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,6 +74,121 @@ export default function ThresholdSearch() {
   })
 
   const exceedances = searchMutation.data ?? []
+
+  // ---------------------------------------------------------------------------
+  // History data for trend view
+  // ---------------------------------------------------------------------------
+
+  // Compute the time window that matches the lookback selector
+  const historyRange = useMemo(() => {
+    const end = new Date()
+    const start = new Date(end.getTime() - lookback * 24 * 60 * 60 * 1000)
+    return { start: start.toISOString(), end: end.toISOString() }
+  }, [lookback])
+
+  const historyQuery = useQuery({
+    queryKey: ['threshold-trend', pointId, lookback],
+    queryFn: async () => {
+      const result = await pointsApi.getHistory(pointId.trim(), {
+        start: historyRange.start,
+        end: historyRange.end,
+        limit: 1000,
+      })
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    // Only fetch when in trend view and a successful search has been done
+    enabled: viewMode === 'trend' && searchMutation.isSuccess && !!pointId.trim(),
+    staleTime: 60_000,
+  })
+
+  // Build ECharts option from history + exceedances
+  const trendOption = useMemo(() => {
+    const rows = historyQuery.data ?? []
+    const thresholdNum = parseFloat(threshold)
+
+    const seriesData: [number, number][] = rows
+      .filter((r) => r.value !== null && r.value !== undefined)
+      .map((r) => [new Date(r.time).getTime(), r.value as number])
+
+    const markAreas: [{ xAxis: number; itemStyle: { color: string } }, { xAxis: number }][] =
+      exceedances.map((exc) => [
+        {
+          xAxis: new Date(exc.start).getTime(),
+          itemStyle: { color: 'rgba(239,68,68,0.15)' },
+        },
+        {
+          xAxis: new Date(exc.end).getTime(),
+        },
+      ])
+
+    return {
+      tooltip: {
+        trigger: 'axis' as const,
+        axisPointer: { type: 'cross' as const },
+        formatter: (params: unknown) => {
+          const arr = params as Array<{ value: [number, number] }>
+          if (!arr || arr.length === 0) return ''
+          const [ts, val] = arr[0].value
+          return `${new Date(ts).toLocaleString()}<br/>Value: ${typeof val === 'number' ? val.toLocaleString(undefined, { maximumFractionDigits: 4 }) : val}`
+        },
+      },
+      xAxis: {
+        type: 'time' as const,
+        axisLabel: { fontSize: 11 },
+      },
+      yAxis: {
+        type: 'value' as const,
+        axisLabel: { fontSize: 11 },
+      },
+      grid: { left: 60, right: 20, top: 24, bottom: 40 },
+      series: [
+        {
+          type: 'line' as const,
+          data: seriesData,
+          showSymbol: false,
+          lineStyle: { width: 1.5 },
+          markLine: isNaN(thresholdNum)
+            ? undefined
+            : {
+                silent: true,
+                symbol: 'none',
+                label: { formatter: `Threshold: ${thresholdNum}` },
+                lineStyle: { color: '#f97316', type: 'dashed' as const, width: 1.5 },
+                data: [{ yAxis: thresholdNum }],
+              },
+          markArea:
+            markAreas.length > 0
+              ? {
+                  silent: false,
+                  data: markAreas,
+                }
+              : undefined,
+        },
+      ],
+    } as EChartsOption
+  }, [historyQuery.data, exceedances, threshold])
+
+  // Handle click on a markArea region — find the matching exceedance
+  const handleTrendEvents = useCallback(
+    (params: unknown) => {
+      const p = params as { componentType?: string; name?: string; data?: { coord?: [number] } }
+      if (p?.componentType === 'markArea') {
+        // ECharts fires markArea click with the area's data index
+        const areaParams = params as { dataIndex?: number }
+        if (typeof areaParams.dataIndex === 'number') {
+          const exc = exceedances[areaParams.dataIndex]
+          if (exc) setSelectedExceedance(exc)
+        }
+      }
+    },
+    [exceedances],
+  )
+
+  const trendEventHandlers = useMemo(
+    () => ({ click: handleTrendEvents }),
+    [handleTrendEvents],
+  )
 
   const columns: ColumnDef<ThresholdExceedance>[] = [
     {
@@ -406,25 +524,117 @@ export default function ThresholdSearch() {
 
         {/* Trend view */}
         {searchMutation.isSuccess && viewMode === 'trend' && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              padding: '40px 24px',
-              color: 'var(--io-text-muted)',
-              textAlign: 'center',
-            }}
-          >
-            <span style={{ fontSize: '32px', opacity: 0.25 }}>📈</span>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--io-text-secondary)' }}>
-              Trend view — load the investigation to see the trend chart.
-            </p>
-            <p style={{ margin: 0, fontSize: '12px' }}>
-              Use List View to browse exceedances, then click "Start Investigation" to open a full trend.
-            </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Summary line */}
+            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+              {exceedances.length > 0
+                ? <>
+                    Found{' '}
+                    <strong style={{ color: 'var(--io-text-primary)' }}>{exceedances.length}</strong>
+                    {' '}exceedance{exceedances.length !== 1 ? 's' : ''} where{' '}
+                    <strong style={{ color: 'var(--io-text-primary)' }}>{pointId}</strong>{' '}
+                    {operator} {threshold} in the last {lookback} days.
+                    {' '}Shaded regions are exceedances — click to select.
+                  </>
+                : <>No exceedances found for the given criteria.</>
+              }
+            </div>
+
+            {/* Chart */}
+            {historyQuery.isPending && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '300px',
+                  color: 'var(--io-text-muted)',
+                  fontSize: '13px',
+                }}
+              >
+                Loading trend data...
+              </div>
+            )}
+            {historyQuery.isError && (
+              <div
+                style={{
+                  padding: '10px 16px',
+                  background: 'rgba(239,68,68,0.08)',
+                  borderRadius: 'var(--io-radius)',
+                  fontSize: '13px',
+                  color: 'var(--io-danger, #ef4444)',
+                }}
+              >
+                Failed to load trend data: {(historyQuery.error as Error).message}
+              </div>
+            )}
+            {historyQuery.isSuccess && (
+              <EChart
+                option={trendOption}
+                height={340}
+                onEvents={trendEventHandlers}
+              />
+            )}
+
+            {/* Selected exceedance action (mirrors list view) */}
+            {selectedExceedance && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--io-surface)',
+                  border: '1px solid var(--io-accent)',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ fontSize: '13px' }}>
+                  <span style={{ color: 'var(--io-text-muted)' }}>Selected: </span>
+                  <span style={{ color: 'var(--io-text-primary)', fontWeight: 600 }}>
+                    {new Date(selectedExceedance.start).toLocaleString()} — peak {selectedExceedance.peak_value.toFixed(4)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => setSelectedExceedance(null)}
+                    style={{
+                      padding: '5px 10px',
+                      background: 'none',
+                      border: '1px solid var(--io-border)',
+                      borderRadius: 'var(--io-radius)',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: 'var(--io-text-muted)',
+                    }}
+                  >
+                    Deselect
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCreatingFor(selectedExceedance)
+                      createInvestigationMutation.mutate(selectedExceedance)
+                    }}
+                    disabled={createInvestigationMutation.isPending}
+                    style={{
+                      padding: '5px 12px',
+                      background: 'var(--io-accent)',
+                      border: 'none',
+                      borderRadius: 'var(--io-radius)',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#fff',
+                    }}
+                  >
+                    {creatingFor === selectedExceedance && createInvestigationMutation.isPending
+                      ? 'Creating...'
+                      : 'Start Investigation'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
