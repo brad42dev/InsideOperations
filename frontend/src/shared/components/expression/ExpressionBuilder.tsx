@@ -1,4 +1,5 @@
-import React, { useReducer, useRef, useState, useEffect } from 'react'
+import React, { useReducer, useRef, useState, useEffect, useCallback } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
 import {
   DndContext,
   DragOverlay,
@@ -21,6 +22,7 @@ import { useAuthStore } from '../../../store/auth'
 import { api } from '../../../api/client'
 import type { PointMeta } from '../../../api/points'
 import { showToast } from '../Toast'
+import { expressionsApi } from '../../../api/expressions'
 
 // ---------------------------------------------------------------------------
 // Palette definition
@@ -1187,6 +1189,16 @@ export function ExpressionBuilder({
   const [showPreview, setShowPreview] = useState(true)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [benchmarkRunning, setBenchmarkRunning] = useState(false)
+
+  // OK-flow dialog state
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [showSlowWarning, setShowSlowWarning] = useState(false)
+  const [slowWarningAvgMs, setSlowWarningAvgMs] = useState<number>(0)
+  const [showErrorDialog, setShowErrorDialog] = useState(false)
+  const [okFlowRunning, setOkFlowRunning] = useState(false)
+  // Holds the resolved AST during the multi-step OK flow
+  const pendingAstRef = useRef<ExpressionAst | null>(null)
   const [benchmarkAvgMs, setBenchmarkAvgMs] = useState<number | null>(null)
   const [benchmarkResult, setBenchmarkResult] = useState<number | null | 'timeout'>(null)
   const [benchmarkWarnings, setBenchmarkWarnings] = useState<string[]>([])
@@ -1375,10 +1387,13 @@ export function ExpressionBuilder({
     worker.postMessage({ tiles: state.tiles, testValues: testNumericValues })
   }
 
-  function handleApply() {
-    if (!validation.valid) return
+  // ---------------------------------------------------------------------------
+  // OK flow — runs the benchmark and optionally saves before calling onApply
+  // ---------------------------------------------------------------------------
+
+  function buildAst(): ExpressionAst {
     const root = tilesToAst(state.tiles, context)
-    const ast: ExpressionAst = {
+    return {
       version: 1,
       context,
       root,
@@ -1387,10 +1402,119 @@ export function ExpressionBuilder({
         precision: state.outputPrecision,
       },
     }
-    onApply(ast)
   }
 
+  function handleOkClick() {
+    if (!validation.valid) return
+
+    // Validate name when saving
+    if (state.saveForFuture && !state.name.trim()) {
+      setNameError('Expression name is required when "Save for Future Use" is checked.')
+      return
+    }
+    setNameError(null)
+
+    // Capture the AST for use later in the flow
+    pendingAstRef.current = buildAst()
+
+    // Show the appropriate confirmation dialog
+    setShowConfirmDialog(true)
+  }
+
+  // Called when the user confirms the confirmation dialog
+  const handleConfirmOk = useCallback(async () => {
+    setShowConfirmDialog(false)
+    setOkFlowRunning(true)
+
+    const ast = pendingAstRef.current
+    if (!ast) {
+      setOkFlowRunning(false)
+      return
+    }
+
+    // Run benchmark via Worker (same logic as runBenchmark)
+    const benchmarkResult = await new Promise<{ avgMs: number; result: number | null } | 'timeout' | 'error'>((resolve) => {
+      const worker = new Worker(
+        new URL('../../../workers/expressionBenchmark.worker.ts', import.meta.url),
+        { type: 'module' },
+      )
+
+      const timeout = setTimeout(() => {
+        worker.terminate()
+        resolve('timeout')
+      }, 5000)
+
+      worker.onmessage = (e: MessageEvent<{ avgMs: number; result: number | null }>) => {
+        clearTimeout(timeout)
+        worker.terminate()
+        resolve(e.data)
+      }
+
+      worker.onerror = () => {
+        clearTimeout(timeout)
+        worker.terminate()
+        resolve('error')
+      }
+
+      worker.postMessage({ tiles: state.tiles, testValues: testNumericValues })
+    })
+
+    // Handle benchmark outcomes
+    if (benchmarkResult === 'timeout' || benchmarkResult === 'error') {
+      setOkFlowRunning(false)
+      setShowErrorDialog(true)
+      return
+    }
+
+    if (benchmarkResult.result === null) {
+      // Expression produced an evaluation error (e.g. division by zero)
+      setOkFlowRunning(false)
+      setShowErrorDialog(true)
+      return
+    }
+
+    if (benchmarkResult.avgMs > 1) {
+      // Warn about slow expression
+      setSlowWarningAvgMs(benchmarkResult.avgMs)
+      setOkFlowRunning(false)
+      setShowSlowWarning(true)
+      return
+    }
+
+    // All checks passed — proceed to save + apply
+    await doSaveAndApply(ast)
+  }, [state.tiles, state.saveForFuture, state.name, state.description, state.shareExpression, testNumericValues])
+
+  // Called by slow-warning "Accept & Apply" button and by the normal path
+  const doSaveAndApply = useCallback(async (ast: ExpressionAst) => {
+    setOkFlowRunning(true)
+    try {
+      if (state.saveForFuture) {
+        const result = await expressionsApi.create({
+          name: state.name.trim(),
+          description: state.description.trim() || undefined,
+          context,
+          ast,
+          is_shared: state.shareExpression,
+        })
+        if (!result.success) {
+          const errMsg = result.error?.message ?? 'Failed to save expression.'
+          showToast({ title: 'Save failed', description: errMsg, variant: 'error', duration: 5000 })
+          setOkFlowRunning(false)
+          return
+        }
+      }
+      onApply(ast)
+    } catch (err) {
+      showToast({ title: 'Save failed', description: String(err), variant: 'error', duration: 5000 })
+    } finally {
+      setOkFlowRunning(false)
+    }
+  }, [state.saveForFuture, state.name, state.description, state.shareExpression, context, onApply])
+
   // Shared button styles
+  const okDisabled = !validation.valid || okFlowRunning
+
   const btnPrimary: React.CSSProperties = {
     padding: '8px 20px',
     background: 'var(--io-accent)',
@@ -1399,8 +1523,8 @@ export function ExpressionBuilder({
     borderRadius: 'var(--io-radius)',
     fontSize: '13px',
     fontWeight: 600,
-    cursor: validation.valid ? 'pointer' : 'not-allowed',
-    opacity: validation.valid ? 1 : 0.5,
+    cursor: okDisabled ? 'not-allowed' : 'pointer',
+    opacity: okDisabled ? 0.5 : 1,
   }
 
   const btnSecondary: React.CSSProperties = {
@@ -1451,11 +1575,22 @@ export function ExpressionBuilder({
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>Expression Name</label>
             <input
-              style={inputStyle}
+              style={{
+                ...inputStyle,
+                borderColor: nameError ? 'var(--io-danger)' : undefined,
+              }}
               placeholder="e.g. Pump Efficiency Formula"
               value={state.name}
-              onChange={(e) => dispatch({ type: 'SET_NAME', value: e.target.value })}
+              onChange={(e) => {
+                dispatch({ type: 'SET_NAME', value: e.target.value })
+                if (nameError) setNameError(null)
+              }}
             />
+            {nameError && (
+              <div style={{ fontSize: '12px', color: 'var(--io-danger)', marginTop: '4px' }}>
+                {nameError}
+              </div>
+            )}
           </div>
           <div style={{ flex: 2 }}>
             <label style={labelStyle}>Description</label>
@@ -1815,13 +1950,188 @@ export function ExpressionBuilder({
 
       {/* Action buttons */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '4px' }}>
-        <button style={btnSecondary} onClick={onCancel}>
+        <button style={btnSecondary} onClick={onCancel} disabled={okFlowRunning}>
           Cancel
         </button>
-        <button style={btnPrimary} disabled={!validation.valid} onClick={handleApply}>
-          OK
+        <button style={btnPrimary} disabled={okDisabled} onClick={handleOkClick}>
+          {okFlowRunning ? 'Working...' : 'OK'}
         </button>
       </div>
+
+      {/* ---- Confirmation dialog ---- */}
+      <Dialog.Root open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <Dialog.Portal>
+          <Dialog.Overlay style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+          }} />
+          <Dialog.Content style={{
+            position: 'fixed',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'var(--io-surface)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            padding: '24px',
+            minWidth: '360px',
+            maxWidth: '480px',
+            zIndex: 1001,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <Dialog.Title style={{ fontSize: '15px', fontWeight: 600, color: 'var(--io-text-primary)', marginBottom: '12px' }}>
+              Confirm
+            </Dialog.Title>
+            <Dialog.Description style={{ fontSize: '14px', color: 'var(--io-text-secondary)', marginBottom: '20px' }}>
+              {state.saveForFuture
+                ? 'Test this expression, save it, and apply it?'
+                : 'Test this expression and apply it?'}
+            </Dialog.Description>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button style={btnSecondary} onClick={() => setShowConfirmDialog(false)}>
+                Cancel
+              </button>
+              <button style={btnPrimary} onClick={() => { void handleConfirmOk() }}>
+                {state.saveForFuture ? 'Save & Apply' : 'Apply'}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* ---- Error dialog (expression evaluation error) ---- */}
+      <Dialog.Root open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+        <Dialog.Portal>
+          <Dialog.Overlay style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+          }} />
+          <Dialog.Content style={{
+            position: 'fixed',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'var(--io-surface)',
+            border: '1px solid rgba(239,68,68,0.4)',
+            borderRadius: 'var(--io-radius)',
+            padding: '24px',
+            minWidth: '360px',
+            maxWidth: '480px',
+            zIndex: 1001,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <Dialog.Title style={{ fontSize: '15px', fontWeight: 600, color: 'var(--io-danger)', marginBottom: '12px' }}>
+              Expression Error
+            </Dialog.Title>
+            <Dialog.Description style={{ fontSize: '14px', color: 'var(--io-text-secondary)', marginBottom: '20px' }}>
+              This expression produces an error. Please check your formula.
+            </Dialog.Description>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button style={btnSecondary} onClick={() => setShowErrorDialog(false)}>
+                Cancel
+              </button>
+              {state.saveForFuture && (
+                <button style={btnSecondary} onClick={() => {
+                  setShowErrorDialog(false)
+                  // Save for later without applying
+                  void (async () => {
+                    const ast = pendingAstRef.current
+                    if (!ast) return
+                    setOkFlowRunning(true)
+                    const result = await expressionsApi.create({
+                      name: state.name.trim(),
+                      description: state.description.trim() || undefined,
+                      context,
+                      ast,
+                      is_shared: state.shareExpression,
+                    })
+                    setOkFlowRunning(false)
+                    if (result.success) {
+                      showToast({ title: 'Saved', description: 'Expression saved for later use.', variant: 'success', duration: 3000 })
+                    } else {
+                      const errMsg = result.error?.message ?? 'Failed to save expression.'
+                      showToast({ title: 'Save failed', description: errMsg, variant: 'error', duration: 5000 })
+                    }
+                  })()
+                }}>
+                  Save for Later
+                </button>
+              )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* ---- Slow warning dialog ---- */}
+      <Dialog.Root open={showSlowWarning} onOpenChange={setShowSlowWarning}>
+        <Dialog.Portal>
+          <Dialog.Overlay style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+          }} />
+          <Dialog.Content style={{
+            position: 'fixed',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'var(--io-surface)',
+            border: '1px solid rgba(234,179,8,0.4)',
+            borderRadius: 'var(--io-radius)',
+            padding: '24px',
+            minWidth: '360px',
+            maxWidth: '500px',
+            zIndex: 1001,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <Dialog.Title style={{ fontSize: '15px', fontWeight: 600, color: '#d4a017', marginBottom: '12px' }}>
+              Slow Expression Warning
+            </Dialog.Title>
+            <Dialog.Description style={{ fontSize: '14px', color: 'var(--io-text-secondary)', marginBottom: '20px' }}>
+              This expression averages <strong>{slowWarningAvgMs.toFixed(3)} ms</strong> per evaluation,
+              which exceeds the 1 ms threshold for real-time use. It may impact system performance.
+              Consider simplifying the expression before applying.
+            </Dialog.Description>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
+              <button style={btnSecondary} onClick={() => setShowSlowWarning(false)}>
+                Cancel
+              </button>
+              {state.saveForFuture && (
+                <button style={btnSecondary} onClick={() => {
+                  setShowSlowWarning(false)
+                  void (async () => {
+                    const ast = pendingAstRef.current
+                    if (!ast) return
+                    setOkFlowRunning(true)
+                    const result = await expressionsApi.create({
+                      name: state.name.trim(),
+                      description: state.description.trim() || undefined,
+                      context,
+                      ast,
+                      is_shared: state.shareExpression,
+                    })
+                    setOkFlowRunning(false)
+                    if (result.success) {
+                      showToast({ title: 'Saved', description: 'Expression saved for later use.', variant: 'success', duration: 3000 })
+                    } else {
+                      const errMsg = result.error?.message ?? 'Failed to save expression.'
+                      showToast({ title: 'Save failed', description: errMsg, variant: 'error', duration: 5000 })
+                    }
+                  })()
+                }}>
+                  Save for Later
+                </button>
+              )}
+              <button style={btnPrimary} onClick={() => {
+                setShowSlowWarning(false)
+                const ast = pendingAstRef.current
+                if (ast) void doSaveAndApply(ast)
+              }}>
+                Accept &amp; Apply
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }

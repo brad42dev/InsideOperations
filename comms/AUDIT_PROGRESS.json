@@ -2360,7 +2360,7 @@
       "wave": 3,
       "title": "Implement 10k-iteration performance benchmark in Web Worker for Test button",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2380,7 +2380,7 @@
       "wave": 3,
       "title": "Implement full save-and-apply OK flow with API save, performance test, and confirmation",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-23-001",
         "DD-23-005"
