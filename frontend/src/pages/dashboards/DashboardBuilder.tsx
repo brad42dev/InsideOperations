@@ -18,6 +18,7 @@ import {
   type DashboardVariable,
   type Dashboard,
 } from '../../api/dashboards'
+import { api } from '../../api/client'
 import WidgetContainer from './widgets/WidgetContainer'
 
 // ---------------------------------------------------------------------------
@@ -143,6 +144,14 @@ function DroppableGrid({ children }: { children: React.ReactNode }) {
 }
 
 // ---------------------------------------------------------------------------
+// Aggregation type bitmask constants (matches points_metadata schema in doc 04)
+// ---------------------------------------------------------------------------
+
+const AGG_AVG   = 0x01
+const AGG_SUM   = 0x02
+// AGG_MIN (0x04), AGG_MAX (0x08), AGG_COUNT (0x10) are always available per spec
+
+// ---------------------------------------------------------------------------
 // Widget config editor panel
 // ---------------------------------------------------------------------------
 
@@ -157,6 +166,46 @@ function WidgetConfigPanel({
 }) {
   const [localConfig, setLocalConfig] = useState<Record<string, unknown>>(widget.config)
   const [pointSearch, setPointSearch] = useState('')
+  // committedPointId is only updated on blur to avoid fetching on every keystroke
+  const [committedPointId, setCommittedPointId] = useState<string>(() => {
+    const c = widget.config
+    if (widget.type === 'gauge') return String(c.pointId ?? '')
+    if (widget.type === 'kpi-card') return String(c.metric ?? '')
+    if (widget.type === 'line-chart') {
+      const pts = c.points
+      if (Array.isArray(pts) && pts.length > 0) return String(pts[0])
+    }
+    return ''
+  })
+
+  // Fetch point metadata when a point ID is committed (blur) for relevant widget types
+  const needsAggMeta =
+    widget.type === 'kpi-card' || widget.type === 'gauge' || widget.type === 'line-chart'
+  const pointMetaQuery = useQuery({
+    queryKey: ['point-meta', committedPointId],
+    queryFn: async () => {
+      if (!committedPointId) return null
+      const res = await api.get<{ aggregation_types: number }>(
+        `/api/v1/points/${encodeURIComponent(committedPointId)}/metadata`,
+      )
+      if (!res.success) return null
+      return res.data
+    },
+    enabled: needsAggMeta && !!committedPointId,
+  })
+  // Default 0xFF (all allowed) when no metadata is loaded yet
+  const aggTypes: number = pointMetaQuery.data?.aggregation_types ?? 0xff
+
+  // Filtered aggregation options — unavailable options are removed entirely
+  const aggOptions = [
+    { value: 'avg',   label: 'Average', enabled: (aggTypes & AGG_AVG) !== 0 },
+    { value: 'sum',   label: 'Sum',     enabled: (aggTypes & AGG_SUM) !== 0 },
+    { value: 'min',   label: 'Min',     enabled: true },
+    { value: 'max',   label: 'Max',     enabled: true },
+    { value: 'count', label: 'Count',   enabled: true },
+  ].filter((o) => o.enabled)
+
+  const allowRollingAvg = (aggTypes & AGG_AVG) !== 0
 
   function setField(key: string, value: unknown) {
     const updated = { ...localConfig, [key]: value }
@@ -237,6 +286,7 @@ function WidgetConfigPanel({
                 const key = widget.type === 'gauge' ? 'pointId' : 'metric'
                 setField(key, e.target.value)
               }}
+              onBlur={(e) => setCommittedPointId(e.target.value)}
               style={{ padding: '6px 8px', background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', color: 'var(--io-text-primary)', fontSize: '13px', outline: 'none' }}
             />
           </label>
@@ -311,6 +361,36 @@ function WidgetConfigPanel({
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
+          </label>
+        )}
+
+        {/* Aggregation type for line chart — options filtered by point's aggregation_types bitmask */}
+        {widget.type === 'line-chart' && (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Aggregation
+            </span>
+            <select
+              value={String(cfg.aggregationType ?? aggOptions[0]?.value ?? 'min')}
+              onChange={(e) => setField('aggregationType', e.target.value)}
+              style={{ padding: '6px 8px', background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', color: 'var(--io-text-primary)', fontSize: '13px', outline: 'none' }}
+            >
+              {aggOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {/* Rolling average — only shown when the point's aggregation_types bitmask permits avg */}
+        {widget.type === 'line-chart' && allowRollingAvg && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={Boolean(cfg.rollingAverage)}
+              onChange={(e) => setField('rollingAverage', e.target.checked)}
+            />
+            <span style={{ fontSize: '13px', color: 'var(--io-text-primary)' }}>Rolling average</span>
           </label>
         )}
 
