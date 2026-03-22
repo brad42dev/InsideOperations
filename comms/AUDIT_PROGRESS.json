@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T00:00:00Z",
+  "last_updated": "2026-03-22T14:33:58.868465Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -1748,7 +1748,7 @@
       "wave": 3,
       "title": "Add nested error boundaries inside InvestigationWorkspace panels",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1790,7 +1790,7 @@
       "wave": 3,
       "title": "Fix auto-save to use 30-second periodic interval instead of 2s debounce",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1800,7 +1800,7 @@
       "wave": 3,
       "title": "Align instance status states with spec (draft/submitted/reviewed vs pending/completed)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -4021,5 +4021,6 @@
       "source": "feature"
     }
   ],
-  "audit_round": 9
+  "audit_round": 9,
+  "units": []
 }

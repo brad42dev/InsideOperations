@@ -20,13 +20,14 @@ import { useWebSocket } from '../../shared/hooks/useWebSocket'
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: 'rgba(251,191,36,0.15)', text: '#fbbf24', label: 'Pending' },
+    draft: { bg: 'rgba(251,191,36,0.15)', text: '#fbbf24', label: 'Draft' },
     in_progress: {
       bg: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
       text: 'var(--io-accent, #4A9EFF)',
       label: 'In Progress',
     },
-    completed: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e', label: 'Completed' },
+    submitted: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e', label: 'Submitted' },
+    reviewed: { bg: 'rgba(74,158,255,0.12)', text: 'var(--io-accent)', label: 'Reviewed' },
   }
   const c = map[status] ?? { bg: 'var(--io-surface-secondary)', text: 'var(--io-text-muted)', label: status }
   return (
@@ -590,7 +591,7 @@ function SubmitDialog({
       >
         <h3 style={{ margin: '0 0 12px', color: 'var(--io-text-primary)' }}>Submit Log?</h3>
         <p style={{ margin: '0 0 24px', color: 'var(--io-text-secondary)', fontSize: '14px' }}>
-          Submitting will mark this log as completed. This action cannot be undone.
+          Submitting will mark this log as submitted. This action cannot be undone.
         </p>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button
@@ -752,7 +753,7 @@ export default function LogEditor() {
     }
   }
 
-  const readOnly = instanceData?.status === 'completed'
+  const readOnly = instanceData?.status === 'submitted' || instanceData?.status === 'reviewed'
 
   if (isLoading || !instanceData) {
     return (
@@ -842,7 +843,7 @@ export default function LogEditor() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          {instanceData.status === 'pending' && (
+          {instanceData.status === 'draft' && (
             <button
               onClick={() => startMutation.mutate()}
               disabled={startMutation.isPending}

@@ -27,7 +27,7 @@ export interface LogInstance {
   id: string
   template_id: string
   template_name?: string
-  status: 'pending' | 'in_progress' | 'completed'
+  status: 'draft' | 'in_progress' | 'submitted' | 'reviewed'
   team_name?: string
   created_at: string
   completed_at?: string

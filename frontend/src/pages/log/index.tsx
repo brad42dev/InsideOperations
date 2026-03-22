@@ -10,7 +10,7 @@ import { useAuthStore } from '../../store/auth'
 
 function StatusBadge({ status }: { status: LogInstance['status'] }) {
   const colors: Record<LogInstance['status'], { bg: string; text: string }> = {
-    pending: {
+    draft: {
       bg: 'rgba(251,191,36,0.15)',
       text: '#fbbf24',
     },
@@ -18,10 +18,17 @@ function StatusBadge({ status }: { status: LogInstance['status'] }) {
       bg: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
       text: 'var(--io-accent, #4A9EFF)',
     },
-    completed: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e' },
+    submitted: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e' },
+    reviewed: { bg: 'rgba(74,158,255,0.12)', text: 'var(--io-accent)' },
+  }
+  const labels: Record<LogInstance['status'], string> = {
+    draft: 'Draft',
+    in_progress: 'In Progress',
+    submitted: 'Submitted',
+    reviewed: 'Reviewed',
   }
   const c = colors[status]
-  const label = status === 'in_progress' ? 'In Progress' : status.charAt(0).toUpperCase() + status.slice(1)
+  const label = labels[status] ?? status
   return (
     <span
       style={{
@@ -400,7 +407,7 @@ export default function LogPage() {
   const { data: activeData, isLoading: activeLoading } = useQuery({
     queryKey: ['log-instances', 'active'],
     queryFn: async () => {
-      const res = await logsApi.listInstances({ status: 'pending' })
+      const res = await logsApi.listInstances({ status: 'draft' })
       const res2 = await logsApi.listInstances({ status: 'in_progress' })
       if (!res.success) throw new Error(res.error.message)
       if (!res2.success) throw new Error(res2.error.message)
@@ -412,9 +419,11 @@ export default function LogPage() {
   const { data: completedData, isLoading: completedLoading } = useQuery({
     queryKey: ['log-instances', 'completed'],
     queryFn: async () => {
-      const res = await logsApi.listInstances({ status: 'completed' })
+      const res = await logsApi.listInstances({ status: 'submitted' })
+      const res2 = await logsApi.listInstances({ status: 'reviewed' })
       if (!res.success) throw new Error(res.error.message)
-      return res.data
+      if (!res2.success) throw new Error(res2.error.message)
+      return [...res.data, ...res2.data]
     },
     enabled: tab === 'completed',
   })

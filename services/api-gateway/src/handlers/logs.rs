@@ -626,8 +626,8 @@ pub async fn submit_instance(
     let row = sqlx::query(
         r#"
         UPDATE log_instances
-        SET status = 'completed', completed_at = NOW(), updated_at = NOW()
-        WHERE id = $1 AND status != 'completed' AND deleted_at IS NULL
+        SET status = 'submitted', completed_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND status NOT IN ('submitted', 'reviewed') AND deleted_at IS NULL
         RETURNING id, template_id, status, team_name, created_at, completed_at
         "#,
     )
@@ -638,7 +638,7 @@ pub async fn submit_instance(
     match row {
         Err(e) => IoError::Database(e).into_response(),
         Ok(None) => {
-            IoError::NotFound(format!("Instance {} not found or already completed", id))
+            IoError::NotFound(format!("Instance {} not found or already submitted", id))
                 .into_response()
         }
         Ok(Some(r)) => {
