@@ -564,6 +564,33 @@ pub async fn delete_template(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
+    // Guard: system templates (category = 'system') may not be deleted via the API.
+    let cat_result = sqlx::query_scalar::<_, String>(
+        "SELECT category FROM email_templates WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match cat_result {
+        Err(e) => return server_err(e).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Template not found" } })),
+            )
+                .into_response();
+        }
+        Ok(Some(cat)) if cat == "system" => {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(json!({ "success": false, "error": { "code": "FORBIDDEN", "message": "System templates cannot be deleted" } })),
+            )
+                .into_response();
+        }
+        Ok(_) => {}
+    }
+
     let result = sqlx::query("DELETE FROM email_templates WHERE id = $1 RETURNING id")
         .bind(id)
         .fetch_optional(&state.db)

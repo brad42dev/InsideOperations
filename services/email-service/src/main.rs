@@ -57,6 +57,101 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(queue_worker::run_queue_worker(state.clone()));
     }
 
+    // Spawn PostgreSQL NOTIFY listener for the `email_send` channel.
+    // Other services can trigger email delivery via: NOTIFY email_send, '<json payload>';
+    {
+        let notify_state = state.clone();
+        tokio::spawn(async move {
+            let mut listener = match sqlx::postgres::PgListener::connect_with(&notify_state.db).await {
+                Ok(l) => l,
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to connect NOTIFY listener — pg_notify trigger disabled");
+                    return;
+                }
+            };
+            if let Err(e) = listener.listen("email_send").await {
+                tracing::error!(error = %e, "Failed to subscribe to email_send NOTIFY channel");
+                return;
+            }
+            tracing::info!("NOTIFY listener active on channel 'email_send'");
+            loop {
+                match listener.recv().await {
+                    Ok(notification) => {
+                        let payload = notification.payload();
+                        // Parse as a SendRequest JSON object and insert into email_queue.
+                        match serde_json::from_str::<serde_json::Value>(payload) {
+                            Ok(req) => {
+                                let to = req.get("to").and_then(|v| v.as_array()).map(|arr| {
+                                    arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>()
+                                }).unwrap_or_default();
+                                let subject = req.get("subject").and_then(|v| v.as_str()).unwrap_or("(no subject)").to_string();
+                                let body_html = req.get("body_html").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let body_text: Option<String> = req.get("body_text").and_then(|v| v.as_str()).map(String::from);
+
+                                if to.is_empty() {
+                                    tracing::warn!(payload = %payload, "NOTIFY email_send: missing 'to' field — skipping");
+                                    continue;
+                                }
+
+                                let insert_result = sqlx::query(
+                                    r#"INSERT INTO email_queue
+                                           (id, to_addresses, subject, body_html, body_text, status, priority, attempts, max_attempts, next_attempt)
+                                       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending', 5, 0, 4, now())"#,
+                                )
+                                .bind(&to)
+                                .bind(&subject)
+                                .bind(&body_html)
+                                .bind(&body_text)
+                                .execute(&notify_state.db)
+                                .await;
+
+                                match insert_result {
+                                    Ok(_) => tracing::info!(to = ?to, subject = %subject, "NOTIFY email_send: queued email"),
+                                    Err(e) => tracing::error!(error = %e, "NOTIFY email_send: failed to insert into queue"),
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, payload = %payload, "NOTIFY email_send: invalid JSON payload — skipping");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "NOTIFY listener error — listener may have disconnected");
+                    }
+                }
+            }
+        });
+    }
+
+    // Spawn scheduled cleanup task — purges sent/dead queue entries older than
+    // the configured retention period (default 30 days). Runs hourly.
+    {
+        let cleanup_state = state.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                let retention_days = cleanup_state.config.queue_retention_days as i64;
+                match sqlx::query(
+                    "DELETE FROM email_queue WHERE status IN ('sent', 'dead') AND created_at < now() - ($1 * interval '1 day')",
+                )
+                .bind(retention_days)
+                .execute(&cleanup_state.db)
+                .await
+                {
+                    Ok(r) => {
+                        let deleted = r.rows_affected();
+                        if deleted > 0 {
+                            tracing::info!(deleted, "Queue cleanup: purged old sent/dead entries");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "Queue cleanup: DELETE failed");
+                    }
+                }
+            }
+        });
+    }
+
     let api = Router::new()
         // Providers
         .route("/providers", get(handlers::email::list_providers).post(handlers::email::create_provider))

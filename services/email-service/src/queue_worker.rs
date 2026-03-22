@@ -170,8 +170,101 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
 
             tracing::info!(queue_id = %queue_id, "Email sent successfully");
         }
-        Err(e) => {
-            let error_str = e.to_string();
+        Err(primary_err) => {
+            let primary_error_str = primary_err.to_string();
+
+            // ── Fallback provider attempt ────────────────────────────────
+            // If a fallback provider is configured and the primary delivery
+            // failed, attempt delivery via the fallback before scheduling
+            // a retry or marking the item dead.
+            let fallback_row = sqlx::query(
+                r#"SELECT id, provider_type, config AS provider_config, from_address, from_name
+                   FROM email_providers
+                   WHERE is_fallback = true AND enabled = true
+                   LIMIT 1"#,
+            )
+            .fetch_optional(&state.db)
+            .await
+            .unwrap_or(None);
+
+            if let Some(fb_row) = fallback_row {
+                let fb_provider_id: Uuid = fb_row.get("id");
+                let fb_provider_type: Option<String> = fb_row.get("provider_type");
+                let fb_raw_config: Option<serde_json::Value> = fb_row.get("provider_config");
+                let fb_from_address: Option<String> = fb_row.get("from_address");
+
+                let fb_provider_config: Option<serde_json::Value> = match (fb_provider_type.as_deref(), fb_raw_config) {
+                    (Some(pt), Some(mut cfg)) => {
+                        if let Err(e) = crate::crypto::decrypt_provider_secrets(&mut cfg, pt, &state.config.master_key) {
+                            tracing::warn!(queue_id = %queue_id, error = %e, "Failed to decrypt fallback provider secrets");
+                            None
+                        } else {
+                            Some(cfg)
+                        }
+                    }
+                    (_, cfg) => cfg,
+                };
+
+                tracing::info!(
+                    queue_id = %queue_id,
+                    fallback_provider_id = %fb_provider_id,
+                    primary_error = %primary_error_str,
+                    "Primary provider failed — attempting fallback provider"
+                );
+
+                let fallback_result = attempt_delivery(
+                    state,
+                    Some(fb_provider_id),
+                    &deliverable,
+                    &subject,
+                    &body_html,
+                    body_text.as_deref(),
+                    fb_from_address.as_deref(),
+                    fb_provider_type.as_deref(),
+                    fb_provider_config.as_ref(),
+                )
+                .await;
+
+                match fallback_result {
+                    Ok(msg_id) => {
+                        // Fallback succeeded — mark sent
+                        sqlx::query(
+                            "UPDATE email_queue SET status = 'sent', sent_at = now(), attempts = $2, provider_id = $3 WHERE id = $1",
+                        )
+                        .bind(queue_id)
+                        .bind(new_attempts)
+                        .bind(fb_provider_id)
+                        .execute(&state.db)
+                        .await?;
+
+                        sqlx::query(
+                            r#"INSERT INTO email_delivery_log
+                                   (id, queue_id, provider_id, attempt_number, status, provider_message_id, error_details)
+                               VALUES (gen_random_uuid(), $1, $2, $3, 'sent', $4, $5)"#,
+                        )
+                        .bind(queue_id)
+                        .bind(fb_provider_id)
+                        .bind(new_attempts)
+                        .bind(msg_id)
+                        .bind(format!("Fallback used — primary error: {}", primary_error_str))
+                        .execute(&state.db)
+                        .await?;
+
+                        tracing::info!(queue_id = %queue_id, "Email sent via fallback provider");
+                        return Ok(true);
+                    }
+                    Err(fb_err) => {
+                        tracing::warn!(
+                            queue_id = %queue_id,
+                            fallback_error = %fb_err,
+                            "Fallback provider also failed — proceeding with retry/dead logic"
+                        );
+                        // Fall through to normal retry/dead logic using the primary error
+                    }
+                }
+            }
+
+            let error_str = primary_error_str;
 
             // ── Hard bounce detection ─────────────────────────────────────
             // A hard bounce (5xx SMTP, permanent Graph/SES error) adds every
@@ -221,10 +314,10 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
                     );
                 }
 
-                // Mark as failed (hard bounce exhausts retries immediately)
+                // Mark as dead (hard bounce exhausts retries immediately)
                 sqlx::query(
                     r#"UPDATE email_queue SET
-                           status = 'failed', attempts = $2, last_error = $3
+                           status = 'dead', attempts = $2, last_error = $3
                        WHERE id = $1"#,
                 )
                 .bind(queue_id)
