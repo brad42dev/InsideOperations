@@ -5,6 +5,9 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 
+/// Five-minute pre-expiry window for token refresh.
+const TOKEN_REFRESH_MARGIN: std::time::Duration = std::time::Duration::from_secs(5 * 60);
+
 pub async fn run_queue_worker(state: AppState) {
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
@@ -75,6 +78,7 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
     // Attempt delivery
     let delivery_result = attempt_delivery(
         state,
+        provider_id,
         &to_addresses,
         &subject,
         &body_html,
@@ -170,6 +174,7 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
 #[allow(clippy::too_many_arguments)]
 async fn attempt_delivery(
     state: &AppState,
+    provider_id: Option<Uuid>,
     to_addresses: &[String],
     subject: &str,
     body_html: &str,
@@ -182,23 +187,45 @@ async fn attempt_delivery(
 
     match provider_type {
         Some("smtp") => {
-            send_smtp(to_addresses, subject, body_html, body_text, from_address, &config).await
+            send_smtp(state, provider_id, to_addresses, subject, body_html, body_text, from_address, &config).await
+        }
+        Some("smtp_xoauth2") => {
+            // smtp_xoauth2 is handled inside send_smtp when auth_method == "xoauth2"
+            let mut cfg = config.clone();
+            if cfg.get("auth_method").is_none() {
+                cfg["auth_method"] = serde_json::Value::String("xoauth2".to_string());
+            }
+            send_smtp(state, provider_id, to_addresses, subject, body_html, body_text, from_address, &cfg).await
         }
         Some("webhook") => {
             send_webhook(state, to_addresses, subject, body_html, body_text, &config).await
         }
+        Some("msgraph") => {
+            let pid = provider_id.ok_or_else(|| anyhow::anyhow!("MS Graph provider requires a provider UUID"))?;
+            send_msgraph(state, pid, to_addresses, subject, body_html, body_text, from_address, &config).await
+        }
+        Some("gmail") => {
+            let pid = provider_id.ok_or_else(|| anyhow::anyhow!("Gmail provider requires a provider UUID"))?;
+            send_gmail(state, pid, to_addresses, subject, body_html, body_text, from_address, &config).await
+        }
+        Some("ses") => {
+            // SES: derive SMTP credentials from AWS secret key and route through SMTP.
+            send_ses(to_addresses, subject, body_html, body_text, from_address, &config).await
+        }
         Some(other) => {
-            tracing::warn!(provider_type = other, "Unknown provider type — treating as no-op");
-            Ok(None)
+            Err(anyhow::anyhow!("Unsupported email provider type: '{}'. Delivery aborted.", other))
         }
         None => {
-            tracing::warn!("No provider configured for queue item — treating as no-op");
-            Ok(None)
+            Err(anyhow::anyhow!("No provider configured for this queue item. Delivery aborted."))
         }
     }
 }
 
+// ─── SMTP / SMTP+XOAUTH2 ────────────────────────────────────────────────────
+
 async fn send_smtp(
+    state: &AppState,
+    provider_id: Option<Uuid>,
     to_addresses: &[String],
     subject: &str,
     _body_html: &str,
@@ -207,22 +234,34 @@ async fn send_smtp(
     config: &serde_json::Value,
 ) -> anyhow::Result<Option<String>> {
     use lettre::{
-        transport::smtp::authentication::Credentials,
+        transport::smtp::authentication::{Credentials, Mechanism},
         AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     };
 
     let host = config["host"].as_str().unwrap_or("localhost").to_string();
     let smtp_port = config["port"].as_u64().unwrap_or(587) as u16;
     let username = config["username"].as_str().unwrap_or("").to_string();
-    let password = config["password"].as_str().unwrap_or("").to_string();
-
     let from = from_address.unwrap_or("noreply@localhost");
     let body = body_text.unwrap_or("").to_string();
 
-    let creds = Credentials::new(username, password);
+    let auth_method = config["auth_method"].as_str().unwrap_or("plain");
+
+    let (creds, mechanisms) = if auth_method == "xoauth2" {
+        // Acquire OAuth2 token for XOAUTH2
+        let pid = provider_id.ok_or_else(|| anyhow::anyhow!("XOAUTH2 requires a provider UUID for token caching"))?;
+        let token = acquire_client_credentials_token(state, pid, config).await?;
+        let creds = Credentials::new(username, token);
+        (creds, vec![Mechanism::Xoauth2])
+    } else {
+        let password = config["password"].as_str().unwrap_or("").to_string();
+        let creds = Credentials::new(username, password);
+        (creds, vec![Mechanism::Plain, Mechanism::Login])
+    };
+
     let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&host)?
         .port(smtp_port)
         .credentials(creds)
+        .authentication(mechanisms)
         .build();
 
     // Send to each recipient
@@ -238,6 +277,8 @@ async fn send_smtp(
 
     Ok(None)
 }
+
+// ─── Webhook ─────────────────────────────────────────────────────────────────
 
 async fn send_webhook(
     state: &AppState,
@@ -265,4 +306,471 @@ async fn send_webhook(
         .await?;
 
     Ok(None)
+}
+
+// ─── Microsoft Graph API ─────────────────────────────────────────────────────
+
+async fn send_msgraph(
+    state: &AppState,
+    provider_id: Uuid,
+    to_addresses: &[String],
+    subject: &str,
+    body_html: &str,
+    _body_text: Option<&str>,
+    from_address: Option<&str>,
+    config: &serde_json::Value,
+) -> anyhow::Result<Option<String>> {
+    let tenant_id = config["tenant_id"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("MS Graph: tenant_id not configured"))?;
+    let send_as_user = config["send_as_user"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("MS Graph: send_as_user not configured"))?;
+    let _save_to_sent = config["save_to_sent"].as_bool().unwrap_or(false);
+
+    let access_token = acquire_msgraph_token(state, provider_id, tenant_id, config).await?;
+
+    // Build the sendMail request body
+    let from_addr = from_address.unwrap_or(send_as_user);
+    let to_recipients: Vec<serde_json::Value> = to_addresses
+        .iter()
+        .map(|addr| serde_json::json!({ "emailAddress": { "address": addr } }))
+        .collect();
+
+    let send_mail_body = serde_json::json!({
+        "message": {
+            "subject": subject,
+            "body": {
+                "contentType": "HTML",
+                "content": body_html,
+            },
+            "toRecipients": to_recipients,
+            "from": {
+                "emailAddress": { "address": from_addr }
+            },
+        },
+        "saveToSentItems": _save_to_sent,
+    });
+
+    let url = format!(
+        "https://graph.microsoft.com/v1.0/users/{}/sendMail",
+        send_as_user
+    );
+
+    let resp = state
+        .http_client
+        .post(&url)
+        .bearer_auth(&access_token)
+        .json(&send_mail_body)
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+        return Err(anyhow::anyhow!(
+            "MS Graph sendMail failed: HTTP {} — {}",
+            status,
+            body
+        ));
+    }
+
+    Ok(None)
+}
+
+/// Acquire (or return cached) MS Graph OAuth2 client-credentials token.
+async fn acquire_msgraph_token(
+    state: &AppState,
+    provider_id: Uuid,
+    tenant_id: &str,
+    config: &serde_json::Value,
+) -> anyhow::Result<String> {
+    // Check cache first
+    {
+        let cache = state.token_cache.lock().await;
+        if let Some(cached) = cache.get(&provider_id) {
+            if cached.expires_at > std::time::Instant::now() + TOKEN_REFRESH_MARGIN {
+                return Ok(cached.access_token.clone());
+            }
+        }
+    }
+
+    let client_id = config["client_id"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("MS Graph: client_id not configured"))?;
+    let client_secret = config["client_secret"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("MS Graph: client_secret not configured"))?;
+
+    let token_url = format!(
+        "https://login.microsoftonline.com/{}/oauth2/v2.0/token",
+        tenant_id
+    );
+
+    let params = [
+        ("grant_type", "client_credentials"),
+        ("client_id", client_id),
+        ("client_secret", client_secret),
+        ("scope", "https://graph.microsoft.com/.default"),
+    ];
+
+    let resp = state
+        .http_client
+        .post(&token_url)
+        .form(&params)
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+        return Err(anyhow::anyhow!(
+            "MS Graph token request failed: HTTP {} — {}",
+            status,
+            body
+        ));
+    }
+
+    let token_resp: serde_json::Value = resp.json().await?;
+    let access_token = token_resp["access_token"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("MS Graph token response missing access_token"))?
+        .to_string();
+    let expires_in = token_resp["expires_in"].as_u64().unwrap_or(3600);
+
+    // Store in cache
+    {
+        let mut cache = state.token_cache.lock().await;
+        cache.insert(provider_id, crate::state::CachedToken {
+            access_token: access_token.clone(),
+            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
+        });
+    }
+
+    Ok(access_token)
+}
+
+// ─── Gmail API ───────────────────────────────────────────────────────────────
+
+async fn send_gmail(
+    state: &AppState,
+    provider_id: Uuid,
+    to_addresses: &[String],
+    subject: &str,
+    body_html: &str,
+    body_text: Option<&str>,
+    from_address: Option<&str>,
+    config: &serde_json::Value,
+) -> anyhow::Result<Option<String>> {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use lettre::{Message, message::header::ContentType};
+
+    let send_as_user = config["send_as_user"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("Gmail: send_as_user not configured"))?;
+
+    let access_token = acquire_gmail_token(state, provider_id, config).await?;
+
+    let from = from_address.unwrap_or(send_as_user);
+
+    // Build RFC 2822 message for each recipient and send
+    let mut last_msg_id: Option<String> = None;
+    for to in to_addresses {
+        let text_body = body_text.unwrap_or("").to_string();
+
+        let email = Message::builder()
+            .from(from.parse()?)
+            .to(to.parse()?)
+            .subject(subject)
+            .header(ContentType::TEXT_HTML)
+            .body(body_html.to_string())?;
+
+        // lettre formats as RFC 2822 bytes
+        let raw_bytes = email.formatted();
+        let _ = text_body; // HTML preferred; text_body available if multipart needed
+        let encoded = URL_SAFE_NO_PAD.encode(&raw_bytes);
+
+        let url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/{}/messages/send",
+            send_as_user
+        );
+
+        let resp = state
+            .http_client
+            .post(&url)
+            .bearer_auth(&access_token)
+            .json(&serde_json::json!({ "raw": encoded }))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+            return Err(anyhow::anyhow!(
+                "Gmail API send failed: HTTP {} — {}",
+                status,
+                body
+            ));
+        }
+
+        let resp_json: serde_json::Value = resp.json().await?;
+        last_msg_id = resp_json["id"].as_str().map(|s| s.to_string());
+    }
+
+    Ok(last_msg_id)
+}
+
+/// Acquire (or return cached) Gmail service-account JWT exchange token.
+async fn acquire_gmail_token(
+    state: &AppState,
+    provider_id: Uuid,
+    config: &serde_json::Value,
+) -> anyhow::Result<String> {
+    // Check cache first
+    {
+        let cache = state.token_cache.lock().await;
+        if let Some(cached) = cache.get(&provider_id) {
+            if cached.expires_at > std::time::Instant::now() + TOKEN_REFRESH_MARGIN {
+                return Ok(cached.access_token.clone());
+            }
+        }
+    }
+
+    let service_account_key = config["service_account_key"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("Gmail: service_account_key not configured"))?;
+    let subject_email = config["send_as_user"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("Gmail: send_as_user not configured for impersonation"))?;
+
+    // Parse the service account JSON key
+    let key_json: serde_json::Value = serde_json::from_str(service_account_key)?;
+    let private_key_pem = key_json["private_key"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("Gmail: service_account_key missing private_key field"))?;
+    let client_email = key_json["client_email"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("Gmail: service_account_key missing client_email field"))?;
+
+    let now = chrono::Utc::now().timestamp();
+    let expiry = now + 3600;
+
+    #[derive(serde::Serialize)]
+    struct ServiceAccountClaims<'a> {
+        iss: &'a str,
+        sub: &'a str,
+        scope: &'a str,
+        aud: &'a str,
+        iat: i64,
+        exp: i64,
+    }
+
+    let claims = ServiceAccountClaims {
+        iss: client_email,
+        sub: subject_email,
+        scope: "https://www.googleapis.com/auth/gmail.send",
+        aud: "https://oauth2.googleapis.com/token",
+        iat: now,
+        exp: expiry,
+    };
+
+    let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())?;
+    let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+    let jwt = jsonwebtoken::encode(&header, &claims, &encoding_key)?;
+
+    // Exchange JWT for access token
+    let params = [
+        ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+        ("assertion", &jwt),
+    ];
+
+    let resp = state
+        .http_client
+        .post("https://oauth2.googleapis.com/token")
+        .form(&params)
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+        return Err(anyhow::anyhow!(
+            "Gmail token exchange failed: HTTP {} — {}",
+            status,
+            body
+        ));
+    }
+
+    let token_resp: serde_json::Value = resp.json().await?;
+    let access_token = token_resp["access_token"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("Gmail token response missing access_token"))?
+        .to_string();
+    let expires_in = token_resp["expires_in"].as_u64().unwrap_or(3600);
+
+    // Store in cache
+    {
+        let mut cache = state.token_cache.lock().await;
+        cache.insert(provider_id, crate::state::CachedToken {
+            access_token: access_token.clone(),
+            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
+        });
+    }
+
+    Ok(access_token)
+}
+
+// ─── Amazon SES (via derived SMTP credentials) ───────────────────────────────
+
+/// SES SMTP password derivation per AWS specification:
+/// HMAC-SHA256("AWS4" + secret_access_key, "SendRawEmail") then base64-encode.
+/// Reference: https://docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html
+fn derive_ses_smtp_password(secret_access_key: &str, region: &str) -> anyhow::Result<String> {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+    // Step 1: date key — HMAC-SHA256("AWS4" + secret, date)
+    let date = "11111111"; // SES uses a fixed date string "11111111" per spec
+    let k_secret = format!("AWS4{}", secret_access_key);
+    let mut mac = Hmac::<Sha256>::new_from_slice(k_secret.as_bytes())?;
+    mac.update(date.as_bytes());
+    let k_date = mac.finalize().into_bytes();
+
+    // Step 2: region key
+    let mut mac = Hmac::<Sha256>::new_from_slice(&k_date)?;
+    mac.update(region.as_bytes());
+    let k_region = mac.finalize().into_bytes();
+
+    // Step 3: service key
+    let mut mac = Hmac::<Sha256>::new_from_slice(&k_region)?;
+    mac.update(b"ses");
+    let k_service = mac.finalize().into_bytes();
+
+    // Step 4: signing key
+    let mut mac = Hmac::<Sha256>::new_from_slice(&k_service)?;
+    mac.update(b"aws4_request");
+    let k_signing = mac.finalize().into_bytes();
+
+    // Step 5: HMAC-SHA256(k_signing, "SendRawEmail")
+    let mut mac = Hmac::<Sha256>::new_from_slice(&k_signing)?;
+    mac.update(b"SendRawEmail");
+    let smtp_key = mac.finalize().into_bytes();
+
+    // Step 6: prepend version byte (0x02) and base64-encode
+    let mut versioned = vec![0x02u8];
+    versioned.extend_from_slice(&smtp_key);
+
+    Ok(STANDARD.encode(&versioned))
+}
+
+async fn send_ses(
+    to_addresses: &[String],
+    subject: &str,
+    _body_html: &str,
+    body_text: Option<&str>,
+    from_address: Option<&str>,
+    config: &serde_json::Value,
+) -> anyhow::Result<Option<String>> {
+    use lettre::{
+        transport::smtp::authentication::{Credentials, Mechanism},
+        AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    };
+
+    let region = config["region"].as_str().unwrap_or("us-east-1");
+    let access_key_id = config["access_key_id"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("SES: access_key_id not configured"))?;
+    let secret_access_key = config["secret_access_key"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("SES: secret_access_key not configured"))?;
+
+    let smtp_host = format!("email-smtp.{}.amazonaws.com", region);
+    let smtp_password = derive_ses_smtp_password(secret_access_key, region)?;
+
+    let from = from_address.unwrap_or("noreply@localhost");
+    let body = body_text.unwrap_or("").to_string();
+
+    let creds = Credentials::new(access_key_id.to_string(), smtp_password);
+    let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp_host)?
+        .port(587)
+        .credentials(creds)
+        .authentication(vec![Mechanism::Plain, Mechanism::Login])
+        .build();
+
+    for to in to_addresses {
+        let email = Message::builder()
+            .from(from.parse()?)
+            .to(to.parse()?)
+            .subject(subject)
+            .body(body.clone())?;
+
+        mailer.send(email).await?;
+    }
+
+    Ok(None)
+}
+
+// ─── OAuth2 client-credentials token helper (for XOAUTH2) ───────────────────
+
+/// Acquire an OAuth2 access token via the client-credentials flow.
+/// Used by SMTP+XOAUTH2. Token is cached per provider UUID.
+async fn acquire_client_credentials_token(
+    state: &AppState,
+    provider_id: Uuid,
+    config: &serde_json::Value,
+) -> anyhow::Result<String> {
+    // Check cache first
+    {
+        let cache = state.token_cache.lock().await;
+        if let Some(cached) = cache.get(&provider_id) {
+            if cached.expires_at > std::time::Instant::now() + TOKEN_REFRESH_MARGIN {
+                return Ok(cached.access_token.clone());
+            }
+        }
+    }
+
+    let token_endpoint = config["token_endpoint"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("XOAUTH2: token_endpoint not configured"))?;
+    let client_id = config["client_id"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("XOAUTH2: client_id not configured"))?;
+    let client_secret = config["client_secret"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("XOAUTH2: client_secret not configured"))?;
+    let scope = config["scope"].as_str().unwrap_or("");
+
+    let params: Vec<(&str, &str)> = if scope.is_empty() {
+        vec![
+            ("grant_type", "client_credentials"),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+        ]
+    } else {
+        vec![
+            ("grant_type", "client_credentials"),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("scope", scope),
+        ]
+    };
+
+    let resp = state
+        .http_client
+        .post(token_endpoint)
+        .form(&params)
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
+        return Err(anyhow::anyhow!(
+            "XOAUTH2 token request failed: HTTP {} — {}",
+            status,
+            body
+        ));
+    }
+
+    let token_resp: serde_json::Value = resp.json().await?;
+    let access_token = token_resp["access_token"].as_str()
+        .ok_or_else(|| anyhow::anyhow!("XOAUTH2 token response missing access_token"))?
+        .to_string();
+    let expires_in = token_resp["expires_in"].as_u64().unwrap_or(3600);
+
+    // Store in cache
+    {
+        let mut cache = state.token_cache.lock().await;
+        cache.insert(provider_id, crate::state::CachedToken {
+            access_token: access_token.clone(),
+            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
+        });
+    }
+
+    Ok(access_token)
 }

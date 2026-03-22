@@ -53,6 +53,7 @@ tokio-tungstenite = { version = "0.21" }
 tokio-util = { version = "0.7", features = ["rt"] }
 async-trait = "0.1"
 sha2 = "0.10"
+hmac = "0.12"
 dashmap = "6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 openidconnect = { version = "3", features = ["reqwest"] }
@@ -63,6 +64,7 @@ rhai = { version = "1.19", features = ["sync"] }
 lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls", "builder", "smtp-transport"], default-features = false }
 minijinja = { version = "2", features = ["loader"] }
 base64 = "0.22"
+oauth2 = { version = "4", features = ["reqwest"] }
 aes-gcm = "0.10"
 hex = "0.4"
 totp-rs = { version = "5", features = ["qr"] }

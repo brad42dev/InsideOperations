@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T07:32:18.464059+00:00",
+  "last_updated": "2026-03-22T08:06:18.131559+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -69,7 +69,8 @@
     "DD-23-011": 1,
     "DD-26-003": 1,
     "GFX-CORE-002": 1,
-    "DD-06-001": 1
+    "DD-06-001": 1,
+    "DD-27-006": 1
   },
   "queue": [
     {
@@ -2784,7 +2785,7 @@
       "wave": 3,
       "title": "Implement recipient rosters with CRUD and shift-aware member resolution",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-27-001"
       ],
@@ -2841,7 +2842,7 @@
       "wave": 3,
       "title": "Implement MS Graph, Gmail, SES, and SMTP-XOAUTH2 provider adapters",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
