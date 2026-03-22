@@ -147,6 +147,8 @@ export interface TextReadoutConfig {
   showUnits: boolean
   valueFormat: string
   minWidth: number
+  width?: number
+  height?: number
 }
 
 export interface AnalogBarConfig {
@@ -191,14 +193,16 @@ export interface SparklineConfig {
   fixedRangeLo?: number
   fixedRangeHi?: number
   dataPoints: number
-  width: 110
-  height: 18
+  sparkWidth?: number
+  sparkHeight?: number
 }
 
 export interface AlarmIndicatorConfig {
   displayType: 'alarm_indicator'
   mode: 'single' | 'multi'
   additionalBindings?: PointBinding[]
+  width?: number
+  height?: number
 }
 
 export interface DigitalStatusConfig {
@@ -206,6 +210,8 @@ export interface DigitalStatusConfig {
   stateLabels: Record<string, string>
   normalStates: string[]
   abnormalPriority: 1 | 2 | 3 | 4 | 5
+  width?: number
+  height?: number
 }
 
 export type DisplayElementConfig =

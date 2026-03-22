@@ -62,7 +62,8 @@
     "GFX-SHAPES-007": 1,
     "MOD-DESIGNER-004": 1,
     "DD-34-001": 1,
-    "MOD-DESIGNER-012": 1
+    "MOD-DESIGNER-012": 1,
+    "DD-16-003": 1
   },
   "queue": [
     {
@@ -2022,7 +2023,7 @@
       "wave": 3,
       "title": "Implement update efficiency: change-only fanout, deadband, max-silence heartbeat, batching, and staggered fanout",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3838,7 +3839,7 @@
       "wave": 2,
       "title": "Add resize handles and drag resize for standalone display elements",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-011"
       ],

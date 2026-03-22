@@ -318,12 +318,12 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
     const de = node as DisplayElement
     const cfg = de.config
     switch (cfg.displayType) {
-      case 'text_readout':    return { x, y, w: 92, h: 22 }
-      case 'analog_bar':      return { x, y, w: 25, h: 'barHeight' in cfg ? (cfg.barHeight as number) : 100 }
-      case 'fill_gauge':      return { x, y, w: 'barWidth' in cfg ? (cfg.barWidth as number) : 24, h: 'barHeight' in cfg ? (cfg.barHeight as number) : 80 }
-      case 'sparkline':       return { x, y, w: 'sparkWidth' in cfg ? (cfg.sparkWidth as number) : 110, h: 18 }
-      case 'alarm_indicator': return { x, y, w: 24, h: 20 }
-      case 'digital_status':  return { x, y, w: 52, h: 20 }
+      case 'text_readout':    return { x, y, w: cfg.width ?? 92, h: cfg.height ?? 22 }
+      case 'analog_bar':      return { x, y, w: cfg.barWidth ?? 25, h: cfg.barHeight ?? 100 }
+      case 'fill_gauge':      return { x, y, w: cfg.barWidth ?? 24, h: cfg.barHeight ?? 80 }
+      case 'sparkline':       return { x, y, w: cfg.sparkWidth ?? 110, h: cfg.sparkHeight ?? 18 }
+      case 'alarm_indicator': return { x, y, w: cfg.width ?? 24, h: cfg.height ?? 20 }
+      case 'digital_status':  return { x, y, w: cfg.width ?? 30, h: cfg.height ?? 20 }
       default:                return { x, y, w: 80, h: 24 }
     }
   }
@@ -355,6 +355,22 @@ function boundsOverlap(
   rx: number, ry: number, rw: number, rh: number
 ): boolean {
   return b.x < rx + rw && b.x + b.w > rx && b.y < ry + rh && b.y + b.h > ry
+}
+
+// ---------------------------------------------------------------------------
+// Find the parent node of a given node ID in the scene tree
+// ---------------------------------------------------------------------------
+
+function getNodeParent(nodeId: NodeId, nodes: SceneNode[]): SceneNode | null {
+  for (const n of nodes) {
+    if ('children' in n && Array.isArray(n.children)) {
+      const children = n.children as SceneNode[]
+      if (children.some(c => c.id === nodeId)) return n
+      const found = getNodeParent(nodeId, children)
+      if (found) return found
+    }
+  }
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -1173,7 +1189,10 @@ function SelectionOverlay({
 
         // dimension_line annotations have no bounding box resize handles
         const isDimensionLine = node.type === 'annotation' && (node as Annotation).annotationType === 'dimension_line'
-        const nodeShowResizeHandles = showResizeHandles && !isDimensionLine
+        // display_elements that are children of a symbol_instance use value anchors — no free resize
+        const isSymbolChildDisplayElement = node.type === 'display_element' &&
+          getNodeParent(node.id, doc.children)?.type === 'symbol_instance'
+        const nodeShowResizeHandles = showResizeHandles && !isDimensionLine && !isSymbolChildDisplayElement
 
         const bounds = getNodeBounds(node)
         const { x, y, w, h } = bounds
@@ -2459,6 +2478,53 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
             new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
             new ChangePropertyCommand(inter.resizeNodeId, 'size', { width: newW, height: newH }, prevSize),
           ]))
+        } else if (target?.type === 'display_element') {
+          const de = target as DisplayElement
+          const cfg = de.config
+          const MINS: Record<string, [number, number]> = {
+            text_readout:    [40, 16],
+            analog_bar:      [10, 30],
+            fill_gauge:      [10, 30],
+            sparkline:       [40, 10],
+            alarm_indicator: [20, 16],
+            digital_status:  [30, 16],
+          }
+          const [minW, minH] = MINS[de.displayType] ?? [20, 16]
+          const finalW = Math.max(minW, nw)
+          const finalH = Math.max(minH, nh)
+
+          const prevT = inter.resizeOrigTransform
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+
+          // Build the new config with updated dimension fields per display type
+          let newCfg: DisplayElementConfig
+          switch (cfg.displayType) {
+            case 'text_readout':
+              newCfg = { ...cfg, width: finalW, height: finalH }
+              break
+            case 'analog_bar':
+              newCfg = { ...cfg, barWidth: finalW, barHeight: finalH }
+              break
+            case 'fill_gauge':
+              newCfg = { ...cfg, barWidth: finalW, barHeight: finalH }
+              break
+            case 'sparkline':
+              newCfg = { ...cfg, sparkWidth: finalW, sparkHeight: finalH }
+              break
+            case 'alarm_indicator':
+              newCfg = { ...cfg, width: finalW, height: finalH }
+              break
+            case 'digital_status':
+              newCfg = { ...cfg, width: finalW, height: finalH }
+              break
+            default:
+              newCfg = cfg
+          }
+
+          executeCmd(new CompoundCommand('Resize', [
+            new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
+            new ChangePropertyCommand(inter.resizeNodeId, 'config', newCfg, cfg),
+          ]))
         } else if (target?.type === 'group') {
           const grp = target as Group
           const origBBox = inter.resizeOrigBounds
@@ -3383,7 +3449,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
           case 'text_readout':      return { displayType: 'text_readout', showBox: false, showLabel: false, showUnits: true, valueFormat: '%.2f', minWidth: 60 }
           case 'analog_bar':        return { displayType: 'analog_bar', orientation: 'vertical', barWidth: 20, barHeight: 80, rangeLo: 0, rangeHi: 100, showZoneLabels: true, showPointer: true, showSetpoint: false, showNumericReadout: true, showSignalLine: false }
           case 'fill_gauge':        return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: true, showValue: true, valueFormat: '%.0f' }
-          case 'sparkline':         return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
+          case 'sparkline':         return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60 }
           case 'alarm_indicator':   return { displayType: 'alarm_indicator', mode: 'single' }
           case 'digital_status':    return { displayType: 'digital_status', stateLabels: {}, normalStates: [], abnormalPriority: 3 }
         }
@@ -4304,7 +4370,7 @@ function makeDefaultDisplayConfig(dtype: DisplayElementType): import('../../shar
     case 'fill_gauge':
       return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: true, showValue: true, valueFormat: '%.0f', barWidth: 22, barHeight: 90 }
     case 'sparkline':
-      return { displayType: 'sparkline', timeWindowMinutes: 30, scaleMode: 'auto', dataPoints: 14, width: 110, height: 18 }
+      return { displayType: 'sparkline', timeWindowMinutes: 30, scaleMode: 'auto', dataPoints: 14 }
     case 'alarm_indicator':
       return { displayType: 'alarm_indicator', mode: 'single' }
     case 'digital_status':

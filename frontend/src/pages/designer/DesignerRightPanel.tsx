@@ -916,7 +916,7 @@ function defaultConfig(type: DisplayElementType): DisplayElementConfig {
     case 'text_readout':       return { displayType: 'text_readout', showBox: false, showLabel: false, showUnits: false, valueFormat: '0.##', minWidth: 60 }
     case 'analog_bar':         return { displayType: 'analog_bar', orientation: 'vertical', barWidth: 20, barHeight: 80, rangeLo: 0, rangeHi: 100, showZoneLabels: false, showPointer: true, showSetpoint: false, showNumericReadout: false, showSignalLine: false }
     case 'fill_gauge':         return { displayType: 'fill_gauge', mode: 'standalone', fillDirection: 'up', rangeLo: 0, rangeHi: 100, showLevelLine: false, showValue: false, valueFormat: '0.#' }
-    case 'sparkline':          return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60, width: 110, height: 18 }
+    case 'sparkline':          return { displayType: 'sparkline', timeWindowMinutes: 60, scaleMode: 'auto', dataPoints: 60 }
     case 'alarm_indicator':    return { displayType: 'alarm_indicator', mode: 'single' }
     case 'digital_status':     return { displayType: 'digital_status', stateLabels: {}, normalStates: [], abnormalPriority: 3 }
   }
