@@ -584,8 +584,34 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/points/history-batch", post(proxy_history_batch))
         // Parser Service (proxied to parser-service)
         .route("/api/parse/*path", any(proxy_parser))
-        // DCS Graphics Import — dedicated top-level route (proxies to parser-service /parse/dcs-import)
+        // DCS Graphics Import — legacy synchronous alias (proxies to parser-service /parse/dcs-import)
         .route("/api/dcs-import", post(proxy_dcs_import))
+        // DCS Graphics Import — stateful 6-endpoint job API (doc 34 §API Endpoints)
+        // IMPORTANT: static sub-paths (/tags, /symbols, /generate, /report) must be before parameterised /:id
+        .route(
+            "/api/designer/import/dcs",
+            post(handlers::dcs_import::create_import_job),
+        )
+        .route(
+            "/api/designer/import/dcs/:id/tags",
+            post(handlers::dcs_import::submit_tag_mappings),
+        )
+        .route(
+            "/api/designer/import/dcs/:id/symbols",
+            post(handlers::dcs_import::submit_symbol_mappings),
+        )
+        .route(
+            "/api/designer/import/dcs/:id/generate",
+            post(handlers::dcs_import::generate_graphic),
+        )
+        .route(
+            "/api/designer/import/dcs/:id/report",
+            get(handlers::dcs_import::get_import_report),
+        )
+        .route(
+            "/api/designer/import/dcs/:id",
+            get(handlers::dcs_import::get_import_job),
+        )
         // SCIM 2.0 (public — auth-service validates Bearer token internally)
         .route("/scim/v2/*path", any(proxy_scim))
         .route("/scim/v2/ServiceProviderConfig", any(proxy_scim))
