@@ -11,6 +11,7 @@ User=io
 Group=io
 WorkingDirectory=/opt/io
 ExecStart=/opt/io/bin/import-service
+Nice=10
 ExecReload=/bin/kill -HUP $MAINPID
 
 Restart=on-failure
