@@ -10,7 +10,8 @@ import {
 import { usePermission } from '../../shared/hooks/usePermission'
 
 const ALL_SEVERITIES: NotificationSeverity[] = ['emergency', 'critical', 'warning', 'info']
-const CHANNELS: NotificationChannel[] = ['websocket', 'email', 'sms']
+// CHANNELS is no longer hardcoded — loaded from Alert Service config at runtime.
+const FALLBACK_CHANNELS: NotificationChannel[] = ['websocket']
 
 const SEVERITY_LABEL: Record<NotificationSeverity, string> = {
   emergency: 'Emergency',
@@ -69,6 +70,18 @@ export default function AlertComposer() {
       return result.data
     },
   })
+
+  const { data: enabledChannelsResult } = useQuery({
+    queryKey: ['notification-channels-enabled'],
+    queryFn: () => notificationsApi.getEnabledChannels(),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Channels enabled in Alert Service config — fall back to websocket-only
+  const enabledChannels: NotificationChannel[] =
+    (enabledChannelsResult?.success && enabledChannelsResult.data && enabledChannelsResult.data.length > 0)
+      ? enabledChannelsResult.data
+      : FALLBACK_CHANNELS
 
   const sendMutation = useMutation({
     mutationFn: async (payload: SendNotificationPayload) => {
@@ -265,7 +278,7 @@ export default function AlertComposer() {
           <div>
             <label style={labelStyle}>Channels</label>
             <div style={{ display: 'flex', gap: 16 }}>
-              {CHANNELS.map(ch => (
+              {enabledChannels.map(ch => (
                 <label key={ch} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: 'var(--io-text-primary)', fontSize: 14 }}>
                   <input
                     type="checkbox"

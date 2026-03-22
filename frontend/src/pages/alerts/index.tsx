@@ -26,7 +26,10 @@ const SEVERITY_COLORS: Record<NotificationSeverity, { bg: string; text: string; 
   info:      { bg: 'rgba(74,158,255,0.15)', text: '#4a9eff', border: '#4a9eff' },
 }
 
-const ALL_CHANNELS: NotificationChannel[] = ['websocket', 'email', 'sms', 'pa', 'radio', 'push']
+// ALL_CHANNELS is no longer a compile-time constant — enabled channels are
+// loaded from the Alert Service config at runtime via getEnabledChannels().
+// The fallback below is used only while the query is loading or if it fails.
+const FALLBACK_CHANNELS: NotificationChannel[] = ['websocket']
 
 // ---------------------------------------------------------------------------
 // Severity badge
@@ -180,8 +183,20 @@ function SendAlertPanel() {
     queryFn: () => notificationsApi.listGroups(),
   })
 
+  const { data: enabledChannelsResult } = useQuery({
+    queryKey: ['notification-channels-enabled'],
+    queryFn: () => notificationsApi.getEnabledChannels(),
+    // Channel config changes rarely — cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
+  })
+
   const templates: NotificationTemplate[] = (templatesResult?.success && templatesResult.data) ? templatesResult.data : []
   const groups: NotificationGroup[] = (groupsResult?.success && groupsResult.data) ? groupsResult.data : []
+  // Enabled channels from config — fall back to websocket-only if API fails or is loading
+  const enabledChannels: NotificationChannel[] =
+    (enabledChannelsResult?.success && enabledChannelsResult.data && enabledChannelsResult.data.length > 0)
+      ? enabledChannelsResult.data
+      : FALLBACK_CHANNELS
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null
 
@@ -277,7 +292,10 @@ function SendAlertPanel() {
     const tpl = templates.find((t) => t.id === id)
     if (tpl) {
       setSeverity(tpl.severity)
-      setChannels(tpl.channels)
+      // Filter template channels to only include channels enabled in the
+      // Alert Service config. If none survive the filter, fall back to websocket.
+      const filteredChannels = tpl.channels.filter((ch) => enabledChannels.includes(ch))
+      setChannels(filteredChannels.length > 0 ? filteredChannels : ['websocket'])
       const initVars: Record<string, string> = {}
       tpl.variables.forEach((v) => { initVars[v.name] = v.default_value ?? '' })
       setVariableValues(initVars)
@@ -421,11 +439,11 @@ function SendAlertPanel() {
           </div>
         )}
 
-        {/* Channels */}
+        {/* Channels — list is driven by Alert Service config, not hardcoded */}
         <div>
           <label style={labelStyle}>Channels</label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {ALL_CHANNELS.map((ch) => {
+            {enabledChannels.map((ch) => {
               const checked = channels.includes(ch)
               return (
                 <label

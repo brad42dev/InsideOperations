@@ -251,4 +251,9 @@ export const notificationsApi = {
   cancelMessage(id: string): Promise<ApiResult<void>> {
     return api.post(`/api/notifications/messages/${id}/cancel`, {})
   },
+
+  // Channel availability — driven by Alert Service config
+  getEnabledChannels(): Promise<ApiResult<NotificationChannel[]>> {
+    return api.get('/api/notifications/channels/enabled')
+  },
 }
