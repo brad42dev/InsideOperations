@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import * as ContextMenuPrimitive from '@radix-ui/react-context-menu'
 import { usePermission } from '../../shared/hooks/usePermission'
 import { wsManager } from '../../shared/hooks/useWebSocket'
 import { exportsApi, type ExportFormat } from '../../api/exports'
@@ -14,6 +15,7 @@ import {
   type SendNotificationPayload,
   type CreateTemplatePayload,
   type CreateGroupPayload,
+  type UpdateGroupPayload,
   type TemplateVariable,
 } from '../../api/notifications'
 
@@ -175,6 +177,129 @@ function ConfirmDialog({
       </div>
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// ConfirmDeleteDialog — generic delete confirmation modal
+// ---------------------------------------------------------------------------
+
+function ConfirmDeleteDialog({
+  title,
+  message,
+  onConfirm,
+  onCancel,
+}: {
+  title: string
+  message: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--io-surface)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 8,
+          padding: 24,
+          width: 400,
+          maxWidth: '90vw',
+        }}
+      >
+        <h3 style={{ margin: '0 0 8px', color: '#ef4444', fontSize: 16 }}>{title}</h3>
+        <p style={{ margin: '0 0 20px', color: 'var(--io-text-secondary)', fontSize: 14 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: '1px solid var(--io-border)',
+              background: 'transparent',
+              color: 'var(--io-text)',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: 'none',
+              background: '#ef4444',
+              color: '#fff',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Shared context menu styles
+// ---------------------------------------------------------------------------
+
+const ctxMenuContentStyle: React.CSSProperties = {
+  background: 'var(--io-surface-elevated)',
+  border: '1px solid var(--io-border)',
+  borderRadius: 'var(--io-radius, 6px)',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+  minWidth: 200,
+  paddingTop: 4,
+  paddingBottom: 4,
+  zIndex: 2000,
+  animation: 'io-context-menu-in 0.08s ease',
+}
+
+const ctxMenuItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  padding: '6px 14px',
+  fontSize: 13,
+  color: 'var(--io-text-primary)',
+  cursor: 'pointer',
+  userSelect: 'none',
+  outline: 'none',
+  background: 'transparent',
+  border: 'none',
+  width: '100%',
+  textAlign: 'left',
+  borderRadius: 0,
+  gap: 8,
+}
+
+const ctxMenuItemDestructiveStyle: React.CSSProperties = {
+  ...ctxMenuItemStyle,
+  color: '#ef4444',
+}
+
+const ctxMenuItemDisabledStyle: React.CSSProperties = {
+  ...ctxMenuItemDestructiveStyle,
+  opacity: 0.4,
+  cursor: 'default',
+}
+
+const ctxMenuSeparatorStyle: React.CSSProperties = {
+  height: 1,
+  background: 'var(--io-border)',
+  margin: '3px 0',
 }
 
 // ---------------------------------------------------------------------------
@@ -1079,10 +1204,13 @@ function HistoryPanel() {
 // ---------------------------------------------------------------------------
 
 function TemplatesPanel() {
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<Partial<CreateTemplatePayload>>({})
   const [varDefs, setVarDefs] = useState<TemplateVariable[]>([])
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [testSendPendingId, setTestSendPendingId] = useState<string | null>(null)
 
   const { data: result, isLoading } = useQuery({
     queryKey: ['notification-templates'],
@@ -1090,6 +1218,7 @@ function TemplatesPanel() {
   })
 
   const templates: NotificationTemplate[] = (result?.success && result.data) ? result.data : []
+  const deleteTarget = deleteConfirmId ? templates.find((t) => t.id === deleteConfirmId) : null
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateTemplatePayload) => notificationsApi.createTemplate(payload),
@@ -1105,7 +1234,35 @@ function TemplatesPanel() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => notificationsApi.deleteTemplate(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notification-templates'] })
+      setDeleteConfirmId(null)
+    },
+  })
+
+  const duplicateMutation = useMutation({
+    mutationFn: (tpl: NotificationTemplate) =>
+      notificationsApi.createTemplate({
+        name: `${tpl.name} (Copy)`,
+        category: tpl.category,
+        severity: tpl.severity,
+        title_template: tpl.title_template,
+        body_template: tpl.body_template,
+        channels: tpl.channels,
+        variables: tpl.variables,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notification-templates'] }),
+  })
+
+  const testSendMutation = useMutation({
+    mutationFn: (templateId: string) =>
+      notificationsApi.sendNotification({ template_id: templateId }),
+    onSuccess: () => {
+      setTestSendPendingId(null)
+      qc.invalidateQueries({ queryKey: ['notification-messages'] })
+      qc.invalidateQueries({ queryKey: ['notification-active'] })
+    },
+    onError: () => setTestSendPendingId(null),
   })
 
   const toggleMutation = useMutation({
@@ -1278,71 +1435,150 @@ function TemplatesPanel() {
         </div>
       )}
 
+      {deleteTarget && (
+        <ConfirmDeleteDialog
+          title={`Delete template "${deleteTarget.name}"?`}
+          message="This template will be permanently removed. This action cannot be undone."
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteConfirmId(null)}
+        />
+      )}
+
       {isLoading ? (
         <p style={{ color: 'var(--io-text-muted)', fontSize: 14 }}>Loading…</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {templates.map((tpl) => (
-            <div
-              key={tpl.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '10px 14px',
-                borderRadius: 6,
-                border: '1px solid var(--io-border)',
-                background: tpl.enabled ? 'var(--io-surface-secondary)' : 'transparent',
-                opacity: tpl.enabled ? 1 : 0.5,
-              }}
-            >
-              <SeverityBadge severity={tpl.severity} />
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--io-text)' }}>
-                  {tpl.name}
-                  {tpl.is_system && (
-                    <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--io-text-muted)' }}>SYSTEM</span>
-                  )}
-                </span>
-                <br />
-                <span style={{ fontSize: 11, color: 'var(--io-text-muted)' }}>{tpl.title_template}</span>
-              </div>
-              <ChannelChips channels={tpl.channels} />
-              <button
-                onClick={() => toggleMutation.mutate({ id: tpl.id, enabled: !tpl.enabled })}
-                style={{
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  border: '1px solid var(--io-border)',
-                  background: 'transparent',
-                  color: tpl.enabled ? '#22c55e' : 'var(--io-text-muted)',
-                  cursor: 'pointer',
-                }}
-              >
-                {tpl.enabled ? 'Enabled' : 'Disabled'}
-              </button>
-              {!tpl.is_system && (
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete template "${tpl.name}"?`)) {
-                      deleteMutation.mutate(tpl.id)
-                    }
-                  }}
+            <ContextMenuPrimitive.Root key={tpl.id}>
+              <ContextMenuPrimitive.Trigger asChild>
+                <div
                   style={{
-                    fontSize: 11,
-                    padding: '3px 8px',
-                    borderRadius: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 14px',
+                    borderRadius: 6,
                     border: '1px solid var(--io-border)',
-                    background: 'transparent',
-                    color: '#ef4444',
-                    cursor: 'pointer',
+                    background: tpl.enabled ? 'var(--io-surface-secondary)' : 'transparent',
+                    opacity: tpl.enabled ? 1 : 0.5,
+                    cursor: 'default',
                   }}
                 >
-                  Delete
-                </button>
-              )}
-            </div>
+                  <SeverityBadge severity={tpl.severity} />
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--io-text)' }}>
+                      {tpl.name}
+                      {tpl.is_system && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--io-text-muted)' }}>SYSTEM</span>
+                      )}
+                    </span>
+                    <br />
+                    <span style={{ fontSize: 11, color: 'var(--io-text-muted)' }}>{tpl.title_template}</span>
+                  </div>
+                  <ChannelChips channels={tpl.channels} />
+                  <button
+                    onClick={() => toggleMutation.mutate({ id: tpl.id, enabled: !tpl.enabled })}
+                    style={{
+                      fontSize: 11,
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      border: '1px solid var(--io-border)',
+                      background: 'transparent',
+                      color: tpl.enabled ? '#22c55e' : 'var(--io-text-muted)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tpl.enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                  {!tpl.is_system && (
+                    <button
+                      onClick={() => setDeleteConfirmId(tpl.id)}
+                      style={{
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        borderRadius: 4,
+                        border: '1px solid var(--io-border)',
+                        background: 'transparent',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </ContextMenuPrimitive.Trigger>
+
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.Content style={ctxMenuContentStyle}>
+                  <style>{`
+                    @keyframes io-context-menu-in {
+                      from { opacity: 0; transform: scale(0.97) translateY(-3px); }
+                      to   { opacity: 1; transform: scale(1) translateY(0); }
+                    }
+                    [data-radix-context-menu-item]:hover,
+                    [data-radix-context-menu-item][data-highlighted] {
+                      background: var(--io-accent-subtle, rgba(74,158,255,0.12)) !important;
+                      outline: none;
+                    }
+                    [data-radix-context-menu-item][data-disabled] {
+                      pointer-events: none;
+                    }
+                  `}</style>
+
+                  {/* Primary: Edit */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemStyle}
+                    onSelect={() => setShowCreate(true)}
+                  >
+                    Edit
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Secondary: Duplicate */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemStyle}
+                    onSelect={() => duplicateMutation.mutate(tpl)}
+                  >
+                    Duplicate
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Secondary: Send Alert from Template */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemStyle}
+                    onSelect={() => navigate(`/alerts?template=${tpl.id}`)}
+                  >
+                    Send Alert from Template
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Secondary: Test Send */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemStyle}
+                    onSelect={() => {
+                      setTestSendPendingId(tpl.id)
+                      testSendMutation.mutate(tpl.id)
+                    }}
+                    disabled={testSendPendingId === tpl.id}
+                  >
+                    {testSendPendingId === tpl.id ? 'Sending…' : 'Test Send (to self)'}
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Separator */}
+                  <ContextMenuPrimitive.Separator style={ctxMenuSeparatorStyle} />
+
+                  {/* Destructive: Delete */}
+                  <ContextMenuPrimitive.Item
+                    style={tpl.is_system ? ctxMenuItemDisabledStyle : ctxMenuItemDestructiveStyle}
+                    onSelect={() => {
+                      if (!tpl.is_system) setDeleteConfirmId(tpl.id)
+                    }}
+                    disabled={tpl.is_system}
+                    title={tpl.is_system ? 'System templates cannot be deleted' : undefined}
+                  >
+                    Delete{tpl.is_system ? ' (built-in)' : ''}
+                  </ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.Content>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Root>
           ))}
         </div>
       )}
@@ -1359,6 +1595,11 @@ function GroupsPanel() {
   const [showCreate, setShowCreate] = useState(false)
   const [createName, setCreateName] = useState('')
   const [createDesc, setCreateDesc] = useState('')
+  const [deleteGroupId, setDeleteGroupId] = useState<string | null>(null)
+  const [editGroupId, setEditGroupId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDesc, setEditDesc] = useState('')
+  const [viewMembersGroupId, setViewMembersGroupId] = useState<string | null>(null)
 
   const { data: result, isLoading } = useQuery({
     queryKey: ['notification-groups'],
@@ -1366,6 +1607,9 @@ function GroupsPanel() {
   })
 
   const groups: NotificationGroup[] = (result?.success && result.data) ? result.data : []
+  const deleteGroupTarget = deleteGroupId ? groups.find((g) => g.id === deleteGroupId) : null
+  const editGroupTarget = editGroupId ? groups.find((g) => g.id === editGroupId) : null
+  const viewMembersTarget = viewMembersGroupId ? groups.find((g) => g.id === viewMembersGroupId) : null
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateGroupPayload) => notificationsApi.createGroup(payload),
@@ -1379,9 +1623,23 @@ function GroupsPanel() {
     },
   })
 
+  const updateGroupMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateGroupPayload }) =>
+      notificationsApi.updateGroup(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notification-groups'] })
+      setEditGroupId(null)
+      setEditName('')
+      setEditDesc('')
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => notificationsApi.deleteGroup(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notification-groups'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notification-groups'] })
+      setDeleteGroupId(null)
+    },
   })
 
   const inputStyle: React.CSSProperties = {
@@ -1480,6 +1738,184 @@ function GroupsPanel() {
         </div>
       )}
 
+      {deleteGroupTarget && (
+        <ConfirmDeleteDialog
+          title={`Delete group "${deleteGroupTarget.name}"?`}
+          message="All members will be removed and this group will be unlinked from any templates. This action cannot be undone."
+          onConfirm={() => deleteMutation.mutate(deleteGroupTarget.id)}
+          onCancel={() => setDeleteGroupId(null)}
+        />
+      )}
+
+      {editGroupTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 8,
+              padding: 24,
+              width: 400,
+              maxWidth: '90vw',
+            }}
+          >
+            <h3 style={{ margin: '0 0 16px', fontSize: 16, color: 'var(--io-text)' }}>Edit Group</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              <input
+                placeholder="Group name *"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--io-border)',
+                  background: 'var(--io-surface-secondary)',
+                  color: 'var(--io-text)',
+                  fontSize: 13,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <input
+                placeholder="Description (optional)"
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--io-border)',
+                  background: 'var(--io-surface-secondary)',
+                  color: 'var(--io-text)',
+                  fontSize: 13,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setEditGroupId(null); setEditName(''); setEditDesc('') }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: '1px solid var(--io-border)',
+                  background: 'transparent',
+                  color: 'var(--io-text)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (editName.trim()) {
+                    updateGroupMutation.mutate({
+                      id: editGroupTarget.id,
+                      payload: { name: editName.trim(), description: editDesc || undefined },
+                    })
+                  }
+                }}
+                disabled={updateGroupMutation.isPending}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: 'var(--io-accent, #4a9eff)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: updateGroupMutation.isPending ? 'not-allowed' : 'pointer',
+                  opacity: updateGroupMutation.isPending ? 0.7 : 1,
+                }}
+              >
+                {updateGroupMutation.isPending ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewMembersTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 8,
+              padding: 24,
+              width: 480,
+              maxWidth: '90vw',
+              maxHeight: '70vh',
+              overflow: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, color: 'var(--io-text)' }}>
+                Members — {viewMembersTarget.name}
+              </h3>
+              <button
+                onClick={() => setViewMembersGroupId(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--io-text-muted)',
+                  fontSize: 20,
+                  lineHeight: 1,
+                  padding: '0 4px',
+                }}
+              >
+                ×
+              </button>
+            </div>
+            {viewMembersTarget.members && viewMembersTarget.members.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {viewMembersTarget.members.map((m) => (
+                  <div
+                    key={m.id}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: '1px solid var(--io-border)',
+                      background: 'var(--io-surface-secondary)',
+                      fontSize: 13,
+                      color: 'var(--io-text)',
+                    }}
+                  >
+                    {m.display_name ?? m.email ?? m.user_id}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--io-text-muted)', fontSize: 13, margin: 0 }}>
+                {(viewMembersTarget.member_count ?? 0) > 0
+                  ? `${viewMembersTarget.member_count} member(s) — load group detail to view.`
+                  : 'No members in this group.'}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <p style={{ color: 'var(--io-text-muted)', fontSize: 14 }}>Loading…</p>
       ) : groups.length === 0 ? (
@@ -1487,60 +1923,103 @@ function GroupsPanel() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {groups.map((g) => (
-            <div
-              key={g.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '10px 14px',
-                borderRadius: 6,
-                border: '1px solid var(--io-border)',
-                background: 'var(--io-surface-secondary)',
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--io-text)' }}>{g.name}</span>
-                {g.description && (
-                  <span style={{ fontSize: 12, color: 'var(--io-text-muted)', marginLeft: 8 }}>
-                    {g.description}
+            <ContextMenuPrimitive.Root key={g.id}>
+              <ContextMenuPrimitive.Trigger asChild>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 14px',
+                    borderRadius: 6,
+                    border: '1px solid var(--io-border)',
+                    background: 'var(--io-surface-secondary)',
+                    cursor: 'default',
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--io-text)' }}>{g.name}</span>
+                    {g.description && (
+                      <span style={{ fontSize: 12, color: 'var(--io-text-muted)', marginLeft: 8 }}>
+                        {g.description}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background: 'var(--io-surface)',
+                      color: 'var(--io-text-muted)',
+                      border: '1px solid var(--io-border)',
+                    }}
+                  >
+                    {g.group_type}
                   </span>
-                )}
-              </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  padding: '2px 6px',
-                  borderRadius: 4,
-                  background: 'var(--io-surface)',
-                  color: 'var(--io-text-muted)',
-                  border: '1px solid var(--io-border)',
-                }}
-              >
-                {g.group_type}
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
-                {g.member_count ?? 0} members
-              </span>
-              <button
-                onClick={() => {
-                  if (confirm(`Delete group "${g.name}"? Members will be removed.`)) {
-                    deleteMutation.mutate(g.id)
-                  }
-                }}
-                style={{
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  border: '1px solid var(--io-border)',
-                  background: 'transparent',
-                  color: '#ef4444',
-                  cursor: 'pointer',
-                }}
-              >
-                Delete
-              </button>
-            </div>
+                  <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
+                    {g.member_count ?? 0} members
+                  </span>
+                  <button
+                    onClick={() => setDeleteGroupId(g.id)}
+                    style={{
+                      fontSize: 11,
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      border: '1px solid var(--io-border)',
+                      background: 'transparent',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </ContextMenuPrimitive.Trigger>
+
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.Content style={ctxMenuContentStyle}>
+                  {/* Primary: Edit */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemStyle}
+                    onSelect={() => {
+                      setEditGroupId(g.id)
+                      setEditName(g.name)
+                      setEditDesc(g.description ?? '')
+                    }}
+                  >
+                    Edit
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Secondary: Add Members */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemStyle}
+                    onSelect={() => setShowCreate(true)}
+                  >
+                    Add Members
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Secondary: View Members */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemStyle}
+                    onSelect={() => setViewMembersGroupId(g.id)}
+                  >
+                    View Members
+                  </ContextMenuPrimitive.Item>
+
+                  {/* Separator */}
+                  <ContextMenuPrimitive.Separator style={ctxMenuSeparatorStyle} />
+
+                  {/* Destructive: Delete */}
+                  <ContextMenuPrimitive.Item
+                    style={ctxMenuItemDestructiveStyle}
+                    onSelect={() => setDeleteGroupId(g.id)}
+                  >
+                    Delete
+                  </ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.Content>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Root>
           ))}
         </div>
       )}

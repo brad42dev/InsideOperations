@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T22:58:49.098904+00:00",
+  "last_updated": "2026-03-22T23:22:24.070717Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -130,7 +130,9 @@
     "DD-29-006": 1,
     "DD-30-003": 1,
     "DD-30-005": 1,
-    "DD-31-001": 1
+    "DD-31-001": 1,
+    "DD-31-007": 1,
+    "DD-31-008": 1
   },
   "queue": [
     {
@@ -3128,7 +3130,7 @@
       "wave": 3,
       "title": "Enforce alerts:send_emergency permission for EMERGENCY-severity sends",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3160,7 +3162,7 @@
       "wave": 3,
       "title": "Load available channels from Alert Service config instead of hardcoding all channels",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3170,7 +3172,7 @@
       "wave": 3,
       "title": "Replace polling with WebSocket subscription for real-time delivery status updates",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3180,7 +3182,7 @@
       "wave": 3,
       "title": "Add Export Unaccounted List button to Muster Dashboard",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3190,7 +3192,7 @@
       "wave": 3,
       "title": "Add Export button to Alert History table (CX-EXPORT)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3200,7 +3202,7 @@
       "wave": 3,
       "title": "Add right-click context menus to template and group list rows (CX-ENTITY-CONTEXT)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
