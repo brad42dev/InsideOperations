@@ -1,9 +1,9 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T09:31:14.825305Z",
+  "last_updated": "2026-03-22T09:37:23.657084+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
-  "current_unit": "MOD-CONSOLE",
+  "current_unit": "MOD-PROCESS",
   "task_attempts": {
     "GFX-SHAPES-001": 1,
     "GFX-SHAPES-002": 0,
@@ -1206,7 +1206,7 @@
       "wave": 2,
       "title": "Add Export button and 6-format export to Process toolbar",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 1
     },

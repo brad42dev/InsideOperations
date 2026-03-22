@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import RBush from 'rbush'
 import { graphicsApi } from '../../api/graphics'
+import { usePermission } from '../../shared/hooks/usePermission'
+import { exportsApi, type ExportFormat } from '../../api/exports'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneRenderer'
 import { useWebSocketRaf } from '../../shared/hooks/useWebSocket'
@@ -345,6 +347,8 @@ export default function ProcessPage() {
 
   const [sidebarVisible, setSidebarVisible] = useState<boolean>(loadSidebarVisible)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
+  const canExport = usePermission('process:export')
 
   const toggleSidebar = useCallback(() => {
     setSidebarVisible((v) => {
@@ -691,6 +695,55 @@ export default function ProcessPage() {
   function zoom100() {
     setViewport((vp) => ({ ...vp, zoom: 1, panX: 0, panY: 0 }))
   }
+
+  // ---- Export --------------------------------------------------------------
+
+  /** Produces spec-compliant filename: process_graphic_{YYYY-MM-DD_HHmm}.{ext} */
+  function exportFilename(ext: string): string {
+    const now = new Date()
+    const datePart = now.toISOString().slice(0, 10)
+    const timePart = now.toTimeString().slice(0, 5).replace(':', '')
+    return `process_graphic_${datePart}_${timePart}.${ext}`
+  }
+
+  const LARGE_EXPORT_THRESHOLD = 50_000
+
+  const handleExport = useCallback(async (format: ExportFormat) => {
+    setExportDropdownOpen(false)
+    // Collect currently subscribed/visible point values from the ref (always current)
+    const currentValues = pointValuesRef.current
+    const columns = currentValues.size > 0
+      ? Array.from(currentValues.keys())
+      : ['pointId', 'value', 'quality']
+    const estimatedRows = currentValues.size
+
+    try {
+      if (estimatedRows >= LARGE_EXPORT_THRESHOLD) {
+        // Async path: submit job, WebSocket export_complete will notify the user
+        await exportsApi.create({
+          module: 'process',
+          entity: 'graphic',
+          format,
+          scope: 'all',
+          columns,
+        })
+        // If 'queued', the WebSocket export_complete event will show a toast
+      } else {
+        const result = await exportsApi.create({
+          module: 'process',
+          entity: 'graphic',
+          format,
+          scope: 'all',
+          columns,
+        })
+        if (result.type === 'download') {
+          exportsApi.triggerDownload(result.blob, exportFilename(format))
+        }
+      }
+    } catch (err) {
+      console.error('[Process] Export failed:', err)
+    }
+  }, [])
 
   // ---- Fullscreen ----------------------------------------------------------
 
@@ -1287,6 +1340,82 @@ export default function ProcessPage() {
             >
               ★
             </button>
+
+            {/* Export split button — gated by process:export */}
+            {canExport && (
+              <div style={{ position: 'relative', display: 'inline-flex' }}>
+                {/* Left: primary Export button */}
+                <button
+                  onClick={() => setExportDropdownOpen((v) => !v)}
+                  title="Export visible point values"
+                  style={{
+                    background: 'transparent', border: '1px solid var(--io-border)',
+                    borderRight: 'none',
+                    borderRadius: '4px 0 0 4px', padding: '2px 8px', cursor: 'pointer',
+                    fontSize: 11, color: 'var(--io-text-muted)',
+                    display: 'flex', alignItems: 'center', gap: 3,
+                    lineHeight: 1.5, flexShrink: 0, whiteSpace: 'nowrap',
+                  }}
+                >
+                  Export
+                </button>
+                {/* Right: chevron opens dropdown */}
+                <button
+                  onClick={() => setExportDropdownOpen((v) => !v)}
+                  title="Choose export format"
+                  style={{
+                    background: 'transparent', border: '1px solid var(--io-border)',
+                    borderRadius: '0 4px 4px 0', padding: '2px 5px', cursor: 'pointer',
+                    fontSize: 10, color: 'var(--io-text-muted)',
+                    display: 'flex', alignItems: 'center',
+                    lineHeight: 1.5, flexShrink: 0,
+                  }}
+                >
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor">
+                    <polygon points="2,3 8,3 5,7" />
+                  </svg>
+                </button>
+                {exportDropdownOpen && (
+                  <>
+                    <div
+                      style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                      onClick={() => setExportDropdownOpen(false)}
+                    />
+                    <div style={{
+                      position: 'absolute', bottom: '100%', right: 0, zIndex: 1000,
+                      background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)',
+                      borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.3)', overflow: 'hidden',
+                      minWidth: 130, marginBottom: 4,
+                    }}>
+                      {(
+                        [
+                          { label: 'CSV',     fmt: 'csv'     },
+                          { label: 'XLSX',    fmt: 'xlsx'    },
+                          { label: 'JSON',    fmt: 'json'    },
+                          { label: 'PDF',     fmt: 'pdf'     },
+                          { label: 'Parquet', fmt: 'parquet' },
+                          { label: 'HTML',    fmt: 'html'    },
+                        ] as { label: string; fmt: ExportFormat }[]
+                      ).map(({ label, fmt }) => (
+                        <button
+                          key={fmt}
+                          onClick={() => { void handleExport(fmt) }}
+                          style={{
+                            display: 'block', width: '100%', padding: '7px 13px',
+                            background: 'none', border: 'none', textAlign: 'left',
+                            cursor: 'pointer', fontSize: 12, color: 'var(--io-text-primary)',
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Fullscreen button */}
             <button
