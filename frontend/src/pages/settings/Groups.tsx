@@ -1,223 +1,997 @@
-// User group management — informational page pointing to Alerts module notification groups.
-// No groups API exists yet; RBAC role assignment is handled in Users/Roles settings pages.
-
+import React, { useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import {
+  groupsApi,
+  Group,
+  GroupDetail,
+  GroupMember,
+  CreateGroupRequest,
+  UpdateGroupRequest,
+} from '../../api/groups'
+import { rolesApi, Role } from '../../api/roles'
+import { usersApi, User } from '../../api/users'
 
 // ---------------------------------------------------------------------------
 // Shared styles
 // ---------------------------------------------------------------------------
 
-const CARD: React.CSSProperties = {
-  background: 'var(--io-surface)',
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 10px',
+  background: 'var(--io-surface-sunken)',
   border: '1px solid var(--io-border)',
-  borderRadius: '8px',
-  padding: '14px 18px',
+  borderRadius: 'var(--io-radius)',
+  color: 'var(--io-text-primary)',
+  fontSize: '13px',
+  outline: 'none',
+  boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '12px',
+  fontWeight: 500,
+  color: 'var(--io-text-secondary)',
+  marginBottom: '5px',
+}
+
+const btnPrimary: React.CSSProperties = {
+  padding: '8px 16px',
+  background: 'var(--io-accent)',
+  color: '#09090b',
+  border: 'none',
+  borderRadius: 'var(--io-radius)',
+  fontSize: '13px',
+  fontWeight: 600,
   cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 16,
-  textDecoration: 'none',
-  transition: 'border-color 0.15s',
 }
 
-const INFO_CARD: React.CSSProperties = {
-  background: 'var(--io-surface-secondary)',
+const btnSecondary: React.CSSProperties = {
+  padding: '8px 16px',
+  background: 'transparent',
+  color: 'var(--io-text-secondary)',
   border: '1px solid var(--io-border)',
-  borderRadius: '8px',
-  padding: 'var(--io-space-5)',
+  borderRadius: 'var(--io-radius)',
+  fontSize: '13px',
+  cursor: 'pointer',
 }
 
-const SECTION_LABEL: React.CSSProperties = {
-  fontSize: '11px',
-  fontWeight: 700,
-  color: 'var(--io-text-muted)',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.07em',
-  marginBottom: 12,
+const btnSmall: React.CSSProperties = {
+  padding: '4px 10px',
+  background: 'transparent',
+  border: '1px solid var(--io-border)',
+  borderRadius: 'var(--io-radius)',
+  color: 'var(--io-text-secondary)',
+  fontSize: '12px',
+  cursor: 'pointer',
+}
+
+const btnSmallDanger: React.CSSProperties = {
+  padding: '4px 10px',
+  background: 'transparent',
+  border: '1px solid rgba(239,68,68,0.3)',
+  borderRadius: 'var(--io-radius)',
+  color: 'var(--io-danger)',
+  fontSize: '12px',
+  cursor: 'pointer',
+}
+
+const cellStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  fontSize: '13px',
+  color: 'var(--io-text-secondary)',
+  verticalAlign: 'middle',
 }
 
 // ---------------------------------------------------------------------------
-// Navigation card
+// Sub-components
 // ---------------------------------------------------------------------------
 
-function NavCard({
-  label,
-  desc,
-  path,
-  onClick,
-}: {
-  label: string
-  desc: string
-  path: string
-  onClick: () => void
-}) {
+function ErrorBanner({ message }: { message: string }) {
   return (
     <div
-      style={CARD}
-      onClick={onClick}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--io-accent)')}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--io-border)')}
-      role="link"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
-      aria-label={`Navigate to ${label}`}
+      style={{
+        background: 'rgba(239,68,68,0.1)',
+        border: '1px solid rgba(239,68,68,0.3)',
+        borderRadius: 'var(--io-radius)',
+        padding: '10px 14px',
+        color: 'var(--io-danger)',
+        fontSize: '13px',
+        marginBottom: '16px',
+      }}
     >
-      <div>
-        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--io-text-primary)', marginBottom: 3 }}>
-          {label}
+      {message}
+    </div>
+  )
+}
+
+function ModalContent({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Dialog.Portal>
+      <Dialog.Overlay
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100 }}
+      />
+      <Dialog.Content
+        aria-describedby={undefined}
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%,-50%)',
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: '10px',
+          padding: '24px',
+          width: '560px',
+          maxWidth: '95vw',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          zIndex: 101,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '20px',
+          }}
+        >
+          <Dialog.Title
+            style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+          >
+            {title}
+          </Dialog.Title>
+          <Dialog.Close asChild>
+            <button
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--io-text-muted)',
+                cursor: 'pointer',
+                fontSize: '18px',
+                lineHeight: 1,
+              }}
+            >
+              x
+            </button>
+          </Dialog.Close>
         </div>
-        <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-          {desc}
+        {children}
+      </Dialog.Content>
+    </Dialog.Portal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RoleMultiSelect — select roles to assign to a group
+// ---------------------------------------------------------------------------
+function RoleMultiSelect({
+  roles,
+  selected,
+  onChange,
+}: {
+  roles: Role[]
+  selected: string[]
+  onChange: (ids: string[]) => void
+}) {
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+  }
+
+  return (
+    <div
+      style={{
+        maxHeight: '200px',
+        overflowY: 'auto',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        padding: '4px',
+      }}
+    >
+      {roles.length === 0 && (
+        <div
+          style={{
+            padding: '16px',
+            textAlign: 'center',
+            color: 'var(--io-text-muted)',
+            fontSize: '13px',
+          }}
+        >
+          No roles available
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--io-accent)', marginTop: 4, fontFamily: 'monospace' }}>
-          {path}
-        </div>
-      </div>
-      <span style={{ color: 'var(--io-text-muted)', fontSize: '20px', flexShrink: 0 }}>›</span>
+      )}
+      {roles.map((role) => (
+        <label
+          key={role.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '6px 8px',
+            cursor: 'pointer',
+            borderRadius: '4px',
+            fontSize: '13px',
+            color: 'var(--io-text-primary)',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={selected.includes(role.id)}
+            onChange={() => toggle(role.id)}
+            style={{ accentColor: 'var(--io-accent)' }}
+          />
+          <span style={{ fontWeight: 500 }}>{role.display_name}</span>
+          <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', fontFamily: 'monospace' }}>
+            {role.name}
+          </span>
+        </label>
+      ))}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// CreateGroupDialog
 // ---------------------------------------------------------------------------
+function CreateGroupDialog({
+  open,
+  onOpenChange,
+  roles,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  roles: Role[]
+}) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState<CreateGroupRequest>({ name: '', description: '', role_ids: [] })
+  const [formError, setFormError] = useState<string | null>(null)
 
-export default function Groups() {
-  const navigate = useNavigate()
+  const mutation = useMutation({
+    mutationFn: (req: CreateGroupRequest) => groupsApi.create(req),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setFormError(result.error.message)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      onOpenChange(false)
+      setForm({ name: '', description: '', role_ids: [] })
+      setFormError(null)
+    },
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError(null)
+    mutation.mutate(form)
+  }
 
   return (
-    <div style={{ padding: 'var(--io-space-6)', maxWidth: 720 }}>
-      {/* Header */}
-      <div style={{ marginBottom: 'var(--io-space-6)' }}>
-        <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
-          Groups
-        </h2>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-secondary)', lineHeight: 1.55 }}>
-          User grouping in Inside/Operations is handled through two separate mechanisms: RBAC roles (for access control) and notification groups (for alert routing). Use the links below to manage each.
-        </p>
-      </div>
-
-      {/* Group types */}
-      <div style={SECTION_LABEL}>Group Types</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--io-space-3)', marginBottom: 'var(--io-space-6)' }}>
-        <div style={{ ...INFO_CARD }}>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '8px',
-                background: 'var(--io-accent-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
-                flexShrink: 0,
-              }}
-            >
-              🛡
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <ModalContent title="Create Group">
+        {formError && <ErrorBanner message={formError} />}
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div>
+              <label style={labelStyle}>Group Name *</label>
+              <input
+                style={inputStyle}
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Operations Team"
+                required
+              />
             </div>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--io-text-primary)', marginBottom: 4 }}>
-                RBAC Roles
-              </div>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-secondary)', lineHeight: 1.55 }}>
-                Roles define what each user is permitted to see and do. A user can hold multiple roles. Roles control API access (118 permissions) and UI visibility. Manage roles in{' '}
-                <strong>Settings › Roles</strong> and assign them per user in{' '}
-                <strong>Settings › Users</strong>.
-              </p>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 6,
-                  flexWrap: 'wrap' as const,
-                  marginTop: 10,
+              <label style={labelStyle}>Description</label>
+              <input
+                style={inputStyle}
+                value={form.description ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description"
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Roles (members inherit all selected roles)</label>
+              <RoleMultiSelect
+                roles={roles}
+                selected={form.role_ids ?? []}
+                onChange={(ids) => setForm((f) => ({ ...f, role_ids: ids }))}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+            <Dialog.Close asChild>
+              <button type="button" style={btnSecondary}>
+                Cancel
+              </button>
+            </Dialog.Close>
+            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Creating...' : 'Create Group'}
+            </button>
+          </div>
+        </form>
+      </ModalContent>
+    </Dialog.Root>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// EditGroupDialog
+// ---------------------------------------------------------------------------
+function EditGroupDialog({
+  group,
+  open,
+  onOpenChange,
+  roles,
+}: {
+  group: Group | null
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  roles: Role[]
+}) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState<UpdateGroupRequest>({})
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const groupDetailQuery = useQuery({
+    queryKey: ['group-detail', group?.id],
+    queryFn: async () => {
+      if (!group) return null
+      const result = await groupsApi.get(group.id)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data as GroupDetail
+    },
+    enabled: !!group && open,
+  })
+
+  React.useEffect(() => {
+    if (groupDetailQuery.data) {
+      setForm({
+        name: groupDetailQuery.data.name,
+        description: groupDetailQuery.data.description ?? '',
+        role_ids: groupDetailQuery.data.roles.map((r) => r.id),
+      })
+    } else if (group && !groupDetailQuery.data) {
+      setForm({ name: group.name, description: group.description ?? '', role_ids: [] })
+    }
+  }, [group, groupDetailQuery.data])
+
+  const mutation = useMutation({
+    mutationFn: (req: UpdateGroupRequest) => groupsApi.update(group!.id, req),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setFormError(result.error.message)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      queryClient.invalidateQueries({ queryKey: ['group-detail', group?.id] })
+      onOpenChange(false)
+      setFormError(null)
+    },
+  })
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError(null)
+    mutation.mutate(form)
+  }
+
+  if (!group) return null
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <ModalContent title={`Edit Group: ${group.name}`}>
+        {formError && <ErrorBanner message={formError} />}
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div>
+              <label style={labelStyle}>Group Name *</label>
+              <input
+                style={inputStyle}
+                value={form.name ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Description</label>
+              <input
+                style={inputStyle}
+                value={form.description ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Roles (members inherit all selected roles)</label>
+              {groupDetailQuery.isLoading ? (
+                <div style={{ fontSize: '13px', color: 'var(--io-text-muted)', padding: '8px 0' }}>
+                  Loading roles...
+                </div>
+              ) : (
+                <RoleMultiSelect
+                  roles={roles}
+                  selected={form.role_ids ?? []}
+                  onChange={(ids) => setForm((f) => ({ ...f, role_ids: ids }))}
+                />
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+            <Dialog.Close asChild>
+              <button type="button" style={btnSecondary}>
+                Cancel
+              </button>
+            </Dialog.Close>
+            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </ModalContent>
+    </Dialog.Root>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// DeleteGroupDialog
+// ---------------------------------------------------------------------------
+function DeleteGroupDialog({
+  group,
+  open,
+  onOpenChange,
+}: {
+  group: Group | null
+  open: boolean
+  onOpenChange: (v: boolean) => void
+}) {
+  const queryClient = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: () => groupsApi.delete(group!.id),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setError(result.error.message)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      onOpenChange(false)
+      setError(null)
+    },
+  })
+
+  if (!group) return null
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <ModalContent title="Delete Group">
+        {error && <ErrorBanner message={error} />}
+        <p style={{ margin: '0 0 20px', fontSize: '14px', color: 'var(--io-text-secondary)', lineHeight: 1.55 }}>
+          Are you sure you want to delete the group <strong style={{ color: 'var(--io-text-primary)' }}>{group.name}</strong>?
+          This will remove all memberships. This action cannot be undone.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          <Dialog.Close asChild>
+            <button type="button" style={btnSecondary}>
+              Cancel
+            </button>
+          </Dialog.Close>
+          <button
+            style={{
+              padding: '8px 16px',
+              background: 'var(--io-danger)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--io-radius)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'Deleting...' : 'Delete Group'}
+          </button>
+        </div>
+      </ModalContent>
+    </Dialog.Root>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// MemberPanel — expandable panel for managing group members
+// ---------------------------------------------------------------------------
+function MemberPanel({ group }: { group: Group }) {
+  const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState<string>('')
+
+  const membersQuery = useQuery({
+    queryKey: ['group-members', group.id],
+    queryFn: async () => {
+      const result = await groupsApi.listMembers(group.id)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data.data as GroupMember[]
+    },
+  })
+
+  const usersQuery = useQuery({
+    queryKey: ['users-search', search],
+    queryFn: async () => {
+      const result = await usersApi.list({ search, limit: 20 })
+      if (!result.success) throw new Error(result.error.message)
+      return result.data.data as User[]
+    },
+    enabled: search.length > 0,
+  })
+
+  const addMutation = useMutation({
+    mutationFn: (userId: string) => groupsApi.addMember(group.id, { user_id: userId }),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setAddError(result.error.message)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['group-members', group.id] })
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      setSearch('')
+      setSelectedUserId('')
+      setAddError(null)
+    },
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => groupsApi.removeMember(group.id, userId),
+    onSuccess: (result) => {
+      if (!result.success) return
+      queryClient.invalidateQueries({ queryKey: ['group-members', group.id] })
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+    },
+  })
+
+  const members = membersQuery.data ?? []
+  const memberUserIds = new Set(members.map((m) => m.user_id))
+  const filteredUsers = (usersQuery.data ?? []).filter((u) => !memberUserIds.has(u.id))
+
+  return (
+    <div
+      style={{
+        background: 'var(--io-surface-sunken)',
+        borderTop: '1px solid var(--io-border)',
+        padding: '16px',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+        {/* Add member */}
+        <div style={{ flex: '0 0 300px' }}>
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--io-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.07em',
+              marginBottom: '8px',
+            }}
+          >
+            Add Member
+          </div>
+          {addError && <ErrorBanner message={addError} />}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                style={{ ...inputStyle, paddingRight: '8px' }}
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setSelectedUserId('')
                 }}
-              >
-                {['Viewer', 'Operator', 'Analyst', 'Supervisor', 'Content Manager', 'Maintenance', 'Contractor', 'Admin'].map(
-                  (role) => (
-                    <span
-                      key={role}
+                placeholder="Search users..."
+              />
+              {search.length > 0 && filteredUsers.length > 0 && !selectedUserId && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    background: 'var(--io-surface-elevated)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    zIndex: 10,
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {filteredUsers.map((u) => (
+                    <div
+                      key={u.id}
                       style={{
-                        padding: '2px 8px',
-                        borderRadius: '999px',
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        background: 'var(--io-surface)',
-                        border: '1px solid var(--io-border)',
-                        color: 'var(--io-text-secondary)',
+                        padding: '8px 10px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        color: 'var(--io-text-primary)',
+                        borderBottom: '1px solid var(--io-border-subtle)',
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = 'var(--io-surface-secondary)')
+                      }
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                      onClick={() => {
+                        setSelectedUserId(u.id)
+                        setSearch(u.full_name ?? u.username)
                       }}
                     >
-                      {role}
-                    </span>
-                  ),
-                )}
-              </div>
+                      <span style={{ fontWeight: 500 }}>{u.full_name ?? u.username}</span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--io-text-muted)',
+                          marginLeft: '6px',
+                        }}
+                      >
+                        {u.email}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-
-        <div style={{ ...INFO_CARD }}>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-            <div
+            <button
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: '8px',
-                background: 'var(--io-warning-subtle, rgba(234,179,8,0.1))',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
+                ...btnPrimary,
+                padding: '8px 12px',
                 flexShrink: 0,
+                opacity: !selectedUserId || addMutation.isPending ? 0.5 : 1,
+                cursor: !selectedUserId || addMutation.isPending ? 'not-allowed' : 'pointer',
               }}
+              disabled={!selectedUserId || addMutation.isPending}
+              onClick={() => selectedUserId && addMutation.mutate(selectedUserId)}
             >
-              📣
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Member list */}
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: 'var(--io-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.07em',
+              marginBottom: '8px',
+            }}
+          >
+            Current Members ({members.length})
+          </div>
+          {membersQuery.isLoading && (
+            <div style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>Loading...</div>
+          )}
+          {!membersQuery.isLoading && members.length === 0 && (
+            <div style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
+              No members yet. Add users using the search above.
             </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--io-text-primary)', marginBottom: 4 }}>
-                Notification Groups
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {members.map((m) => (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 10px',
+                  background: 'var(--io-surface)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '4px',
+                  fontSize: '13px',
+                }}
+              >
+                <div>
+                  <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>
+                    {m.full_name ?? m.username}
+                  </span>
+                  <span
+                    style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginLeft: '6px' }}
+                  >
+                    {m.email}
+                  </span>
+                </div>
+                <button
+                  style={btnSmallDanger}
+                  onClick={() => removeMutation.mutate(m.user_id)}
+                  disabled={removeMutation.isPending}
+                >
+                  Remove
+                </button>
               </div>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-secondary)', lineHeight: 1.55 }}>
-                Notification groups are collections of users and contacts used for alert routing. Groups can be static (fixed membership) or dynamic (resolved by shift role at send time). They are managed in the{' '}
-                <strong>Alerts</strong> module and referenced in escalation policies.
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </div>
+    </div>
+  )
+}
 
-      {/* Navigation links */}
-      <div style={SECTION_LABEL}>Manage Groups</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--io-space-2)', marginBottom: 'var(--io-space-6)' }}>
-        <NavCard
-          label="Roles"
-          desc="Create and edit RBAC roles, manage permission sets for the 8 predefined roles"
-          path="/settings/roles"
-          onClick={() => navigate('/settings/roles')}
-        />
-        <NavCard
-          label="Users"
-          desc="Assign roles to individual users, view group membership"
-          path="/settings/users"
-          onClick={() => navigate('/settings/users')}
-        />
-        <NavCard
-          label="Recipient Groups"
-          desc="Static and dynamic notification groups for alert routing and escalation"
-          path="/alerts/groups"
-          onClick={() => navigate('/alerts/groups')}
-        />
-        <NavCard
-          label="Alert Templates"
-          desc="Pre-configured templates that reference notification groups for routing"
-          path="/alerts/templates"
-          onClick={() => navigate('/alerts/templates')}
-        />
+// ---------------------------------------------------------------------------
+// GroupRow — single group row with expand/collapse
+// ---------------------------------------------------------------------------
+function GroupRow({
+  group,
+  index,
+  total,
+  onEdit,
+  onDelete,
+}: {
+  group: Group
+  index: number
+  total: number
+  onEdit: (g: Group) => void
+  onDelete: (g: Group) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <>
+      <tr
+        style={{
+          borderBottom: expanded || index < total - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+        }}
+      >
+        <td style={cellStyle}>
+          <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>{group.name}</span>
+          {group.description && (
+            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '2px' }}>
+              {group.description}
+            </div>
+          )}
+        </td>
+        <td style={cellStyle}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {group.role_count === 0 ? (
+              <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>—</span>
+            ) : (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '28px',
+                  height: '20px',
+                  padding: '0 7px',
+                  background: 'var(--io-accent-subtle)',
+                  borderRadius: '100px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--io-accent)',
+                }}
+              >
+                {group.role_count}
+              </span>
+            )}
+          </div>
+        </td>
+        <td style={cellStyle}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: '28px',
+              height: '20px',
+              padding: '0 7px',
+              background: 'var(--io-surface-primary)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '100px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--io-text-secondary)',
+            }}
+          >
+            {group.member_count}
+          </span>
+        </td>
+        <td style={cellStyle}>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              style={btnSmall}
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? 'Hide Members' : 'Members'}
+            </button>
+            <button style={btnSmall} onClick={() => onEdit(group)}>
+              Edit
+            </button>
+            <button style={btnSmallDanger} onClick={() => onDelete(group)}>
+              Delete
+            </button>
+          </div>
+        </td>
+      </tr>
+      {expanded && (
+        <tr style={{ borderBottom: index < total - 1 ? '1px solid var(--io-border-subtle)' : undefined }}>
+          <td colSpan={4} style={{ padding: 0 }}>
+            <MemberPanel group={group} />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main Groups page
+// ---------------------------------------------------------------------------
+export default function Groups() {
+  const navigate = useNavigate()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editGroup, setEditGroup] = useState<Group | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteGroup, setDeleteGroup] = useState<Group | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [bannerError, _setBannerError] = useState<string | null>(null)
+
+  const groupsQuery = useQuery({
+    queryKey: ['groups'],
+    queryFn: async () => {
+      const result = await groupsApi.list()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data.data as Group[]
+    },
+  })
+
+  const rolesQuery = useQuery({
+    queryKey: ['roles'],
+    queryFn: async () => {
+      const result = await rolesApi.list()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data.data as Role[]
+    },
+  })
+
+  const groups = groupsQuery.data ?? []
+  const roles = rolesQuery.data ?? []
+
+  function handleEdit(group: Group) {
+    setEditGroup(group)
+    setEditOpen(true)
+  }
+
+  function handleDelete(group: Group) {
+    setDeleteGroup(group)
+    setDeleteOpen(true)
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '20px',
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              margin: '0 0 4px',
+              fontSize: '18px',
+              fontWeight: 600,
+              color: 'var(--io-text-primary)',
+            }}
+          >
+            Groups
+          </h2>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-muted)' }}>
+            Create groups, assign roles, and manage membership. Users inherit the combined permissions
+            of all roles assigned to their groups.
+          </p>
+        </div>
+        <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
+          + Create Group
+        </button>
       </div>
 
-      {/* Note about future API */}
+      {bannerError && <ErrorBanner message={bannerError} />}
+
+      {/* Groups table */}
+      <div
+        style={{
+          background: 'var(--io-surface-secondary)',
+          border: '1px solid var(--io-border)',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          marginBottom: '24px',
+        }}
+      >
+        {groupsQuery.isLoading && (
+          <div
+            style={{
+              padding: '40px',
+              textAlign: 'center',
+              color: 'var(--io-text-muted)',
+              fontSize: '14px',
+            }}
+          >
+            Loading groups...
+          </div>
+        )}
+        {groupsQuery.isError && (
+          <div style={{ padding: '20px' }}>
+            <ErrorBanner message={groupsQuery.error?.message ?? 'Failed to load groups'} />
+          </div>
+        )}
+        {!groupsQuery.isLoading && !groupsQuery.isError && (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr
+                style={{
+                  borderBottom: '1px solid var(--io-border)',
+                  background: 'var(--io-surface-primary)',
+                }}
+              >
+                {['Name', 'Roles', 'Members', 'Actions'].map((col) => (
+                  <th
+                    key={col}
+                    style={{
+                      padding: '10px 14px',
+                      textAlign: 'left',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: 'var(--io-text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                    }}
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {groups.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    style={{
+                      padding: '40px',
+                      textAlign: 'center',
+                      color: 'var(--io-text-muted)',
+                      fontSize: '14px',
+                    }}
+                  >
+                    No groups yet. Click "Create Group" to get started.
+                  </td>
+                </tr>
+              )}
+              {groups.map((group, i) => (
+                <GroupRow
+                  key={group.id}
+                  group={group}
+                  index={i}
+                  total={groups.length}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Informational note: notification groups live in /alerts */}
       <div
         style={{
           padding: '14px 16px',
@@ -229,8 +1003,39 @@ export default function Groups() {
           lineHeight: 1.55,
         }}
       >
-        <strong style={{ color: 'var(--io-text-primary)' }}>Future: Named User Groups</strong> — Phase 16 will introduce named user groups as a standalone entity, separate from roles and notification groups. Groups will act as a cross-cutting membership abstraction used for bulk role assignment, report distribution lists, and shift crew definitions. This page will be updated at that time.
+        <strong style={{ color: 'var(--io-text-primary)' }}>Notification Groups</strong> — Alert
+        routing groups (static and dynamic) are separate from RBAC groups and are managed in the{' '}
+        <span
+          style={{ color: 'var(--io-accent)', cursor: 'pointer', textDecoration: 'underline' }}
+          onClick={() => navigate('/alerts/groups')}
+        >
+          Alerts module
+        </span>
+        . Those groups control who receives notifications in escalation policies and are not related
+        to RBAC role assignment.
       </div>
+
+      {/* Dialogs */}
+      <CreateGroupDialog open={createOpen} onOpenChange={setCreateOpen} roles={roles} />
+
+      <EditGroupDialog
+        group={editGroup}
+        open={editOpen}
+        onOpenChange={(v) => {
+          setEditOpen(v)
+          if (!v) setEditGroup(null)
+        }}
+        roles={roles}
+      />
+
+      <DeleteGroupDialog
+        group={deleteGroup}
+        open={deleteOpen}
+        onOpenChange={(v) => {
+          setDeleteOpen(v)
+          if (!v) setDeleteGroup(null)
+        }}
+      />
     </div>
   )
 }
