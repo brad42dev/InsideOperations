@@ -1,12 +1,12 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::IntoResponse,
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -56,10 +56,30 @@ pub struct DuplicateWorkspaceBody {
 pub async fn list_workspaces(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     let user_id: Uuid = match Uuid::parse_str(&claims.sub) {
         Ok(id) => id,
         Err(_) => return IoError::Unauthorized.into_response(),
+    };
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM design_objects
+         WHERE type = 'console_workspace' AND created_by = $1",
+    )
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_workspaces count query failed");
+            return IoError::Database(e).into_response();
+        }
     };
 
     let rows = match sqlx::query(
@@ -69,9 +89,12 @@ pub async fn list_workspaces(
         WHERE type = 'console_workspace'
           AND created_by = $1
         ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(user_id)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     {
@@ -97,7 +120,7 @@ pub async fn list_workspaces(
         items.push(WorkspaceSummary { id, name, metadata, created_at });
     }
 
-    Json(ApiResponse::ok(items)).into_response()
+    Json(PagedResponse::new(items, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------

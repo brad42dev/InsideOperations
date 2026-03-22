@@ -11,6 +11,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
+use io_models::{PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use sqlx::Row;
@@ -214,11 +215,15 @@ pub struct ShiftsQuery {
     pub to: Option<DateTime<Utc>>,
     pub status: Option<String>,
     pub crew_id: Option<Uuid>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MusterEventsQuery {
     pub status: Option<String>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -226,6 +231,8 @@ pub struct MusterEventsQuery {
 pub struct PresenceQuery {
     pub on_site: Option<bool>,
     pub on_shift: Option<bool>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -331,16 +338,36 @@ pub struct UpdateBadgeSourceBody {
 pub async fn list_patterns(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
         return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
             .into_response();
     }
 
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM shift_patterns")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_patterns count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count shift patterns")
+                .into_response();
+        }
+    };
+
     let rows = sqlx::query(
         r#"SELECT id, name, pattern_type, description, config, created_at, created_by
-           FROM shift_patterns ORDER BY name"#,
+           FROM shift_patterns ORDER BY name
+           LIMIT $1 OFFSET $2"#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -358,7 +385,7 @@ pub async fn list_patterns(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            ok(data).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_patterns query failed");
@@ -375,11 +402,28 @@ pub async fn list_patterns(
 pub async fn list_crews(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
         return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
             .into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM shift_crews")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_crews count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count crews")
+                .into_response();
+        }
+    };
 
     let rows = sqlx::query(
         r#"
@@ -389,8 +433,11 @@ pub async fn list_crews(
         LEFT JOIN shift_crew_members scm ON scm.crew_id = sc.id
         GROUP BY sc.id, sc.name, sc.description, sc.color, sc.created_at, sc.created_by
         ORDER BY sc.name
+        LIMIT $1 OFFSET $2
         "#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -408,7 +455,7 @@ pub async fn list_crews(
                     member_count: r.get("member_count"),
                 })
                 .collect();
-            ok(data).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_crews query failed");
@@ -746,6 +793,32 @@ pub async fn list_shifts(
             .into_response();
     }
 
+    let pg = q.page.unwrap_or(1).max(1);
+    let limit = q.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM shifts s
+         WHERE ($1::TIMESTAMPTZ IS NULL OR s.start_time >= $1)
+           AND ($2::TIMESTAMPTZ IS NULL OR s.end_time   <= $2)
+           AND ($3::TEXT IS NULL OR s.status = $3)
+           AND ($4::UUID IS NULL OR s.crew_id = $4)",
+    )
+    .bind(q.from)
+    .bind(q.to)
+    .bind(q.status.as_deref())
+    .bind(q.crew_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_shifts count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count shifts")
+                .into_response();
+        }
+    };
+
     let rows = sqlx::query(
         r#"
         SELECT s.id, s.name, s.crew_id, sc.name AS crew_name, s.pattern_id,
@@ -758,13 +831,15 @@ pub async fn list_shifts(
           AND ($3::TEXT IS NULL OR s.status = $3)
           AND ($4::UUID IS NULL OR s.crew_id = $4)
         ORDER BY s.start_time DESC
-        LIMIT 200
+        LIMIT $5 OFFSET $6
         "#,
     )
     .bind(q.from)
     .bind(q.to)
     .bind(q.status.as_deref())
     .bind(q.crew_id)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -787,7 +862,7 @@ pub async fn list_shifts(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            ok(data).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_shifts query failed");
@@ -1069,12 +1144,30 @@ pub async fn delete_shift(
 pub async fn list_presence(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Query(_q): Query<PresenceQuery>,
+    Query(q): Query<PresenceQuery>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
         return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
             .into_response();
     }
+
+    let pg = q.page.unwrap_or(1).max(1);
+    let limit = q.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM presence_status WHERE on_site = true OR on_shift = true",
+    )
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_presence count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count presence")
+                .into_response();
+        }
+    };
 
     let rows = sqlx::query(
         r#"
@@ -1085,8 +1178,11 @@ pub async fn list_presence(
         LEFT JOIN users u ON u.id = ps.user_id
         WHERE ps.on_site = true OR ps.on_shift = true
         ORDER BY u.display_name
+        LIMIT $1 OFFSET $2
         "#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -1109,7 +1205,7 @@ pub async fn list_presence(
                     updated_at: r.get("updated_at"),
                 })
                 .collect();
-            ok(data).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_presence query failed");
@@ -1180,18 +1276,38 @@ pub async fn get_presence(
 pub async fn list_muster_points(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
         return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
             .into_response();
     }
 
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM muster_points")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_muster_points count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count muster points")
+                .into_response();
+        }
+    };
+
     let rows = sqlx::query(
         r#"SELECT id, name, description, area, capacity, latitude, longitude,
                   door_ids, enabled, created_at, created_by
            FROM muster_points
-           ORDER BY name"#,
+           ORDER BY name
+           LIMIT $1 OFFSET $2"#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -1213,7 +1329,7 @@ pub async fn list_muster_points(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            ok(data).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_muster_points query failed");
@@ -1294,6 +1410,25 @@ pub async fn list_muster_events(
             .into_response();
     }
 
+    let pg = q.page.unwrap_or(1).max(1);
+    let limit = q.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM muster_events WHERE ($1::TEXT IS NULL OR status = $1)",
+    )
+    .bind(q.status.as_deref())
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_muster_events count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count muster events")
+                .into_response();
+        }
+    };
+
     let rows = sqlx::query(
         r#"
         SELECT me.id, me.trigger_type, me.trigger_ref_id,
@@ -1311,10 +1446,12 @@ pub async fn list_muster_events(
                  me.declared_at, me.resolved_by, me.resolved_at,
                  me.total_on_site, me.notes, me.status
         ORDER BY me.declared_at DESC
-        LIMIT 100
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(q.status.as_deref())
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -1338,7 +1475,7 @@ pub async fn list_muster_events(
                     accounting_accounted: r.get("accounting_accounted"),
                 })
                 .collect();
-            ok(data).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_muster_events query failed");
@@ -1709,18 +1846,38 @@ pub async fn account_person(
 pub async fn list_badge_sources(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
         return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
             .into_response();
     }
 
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM access_control_sources")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_badge_sources count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count badge sources")
+                .into_response();
+        }
+    };
+
     let rows = sqlx::query(
         r#"SELECT id, name, adapter_type, enabled, config, poll_interval_s,
                   last_poll_at, last_poll_ok, last_error, created_at, updated_at, created_by
            FROM access_control_sources
-           ORDER BY name"#,
+           ORDER BY name
+           LIMIT $1 OFFSET $2"#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -1743,7 +1900,7 @@ pub async fn list_badge_sources(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            ok(data).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_badge_sources query failed");

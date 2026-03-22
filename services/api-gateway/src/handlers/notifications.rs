@@ -12,6 +12,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
+use io_models::{PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use sqlx::Row;
@@ -139,6 +140,8 @@ pub struct MessagesQuery {
 #[derive(Debug, Deserialize)]
 pub struct TemplatesQuery {
     pub enabled: Option<bool>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -238,9 +241,9 @@ pub async fn list_messages(
             .into_response();
     }
 
-    let page = q.page.unwrap_or(1).max(1);
-    let limit = q.limit.unwrap_or(25).clamp(1, 200);
-    let offset = (page - 1) * limit;
+    let page = q.page.unwrap_or(1).max(1) as u32;
+    let limit = q.limit.unwrap_or(25).clamp(1, 200) as u32;
+    let offset = ((page - 1) * limit) as i64;
 
     let rows = sqlx::query(
         r#"
@@ -265,7 +268,7 @@ pub async fn list_messages(
     )
     .bind(q.severity.as_deref())
     .bind(q.sent_by)
-    .bind(limit)
+    .bind(limit as i64)
     .bind(offset)
     .fetch_all(&state.db)
     .await;
@@ -308,16 +311,7 @@ pub async fn list_messages(
 
             (
                 StatusCode::OK,
-                Json(json!({
-                    "success": true,
-                    "data": messages,
-                    "pagination": {
-                        "page": page,
-                        "limit": limit,
-                        "total": total,
-                        "pages": ((total as f64) / (limit as f64)).ceil() as i64,
-                    }
-                })),
+                Json(PagedResponse::new(messages, page, limit, total as u64)),
             )
                 .into_response()
         }
@@ -615,6 +609,24 @@ pub async fn list_templates(
             .into_response();
     }
 
+    let pg = q.page.unwrap_or(1).max(1);
+    let limit = q.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notification_templates WHERE ($1::BOOLEAN IS NULL OR enabled = $1)",
+    )
+    .bind(q.enabled)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_templates count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count templates").into_response();
+        }
+    };
+
     let rows = sqlx::query(
         r#"
         SELECT id, name, category, severity, title_template, body_template,
@@ -622,9 +634,12 @@ pub async fn list_templates(
         FROM notification_templates
         WHERE ($1::BOOLEAN IS NULL OR enabled = $1)
         ORDER BY is_system DESC, severity DESC, name ASC
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(q.enabled)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -648,7 +663,7 @@ pub async fn list_templates(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            ok(templates).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(templates, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_templates query failed");
@@ -990,11 +1005,27 @@ pub async fn delete_template(
 pub async fn list_groups(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
         return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
             .into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM notification_groups")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_groups count query failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count groups").into_response();
+        }
+    };
 
     let rows = sqlx::query(
         r#"
@@ -1006,8 +1037,11 @@ pub async fn list_groups(
         LEFT JOIN notification_group_members ngm ON ngm.group_id = ng.id
         GROUP BY ng.id
         ORDER BY ng.name ASC
+        LIMIT $1 OFFSET $2
         "#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -1027,7 +1061,7 @@ pub async fn list_groups(
                     member_count: r.get("member_count"),
                 })
                 .collect();
-            ok(groups).into_response()
+            (StatusCode::OK, Json(PagedResponse::new(groups, pg, limit, total as u64))).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_groups query failed");

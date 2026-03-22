@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Extension, Json,
@@ -7,7 +7,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -114,16 +114,32 @@ fn row_to_source(r: &sqlx::postgres::PgRow) -> PointSourceRow {
 pub async fn list_sources(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "settings:read") {
         return IoError::Forbidden("settings:read permission required".into()).into_response();
     }
 
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM point_sources")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
     let rows = match sqlx::query(
         "SELECT id, name, source_type, connection_config, enabled, status, \
          last_connected_at, last_error_at, last_error_message, created_at \
-         FROM point_sources ORDER BY name",
+         FROM point_sources ORDER BY name \
+         LIMIT $1 OFFSET $2",
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     {
@@ -132,7 +148,7 @@ pub async fn list_sources(
     };
 
     let sources: Vec<PointSourceRow> = rows.iter().map(row_to_source).collect();
-    Json(ApiResponse::ok(sources)).into_response()
+    Json(PagedResponse::new(sources, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -527,10 +543,23 @@ pub struct PointSourceStats {
 pub async fn list_source_stats(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "settings:read") {
         return IoError::Forbidden("settings:read permission required".into()).into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM point_sources")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
 
     let rows = match sqlx::query(
         r#"
@@ -550,8 +579,11 @@ pub async fn list_source_stats(
         LEFT JOIN points_current  pc ON pc.point_id  = pm.id
         GROUP BY ps.id, ps.last_error_at
         ORDER BY ps.name
+        LIMIT $1 OFFSET $2
         "#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     {
@@ -571,7 +603,7 @@ pub async fn list_source_stats(
         })
         .collect();
 
-    Json(ApiResponse::ok(stats)).into_response()
+    Json(PagedResponse::new(stats, pg, limit, total as u64)).into_response()
 }
 
 /// GET /api/opc/sources/:id/stats
@@ -647,10 +679,26 @@ pub async fn list_history_recovery_jobs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(source_id): Path<Uuid>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "settings:admin") {
         return IoError::Forbidden("settings:admin permission required".into()).into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM opc_history_recovery_jobs WHERE source_id = $1",
+    )
+    .bind(source_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
 
     let rows = match sqlx::query(
         r#"
@@ -660,10 +708,12 @@ pub async fn list_history_recovery_jobs(
         FROM   opc_history_recovery_jobs
         WHERE  source_id = $1
         ORDER  BY created_at DESC
-        LIMIT  50
+        LIMIT  $2 OFFSET $3
         "#,
     )
     .bind(source_id)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     {
@@ -687,5 +737,5 @@ pub async fn list_history_recovery_jobs(
         })
         .collect();
 
-    Json(ApiResponse::ok(jobs)).into_response()
+    Json(PagedResponse::new(jobs, pg, limit, total as u64)).into_response()
 }

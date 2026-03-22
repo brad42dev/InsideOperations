@@ -9,7 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -128,6 +128,8 @@ pub struct UpdateInstanceRequest {
 #[derive(Debug, Deserialize)]
 pub struct TemplateListParams {
     pub is_active: Option<bool>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -137,6 +139,8 @@ pub struct InstanceListParams {
     pub template_id: Option<Uuid>,
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -161,6 +165,22 @@ pub async fn list_templates(
         return IoError::Forbidden("log:read permission required".into()).into_response();
     }
 
+    let pg = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM log_templates
+         WHERE deleted_at IS NULL AND ($1::bool IS NULL OR is_active = $1)",
+    )
+    .bind(params.is_active)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
     let rows = sqlx::query(
         r#"
         SELECT id, name, description, version, segment_ids, is_active,
@@ -169,9 +189,12 @@ pub async fn list_templates(
         WHERE deleted_at IS NULL
           AND ($1::bool IS NULL OR is_active = $1)
         ORDER BY name
+        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(params.is_active)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -192,7 +215,7 @@ pub async fn list_templates(
                     updated_at: r.get("updated_at"),
                 })
                 .collect();
-            Json(ApiResponse::ok(templates)).into_response()
+            Json(PagedResponse::new(templates, pg, limit, total as u64)).into_response()
         }
     }
 }
@@ -339,18 +362,34 @@ pub async fn delete_template(
 pub async fn list_segments(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "log:read") {
         return IoError::Forbidden("log:read permission required".into()).into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM log_segments")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
 
     let rows = sqlx::query(
         r#"
         SELECT id, name, segment_type, content_config, is_reusable
         FROM log_segments
         ORDER BY name
+        LIMIT $1 OFFSET $2
         "#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -367,7 +406,7 @@ pub async fn list_segments(
                     is_reusable: r.get("is_reusable"),
                 })
                 .collect();
-            Json(ApiResponse::ok(segments)).into_response()
+            Json(PagedResponse::new(segments, pg, limit, total as u64)).into_response()
         }
     }
 }
@@ -430,6 +469,31 @@ pub async fn list_instances(
         return IoError::Forbidden("log:read permission required".into()).into_response();
     }
 
+    let pg = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM log_instances li
+         WHERE li.deleted_at IS NULL
+           AND ($1::text IS NULL OR li.status = $1)
+           AND ($2::uuid IS NULL OR li.shift_id = $2)
+           AND ($3::uuid IS NULL OR li.template_id = $3)
+           AND ($4::timestamptz IS NULL OR li.created_at >= $4)
+           AND ($5::timestamptz IS NULL OR li.created_at <= $5)",
+    )
+    .bind(&params.status)
+    .bind(params.shift_id)
+    .bind(params.template_id)
+    .bind(params.from)
+    .bind(params.to)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
     let rows = sqlx::query(
         r#"
         SELECT li.id, li.template_id, lt.name AS template_name, li.status,
@@ -443,7 +507,7 @@ pub async fn list_instances(
           AND ($4::timestamptz IS NULL OR li.created_at >= $4)
           AND ($5::timestamptz IS NULL OR li.created_at <= $5)
         ORDER BY li.created_at DESC
-        LIMIT 100
+        LIMIT $6 OFFSET $7
         "#,
     )
     .bind(&params.status)
@@ -451,6 +515,8 @@ pub async fn list_instances(
     .bind(params.template_id)
     .bind(params.from)
     .bind(params.to)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -469,7 +535,7 @@ pub async fn list_instances(
                     completed_at: r.get("completed_at"),
                 })
                 .collect();
-            Json(ApiResponse::ok(instances)).into_response()
+            Json(PagedResponse::new(instances, pg, limit, total as u64)).into_response()
         }
     }
 }

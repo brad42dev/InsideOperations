@@ -1,12 +1,12 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::IntoResponse,
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
@@ -84,18 +84,37 @@ fn row_to_cert(row: &sqlx::postgres::PgRow) -> OpcServerCert {
 pub async fn list_server_certs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "system:opc_config") {
         return IoError::Forbidden("system:opc_config permission required".into()).into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM opc_server_certs")
+        .fetch_one(&state.db)
+        .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_server_certs: count query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
 
     let rows = match sqlx::query(
         "SELECT id, source_id, source_name, fingerprint, subject, issuer, \
                 not_before, not_after, status, auto_trusted, reviewed_by, \
                 reviewed_at, first_seen_at, last_seen_at \
          FROM opc_server_certs \
-         ORDER BY last_seen_at DESC",
+         ORDER BY last_seen_at DESC \
+         LIMIT $1 OFFSET $2",
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     {
@@ -107,7 +126,7 @@ pub async fn list_server_certs(
     };
 
     let certs: Vec<OpcServerCert> = rows.iter().map(row_to_cert).collect();
-    Json(ApiResponse::ok(certs)).into_response()
+    Json(PagedResponse::new(certs, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------

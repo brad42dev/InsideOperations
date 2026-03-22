@@ -6,7 +6,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -30,6 +30,8 @@ fn check_permission(claims: &Claims, permission: &str) -> bool {
 pub struct DesignObjectTypeFilter {
     #[serde(rename = "type")]
     pub object_type: Option<String>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 /// Body for creating or updating a design object / graphic.
@@ -67,6 +69,8 @@ pub struct GraphicSummary {
 pub struct ListGraphicsQuery {
     /// Filter by module tag (metadata->>'module'). Pass "process" or "console".
     pub module: Option<String>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 /// Full item returned in get-single responses.
@@ -130,6 +134,10 @@ pub async fn list_graphics(
         return IoError::Forbidden("designer:read permission required".into()).into_response();
     }
 
+    let pg = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
     // Build optional module filter clause
     let (extra_where, module_bind) = if let Some(ref m) = query.module {
         (" AND metadata->>'module' = $1", Some(m.as_str()))
@@ -137,28 +145,82 @@ pub async fn list_graphics(
         ("", None)
     };
 
-    let sql = format!(
-        r#"
-        SELECT
-            id,
-            name,
-            type,
-            metadata->>'module' AS module,
-            created_at,
-            created_by,
-            (
-                SELECT count(*)::bigint
-                FROM jsonb_object_keys(COALESCE(bindings, '{{}}'::jsonb)) k
-            ) AS bindings_count
-        FROM design_objects
-        WHERE type = 'graphic'{extra_where}
-        ORDER BY created_at DESC
-        "#,
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM design_objects WHERE type = 'graphic'{extra_where}",
         extra_where = extra_where,
     );
 
-    let rows = if let Some(m) = module_bind {
-        match sqlx::query(&sql).bind(m).fetch_all(&state.db).await {
+    let total: i64 = if let Some(m) = module_bind {
+        match sqlx::query_scalar(&count_sql).bind(m).fetch_one(&state.db).await {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::error!(error = %e, "list_graphics count query failed");
+                return IoError::Database(e).into_response();
+            }
+        }
+    } else {
+        match sqlx::query_scalar(&count_sql).fetch_one(&state.db).await {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::error!(error = %e, "list_graphics count query failed");
+                return IoError::Database(e).into_response();
+            }
+        }
+    };
+
+    let (data_sql, limit_param_idx) = if module_bind.is_some() {
+        (format!(
+            r#"
+            SELECT
+                id,
+                name,
+                type,
+                metadata->>'module' AS module,
+                created_at,
+                created_by,
+                (
+                    SELECT count(*)::bigint
+                    FROM jsonb_object_keys(COALESCE(bindings, '{{}}'::jsonb)) k
+                ) AS bindings_count
+            FROM design_objects
+            WHERE type = 'graphic'{extra_where}
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            extra_where = extra_where,
+        ), true)
+    } else {
+        (format!(
+            r#"
+            SELECT
+                id,
+                name,
+                type,
+                metadata->>'module' AS module,
+                created_at,
+                created_by,
+                (
+                    SELECT count(*)::bigint
+                    FROM jsonb_object_keys(COALESCE(bindings, '{{}}'::jsonb)) k
+                ) AS bindings_count
+            FROM design_objects
+            WHERE type = 'graphic'{extra_where}
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+            "#,
+            extra_where = extra_where,
+        ), false)
+    };
+
+    let rows = if limit_param_idx {
+        let m = module_bind.unwrap();
+        match sqlx::query(&data_sql)
+            .bind(m)
+            .bind(limit as i64)
+            .bind(offset)
+            .fetch_all(&state.db)
+            .await
+        {
             Ok(r) => r,
             Err(e) => {
                 tracing::error!(error = %e, "list_graphics query failed");
@@ -166,7 +228,12 @@ pub async fn list_graphics(
             }
         }
     } else {
-        match sqlx::query(&sql).fetch_all(&state.db).await {
+        match sqlx::query(&data_sql)
+            .bind(limit as i64)
+            .bind(offset)
+            .fetch_all(&state.db)
+            .await
+        {
             Ok(r) => r,
             Err(e) => {
                 tracing::error!(error = %e, "list_graphics query failed");
@@ -196,7 +263,7 @@ pub async fn list_graphics(
         items.push(GraphicSummary { id, name, object_type, module, created_at, created_by, bindings_count });
     }
 
-    Json(ApiResponse::ok(items)).into_response()
+    Json(PagedResponse::new(items, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -655,11 +722,47 @@ pub async fn list_design_objects(
         return IoError::Forbidden("designer:read permission required".into()).into_response();
     }
 
+    let pg = filter.page.unwrap_or(1).max(1);
+    let limit = filter.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
     // Only allow shape/stencil types on this endpoint
     let allowed_types = ["shape", "stencil", "symbol", "template"];
     let type_filter: Option<String> = filter.object_type.and_then(|t| {
         if allowed_types.contains(&t.as_str()) { Some(t) } else { None }
     });
+
+    let total: i64 = match &type_filter {
+        Some(t) => {
+            match sqlx::query_scalar(
+                "SELECT COUNT(*) FROM design_objects WHERE type = $1",
+            )
+            .bind(t)
+            .fetch_one(&state.db)
+            .await
+            {
+                Ok(n) => n,
+                Err(e) => {
+                    tracing::error!(error = %e, "list_design_objects count query failed");
+                    return IoError::Database(e).into_response();
+                }
+            }
+        }
+        None => {
+            match sqlx::query_scalar(
+                "SELECT COUNT(*) FROM design_objects WHERE type IN ('shape', 'stencil', 'symbol', 'template')",
+            )
+            .fetch_one(&state.db)
+            .await
+            {
+                Ok(n) => n,
+                Err(e) => {
+                    tracing::error!(error = %e, "list_design_objects count query failed");
+                    return IoError::Database(e).into_response();
+                }
+            }
+        }
+    };
 
     let rows = match type_filter {
         Some(ref t) => {
@@ -670,9 +773,12 @@ pub async fn list_design_objects(
                 FROM design_objects
                 WHERE type = $1
                 ORDER BY name ASC
+                LIMIT $2 OFFSET $3
                 "#,
             )
             .bind(t)
+            .bind(limit as i64)
+            .bind(offset)
             .fetch_all(&state.db)
             .await
         }
@@ -684,8 +790,11 @@ pub async fn list_design_objects(
                 FROM design_objects
                 WHERE type IN ('shape', 'stencil', 'symbol', 'template')
                 ORDER BY type ASC, name ASC
+                LIMIT $1 OFFSET $2
                 "#,
             )
+            .bind(limit as i64)
+            .bind(offset)
             .fetch_all(&state.db)
             .await
         }
@@ -707,7 +816,7 @@ pub async fn list_design_objects(
         }
     }
 
-    Json(ApiResponse::ok(items)).into_response()
+    Json(PagedResponse::new(items, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -986,7 +1095,9 @@ pub async fn list_graphics_hierarchy(
         })
         .collect();
 
-    Json(ApiResponse::ok(serde_json::json!({ "tree": nodes }))).into_response()
+    let total = nodes.len() as u64;
+    let tree_data = vec![serde_json::json!({ "tree": nodes })];
+    Json(PagedResponse::new(tree_data, 1, total.max(1) as u32, total)).into_response()
 }
 
 // ---------------------------------------------------------------------------

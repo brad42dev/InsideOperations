@@ -10,7 +10,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -108,6 +108,8 @@ pub struct UpdateInvestigationRequest {
 #[derive(Debug, Deserialize)]
 pub struct ListParams {
     pub status: Option<String>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -250,7 +252,49 @@ pub async fn list_investigations(
         None => return IoError::Unauthorized.into_response(),
     };
 
+    let pg = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
     let is_admin = check_permission(&claims, "forensics:admin");
+
+    // Count query
+    let total: i64 = if is_admin {
+        match sqlx::query_scalar(
+            "SELECT COUNT(*) FROM investigations i
+             WHERE i.deleted_at IS NULL
+               AND ($1::varchar IS NULL OR i.status = $1)",
+        )
+        .bind(&params.status)
+        .fetch_one(&state.db)
+        .await
+        {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::error!(error = %e, "list_investigations admin count failed");
+                return IoError::Database(e).into_response();
+            }
+        }
+    } else {
+        match sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT i.id) FROM investigations i
+             LEFT JOIN investigation_shares s ON s.investigation_id = i.id
+             WHERE i.deleted_at IS NULL
+               AND (i.created_by = $1 OR s.shared_with_user_id = $1)
+               AND ($2::varchar IS NULL OR i.status = $2)",
+        )
+        .bind(user_id)
+        .bind(&params.status)
+        .fetch_one(&state.db)
+        .await
+        {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::error!(error = %e, "list_investigations count failed");
+                return IoError::Database(e).into_response();
+            }
+        }
+    };
 
     // Build query: admins see all; regular users see own + shared.
     let rows = if is_admin {
@@ -262,9 +306,12 @@ pub async fn list_investigations(
             WHERE i.deleted_at IS NULL
               AND ($1::varchar IS NULL OR i.status = $1)
             ORDER BY i.created_at DESC
+            LIMIT $2 OFFSET $3
             "#,
         )
         .bind(&params.status)
+        .bind(limit as i64)
+        .bind(offset)
         .fetch_all(&state.db)
         .await
         {
@@ -285,10 +332,13 @@ pub async fn list_investigations(
               AND (i.created_by = $1 OR s.shared_with_user_id = $1)
               AND ($2::varchar IS NULL OR i.status = $2)
             ORDER BY i.created_at DESC
+            LIMIT $3 OFFSET $4
             "#,
         )
         .bind(user_id)
         .bind(&params.status)
+        .bind(limit as i64)
+        .bind(offset)
         .fetch_all(&state.db)
         .await
         {
@@ -308,7 +358,7 @@ pub async fn list_investigations(
         }
     }
 
-    Json(ApiResponse::ok(items)).into_response()
+    Json(PagedResponse::new(items, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------

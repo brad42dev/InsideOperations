@@ -11,7 +11,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PagedResponse};
 use serde::Serialize;
 use std::path::PathBuf;
 use tokio::fs;
@@ -199,7 +199,8 @@ pub async fn list_certs(
     // Sort by name for stable ordering
     certs.sort_by(|a, b| a.name.cmp(&b.name));
 
-    Json(ApiResponse::ok(certs)).into_response()
+    let total = certs.len() as u64;
+    Json(PagedResponse::new(certs, 1, total.max(1) as u32, total)).into_response()
 }
 
 // ---------------------------------------------------------------------------

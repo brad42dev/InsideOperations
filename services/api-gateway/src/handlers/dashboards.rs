@@ -7,7 +7,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -78,6 +78,8 @@ pub struct ListParams {
     pub published: Option<bool>,
     pub category: Option<String>,
     pub system: Option<bool>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -199,6 +201,37 @@ pub async fn list_dashboards(
 
     let user_id = user_id_from_claims(&claims);
 
+    let page_params = PageParams {
+        page: params.page,
+        limit: params.limit,
+        sort: None,
+        order: None,
+    };
+    let pg = page_params.page();
+    let limit = page_params.limit();
+    let offset = page_params.offset();
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM dashboards
+         WHERE (is_system = true OR user_id = $1)
+           AND ($2::boolean IS NULL OR published = $2)
+           AND ($3::varchar IS NULL OR category = $3)
+           AND ($4::boolean IS NULL OR is_system = $4)",
+    )
+    .bind(user_id)
+    .bind(params.published)
+    .bind(&params.category)
+    .bind(params.system)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_dashboards count query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
     // Build a flexible query: always return system dashboards plus dashboards
     // owned by the current user.  Optional filters narrow by category,
     // published state, or system-only.
@@ -213,12 +246,15 @@ pub async fn list_dashboards(
             AND ($3::varchar IS NULL OR category = $3)
             AND ($4::boolean IS NULL OR is_system = $4)
         ORDER BY is_system DESC, name ASC
+        LIMIT $5 OFFSET $6
         "#,
     )
     .bind(user_id)
     .bind(params.published)
     .bind(&params.category)
     .bind(params.system)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     {
@@ -237,7 +273,7 @@ pub async fn list_dashboards(
         }
     }
 
-    Json(ApiResponse::ok(items)).into_response()
+    Json(PagedResponse::new(items, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -582,18 +618,39 @@ pub async fn duplicate_dashboard(
 pub async fn list_playlists(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "dashboards:read") {
         return IoError::Forbidden("dashboards:read permission required".into()).into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM dashboard_playlists",
+    )
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(error = %e, "list_playlists count query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
 
     let rows = match sqlx::query(
         r#"
         SELECT id, name, created_by, created_at, updated_at
         FROM dashboard_playlists
         ORDER BY name ASC
+        LIMIT $1 OFFSET $2
         "#,
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     {
@@ -612,7 +669,7 @@ pub async fn list_playlists(
         }
     }
 
-    Json(ApiResponse::ok(playlists)).into_response()
+    Json(PagedResponse::new(playlists, pg, limit, total as u64)).into_response()
 }
 
 // ---------------------------------------------------------------------------

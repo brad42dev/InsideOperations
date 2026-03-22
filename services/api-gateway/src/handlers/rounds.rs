@@ -9,7 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -134,11 +134,15 @@ pub struct ListInstancesParams {
     pub status: Option<String>,
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ListTemplatesParams {
     pub is_active: Option<bool>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -264,26 +268,34 @@ pub async fn list_templates(
         return IoError::Forbidden("rounds:read permission required".into()).into_response();
     }
 
-    let rows = if let Some(active) = params.is_active {
-        sqlx::query(
-            "SELECT id, name, description, version, checkpoints, is_active, created_by, created_at \
-             FROM round_templates \
-             WHERE deleted_at IS NULL AND is_active = $1 \
-             ORDER BY name",
-        )
-        .bind(active)
-        .fetch_all(&state.db)
-        .await
-    } else {
-        sqlx::query(
-            "SELECT id, name, description, version, checkpoints, is_active, created_by, created_at \
-             FROM round_templates \
-             WHERE deleted_at IS NULL \
-             ORDER BY name",
-        )
-        .fetch_all(&state.db)
-        .await
+    let pg = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM round_templates
+         WHERE deleted_at IS NULL AND ($1::bool IS NULL OR is_active = $1)",
+    )
+    .bind(params.is_active)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Database(e).into_response(),
     };
+
+    let rows = sqlx::query(
+        "SELECT id, name, description, version, checkpoints, is_active, created_by, created_at \
+         FROM round_templates \
+         WHERE deleted_at IS NULL AND ($1::bool IS NULL OR is_active = $1) \
+         ORDER BY name \
+         LIMIT $2 OFFSET $3",
+    )
+    .bind(params.is_active)
+    .bind(limit as i64)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await;
 
     match rows {
         Ok(rows) => {
@@ -291,7 +303,7 @@ pub async fn list_templates(
                 .iter()
                 .filter_map(|r| row_to_template(r).ok())
                 .collect();
-            Json(ApiResponse::ok(templates)).into_response()
+            Json(PagedResponse::new(templates, pg, limit, total as u64)).into_response()
         }
         Err(e) => IoError::Database(e).into_response(),
     }
@@ -399,18 +411,36 @@ pub async fn update_template(
 pub async fn list_schedules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "rounds:read") {
         return IoError::Forbidden("rounds:read permission required".into()).into_response();
     }
+
+    let pg = page.page();
+    let limit = page.limit();
+    let offset = page.offset();
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM round_schedules",
+    )
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
 
     let rows = sqlx::query(
         "SELECT rs.id, rs.template_id, rt.name as template_name, \
                 rs.recurrence_type, rs.recurrence_config, rs.is_active \
          FROM round_schedules rs \
          JOIN round_templates rt ON rt.id = rs.template_id \
-         ORDER BY rt.name",
+         ORDER BY rt.name \
+         LIMIT $1 OFFSET $2",
     )
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -420,7 +450,7 @@ pub async fn list_schedules(
                 .iter()
                 .filter_map(|r| row_to_schedule(r).ok())
                 .collect();
-            Json(ApiResponse::ok(schedules)).into_response()
+            Json(PagedResponse::new(schedules, pg, limit, total as u64)).into_response()
         }
         Err(e) => IoError::Database(e).into_response(),
     }
@@ -553,6 +583,26 @@ pub async fn list_instances(
         return IoError::Forbidden("rounds:read permission required".into()).into_response();
     }
 
+    let pg = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let offset = ((pg - 1) * limit) as i64;
+
+    let total: i64 = match sqlx::query_scalar(
+        "SELECT COUNT(*) FROM round_instances ri
+         WHERE ($1::text IS NULL OR ri.status = $1)
+           AND ($2::timestamptz IS NULL OR ri.created_at >= $2)
+           AND ($3::timestamptz IS NULL OR ri.created_at <= $3)",
+    )
+    .bind(&params.status)
+    .bind(params.from)
+    .bind(params.to)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
     let rows = sqlx::query(
         "SELECT ri.id, ri.template_id, rt.name as template_name, ri.status, \
                 ri.locked_to_user, ri.started_at, ri.completed_at, ri.due_by, ri.created_at \
@@ -562,11 +612,13 @@ pub async fn list_instances(
            AND ($2::timestamptz IS NULL OR ri.created_at >= $2) \
            AND ($3::timestamptz IS NULL OR ri.created_at <= $3) \
          ORDER BY ri.created_at DESC \
-         LIMIT 100",
+         LIMIT $4 OFFSET $5",
     )
     .bind(&params.status)
     .bind(params.from)
     .bind(params.to)
+    .bind(limit as i64)
+    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -576,7 +628,7 @@ pub async fn list_instances(
                 .iter()
                 .filter_map(|r| row_to_instance(r).ok())
                 .collect();
-            Json(ApiResponse::ok(instances)).into_response()
+            Json(PagedResponse::new(instances, pg, limit, total as u64)).into_response()
         }
         Err(e) => IoError::Database(e).into_response(),
     }

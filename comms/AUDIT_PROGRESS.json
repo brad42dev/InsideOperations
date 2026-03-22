@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T17:10:24.325285Z",
+  "last_updated": "2026-03-22T17:36:16.534172+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -105,7 +105,9 @@
     "DD-14-006": 1,
     "DD-14-007": 1,
     "DD-15-003": 1,
-    "DD-15-006": 1
+    "DD-15-006": 1,
+    "DD-16-002": 1,
+    "DD-16-005": 1
   },
   "queue": [
     {
@@ -2053,7 +2055,7 @@
       "wave": 3,
       "title": "Implement adaptive throttling driven by client status_report messages",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-16-003"
       ],
@@ -2075,7 +2077,7 @@
       "wave": 3,
       "title": "Emit point_fresh instead of regular update when a stale point receives a new value",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2085,7 +2087,7 @@
       "wave": 3,
       "title": "Add per-window subscription map, port-close auto-cleanup, and reconnect jitter to SharedWorker",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2095,7 +2097,7 @@
       "wave": 3,
       "title": "Mark source-associated points stale immediately on source_offline",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2249,7 +2251,7 @@
       "wave": 3,
       "title": "Implement pagination envelope on all list endpoints",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

@@ -14,7 +14,7 @@ use axum::{
 use chrono::Utc;
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::ApiResponse;
+use io_models::{ApiResponse, PagedResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::state::AppState;
@@ -127,7 +127,8 @@ pub async fn list_backups(
     // Sort newest first (by filename, which starts with timestamp)
     files.sort_by(|a, b| b.filename.cmp(&a.filename));
 
-    Json(ApiResponse::ok(files)).into_response()
+    let total = files.len() as u64;
+    Json(PagedResponse::new(files, 1, total.max(1) as u32, total)).into_response()
 }
 
 // ---------------------------------------------------------------------------
