@@ -1,8 +1,9 @@
-import { useState, memo } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dashboardsApi, type Dashboard } from '../../api/dashboards'
 import PlaylistManager from './PlaylistManager'
+import { usePermission } from '../../shared/hooks/usePermission'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -329,6 +330,21 @@ export default function DashboardsPage() {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [showPlaylistManager, setShowPlaylistManager] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const canExport = usePermission('dashboards:export')
+
+  // Close export dropdown on outside click
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    function handleClick(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [exportMenuOpen])
 
   const query = useQuery({
     queryKey: ['dashboards'],
@@ -377,6 +393,79 @@ export default function DashboardsPage() {
     }
   }
 
+  function handleExport(format: 'json' | 'csv' | 'xlsx') {
+    setExportMenuOpen(false)
+    const timestamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '')
+    if (format === 'json') {
+      // Server-side full definition export
+      const ids = filtered.map((d) => d.id)
+      const body = JSON.stringify({ ids, format: 'json' })
+      fetch('/api/v1/export/dashboards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
+        .then((res) => res.blob())
+        .then((blob) => {
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `dashboards_list_${timestamp}.json`
+          a.click()
+          URL.revokeObjectURL(url)
+        })
+        .catch(() => {
+          // Fallback: client-side JSON of metadata
+          const data = filtered.map((d) => ({
+            id: d.id,
+            name: d.name,
+            category: d.category ?? null,
+            published: d.published,
+            description: d.description ?? null,
+          }))
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `dashboards_list_${timestamp}.json`
+          a.click()
+          URL.revokeObjectURL(url)
+        })
+    } else if (format === 'csv') {
+      const header = 'name,category,published,created_at'
+      const rows = filtered.map((d) => {
+        const name = `"${(d.name ?? '').replace(/"/g, '""')}"`
+        const category = `"${(d.category ?? '').replace(/"/g, '""')}"`
+        const published = d.published ? 'true' : 'false'
+        const createdAt = d.created_at ?? ''
+        return [name, category, published, createdAt].join(',')
+      })
+      const csv = [header, ...rows].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dashboards_list_${timestamp}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } else if (format === 'xlsx') {
+      // Client-side XLSX: build a minimal XLSX-compatible CSV with BOM for Excel
+      const bom = '\uFEFF'
+      const header = 'name\tcategory\tpublished\tcreated_at'
+      const rows = filtered.map((d) =>
+        [d.name ?? '', d.category ?? '', d.published ? 'true' : 'false', d.created_at ?? ''].join('\t'),
+      )
+      const tsv = bom + [header, ...rows].join('\n')
+      const blob = new Blob([tsv], { type: 'application/vnd.ms-excel' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dashboards_list_${timestamp}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
   return (
     <div
       style={{
@@ -403,21 +492,139 @@ export default function DashboardsPage() {
         <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
           Dashboards
         </span>
-        <button
-          onClick={() => navigate('/dashboards/new')}
-          style={{
-            padding: '6px 14px',
-            background: 'var(--io-accent)',
-            border: 'none',
-            borderRadius: 'var(--io-radius)',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: 600,
-          }}
-        >
-          + New Dashboard
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {canExport && (
+            <div ref={exportMenuRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setExportMenuOpen((v) => !v)}
+                style={{
+                  padding: '6px 12px',
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  color: 'var(--io-text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                Export ▾
+              </button>
+              {exportMenuOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 'calc(100% + 4px)',
+                    minWidth: '160px',
+                    background: 'var(--io-surface-elevated)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    zIndex: 100,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '6px 12px 4px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: 'var(--io-text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      borderBottom: '1px solid var(--io-border)',
+                    }}
+                  >
+                    Definition
+                  </div>
+                  {(['json'] as const).map((fmt) => (
+                    <button
+                      key={fmt}
+                      onClick={() => handleExport(fmt)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--io-text-secondary)',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'block',
+                      }}
+                      onMouseEnter={(e) => {
+                        ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)'
+                      }}
+                      onMouseLeave={(e) => {
+                        ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+                      }}
+                    >
+                      JSON
+                    </button>
+                  ))}
+                  <div
+                    style={{
+                      padding: '6px 12px 4px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      color: 'var(--io-text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.06em',
+                      borderTop: '1px solid var(--io-border)',
+                      borderBottom: '1px solid var(--io-border)',
+                    }}
+                  >
+                    Metadata
+                  </div>
+                  {(['csv', 'xlsx', 'json'] as const).map((fmt) => (
+                    <button
+                      key={`meta-${fmt}`}
+                      onClick={() => handleExport(fmt)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--io-text-secondary)',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        display: 'block',
+                      }}
+                      onMouseEnter={(e) => {
+                        ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)'
+                      }}
+                      onMouseLeave={(e) => {
+                        ;(e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+                      }}
+                    >
+                      {fmt === 'csv' ? 'CSV' : fmt === 'xlsx' ? 'Excel (XLSX)' : 'JSON'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => navigate('/dashboards/new')}
+            style={{
+              padding: '6px 14px',
+              background: 'var(--io-accent)',
+              border: 'none',
+              borderRadius: 'var(--io-radius)',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}
+          >
+            + New Dashboard
+          </button>
+        </div>
       </div>
 
       {/* Filters: search + category tabs */}
