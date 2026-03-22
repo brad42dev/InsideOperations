@@ -66,7 +66,143 @@ function largerStepIndex(currentIdx: number): number {
   return Math.min(STEP_OPTIONS.length - 1, currentIdx + 1)
 }
 
-export default function HistoricalPlaybackBar() {
+interface HistoricalPlaybackBarProps {
+  /**
+   * Rendering mode:
+   *  - "playback" (default): full scrub bar for Console/Process/Forensics
+   *  - "time-context": simplified time range selector for Dashboards — sets
+   *    globalTimeRange in the playback store so all widgets use the same range
+   */
+  mode?: 'playback' | 'time-context'
+}
+
+export default function HistoricalPlaybackBar({ mode: barMode = 'playback' }: HistoricalPlaybackBarProps) {
+  if (barMode === 'time-context') {
+    return <TimeContextBar />
+  }
+
+  return <PlaybackBarInner />
+}
+
+// ---------------------------------------------------------------------------
+// TimeContextBar — used by DashboardViewer
+// ---------------------------------------------------------------------------
+
+function TimeContextBar() {
+  const { globalTimeRange, setGlobalTimeRange } = usePlaybackStore()
+
+  // Default displayed range: last 1 hour
+  const now = new Date()
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+
+  function fmtDatetimeLocal(date: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+
+  // Parse stored ISO strings back for display
+  const displayStart = globalTimeRange
+    ? fmtDatetimeLocal(new Date(globalTimeRange.start))
+    : fmtDatetimeLocal(oneHourAgo)
+  const displayEnd = globalTimeRange
+    ? fmtDatetimeLocal(new Date(globalTimeRange.end))
+    : fmtDatetimeLocal(now)
+
+  // Preset shortcuts
+  const presets: { label: string; ms: number }[] = [
+    { label: '15m', ms: 15 * 60 * 1000 },
+    { label: '1h',  ms: 60 * 60 * 1000 },
+    { label: '6h',  ms: 6 * 60 * 60 * 1000 },
+    { label: '24h', ms: 24 * 60 * 60 * 1000 },
+    { label: '7d',  ms: 7 * 24 * 60 * 60 * 1000 },
+    { label: '30d', ms: 30 * 24 * 60 * 60 * 1000 },
+  ]
+
+  function applyPreset(ms: number) {
+    const end = new Date()
+    const start = new Date(end.getTime() - ms)
+    setGlobalTimeRange({ start: start.toISOString(), end: end.toISOString() })
+  }
+
+  function handleStartChange(val: string) {
+    const start = new Date(val)
+    if (!isNaN(start.getTime())) {
+      const end = globalTimeRange ? new Date(globalTimeRange.end) : now
+      if (start < end) {
+        setGlobalTimeRange({ start: start.toISOString(), end: end.toISOString() })
+      }
+    }
+  }
+
+  function handleEndChange(val: string) {
+    const end = new Date(val)
+    if (!isNaN(end.getTime())) {
+      const start = globalTimeRange ? new Date(globalTimeRange.start) : oneHourAgo
+      if (end > start) {
+        setGlobalTimeRange({ start: start.toISOString(), end: end.toISOString() })
+      }
+    }
+  }
+
+  return (
+    <div style={barStyle}>
+      <span style={{ fontSize: 10, color: 'var(--io-text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+        Time Range:
+      </span>
+
+      {/* Preset buttons */}
+      {presets.map((p) => (
+        <button
+          key={p.label}
+          onClick={() => applyPreset(p.ms)}
+          style={iconBtnStyle}
+          title={`Last ${p.label}`}
+        >
+          {p.label}
+        </button>
+      ))}
+
+      {/* Custom range */}
+      <label style={labelStyle}>From</label>
+      <input
+        type="datetime-local"
+        value={displayStart}
+        onChange={(e) => handleStartChange(e.target.value)}
+        style={inputStyle}
+      />
+      <label style={labelStyle}>To</label>
+      <input
+        type="datetime-local"
+        value={displayEnd}
+        onChange={(e) => handleEndChange(e.target.value)}
+        style={inputStyle}
+      />
+
+      {/* Clear — restore per-widget defaults */}
+      {globalTimeRange && (
+        <button
+          onClick={() => setGlobalTimeRange(null)}
+          style={{ ...iconBtnStyle, color: 'var(--io-text-muted)' }}
+          title="Clear global time range — widgets use their per-widget default"
+        >
+          Reset
+        </button>
+      )}
+
+      {globalTimeRange && (
+        <span style={{ fontSize: 10, color: 'var(--io-accent)', whiteSpace: 'nowrap' }}>
+          {new Date(globalTimeRange.start).toLocaleDateString()} — {new Date(globalTimeRange.end).toLocaleDateString()}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// PlaybackBarInner — original full scrub bar for Console/Process/Forensics
+// ---------------------------------------------------------------------------
+
+function PlaybackBarInner() {
   const {
     mode,
     timestamp,

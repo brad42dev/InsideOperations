@@ -5,6 +5,7 @@ import TimeSeriesChart from '../../../shared/components/charts/TimeSeriesChart'
 import type { WidgetConfig } from '../../../api/dashboards'
 import { usePointValues } from '../../../shared/hooks/usePointValues'
 import PointContextMenu from '../../../shared/components/PointContextMenu'
+import { usePlaybackStore } from '../../../store/playback'
 
 interface LineChartConfig {
   title: string
@@ -41,9 +42,13 @@ interface Props {
 
 export default function LineChart({ config }: Props) {
   const cfg = config.config as unknown as LineChartConfig
-  const timeRange = cfg.timeRange ?? '1h'
+  const perWidgetTimeRange = cfg.timeRange ?? '1h'
   const aggregation = cfg.aggregation ?? '5m'
   const points = cfg.points ?? []
+
+  // Read global time range from playback store — set by the time-context bar in DashboardViewer.
+  // When set, it overrides the per-widget timeRange config.
+  const { globalTimeRange } = usePlaybackStore()
 
   // Track context menu state for the chart container.
   // For multi-series charts, right-clicking the container opens the menu for the first point.
@@ -51,11 +56,15 @@ export default function LineChart({ config }: Props) {
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const contextPointId = points[0] ?? ''
 
+  // Resolve the effective time range: global override takes precedence, otherwise per-widget default.
+  // queryKey includes globalTimeRange so the query refetches when the global range changes.
   const query = useQuery({
-    queryKey: ['archive-history', points, timeRange, aggregation],
+    queryKey: ['archive-history', points, perWidgetTimeRange, aggregation, globalTimeRange],
     queryFn: async () => {
       if (points.length === 0) return []
-      const { start, end } = parseTimeRange(timeRange)
+      // If a global time range is set by the dashboard time-context bar, use it.
+      // Otherwise fall back to the per-widget relative range.
+      const { start, end } = globalTimeRange ?? parseTimeRange(perWidgetTimeRange)
       const results = await Promise.all(
         points.map(async (pointId) => {
           const res = await api.get<HistoryResponse>(

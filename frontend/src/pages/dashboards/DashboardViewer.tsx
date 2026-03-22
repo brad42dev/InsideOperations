@@ -5,6 +5,7 @@ import { dashboardsApi, type DashboardVariable } from '../../api/dashboards'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
 import WidgetContainer from './widgets/WidgetContainer'
+import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
 
 // ---------------------------------------------------------------------------
 // Variable bar
@@ -450,6 +451,9 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
           onChange={handleVariableChange}
         />
       )}
+
+      {/* Playback bar — time-context mode: sets global time range for all widgets */}
+      {!isKiosk && <HistoricalPlaybackBar mode="time-context" />}
 
       {/* Dashboard grid */}
       <div

@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T12:33:01.849317Z",
+  "last_updated": "2026-03-22T12:54:34.765153+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -1528,7 +1528,7 @@
       "wave": 3,
       "title": "Add UOM client-side conversion for real-time widget values",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1538,7 +1538,7 @@
       "wave": 3,
       "title": "Add Playback Bar in time-context mode to DashboardViewer",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3790,7 +3790,7 @@
       "wave": 3,
       "title": "Add app-wide popup detection banner for blocked popups",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2,
       "source": "feature"

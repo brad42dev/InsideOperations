@@ -22,6 +22,13 @@ interface PlaybackStore {
   loopStart: number | null
   loopEnd: number | null
   loopEnabled: boolean
+  /**
+   * Global time range for dashboard time-context mode.
+   * When set, widgets that support time context (e.g. LineChart) use this
+   * range instead of their per-widget timeRange config.
+   * ISO 8601 strings; null means "not set — use per-widget default".
+   */
+  globalTimeRange: { start: string; end: string } | null
 
   setMode: (mode: PlaybackMode) => void
   setTimestamp: (ts: number) => void
@@ -32,6 +39,7 @@ interface PlaybackStore {
   setLoopStart: (ts: number | null) => void
   setLoopEnd: (ts: number | null) => void
   setLoopEnabled: (enabled: boolean) => void
+  setGlobalTimeRange: (range: { start: string; end: string } | null) => void
 }
 
 function defaultRange() {
@@ -50,6 +58,7 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   loopStart: null,
   loopEnd: null,
   loopEnabled: false,
+  globalTimeRange: null,
 
   setMode: (mode) =>
     set((s) => ({
@@ -68,4 +77,5 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   setLoopStart: (loopStart) => set({ loopStart }),
   setLoopEnd: (loopEnd) => set({ loopEnd }),
   setLoopEnabled: (loopEnabled) => set({ loopEnabled }),
+  setGlobalTimeRange: (globalTimeRange) => set({ globalTimeRange }),
 }))
