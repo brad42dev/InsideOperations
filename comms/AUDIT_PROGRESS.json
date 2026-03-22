@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T20:57:09.136082Z",
+  "last_updated": "2026-03-22T21:03:19.823809+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -2750,7 +2750,7 @@
       "wave": 3,
       "title": "Auto-detect model domain from manifest.json inside .iomodel ZIP (not from form field)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-26-005"
       ],
@@ -2823,7 +2823,7 @@
       "wave": 3,
       "title": "Implement alert templates with MiniJinja rendering and built-in seed templates",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-27-001"
       ],

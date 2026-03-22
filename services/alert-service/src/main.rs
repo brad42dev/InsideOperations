@@ -47,12 +47,23 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Alert routes
-    // NOTE: static routes (/trigger, /policies) must be registered before
-    // parameterised routes (/:id) to avoid routing conflicts.
+    // NOTE: static routes (/trigger, /policies, /templates) must be registered
+    // before parameterised routes (/:id) to avoid routing conflicts.
     let api = Router::new()
         // Alert instance endpoints (static before parameterised)
         .route("/alerts/trigger", post(handlers::alerts::trigger_alert))
         .route("/alerts", get(handlers::alerts::list_alerts))
+        // Template endpoints (static /templates before /:id)
+        .route(
+            "/alerts/templates",
+            get(handlers::templates::list_templates).post(handlers::templates::create_template),
+        )
+        .route(
+            "/alerts/templates/:id",
+            get(handlers::templates::get_template)
+                .put(handlers::templates::update_template)
+                .delete(handlers::templates::delete_template),
+        )
         // Policy endpoints (static /policies before /:id)
         .route(
             "/alerts/policies",

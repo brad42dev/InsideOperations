@@ -29,6 +29,7 @@ chrono.workspace = true
 reqwest.workspace = true
 dashmap.workspace = true
 tokio-util.workspace = true
+minijinja.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

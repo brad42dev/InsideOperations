@@ -13,6 +13,26 @@ use uuid::Uuid;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
+// Template rendering helpers
+// ---------------------------------------------------------------------------
+
+/// Render a MiniJinja template string against a JSON variable map.
+///
+/// Returns the rendered string on success, or an error message if the template
+/// fails to parse or a required variable is undefined.
+fn render_template(
+    template_str: &str,
+    vars: &serde_json::Value,
+) -> Result<String, minijinja::Error> {
+    let mut env = minijinja::Environment::new();
+    // Use strict undefined so missing variables surface as errors.
+    env.set_undefined_behavior(minijinja::UndefinedBehavior::Strict);
+    let tmpl = env.template_from_str(template_str)?;
+    let ctx = minijinja::Value::from_serialize(vars);
+    tmpl.render(ctx)
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -67,7 +87,9 @@ pub struct AlertWithDeliveries {
 
 #[derive(Debug, Deserialize)]
 pub struct TriggerAlertBody {
-    pub title: String,
+    /// Title is optional when `template_id` is provided (rendered from template).
+    /// Required when no template is given.
+    pub title: Option<String>,
     pub message: Option<String>,
     pub severity: Option<String>,
     pub source: Option<String>,
@@ -104,17 +126,120 @@ pub async fn trigger_alert(
     State(state): State<AppState>,
     Json(body): Json<TriggerAlertBody>,
 ) -> impl IntoResponse {
-    if body.title.trim().is_empty() {
-        return IoError::field("title", "Title is required").into_response();
-    }
+    // ---------------------------------------------------------------------------
+    // Template resolution: if template_id is provided, load the template and
+    // render title/message using MiniJinja with the supplied template_variables.
+    // ---------------------------------------------------------------------------
+    let (resolved_title, resolved_message, resolved_severity, resolved_channels, resolved_template_id) =
+        if let Some(template_id) = body.template_id {
+            // Load the template from the database.
+            let tmpl = sqlx::query_as::<_, super::templates::AlertTemplate>(
+                &format!(
+                    "SELECT {cols}
+                     FROM alert_templates
+                     WHERE id = $1 AND enabled = true",
+                    cols = super::templates::TEMPLATE_COLUMNS
+                ),
+            )
+            .bind(template_id)
+            .fetch_optional(&state.db)
+            .await;
 
-    let severity = body
-        .severity
-        .as_deref()
-        .unwrap_or("info")
-        .to_string();
+            let tmpl = match tmpl {
+                Ok(Some(t)) => t,
+                Ok(None) => {
+                    return IoError::NotFound(format!(
+                        "Alert template {} not found or disabled",
+                        template_id
+                    ))
+                    .into_response();
+                }
+                Err(e) => return IoError::Database(e).into_response(),
+            };
 
-    // Validate severity
+            // Build the variable context.
+            let vars = body
+                .template_variables
+                .clone()
+                .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+            // Validate that every declared variable is present in the vars map.
+            if let Some(ref required_vars) = tmpl.variables {
+                if let serde_json::Value::Object(ref map) = vars {
+                    for required_var in required_vars {
+                        if !map.contains_key(required_var.as_str()) {
+                            return IoError::field(
+                                "template_variables",
+                                &format!(
+                                    "Missing required template variable: {}",
+                                    required_var
+                                ),
+                            )
+                            .into_response();
+                        }
+                    }
+                }
+            }
+
+            // Render title template.
+            let rendered_title = match render_template(&tmpl.title_template, &vars) {
+                Ok(s) => s,
+                Err(e) => {
+                    return IoError::field(
+                        "title_template",
+                        &format!("Template render error: {}", e),
+                    )
+                    .into_response();
+                }
+            };
+
+            // Render message template.
+            let rendered_message = match render_template(&tmpl.message_template, &vars) {
+                Ok(s) => s,
+                Err(e) => {
+                    return IoError::field(
+                        "message_template",
+                        &format!("Template render error: {}", e),
+                    )
+                    .into_response();
+                }
+            };
+
+            // Use template severity if caller did not override it.
+            let severity = body
+                .severity
+                .clone()
+                .unwrap_or(tmpl.severity);
+
+            // Use template channels if caller did not provide their own list.
+            let channels = body.channels.clone().unwrap_or(tmpl.channels);
+
+            (
+                rendered_title,
+                rendered_message,
+                severity,
+                channels,
+                Some(template_id),
+            )
+        } else {
+            // No template — use raw title/message from request body.
+            let title = match &body.title {
+                Some(t) if !t.trim().is_empty() => t.trim().to_string(),
+                _ => {
+                    return IoError::field("title", "Title is required when no template_id is provided").into_response();
+                }
+            };
+            let severity = body.severity.as_deref().unwrap_or("info").to_string();
+            let message = body.message.clone().unwrap_or_default();
+            let channels = body
+                .channels
+                .clone()
+                .unwrap_or_else(|| vec!["websocket".to_string()]);
+            (title, message, severity, channels, None)
+        };
+
+    // Validate final severity (could come from template or caller).
+    let severity = resolved_severity;
     if !["emergency", "critical", "warning", "info"].contains(&severity.as_str()) {
         return IoError::field(
             "severity",
@@ -123,9 +248,9 @@ pub async fn trigger_alert(
         .into_response();
     }
 
-    let message = body.message.clone().unwrap_or_default();
+    let message = resolved_message;
     let source = body.source.clone().unwrap_or_else(|| "manual".to_string());
-    let channels_used: Vec<String> = body.channels.clone().unwrap_or_else(|| vec!["websocket".to_string()]);
+    let channels_used: Vec<String> = resolved_channels;
 
     let alert = sqlx::query_as::<_, AlertInstance>(
         &format!(
@@ -136,12 +261,12 @@ pub async fn trigger_alert(
              RETURNING {ALERT_COLUMNS}"
         ),
     )
-    .bind(body.title.trim())
+    .bind(&resolved_title)
     .bind(&message)
     .bind(&severity)
     .bind(&source)
     .bind(body.source_reference_id)
-    .bind(body.template_id)
+    .bind(resolved_template_id)
     .bind(body.roster_id)
     .bind(&channels_used)
     .fetch_one(&state.db)
