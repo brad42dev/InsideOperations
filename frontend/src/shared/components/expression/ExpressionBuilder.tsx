@@ -23,6 +23,8 @@ import { api } from '../../../api/client'
 import type { PointMeta } from '../../../api/points'
 import { showToast } from '../Toast'
 import { expressionsApi } from '../../../api/expressions'
+import { useThemeName } from '../../theme/ThemeContext'
+import type { Theme } from '../../theme/tokens'
 
 // ---------------------------------------------------------------------------
 // Palette definition
@@ -128,11 +130,34 @@ function getTileColor(type: TileType): string {
   return '#52525b'
 }
 
-// Okabe-Ito colors for nesting levels
-const NESTING_COLORS = ['#E69F00', '#56B4E9', '#009E73', '#F0E442', '#CC79A7']
+// Okabe-Ito colorblind-safe palette — nesting levels (depth 0–4, clamped)
+const NESTING_LIGHT  = ['#0072B2', '#D55E00', '#009E73', '#CC3311', '#7B2D8E']
+const NESTING_DARK   = ['#56B4E9', '#E69F00', '#40C9A2', '#EE6677', '#AA88CC']
+const NESTING_BORDER_STYLES = ['solid 2px', 'dashed 2px', 'dotted 2.5px', 'double 3px', 'solid 3.5px']
 
-function getNestingColor(depth: number): string {
-  return NESTING_COLORS[depth % NESTING_COLORS.length]
+/** Convert a #rrggbb hex color to "r, g, b" string for use in rgba(). */
+function hexToRgb(hex: string): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.substring(0, 2), 16)
+  const g = parseInt(h.substring(2, 4), 16)
+  const b = parseInt(h.substring(4, 6), 16)
+  return `${r}, ${g}, ${b}`
+}
+
+interface NestingStyle {
+  color: string
+  borderStyle: string // e.g. 'solid 2px'
+  bgAlpha: number    // opacity for rgba background tint
+}
+
+function getNestingStyle(depth: number, theme: Theme): NestingStyle {
+  const idx = Math.min(depth, 4)
+  const isHighContrast = theme === 'hphmi'
+  const isDark = theme === 'dark' || isHighContrast
+  const color = isDark ? NESTING_DARK[idx] : NESTING_LIGHT[idx]
+  const borderStyle = NESTING_BORDER_STYLES[idx]
+  const bgAlpha = isHighContrast ? 0.15 : isDark ? 0.10 : 0.08
+  return { color, borderStyle, bgAlpha }
 }
 
 // ---------------------------------------------------------------------------
@@ -540,6 +565,7 @@ function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds, cursor
 
   const [showPointSearch, setShowPointSearch] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const theme = useThemeName()
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -550,13 +576,19 @@ function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds, cursor
   const isContainer = ['group', 'square', 'cube', 'round', 'negate', 'abs'].includes(tile.type)
   const isControlFlow = tile.type === 'if_then_else'
 
+  const nestingStyle = getNestingStyle(depth, theme)
+
   const bg = isContainer || isControlFlow
     ? 'transparent'
     : getTileColor(tile.type)
 
-  const borderColor = isContainer || isControlFlow
-    ? getNestingColor(depth)
-    : 'transparent'
+  const containerBorder = isContainer || isControlFlow
+    ? `${nestingStyle.borderStyle} ${nestingStyle.color}`
+    : `2px solid transparent`
+
+  const containerBg = isContainer || isControlFlow
+    ? `rgba(${hexToRgb(nestingStyle.color)}, ${nestingStyle.bgAlpha})`
+    : bg
 
   function handleClick(e: React.MouseEvent) {
     e.stopPropagation()
@@ -590,8 +622,8 @@ function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds, cursor
         gap: '4px',
         padding: isContainer || isControlFlow ? '6px 8px' : '4px 10px',
         borderRadius: 'var(--io-radius)',
-        border: `2px solid ${borderColor}`,
-        background: isContainer || isControlFlow ? 'rgba(255,255,255,0.04)' : bg,
+        border: containerBorder,
+        background: containerBg,
         color: '#fff',
         fontSize: '12px',
         fontWeight: 500,
@@ -882,10 +914,12 @@ function ContainerTileContent({
 }) {
   const children = tile.children ?? []
   const label = getTileLabel(tile)
+  const theme = useThemeName()
+  const nestingStyle = getNestingStyle(depth, theme)
 
   return (
     <div>
-      <div style={{ fontSize: '11px', color: getNestingColor(depth), marginBottom: '4px', fontWeight: 600 }}>
+      <div style={{ fontSize: '11px', color: nestingStyle.color, marginBottom: '4px', fontWeight: 600 }}>
         {label}
       </div>
       <DropZoneRow
@@ -950,12 +984,14 @@ function IfThenElseContent({
     { label: 'THEN', tiles: tile.thenBranch ?? [], key: 'thenBranch' as const },
     { label: 'ELSE', tiles: tile.elseBranch ?? [], key: 'elseBranch' as const },
   ]
+  const theme = useThemeName()
+  const nestingStyle = getNestingStyle(depth, theme)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
       {sections.map((sec) => (
         <div key={sec.key}>
-          <div style={{ fontSize: '10px', color: getNestingColor(depth), fontWeight: 700, marginBottom: '3px' }}>
+          <div style={{ fontSize: '10px', color: nestingStyle.color, fontWeight: 700, marginBottom: '3px' }}>
             {sec.label}
           </div>
           <DropZoneRow
@@ -1117,6 +1153,8 @@ function PaletteTile({
 }) {
   const bg = getTileColor(item.type)
   const isContainer = ['group', 'square', 'cube', 'round', 'negate', 'abs', 'if_then_else'].includes(item.type)
+  const theme = useThemeName()
+  const depth0Style = getNestingStyle(0, theme)
 
   return (
     <button
@@ -1128,8 +1166,8 @@ function PaletteTile({
         justifyContent: 'center',
         padding: '5px 10px',
         borderRadius: 'var(--io-radius)',
-        border: isContainer ? `2px solid ${getNestingColor(0)}` : 'none',
-        background: isContainer ? 'rgba(255,255,255,0.06)' : bg,
+        border: isContainer ? `${depth0Style.borderStyle} ${depth0Style.color}` : 'none',
+        background: isContainer ? `rgba(${hexToRgb(depth0Style.color)}, ${depth0Style.bgAlpha})` : bg,
         color: '#fff',
         fontSize: '12px',
         fontWeight: 500,

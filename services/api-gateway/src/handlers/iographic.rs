@@ -96,7 +96,6 @@ pub struct IographicGenerator {
 // composable model (shapes + pipes) rather than pre-rendered SVG.
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GraphicModel {
     #[serde(default)]
@@ -108,17 +107,19 @@ struct GraphicModel {
     #[serde(default)]
     annotations: Vec<JsonValue>,
     /// Bindings are kept as raw JSON for storage
+    #[allow(dead_code)]
     #[serde(default)]
     bindings: JsonValue,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize, Default)]
 struct GraphicModelMeta {
     #[serde(default = "default_view_box")]
     view_box: String,
+    #[allow(dead_code)]
     #[serde(default = "default_width")]
     width: f64,
+    #[allow(dead_code)]
     #[serde(default = "default_height")]
     height: f64,
     #[serde(rename = "background_color")]
@@ -131,7 +132,6 @@ fn default_view_box() -> String { "0 0 1920 1080".to_string() }
 fn default_width() -> f64 { 1920.0 }
 fn default_height() -> f64 { 1080.0 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ShapeInstance {
     #[serde(alias = "id")]
@@ -147,6 +147,7 @@ struct ShapeInstance {
     rotation: f64,
     #[serde(default)]
     mirror: String,
+    #[allow(dead_code)]
     #[serde(alias = "parts", alias = "composable_parts", default)]
     composable_parts: Vec<JsonValue>,
 }

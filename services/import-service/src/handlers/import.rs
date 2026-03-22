@@ -131,11 +131,11 @@ pub struct ListTemplatesParams {
     pub domain: Option<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ListConnectionsParams {
     pub enabled: Option<bool>,
     pub point_source_id: Option<Uuid>,
+    #[allow(dead_code)]
     pub supplemental: Option<bool>,
 }
 

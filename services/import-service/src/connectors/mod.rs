@@ -45,9 +45,9 @@ pub struct SupplementalEvent {
 }
 
 /// Config passed to a connector from the import_connections row.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ConnectorConfig {
+    #[allow(dead_code)]
     pub connection_id: Uuid,
     pub base_url: Option<String>,
     pub auth_type: String,
@@ -63,10 +63,11 @@ pub struct ConnectorConfig {
 // ---------------------------------------------------------------------------
 
 /// Trait that all DCS supplemental REST connectors implement.
-#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait DcsConnector: Send + Sync {
+    #[allow(dead_code)]
     fn connector_type(&self) -> &'static str;
+    #[allow(dead_code)]
     async fn test_connection(&self, cfg: &ConnectorConfig) -> Result<()>;
     async fn fetch_metadata(&self, cfg: &ConnectorConfig) -> Result<Vec<SupplementalMetadata>>;
     async fn fetch_events(
