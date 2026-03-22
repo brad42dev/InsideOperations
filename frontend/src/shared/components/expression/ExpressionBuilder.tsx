@@ -1292,7 +1292,7 @@ export function ExpressionBuilder({
   onCancel,
 }: ExpressionBuilderProps) {
   const { user } = useAuthStore()
-  const isAdmin = user?.permissions.includes('users:write') ?? false
+  const isAdmin = user?.permissions.includes('system:expression_manage') ?? false
 
   const [state, dispatch] = useReducer(exprReducer, {
     tiles: [],
