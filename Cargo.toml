@@ -78,6 +78,7 @@ tiny-skia = "0.11"
 sd-notify = { version = "0.4" }
 futures = "0.3"
 x509-parser = { version = "0.16", features = ["verify"] }
+rcgen = { version = "0.13", features = ["x509-parser"] }
 
 # ── Test / dev utilities ─────────────────────────────────────────────────────
 criterion = { version = "0.5", features = ["async_tokio"] }

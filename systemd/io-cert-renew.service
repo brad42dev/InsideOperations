@@ -1,0 +1,8 @@
+[Unit]
+Description=Inside/Operations ACME Certificate Renewal Check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -sf -X POST http://127.0.0.1:3000/api/internal/certs/renew
+ExecStartPost=/bin/bash -c 'nginx -t && systemctl reload nginx'
+User=root

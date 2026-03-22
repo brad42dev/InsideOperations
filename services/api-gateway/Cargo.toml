@@ -46,6 +46,7 @@ rhai.workspace = true
 resvg.workspace = true
 tiny-skia.workspace = true
 x509-parser.workspace = true
+rcgen.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 futures.workspace = true

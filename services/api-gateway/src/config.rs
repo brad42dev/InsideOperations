@@ -44,6 +44,9 @@ pub struct Config {
     /// Directory where pg_dump backup files are stored.
     /// Dev default: /tmp/io-backups  Production: /opt/io/backups
     pub backup_dir: String,
+    /// Days before certificate expiry at which to trigger renewal.
+    /// Default: 30
+    pub cert_renew_days: i64,
 }
 
 impl Config {
@@ -93,6 +96,10 @@ impl Config {
                 .unwrap_or_else(|_| "/tmp/io-certs".to_string()),
             backup_dir: std::env::var("IO_BACKUP_DIR")
                 .unwrap_or_else(|_| "/tmp/io-backups".to_string()),
+            cert_renew_days: std::env::var("IO_CERT_RENEW_DAYS")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .unwrap_or(30),
         })
     }
 }

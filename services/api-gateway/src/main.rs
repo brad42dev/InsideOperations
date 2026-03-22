@@ -27,6 +27,7 @@ mod report_generator;
 mod seed_shapes;
 mod state;
 mod tiles;
+mod tls;
 
 use state::AppState;
 
@@ -64,6 +65,12 @@ async fn main() -> anyhow::Result<()> {
     std::fs::create_dir_all(&cfg.cert_dir)
         .map_err(|e| anyhow::anyhow!("Failed to create cert_dir {}: {}", cfg.cert_dir, e))?;
     info!(cert_dir = %cfg.cert_dir, "Certificate directory ready");
+
+    // Auto-generate a self-signed certificate if no active cert exists yet.
+    // This ensures HTTPS works immediately after a fresh install without manual setup.
+    if let Err(e) = tls::ensure_active_cert(&cfg.cert_dir).await {
+        tracing::warn!(error = %e, "Failed to auto-generate self-signed certificate — continuing without it");
+    }
 
     // Initialise database pool for direct gateway queries (e.g. global search)
     let db = io_db::create_pool(&cfg.database_url).await?;
@@ -654,6 +661,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/certificates/upload", post(handlers::certificates::upload_cert))
         .route("/api/certificates/:name/info", get(handlers::certificates::get_cert_info))
         .route("/api/certificates/:name", delete(handlers::certificates::delete_cert))
+        // Internal certificate renewal — called by systemd io-cert-renew.timer (no JWT required;
+        // whitelisted in mw::is_public_path so the JWT middleware skips validation).
+        .route(
+            "/api/internal/certs/renew",
+            post(handlers::certificates::renew_cert),
+        )
         // Change Snapshots (Phase 9 — doc 25)
         .route("/api/snapshots", get(handlers::bulk_update::list_snapshots).post(handlers::bulk_update::create_snapshot))
         .route("/api/snapshots/:id", get(handlers::bulk_update::get_snapshot).delete(handlers::bulk_update::delete_snapshot))

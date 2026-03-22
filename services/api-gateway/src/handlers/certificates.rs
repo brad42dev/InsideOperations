@@ -1,4 +1,5 @@
-//! Certificates handler — list, upload, delete, and inspect TLS certificates.
+//! Certificates handler — list, upload, delete, inspect TLS certificates,
+//! and trigger ACME renewal checks.
 //!
 //! Certificate files are stored in `IO_CERT_DIR` (default `/tmp/io-certs` in dev,
 //! `/opt/io/certs` in production) as `{name}.crt` / `{name}.key` pairs.
@@ -431,4 +432,83 @@ pub async fn get_cert_info(
             IoError::BadRequest(format!("Failed to parse certificate: {}", e)).into_response()
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/internal/certs/renew   (no JWT auth — called by systemd timer)
+// ---------------------------------------------------------------------------
+
+/// Response body for the renewal check endpoint.
+#[derive(Debug, Serialize)]
+pub struct RenewResponse {
+    /// Whether a renewal was initiated in this call.
+    pub renewed: bool,
+    /// Days remaining until the active certificate expires.
+    pub days_remaining: i64,
+}
+
+/// Check whether the active certificate needs renewal.
+///
+/// - Reads `IO_CERT_DIR/active.crt`.
+/// - Returns `{"renewed": false, "days_remaining": N}` always (ACME renewal is
+///   stubbed until the `instant-acme` integration is wired up in a later task).
+/// - If the cert cannot be read or parsed, returns a 500 with an error message.
+pub async fn renew_cert(State(state): State<AppState>) -> impl IntoResponse {
+    let cert_dir = PathBuf::from(&state.config.cert_dir);
+    let active_crt = cert_dir.join("active.crt");
+
+    // Resolve the symlink (follow it if present) before reading.
+    let file_path = match tokio::fs::canonicalize(&active_crt).await {
+        Ok(p) => p,
+        Err(_) => {
+            // active.crt does not exist; no cert to check.
+            tracing::warn!("renew_cert: active.crt not found in {}", cert_dir.display());
+            return IoError::NotFound("No active certificate found".into()).into_response();
+        }
+    };
+
+    let pem_bytes = match fs::read(&file_path).await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!(error = %e, "renew_cert: read active.crt failed");
+            return IoError::Internal(format!("Failed to read active certificate: {}", e))
+                .into_response();
+        }
+    };
+
+    let cert_info = match parse_cert_pem(&pem_bytes) {
+        Ok(info) => info,
+        Err(e) => {
+            tracing::error!(error = %e, "renew_cert: parse active.crt failed");
+            return IoError::Internal(format!("Failed to parse active certificate: {}", e))
+                .into_response();
+        }
+    };
+
+    let days_remaining = cert_info.days_remaining;
+    let renew_threshold = state.config.cert_renew_days;
+
+    tracing::info!(
+        days_remaining = days_remaining,
+        renew_threshold = renew_threshold,
+        "renew_cert: certificate expiry check"
+    );
+
+    // Stub: ACME renewal is not yet implemented.  When days_remaining falls
+    // within the threshold the system would initiate Let's Encrypt renewal here.
+    // For now, always return renewed=false so the caller knows no action was taken.
+    let renewed = false;
+
+    if days_remaining <= renew_threshold {
+        tracing::info!(
+            days_remaining = days_remaining,
+            "renew_cert: certificate within renewal window — ACME renewal stubbed"
+        );
+    }
+
+    Json(ApiResponse::ok(RenewResponse {
+        renewed,
+        days_remaining,
+    }))
+    .into_response()
 }

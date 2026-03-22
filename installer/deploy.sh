@@ -161,6 +161,12 @@ systemctl enable io-healthcheck.timer
 systemctl start io-healthcheck.timer
 echo "  Watchdog timer enabled (30s interval)"
 
+# Step 7c: Enable ACME certificate renewal timer
+echo "-> Enabling certificate renewal timer..."
+systemctl enable io-cert-renew.timer
+systemctl start io-cert-renew.timer
+echo "  Certificate renewal timer enabled (every 12 hours)"
+
 # Step 8: Enable and start services
 echo "-> Enabling and starting services..."
 systemctl enable io.target io-api-gateway.service io-data-broker.service \

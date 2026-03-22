@@ -117,6 +117,8 @@ fn is_public_path(path: &str) -> bool {
         | "/health/ready"
         | "/health/startup"
         | "/metrics"
+        // Internal certificate renewal — called by systemd timer as root with no token.
+        | "/api/internal/certs/renew"
     ) || path.starts_with("/api/auth/oidc/")
       || path.starts_with("/api/auth/saml/")
       || path.starts_with("/api/auth/ldap/")
