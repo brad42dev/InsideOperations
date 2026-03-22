@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T11:32:51.484954+00:00",
+  "last_updated": "2026-03-22T11:50:09.936847Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -1301,7 +1301,7 @@
       "depends_on": [
         "MOD-DESIGNER-004"
       ],
-      "status": "implementing",
+      "status": "verified",
       "audit_round": 3
     },
     {
@@ -1310,7 +1310,7 @@
       "title": "Add right-click context menus to shape palette",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 3
     },
     {
@@ -1430,7 +1430,7 @@
       "wave": 3,
       "title": "Fix ErrorBoundary button label and add nested boundaries for large modules",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

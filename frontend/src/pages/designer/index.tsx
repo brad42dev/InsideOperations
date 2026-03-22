@@ -27,6 +27,7 @@ import type { SceneNode, DisplayElement, SymbolInstance } from '../../shared/typ
 import { wsManager } from '../../shared/hooks/useWebSocket'
 import { useDesignerPermissions } from '../../shared/hooks/usePermission'
 import { showToast } from '../../shared/components/Toast'
+import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
 import DesignerToolbar from './DesignerToolbar'
 import DesignerModeTabs from './DesignerModeTabs'
 import DesignerStatusBar from './DesignerStatusBar'
@@ -1816,7 +1817,9 @@ export default function DesignerPage() {
         {/* Left palette */}
         {!leftCollapsed && (
           <div style={{ width: leftWidth, flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <DesignerLeftPalette collapsed={false} width={leftWidth} />
+            <ErrorBoundary module="Designer Palette">
+              <DesignerLeftPalette collapsed={false} width={leftWidth} />
+            </ErrorBoundary>
             <CollapseBtn side="left" collapsed={false} onToggle={() => setLeftCollapsed(true)} />
           </div>
         )}
@@ -1852,12 +1855,14 @@ export default function DesignerPage() {
           {loading && <LoadingSkeleton />}
           {loadError && <ErrorState message={loadError} onRetry={loadDoc} />}
           {!loading && !loadError && (
-            <DesignerCanvas
-              style={{ flex: 1 }}
-              onPropertiesOpen={() => setShowPropertiesDialog(true)}
-              onOpenGroupInTab={openGroupInTab}
-              groupSubTabNodeId={activeTab?.type === 'group' ? (activeTab.groupNodeId ?? null) : null}
-            />
+            <ErrorBoundary module="Designer Canvas">
+              <DesignerCanvas
+                style={{ flex: 1 }}
+                onPropertiesOpen={() => setShowPropertiesDialog(true)}
+                onOpenGroupInTab={openGroupInTab}
+                groupSubTabNodeId={activeTab?.type === 'group' ? (activeTab.groupNodeId ?? null) : null}
+              />
+            </ErrorBoundary>
           )}
         </div>
 
@@ -1890,7 +1895,9 @@ export default function DesignerPage() {
         {/* Right panel */}
         {!rightCollapsed && (
           <div style={{ width: rightWidth, flexShrink: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <DesignerRightPanel collapsed={false} width={rightWidth} />
+            <ErrorBoundary module="Designer Properties">
+              <DesignerRightPanel collapsed={false} width={rightWidth} />
+            </ErrorBoundary>
             <CollapseBtn side="right" collapsed={false} onToggle={() => setRightCollapsed(true)} />
           </div>
         )}

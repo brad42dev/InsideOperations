@@ -16,6 +16,7 @@ import { graphicsApi } from '../../api/graphics'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
 import EChart from '../../shared/components/charts/EChart'
 import EvidenceRenderer from './EvidenceRenderer'
+import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -1610,20 +1611,23 @@ export default function InvestigationWorkspace() {
       {/* Body: left panel + main canvas */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         {/* Left panel */}
-        <div style={{ width: '260px', flexShrink: 0, borderRight: '1px solid var(--io-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--io-surface-secondary)' }}>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <PointsPanel
-              investigationId={investigation.id}
-              readOnly={isReadOnly}
-              onRefresh={() => void queryClient.invalidateQueries({ queryKey: ['investigation', id] })}
-            />
+        <ErrorBoundary module="Forensics Points Panel">
+          <div style={{ width: '260px', flexShrink: 0, borderRight: '1px solid var(--io-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--io-surface-secondary)' }}>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <PointsPanel
+                investigationId={investigation.id}
+                readOnly={isReadOnly}
+                onRefresh={() => void queryClient.invalidateQueries({ queryKey: ['investigation', id] })}
+              />
+            </div>
+            <LinksPanel investigationId={investigation.id} readOnly={isReadOnly} />
           </div>
-          <LinksPanel investigationId={investigation.id} readOnly={isReadOnly} />
-        </div>
+        </ErrorBoundary>
 
         {/* Main canvas + results */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           {/* Scrollable stages */}
+          <ErrorBoundary module="Forensics Investigation Stages">
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {stages.length === 0 && (
               <div
@@ -1676,8 +1680,10 @@ export default function InvestigationWorkspace() {
               </button>
             )}
           </div>
+          </ErrorBoundary>
 
           {/* Results panel — collapsible */}
+          <ErrorBoundary module="Forensics Analysis Results">
           <div
             style={{
               borderTop: '1px solid var(--io-border)',
@@ -1714,6 +1720,7 @@ export default function InvestigationWorkspace() {
               </div>
             )}
           </div>
+          </ErrorBoundary>
         </div>
       </div>
 
