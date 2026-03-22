@@ -90,7 +90,8 @@
     "DD-10-003": 1,
     "DD-10-004": 1,
     "DD-10-005": 1,
-    "DD-10-006": 1
+    "DD-10-006": 1,
+    "DD-10-008": 1
   },
   "queue": [
     {
@@ -1538,7 +1539,7 @@
       "wave": 3,
       "title": "Add Playback Bar in time-context mode to DashboardViewer",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -4007,7 +4008,7 @@
       "wave": 2,
       "title": "Extend Promote to Shape wizard to accept groups with display elements as value anchors",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-021"
       ],

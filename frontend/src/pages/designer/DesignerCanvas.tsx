@@ -1821,7 +1821,10 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   const [stencilNodes, setStencilNodes] = useState<SceneNode[] | null>(null)
 
   // Promote-to-shape wizard — holds selected nodes to promote
+  // Also carries sourceType/sourceNodeId when triggered from a group node
   const [promoteNodes, setPromoteNodes] = useState<SceneNode[] | null>(null)
+  const [promoteSourceType, setPromoteSourceType] = useState<'group' | undefined>(undefined)
+  const [promoteSourceNodeId, setPromoteSourceNodeId] = useState<string | undefined>(undefined)
 
   // Name Group prompt state
   const [groupPrompt, setGroupPrompt] = useState<{
@@ -4349,8 +4352,34 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
       {promoteNodes && (
         <PromoteToShapeWizard
           selectedNodes={promoteNodes}
-          onClose={() => setPromoteNodes(null)}
-          onSaved={() => setPromoteNodes(null)}
+          onClose={() => { setPromoteNodes(null); setPromoteSourceType(undefined); setPromoteSourceNodeId(undefined) }}
+          onSaved={() => { setPromoteNodes(null); setPromoteSourceType(undefined); setPromoteSourceNodeId(undefined) }}
+          sourceType={promoteSourceType}
+          sourceNodeId={promoteSourceNodeId}
+          onReplaceGroup={(groupNodeId, newShapeId) => {
+            if (!docRef.current) return
+            const groupNode = docRef.current.children.find(n => n.id === groupNodeId)
+            if (!groupNode || groupNode.type !== 'group') return
+            const newInstance: SymbolInstance = {
+              id: crypto.randomUUID(),
+              type: 'symbol_instance',
+              name: groupNode.name,
+              transform: { ...groupNode.transform },
+              visible: groupNode.visible,
+              locked: groupNode.locked,
+              opacity: groupNode.opacity,
+              layerId: groupNode.layerId,
+              shapeRef: { shapeId: newShapeId, variant: 'default' },
+              composableParts: [],
+              textZoneOverrides: {},
+              children: [],
+              propertyOverrides: {},
+            }
+            executeCmd(new CompoundCommand('Promote Group to Shape', [
+              new DeleteNodesCommand([groupNodeId]),
+              new AddNodeCommand(newInstance, null),
+            ]))
+          }}
         />
       )}
 
@@ -4423,6 +4452,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
       zoomTo={zoomTo}
       setStencilNodes={setStencilNodes}
       setPromoteNodes={setPromoteNodes}
+      setPromoteSourceType={setPromoteSourceType}
+      setPromoteSourceNodeId={setPromoteSourceNodeId}
       setBindingNodeId={setBindingNodeId}
       setActiveGroup={setActiveGroup}
       containerRef={containerRef}
@@ -4678,6 +4709,8 @@ interface DesignerContextMenuContentProps {
   zoomTo: (zoom: number, cx?: number, cy?: number) => void
   setStencilNodes: (nodes: SceneNode[] | null) => void
   setPromoteNodes: (nodes: SceneNode[] | null) => void
+  setPromoteSourceType: (t: 'group' | undefined) => void
+  setPromoteSourceNodeId: (id: string | undefined) => void
   setBindingNodeId: (id: NodeId | null) => void
   setActiveGroup: (id: NodeId | null) => void
   containerRef: React.RefObject<HTMLDivElement>
@@ -4708,6 +4741,8 @@ function DesignerContextMenuContent({
   zoomTo,
   setStencilNodes,
   setPromoteNodes,
+  setPromoteSourceType,
+  setPromoteSourceNodeId,
   setBindingNodeId,
   setActiveGroup,
   containerRef,
@@ -5453,7 +5488,11 @@ function DesignerContextMenuContent({
                 <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId} onSelect={() => {
                   if (!nodeId || !docRef.current) return
                   const node = docRef.current.children.find(n => n.id === nodeId)
-                  if (node) setPromoteNodes([node])
+                  if (node) {
+                    setPromoteSourceType('group')
+                    setPromoteSourceNodeId(nodeId)
+                    setPromoteNodes([node])
+                  }
                 }}>
                   Promote to Shape…
                 </ContextMenuPrimitive.Item>
