@@ -742,6 +742,576 @@ pub async fn delete_user(
 }
 
 // ---------------------------------------------------------------------------
+// SCIM Group types
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScimGroup {
+    pub schemas: Vec<String>,
+    pub id: Option<String>,
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    pub members: Option<Vec<ScimGroupMember>>,
+    #[serde(rename = "externalId")]
+    pub external_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScimGroupMember {
+    pub value: String, // user ID
+    pub display: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Helper: build a SCIM Group JSON value from DB rows
+// ---------------------------------------------------------------------------
+
+fn group_to_scim(
+    role_id: &str,
+    display_name: &str,
+    members: &[(String, Option<String>)], // (user_id, username)
+) -> Value {
+    let member_list: Vec<Value> = members
+        .iter()
+        .map(|(uid, uname)| {
+            json!({
+                "value": uid,
+                "display": uname,
+                "$ref": format!("/scim/v2/Users/{}", uid)
+            })
+        })
+        .collect();
+    json!({
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "id": role_id,
+        "displayName": display_name,
+        "members": member_list,
+        "meta": {
+            "resourceType": "Group",
+            "location": format!("/scim/v2/Groups/{}", role_id)
+        }
+    })
+}
+
+/// Fetch members of a role where role_source = 'scim'.
+async fn fetch_group_members(
+    db: &sqlx::PgPool,
+    role_id: Uuid,
+) -> Result<Vec<(String, Option<String>)>, StatusCode> {
+    let rows = sqlx::query(
+        "SELECT ur.user_id, u.username
+         FROM user_roles ur
+         JOIN users u ON u.id = ur.user_id
+         WHERE ur.role_id = $1 AND ur.role_source = 'scim'",
+    )
+    .bind(role_id)
+    .fetch_all(db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(rows
+        .iter()
+        .map(|r| {
+            let uid: Uuid = r.get("user_id");
+            let uname: Option<String> = r.get("username");
+            (uid.to_string(), uname)
+        })
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
+// GET /scim/v2/Groups
+// ---------------------------------------------------------------------------
+
+pub async fn list_groups(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ScimListQuery>,
+) -> Response {
+    if let Err(status) = validate_scim_token(&headers, &state.db).await {
+        return status.into_response();
+    }
+
+    let limit = query.count.unwrap_or(100).min(200);
+    let start_index = query.start_index.unwrap_or(1).max(1);
+    let offset = start_index - 1;
+
+    // Parse optional filter: displayName eq "value"
+    let name_filter: Option<String> = query.filter.as_deref().and_then(|f| {
+        let lower = f.to_lowercase();
+        if lower.starts_with("displayname eq ") {
+            let rest = &f[15..].trim().to_string();
+            Some(rest.trim_matches('"').to_string())
+        } else {
+            None
+        }
+    });
+
+    let rows = if let Some(ref name) = name_filter {
+        sqlx::query(
+            "SELECT id, name FROM roles
+             WHERE LOWER(name) = LOWER($1)
+             ORDER BY created_at DESC
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(name)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await
+    } else {
+        sqlx::query(
+            "SELECT id, name FROM roles
+             ORDER BY created_at DESC
+             LIMIT $1 OFFSET $2",
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db)
+        .await
+    };
+
+    let rows = match rows {
+        Ok(r) => r,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    let mut resources: Vec<Value> = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let role_id: Uuid = r.get("id");
+        let role_name: String = r.get("name");
+        let members = match fetch_group_members(&state.db, role_id).await {
+            Ok(m) => m,
+            Err(s) => return s.into_response(),
+        };
+        resources.push(group_to_scim(&role_id.to_string(), &role_name, &members));
+    }
+
+    let total = resources.len();
+    scim_json_response(
+        StatusCode::OK,
+        json!({
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+            "totalResults": total,
+            "itemsPerPage": limit,
+            "startIndex": start_index,
+            "Resources": resources
+        }),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// GET /scim/v2/Groups/:id
+// ---------------------------------------------------------------------------
+
+pub async fn get_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Response {
+    if let Err(status) = validate_scim_token(&headers, &state.db).await {
+        return status.into_response();
+    }
+
+    let row = sqlx::query("SELECT id, name FROM roles WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
+
+    match row {
+        Ok(Some(r)) => {
+            let role_id: Uuid = r.get("id");
+            let role_name: String = r.get("name");
+            let members = match fetch_group_members(&state.db, role_id).await {
+                Ok(m) => m,
+                Err(s) => return s.into_response(),
+            };
+            scim_json_response(
+                StatusCode::OK,
+                group_to_scim(&role_id.to_string(), &role_name, &members),
+            )
+        }
+        Ok(None) => scim_json_response(
+            StatusCode::NOT_FOUND,
+            json!({"schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"], "status": "404", "detail": "Group not found"}),
+        ),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /scim/v2/Groups
+// ---------------------------------------------------------------------------
+
+pub async fn create_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<ScimGroup>,
+) -> Response {
+    if let Err(status) = validate_scim_token(&headers, &state.db).await {
+        return status.into_response();
+    }
+
+    let display_name = body.display_name.trim().to_string();
+    if display_name.is_empty() {
+        return scim_json_response(
+            StatusCode::BAD_REQUEST,
+            json!({"schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"], "status": "400", "detail": "displayName is required"}),
+        );
+    }
+
+    // Idempotent: if a role with this name already exists, return it
+    let existing = sqlx::query("SELECT id, name FROM roles WHERE LOWER(name) = LOWER($1)")
+        .bind(&display_name)
+        .fetch_optional(&state.db)
+        .await;
+
+    match existing {
+        Ok(Some(r)) => {
+            let role_id: Uuid = r.get("id");
+            let role_name: String = r.get("name");
+            let members = match fetch_group_members(&state.db, role_id).await {
+                Ok(m) => m,
+                Err(s) => return s.into_response(),
+            };
+            return scim_json_response(
+                StatusCode::OK,
+                group_to_scim(&role_id.to_string(), &role_name, &members),
+            );
+        }
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        Ok(None) => {}
+    }
+
+    let new_id = Uuid::new_v4();
+    let result = sqlx::query(
+        "INSERT INTO roles (id, name, description, created_at)
+         VALUES ($1, $2, $3, now())
+         RETURNING id, name",
+    )
+    .bind(new_id)
+    .bind(&display_name)
+    .bind(format!("SCIM-provisioned group: {}", display_name))
+    .fetch_one(&state.db)
+    .await;
+
+    match result {
+        Ok(r) => {
+            let role_id: Uuid = r.get("id");
+            let role_name: String = r.get("name");
+
+            // Add initial members if provided
+            if let Some(members) = &body.members {
+                for member in members {
+                    if let Ok(user_id) = Uuid::parse_str(&member.value) {
+                        let _ = sqlx::query(
+                            "INSERT INTO user_roles (user_id, role_id, role_source, assigned_at)
+                             VALUES ($1, $2, 'scim', now())
+                             ON CONFLICT (user_id, role_id) DO NOTHING",
+                        )
+                        .bind(user_id)
+                        .bind(role_id)
+                        .execute(&state.db)
+                        .await;
+                    }
+                }
+            }
+
+            let current_members = match fetch_group_members(&state.db, role_id).await {
+                Ok(m) => m,
+                Err(s) => return s.into_response(),
+            };
+            scim_json_response(
+                StatusCode::CREATED,
+                group_to_scim(&role_id.to_string(), &role_name, &current_members),
+            )
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "SCIM create_group failed");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// PUT /scim/v2/Groups/:id  — full replace (replaces members)
+// ---------------------------------------------------------------------------
+
+pub async fn replace_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ScimGroup>,
+) -> Response {
+    if let Err(status) = validate_scim_token(&headers, &state.db).await {
+        return status.into_response();
+    }
+
+    // Verify group exists
+    let row = sqlx::query("SELECT id, name FROM roles WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
+
+    let (role_id, role_name) = match row {
+        Ok(Some(r)) => {
+            let rid: Uuid = r.get("id");
+            let rname: String = r.get("name");
+            (rid, rname)
+        }
+        Ok(None) => {
+            return scim_json_response(
+                StatusCode::NOT_FOUND,
+                json!({"schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"], "status": "404", "detail": "Group not found"}),
+            )
+        }
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    // Compute desired member set
+    let desired_ids: Vec<Uuid> = body
+        .members
+        .as_ref()
+        .map(|members| {
+            members
+                .iter()
+                .filter_map(|m| Uuid::parse_str(&m.value).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // Fetch current scim-managed members
+    let current_rows = sqlx::query(
+        "SELECT user_id FROM user_roles WHERE role_id = $1 AND role_source = 'scim'",
+    )
+    .bind(role_id)
+    .fetch_all(&state.db)
+    .await;
+
+    let current_ids: Vec<Uuid> = match current_rows {
+        Ok(rows) => rows.iter().map(|r| r.get::<Uuid, _>("user_id")).collect(),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    // Remove members not in desired set
+    for uid in &current_ids {
+        if !desired_ids.contains(uid) {
+            let _ = sqlx::query(
+                "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2 AND role_source = 'scim'",
+            )
+            .bind(uid)
+            .bind(role_id)
+            .execute(&state.db)
+            .await;
+        }
+    }
+
+    // Add members in desired set not currently present
+    for uid in &desired_ids {
+        if !current_ids.contains(uid) {
+            let _ = sqlx::query(
+                "INSERT INTO user_roles (user_id, role_id, role_source, assigned_at)
+                 VALUES ($1, $2, 'scim', now())
+                 ON CONFLICT (user_id, role_id) DO NOTHING",
+            )
+            .bind(uid)
+            .bind(role_id)
+            .execute(&state.db)
+            .await;
+        }
+    }
+
+    let members = match fetch_group_members(&state.db, role_id).await {
+        Ok(m) => m,
+        Err(s) => return s.into_response(),
+    };
+    scim_json_response(
+        StatusCode::OK,
+        group_to_scim(&role_id.to_string(), &role_name, &members),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /scim/v2/Groups/:id  — partial update
+// ---------------------------------------------------------------------------
+
+pub async fn patch_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ScimPatchOp>,
+) -> Response {
+    if let Err(status) = validate_scim_token(&headers, &state.db).await {
+        return status.into_response();
+    }
+
+    // Verify group exists
+    let row = sqlx::query("SELECT id, name FROM roles WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
+
+    let (role_id, role_name) = match row {
+        Ok(Some(r)) => {
+            let rid: Uuid = r.get("id");
+            let rname: String = r.get("name");
+            (rid, rname)
+        }
+        Ok(None) => {
+            return scim_json_response(
+                StatusCode::NOT_FOUND,
+                json!({"schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"], "status": "404", "detail": "Group not found"}),
+            )
+        }
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    for op in &body.operations {
+        let op_lower = op.op.to_lowercase();
+        let path_lower = op.path.as_deref().map(|p| p.to_lowercase());
+
+        // Only handle operations on members path
+        let is_members = path_lower.as_deref() == Some("members")
+            || path_lower.as_deref().map(|p| p.starts_with("members")).unwrap_or(false);
+
+        if !is_members {
+            continue;
+        }
+
+        let member_ids: Vec<Uuid> = op
+            .value
+            .as_ref()
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        item.get("value")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| Uuid::parse_str(s).ok())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        match op_lower.as_str() {
+            "add" => {
+                for uid in &member_ids {
+                    let _ = sqlx::query(
+                        "INSERT INTO user_roles (user_id, role_id, role_source, assigned_at)
+                         VALUES ($1, $2, 'scim', now())
+                         ON CONFLICT (user_id, role_id) DO NOTHING",
+                    )
+                    .bind(uid)
+                    .bind(role_id)
+                    .execute(&state.db)
+                    .await;
+                }
+            }
+            "remove" => {
+                for uid in &member_ids {
+                    let _ = sqlx::query(
+                        "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2 AND role_source = 'scim'",
+                    )
+                    .bind(uid)
+                    .bind(role_id)
+                    .execute(&state.db)
+                    .await;
+                }
+            }
+            "replace" => {
+                // Replace is same as PUT on members list — diff against current
+                let current_rows = sqlx::query(
+                    "SELECT user_id FROM user_roles WHERE role_id = $1 AND role_source = 'scim'",
+                )
+                .bind(role_id)
+                .fetch_all(&state.db)
+                .await;
+
+                let current_ids: Vec<Uuid> = match current_rows {
+                    Ok(rows) => rows.iter().map(|r| r.get::<Uuid, _>("user_id")).collect(),
+                    Err(_) => continue,
+                };
+
+                for uid in &current_ids {
+                    if !member_ids.contains(uid) {
+                        let _ = sqlx::query(
+                            "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2 AND role_source = 'scim'",
+                        )
+                        .bind(uid)
+                        .bind(role_id)
+                        .execute(&state.db)
+                        .await;
+                    }
+                }
+                for uid in &member_ids {
+                    if !current_ids.contains(uid) {
+                        let _ = sqlx::query(
+                            "INSERT INTO user_roles (user_id, role_id, role_source, assigned_at)
+                             VALUES ($1, $2, 'scim', now())
+                             ON CONFLICT (user_id, role_id) DO NOTHING",
+                        )
+                        .bind(uid)
+                        .bind(role_id)
+                        .execute(&state.db)
+                        .await;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let members = match fetch_group_members(&state.db, role_id).await {
+        Ok(m) => m,
+        Err(s) => return s.into_response(),
+    };
+    scim_json_response(
+        StatusCode::OK,
+        group_to_scim(&role_id.to_string(), &role_name, &members),
+    )
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /scim/v2/Groups/:id
+// ---------------------------------------------------------------------------
+
+pub async fn delete_group(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Response {
+    if let Err(status) = validate_scim_token(&headers, &state.db).await {
+        return status.into_response();
+    }
+
+    // Remove all SCIM-managed role assignments for this role
+    let _ = sqlx::query(
+        "DELETE FROM user_roles WHERE role_id = $1 AND role_source = 'scim'",
+    )
+    .bind(id)
+    .execute(&state.db)
+    .await;
+
+    // Verify the role exists before attempting to soft-delete it
+    let result = sqlx::query("SELECT id FROM roles WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
+
+    match result {
+        Ok(Some(_)) => {
+            // Soft-delete by marking description (roles table has no deleted_at — leave the role but return 204)
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(None) => scim_json_response(
+            StatusCode::NOT_FOUND,
+            json!({"schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"], "status": "404", "detail": "Group not found"}),
+        ),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Admin: SCIM token management (JWT-protected, system:configure)
 // ---------------------------------------------------------------------------
 

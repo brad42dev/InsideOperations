@@ -255,6 +255,15 @@ async fn main() -> anyhow::Result<()> {
                 .put(handlers::scim::replace_user)
                 .patch(handlers::scim::patch_user)
                 .delete(handlers::scim::delete_user))
+        // SCIM 2.0 Groups (IdP role-membership sync)
+        .route("/scim/v2/Groups",
+            get(handlers::scim::list_groups)
+                .post(handlers::scim::create_group))
+        .route("/scim/v2/Groups/:id",
+            get(handlers::scim::get_group)
+                .put(handlers::scim::replace_group)
+                .patch(handlers::scim::patch_group)
+                .delete(handlers::scim::delete_group))
         .with_state(state);
 
     let app = api
