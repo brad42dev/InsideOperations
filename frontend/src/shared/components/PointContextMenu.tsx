@@ -1,7 +1,8 @@
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useNavigate } from 'react-router-dom'
 import { usePermission } from '../hooks/usePermission'
+import { forensicsApi } from '../../api/forensics'
 
 export interface PointContextMenuProps {
   pointId: string
@@ -18,6 +19,16 @@ export interface PointContextMenuProps {
    * Modules that show an in-pane panel (e.g. Console floating panel) pass this.
    */
   onPointDetail?: (pointId: string) => void
+  /**
+   * Optional override for "Trend Point" action.
+   * When omitted, the default navigates to /console?trend={pointId}.
+   */
+  onTrendPoint?: (pointId: string) => void
+  /**
+   * Optional override for "Investigate Point" action.
+   * When omitted, the default POSTs to create a new investigation then navigates.
+   */
+  onInvestigatePoint?: (pointId: string) => void
 }
 
 const menuContentStyle: React.CSSProperties = {
@@ -59,10 +70,27 @@ export default function PointContextMenu({
   open,
   onOpenChange,
   onPointDetail,
+  onTrendPoint,
+  onInvestigatePoint,
 }: PointContextMenuProps) {
   const navigate = useNavigate()
-  const canForensics = usePermission('forensics:read')
+  const canConsole = usePermission('console:read')
+  const canForensicsWrite = usePermission('forensics:write')
   const canReports = usePermission('reports:read')
+
+  // Internal open state for long-press in uncontrolled mode
+  const [internalOpen, setInternalOpen] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const isControlled = open !== undefined
+
+  const triggerOpen = useCallback(() => {
+    if (isControlled) {
+      onOpenChange?.(true)
+    } else {
+      setInternalOpen(true)
+    }
+  }, [isControlled, onOpenChange])
 
   const handleCopyTagName = useCallback(async () => {
     try {
@@ -80,16 +108,30 @@ export default function PointContextMenu({
     }
   }, [navigate, pointId, onPointDetail])
 
-  const handleTrendThisPoint = useCallback(() => {
-    navigate(`/forensics?point=${encodeURIComponent(pointId)}&mode=trend`)
-  }, [navigate, pointId])
+  const handleTrendPoint = useCallback(() => {
+    if (onTrendPoint) {
+      onTrendPoint(pointId)
+    } else {
+      navigate(`/console?trend=${encodeURIComponent(pointId)}`)
+    }
+  }, [navigate, pointId, onTrendPoint])
 
-  const handleInvestigatePoint = useCallback(() => {
-    navigate(`/forensics/new?point=${encodeURIComponent(pointId)}`)
-  }, [navigate, pointId])
+  const handleInvestigatePoint = useCallback(async () => {
+    if (onInvestigatePoint) {
+      onInvestigatePoint(pointId)
+      return
+    }
+    const result = await forensicsApi.createInvestigation({
+      name: `Investigation — ${tagName}`,
+      anchor_point_id: pointId,
+    })
+    if (result.success) {
+      navigate(`/forensics/investigations/${result.data.id}`)
+    }
+  }, [navigate, pointId, tagName, onInvestigatePoint])
 
   const handleReportOnPoint = useCallback(() => {
-    navigate(`/reports?point=${encodeURIComponent(pointId)}`)
+    navigate(`/reports/new?point=${encodeURIComponent(pointId)}`)
   }, [navigate, pointId])
 
   const handleInvestigateAlarm = useCallback(() => {
@@ -103,23 +145,33 @@ export default function PointContextMenu({
     ;(e.currentTarget as HTMLElement).style.background = 'transparent'
   }
 
-  const isControlled = open !== undefined
-
   return (
     <DropdownMenu.Root
-      open={isControlled ? open : undefined}
-      onOpenChange={isControlled ? onOpenChange : undefined}
+      open={isControlled ? open : internalOpen}
+      onOpenChange={isControlled ? onOpenChange : setInternalOpen}
     >
       {!isControlled ? (
         <DropdownMenu.Trigger asChild onContextMenu={(e) => e.preventDefault()}>
-          {/* Wrap in a span that captures right-click and delegates to Radix trigger */}
+          {/* Wrap in a span that captures right-click and long-press, delegates to Radix trigger */}
           <span
             onContextMenu={(e) => {
               e.preventDefault()
-              // Programmatically open the dropdown by dispatching a click on the trigger
-              ;(e.currentTarget as HTMLElement).dispatchEvent(
-                new MouseEvent('click', { bubbles: true }),
-              )
+              triggerOpen()
+            }}
+            onTouchStart={() => {
+              longPressTimer.current = setTimeout(() => triggerOpen(), 500)
+            }}
+            onTouchEnd={() => {
+              if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current)
+                longPressTimer.current = null
+              }
+            }}
+            onTouchMove={() => {
+              if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current)
+                longPressTimer.current = null
+              }
             }}
             style={{ display: 'contents' }}
           >
@@ -149,24 +201,26 @@ export default function PointContextMenu({
             Point Detail
           </DropdownMenu.Item>
 
-          {/* 2. Trend This Point — always visible, no permission gate */}
-          <DropdownMenu.Item
-            style={menuItemStyle}
-            onSelect={handleTrendThisPoint}
-            onFocus={focusStyle}
-            onBlur={blurStyle}
-          >
-            Trend This Point
-          </DropdownMenu.Item>
-
-          {/* Separator */}
-          <div style={separatorStyle} />
-
-          {/* 3. Investigate Point — hidden if user lacks forensics:read */}
-          {canForensics && (
+          {/* 2. Trend Point — hidden if user lacks console:read */}
+          {canConsole && (
             <DropdownMenu.Item
               style={menuItemStyle}
-              onSelect={handleInvestigatePoint}
+              onSelect={handleTrendPoint}
+              onFocus={focusStyle}
+              onBlur={blurStyle}
+            >
+              Trend Point
+            </DropdownMenu.Item>
+          )}
+
+          {/* Separator before investigation/reports actions */}
+          <div style={separatorStyle} />
+
+          {/* 3. Investigate Point — hidden if user lacks forensics:write */}
+          {canForensicsWrite && (
+            <DropdownMenu.Item
+              style={menuItemStyle}
+              onSelect={() => { void handleInvestigatePoint() }}
               onFocus={focusStyle}
               onBlur={blurStyle}
             >
@@ -204,7 +258,7 @@ export default function PointContextMenu({
           {/* Separator before Copy Tag Name */}
           <div style={separatorStyle} />
 
-          {/* 7. Copy Tag Name — always visible */}
+          {/* Copy Tag Name — always visible */}
           <DropdownMenu.Item
             style={menuItemStyle}
             onSelect={() => { void handleCopyTagName() }}
