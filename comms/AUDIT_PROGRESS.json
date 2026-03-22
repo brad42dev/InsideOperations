@@ -3863,7 +3863,7 @@
       "wave": 2,
       "title": "Build File \u2192 Properties dialog for canvas resize and background color",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "MOD-DESIGNER-016"
       ],
