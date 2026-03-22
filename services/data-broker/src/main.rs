@@ -165,14 +165,17 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(graceful_shutdown(Arc::clone(&connections)))
         .await?;
 
     Ok(())
 }
 
-async fn shutdown_signal() {
+async fn graceful_shutdown(
+    connections: Arc<DashMap<registry::ClientId, tokio::sync::mpsc::Sender<io_bus::WsServerMessage>>>,
+) {
     use tokio::signal;
+
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -191,7 +194,17 @@ async fn shutdown_signal() {
         _ = ctrl_c => {},
         _ = terminate => {},
     }
-    tracing::info!("shutdown signal received, draining in-flight requests…");
+
+    tracing::info!("Shutdown signal received — broadcasting server_restarting");
+
+    // Broadcast to all connected clients.
+    for entry in connections.iter() {
+        let _ = entry.value().try_send(io_bus::WsServerMessage::ServerRestarting);
+    }
+
+    // Give clients up to 5 seconds to receive and act on the message.
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    tracing::info!("Graceful shutdown drain complete");
 }
 
 /// Read all rows from `points_current` and populate the shadow cache.
