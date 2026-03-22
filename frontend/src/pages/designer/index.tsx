@@ -19,24 +19,28 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useSceneStore, useHistoryStore } from '../../store/designer'
+import { useSceneStore, useHistoryStore, useTabStore, MAX_TABS } from '../../store/designer'
+import { useUiStore } from '../../store/designer/uiStore'
 import { graphicsApi } from '../../api/graphics'
 import { pointsApi } from '../../api/points'
 import type { SceneNode, DisplayElement, SymbolInstance } from '../../shared/types/graphics'
 import { wsManager } from '../../shared/hooks/useWebSocket'
 import { useDesignerPermissions } from '../../shared/hooks/usePermission'
+import { showToast } from '../../shared/components/Toast'
 import DesignerToolbar from './DesignerToolbar'
 import DesignerModeTabs from './DesignerModeTabs'
 import DesignerStatusBar from './DesignerStatusBar'
 import DesignerLeftPalette from './DesignerLeftPalette'
 import DesignerRightPanel from './DesignerRightPanel'
 import DesignerCanvas from './DesignerCanvas'
+import DesignerTabBar from './DesignerTabBar'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import VersionHistoryDialog from './components/VersionHistoryDialog'
 import ValidateBindingsDialog from './components/ValidateBindingsDialog'
 import IographicImportWizard from './components/IographicImportWizard'
 import IographicExportDialog from './components/IographicExportDialog'
 import CanvasPropertiesDialog from './components/CanvasPropertiesDialog'
+import TabClosePrompt from './components/TabClosePrompt'
 
 // ---------------------------------------------------------------------------
 // New Graphic dialog
@@ -560,6 +564,28 @@ export default function DesignerPage() {
   const doc = useSceneStore(s => s.doc)
   const { canPublish } = useDesignerPermissions()
 
+  // Tab store
+  const tabs        = useTabStore(s => s.tabs)
+  const activeTabId = useTabStore(s => s.activeTabId)
+  const tabStoreOpenTab      = useTabStore(s => s.openTab)
+  const tabStoreSetActive    = useTabStore(s => s.setActiveTab)
+  const tabStoreCloseTab     = useTabStore(s => s.closeTab)
+  const tabStoreSetModified  = useTabStore(s => s.setTabModified)
+  const tabStoreSaveViewport = useTabStore(s => s.saveTabViewport)
+  const tabStoreSaveScene    = useTabStore(s => s.saveTabScene)
+  const tabStoreCloseOthers  = useTabStore(s => s.closeOtherTabs)
+  const tabStoreCloseAll     = useTabStore(s => s.closeAllTabs)
+  const tabStoreFindByGraphic = useTabStore(s => s.findTabByGraphicId)
+  const setViewport          = useUiStore(s => s.setViewport)
+
+  // Tab close prompt state
+  const [tabClosePrompt, setTabClosePrompt] = useState<{
+    tabId: string
+    graphicName: string
+    onAfterClose: () => void
+  } | null>(null)
+  const [isTabSaving, setIsTabSaving] = useState(false)
+
   // Panel widths
   const [leftWidth, setLeftWidth]   = useState(240)
   const [rightWidth, setRightWidth] = useState(300)
@@ -847,6 +873,293 @@ export default function DesignerPage() {
   }, [])
 
   // -------------------------------------------------------------------------
+  // Tab management helpers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Open a graphic in a tab. Called from DesignerGraphicsList (and anywhere
+   * else that wants to open a graphic). If the graphic is already open in a
+   * tab, focuses that tab. Otherwise creates a new tab and loads the graphic.
+   */
+  const openGraphicInTab = useCallback(async (gId: string, gName: string) => {
+    // Save current active tab's scene + viewport before possibly switching
+    const currentActiveId = useTabStore.getState().activeTabId
+    if (currentActiveId) {
+      const currentDoc = useSceneStore.getState().doc
+      if (currentDoc) {
+        tabStoreSaveScene(currentActiveId, currentDoc)
+      }
+      tabStoreSaveViewport(currentActiveId, useUiStore.getState().viewport)
+    }
+
+    // Detect LRU eviction — check tab count before opening
+    const tabsBefore = useTabStore.getState().tabs
+    const willEvict = tabsBefore.length >= MAX_TABS && !tabsBefore.find(t => t.graphicId === gId)
+    let evictedName: string | null = null
+    if (willEvict) {
+      // The LRU candidate is the tab with oldest lastFocusedAt, excluding active
+      const currentActiveId = useTabStore.getState().activeTabId
+      const candidates = tabsBefore.filter(t => t.id !== currentActiveId)
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.lastFocusedAt - b.lastFocusedAt)
+        evictedName = candidates[0].graphicName
+      }
+    }
+
+    const { tabId, isNew: isNewTab } = tabStoreOpenTab(gId, gName)
+
+    if (willEvict && evictedName) {
+      showToast({
+        title: 'Max tabs reached',
+        description: `"${evictedName}" was closed to make room.`,
+        variant: 'info',
+      })
+    }
+
+    if (!isNewTab) {
+      // Already open — restore its scene and viewport
+      const tab = useTabStore.getState().getTab(tabId)
+      if (tab?.savedScene) {
+        loadGraphic(gId, tab.savedScene.scene)
+        historyClear()
+      }
+      setViewport(tab?.viewport ?? { panX: 0, panY: 0, zoom: 1 })
+      return
+    }
+
+    // New tab — load from server
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const resp = await graphicsApi.get(gId)
+      if (!resp.success) {
+        setLoadError(resp.error.message)
+        tabStoreCloseTab(tabId)
+        return
+      }
+      const record = resp.data.data
+      loadGraphic(record.id, record.scene_data)
+      historyClear()
+      setViewport({ panX: 0, panY: 0, zoom: 1 })
+      // Update name in case it changed
+      useTabStore.getState().setTabName(tabId, record.name)
+
+      // Acquire lock
+      const lockResp = await graphicsApi.acquireLock(gId).catch(() => null)
+      if (lockResp?.success) {
+        if (lockResp.data.data.acquired) {
+          lockHeldRef.current = true
+          setLockState(null)
+        } else {
+          lockHeldRef.current = false
+          setLockState({
+            lockedByName: lockResp.data.data.locked_by_name ?? 'another user',
+            lockedAt: lockResp.data.data.locked_at ?? new Date().toISOString(),
+          })
+        }
+      } else {
+        lockHeldRef.current = true
+      }
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Unknown error')
+      tabStoreCloseTab(tabId)
+    } finally {
+      setLoading(false)
+    }
+  }, [
+    tabStoreOpenTab, tabStoreSaveScene, tabStoreSaveViewport, tabStoreCloseTab,
+    loadGraphic, historyClear, setViewport,
+  ])
+
+  /**
+   * Switch to an existing tab. Saves the current scene/viewport into the
+   * outgoing tab, then restores the incoming tab's saved state.
+   */
+  const switchToTab = useCallback(async (tabId: string) => {
+    const currentActiveId = useTabStore.getState().activeTabId
+    if (tabId === currentActiveId) return
+
+    // Save outgoing tab state
+    if (currentActiveId) {
+      const currentDoc = useSceneStore.getState().doc
+      if (currentDoc) {
+        tabStoreSaveScene(currentActiveId, currentDoc)
+      }
+      tabStoreSaveViewport(currentActiveId, useUiStore.getState().viewport)
+    }
+
+    tabStoreSetActive(tabId)
+
+    const incomingTab = useTabStore.getState().getTab(tabId)
+    if (!incomingTab) return
+
+    if (incomingTab.savedScene) {
+      // Restore from cached scene
+      loadGraphic(incomingTab.graphicId, incomingTab.savedScene.scene)
+      historyClear()
+      setViewport(incomingTab.viewport)
+    } else {
+      // First time loading this tab
+      setLoading(true)
+      setLoadError(null)
+      try {
+        const resp = await graphicsApi.get(incomingTab.graphicId)
+        if (!resp.success) {
+          setLoadError(resp.error.message)
+          return
+        }
+        const record = resp.data.data
+        loadGraphic(record.id, record.scene_data)
+        historyClear()
+        setViewport({ panX: 0, panY: 0, zoom: 1 })
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Unknown error')
+      } finally {
+        setLoading(false)
+      }
+    }
+  }, [
+    tabStoreSetActive, tabStoreSaveScene, tabStoreSaveViewport,
+    loadGraphic, historyClear, setViewport,
+  ])
+
+  /**
+   * Request closing a tab. Shows save prompt if modified, otherwise closes immediately.
+   * afterClose callback is called after the tab is actually removed.
+   */
+  const requestCloseTab = useCallback((tabId: string, afterClose?: () => void) => {
+    const tab = useTabStore.getState().getTab(tabId)
+    if (!tab) return
+
+    const doClose = async () => {
+      // If closing the active tab, save its current scene first
+      const currentActiveId = useTabStore.getState().activeTabId
+      if (currentActiveId === tabId) {
+        const currentDoc = useSceneStore.getState().doc
+        if (currentDoc) {
+          tabStoreSaveScene(tabId, currentDoc)
+        }
+      }
+
+      const newActiveId = tabStoreCloseTab(tabId)
+
+      // If there's a new active tab, restore it
+      if (newActiveId) {
+        const nextTab = useTabStore.getState().getTab(newActiveId)
+        if (nextTab?.savedScene) {
+          loadGraphic(nextTab.graphicId, nextTab.savedScene.scene)
+          historyClear()
+          setViewport(nextTab.viewport)
+        } else if (nextTab) {
+          // Load from server if no saved scene
+          setLoading(true)
+          try {
+            const resp = await graphicsApi.get(nextTab.graphicId)
+            if (resp.success) {
+              loadGraphic(resp.data.data.id, resp.data.data.scene_data)
+              historyClear()
+              setViewport({ panX: 0, panY: 0, zoom: 1 })
+            }
+          } finally {
+            setLoading(false)
+          }
+        }
+      } else {
+        // No tabs left — clear scene, navigate to home
+        useSceneStore.getState().reset()
+        navigate('/designer/graphics')
+      }
+      afterClose?.()
+    }
+
+    if (tab.isModified) {
+      setTabClosePrompt({
+        tabId,
+        graphicName: tab.graphicName,
+        onAfterClose: afterClose ?? (() => {/* noop */}),
+      })
+    } else {
+      doClose()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabStoreCloseTab, tabStoreSaveScene, loadGraphic, historyClear, setViewport, navigate])
+
+  /**
+   * Save handler for the tab close prompt (Save button).
+   * Saves the current doc, then closes the tab.
+   */
+  const handleTabPromptSave = useCallback(async () => {
+    if (!tabClosePrompt) return
+    const { tabId, onAfterClose } = tabClosePrompt
+
+    setIsTabSaving(true)
+    try {
+      // If the tab being closed is active, its scene is in sceneStore already.
+      // If not active, we need to temporarily work with its saved scene.
+      const isActive = useTabStore.getState().activeTabId === tabId
+      const tab = useTabStore.getState().getTab(tabId)
+
+      let docToSave = isActive
+        ? useSceneStore.getState().doc
+        : tab?.savedScene?.scene ?? null
+
+      const gid = tab?.graphicId
+      if (!docToSave || !gid) {
+        setTabClosePrompt(null)
+        return
+      }
+
+      const result = await graphicsApi.update(gid, {
+        name: docToSave.name ?? 'Untitled',
+        scene_data: docToSave,
+      })
+      if (result.success) {
+        tabStoreSetModified(tabId, false)
+        if (isActive) {
+          markClean()
+          historyMarkClean()
+        }
+      }
+    } catch (err) {
+      console.error('[DesignerPage] Tab save failed:', err)
+    } finally {
+      setIsTabSaving(false)
+    }
+
+    setTabClosePrompt(null)
+    // Now close without re-showing prompt
+    const tab = useTabStore.getState().getTab(tabClosePrompt.tabId)
+    if (tab) {
+      // Temporarily mark as clean so requestCloseTab won't prompt again
+      tabStoreSetModified(tabClosePrompt.tabId, false)
+    }
+    requestCloseTab(tabClosePrompt.tabId, onAfterClose)
+  }, [tabClosePrompt, tabStoreSetModified, markClean, historyMarkClean, requestCloseTab])
+
+  // Sync isDirty → active tab's isModified
+  const isDirtyFromStore = useSceneStore(s => s.isDirty)
+  useEffect(() => {
+    if (activeTabId) {
+      tabStoreSetModified(activeTabId, isDirtyFromStore)
+    }
+  }, [isDirtyFromStore, activeTabId, tabStoreSetModified])
+
+  // Sync graphicId param → open in tab (on route change)
+  useEffect(() => {
+    if (isNew || !graphicId) return
+    // If no active tab or the active tab is for a different graphic, open/switch
+    const existingTab = tabStoreFindByGraphic(graphicId)
+    if (!existingTab) {
+      // Route-based open: create a tab for the graphic being navigated to
+      const gName = doc?.name ?? graphicId
+      openGraphicInTab(graphicId, gName)
+    } else if (useTabStore.getState().activeTabId !== existingTab.id) {
+      switchToTab(existingTab.id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphicId])
+
+  // -------------------------------------------------------------------------
   // Ctrl+S global save
   // -------------------------------------------------------------------------
 
@@ -860,6 +1173,65 @@ export default function DesignerPage() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [handleSave])
+
+  // -------------------------------------------------------------------------
+  // Tab keyboard shortcuts: Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1-9
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) {
+      const ctrl = e.ctrlKey || e.metaKey
+
+      // Ctrl+W — close active tab
+      if (ctrl && e.key === 'w') {
+        const currentTabs = useTabStore.getState().tabs
+        const currentActiveId = useTabStore.getState().activeTabId
+        if (currentTabs.length > 0 && currentActiveId) {
+          e.preventDefault()
+          requestCloseTab(currentActiveId)
+        }
+        return
+      }
+
+      // Ctrl+Tab — next tab
+      if (ctrl && !e.shiftKey && e.key === 'Tab') {
+        const currentTabs = useTabStore.getState().tabs
+        const currentActiveId = useTabStore.getState().activeTabId
+        if (currentTabs.length < 2) return
+        e.preventDefault()
+        const idx = currentTabs.findIndex(t => t.id === currentActiveId)
+        const nextIdx = (idx + 1) % currentTabs.length
+        switchToTab(currentTabs[nextIdx].id)
+        return
+      }
+
+      // Ctrl+Shift+Tab — previous tab
+      if (ctrl && e.shiftKey && e.key === 'Tab') {
+        const currentTabs = useTabStore.getState().tabs
+        const currentActiveId = useTabStore.getState().activeTabId
+        if (currentTabs.length < 2) return
+        e.preventDefault()
+        const idx = currentTabs.findIndex(t => t.id === currentActiveId)
+        const prevIdx = (idx - 1 + currentTabs.length) % currentTabs.length
+        switchToTab(currentTabs[prevIdx].id)
+        return
+      }
+
+      // Ctrl+1–9 — jump to tab by 1-indexed position
+      if (ctrl && e.key >= '1' && e.key <= '9') {
+        const currentTabs = useTabStore.getState().tabs
+        if (currentTabs.length === 0) return
+        const pos = parseInt(e.key, 10) - 1
+        if (pos < currentTabs.length) {
+          e.preventDefault()
+          switchToTab(currentTabs[pos].id)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [requestCloseTab, switchToTab])
 
   // -------------------------------------------------------------------------
   // Auto-save to IndexedDB (every 60s when dirty)
@@ -1239,6 +1611,22 @@ export default function DesignerPage() {
         onProperties={() => setShowPropertiesDialog(true)}
       />
 
+      {/* Tab close prompt */}
+      {tabClosePrompt && (
+        <TabClosePrompt
+          graphicName={tabClosePrompt.graphicName}
+          isSaving={isTabSaving}
+          onSave={handleTabPromptSave}
+          onDiscard={() => {
+            const { tabId, onAfterClose } = tabClosePrompt
+            setTabClosePrompt(null)
+            tabStoreSetModified(tabId, false)
+            requestCloseTab(tabId, onAfterClose)
+          }}
+          onCancel={() => setTabClosePrompt(null)}
+        />
+      )}
+
       {/* Toolbar */}
       <DesignerToolbar
         onSave={handleSave}
@@ -1247,6 +1635,43 @@ export default function DesignerPage() {
         isPublishing={isPublishing}
         onShowVersionHistory={() => setShowVersionHistory(true)}
         onValidateBindings={handleValidateBindings}
+      />
+
+      {/* File tab bar — between toolbar and canvas area */}
+      <DesignerTabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSwitchTab={switchToTab}
+        onCloseTab={(tabId) => requestCloseTab(tabId)}
+        onCloseOthers={(keepTabId) => {
+          const toClose = tabStoreCloseOthers(keepTabId)
+          // Save prompt for each modified tab being closed
+          // Process sequentially
+          const modifiedTabs = toClose.filter(t => t.isModified)
+          modifiedTabs.forEach(t => {
+            graphicsApi.update(t.graphicId, {
+              name: t.savedScene?.scene.name ?? 'Untitled',
+              scene_data: t.savedScene?.scene ?? useSceneStore.getState().doc!,
+            }).catch(() => {/* best-effort */})
+          })
+          // Switch to the kept tab
+          switchToTab(keepTabId)
+        }}
+        onCloseAll={() => {
+          const toClose = tabStoreCloseAll()
+          const modifiedTabs = toClose.filter(t => t.isModified)
+          modifiedTabs.forEach(t => {
+            const sceneToSave = t.savedScene?.scene ?? null
+            if (sceneToSave) {
+              graphicsApi.update(t.graphicId, {
+                name: sceneToSave.name ?? 'Untitled',
+                scene_data: sceneToSave,
+              }).catch(() => {/* best-effort */})
+            }
+          })
+          useSceneStore.getState().reset()
+          navigate('/designer/graphics')
+        }}
       />
 
       {/* Body */}

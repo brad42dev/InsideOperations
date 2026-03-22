@@ -41,3 +41,10 @@ export type {
   ValueAnchor,
   ShapeIndexItem,
 } from './libraryStore'
+
+export { useTabStore, MAX_TABS } from './tabStore'
+export type {
+  TabStore,
+  DesignerTab,
+  SavedTabState,
+} from './tabStore'
