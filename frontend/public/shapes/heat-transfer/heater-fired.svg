@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 48 64"
-     data-io-shape="heater-fired" data-io-version="1.0"
-     data-io-variant="opt1">
+     data-io-shape="heater-fired" data-io-version="1.0" data-io-category="heat-transfer">
   <g class="io-shape-body">
     <path class="io-stateful"
           d="M 15,2 L 29,2 L 29,18 L 37,28 L 37,58 L 7,58 L 7,28 L 15,18 Z"

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 48" data-io-shape="pump-centrifugal-opt2">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 48" data-io-shape="pump-centrifugal" data-io-version="1.0" data-io-category="pumps">
   <g class="io-shape-body">
     <path d="M 14.3,37.9 L 8,43.5 L 40,43.5 L 33.7,37.9" fill="none" stroke="#808080" stroke-width="1.5"/>
     <path d="M 24,1.5 L 48,1.5 L 48,9 L 39.4,9" fill="none" stroke="#808080" stroke-width="1.5"/>

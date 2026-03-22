@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 52"
-     data-io-shape="tank-storage-capsule" data-io-version="3.0">
+     data-io-shape="tank-storage-capsule" data-io-version="3.0" data-io-category="vessels">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <path class="io-stateful" d="M 16,14 A 12,12 0 0,0 16,38"/>
     <line class="io-stateful" x1="16" y1="14" x2="64" y2="14"/>

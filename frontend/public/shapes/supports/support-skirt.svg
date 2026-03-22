@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 86" data-io-shape="support-skirt">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 86" data-io-shape="support-skirt" data-io-version="1.0" data-io-category="supports">
   <g class="io-part-support">
     <line x1="10" y1="68" x2="10" y2="74" stroke="#808080" stroke-width="1.5"/>
     <line x1="30" y1="68" x2="30" y2="74" stroke="#808080" stroke-width="1.5"/>

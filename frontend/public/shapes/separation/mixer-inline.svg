@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 30"
-     data-io-shape="mixer-inline" data-io-version="3.0">
+     data-io-shape="mixer-inline" data-io-version="3.0" data-io-category="separation">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <rect class="io-stateful" x="10" y="4" width="50" height="22"/>
     <polyline class="io-stateful" points="14,15 22,8 30,22 38,8 46,22 54,15" stroke-width="0.75"/>

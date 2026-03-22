@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" data-io-shape="fan-blower-opt2">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" data-io-shape="fan-blower" data-io-version="1.0" data-io-category="rotating">
   <g class="io-shape-body">
     <rect class="io-stateful" x="5" y="5" width="40" height="40" rx="3" fill="none" stroke="#808080" stroke-width="1.5"/>
     <circle class="io-stateful" cx="25" cy="25" r="16" fill="none" stroke="#808080" stroke-width="0.75"/>

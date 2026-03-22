@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 66 55"
-     data-io-shape="filter-vacuum" data-io-version="3.0">
+     data-io-shape="filter-vacuum" data-io-version="3.0" data-io-category="separation">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <polyline class="io-stateful" points="0,0 33,50 66,0"/>
     <polyline class="io-stateful" points="8,0 33,40 58,0"/>

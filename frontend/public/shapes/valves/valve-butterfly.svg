@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 24" data-io-shape="valve-butterfly">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 24" data-io-shape="valve-butterfly" data-io-version="1.0" data-io-category="valves">
   <g class="io-shape-body">
     <line x1="7" y1="0" x2="7" y2="24" stroke="#808080" stroke-width="1.5"/>
     <line x1="53" y1="0" x2="53" y2="24" stroke="#808080" stroke-width="1.5"/>

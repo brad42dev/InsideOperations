@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"
-     data-io-shape="instrument-behind-panel" data-io-version="3.0">
+     data-io-shape="instrument-behind-panel" data-io-version="3.0" data-io-category="instrumentation">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <circle class="io-stateful" cx="20" cy="20" r="16"/>
     <line class="io-stateful" x1="4" y1="20" x2="36" y2="20" stroke-dasharray="4,3"/>

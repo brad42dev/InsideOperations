@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"
-     data-io-shape="heat-exchanger-shell-tube" data-io-version="3.0">
+     data-io-shape="heat-exchanger-shell-tube" data-io-version="3.0" data-io-category="heat-transfer">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <circle class="io-stateful" cx="25" cy="25" r="20"/>
     <polyline points="5,25 12,25 19,13 31,37 38,25 45,25"/>

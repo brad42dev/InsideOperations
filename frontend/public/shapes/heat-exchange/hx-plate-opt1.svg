@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 58 20" data-io-shape="hx-plate-opt1">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 58 20" data-io-shape="hx-plate" data-io-version="1.0" data-io-category="heat-exchange">
   <g class="io-shape-body">
     <rect class="io-stateful" x="0" y="0" width="54" height="16" fill="none" stroke="#808080" stroke-width="1"/>
     <line class="io-stateful" x1="13.5" y1="0" x2="13.5" y2="16" stroke="#808080" stroke-width="1"/>

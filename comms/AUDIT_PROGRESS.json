@@ -968,7 +968,7 @@
       "wave": 1,
       "title": "Replace hardcoded hex colors with CSS custom property references in display elements",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1000,7 +1000,7 @@
       "depends_on": [
         "GFX-SHAPES-002"
       ],
-      "status": "pending",
+      "status": "implementing",
       "audit_round": 3
     },
     {

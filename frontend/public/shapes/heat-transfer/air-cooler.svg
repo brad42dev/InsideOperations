@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 0 76 38"
-     data-io-shape="air-cooler" data-io-version="1.0"
-     data-io-variant="opt1">
+     data-io-shape="air-cooler" data-io-version="1.0" data-io-category="heat-transfer">
   <g class="io-shape-body">
     <line x1="5" y1="5" x2="55" y2="5" stroke="#808080" stroke-width="0.75"/>
     <line x1="5" y1="5" x2="5" y2="27" stroke="#808080" stroke-width="0.75"/>

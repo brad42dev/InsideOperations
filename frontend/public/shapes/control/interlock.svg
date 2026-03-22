@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 44"
-     data-io-shape="interlock" data-io-version="3.0">
+     data-io-shape="interlock" data-io-version="3.0" data-io-category="control">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <polygon class="io-stateful" points="30,4 56,22 30,40 4,22"/>
   </g>

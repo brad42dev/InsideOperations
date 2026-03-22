@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 24"
-     data-io-shape="actuator-electric" data-io-version="3.0">
+     data-io-shape="actuator-electric" data-io-version="3.0" data-io-category="actuators">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <rect class="io-stateful" x="2" y="2" width="26" height="20"/>
     <text x="15" y="13" text-anchor="middle" dominant-baseline="central"

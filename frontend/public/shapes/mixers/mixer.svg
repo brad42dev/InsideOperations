@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 30" data-io-shape="mixer">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 30" data-io-shape="mixer" data-io-version="1.0" data-io-category="mixers">
   <g class="io-shape-body">
     <line x1="30" y1="2" x2="30" y2="14" stroke="#808080" stroke-width="0.75"/>
     <path class="io-stateful" d="M30,14 C30,15 8,18 8,14 C8,10 30,13 30,14 Z" fill="none" stroke="#808080" stroke-width="0.75"/>

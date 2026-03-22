@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 120"
-     data-io-shape="column-distillation-wide-trayed-10" data-io-version="3.0">
+     data-io-shape="column-distillation-wide-trayed-10" data-io-version="3.0" data-io-category="separation">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <path class="io-stateful" d="M 10,8 A 15,6 0 0,1 40,8"/>
     <line class="io-stateful" x1="10" y1="8" x2="10" y2="112"/>

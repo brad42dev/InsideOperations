@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 40"
-     data-io-shape="alarm-annunciator" data-io-variant="opt2" data-io-version="3.0">
+     data-io-shape="alarm-annunciator" data-io-version="3.0" data-io-category="control">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
     <rect class="io-stateful" x="2" y="14" width="10" height="14"/>
     <polyline class="io-stateful" points="12,14 40,6 44,20 40,34 12,28"/>
