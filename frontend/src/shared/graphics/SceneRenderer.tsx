@@ -5,6 +5,8 @@ import type {
   WidgetNode, ViewportState, LayerDefinition,
   TextReadoutConfig, AnalogBarConfig, FillGaugeConfig, DigitalStatusConfig,
   Stencil,
+  DimensionLineConfig, NorthArrowConfig, LegendConfig,
+  SectionBreakConfig, HeaderConfig, FooterConfig,
 } from '../types/graphics'
 import { PIPE_SERVICE_COLORS, canvasToScreen } from '../types/graphics'
 import { fetchShapes } from './shapeCache'
@@ -825,9 +827,21 @@ export function SceneRenderer({
 
   function renderAnnotation(node: Annotation): React.ReactElement | null {
     const { config } = node
+    const clickProps = {
+      onClick: (e: React.MouseEvent) => handleNodeClick(node, e),
+      style: { cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined } as React.CSSProperties,
+    }
+    const gBase = {
+      key: node.id,
+      transform: getTransformAttr(node),
+      opacity: node.opacity,
+      'data-node-id': node.id,
+      'data-lod': '0',
+    }
+
     if (config.annotationType === 'border') {
       return (
-        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0" onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
+        <g {...gBase} {...clickProps}>
           <rect
             x={0} y={0}
             width={config.width} height={config.height}
@@ -845,14 +859,284 @@ export function SceneRenderer({
         </g>
       )
     }
+
     if (config.annotationType === 'callout') {
       return (
-        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0" onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
+        <g {...gBase} {...clickProps}>
           <text fontFamily="Inter" fontSize={config.fontSize} fill={config.fill}>{config.text}</text>
         </g>
       )
     }
-    return null
+
+    if (config.annotationType === 'dimension_line') {
+      const cfg = config as DimensionLineConfig
+      const sx = cfg.startPoint.x
+      const sy = cfg.startPoint.y
+      const ex = cfg.endPoint.x
+      const ey = cfg.endPoint.y
+      // Determine if primarily horizontal or vertical
+      const isHoriz = Math.abs(ex - sx) >= Math.abs(ey - sy)
+      // The dimension line is offset perpendicularly from the measured object
+      const off = cfg.offset ?? 0
+      // For a horizontal dimension: offset in Y; for vertical: offset in X
+      const dlx1 = isHoriz ? sx : sx + off
+      const dly1 = isHoriz ? sy + off : sy
+      const dlx2 = isHoriz ? ex : ex + off
+      const dly2 = isHoriz ? ey + off : ey
+      // Extension lines (short perpendicular lines from object to dimension line)
+      const extLen = 6
+      const ext1x1 = isHoriz ? sx : sx
+      const ext1y1 = isHoriz ? sy : sy
+      const ext1x2 = isHoriz ? dlx1 : dlx1
+      const ext1y2 = isHoriz ? dly1 + extLen : dly1
+      const ext2x1 = isHoriz ? ex : ex
+      const ext2y1 = isHoriz ? ey : ey
+      const ext2x2 = isHoriz ? dlx2 : dlx2
+      const ext2y2 = isHoriz ? dly2 + extLen : dly2
+      // Arrow tick marks at ends of dimension line
+      const tickLen = 4
+      const midX = (dlx1 + dlx2) / 2
+      const midY = (dly1 + dly2) / 2
+      return (
+        <g {...gBase} {...clickProps}>
+          {/* Extension lines */}
+          <line x1={ext1x1} y1={ext1y1} x2={ext1x2} y2={ext1y2} stroke={cfg.color} strokeWidth={1} />
+          <line x1={ext2x1} y1={ext2y1} x2={ext2x2} y2={ext2y2} stroke={cfg.color} strokeWidth={1} />
+          {/* Main dimension line */}
+          <line x1={dlx1} y1={dly1} x2={dlx2} y2={dly2} stroke={cfg.color} strokeWidth={1} />
+          {/* Tick marks at ends */}
+          {isHoriz
+            ? <>
+                <line x1={dlx1} y1={dly1 - tickLen} x2={dlx1} y2={dly1 + tickLen} stroke={cfg.color} strokeWidth={1} />
+                <line x1={dlx2} y1={dly2 - tickLen} x2={dlx2} y2={dly2 + tickLen} stroke={cfg.color} strokeWidth={1} />
+              </>
+            : <>
+                <line x1={dlx1 - tickLen} y1={dly1} x2={dlx1 + tickLen} y2={dly1} stroke={cfg.color} strokeWidth={1} />
+                <line x1={dlx2 - tickLen} y1={dly2} x2={dlx2 + tickLen} y2={dly2} stroke={cfg.color} strokeWidth={1} />
+              </>
+          }
+          {/* Optional label */}
+          {cfg.label && (
+            <text
+              x={midX}
+              y={isHoriz ? midY - 4 : midY}
+              textAnchor="middle"
+              dominantBaseline={isHoriz ? 'auto' : 'central'}
+              fontFamily="Inter"
+              fontSize={cfg.fontSize ?? 10}
+              fill={cfg.color}
+            >
+              {cfg.label}
+            </text>
+          )}
+        </g>
+      )
+    }
+
+    if (config.annotationType === 'north_arrow') {
+      const cfg = config as NorthArrowConfig
+      const sz = cfg.size ?? 40
+      const cx = sz / 2
+      const cy = sz / 2
+      const r = sz / 2 - 2
+      if (cfg.style === 'compass') {
+        // Compass rose: circle outline + N/S/E/W labels + cardinal tick marks
+        return (
+          <g {...gBase} {...clickProps}>
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke={cfg.color} strokeWidth={1} />
+            {/* Cardinal ticks */}
+            <line x1={cx} y1={cy - r} x2={cx} y2={cy - r + 6} stroke={cfg.color} strokeWidth={1.5} />
+            <line x1={cx} y1={cy + r} x2={cx} y2={cy + r - 6} stroke={cfg.color} strokeWidth={1.5} />
+            <line x1={cx - r} y1={cy} x2={cx - r + 6} y2={cy} stroke={cfg.color} strokeWidth={1.5} />
+            <line x1={cx + r} y1={cy} x2={cx + r - 6} y2={cy} stroke={cfg.color} strokeWidth={1.5} />
+            {/* N/S/E/W labels */}
+            <text x={cx} y={cy - r - 3} textAnchor="middle" dominantBaseline="auto" fontFamily="Inter" fontSize={Math.max(8, sz * 0.2)} fontWeight="bold" fill={cfg.color}>N</text>
+            <text x={cx} y={cy + r + 3} textAnchor="middle" dominantBaseline="hanging" fontFamily="Inter" fontSize={Math.max(8, sz * 0.18)} fill={cfg.color}>S</text>
+            <text x={cx + r + 3} y={cy} textAnchor="start" dominantBaseline="central" fontFamily="Inter" fontSize={Math.max(8, sz * 0.18)} fill={cfg.color}>E</text>
+            <text x={cx - r - 3} y={cy} textAnchor="end" dominantBaseline="central" fontFamily="Inter" fontSize={Math.max(8, sz * 0.18)} fill={cfg.color}>W</text>
+          </g>
+        )
+      }
+      // Simple: upward-pointing arrow (triangle + stem)
+      const arrowH = sz * 0.55
+      const arrowW = sz * 0.28
+      const stemW = sz * 0.1
+      const stemH = sz * 0.3
+      const tipY = cy - arrowH / 2
+      const baseY = tipY + arrowH
+      return (
+        <g {...gBase} {...clickProps}>
+          {/* Triangle head */}
+          <polygon
+            points={`${cx},${tipY} ${cx - arrowW / 2},${baseY} ${cx + arrowW / 2},${baseY}`}
+            fill={cfg.color}
+            stroke={cfg.color}
+            strokeWidth={1}
+          />
+          {/* Stem */}
+          <rect
+            x={cx - stemW / 2}
+            y={baseY}
+            width={stemW}
+            height={stemH}
+            fill={cfg.color}
+          />
+          {/* N label above arrow tip */}
+          <text x={cx} y={tipY - 3} textAnchor="middle" dominantBaseline="auto" fontFamily="Inter" fontSize={Math.max(8, sz * 0.2)} fontWeight="bold" fill={cfg.color}>N</text>
+        </g>
+      )
+    }
+
+    if (config.annotationType === 'legend') {
+      const cfg = config as LegendConfig
+      const padding = 8
+      const rowH = (cfg.fontSize ?? 12) + 6
+      const symbolW = 20
+      const symbolH = cfg.fontSize ?? 12
+      const textOffset = symbolW + 6
+      const boxH = padding * 2 + cfg.entries.length * rowH
+      const boxW = node.width ?? 160
+      return (
+        <g {...gBase} {...clickProps}>
+          {/* Background box */}
+          <rect
+            x={0} y={0}
+            width={boxW} height={boxH}
+            rx={4}
+            fill={cfg.backgroundColor ?? '#1E1E2E'}
+            stroke={cfg.borderColor ?? '#3F3F46'}
+            strokeWidth={1}
+          />
+          {/* Legend entries */}
+          {cfg.entries.map((entry, i) => {
+            const rowY = padding + i * rowH
+            const symY = rowY + rowH / 2
+            return (
+              <g key={i}>
+                {entry.symbol === 'line' && (
+                  <line x1={padding} y1={symY} x2={padding + symbolW} y2={symY} stroke={entry.color} strokeWidth={2} />
+                )}
+                {entry.symbol === 'rect' && (
+                  <rect x={padding} y={symY - symbolH / 2} width={symbolW} height={symbolH} fill={entry.color} />
+                )}
+                {entry.symbol === 'circle' && (
+                  <circle cx={padding + symbolW / 2} cy={symY} r={symbolH / 2} fill={entry.color} />
+                )}
+                <text
+                  x={padding + textOffset}
+                  y={symY}
+                  dominantBaseline="central"
+                  fontFamily="Inter"
+                  fontSize={cfg.fontSize ?? 12}
+                  fill="#E4E4E7"
+                >
+                  {entry.label}
+                </text>
+              </g>
+            )
+          })}
+        </g>
+      )
+    }
+
+    if (config.annotationType === 'section_break') {
+      const cfg = config as SectionBreakConfig
+      const w = canvas.width
+      const dashArray = cfg.style === 'dotted' ? '2 4' : undefined
+      if (cfg.style === 'space') {
+        // Two lighter lines with a gap between them
+        return (
+          <g {...gBase} {...clickProps}>
+            <line x1={0} y1={0} x2={w} y2={0} stroke={cfg.color} strokeWidth={cfg.thickness ?? 1} opacity={0.5} />
+            <line x1={0} y1={cfg.thickness ?? 4} x2={w} y2={cfg.thickness ?? 4} stroke={cfg.color} strokeWidth={cfg.thickness ?? 1} opacity={0.5} />
+          </g>
+        )
+      }
+      return (
+        <g {...gBase} {...clickProps}>
+          <line
+            x1={0} y1={0} x2={w} y2={0}
+            stroke={cfg.color}
+            strokeWidth={cfg.thickness ?? 1}
+            strokeDasharray={dashArray}
+          />
+        </g>
+      )
+    }
+
+    if (config.annotationType === 'page_break') {
+      const w = canvas.width
+      return (
+        <g {...gBase} {...clickProps}>
+          <line
+            x1={0} y1={0} x2={w} y2={0}
+            stroke="#6B7280"
+            strokeWidth={1}
+            strokeDasharray="8 4"
+          />
+          <text x={w / 2} y={-4} textAnchor="middle" dominantBaseline="auto" fontFamily="Inter" fontSize={9} fill="#6B7280" opacity={0.7}>
+            page break
+          </text>
+        </g>
+      )
+    }
+
+    if (config.annotationType === 'header') {
+      const cfg = config as HeaderConfig
+      const w = canvas.width
+      const h = cfg.height ?? 40
+      const textX = cfg.textAlign === 'left' ? 12 : cfg.textAlign === 'right' ? w - 12 : w / 2
+      const anchor = cfg.textAlign === 'left' ? 'start' : cfg.textAlign === 'right' ? 'end' : 'middle'
+      return (
+        <g {...gBase} {...clickProps}>
+          <rect x={0} y={0} width={w} height={h} fill="var(--io-surface-raised, #27272A)" stroke="var(--io-border, #3F3F46)" strokeWidth={1} />
+          <text
+            x={textX}
+            y={h / 2}
+            textAnchor={anchor}
+            dominantBaseline="central"
+            fontFamily="Inter"
+            fontSize={cfg.fontSize ?? 13}
+            fill="#E4E4E7"
+          >
+            {cfg.content}
+          </text>
+        </g>
+      )
+    }
+
+    if (config.annotationType === 'footer') {
+      const cfg = config as FooterConfig
+      const w = canvas.width
+      const h = cfg.height ?? 40
+      const footerY = canvas.height - h
+      const textX = cfg.textAlign === 'left' ? 12 : cfg.textAlign === 'right' ? w - 12 : w / 2
+      const anchor = cfg.textAlign === 'left' ? 'start' : cfg.textAlign === 'right' ? 'end' : 'middle'
+      return (
+        <g {...gBase} {...clickProps}>
+          <rect x={0} y={footerY} width={w} height={h} fill="var(--io-surface-raised, #27272A)" stroke="var(--io-border, #3F3F46)" strokeWidth={1} />
+          <text
+            x={textX}
+            y={footerY + h / 2}
+            textAnchor={anchor}
+            dominantBaseline="central"
+            fontFamily="Inter"
+            fontSize={cfg.fontSize ?? 13}
+            fill="#E4E4E7"
+          >
+            {cfg.content}
+          </text>
+        </g>
+      )
+    }
+
+    // Fallback: visible placeholder for any unrecognized annotation type
+    return (
+      <g {...gBase} {...clickProps}>
+        <rect x={0} y={0} width={node.width ?? 80} height={node.height ?? 24} rx={2} fill="none" stroke="#F59E0B" strokeWidth={1} strokeDasharray="4 2" />
+        <text x={4} y={12} fontFamily="Inter" fontSize={9} fill="#F59E0B">{node.annotationType}</text>
+      </g>
+    )
   }
 
   function renderGroup(node: Group): React.ReactElement {
