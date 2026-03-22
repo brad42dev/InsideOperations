@@ -16,6 +16,7 @@ import {
   type CreateBadgeSourcePayload,
 } from '../../api/shifts'
 import { useAuthStore } from '../../store/auth'
+import { usePermission } from '../../shared/hooks/usePermission'
 
 // ---------------------------------------------------------------------------
 // Shared style tokens
@@ -1453,6 +1454,7 @@ const ghostBtnAccent: React.CSSProperties = {
 
 export default function ShiftsPage() {
   const [tab, setTab] = useState<Tab>('roster')
+  const canManageBadgeConfig = usePermission('badge_config:manage')
 
   const presenceQ = useQuery({
     queryKey: ['presence'],
@@ -1493,7 +1495,7 @@ export default function ShiftsPage() {
       {tab === 'schedule' && (
         <>
           <ScheduleTab />
-          <BadgeSourcesSection />
+          {canManageBadgeConfig && <BadgeSourcesSection />}
         </>
       )}
 

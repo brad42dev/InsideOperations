@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T22:26:50.394734+00:00",
+  "last_updated": "2026-03-22T22:31:53.818381+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -127,7 +127,8 @@
     "DD-28-001": 1,
     "DD-28-007": 1,
     "DD-28-008": 1,
-    "DD-29-006": 1
+    "DD-29-006": 1,
+    "DD-30-003": 1
   },
   "queue": [
     {
@@ -3063,7 +3064,7 @@
       "wave": 3,
       "title": "Add POST /api/presence/clear/:badge_id endpoint for manual stale-presence clear",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3073,7 +3074,7 @@
       "wave": 3,
       "title": "Fix badge-source endpoint permissions from shifts:write to badge_config:manage",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

@@ -1887,8 +1887,8 @@ pub async fn list_badge_sources(
     Extension(claims): Extension<Claims>,
     Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
+    if !check_permission(&claims, "badge_config:manage") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
             .into_response();
     }
 
@@ -1962,8 +1962,8 @@ pub async fn create_badge_source(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateBadgeSourceBody>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
+    if !check_permission(&claims, "badge_config:manage") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
             .into_response();
     }
 
@@ -2025,8 +2025,8 @@ pub async fn update_badge_source(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBadgeSourceBody>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
+    if !check_permission(&claims, "badge_config:manage") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
             .into_response();
     }
 
@@ -2091,8 +2091,8 @@ pub async fn delete_badge_source(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
+    if !check_permission(&claims, "badge_config:manage") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
             .into_response();
     }
 
