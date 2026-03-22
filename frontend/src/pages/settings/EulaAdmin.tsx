@@ -108,10 +108,29 @@ const dialogStyle: React.CSSProperties = {
   border: '1px solid var(--io-border)',
   borderRadius: 'var(--io-radius-lg)',
   padding: '24px',
-  width: '700px',
+  width: '900px',
   maxWidth: '95vw',
   maxHeight: '90vh',
   overflowY: 'auto',
+}
+
+const dialogStyleFullscreen: React.CSSProperties = {
+  position: 'fixed',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  zIndex: 51,
+  background: 'var(--io-surface-elevated)',
+  border: '1px solid var(--io-border)',
+  borderRadius: 'var(--io-radius-lg)',
+  padding: '24px',
+  width: '95vw',
+  height: '95vh',
+  maxWidth: '95vw',
+  maxHeight: '95vh',
+  overflowY: 'auto',
+  display: 'flex',
+  flexDirection: 'column',
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +149,7 @@ function CreateVersionDialog({ open, onClose, onCreated }: CreateVersionDialogPr
   const [title, setTitle] = useState('Inside/Operations — End User License Agreement')
   const [content, setContent] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -140,27 +160,42 @@ function CreateVersionDialog({ open, onClose, onCreated }: CreateVersionDialogPr
       setVersion('')
       setContent('')
       setError(null)
+      setFullscreen(false)
     },
     onError: (e: Error) => setError(e.message),
   })
 
+  const editorHeight = fullscreen ? 'calc(95vh - 260px)' : '320px'
+
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) { onClose(); setFullscreen(false) } }}>
       <Dialog.Portal>
         <Dialog.Overlay style={overlayStyle} />
-        <Dialog.Content aria-describedby={undefined} style={dialogStyle}>
-          <Dialog.Title
-            style={{ margin: '0 0 20px', fontSize: '16px', fontWeight: 600, color: 'var(--io-text-primary)' }}
-          >
-            Create New EULA Version (Draft)
-          </Dialog.Title>
+        <Dialog.Content
+          aria-describedby={undefined}
+          style={fullscreen ? dialogStyleFullscreen : dialogStyle}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <Dialog.Title
+              style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+            >
+              Create New EULA Version (Draft)
+            </Dialog.Title>
+            <button
+              style={{ ...btnSmall, fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              onClick={() => setFullscreen((f) => !f)}
+              title={fullscreen ? 'Exit full screen' : 'Enter full screen'}
+            >
+              {fullscreen ? '⤡ Exit Full Screen' : '⤢ Full Screen'}
+            </button>
+          </div>
 
-          <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+          <p style={{ margin: '0 0 16px', fontSize: '13px', color: 'var(--io-text-secondary)' }}>
             New versions start as drafts. They become active only when you explicitly publish them.
             Publishing will require all users to re-accept on their next login.
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: fullscreen ? 1 : undefined }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Type *</label>
@@ -198,14 +233,54 @@ function CreateVersionDialog({ open, onClose, onCreated }: CreateVersionDialogPr
               </div>
             </div>
 
-            <div>
-              <label style={labelStyle}>Content (Markdown) *</label>
-              <textarea
-                style={{ ...inputStyle, minHeight: '320px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="# Inside/Operations — End User License Agreement&#10;&#10;Version 1.x | Effective: ..."
-              />
+            <div style={{ flex: fullscreen ? 1 : undefined, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Content (Markdown) *</label>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>Markdown</span>
+                  <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>Preview</span>
+                </div>
+              </div>
+              {/* Split-pane editor */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', flex: fullscreen ? 1 : undefined }}>
+                {/* Left: raw markdown textarea */}
+                <textarea
+                  style={{
+                    ...inputStyle,
+                    height: editorHeight,
+                    minHeight: '200px',
+                    resize: fullscreen ? 'none' : 'vertical',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    lineHeight: '1.5',
+                  }}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={'# Inside/Operations — End User License Agreement\n\nVersion 1.x | Effective: ...'}
+                />
+                {/* Right: preformatted preview */}
+                <pre
+                  style={{
+                    margin: 0,
+                    height: editorHeight,
+                    minHeight: '200px',
+                    overflowY: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    fontFamily: 'inherit',
+                    fontSize: '12px',
+                    lineHeight: '1.6',
+                    color: 'var(--io-text-secondary)',
+                    background: 'var(--io-surface-sunken)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    padding: '8px 10px',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {content || <span style={{ color: 'var(--io-text-muted)', fontStyle: 'italic' }}>Preview will appear here…</span>}
+                </pre>
+              </div>
               <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '4px' }}>
                 Content is stored as-is in the database. A SHA-256 hash is recorded in every
                 user acceptance row, permanently tying each signature to this exact text.
@@ -220,7 +295,7 @@ function CreateVersionDialog({ open, onClose, onCreated }: CreateVersionDialogPr
           )}
 
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
-            <button style={btnSecondary} onClick={onClose}>Cancel</button>
+            <button style={btnSecondary} onClick={() => { onClose(); setFullscreen(false) }}>Cancel</button>
             <button
               style={{ ...btnPrimary, opacity: (!version.trim() || !content.trim()) ? 0.5 : 1 }}
               disabled={!version.trim() || !content.trim() || mutation.isPending}
@@ -288,6 +363,18 @@ function ViewVersionDialog({ version, onClose }: { version: EulaVersionAdmin | n
 function AcceptancesPanel({ versionId }: { versionId?: string }) {
   const [page, setPage] = useState(1)
   const perPage = 25
+  const [exportLoading, setExportLoading] = useState(false)
+
+  // Page-1 query for stats: fetch all records on page 1 (stats are computed client-side)
+  const { data: allPage1, isLoading: statsLoading } = useQuery({
+    queryKey: ['eula-acceptances-stats'],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: '1', per_page: '10000' })
+      const result = await api.get<EulaAcceptanceRow[]>(`/api/auth/admin/eula/acceptances?${params}`)
+      if (result.success) return result.data
+      return []
+    },
+  })
 
   const { data, isLoading } = useQuery({
     queryKey: ['eula-acceptances', versionId, page],
@@ -305,13 +392,125 @@ function AcceptancesPanel({ versionId }: { versionId?: string }) {
   })
 
   const rows = data ?? []
+  const allRows = allPage1 ?? []
   const hasMore = rows.length === perPage
+
+  // Compute summary stats from all loaded acceptance rows
+  const totalUsers = new Set(allRows.map((r) => r.user_id)).size
+
+  // Determine the latest version string from all rows (most recent accepted_at per version)
+  const versionCounts: Record<string, number> = {}
+  for (const r of allRows) {
+    versionCounts[r.eula_version] = (versionCounts[r.eula_version] ?? 0) + 1
+  }
+  // The "current" version is the one with the most acceptances (proxy for active)
+  const sortedVersions = Object.entries(versionCounts).sort((a, b) => b[1] - a[1])
+  const currentVersion = sortedVersions.length > 0 ? sortedVersions[0][0] : null
+
+  // Users who accepted the current version
+  const usersAcceptedCurrent = currentVersion
+    ? new Set(allRows.filter((r) => r.eula_version === currentVersion).map((r) => r.user_id)).size
+    : 0
+
+  // Users who have NOT accepted the current version
+  const usersPendingCurrent = totalUsers - usersAcceptedCurrent
+  const acceptedPct = totalUsers > 0 ? Math.round((usersAcceptedCurrent / totalUsers) * 100) : 0
+  const pendingPct = totalUsers > 0 ? Math.round((usersPendingCurrent / totalUsers) * 100) : 0
+
+  async function handleExportCsv() {
+    setExportLoading(true)
+    try {
+      // Build CSV manually from all acceptance rows to ensure content_hash is included
+      const headers: (keyof EulaAcceptanceRow)[] = [
+        'id', 'user_id', 'username', 'full_name', 'email',
+        'eula_type', 'eula_version', 'eula_version_id',
+        'accepted_at', 'accepted_from_ip', 'accepted_as_role',
+        'acceptance_context', 'receipt_token', 'content_hash',
+      ]
+      const escape = (v: string | null | undefined) => {
+        if (v == null) return ''
+        const s = String(v)
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+          return `"${s.replace(/"/g, '""')}"`
+        }
+        return s
+      }
+      const csvLines = [headers.join(',')]
+      for (const row of allRows) {
+        csvLines.push(headers.map((h) => escape(row[h] as string | null)).join(','))
+      }
+      const csvContent = csvLines.join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `eula-acceptances-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  const cardStyle: React.CSSProperties = {
+    flex: 1,
+    padding: '14px 16px',
+    background: 'var(--io-surface-secondary)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+  }
 
   return (
     <div>
-      <div style={{ marginBottom: '12px', fontSize: '13px', color: 'var(--io-text-secondary)' }}>
-        {isLoading ? 'Loading…' : `${rows.length} record${rows.length === 1 ? '' : 's'} on page ${page}`}
-        {versionId && ' (filtered by version)'}
+      {/* Summary cards */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+        <div style={cardStyle}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+            Total Users
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
+            {statsLoading ? '—' : totalUsers.toLocaleString()}
+          </div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+            Accepted Current Version
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--io-success, #22c55e)' }}>
+            {statsLoading ? '—' : usersAcceptedCurrent.toLocaleString()}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--io-success, #22c55e)', marginTop: '2px' }}>
+            {statsLoading ? '' : `${acceptedPct}% of users`}
+          </div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+            Pending Acceptance
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--io-warning, #f59e0b)' }}>
+            {statsLoading ? '—' : usersPendingCurrent.toLocaleString()}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--io-warning, #f59e0b)', marginTop: '2px' }}>
+            {statsLoading ? '' : `${pendingPct}% of users`}
+          </div>
+        </div>
+      </div>
+
+      {/* Export CSV button + record count row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <div style={{ fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+          {isLoading ? 'Loading…' : `${rows.length} record${rows.length === 1 ? '' : 's'} on page ${page}`}
+          {versionId && ' (filtered by version)'}
+        </div>
+        <button
+          style={{ ...btnSecondary, display: 'flex', alignItems: 'center', gap: '6px' }}
+          onClick={handleExportCsv}
+          disabled={exportLoading || allRows.length === 0}
+        >
+          {exportLoading ? 'Exporting…' : 'Export CSV'}
+        </button>
       </div>
 
       {isLoading ? (
