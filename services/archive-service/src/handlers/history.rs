@@ -263,9 +263,71 @@ pub async fn get_point_history(
                 })
                 .collect::<Vec<_>>()
         }
+        "15m" => {
+            let agg_rows = sqlx::query(
+                "SELECT bucket AS timestamp, avg, min, max, count \
+                 FROM points_history_15m \
+                 WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
+                 ORDER BY bucket \
+                 LIMIT $4",
+            )
+            .bind(point_id)
+            .bind(start)
+            .bind(end)
+            .bind(limit)
+            .fetch_all(&state.db)
+            .await?;
+
+            agg_rows
+                .into_iter()
+                .map(|r| {
+                    let ts: DateTime<Utc> = r.get("timestamp");
+                    HistoryRow {
+                        timestamp: ts.to_rfc3339(),
+                        value: None,
+                        quality: None,
+                        avg: r.get("avg"),
+                        min: r.get("min"),
+                        max: r.get("max"),
+                        count: r.get("count"),
+                    }
+                })
+                .collect::<Vec<_>>()
+        }
+        "1d" => {
+            let agg_rows = sqlx::query(
+                "SELECT bucket AS timestamp, avg, min, max, count \
+                 FROM points_history_1d \
+                 WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
+                 ORDER BY bucket \
+                 LIMIT $4",
+            )
+            .bind(point_id)
+            .bind(start)
+            .bind(end)
+            .bind(limit)
+            .fetch_all(&state.db)
+            .await?;
+
+            agg_rows
+                .into_iter()
+                .map(|r| {
+                    let ts: DateTime<Utc> = r.get("timestamp");
+                    HistoryRow {
+                        timestamp: ts.to_rfc3339(),
+                        value: None,
+                        quality: None,
+                        avg: r.get("avg"),
+                        min: r.get("min"),
+                        max: r.get("max"),
+                        count: r.get("count"),
+                    }
+                })
+                .collect::<Vec<_>>()
+        }
         other => {
             return Err(IoError::BadRequest(format!(
-                "Unknown resolution '{}'. Valid values: raw, 1m, 5m, 1h",
+                "Unknown resolution '{}'. Valid values: raw, 1m, 5m, 15m, 1h, 1d",
                 other
             )));
         }
@@ -483,9 +545,69 @@ pub async fn get_batch_history(
                     })
                     .collect::<Vec<_>>()
             }
+            "15m" => {
+                let agg_rows = sqlx::query(
+                    "SELECT bucket AS timestamp, avg, min, max, count \
+                     FROM points_history_15m \
+                     WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
+                     ORDER BY bucket \
+                     LIMIT 10000",
+                )
+                .bind(point_id)
+                .bind(start)
+                .bind(end)
+                .fetch_all(&state.db)
+                .await?;
+
+                agg_rows
+                    .into_iter()
+                    .map(|r| {
+                        let ts: DateTime<Utc> = r.get("timestamp");
+                        HistoryRow {
+                            timestamp: ts.to_rfc3339(),
+                            value: None,
+                            quality: None,
+                            avg: r.get("avg"),
+                            min: r.get("min"),
+                            max: r.get("max"),
+                            count: r.get("count"),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            }
+            "1d" => {
+                let agg_rows = sqlx::query(
+                    "SELECT bucket AS timestamp, avg, min, max, count \
+                     FROM points_history_1d \
+                     WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
+                     ORDER BY bucket \
+                     LIMIT 10000",
+                )
+                .bind(point_id)
+                .bind(start)
+                .bind(end)
+                .fetch_all(&state.db)
+                .await?;
+
+                agg_rows
+                    .into_iter()
+                    .map(|r| {
+                        let ts: DateTime<Utc> = r.get("timestamp");
+                        HistoryRow {
+                            timestamp: ts.to_rfc3339(),
+                            value: None,
+                            quality: None,
+                            avg: r.get("avg"),
+                            min: r.get("min"),
+                            max: r.get("max"),
+                            count: r.get("count"),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            }
             other => {
                 return Err(IoError::BadRequest(format!(
-                    "Unknown resolution '{}'. Valid values: raw, 1m, 5m, 1h",
+                    "Unknown resolution '{}'. Valid values: raw, 1m, 5m, 15m, 1h, 1d",
                     other
                 )));
             }

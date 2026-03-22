@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T17:36:16.534172+00:00",
+  "last_updated": "2026-03-22T00:00:00Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -107,7 +107,8 @@
     "DD-15-003": 1,
     "DD-15-006": 1,
     "DD-16-002": 1,
-    "DD-16-005": 1
+    "DD-16-005": 1,
+    "DD-21-001": 1
   },
   "queue": [
     {
@@ -2117,7 +2118,7 @@
       "wave": 3,
       "title": "Add 15m and 1d resolution tiers to archive REST API",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2251,7 +2252,7 @@
       "wave": 3,
       "title": "Implement pagination envelope on all list endpoints",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
