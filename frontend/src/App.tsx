@@ -854,7 +854,7 @@ function AppRoutes() {
         />
 
         {/* Settings */}
-        <Route path="settings" element={<SettingsShell />}>
+        <Route path="settings" element={<ErrorBoundary module="Settings"><SettingsShell /></ErrorBoundary>}>
           <Route index element={<Navigate to="users" replace />} />
           <Route
             path="users"

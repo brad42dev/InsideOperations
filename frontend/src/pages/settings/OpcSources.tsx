@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,6 +14,176 @@ import {
 import { opcCertsApi, OpcServerCert } from '../../api/opcCerts'
 import { settingsApi } from '../../api/settings'
 import SupplementalConnectorsTab from './SupplementalConnectorsTab'
+import { ExportButton } from '../../shared/components/ExportDialog'
+
+// ---------------------------------------------------------------------------
+// Column definitions for OPC sources export
+// ---------------------------------------------------------------------------
+const OPC_SOURCES_COLUMNS = [
+  { id: 'name', label: 'Name' },
+  { id: 'endpoint_url', label: 'Endpoint URL' },
+  { id: 'status', label: 'Status' },
+  { id: 'enabled', label: 'Enabled' },
+  { id: 'security_policy', label: 'Security Policy' },
+  { id: 'security_mode', label: 'Security Mode' },
+  { id: 'last_connected_at', label: 'Last Connected' },
+]
+
+const OPC_SOURCES_DEFAULT_VISIBLE = ['name', 'endpoint_url', 'status', 'enabled', 'last_connected_at']
+
+// ---------------------------------------------------------------------------
+// TableSkeleton — shimmer rows for OPC sources table
+// ---------------------------------------------------------------------------
+function TableSkeleton({ rows = 4, columns = 5 }: { rows?: number; columns?: number }) {
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr
+          style={{
+            borderBottom: '1px solid var(--io-border)',
+            background: 'var(--io-surface-primary)',
+          }}
+        >
+          {Array.from({ length: columns }).map((_, i) => (
+            <th key={i} style={{ padding: '10px 14px', textAlign: 'left' }}>
+              <div
+                style={{
+                  height: '10px',
+                  borderRadius: '4px',
+                  background: 'var(--io-border)',
+                  width: i === columns - 1 ? '40px' : '120px',
+                  animation: 'io-shimmer 1.5s ease-in-out infinite',
+                }}
+              />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }).map((_, ri) => (
+          <tr
+            key={ri}
+            style={{
+              borderBottom: ri < rows - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+            }}
+          >
+            {Array.from({ length: columns }).map((_, ci) => (
+              <td key={ci} style={{ padding: '12px 14px' }}>
+                <div
+                  style={{
+                    height: '12px',
+                    borderRadius: '4px',
+                    background: 'var(--io-surface-primary)',
+                    width: ci === columns - 1 ? '40px' : ci === 0 ? '120px' : '160px',
+                    animation: 'io-shimmer 1.5s ease-in-out infinite',
+                    animationDelay: `${ri * 0.05}s`,
+                  }}
+                />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// OpcSourceContextMenu — right-click context menu for OPC source table rows
+// ---------------------------------------------------------------------------
+interface ContextMenuPos { x: number; y: number }
+
+function OpcSourceContextMenu({
+  source,
+  pos,
+  onClose,
+  onEdit,
+  onToggleEnabled,
+  onTestConnection,
+  onDelete,
+}: {
+  source: PointSource
+  pos: ContextMenuPos
+  onClose: () => void
+  onEdit: (s: PointSource) => void
+  onToggleEnabled: (s: PointSource) => void
+  onTestConnection: (s: PointSource) => void
+  onDelete: (s: PointSource) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  const menuStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: pos.y,
+    left: pos.x,
+    zIndex: 500,
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+    minWidth: '180px',
+    overflow: 'hidden',
+    padding: '4px 0',
+  }
+
+  const itemStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    padding: '7px 14px',
+    background: 'transparent',
+    border: 'none',
+    textAlign: 'left',
+    fontSize: '13px',
+    color: 'var(--io-text-secondary)',
+    cursor: 'pointer',
+  }
+
+  const dangerItemStyle: React.CSSProperties = {
+    ...itemStyle,
+    color: 'var(--io-danger)',
+  }
+
+  function menuItem(label: string, action: () => void, danger = false) {
+    return (
+      <button
+        style={danger ? dangerItemStyle : itemStyle}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        onClick={() => { action(); onClose() }}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} style={menuStyle}>
+      {menuItem('Edit', () => onEdit(source))}
+      {source.enabled
+        ? menuItem('Disable Source', () => onToggleEnabled(source))
+        : menuItem('Enable Source', () => onToggleEnabled(source))}
+      {menuItem('Test Connection', () => onTestConnection(source))}
+      {menuItem('Delete', () => onDelete(source), true)}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Client certificate API (GET /api/certificates?type=client)
@@ -1740,6 +1910,7 @@ export default function OpcSourcesPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [detailSource, setDetailSource] = useState<PointSource | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ source: PointSource; pos: ContextMenuPos } | null>(null)
 
   const sourcesQuery = useQuery({
     queryKey: ['point-sources'],
@@ -1786,6 +1957,26 @@ export default function OpcSourcesPage() {
     },
   })
 
+  const toggleEnabledMutation = useMutation({
+    mutationFn: (src: PointSource) =>
+      pointSourcesApi.update(src.id, { enabled: !src.enabled }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['point-sources'] }),
+  })
+
+  function handleContextMenu(e: React.MouseEvent, src: PointSource) {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ source: src, pos: { x: e.clientX, y: e.clientY } })
+  }
+
+  async function handleTestConnection(src: PointSource) {
+    try {
+      await pointSourcesApi.testConnection(src.id)
+    } finally {
+      qc.invalidateQueries({ queryKey: ['point-sources'] })
+    }
+  }
+
   const sources = sourcesQuery.data ?? []
 
   return (
@@ -1808,9 +1999,19 @@ export default function OpcSourcesPage() {
             Configure connections to OPC UA servers
           </p>
         </div>
-        <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
-          + Add Source
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <ExportButton
+            module="settings"
+            entity="opc-sources"
+            filteredRowCount={sources.length}
+            totalRowCount={sources.length}
+            availableColumns={OPC_SOURCES_COLUMNS}
+            visibleColumns={OPC_SOURCES_DEFAULT_VISIBLE}
+          />
+          <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
+            + Add Source
+          </button>
+        </div>
       </div>
 
       <MinPublishIntervalControl />
@@ -1823,13 +2024,7 @@ export default function OpcSourcesPage() {
           overflow: 'hidden',
         }}
       >
-        {sourcesQuery.isLoading && (
-          <div
-            style={{ padding: '40px', textAlign: 'center', color: 'var(--io-text-muted)', fontSize: '14px' }}
-          >
-            Loading…
-          </div>
-        )}
+        {sourcesQuery.isLoading && <TableSkeleton rows={4} columns={5} />}
         {!sourcesQuery.isLoading && sources.length === 0 && (
           <div
             style={{ padding: '48px', textAlign: 'center', color: 'var(--io-text-muted)', fontSize: '14px' }}
@@ -1877,6 +2072,7 @@ export default function OpcSourcesPage() {
                     borderBottom: i < sources.length - 1 ? '1px solid var(--io-border-subtle)' : undefined,
                     cursor: 'pointer',
                   }}
+                  onContextMenu={(e) => handleContextMenu(e, src)}
                   onClick={() => {
                     setDetailSource(src)
                     setDetailOpen(true)
@@ -2010,6 +2206,19 @@ export default function OpcSourcesPage() {
         onReconnect={() => detailSource && reconnectMutation.mutate(detailSource.id)}
         reconnecting={reconnectMutation.isPending}
       />
+
+      {contextMenu && (
+        <OpcSourceContextMenu
+          source={contextMenu.source}
+          pos={contextMenu.pos}
+          onClose={() => setContextMenu(null)}
+          onEdit={(s) => { setEditSource(s); setEditOpen(true) }}
+          onToggleEnabled={(s) => { toggleEnabledMutation.mutate(s) }}
+          onTestConnection={(s) => { handleTestConnection(s) }}
+          onDelete={(s) => { if (confirm(`Delete "${s.name}"?`)) deleteMutation.mutate(s.id) }}
+        />
+      )}
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi, User, UserDetail, CreateUserRequest, UpdateUserRequest } from '../../api/users'
@@ -48,7 +48,7 @@ const labelStyle: React.CSSProperties = {
 const btnPrimary: React.CSSProperties = {
   padding: '8px 16px',
   background: 'var(--io-accent)',
-  color: '#09090b',
+  color: 'var(--io-text-on-accent)',
   border: 'none',
   borderRadius: 'var(--io-radius)',
   fontSize: '13px',
@@ -557,6 +557,168 @@ function formatDate(iso: string | null): string {
 }
 
 // ---------------------------------------------------------------------------
+// TableSkeleton — shimmer rows matching the users table column structure
+// ---------------------------------------------------------------------------
+function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: number }) {
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr
+          style={{
+            borderBottom: '1px solid var(--io-border)',
+            background: 'var(--io-surface-primary)',
+          }}
+        >
+          {Array.from({ length: columns }).map((_, i) => (
+            <th
+              key={i}
+              style={{
+                padding: '10px 14px',
+                textAlign: 'left',
+              }}
+            >
+              <div
+                style={{
+                  height: '10px',
+                  borderRadius: '4px',
+                  background: 'var(--io-border)',
+                  width: i === 0 ? '80px' : i === columns - 1 ? '60px' : '120px',
+                  animation: 'io-shimmer 1.5s ease-in-out infinite',
+                }}
+              />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }).map((_, ri) => (
+          <tr
+            key={ri}
+            style={{
+              borderBottom: ri < rows - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+            }}
+          >
+            {Array.from({ length: columns }).map((_, ci) => (
+              <td key={ci} style={{ padding: '12px 14px' }}>
+                <div
+                  style={{
+                    height: '12px',
+                    borderRadius: '4px',
+                    background: 'var(--io-surface-primary)',
+                    width: ci === columns - 1 ? '64px' : ci === 0 ? '100px' : '140px',
+                    animation: 'io-shimmer 1.5s ease-in-out infinite',
+                    animationDelay: `${ri * 0.05}s`,
+                  }}
+                />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// UserContextMenu — right-click context menu for user table rows
+// ---------------------------------------------------------------------------
+interface ContextMenuPos { x: number; y: number }
+
+function UserContextMenu({
+  user,
+  pos,
+  onClose,
+  onEdit,
+  onDisable,
+  onEnable,
+  onViewSessions,
+  onCopyUsername,
+}: {
+  user: User
+  pos: ContextMenuPos
+  onClose: () => void
+  onEdit: (u: User) => void
+  onDisable: (u: User) => void
+  onEnable: (u: User) => void
+  onViewSessions: (u: User) => void
+  onCopyUsername: (u: User) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  const menuStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: pos.y,
+    left: pos.x,
+    zIndex: 500,
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+    minWidth: '180px',
+    overflow: 'hidden',
+    padding: '4px 0',
+  }
+
+  const itemStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    padding: '7px 14px',
+    background: 'transparent',
+    border: 'none',
+    textAlign: 'left',
+    fontSize: '13px',
+    color: 'var(--io-text-secondary)',
+    cursor: 'pointer',
+  }
+
+  const dangerItemStyle: React.CSSProperties = {
+    ...itemStyle,
+    color: 'var(--io-danger)',
+  }
+
+  function menuItem(label: string, action: () => void, danger = false) {
+    return (
+      <button
+        style={danger ? dangerItemStyle : itemStyle}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        onClick={() => { action(); onClose() }}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} style={menuStyle}>
+      {menuItem('Edit', () => onEdit(user))}
+      {user.enabled
+        ? menuItem('Disable Account', () => onDisable(user), true)
+        : menuItem('Enable Account', () => onEnable(user))}
+      {menuItem('View Sessions', () => onViewSessions(user))}
+      {menuItem('Copy Username', () => onCopyUsername(user))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // UsersPage
 // ---------------------------------------------------------------------------
 export default function UsersPage() {
@@ -569,6 +731,7 @@ export default function UsersPage() {
   const [confirmUser, setConfirmUser] = useState<User | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [bannerError, setBannerError] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ user: User; pos: ContextMenuPos } | null>(null)
 
   const usersQuery = useQuery({
     queryKey: ['users', page, limit],
@@ -611,6 +774,18 @@ export default function UsersPage() {
     },
   })
 
+  const enableMutation = useMutation({
+    mutationFn: (user: User) =>
+      usersApi.update(user.id, { enabled: true }),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setBannerError(result.error.message)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+
   function handleEdit(user: User) {
     setEditUser(user as UserDetail)
     setEditOpen(true)
@@ -619,6 +794,11 @@ export default function UsersPage() {
   function handleDisable(user: User) {
     setConfirmUser(user)
     setConfirmOpen(true)
+  }
+
+  function handleContextMenu(e: React.MouseEvent, user: User) {
+    e.preventDefault()
+    setContextMenu({ user, pos: { x: e.clientX, y: e.clientY } })
   }
 
   const pagination = usersQuery.data?.pagination
@@ -672,18 +852,7 @@ export default function UsersPage() {
           overflow: 'hidden',
         }}
       >
-        {usersQuery.isLoading && (
-          <div
-            style={{
-              padding: '40px',
-              textAlign: 'center',
-              color: 'var(--io-text-muted)',
-              fontSize: '14px',
-            }}
-          >
-            Loading users…
-          </div>
-        )}
+        {usersQuery.isLoading && <TableSkeleton rows={5} columns={7} />}
         {usersQuery.isError && (
           <div style={{ padding: '20px' }}>
             <ErrorBanner message={usersQuery.error?.message ?? 'Failed to load users'} />
@@ -742,6 +911,7 @@ export default function UsersPage() {
                     borderBottom:
                       i < users.length - 1 ? '1px solid var(--io-border-subtle)' : undefined,
                   }}
+                  onContextMenu={(e) => handleContextMenu(e, user)}
                 >
                   <td style={cellStyle}>
                     <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>
@@ -894,6 +1064,19 @@ export default function UsersPage() {
           if (confirmUser) disableMutation.mutate(confirmUser)
         }}
       />
+
+      {contextMenu && (
+        <UserContextMenu
+          user={contextMenu.user}
+          pos={contextMenu.pos}
+          onClose={() => setContextMenu(null)}
+          onEdit={(u) => { handleEdit(u) }}
+          onDisable={(u) => { handleDisable(u) }}
+          onEnable={(u) => { enableMutation.mutate(u) }}
+          onViewSessions={(u) => { window.location.href = `/settings/sessions?user=${u.id}` }}
+          onCopyUsername={(u) => { navigator.clipboard.writeText(u.username).catch(() => {}) }}
+        />
+      )}
     </div>
   )
 }

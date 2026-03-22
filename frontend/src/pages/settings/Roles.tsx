@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -10,6 +10,7 @@ import {
   CreateRoleRequest,
   UpdateRoleRequest,
 } from '../../api/roles'
+import { ExportButton } from '../../shared/components/ExportDialog'
 
 // ---------------------------------------------------------------------------
 // Shared styles (duplicated for isolation — will be extracted in Phase 3)
@@ -37,7 +38,7 @@ const labelStyle: React.CSSProperties = {
 const btnPrimary: React.CSSProperties = {
   padding: '8px 16px',
   background: 'var(--io-accent)',
-  color: '#09090b',
+  color: 'var(--io-text-on-accent)',
   border: 'none',
   borderRadius: 'var(--io-radius)',
   fontSize: '13px',
@@ -579,6 +580,175 @@ function EditRoleDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Column definitions for roles export
+// ---------------------------------------------------------------------------
+const ROLES_COLUMNS = [
+  { id: 'name', label: 'Name' },
+  { id: 'display_name', label: 'Display Name' },
+  { id: 'description', label: 'Description' },
+  { id: 'permission_count', label: 'Permission Count' },
+  { id: 'is_predefined', label: 'Predefined' },
+]
+
+const ROLES_DEFAULT_VISIBLE = ['name', 'display_name', 'permission_count', 'is_predefined']
+
+// ---------------------------------------------------------------------------
+// TableSkeleton — shimmer rows for roles table
+// ---------------------------------------------------------------------------
+function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr
+          style={{
+            borderBottom: '1px solid var(--io-border)',
+            background: 'var(--io-surface-primary)',
+          }}
+        >
+          {Array.from({ length: columns }).map((_, i) => (
+            <th key={i} style={{ padding: '10px 14px', textAlign: 'left' }}>
+              <div
+                style={{
+                  height: '10px',
+                  borderRadius: '4px',
+                  background: 'var(--io-border)',
+                  width: i === 0 ? '80px' : i === columns - 1 ? '60px' : '120px',
+                  animation: 'io-shimmer 1.5s ease-in-out infinite',
+                }}
+              />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }).map((_, ri) => (
+          <tr
+            key={ri}
+            style={{
+              borderBottom: ri < rows - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+            }}
+          >
+            {Array.from({ length: columns }).map((_, ci) => (
+              <td key={ci} style={{ padding: '12px 14px' }}>
+                <div
+                  style={{
+                    height: '12px',
+                    borderRadius: '4px',
+                    background: 'var(--io-surface-primary)',
+                    width: ci === columns - 1 ? '64px' : ci === 0 ? '100px' : '140px',
+                    animation: 'io-shimmer 1.5s ease-in-out infinite',
+                    animationDelay: `${ri * 0.05}s`,
+                  }}
+                />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RoleContextMenu — right-click context menu for role table rows
+// ---------------------------------------------------------------------------
+interface ContextMenuPos { x: number; y: number }
+
+function RoleContextMenu({
+  role,
+  pos,
+  onClose,
+  onEditPermissions,
+  onCloneRole,
+  onDelete,
+}: {
+  role: Role
+  pos: ContextMenuPos
+  onClose: () => void
+  onEditPermissions: (r: Role) => void
+  onCloneRole: (r: Role) => void
+  onDelete: (r: Role) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  const menuStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: pos.y,
+    left: pos.x,
+    zIndex: 500,
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+    minWidth: '180px',
+    overflow: 'hidden',
+    padding: '4px 0',
+  }
+
+  const itemStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    padding: '7px 14px',
+    background: 'transparent',
+    border: 'none',
+    textAlign: 'left',
+    fontSize: '13px',
+    color: 'var(--io-text-secondary)',
+    cursor: 'pointer',
+  }
+
+  const dangerItemStyle: React.CSSProperties = {
+    ...itemStyle,
+    color: 'var(--io-danger)',
+  }
+
+  const disabledItemStyle: React.CSSProperties = {
+    ...dangerItemStyle,
+    opacity: 0.4,
+    cursor: 'not-allowed',
+  }
+
+  function menuItem(label: string, action: () => void, danger = false, disabled = false) {
+    return (
+      <button
+        style={disabled ? disabledItemStyle : danger ? dangerItemStyle : itemStyle}
+        onMouseEnter={(e) => { if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        onClick={() => { if (!disabled) { action(); onClose() } }}
+        disabled={disabled}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} style={menuStyle}>
+      {menuItem('Edit Permissions', () => onEditPermissions(role))}
+      {menuItem('Clone Role', () => onCloneRole(role))}
+      {menuItem('Delete', () => onDelete(role), true, role.is_predefined)}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // RolesPage
 // ---------------------------------------------------------------------------
 export default function RolesPage() {
@@ -587,6 +757,7 @@ export default function RolesPage() {
   const [editRole, setEditRole] = useState<RoleDetail | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [bannerError, setBannerError] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ role: Role; pos: ContextMenuPos } | null>(null)
 
   const rolesQuery = useQuery({
     queryKey: ['roles'],
@@ -628,9 +799,42 @@ export default function RolesPage() {
     },
   })
 
+  const cloneMutation = useMutation({
+    mutationFn: async (role: Role) => {
+      // Fetch full role details to get permissions
+      const detailResult = await rolesApi.get(role.id)
+      if (!detailResult.success) throw new Error(detailResult.error.message)
+      const detail = detailResult.data as RoleDetail
+      const req: CreateRoleRequest = {
+        name: `${role.name}_copy`,
+        display_name: `${role.display_name} (Copy)`,
+        description: role.description ?? '',
+        permissions: detail.permissions.map((p: Permission) => p.name),
+        idle_timeout_minutes: detail.idle_timeout_minutes ?? null,
+        max_concurrent_sessions: detail.max_concurrent_sessions ?? 0,
+      }
+      return rolesApi.create(req)
+    },
+    onSuccess: (result) => {
+      if (!result.success) {
+        setBannerError(result.error.message)
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['roles'] })
+    },
+    onError: (err) => {
+      setBannerError(err instanceof Error ? err.message : 'Failed to clone role')
+    },
+  })
+
   function handleEdit(role: Role) {
     setEditRole(role as RoleDetail)
     setEditOpen(true)
+  }
+
+  function handleContextMenu(e: React.MouseEvent, role: Role) {
+    e.preventDefault()
+    setContextMenu({ role, pos: { x: e.clientX, y: e.clientY } })
   }
 
   const roles = rolesQuery.data ?? []
@@ -656,9 +860,19 @@ export default function RolesPage() {
             Define roles and their permissions
           </p>
         </div>
-        <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
-          + Add Role
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <ExportButton
+            module="settings"
+            entity="roles"
+            filteredRowCount={roles.length}
+            totalRowCount={roles.length}
+            availableColumns={ROLES_COLUMNS}
+            visibleColumns={ROLES_DEFAULT_VISIBLE}
+          />
+          <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
+            + Add Role
+          </button>
+        </div>
       </div>
 
       {bannerError && <ErrorBanner message={bannerError} />}
@@ -671,13 +885,7 @@ export default function RolesPage() {
           overflow: 'hidden',
         }}
       >
-        {rolesQuery.isLoading && (
-          <div
-            style={{ padding: '40px', textAlign: 'center', color: 'var(--io-text-muted)', fontSize: '14px' }}
-          >
-            Loading roles…
-          </div>
-        )}
+        {rolesQuery.isLoading && <TableSkeleton rows={5} columns={5} />}
         {rolesQuery.isError && (
           <div style={{ padding: '20px' }}>
             <ErrorBanner message={rolesQuery.error?.message ?? 'Failed to load roles'} />
@@ -733,6 +941,7 @@ export default function RolesPage() {
                     borderBottom:
                       i < roles.length - 1 ? '1px solid var(--io-border-subtle)' : undefined,
                   }}
+                  onContextMenu={(e) => handleContextMenu(e, role)}
                 >
                   <td style={cellStyle}>
                     <code
@@ -833,6 +1042,17 @@ export default function RolesPage() {
         onOpenChange={setEditOpen}
         permissions={permissions}
       />
+
+      {contextMenu && (
+        <RoleContextMenu
+          role={contextMenu.role}
+          pos={contextMenu.pos}
+          onClose={() => setContextMenu(null)}
+          onEditPermissions={(r) => { handleEdit(r) }}
+          onCloneRole={(r) => { cloneMutation.mutate(r) }}
+          onDelete={(r) => { deleteMutation.mutate(r.id) }}
+        />
+      )}
     </div>
   )
 }
