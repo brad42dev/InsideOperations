@@ -1159,37 +1159,52 @@ function SelectionOverlay({
   doc: GraphicDocument
   zoom: number
   onRotateStart?: (nodeId: NodeId, center: { x: number; y: number }, initialTransform: Transform) => void
-  onResizeStart?: (nodeId: NodeId, handle: ResizeHandle, bounds: { x: number; y: number; w: number; h: number }, transform: Transform, startX: number, startY: number) => void
+  onResizeStart?: (nodeId: NodeId, handle: ResizeHandle, bounds: { x: number; y: number; w: number; h: number }, transform: Transform, startX: number, startY: number, allNodeIds?: NodeId[], selectionBBox?: { x: number; y: number; w: number; h: number }) => void
   previewRotation?: { nodeId: NodeId; angle: number } | null
 }) {
   if (nodeIds.size === 0) return null
 
   const isSingle = nodeIds.size === 1
   const showRotateHandle = isSingle && !!onRotateStart
-  const showResizeHandles = isSingle && !!onResizeStart
+  const showResizeHandles = !!onResizeStart
+
+  // Compute union bounding box for multi-selection resize handles
+  const allNodeIdsArr = Array.from(nodeIds)
+  let selMinX = Infinity, selMinY = Infinity, selMaxX = -Infinity, selMaxY = -Infinity
+  const nodeMap = new Map<NodeId, SceneNode>()
+  for (const id of allNodeIdsArr) {
+    function findNodeForSel(nodes: SceneNode[]): SceneNode | null {
+      for (const n of nodes) {
+        if (n.id === id) return n
+        if ('children' in n && Array.isArray(n.children)) {
+          const found = findNodeForSel(n.children as SceneNode[])
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const node = findNodeForSel(doc.children)
+    if (node) {
+      nodeMap.set(id, node)
+      const b = getNodeBounds(node)
+      if (b.x < selMinX) selMinX = b.x
+      if (b.y < selMinY) selMinY = b.y
+      if (b.x + b.w > selMaxX) selMaxX = b.x + b.w
+      if (b.y + b.h > selMaxY) selMaxY = b.y + b.h
+    }
+  }
+  const selectionBBox = {
+    x: selMinX === Infinity ? 0 : selMinX,
+    y: selMinY === Infinity ? 0 : selMinY,
+    w: selMaxX === -Infinity ? 0 : selMaxX - selMinX,
+    h: selMaxY === -Infinity ? 0 : selMaxY - selMinY,
+  }
 
   return (
     <g className="io-selection-overlay" style={{ pointerEvents: 'none' }}>
-      {Array.from(nodeIds).map(id => {
-        function findNode(nodes: SceneNode[]): SceneNode | null {
-          for (const n of nodes) {
-            if (n.id === id) return n
-            if ('children' in n && Array.isArray(n.children)) {
-              const found = findNode(n.children as SceneNode[])
-              if (found) return found
-            }
-          }
-          return null
-        }
-        const node = findNode(doc.children)
+      {allNodeIdsArr.map(id => {
+        const node = nodeMap.get(id)
         if (!node) return null
-
-        // dimension_line annotations have no bounding box resize handles
-        const isDimensionLine = node.type === 'annotation' && (node as Annotation).annotationType === 'dimension_line'
-        // display_elements that are children of a symbol_instance use value anchors — no free resize
-        const isSymbolChildDisplayElement = node.type === 'display_element' &&
-          getNodeParent(node.id, doc.children)?.type === 'symbol_instance'
-        const nodeShowResizeHandles = showResizeHandles && !isDimensionLine && !isSymbolChildDisplayElement
 
         const bounds = getNodeBounds(node)
         const { x, y, w, h } = bounds
@@ -1248,34 +1263,82 @@ function SelectionOverlay({
                 />
               </>
             )}
-
-            {/* Resize handles — 8 squares at corners and edge midpoints (single selection) */}
-            {nodeShowResizeHandles && RESIZE_HANDLES.map(rh => {
-              const rhx = (x - pad) + (w + pad * 2) * rh.cx
-              const rhy = (y - pad) + (h + pad * 2) * rh.cy
-              const sz = 6 / zoom
-              return (
-                <rect
-                  key={rh.id}
-                  x={rhx - sz / 2}
-                  y={rhy - sz / 2}
-                  width={sz}
-                  height={sz}
-                  fill="white"
-                  stroke="var(--io-accent)"
-                  strokeWidth={1 / zoom}
-                  style={{ pointerEvents: 'all', cursor: rh.cursor }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation()
-                    e.preventDefault()
-                    onResizeStart!(id, rh.id, bounds, node.transform, rhx, rhy)
-                  }}
-                />
-              )
-            })}
           </g>
         )
       })}
+
+      {/* Resize handles — drawn once on the union bounding box (single or multi-selection) */}
+      {showResizeHandles && (() => {
+        // For single selection: check per-node restrictions
+        if (isSingle) {
+          const id = allNodeIdsArr[0]
+          const node = nodeMap.get(id)
+          if (!node) return null
+          const isDimensionLine = node.type === 'annotation' && (node as Annotation).annotationType === 'dimension_line'
+          const isSymbolChildDisplayElement = node.type === 'display_element' &&
+            getNodeParent(node.id, doc.children)?.type === 'symbol_instance'
+          if (isDimensionLine || isSymbolChildDisplayElement) return null
+          const bounds = getNodeBounds(node)
+          const { x, y, w, h } = bounds
+          const pad = 3 / zoom
+          return RESIZE_HANDLES.map(rh => {
+            const rhx = (x - pad) + (w + pad * 2) * rh.cx
+            const rhy = (y - pad) + (h + pad * 2) * rh.cy
+            const sz = 6 / zoom
+            return (
+              <rect
+                key={rh.id}
+                x={rhx - sz / 2}
+                y={rhy - sz / 2}
+                width={sz}
+                height={sz}
+                fill="white"
+                stroke="var(--io-accent)"
+                strokeWidth={1 / zoom}
+                style={{ pointerEvents: 'all', cursor: rh.cursor }}
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  onResizeStart!(id, rh.id, bounds, node.transform, rhx, rhy)
+                }}
+              />
+            )
+          })
+        }
+
+        // Multi-selection: draw handles on union bounding box
+        // Skip if selection has zero area (all pipes)
+        if (selectionBBox.w <= 0 || selectionBBox.h <= 0) return null
+        const { x: sx, y: sy, w: sw, h: sh } = selectionBBox
+        const pad = 3 / zoom
+        // Use first non-pipe node's transform as a representative (for compatibility)
+        const firstId = allNodeIdsArr.find(id => nodeMap.get(id)?.type !== 'pipe') ?? allNodeIdsArr[0]
+        const firstNode = nodeMap.get(firstId)
+        if (!firstNode) return null
+        return RESIZE_HANDLES.map(rh => {
+          const rhx = (sx - pad) + (sw + pad * 2) * rh.cx
+          const rhy = (sy - pad) + (sh + pad * 2) * rh.cy
+          const sz = 6 / zoom
+          return (
+            <rect
+              key={rh.id}
+              x={rhx - sz / 2}
+              y={rhy - sz / 2}
+              width={sz}
+              height={sz}
+              fill="white"
+              stroke="var(--io-accent)"
+              strokeWidth={1 / zoom}
+              style={{ pointerEvents: 'all', cursor: rh.cursor }}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                onResizeStart!(firstId, rh.id, selectionBBox, firstNode.transform, rhx, rhy, allNodeIdsArr, selectionBBox)
+              }}
+            />
+          )
+        })
+      })()}
     </g>
   )
 }
@@ -1731,8 +1794,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     initialTransform: Transform,
     startX: number,
     startY: number,
+    allNodeIds?: NodeId[],
+    selectionBBox?: { x: number; y: number; w: number; h: number },
   ) => {
     const inter = interactionRef.current
+    const d = docRef.current
     inter.type = 'resize'
     inter.resizeNodeId = nodeId
     inter.resizeHandle = handle
@@ -1740,6 +1806,55 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     inter.resizeOrigTransform = { ...initialTransform }
     inter.startCanvasX = startX
     inter.startCanvasY = startY
+
+    // Populate multi-node resize state
+    if (allNodeIds && allNodeIds.length > 0 && selectionBBox && d) {
+      // Exclude pipe nodes
+      const participatingIds = allNodeIds.filter(id => {
+        function findN(nodes: SceneNode[]): SceneNode | null {
+          for (const n of nodes) {
+            if (n.id === id) return n
+            if ('children' in n && Array.isArray((n as Group).children)) {
+              const f = findN((n as Group).children as SceneNode[])
+              if (f) return f
+            }
+          }
+          return null
+        }
+        const n = findN(d.children)
+        return n ? n.type !== 'pipe' : false
+      })
+      inter.resizeNodeIds = participatingIds
+      inter.resizeOrigSelectionBBox = { ...selectionBBox }
+      const origTransforms = new Map<NodeId, Transform>()
+      const origDims = new Map<NodeId, { w: number; h: number }>()
+      for (const id of participatingIds) {
+        function findN2(nodes: SceneNode[]): SceneNode | null {
+          for (const n of nodes) {
+            if (n.id === id) return n
+            if ('children' in n && Array.isArray((n as Group).children)) {
+              const f = findN2((n as Group).children as SceneNode[])
+              if (f) return f
+            }
+          }
+          return null
+        }
+        const n = findN2(d.children)
+        if (n) {
+          origTransforms.set(id, { ...n.transform })
+          const nb = getNodeBounds(n)
+          origDims.set(id, { w: nb.w, h: nb.h })
+        }
+      }
+      inter.resizeNodeOrigTransforms = origTransforms
+      inter.resizeNodeOrigDims = origDims
+    } else {
+      // Single-node: populate arrays with single entry
+      inter.resizeNodeIds = [nodeId]
+      inter.resizeOrigSelectionBBox = { ...bounds }
+      inter.resizeNodeOrigTransforms = new Map([[nodeId, { ...initialTransform }]])
+      inter.resizeNodeOrigDims = new Map([[nodeId, { w: bounds.w, h: bounds.h }]])
+    }
   }, [])
 
   // -------------------------------------------------------------------------
@@ -1892,6 +2007,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     resizeHandle: ResizeHandle
     resizeOrigBounds: { x: number; y: number; w: number; h: number }
     resizeOrigTransform: Transform
+    // multi-node resize
+    resizeNodeIds: NodeId[]
+    resizeNodeOrigTransforms: Map<NodeId, Transform>
+    resizeNodeOrigDims: Map<NodeId, { w: number; h: number }>
+    resizeOrigSelectionBBox: { x: number; y: number; w: number; h: number }
   }>({
     type: 'none',
     startCanvasX: 0,
@@ -1908,6 +2028,10 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     resizeHandle: 'se',
     resizeOrigBounds: { x: 0, y: 0, w: 0, h: 0 },
     resizeOrigTransform: { position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
+    resizeNodeIds: [],
+    resizeNodeOrigTransforms: new Map(),
+    resizeNodeOrigDims: new Map(),
+    resizeOrigSelectionBBox: { x: 0, y: 0, w: 0, h: 0 },
   })
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -2344,288 +2468,281 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         // Apply grid snap
         nx = snap(nx); ny = snap(ny); nw = snap(nw); nh = snap(nh)
 
-        // Find the node and build new geometry
-        function findResizeNode(nodes: SceneNode[]): SceneNode | null {
-          for (const n of nodes) {
-            if (n.id === inter.resizeNodeId) return n
-            if ('children' in n && Array.isArray((n as Group).children)) {
-              const f = findResizeNode((n as Group).children as SceneNode[])
-              if (f) return f
+        // ---------------------------------------------------------------------------
+        // Helper: build a single-node resize command given node, its original transform,
+        // and the new top-left position plus new raw width/height (pre-minimum clamping).
+        // Returns null for pipe nodes or nodes that should not be resized.
+        // ---------------------------------------------------------------------------
+        function buildResizeCommand(
+          node: SceneNode,
+          origT: Transform,
+          newPos: { x: number; y: number },
+          rawW: number,
+          rawH: number,
+          origBoundsRef?: { x: number; y: number; w: number; h: number },
+        ): SceneCommand | null {
+          if (node.type === 'pipe') return null
+          const newPosX = newPos.x
+          const newPosY = newPos.y
+          if (node.type === 'primitive') {
+            const prim = node as Primitive
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            let newGeom: Primitive['geometry']
+            if (prim.geometry.type === 'rect') {
+              newGeom = { ...prim.geometry, width: rawW, height: rawH }
+            } else if (prim.geometry.type === 'ellipse') {
+              newGeom = { ...prim.geometry, rx: rawW / 2, ry: rawH / 2 }
+            } else if (prim.geometry.type === 'circle') {
+              newGeom = { ...prim.geometry, r: Math.min(rawW, rawH) / 2 }
+            } else {
+              newGeom = prim.geometry
             }
+            return new ResizePrimitiveCommand(node.id, newT, newGeom, origT, prim.geometry)
+          }
+          if (node.type === 'image') {
+            const img = node as ImageNode
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            return new ResizeNodeWithDimsCommand(
+              node.id, newT, { width: rawW, height: rawH },
+              origT, { width: img.displayWidth, height: img.displayHeight },
+              ['displayWidth', 'displayHeight'],
+            )
+          }
+          if (node.type === 'widget') {
+            const wn = node as WidgetNode
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            return new ResizeNodeWithDimsCommand(
+              node.id, newT, { width: rawW, height: rawH },
+              origT, { width: wn.width, height: wn.height },
+            )
+          }
+          if (node.type === 'embedded_svg') {
+            const esn = node as EmbeddedSvgNode
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            return new ResizeNodeWithDimsCommand(
+              node.id, newT, { width: rawW, height: rawH },
+              origT, { width: esn.width, height: esn.height },
+            )
+          }
+          if (node.type === 'annotation') {
+            const ann = node as Annotation
+            if (ann.annotationType === 'dimension_line') return null
+            let finalW = rawW
+            let finalH = rawH
+            let finalY = newPosY
+            if (ann.annotationType === 'north_arrow') {
+              const side = Math.max(20, Math.min(rawW, rawH))
+              finalW = side
+              finalH = side
+            } else if (ann.annotationType === 'header' || ann.annotationType === 'footer') {
+              finalW = Math.max(40, rawW)
+              finalH = ann.height
+              finalY = origT.position.y
+            } else if (ann.annotationType === 'section_break' || ann.annotationType === 'page_break') {
+              finalW = Math.max(20, rawW)
+              finalH = 4
+              finalY = origT.position.y
+            } else {
+              const MINS: Record<string, [number, number]> = {
+                callout: [40, 20],
+                legend: [60, 30],
+                border: [100, 40],
+                title_block: [100, 40],
+              }
+              const [mw, mh] = MINS[ann.annotationType] ?? [20, 20]
+              finalW = Math.max(mw, rawW)
+              finalH = Math.max(mh, rawH)
+            }
+            const newT: Transform = { ...origT, position: { x: newPosX, y: finalY } }
+            return new ResizeNodeWithDimsCommand(
+              node.id, newT, { width: finalW, height: finalH },
+              origT, { width: ann.width, height: ann.height },
+            )
+          }
+          if (node.type === 'symbol_instance') {
+            const si = node as SymbolInstance
+            const shapeData = useLibraryStore.getState().getShape(si.shapeRef.shapeId)
+            const geo = shapeData?.sidecar.geometry
+            const origBoundsW = origBoundsRef?.w ?? rawW
+            const origBoundsH = origBoundsRef?.h ?? rawH
+            const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? origBoundsW
+            const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? origBoundsH
+            const clampedW = Math.max(10, rawW)
+            const clampedH = Math.max(10, rawH)
+            const newScaleX = clampedW / naturalW
+            const newScaleY = clampedH / naturalH
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY }, scale: { x: newScaleX, y: newScaleY } }
+            return new ResizeNodeCommand(node.id, newT, origT)
+          }
+          if (node.type === 'text_block') {
+            const tb = node as TextBlock
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            const newW = Math.max(20, rawW)
+            return new CompoundCommand('Resize', [
+              new ResizeNodeCommand(node.id, newT, origT),
+              new ChangePropertyCommand(node.id, 'maxWidth', newW, tb.maxWidth ?? 120),
+            ])
+          }
+          if (node.type === 'stencil') {
+            const st = node as Stencil
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            const newW = Math.max(16, rawW)
+            const newH = Math.max(16, rawH)
+            const prevSize = st.size ?? { width: 48, height: 24 }
+            return new CompoundCommand('Resize', [
+              new ResizeNodeCommand(node.id, newT, origT),
+              new ChangePropertyCommand(node.id, 'size', { width: newW, height: newH }, prevSize),
+            ])
+          }
+          if (node.type === 'display_element') {
+            const de = node as DisplayElement
+            const cfg = de.config
+            const MINS: Record<string, [number, number]> = {
+              text_readout:    [40, 16],
+              analog_bar:      [10, 30],
+              fill_gauge:      [10, 30],
+              sparkline:       [40, 10],
+              alarm_indicator: [20, 16],
+              digital_status:  [30, 16],
+            }
+            const [minW, minH] = MINS[de.displayType] ?? [20, 16]
+            const finalW = Math.max(minW, rawW)
+            const finalH = Math.max(minH, rawH)
+            const newT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            let newCfg: DisplayElementConfig
+            switch (cfg.displayType) {
+              case 'text_readout':    newCfg = { ...cfg, width: finalW, height: finalH }; break
+              case 'analog_bar':      newCfg = { ...cfg, barWidth: finalW, barHeight: finalH }; break
+              case 'fill_gauge':      newCfg = { ...cfg, barWidth: finalW, barHeight: finalH }; break
+              case 'sparkline':       newCfg = { ...cfg, sparkWidth: finalW, sparkHeight: finalH }; break
+              case 'alarm_indicator': newCfg = { ...cfg, width: finalW, height: finalH }; break
+              case 'digital_status':  newCfg = { ...cfg, width: finalW, height: finalH }; break
+              default: newCfg = cfg
+            }
+            return new CompoundCommand('Resize', [
+              new ResizeNodeCommand(node.id, newT, origT),
+              new ChangePropertyCommand(node.id, 'config', newCfg, cfg),
+            ])
+          }
+          if (node.type === 'group') {
+            const grp = node as Group
+            const origBBox = origBoundsRef ?? getNodeBounds(node)
+            const finalW = Math.max(20, rawW)
+            const finalH = Math.max(20, rawH)
+            const scaleX = origBBox.w > 0 ? finalW / origBBox.w : 1
+            const scaleY = origBBox.h > 0 ? finalH / origBBox.h : 1
+
+            function getScaledDimsLocal(child: SceneNode, sX: number, sY: number): { width: number; height: number } {
+              if (child.type === 'widget') { const wn = child as WidgetNode; return { width: wn.width * sX, height: wn.height * sY } }
+              if (child.type === 'text_block') { const tb = child as TextBlock; return { width: (tb.maxWidth ?? 120) * sX, height: (tb.fontSize ? tb.fontSize * 2 : 20) * sY } }
+              if (child.type === 'stencil') { const st = child as Stencil; return { width: (st.size?.width ?? 48) * sX, height: (st.size?.height ?? 24) * sY } }
+              if (child.type === 'embedded_svg') { const esn = child as EmbeddedSvgNode; return { width: esn.width * sX, height: esn.height * sY } }
+              return { width: 0, height: 0 }
+            }
+            function getOrigDimsLocal(child: SceneNode): { width: number; height: number } {
+              if (child.type === 'widget') { const wn = child as WidgetNode; return { width: wn.width, height: wn.height } }
+              if (child.type === 'text_block') { const tb = child as TextBlock; return { width: tb.maxWidth ?? 120, height: tb.fontSize ? tb.fontSize * 2 : 20 } }
+              if (child.type === 'stencil') { const st = child as Stencil; return { width: st.size?.width ?? 48, height: st.size?.height ?? 24 } }
+              if (child.type === 'embedded_svg') { const esn = child as EmbeddedSvgNode; return { width: esn.width, height: esn.height } }
+              return { width: 0, height: 0 }
+            }
+
+            const childCommands: SceneCommand[] = grp.children
+              .filter(child => child.type !== 'pipe')
+              .map(child => {
+                const relX = child.transform.position.x - origBBox.x
+                const relY = child.transform.position.y - origBBox.y
+                const newChildX = origBBox.x + relX * scaleX
+                const newChildY = origBBox.y + relY * scaleY
+                const newChildTransform: Transform = {
+                  ...child.transform,
+                  position: { x: newChildX, y: newChildY },
+                  scale: { x: child.transform.scale.x * scaleX, y: child.transform.scale.y * scaleY },
+                }
+                const scaledD = getScaledDimsLocal(child, scaleX, scaleY)
+                const origD = getOrigDimsLocal(child)
+                if (child.type === 'image') {
+                  const img = child as ImageNode
+                  return new ResizeNodeWithDimsCommand(child.id, newChildTransform, { width: img.displayWidth * scaleX, height: img.displayHeight * scaleY }, child.transform, { width: img.displayWidth, height: img.displayHeight }, ['displayWidth', 'displayHeight'])
+                }
+                if (scaledD.width > 0 || scaledD.height > 0) {
+                  return new ResizeNodeWithDimsCommand(child.id, newChildTransform, scaledD, child.transform, origD)
+                }
+                return new ResizeNodeCommand(child.id, newChildTransform, child.transform)
+              })
+            const newGrpT: Transform = { ...origT, position: { x: newPosX, y: newPosY } }
+            return new CompoundCommand('Resize Group', [new ResizeNodeCommand(node.id, newGrpT, origT), ...childCommands])
           }
           return null
         }
-        const target = findResizeNode(d.children)
-        if (target?.type === 'primitive') {
-          const prim = target as Primitive
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
-          let newGeom: Primitive['geometry']
-          if (prim.geometry.type === 'rect') {
-            newGeom = { ...prim.geometry, width: nw, height: nh }
-          } else if (prim.geometry.type === 'ellipse') {
-            newGeom = { ...prim.geometry, rx: nw / 2, ry: nh / 2 }
-          } else if (prim.geometry.type === 'circle') {
-            newGeom = { ...prim.geometry, r: Math.min(nw, nh) / 2 }
-          } else {
-            newGeom = prim.geometry
-          }
-          executeCmd(new ResizePrimitiveCommand(
-            inter.resizeNodeId,
-            newT, newGeom,
-            prevT, prim.geometry,
-          ))
-        } else if (target?.type === 'image') {
-          const img = target as ImageNode
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
-          executeCmd(new ResizeNodeWithDimsCommand(
-            inter.resizeNodeId,
-            newT, { width: nw, height: nh },
-            prevT, { width: img.displayWidth, height: img.displayHeight },
-            ['displayWidth', 'displayHeight'],
-          ))
-        } else if (target?.type === 'widget') {
-          const wn = target as WidgetNode
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
-          executeCmd(new ResizeNodeWithDimsCommand(
-            inter.resizeNodeId,
-            newT, { width: nw, height: nh },
-            prevT, { width: wn.width, height: wn.height },
-          ))
-        } else if (target?.type === 'embedded_svg') {
-          const esn = target as EmbeddedSvgNode
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
-          executeCmd(new ResizeNodeWithDimsCommand(
-            inter.resizeNodeId,
-            newT, { width: nw, height: nh },
-            prevT, { width: esn.width, height: esn.height },
-          ))
-        } else if (target?.type === 'annotation') {
-          const ann = target as Annotation
-          if (ann.annotationType === 'dimension_line') {
-            inter.type = 'none'
-            return
-          }
-          let finalW = nw
-          let finalH = nh
-          if (ann.annotationType === 'north_arrow') {
-            const side = Math.max(20, Math.min(nw, nh))
-            finalW = side
-            finalH = side
-          } else if (ann.annotationType === 'header' || ann.annotationType === 'footer') {
-            finalW = Math.max(40, nw)
-            finalH = ann.height
-            ny = inter.resizeOrigTransform.position.y
-          } else if (ann.annotationType === 'section_break' || ann.annotationType === 'page_break') {
-            finalW = Math.max(20, nw)
-            finalH = 4
-            ny = inter.resizeOrigTransform.position.y
-          } else {
-            // callout, legend, border, title_block
-            const MINS: Record<string, [number, number]> = {
-              callout: [40, 20],
-              legend: [60, 30],
-              border: [100, 40],
-              title_block: [100, 40],
-            }
-            const [mw, mh] = MINS[ann.annotationType] ?? [20, 20]
-            finalW = Math.max(mw, nw)
-            finalH = Math.max(mh, nh)
-          }
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
-          executeCmd(new ResizeNodeWithDimsCommand(
-            inter.resizeNodeId,
-            newT, { width: finalW, height: finalH },
-            prevT, { width: ann.width, height: ann.height },
-          ))
-        } else if (target?.type === 'symbol_instance') {
-          const si = target as SymbolInstance
-          const prevT = inter.resizeOrigTransform
-          const shapeData = useLibraryStore.getState().getShape(si.shapeRef.shapeId)
-          const geo = shapeData?.sidecar.geometry
-          const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? inter.resizeOrigBounds.w
-          const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? inter.resizeOrigBounds.h
-          const clampedW = Math.max(10, nw)
-          const clampedH = Math.max(10, nh)
-          const newScaleX = clampedW / naturalW
-          const newScaleY = clampedH / naturalH
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny }, scale: { x: newScaleX, y: newScaleY } }
-          executeCmd(new ResizeNodeCommand(inter.resizeNodeId, newT, prevT))
-        } else if (target?.type === 'text_block') {
-          const tb = target as TextBlock
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
-          const newW = Math.max(20, nw)
-          executeCmd(new CompoundCommand('Resize', [
-            new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
-            new ChangePropertyCommand(inter.resizeNodeId, 'maxWidth', newW, tb.maxWidth ?? 120),
-          ]))
-        } else if (target?.type === 'stencil') {
-          const st = target as Stencil
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
-          const newW = Math.max(16, nw)
-          const newH = Math.max(16, nh)
-          const prevSize = st.size ?? { width: 48, height: 24 }
-          executeCmd(new CompoundCommand('Resize', [
-            new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
-            new ChangePropertyCommand(inter.resizeNodeId, 'size', { width: newW, height: newH }, prevSize),
-          ]))
-        } else if (target?.type === 'display_element') {
-          const de = target as DisplayElement
-          const cfg = de.config
-          const MINS: Record<string, [number, number]> = {
-            text_readout:    [40, 16],
-            analog_bar:      [10, 30],
-            fill_gauge:      [10, 30],
-            sparkline:       [40, 10],
-            alarm_indicator: [20, 16],
-            digital_status:  [30, 16],
-          }
-          const [minW, minH] = MINS[de.displayType] ?? [20, 16]
-          const finalW = Math.max(minW, nw)
-          const finalH = Math.max(minH, nh)
 
-          const prevT = inter.resizeOrigTransform
-          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+        // ---------------------------------------------------------------------------
+        // Multi-node resize path: resizeNodeIds.length > 1
+        // ---------------------------------------------------------------------------
+        if (inter.resizeNodeIds.length > 1) {
+          const origSel = inter.resizeOrigSelectionBBox
+          const finalSelW = Math.max(20, nw)
+          const finalSelH = Math.max(20, nh)
+          const scaleX = origSel.w > 0 ? finalSelW / origSel.w : 1
+          const scaleY = origSel.h > 0 ? finalSelH / origSel.h : 1
+          const newSelOriginX = nx
+          const newSelOriginY = ny
 
-          // Build the new config with updated dimension fields per display type
-          let newCfg: DisplayElementConfig
-          switch (cfg.displayType) {
-            case 'text_readout':
-              newCfg = { ...cfg, width: finalW, height: finalH }
-              break
-            case 'analog_bar':
-              newCfg = { ...cfg, barWidth: finalW, barHeight: finalH }
-              break
-            case 'fill_gauge':
-              newCfg = { ...cfg, barWidth: finalW, barHeight: finalH }
-              break
-            case 'sparkline':
-              newCfg = { ...cfg, sparkWidth: finalW, sparkHeight: finalH }
-              break
-            case 'alarm_indicator':
-              newCfg = { ...cfg, width: finalW, height: finalH }
-              break
-            case 'digital_status':
-              newCfg = { ...cfg, width: finalW, height: finalH }
-              break
-            default:
-              newCfg = cfg
-          }
-
-          executeCmd(new CompoundCommand('Resize', [
-            new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
-            new ChangePropertyCommand(inter.resizeNodeId, 'config', newCfg, cfg),
-          ]))
-        } else if (target?.type === 'group') {
-          const grp = target as Group
-          const origBBox = inter.resizeOrigBounds
-          // Enforce minimum group size
-          const finalW = Math.max(20, nw)
-          const finalH = Math.max(20, nh)
-          // Scale factors
-          const sx = origBBox.w > 0 ? finalW / origBBox.w : 1
-          const sy = origBBox.h > 0 ? finalH / origBBox.h : 1
-
-          // Helper: returns scaled explicit dimension properties for nodes that have them
-          function getScaledDims(child: SceneNode, scaleX: number, scaleY: number): { width: number; height: number } {
-            if (child.type === 'widget') {
-              const wn = child as WidgetNode
-              return { width: wn.width * scaleX, height: wn.height * scaleY }
-            }
-            if (child.type === 'text_block') {
-              const tb = child as TextBlock
-              return { width: (tb.maxWidth ?? 120) * scaleX, height: (tb.fontSize ? tb.fontSize * 2 : 20) * scaleY }
-            }
-            if (child.type === 'stencil') {
-              const st = child as Stencil
-              return { width: (st.size?.width ?? 48) * scaleX, height: (st.size?.height ?? 24) * scaleY }
-            }
-            if (child.type === 'embedded_svg') {
-              const esn = child as EmbeddedSvgNode
-              return { width: esn.width * scaleX, height: esn.height * scaleY }
-            }
-            // primitives, symbol_instances, groups, and others scale via transform.scale
-            return { width: 0, height: 0 }
-          }
-
-          // Helper: returns the original explicit dims (same shape as getScaledDims)
-          function getOriginalDims(child: SceneNode): { width: number; height: number } {
-            if (child.type === 'widget') {
-              const wn = child as WidgetNode
-              return { width: wn.width, height: wn.height }
-            }
-            if (child.type === 'text_block') {
-              const tb = child as TextBlock
-              return { width: tb.maxWidth ?? 120, height: tb.fontSize ? tb.fontSize * 2 : 20 }
-            }
-            if (child.type === 'stencil') {
-              const st = child as Stencil
-              return { width: st.size?.width ?? 48, height: st.size?.height ?? 24 }
-            }
-            if (child.type === 'embedded_svg') {
-              const esn = child as EmbeddedSvgNode
-              return { width: esn.width, height: esn.height }
-            }
-            return { width: 0, height: 0 }
-          }
-
-          // Build one command per non-pipe child
-          const childCommands: SceneCommand[] = grp.children
-            .filter(child => child.type !== 'pipe')
-            .map(child => {
-              // Child positions are in canvas coordinates
-              const relX = child.transform.position.x - origBBox.x
-              const relY = child.transform.position.y - origBBox.y
-              const newChildX = origBBox.x + relX * sx
-              const newChildY = origBBox.y + relY * sy
-              const newChildScaleX = child.transform.scale.x * sx
-              const newChildScaleY = child.transform.scale.y * sy
-              const newChildTransform: Transform = {
-                ...child.transform,
-                position: { x: newChildX, y: newChildY },
-                scale: { x: newChildScaleX, y: newChildScaleY },
+          function findNodeById(nodes: SceneNode[], id: NodeId): SceneNode | null {
+            for (const n of nodes) {
+              if (n.id === id) return n
+              if ('children' in n && Array.isArray((n as Group).children)) {
+                const f = findNodeById((n as Group).children as SceneNode[], id)
+                if (f) return f
               }
+            }
+            return null
+          }
 
-              const scaledDims = getScaledDims(child, sx, sy)
-              const origDims = getOriginalDims(child)
+          const perNodeCommands: SceneCommand[] = []
+          for (const nodeId of inter.resizeNodeIds) {
+            const node = findNodeById(d.children, nodeId)
+            if (!node || node.type === 'pipe') continue
+            const origT = inter.resizeNodeOrigTransforms.get(nodeId)
+            const origDims = inter.resizeNodeOrigDims.get(nodeId)
+            if (!origT || !origDims) continue
 
-              if (child.type === 'image') {
-                const img = child as ImageNode
-                // image uses displayWidth/displayHeight keys
-                return new ResizeNodeWithDimsCommand(
-                  child.id,
-                  newChildTransform,
-                  { width: img.displayWidth * sx, height: img.displayHeight * sy },
-                  child.transform,
-                  { width: img.displayWidth, height: img.displayHeight },
-                  ['displayWidth', 'displayHeight'],
-                )
+            const relX = origT.position.x - origSel.x
+            const relY = origT.position.y - origSel.y
+            const newX = newSelOriginX + relX * scaleX
+            const newY = newSelOriginY + relY * scaleY
+            const rawW = origDims.w * scaleX
+            const rawH = origDims.h * scaleY
+            const origBoundsForNode = { x: origT.position.x, y: origT.position.y, w: origDims.w, h: origDims.h }
+            const cmd = buildResizeCommand(node, origT, { x: newX, y: newY }, rawW, rawH, origBoundsForNode)
+            if (cmd) perNodeCommands.push(cmd)
+          }
+
+          if (perNodeCommands.length === 1) {
+            executeCmd(perNodeCommands[0])
+          } else if (perNodeCommands.length > 1) {
+            executeCmd(new CompoundCommand('Resize', perNodeCommands))
+          }
+        } else {
+          // ---------------------------------------------------------------------------
+          // Single-node resize path (original logic, refactored via buildResizeCommand)
+          // ---------------------------------------------------------------------------
+          function findResizeNode(nodes: SceneNode[]): SceneNode | null {
+            for (const n of nodes) {
+              if (n.id === inter.resizeNodeId) return n
+              if ('children' in n && Array.isArray((n as Group).children)) {
+                const f = findResizeNode((n as Group).children as SceneNode[])
+                if (f) return f
               }
-              if (scaledDims.width > 0 || scaledDims.height > 0) {
-                return new ResizeNodeWithDimsCommand(
-                  child.id,
-                  newChildTransform,
-                  scaledDims,
-                  child.transform,
-                  origDims,
-                )
-              }
-              // Primitives, symbol_instances, nested groups — transform only
-              return new ResizeNodeCommand(child.id, newChildTransform, child.transform)
-            })
-
-          // Update the group node's own transform position
-          const prevGrpT = inter.resizeOrigTransform
-          const newGrpT: Transform = { ...prevGrpT, position: { x: nx, y: ny } }
-          const groupPositionCmd = new ResizeNodeCommand(grp.id, newGrpT, prevGrpT)
-
-          executeCmd(new CompoundCommand('Resize Group', [groupPositionCmd, ...childCommands]))
+            }
+            return null
+          }
+          const target = findResizeNode(d.children)
+          if (target) {
+            const prevT = inter.resizeOrigTransform
+            const cmd = buildResizeCommand(target, prevT, { x: nx, y: ny }, nw, nh, inter.resizeOrigBounds)
+            if (cmd) executeCmd(cmd)
+          }
         }
       }
       inter.type = 'none'

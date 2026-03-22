@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T10:35:21.267255+00:00",
+  "last_updated": "2026-03-22T10:43:25.476231Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -82,7 +82,8 @@
     "GFX-SHAPES-005": 1,
     "MOD-PROCESS-007": 1,
     "OPC-BACKEND-003": 1,
-    "MOD-CONSOLE-007": 1
+    "MOD-CONSOLE-007": 1,
+    "MOD-DESIGNER-003": 1
   },
   "queue": [
     {
@@ -1268,7 +1269,7 @@
       "title": "Move selection state from local useRef into uiStore",
       "priority": "medium",
       "depends_on": [],
-      "status": "implementing",
+      "status": "verified",
       "audit_round": 3
     },
     {
@@ -3871,7 +3872,7 @@
       "wave": 2,
       "title": "Enable multi-node resize (CompoundCommand wrapping per-node resize commands)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-011",
         "MOD-DESIGNER-012",
