@@ -66,7 +66,8 @@
     "DD-16-003": 1,
     "DD-20-001": 1,
     "DD-23-007": 1,
-    "DD-23-011": 1
+    "DD-23-011": 1,
+    "DD-26-003": 1
   },
   "queue": [
     {
@@ -2663,7 +2664,7 @@
       "wave": 3,
       "title": "Add missing recognition API endpoints (classes, generate, feedback, model history, gap-report CRUD)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-26-001",
         "DD-26-002"
@@ -2708,7 +2709,7 @@
       "wave": 3,
       "title": "Implement recognition import wizard in Designer module",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-26-001",
         "DD-26-002",

@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { reportsApi, type ReportTemplate } from '../../api/reports'
 import { dashboardsApi, type Dashboard } from '../../api/dashboards'
+import { useDesignerPermissions } from '../../shared/hooks/usePermission'
+import { RecognitionWizardTrigger } from './components/RecognitionWizard'
 
 // ---------------------------------------------------------------------------
 // Hub card
@@ -160,6 +162,7 @@ function RecentItem({
 // ---------------------------------------------------------------------------
 
 export default function DesignerHome() {
+  const perms = useDesignerPermissions()
   const reportsQuery = useQuery({
     queryKey: ['report-templates', { is_system: false }],
     queryFn: async () => {
@@ -281,6 +284,7 @@ export default function DesignerHome() {
               <QuickAction key={action.href} {...action} />
             )
           })}
+          <RecognitionWizardTrigger canImport={perms.canImport} renderAs="button" />
         </div>
 
         {/* Recent items */}
