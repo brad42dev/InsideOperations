@@ -145,6 +145,84 @@ async function request<T>(
   return { success: true, data: json as T }
 }
 
+async function requestForm<T>(method: string, path: string, form: FormData, isRetry = false): Promise<ApiResult<T>> {
+  const token = localStorage.getItem(TOKEN_KEY)
+  const headers: Record<string, string> = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  // Do NOT set Content-Type — browser sets it with boundary for multipart/form-data
+
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      credentials: 'include',
+      body: form,
+    })
+  } catch {
+    return {
+      success: false,
+      error: { code: 'NETWORK_ERROR', message: 'Network request failed' },
+    }
+  }
+
+  if (res.status === 401 && !isRetry) {
+    if (!isRefreshing) {
+      isRefreshing = true
+      refreshPromise = doRefresh().finally(() => {
+        isRefreshing = false
+        refreshPromise = null
+      })
+    }
+    const newToken = await refreshPromise
+    if (newToken) {
+      return requestForm<T>(method, path, form, true)
+    } else {
+      localStorage.removeItem(TOKEN_KEY)
+      import('../store/auth').then((mod) => {
+        mod.useAuthStore.getState().clearAuth()
+      })
+      window.location.href = '/login'
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Session expired. Please log in again.' },
+      }
+    }
+  }
+
+  let json: unknown
+  try {
+    json = await res.json()
+  } catch {
+    return {
+      success: false,
+      error: { code: 'PARSE_ERROR', message: 'Failed to parse server response' },
+    }
+  }
+
+  if (!res.ok) {
+    const errJson = json as { error?: ApiError; code?: string; message?: string }
+    return {
+      success: false,
+      error: errJson.error ?? {
+        code: errJson.code ?? 'SERVER_ERROR',
+        message: errJson.message ?? `Server error: ${res.status}`,
+      },
+    }
+  }
+
+  const envelope = json as { success?: boolean; data?: unknown; pagination?: unknown } & Record<string, unknown>
+  if ('pagination' in envelope && Array.isArray(envelope.data)) {
+    return { success: true, data: { data: envelope.data, pagination: envelope.pagination } as T }
+  }
+  if ('data' in envelope) {
+    return { success: true, data: envelope.data as T }
+  }
+  return { success: true, data: json as T }
+}
+
 export const api = {
   get<T>(path: string): Promise<ApiResult<T>> {
     return request<T>('GET', path)
@@ -160,6 +238,9 @@ export const api = {
   },
   delete<T = void>(path: string): Promise<ApiResult<T>> {
     return request<T>('DELETE', path)
+  },
+  postForm<T>(path: string, form: FormData): Promise<ApiResult<T>> {
+    return requestForm<T>('POST', path, form)
   },
 }
 

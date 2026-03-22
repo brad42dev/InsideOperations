@@ -43,8 +43,17 @@ export interface LogEntry {
   updated_at: string
 }
 
+export interface LogAttachment {
+  id: string
+  filename: string
+  file_path: string
+  media_type: string
+  created_at: string
+}
+
 export interface LogInstanceDetail extends LogInstance {
   entries: LogEntry[]
+  attachments?: LogAttachment[]
 }
 
 export interface SearchResult extends LogEntry {
@@ -128,4 +137,13 @@ export const logsApi = {
     to?: string
   }): Promise<ApiResult<SearchResult[]>> =>
     api.get<SearchResult[]>(`/api/logs/search${queryString(params)}`),
+
+  uploadAttachment: (
+    instanceId: string,
+    file: File,
+  ): Promise<ApiResult<{ id: string; filename: string; file_path: string; media_type: string }>> => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.postForm(`/api/logs/instances/${instanceId}/attachments`, form)
+  },
 }

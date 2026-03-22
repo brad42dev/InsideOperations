@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T14:33:58.868465Z",
+  "last_updated": "2026-03-22T00:00:00Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -96,7 +96,8 @@
     "DD-12-001": 1,
     "DD-12-002": 1,
     "DD-12-007": 1,
-    "DD-12-008": 1
+    "DD-12-008": 1,
+    "DD-13-004": 1
   },
   "queue": [
     {
@@ -1800,7 +1801,7 @@
       "wave": 3,
       "title": "Align instance status states with spec (draft/submitted/reviewed vs pending/completed)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1810,7 +1811,7 @@
       "wave": 3,
       "title": "Implement attachment upload UI (photo, video, audio, 10MB limit)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

@@ -11,7 +11,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
-import { logsApi, type LogSegment, type LogTemplate } from '../../api/logs'
+import { logsApi, type LogAttachment, type LogSegment, type LogTemplate } from '../../api/logs'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
 
 // ---------------------------------------------------------------------------
@@ -632,6 +632,255 @@ function SubmitDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Attachment panel
+// ---------------------------------------------------------------------------
+
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024 // 10 MB
+
+function mediaBadge(mediaType: string): string {
+  if (mediaType.startsWith('image/')) return 'Photo'
+  if (mediaType.startsWith('video/')) return 'Video'
+  if (mediaType.startsWith('audio/')) return 'Audio'
+  return 'File'
+}
+
+function AttachmentPanel({
+  instanceId,
+  readOnly,
+  attachments,
+}: {
+  instanceId: string
+  readOnly: boolean
+  attachments: LogAttachment[]
+}) {
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [sizeError, setSizeError] = useState<string | null>(null)
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => logsApi.uploadAttachment(instanceId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['log-instance', instanceId] })
+      setSizeError(null)
+    },
+  })
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Reset the input so the same file can be re-selected after an error
+    e.target.value = ''
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      setSizeError(`"${file.name}" exceeds the 10 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB).`)
+      return
+    }
+    setSizeError(null)
+    uploadMutation.mutate(file)
+  }
+
+  if (readOnly) return null
+
+  return (
+    <div
+      style={{
+        background: 'var(--io-surface)',
+        border: '1px solid var(--io-border)',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        marginBottom: '16px',
+      }}
+    >
+      {/* Section header */}
+      <div
+        style={{
+          padding: '10px 16px',
+          borderBottom: '1px solid var(--io-border)',
+          background: 'var(--io-surface-secondary)',
+          fontSize: '13px',
+          fontWeight: 600,
+          color: 'var(--io-text-secondary)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>Attachments</span>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
+            style={{
+              background: 'var(--io-accent)',
+              border: 'none',
+              borderRadius: '5px',
+              padding: '4px 12px',
+              cursor: uploadMutation.isPending ? 'not-allowed' : 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#fff',
+              opacity: uploadMutation.isPending ? 0.7 : 1,
+              textTransform: 'none',
+              letterSpacing: 0,
+            }}
+          >
+            {uploadMutation.isPending ? 'Uploading...' : '+ Add File'}
+          </button>
+        )}
+      </div>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*,audio/*"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
+      {/* Inline error */}
+      {sizeError && (
+        <div
+          style={{
+            padding: '8px 16px',
+            background: 'rgba(239,68,68,0.08)',
+            borderBottom: '1px solid var(--io-border)',
+            fontSize: '13px',
+            color: '#ef4444',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+          }}
+        >
+          <span>{sizeError}</span>
+          <button
+            type="button"
+            onClick={() => setSizeError(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#ef4444',
+              fontSize: '16px',
+              lineHeight: 1,
+              padding: '0 2px',
+              flexShrink: 0,
+            }}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Upload error from server */}
+      {uploadMutation.isError && (
+        <div
+          style={{
+            padding: '8px 16px',
+            background: 'rgba(239,68,68,0.08)',
+            borderBottom: '1px solid var(--io-border)',
+            fontSize: '13px',
+            color: '#ef4444',
+          }}
+        >
+          Upload failed. Please try again.
+        </div>
+      )}
+
+      {/* Attachment list */}
+      <div style={{ padding: attachments.length > 0 ? '0' : '16px' }}>
+        {attachments.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              color: 'var(--io-text-muted)',
+              fontSize: '13px',
+            }}
+          >
+            No attachments yet.
+          </div>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {attachments.map((att, idx) => (
+              <li
+                key={att.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 16px',
+                  borderBottom: idx < attachments.length - 1 ? '1px solid var(--io-border)' : 'none',
+                  fontSize: '13px',
+                  color: 'var(--io-text-primary)',
+                }}
+              >
+                {/* Type badge */}
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 7px',
+                    borderRadius: '100px',
+                    background: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
+                    color: 'var(--io-accent, #4A9EFF)',
+                    flexShrink: 0,
+                  }}
+                >
+                  {mediaBadge(att.media_type)}
+                </span>
+
+                {/* Filename */}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {att.filename}
+                </span>
+
+                {/* Remove button (only when editable) */}
+                {!readOnly && (
+                  <button
+                    type="button"
+                    title="Remove attachment"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--io-text-muted)',
+                      fontSize: '16px',
+                      lineHeight: 1,
+                      padding: '0 2px',
+                      flexShrink: 0,
+                    }}
+                    onClick={() => {
+                      // Remove action: placeholder for delete API (not yet specced)
+                      // Optimistically filter from query cache until API is available
+                      queryClient.setQueryData(
+                        ['log-instance', instanceId],
+                        (old: { attachments?: LogAttachment[] } | undefined) => {
+                          if (!old) return old
+                          return {
+                            ...old,
+                            attachments: (old.attachments ?? []).filter((a) => a.id !== att.id),
+                          }
+                        },
+                      )
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main editor
 // ---------------------------------------------------------------------------
 
@@ -906,6 +1155,12 @@ export default function LogEditor() {
             />
           ))
         )}
+
+        <AttachmentPanel
+          instanceId={id!}
+          readOnly={readOnly}
+          attachments={instanceData.attachments ?? []}
+        />
       </div>
 
       {showSubmitDialog && (
