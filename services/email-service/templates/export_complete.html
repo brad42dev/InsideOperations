@@ -1,0 +1,33 @@
+{% extends "_base.html" %}
+{% block title %}Export Complete: {{ export_name }}{% endblock %}
+{% block content %}
+<h2>Export Complete</h2>
+<p>Your data export has finished and is ready for download.</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <tr>
+    <td style="padding:6px 0;font-weight:600;width:140px;">Export</td>
+    <td style="padding:6px 0;">{{ export_name }}</td>
+  </tr>
+  {% if format %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Format</td>
+    <td style="padding:6px 0;">{{ format }}</td>
+  </tr>
+  {% endif %}
+  {% if row_count %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Rows Exported</td>
+    <td style="padding:6px 0;">{{ row_count }}</td>
+  </tr>
+  {% endif %}
+  {% if completed_at %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Completed At</td>
+    <td style="padding:6px 0;">{{ completed_at }}</td>
+  </tr>
+  {% endif %}
+</table>
+{% if download_url %}
+<p><a class="button" href="{{ download_url }}">Download Export</a></p>
+{% endif %}
+{% endblock %}

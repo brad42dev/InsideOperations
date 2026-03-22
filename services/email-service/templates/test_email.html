@@ -1,0 +1,13 @@
+{% extends "_base.html" %}
+{% block title %}Test Email — Inside/Operations{% endblock %}
+{% block content %}
+<h2>Test Email</h2>
+<p>This is a test email sent from Inside/Operations to verify that your email provider is configured correctly.</p>
+{% if provider_name %}
+<p><strong>Provider:</strong> {{ provider_name }}</p>
+{% endif %}
+{% if sent_at %}
+<p><strong>Sent at:</strong> {{ sent_at }}</p>
+{% endif %}
+<p style="color:#6b778c;font-size:12px;">If you received this email, your email configuration is working correctly.</p>
+{% endblock %}

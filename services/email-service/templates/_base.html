@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Inside/Operations Notification{% endblock %}</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f4f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: #172b4d;
+    }
+    .wrapper {
+      max-width: 600px;
+      margin: 32px auto;
+      background: #ffffff;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.12);
+    }
+    .header {
+      background-color: #0052cc;
+      padding: 20px 32px;
+      color: #ffffff;
+    }
+    .header .logo {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .header .logo span {
+      opacity: 0.7;
+      font-weight: 400;
+    }
+    .body {
+      padding: 32px;
+    }
+    .footer {
+      padding: 16px 32px;
+      background-color: #f4f5f7;
+      font-size: 12px;
+      color: #6b778c;
+      border-top: 1px solid #dfe1e6;
+    }
+    a { color: #0052cc; }
+    h1, h2, h3 { margin-top: 0; }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #0052cc;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <div class="logo">Inside<span>/</span>Operations</div>
+    </div>
+    <div class="body">
+      {% block content %}{% endblock %}
+    </div>
+    <div class="footer">
+      &copy; Inside/Operations — This is an automated message. Do not reply to this email.
+    </div>
+  </div>
+</body>
+</html>

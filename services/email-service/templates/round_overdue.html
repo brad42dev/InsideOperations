@@ -1,0 +1,34 @@
+{% extends "_base.html" %}
+{% block title %}Round Overdue: {{ round_name }}{% endblock %}
+{% block content %}
+<h2>Inspection Round Overdue</h2>
+<p>The following inspection round is overdue and has not been completed.</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <tr>
+    <td style="padding:6px 0;font-weight:600;width:140px;">Round</td>
+    <td style="padding:6px 0;">{{ round_name }}</td>
+  </tr>
+  {% if assignee_name %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Assigned To</td>
+    <td style="padding:6px 0;">{{ assignee_name }}</td>
+  </tr>
+  {% endif %}
+  {% if due_at %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Was Due By</td>
+    <td style="padding:6px 0;">{{ due_at }}</td>
+  </tr>
+  {% endif %}
+  {% if overdue_by %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Overdue By</td>
+    <td style="padding:6px 0;">{{ overdue_by }}</td>
+  </tr>
+  {% endif %}
+</table>
+<p>Please complete this round as soon as possible or reassign it to another operator.</p>
+{% if action_url %}
+<p><a class="button" href="{{ action_url }}">View Round</a></p>
+{% endif %}
+{% endblock %}

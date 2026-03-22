@@ -5,3 +5,4 @@ MOD-DESIGNER-021 | Group management — create with name prompt, rename, ungroup
 MOD-DESIGNER-017 | Build File → Properties dialog for canvas resize and background color | verified 2026-03-22 | commit 6163a91 | npx tsc --noEmit | PASS
 MOD-DESIGNER-002 | Implement 60fps visual drag ghost (DOM-ahead-of-store) | verified 2026-03-22 | commit b03d11e | npx tsc --noEmit | PASS
 MOD-DESIGNER-023 | Designer file tabs — multiple open graphics simultaneously | verified 2026-03-22 | commit ce82b8e | npx tsc --noEmit | PASS
+MOD-DESIGNER-022 | Group in-place editing (double-click enter/exit) and toolbar selector/group buttons | verified 2026-03-22 | commit 21512b7 | npx tsc --noEmit | PASS

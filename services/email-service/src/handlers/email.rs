@@ -13,6 +13,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::state::AppState;
+use crate::template_engine;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -42,17 +43,14 @@ fn server_err(e: impl std::fmt::Display) -> impl IntoResponse {
     )
 }
 
-/// Simple {{var}} template rendering.
-fn render_template(template: &str, vars: &JsonValue) -> String {
-    let mut result = template.to_string();
-    if let Some(obj) = vars.as_object() {
-        for (k, v) in obj {
-            let placeholder = format!("{{{{{}}}}}", k);
-            let val = v.as_str().unwrap_or(&v.to_string()).to_string();
-            result = result.replace(&placeholder, &val);
-        }
-    }
-    result
+fn template_err(e: impl std::fmt::Display) -> impl IntoResponse {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(json!({
+            "success": false,
+            "error": { "code": "TEMPLATE_RENDER_ERROR", "message": e.to_string() }
+        })),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -557,9 +555,21 @@ pub async fn render_template_preview(
             let body_html_tmpl: String = r.get("body_html");
             let body_text_tmpl: Option<String> = r.get("body_text");
 
-            let rendered_subject = render_template(&subject_tmpl, vars);
-            let rendered_html = render_template(&body_html_tmpl, vars);
-            let rendered_text = body_text_tmpl.as_deref().map(|t| render_template(t, vars));
+            let rendered_subject = match template_engine::render(&subject_tmpl, vars) {
+                Ok(s) => s,
+                Err(e) => return template_err(e).into_response(),
+            };
+            let rendered_html = match template_engine::render(&body_html_tmpl, vars) {
+                Ok(s) => s,
+                Err(e) => return template_err(e).into_response(),
+            };
+            let rendered_text = match body_text_tmpl.as_deref() {
+                None => None,
+                Some(t) => match template_engine::render(t, vars) {
+                    Ok(s) => Some(s),
+                    Err(e) => return template_err(e).into_response(),
+                },
+            };
 
             ok(json!({
                 "subject": rendered_subject,
@@ -610,11 +620,22 @@ pub async fn enqueue_email(
                 let s: String = r.get("subject_template");
                 let h: String = r.get("body_html");
                 let t: Option<String> = r.get("body_text");
-                (
-                    render_template(&s, vars),
-                    render_template(&h, vars),
-                    t.as_deref().map(|tx| render_template(tx, vars)),
-                )
+                let rendered_subject = match template_engine::render(&s, vars) {
+                    Ok(v) => v,
+                    Err(e) => return template_err(e).into_response(),
+                };
+                let rendered_html = match template_engine::render(&h, vars) {
+                    Ok(v) => v,
+                    Err(e) => return template_err(e).into_response(),
+                };
+                let rendered_text = match t.as_deref() {
+                    None => None,
+                    Some(tx) => match template_engine::render(tx, vars) {
+                        Ok(v) => Some(v),
+                        Err(e) => return template_err(e).into_response(),
+                    },
+                };
+                (rendered_subject, rendered_html, rendered_text)
             }
         }
     } else {

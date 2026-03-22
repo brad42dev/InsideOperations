@@ -1,0 +1,29 @@
+{% extends "_base.html" %}
+{% block title %}Alert: {{ alert_name }}{% endblock %}
+{% block content %}
+<h2>Alert Notification</h2>
+<p>An alert has been triggered for your attention.</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <tr>
+    <td style="padding:6px 0;font-weight:600;width:140px;">Alert</td>
+    <td style="padding:6px 0;">{{ alert_name }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Severity</td>
+    <td style="padding:6px 0;">{{ severity }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Message</td>
+    <td style="padding:6px 0;">{{ message }}</td>
+  </tr>
+  {% if triggered_at %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Triggered At</td>
+    <td style="padding:6px 0;">{{ triggered_at }}</td>
+  </tr>
+  {% endif %}
+</table>
+{% if action_url %}
+<p><a class="button" href="{{ action_url }}">View Alert</a></p>
+{% endif %}
+{% endblock %}

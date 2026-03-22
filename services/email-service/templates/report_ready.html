@@ -1,0 +1,27 @@
+{% extends "_base.html" %}
+{% block title %}Report Ready: {{ report_name }}{% endblock %}
+{% block content %}
+<h2>Your Report Is Ready</h2>
+<p>The report you requested has been generated and is available for download.</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <tr>
+    <td style="padding:6px 0;font-weight:600;width:140px;">Report</td>
+    <td style="padding:6px 0;">{{ report_name }}</td>
+  </tr>
+  {% if report_type %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Type</td>
+    <td style="padding:6px 0;">{{ report_type }}</td>
+  </tr>
+  {% endif %}
+  {% if generated_at %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Generated At</td>
+    <td style="padding:6px 0;">{{ generated_at }}</td>
+  </tr>
+  {% endif %}
+</table>
+{% if download_url %}
+<p><a class="button" href="{{ download_url }}">Download Report</a></p>
+{% endif %}
+{% endblock %}

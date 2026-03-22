@@ -1,0 +1,28 @@
+{% extends "_base.html" %}
+{% block title %}Welcome to Inside/Operations{% endblock %}
+{% block content %}
+<h2>Welcome to Inside/Operations</h2>
+{% if user_name %}
+<p>Hi {{ user_name }},</p>
+{% endif %}
+<p>Your account has been created. You can now log in and start monitoring your industrial processes in real time.</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <tr>
+    <td style="padding:6px 0;font-weight:600;width:140px;">Username</td>
+    <td style="padding:6px 0;">{{ username }}</td>
+  </tr>
+  {% if role %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Role</td>
+    <td style="padding:6px 0;">{{ role }}</td>
+  </tr>
+  {% endif %}
+</table>
+{% if login_url %}
+<p><a class="button" href="{{ login_url }}">Log In Now</a></p>
+{% endif %}
+{% if temp_password %}
+<p>Your temporary password is: <strong>{{ temp_password }}</strong><br/>
+You will be asked to change it on first login.</p>
+{% endif %}
+{% endblock %}

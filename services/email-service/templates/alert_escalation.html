@@ -1,0 +1,34 @@
+{% extends "_base.html" %}
+{% block title %}Alert Escalation: {{ alert_name }}{% endblock %}
+{% block content %}
+<h2>Alert Escalated</h2>
+<p>The following alert has been escalated because it has not been acknowledged.</p>
+<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+  <tr>
+    <td style="padding:6px 0;font-weight:600;width:140px;">Alert</td>
+    <td style="padding:6px 0;">{{ alert_name }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Severity</td>
+    <td style="padding:6px 0;">{{ severity }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Escalation Level</td>
+    <td style="padding:6px 0;">{{ escalation_level }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Original Message</td>
+    <td style="padding:6px 0;">{{ message }}</td>
+  </tr>
+  {% if escalated_at %}
+  <tr>
+    <td style="padding:6px 0;font-weight:600;">Escalated At</td>
+    <td style="padding:6px 0;">{{ escalated_at }}</td>
+  </tr>
+  {% endif %}
+</table>
+<p>Please acknowledge or resolve this alert immediately.</p>
+{% if action_url %}
+<p><a class="button" href="{{ action_url }}">Acknowledge Alert</a></p>
+{% endif %}
+{% endblock %}

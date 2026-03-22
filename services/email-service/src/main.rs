@@ -13,7 +13,9 @@ use tracing::info;
 mod config;
 mod handlers;
 mod queue_worker;
+mod seed_templates;
 mod state;
+mod template_engine;
 
 use state::AppState;
 
@@ -35,6 +37,12 @@ async fn main() -> anyhow::Result<()> {
     let cfg = config::Config::from_env()?;
     let port = cfg.port;
     let db = io_db::create_pool(&cfg.database_url).await?;
+
+    // Seed built-in system email templates if not already present.
+    if let Err(e) = seed_templates::seed_builtin_templates(&db).await {
+        tracing::warn!(error = %e, "Failed to seed built-in email templates (non-fatal)");
+    }
+
     let state = AppState::new(cfg, db);
 
     let health = io_health::HealthRegistry::new("email-service", env!("CARGO_PKG_VERSION"));
