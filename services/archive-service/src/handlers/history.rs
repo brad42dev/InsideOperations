@@ -92,6 +92,56 @@ pub struct LatestResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Rolling average query / response
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct RollingQuery {
+    pub window: String, // e.g. "5m", "1h", "2d"
+}
+
+#[derive(Debug, Serialize)]
+pub struct RollingResponse {
+    pub point_id: Uuid,
+    pub window: String,
+    pub rolling_avg: Option<f64>,
+    pub rolling_min: Option<f64>,
+    pub rolling_max: Option<f64>,
+    pub sample_count: i64,
+}
+
+/// Parse a window string like "5m", "30m", "2h", "1d" into total seconds.
+/// Supported suffixes: m (minutes), h (hours), d (days).
+fn parse_window_seconds(window: &str) -> Result<i64, IoError> {
+    if window.is_empty() {
+        return Err(IoError::BadRequest(
+            "window parameter must not be empty".to_string(),
+        ));
+    }
+    let (num_str, suffix) = window.split_at(window.len() - 1);
+    let n: i64 = num_str.parse().map_err(|_| {
+        IoError::BadRequest(format!(
+            "Invalid window '{}'. Expected format: Nm, Nh, or Nd (e.g. 5m, 2h, 1d)",
+            window
+        ))
+    })?;
+    if n <= 0 {
+        return Err(IoError::BadRequest(
+            "window value must be positive".to_string(),
+        ));
+    }
+    match suffix {
+        "m" => Ok(n * 60),
+        "h" => Ok(n * 3600),
+        "d" => Ok(n * 86_400),
+        _ => Err(IoError::BadRequest(format!(
+            "Invalid window suffix '{}'. Use m, h, or d.",
+            suffix
+        ))),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Batch request / response
 // ---------------------------------------------------------------------------
 
@@ -625,4 +675,133 @@ pub async fn get_batch_history(
     Ok(Json(ApiResponse::ok(BatchHistoryResponse {
         points: results,
     })))
+}
+
+// ---------------------------------------------------------------------------
+// GET /history/points/:point_id/rolling
+// ---------------------------------------------------------------------------
+
+pub async fn get_point_rolling(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(point_id): Path<Uuid>,
+    Query(params): Query<RollingQuery>,
+) -> IoResult<impl IntoResponse> {
+    check_service_secret(&headers, &state.config.service_secret)?;
+
+    let window_secs = parse_window_seconds(&params.window)?;
+
+    // Select source table based on window size:
+    //   < 5 min  (< 300 s)   => points_history_raw   (quality = 'Good')
+    //   5min–1h  (300–3600 s) => points_history_1m
+    //   1h–1d    (3600–86400 s) => points_history_15m
+    //   > 1d     (> 86400 s) => points_history_1h
+    let response = if window_secs < 300 {
+        // Raw table — filter to Good quality only
+        let row = sqlx::query(
+            "SELECT \
+               AVG(value) AS rolling_avg, \
+               MIN(value) AS rolling_min, \
+               MAX(value) AS rolling_max, \
+               COUNT(*) AS sample_count \
+             FROM points_history_raw \
+             WHERE point_id = $1 \
+               AND quality = 'Good' \
+               AND timestamp >= NOW() - ($2 || ' seconds')::interval",
+        )
+        .bind(point_id)
+        .bind(window_secs)
+        .fetch_one(&state.db)
+        .await?;
+
+        let sample_count: i64 = row.get("sample_count");
+        RollingResponse {
+            point_id,
+            window: params.window,
+            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
+            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
+            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            sample_count,
+        }
+    } else if window_secs <= 3600 {
+        // 1-minute aggregates
+        let row = sqlx::query(
+            "SELECT \
+               AVG(avg) AS rolling_avg, \
+               MIN(min) AS rolling_min, \
+               MAX(max) AS rolling_max, \
+               COALESCE(SUM(count), 0) AS sample_count \
+             FROM points_history_1m \
+             WHERE point_id = $1 \
+               AND bucket >= NOW() - ($2 || ' seconds')::interval",
+        )
+        .bind(point_id)
+        .bind(window_secs)
+        .fetch_one(&state.db)
+        .await?;
+
+        let sample_count: i64 = row.get("sample_count");
+        RollingResponse {
+            point_id,
+            window: params.window,
+            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
+            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
+            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            sample_count,
+        }
+    } else if window_secs <= 86_400 {
+        // 15-minute aggregates
+        let row = sqlx::query(
+            "SELECT \
+               AVG(avg) AS rolling_avg, \
+               MIN(min) AS rolling_min, \
+               MAX(max) AS rolling_max, \
+               COALESCE(SUM(count), 0) AS sample_count \
+             FROM points_history_15m \
+             WHERE point_id = $1 \
+               AND bucket >= NOW() - ($2 || ' seconds')::interval",
+        )
+        .bind(point_id)
+        .bind(window_secs)
+        .fetch_one(&state.db)
+        .await?;
+
+        let sample_count: i64 = row.get("sample_count");
+        RollingResponse {
+            point_id,
+            window: params.window,
+            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
+            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
+            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            sample_count,
+        }
+    } else {
+        // 1-hour aggregates (windows > 1 day)
+        let row = sqlx::query(
+            "SELECT \
+               AVG(avg) AS rolling_avg, \
+               MIN(min) AS rolling_min, \
+               MAX(max) AS rolling_max, \
+               COALESCE(SUM(count), 0) AS sample_count \
+             FROM points_history_1h \
+             WHERE point_id = $1 \
+               AND bucket >= NOW() - ($2 || ' seconds')::interval",
+        )
+        .bind(point_id)
+        .bind(window_secs)
+        .fetch_one(&state.db)
+        .await?;
+
+        let sample_count: i64 = row.get("sample_count");
+        RollingResponse {
+            point_id,
+            window: params.window,
+            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
+            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
+            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            sample_count,
+        }
+    };
+
+    Ok(Json(ApiResponse::ok(response)))
 }

@@ -60,6 +60,11 @@ async fn main() -> anyhow::Result<()> {
             "/history/points/:point_id/latest",
             get(handlers::history::get_point_latest),
         )
+        // Rolling average for a single point
+        .route(
+            "/history/points/:point_id/rolling",
+            get(handlers::history::get_point_rolling),
+        )
         // Batch history query (up to 50 points)
         .route(
             "/history/points/batch",
