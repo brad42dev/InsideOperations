@@ -145,6 +145,22 @@ echo "-> Running database migrations..."
 sqlx migrate run --database-url "$DB_URL" --source "$INSTALL_DIR/migrations"
 echo "  Migrations complete"
 
+# Step 6b: Master key generation reminder (fresh install only)
+if [[ ! -f /etc/io/creds/master-key.enc ]]; then
+    echo ""
+    echo "  IMPORTANT: Master encryption key not found."
+    echo "  If this is a fresh install, generate the master key now:"
+    echo ""
+    echo "    $INSTALL_DIR/bin/io-ctl generate-master-key"
+    echo ""
+    echo "  This step encrypts a 256-bit key via systemd-creds and stores it at"
+    echo "  /etc/io/creds/master-key.enc. Services will not start correctly without it."
+    echo ""
+    echo "  Press ENTER to continue after running the command above,"
+    echo "  or Ctrl-C to pause and run it first."
+    read -r _ignored
+fi
+
 # Step 7: Update systemd units
 echo "-> Updating systemd units..."
 cp "$PKG_DIR/systemd/"*.service "$PKG_DIR/systemd/"*.target /etc/systemd/system/

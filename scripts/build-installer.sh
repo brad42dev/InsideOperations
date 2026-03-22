@@ -89,6 +89,7 @@ BINARIES=(
     email-service
     auth-service
     recognition-service
+    io-ctl
 )
 
 # ── Assemble bundle ───────────────────────────────────────────────────────────

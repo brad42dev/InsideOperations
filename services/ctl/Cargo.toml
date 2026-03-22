@@ -1,0 +1,14 @@
+[package]
+name = "io-ctl"
+version = "0.1.0"
+edition = "2021"
+description = "Inside/Operations administration CLI"
+
+[[bin]]
+name = "io-ctl"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+rand = { workspace = true }
+anyhow = { workspace = true }

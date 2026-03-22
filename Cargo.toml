@@ -25,6 +25,7 @@ members = [
     "crates/io-observability",
     "crates/io-scan",
     "tests/load",
+    "services/ctl",
 ]
 
 [workspace.dependencies]
