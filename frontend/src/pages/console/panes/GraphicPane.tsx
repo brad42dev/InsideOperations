@@ -6,6 +6,7 @@ import { pointsApi } from '../../../api/points'
 import { SceneRenderer } from '../../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../../shared/graphics/SceneRenderer'
 import { useWebSocketRaf, wsManager, detectDeviceType } from '../../../shared/hooks/useWebSocket'
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import type { PointValue as WsPointValue } from '../../../shared/hooks/useWebSocket'
 import { useHistoricalValues } from '../../../shared/hooks/useHistoricalValues'
 import { usePlaybackStore } from '../../../store/playback'
@@ -104,6 +105,7 @@ function extractSparklinePointIds(nodes: SceneNode[]): string[] {
 }
 
 const isPhone = detectDeviceType() === 'phone'
+const isTablet = detectDeviceType() === 'tablet'
 
 /** Extract point bindings with fractional positions for TileGraphicViewer overlays. */
 function extractTileBindings(doc: GraphicDocument) {
@@ -531,18 +533,40 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
       onContextMenu={handleSvgContextMenu}
       onDoubleClick={handleSvgDoubleClick}
     >
-      <SceneRenderer
-        document={data.scene_data}
-        // Historical mode: pass REST-fetched point values for React rendering
-        // Live mode: SceneRenderer subscribes to wsManager directly (liveSubscribe=true)
-        pointValues={isHistorical ? pointValues : undefined}
-        liveSubscribe={!isHistorical}
-        sparklineHistories={sparklineHistories ?? undefined}
-        onNavigate={onNavigate}
-        viewport={viewport}
-        preserveAspectRatio={preserveAspectRatio ? 'xMidYMid meet' : 'none'}
-        style={{ width: '100%', height: '100%' }}
-      />
+      {isTablet ? (
+        <TransformWrapper
+          minScale={0.5}
+          maxScale={5}
+          velocityAnimation={{ sensitivity: 1, animationTime: 200 }}
+          panning={{ velocityDisabled: false }}
+        >
+          <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+            <SceneRenderer
+              document={data.scene_data}
+              pointValues={isHistorical ? pointValues : undefined}
+              liveSubscribe={!isHistorical}
+              sparklineHistories={sparklineHistories ?? undefined}
+              onNavigate={onNavigate}
+              viewport={viewport}
+              preserveAspectRatio={preserveAspectRatio ? 'xMidYMid meet' : 'none'}
+              style={{ width: '100%', height: '100%' }}
+            />
+          </TransformComponent>
+        </TransformWrapper>
+      ) : (
+        <SceneRenderer
+          document={data.scene_data}
+          // Historical mode: pass REST-fetched point values for React rendering
+          // Live mode: SceneRenderer subscribes to wsManager directly (liveSubscribe=true)
+          pointValues={isHistorical ? pointValues : undefined}
+          liveSubscribe={!isHistorical}
+          sparklineHistories={sparklineHistories ?? undefined}
+          onNavigate={onNavigate}
+          viewport={viewport}
+          preserveAspectRatio={preserveAspectRatio ? 'xMidYMid meet' : 'none'}
+          style={{ width: '100%', height: '100%' }}
+        />
+      )}
 
       {/* Zoom overlay — bottom-right */}
       <div

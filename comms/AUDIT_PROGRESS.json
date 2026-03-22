@@ -110,7 +110,9 @@
     "DD-16-005": 1,
     "DD-21-001": 1,
     "DD-18-003": 1,
-    "DD-18-004": 1
+    "DD-18-004": 1,
+    "DD-18-006": 1,
+    "DD-20-005": 1
   },
   "queue": [
     {
@@ -2160,7 +2162,7 @@
       "wave": 3,
       "title": "Implement aggregation type validation in history API",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2180,7 +2182,7 @@
       "wave": 3,
       "title": "Enforce 60px minimum touch targets on mobile tab bar links",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-20-001"
       ],
@@ -2212,7 +2214,7 @@
       "wave": 3,
       "title": "Wire zxing-js as BarcodeDetector fallback for iOS Safari",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2222,7 +2224,7 @@
       "wave": 3,
       "title": "Add react-zoom-pan-pinch for tablet graphics pinch-zoom",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

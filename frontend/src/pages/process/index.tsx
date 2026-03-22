@@ -7,7 +7,8 @@ import { usePermission } from '../../shared/hooks/usePermission'
 import { exportsApi, type ExportFormat } from '../../api/exports'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneRenderer'
-import { useWebSocketRaf } from '../../shared/hooks/useWebSocket'
+import { useWebSocketRaf, detectDeviceType } from '../../shared/hooks/useWebSocket'
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import { useHistoricalValues } from '../../shared/hooks/useHistoricalValues'
 import { usePlaybackStore } from '../../store/playback'
 import { useUiStore } from '../../store/ui'
@@ -25,6 +26,8 @@ import type { ViewportBookmark } from './ProcessSidebar'
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+
+const isTablet = detectDeviceType() === 'tablet'
 
 const DEFAULT_GRAPHIC_ID_KEY = 'io-process-last-graphic'
 const RECENT_VIEWS_KEY = 'io-process-recent-views'
@@ -1180,13 +1183,32 @@ export default function ProcessPage() {
 
             {/* Scene renderer */}
             {graphic?.scene_data && (
-              <SceneRenderer
-                document={graphic.scene_data}
-                viewport={viewport}
-                pointValues={pointValues}
-                onNavigate={handleNavigate}
-                style={{ position: 'absolute', inset: 0 }}
-              />
+              isTablet ? (
+                <TransformWrapper
+                  minScale={0.5}
+                  maxScale={5}
+                  velocityAnimation={{ sensitivity: 1, animationTime: 200 }}
+                  panning={{ velocityDisabled: false }}
+                >
+                  <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+                    <SceneRenderer
+                      document={graphic.scene_data}
+                      viewport={viewport}
+                      pointValues={pointValues}
+                      onNavigate={handleNavigate}
+                      style={{ position: 'absolute', inset: 0 }}
+                    />
+                  </TransformComponent>
+                </TransformWrapper>
+              ) : (
+                <SceneRenderer
+                  document={graphic.scene_data}
+                  viewport={viewport}
+                  pointValues={pointValues}
+                  onNavigate={handleNavigate}
+                  style={{ position: 'absolute', inset: 0 }}
+                />
+              )
             )}
 
             {/* Minimap overlay */}
