@@ -360,7 +360,7 @@ export function SceneRenderer({
   function renderPipe(node: Pipe): React.ReactElement {
     const color = PIPE_SERVICE_COLORS[node.serviceType] ?? '#6B8CAE'
     return (
-      <g key={node.id} data-node-id={node.id} data-lod="0" opacity={node.opacity}>
+      <g key={node.id} data-node-id={node.id} data-lod="0" opacity={node.opacity} onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
         <path
           d={node.pathData}
           stroke={color}
@@ -384,7 +384,7 @@ export function SceneRenderer({
     const { content, fontFamily, fontSize, fontWeight, fontStyle, textAnchor, fill } = node
     const textLod = fontSize >= 24 ? 0 : fontSize >= 14 ? 1 : 2
     return (
-      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod={String(textLod)}>
+      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod={String(textLod)} onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
         {node.background && (
           <rect
             x={0} y={0} width={200} height={fontSize + node.background.padding * 2}
@@ -411,7 +411,7 @@ export function SceneRenderer({
   function renderImage(node: ImageNode): React.ReactElement {
     const url = graphicsApi.imageUrl(node.assetRef.hash)
     return (
-      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
+      <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0" onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
         <image
           href={url}
           width={node.displayWidth}
@@ -431,6 +431,8 @@ export function SceneRenderer({
         opacity={node.opacity}
         data-node-id={node.id}
         data-lod="0"
+        onClick={(e) => handleNodeClick(node, e)}
+        style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}
         dangerouslySetInnerHTML={{ __html: node.svgContent }}
       />
     )
@@ -443,7 +445,7 @@ export function SceneRenderer({
     if (!svgContent) {
       // Placeholder while loading
       return (
-        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
+        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0" onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
           <rect width={w} height={h} fill="none" stroke="var(--io-border, #3F3F46)" strokeWidth={1} strokeDasharray="4 2" />
           <text x={w / 2} y={h / 2 + 4} textAnchor="middle" fontSize={8} fill="var(--io-text-muted, #71717A)">
             {node.name || 'Stencil'}
@@ -458,6 +460,8 @@ export function SceneRenderer({
         opacity={node.opacity}
         data-node-id={node.id}
         data-lod="0"
+        onClick={(e) => handleNodeClick(node, e)}
+        style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}
         dangerouslySetInnerHTML={{ __html: svgContent }}
       />
     )
@@ -823,7 +827,7 @@ export function SceneRenderer({
     const { config } = node
     if (config.annotationType === 'border') {
       return (
-        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
+        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0" onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
           <rect
             x={0} y={0}
             width={config.width} height={config.height}
@@ -843,7 +847,7 @@ export function SceneRenderer({
     }
     if (config.annotationType === 'callout') {
       return (
-        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
+        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0" onClick={(e) => handleNodeClick(node, e)} style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}>
           <text fontFamily="Inter" fontSize={config.fontSize} fill={config.fill}>{config.text}</text>
         </g>
       )
