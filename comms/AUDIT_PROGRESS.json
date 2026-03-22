@@ -2906,7 +2906,7 @@
       "wave": 3,
       "title": "Implement email_suppressions table and pre-send suppression check",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2916,7 +2916,7 @@
       "wave": 3,
       "title": "Add nine missing API endpoints to email service router",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

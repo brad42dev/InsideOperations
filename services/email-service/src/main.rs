@@ -62,9 +62,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/providers", get(handlers::email::list_providers).post(handlers::email::create_provider))
         .route(
             "/providers/:id",
-            put(handlers::email::update_provider).delete(handlers::email::delete_provider),
+            get(handlers::email::get_provider)
+                .put(handlers::email::update_provider)
+                .delete(handlers::email::delete_provider),
         )
         .route("/providers/:id/test", post(handlers::email::test_provider))
+        .route("/providers/:id/default", put(handlers::email::set_default_provider))
+        .route("/providers/:id/fallback", put(handlers::email::set_fallback_provider))
+        .route("/providers/:id/enabled", put(handlers::email::set_provider_enabled))
         // Templates
         .route(
             "/templates",
@@ -74,11 +79,19 @@ async fn main() -> anyhow::Result<()> {
             "/templates/:id",
             put(handlers::email::update_template).delete(handlers::email::delete_template),
         )
+        // Canonical route per spec; keep old /render alias for compatibility.
+        .route("/templates/:id/preview", post(handlers::email::render_template_preview))
         .route("/templates/:id/render", post(handlers::email::render_template_preview))
         // Queue
         .route("/queue", post(handlers::email::enqueue_email).get(handlers::email::list_queue))
-        // Delivery log
+        .route("/queue/:id/retry", post(handlers::email::retry_queue_item))
+        .route("/queue/:id", delete(handlers::email::cancel_queue_item))
+        // Delivery log — /logs is canonical; /delivery-log kept for backwards compatibility.
+        .route("/logs", get(handlers::email::list_logs))
+        .route("/logs/:id", get(handlers::email::get_delivery_log_item))
         .route("/delivery-log", get(handlers::email::list_delivery_log))
+        // Stats
+        .route("/stats", get(handlers::email::get_email_stats))
         // Suppression list
         .route("/suppressions", get(handlers::email::list_suppressions))
         .route("/suppressions/:id", delete(handlers::email::delete_suppression))

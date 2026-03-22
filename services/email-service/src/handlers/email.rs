@@ -965,3 +965,429 @@ pub async fn internal_send(State(state): State<AppState>) -> impl IntoResponse {
         Err(e) => server_err(e).into_response(),
     }
 }
+
+// ---------------------------------------------------------------------------
+// Missing provider endpoints
+// ---------------------------------------------------------------------------
+
+/// GET /providers/:id — return single provider with secrets masked.
+pub async fn get_provider(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let row = sqlx::query(
+        r#"SELECT id, name, provider_type, config, is_default, is_fallback, enabled,
+                  from_address, from_name, last_tested_at, last_test_ok, last_test_error,
+                  created_at, updated_at
+           FROM email_providers
+           WHERE id = $1"#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match row {
+        Err(e) => server_err(e).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } })),
+        )
+            .into_response(),
+        Ok(Some(r)) => {
+            let provider_type: String = r.get("provider_type");
+            let mut config: JsonValue = r.get("config");
+            crypto::mask_provider_secrets(&mut config, &provider_type);
+            let provider = ProviderRow {
+                id: r.get("id"),
+                name: r.get("name"),
+                provider_type,
+                config,
+                is_default: r.get("is_default"),
+                is_fallback: r.get("is_fallback"),
+                enabled: r.get("enabled"),
+                from_address: r.get("from_address"),
+                from_name: r.get("from_name"),
+                last_tested_at: r.get("last_tested_at"),
+                last_test_ok: r.get("last_test_ok"),
+                last_test_error: r.get("last_test_error"),
+                created_at: r.get("created_at"),
+                updated_at: r.get("updated_at"),
+            };
+            ok(provider).into_response()
+        }
+    }
+}
+
+/// PUT /providers/:id/default — atomically clear old default and set new one.
+pub async fn set_default_provider(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let mut tx = match state.db.begin().await {
+        Err(e) => return server_err(e).into_response(),
+        Ok(tx) => tx,
+    };
+
+    // Verify the provider exists.
+    let exists = sqlx::query("SELECT id FROM email_providers WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await;
+    match exists {
+        Err(e) => return server_err(e).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } })),
+            )
+                .into_response();
+        }
+        Ok(Some(_)) => {}
+    }
+
+    // Clear all existing defaults.
+    if let Err(e) = sqlx::query("UPDATE email_providers SET is_default = false WHERE is_default = true")
+        .execute(&mut *tx)
+        .await
+    {
+        return server_err(e).into_response();
+    }
+
+    // Set the new default.
+    if let Err(e) = sqlx::query("UPDATE email_providers SET is_default = true WHERE id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+    {
+        return server_err(e).into_response();
+    }
+
+    if let Err(e) = tx.commit().await {
+        return server_err(e).into_response();
+    }
+
+    ok(json!({ "updated": true })).into_response()
+}
+
+/// PUT /providers/:id/fallback — set/clear fallback flag (no partial-index constraint so no transaction needed).
+pub async fn set_fallback_provider(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let mut tx = match state.db.begin().await {
+        Err(e) => return server_err(e).into_response(),
+        Ok(tx) => tx,
+    };
+
+    // Verify the provider exists.
+    let exists = sqlx::query("SELECT id FROM email_providers WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await;
+    match exists {
+        Err(e) => return server_err(e).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } })),
+            )
+                .into_response();
+        }
+        Ok(Some(_)) => {}
+    }
+
+    // Clear all existing fallbacks.
+    if let Err(e) = sqlx::query("UPDATE email_providers SET is_fallback = false WHERE is_fallback = true")
+        .execute(&mut *tx)
+        .await
+    {
+        return server_err(e).into_response();
+    }
+
+    // Set the new fallback.
+    if let Err(e) = sqlx::query("UPDATE email_providers SET is_fallback = true WHERE id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+    {
+        return server_err(e).into_response();
+    }
+
+    if let Err(e) = tx.commit().await {
+        return server_err(e).into_response();
+    }
+
+    ok(json!({ "updated": true })).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetEnabledBody {
+    pub enabled: bool,
+}
+
+/// PUT /providers/:id/enabled — toggle the enabled flag.
+pub async fn set_provider_enabled(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetEnabledBody>,
+) -> impl IntoResponse {
+    let result = sqlx::query(
+        "UPDATE email_providers SET enabled = $2 WHERE id = $1 RETURNING id",
+    )
+    .bind(id)
+    .bind(body.enabled)
+    .fetch_optional(&state.db)
+    .await;
+
+    match result {
+        Err(e) => server_err(e).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } })),
+        )
+            .into_response(),
+        Ok(Some(_)) => ok(json!({ "updated": true, "enabled": body.enabled })).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Missing queue endpoints
+// ---------------------------------------------------------------------------
+
+/// POST /queue/:id/retry — reset a dead item back to pending.
+pub async fn retry_queue_item(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let result = sqlx::query(
+        r#"UPDATE email_queue
+           SET status = 'pending', attempts = 0, next_attempt = now(), last_error = NULL
+           WHERE id = $1 AND status = 'dead'
+           RETURNING id"#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match result {
+        Err(e) => server_err(e).into_response(),
+        Ok(None) => {
+            // Could be not found or wrong status; check which.
+            let exists = sqlx::query("SELECT status FROM email_queue WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&state.db)
+                .await;
+            match exists {
+                Err(e) => server_err(e).into_response(),
+                Ok(None) => (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Queue item not found" } })),
+                )
+                    .into_response(),
+                Ok(Some(r)) => {
+                    let status: String = r.get("status");
+                    err(
+                        "INVALID_STATUS",
+                        &format!("Cannot retry item with status '{}'; only 'dead' items can be retried", status),
+                    )
+                    .into_response()
+                }
+            }
+        }
+        Ok(Some(_)) => ok(json!({ "retried": true })).into_response(),
+    }
+}
+
+/// DELETE /queue/:id — cancel a pending or retry item.
+pub async fn cancel_queue_item(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let result = sqlx::query(
+        "DELETE FROM email_queue WHERE id = $1 AND status IN ('pending', 'retry') RETURNING id",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match result {
+        Err(e) => server_err(e).into_response(),
+        Ok(None) => {
+            // Could be not found or wrong status; check which.
+            let exists = sqlx::query("SELECT status FROM email_queue WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&state.db)
+                .await;
+            match exists {
+                Err(e) => server_err(e).into_response(),
+                Ok(None) => (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Queue item not found" } })),
+                )
+                    .into_response(),
+                Ok(Some(r)) => {
+                    let status: String = r.get("status");
+                    err(
+                        "CANNOT_CANCEL",
+                        &format!("Cannot cancel item with status '{}'; only 'pending' or 'retry' items can be cancelled", status),
+                    )
+                    .into_response()
+                }
+            }
+        }
+        Ok(Some(_)) => ok(json!({ "cancelled": true })).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// /logs routes (canonical name per spec; /delivery-log kept for compatibility)
+// ---------------------------------------------------------------------------
+
+/// GET /logs — alias for list_delivery_log.
+pub async fn list_logs(
+    state: State<AppState>,
+    params: Query<ListDeliveryLogParams>,
+) -> impl IntoResponse {
+    list_delivery_log(state, params).await
+}
+
+/// GET /logs/:id — return a single delivery log record with its attempt history.
+pub async fn get_delivery_log_item(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let row = sqlx::query(
+        r#"SELECT id, queue_id, provider_id, attempt_number, status,
+                  provider_message_id, provider_response, error_details, sent_at
+           FROM email_delivery_log
+           WHERE id = $1"#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match row {
+        Err(e) => server_err(e).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Delivery log entry not found" } })),
+        )
+            .into_response(),
+        Ok(Some(r)) => {
+            let item = DeliveryLogRow {
+                id: r.get("id"),
+                queue_id: r.get("queue_id"),
+                provider_id: r.get("provider_id"),
+                attempt_number: r.get("attempt_number"),
+                status: r.get("status"),
+                provider_message_id: r.get("provider_message_id"),
+                provider_response: r.get("provider_response"),
+                error_details: r.get("error_details"),
+                sent_at: r.get("sent_at"),
+            };
+            ok(item).into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stats endpoint
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct StatsParams {
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub provider_id: Option<Uuid>,
+}
+
+/// GET /stats — aggregate delivery counts by provider and status.
+pub async fn get_email_stats(
+    State(state): State<AppState>,
+    Query(params): Query<StatsParams>,
+) -> impl IntoResponse {
+    // Build dynamic date range filter. Default: last 30 days.
+    let from = params.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(30));
+    let to = params.to.unwrap_or_else(Utc::now);
+
+    // Overall totals (all providers).
+    let totals_res = sqlx::query(
+        r#"SELECT
+               COUNT(*) FILTER (WHERE status = 'sent')  AS sent,
+               COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+               COUNT(*) FILTER (WHERE status = 'dead')   AS dead
+           FROM email_delivery_log
+           WHERE sent_at >= $1 AND sent_at <= $2"#,
+    )
+    .bind(from)
+    .bind(to)
+    .fetch_one(&state.db)
+    .await;
+
+    let (total_sent, total_failed, total_dead): (i64, i64, i64) = match totals_res {
+        Err(e) => return server_err(e).into_response(),
+        Ok(r) => (r.get("sent"), r.get("failed"), r.get("dead")),
+    };
+
+    // Per-provider breakdown.
+    let by_provider_res = if let Some(pid) = params.provider_id {
+        sqlx::query(
+            r#"SELECT
+                   provider_id,
+                   COUNT(*) FILTER (WHERE status = 'sent')  AS sent,
+                   COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+                   COUNT(*) FILTER (WHERE status = 'dead')   AS dead
+               FROM email_delivery_log
+               WHERE sent_at >= $1 AND sent_at <= $2 AND provider_id = $3
+               GROUP BY provider_id"#,
+        )
+        .bind(from)
+        .bind(to)
+        .bind(pid)
+        .fetch_all(&state.db)
+        .await
+    } else {
+        sqlx::query(
+            r#"SELECT
+                   provider_id,
+                   COUNT(*) FILTER (WHERE status = 'sent')  AS sent,
+                   COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+                   COUNT(*) FILTER (WHERE status = 'dead')   AS dead
+               FROM email_delivery_log
+               WHERE sent_at >= $1 AND sent_at <= $2
+               GROUP BY provider_id"#,
+        )
+        .bind(from)
+        .bind(to)
+        .fetch_all(&state.db)
+        .await
+    };
+
+    match by_provider_res {
+        Err(e) => server_err(e).into_response(),
+        Ok(rows) => {
+            let by_provider: Vec<JsonValue> = rows
+                .iter()
+                .map(|r| {
+                    json!({
+                        "provider_id": r.get::<Option<Uuid>, _>("provider_id"),
+                        "sent":   r.get::<i64, _>("sent"),
+                        "failed": r.get::<i64, _>("failed"),
+                        "dead":   r.get::<i64, _>("dead"),
+                    })
+                })
+                .collect();
+
+            ok(json!({
+                "period": { "from": from, "to": to },
+                "totals": {
+                    "sent":   total_sent,
+                    "failed": total_failed,
+                    "dead":   total_dead,
+                },
+                "by_provider": by_provider,
+            }))
+            .into_response()
+        }
+    }
+}
