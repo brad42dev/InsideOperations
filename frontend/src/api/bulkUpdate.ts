@@ -116,8 +116,32 @@ export interface ApplySummary {
 
 export interface RestoreResult {
   restored_snapshot_id: string
-  safety_snapshot_id: string
+  safety_snapshot_id: string | null
   rows_restored: number
+  mode: string
+}
+
+export interface RestorePreviewRow {
+  id: string
+  snapshot_values: Record<string, unknown>
+  current_values: Record<string, unknown>
+  changed_fields: string[]
+  conflicted: boolean
+}
+
+export interface RestorePreview {
+  snapshot_id: string
+  target_type: TargetType
+  snapshot_created_at: string
+  total_rows: number
+  conflicted_count: number
+  rows: RestorePreviewRow[]
+}
+
+export interface RestoreRequest {
+  mode: 'all' | 'selective'
+  row_ids?: string[]
+  create_safety_snapshot: boolean
 }
 
 export interface ListSnapshotsParams {
@@ -141,7 +165,10 @@ export const snapshotsApi = {
 
   delete: (id: string) => api.delete(`/api/snapshots/${id}`),
 
-  restore: (id: string) => api.post<RestoreResult>(`/api/snapshots/${id}/restore`, {}),
+  restorePreview: (id: string) => api.get<RestorePreview>(`/api/snapshots/${id}/restore-preview`),
+
+  restore: (id: string, req?: RestoreRequest) =>
+    api.post<RestoreResult>(`/api/snapshots/${id}/restore`, req ?? { mode: 'all', create_safety_snapshot: true }),
 }
 
 // ---------------------------------------------------------------------------

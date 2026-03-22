@@ -7,6 +7,7 @@ import {
   type Snapshot,
   type SnapshotDetail,
 } from '../../api/bulkUpdate'
+import { RestorePreviewModal } from './BulkUpdate'
 import { showToast } from '../../shared/components/Toast'
 
 // ---------------------------------------------------------------------------
@@ -278,8 +279,10 @@ function DownloadButton({ snap }: { snap: Snapshot }) {
 // ---------------------------------------------------------------------------
 
 export default function Snapshots() {
+  const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [page, setPage] = useState(1)
+  const [restoreId, setRestoreId] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['settings-snapshots', page],
@@ -290,11 +293,39 @@ export default function Snapshots() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => snapshotsApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings-snapshots'] })
+      showToast({ title: 'Snapshot deleted', variant: 'success' })
+    },
+    onError: () => {
+      showToast({ title: 'Failed to delete snapshot', description: 'Network error', variant: 'error' })
+    },
+  })
+
   const snapshots = data?.data ?? []
   const pagination = data?.pagination ?? null
+  const restoreSnap = restoreId ? snapshots.find((s) => s.id === restoreId) : null
 
   return (
     <div style={{ padding: 'var(--io-space-6)', maxWidth: 900 }}>
+      {restoreId && (
+        <RestorePreviewModal
+          snapshotId={restoreId}
+          snapshotLabel={restoreSnap?.label}
+          onClose={() => setRestoreId(null)}
+          onRestored={(result) => {
+            setRestoreId(null)
+            qc.invalidateQueries({ queryKey: ['settings-snapshots'] })
+            showToast({
+              title: 'Snapshot restored',
+              description: `${result.rows_restored} rows restored.${result.safety_snapshot_id ? ` Safety snapshot: ${result.safety_snapshot_id.slice(0, 8)}…` : ''}`,
+              variant: 'success',
+            })
+          }}
+        />
+      )}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--io-space-5)' }}>
         <div>
@@ -378,7 +409,24 @@ export default function Snapshots() {
                     {snap.created_by ?? '—'}
                   </td>
                   <td style={{ ...TD, textAlign: 'right' as const }}>
-                    <DownloadButton snap={snap} />
+                    <div style={{ display: 'flex', gap: 'var(--io-space-2)', justifyContent: 'flex-end' }}>
+                      <DownloadButton snap={snap} />
+                      <button
+                        style={BTN_GHOST}
+                        onClick={() => setRestoreId(snap.id)}
+                        title="Restore this snapshot"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        style={{ ...BTN_GHOST, color: 'var(--io-danger)', borderColor: 'var(--io-danger)' }}
+                        onClick={() => deleteMutation.mutate(snap.id)}
+                        disabled={deleteMutation.isPending}
+                        title="Delete this snapshot"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -423,7 +471,7 @@ export default function Snapshots() {
           lineHeight: 1.6,
         }}
       >
-        <strong style={{ color: 'var(--io-text-primary)' }}>About snapshots</strong> — Snapshots are created automatically before every bulk update operation as a safety measure. You can also create manual snapshots before planned maintenance windows. To restore a snapshot, use the <strong>Bulk Update</strong> page, upload the downloaded JSON converted to CSV format, and apply it.
+        <strong style={{ color: 'var(--io-text-primary)' }}>About snapshots</strong> — Snapshots are created automatically before every bulk update operation as a safety measure. You can also create manual snapshots before planned maintenance windows. Click <strong>Restore</strong> on any snapshot to preview field-level changes and selectively restore rows. A safety snapshot of the current state is created by default before any restore.
       </div>
     </div>
   )

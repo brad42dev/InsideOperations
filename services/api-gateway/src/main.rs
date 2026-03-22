@@ -670,6 +670,7 @@ async fn main() -> anyhow::Result<()> {
         // Change Snapshots (Phase 9 — doc 25)
         .route("/api/snapshots", get(handlers::bulk_update::list_snapshots).post(handlers::bulk_update::create_snapshot))
         .route("/api/snapshots/:id", get(handlers::bulk_update::get_snapshot).delete(handlers::bulk_update::delete_snapshot))
+        .route("/api/snapshots/:id/restore-preview", get(handlers::bulk_update::restore_preview))
         .route("/api/snapshots/:id/restore", post(handlers::bulk_update::restore_snapshot))
         // Bulk Update (Phase 9 — doc 25)
         .route("/api/bulk-update/template/:target_type", get(handlers::bulk_update::get_template))

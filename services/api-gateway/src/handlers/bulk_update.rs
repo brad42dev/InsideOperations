@@ -1607,17 +1607,196 @@ pub async fn delete_snapshot(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/snapshots/:id/restore-preview
+// ---------------------------------------------------------------------------
+
+/// A single row in the restore preview diff — shows current vs snapshot values.
+#[derive(Serialize)]
+struct RestorePreviewRow {
+    id: String,
+    /// Snapshot (target) values — what this row will be restored to.
+    snapshot_values: JsonValue,
+    /// Current live values — what the row currently looks like in the DB.
+    current_values: JsonValue,
+    /// Fields that differ between snapshot and current.
+    changed_fields: Vec<String>,
+    /// True if this row was modified after the snapshot was taken (updated_at > snapshot.created_at).
+    conflicted: bool,
+}
+
+#[derive(Serialize)]
+struct RestorePreview {
+    snapshot_id: String,
+    target_type: String,
+    snapshot_created_at: String,
+    total_rows: usize,
+    conflicted_count: usize,
+    rows: Vec<RestorePreviewRow>,
+}
+
+pub async fn restore_preview(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "settings:write") && !check_permission(&claims, "settings:read") {
+        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    }
+
+    // Load snapshot
+    let snap_row = match sqlx::query(
+        "SELECT target_type, snapshot_data, created_at FROM change_snapshots WHERE id=$1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => return IoError::NotFound(format!("Snapshot {} not found", id)).into_response(),
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let target_type_str: String = snap_row.try_get("target_type").unwrap_or_default();
+    let snapshot_data: JsonValue = snap_row.try_get("snapshot_data").unwrap_or(JsonValue::Array(vec![]));
+    let snapshot_created_at: DateTime<Utc> = snap_row.try_get("created_at").unwrap_or_else(|_| Utc::now());
+
+    let tt = match TargetType::from_str(&target_type_str) {
+        Some(t) => t,
+        None => {
+            return IoError::BadRequest(format!("Unknown target_type in snapshot: {}", target_type_str))
+                .into_response()
+        }
+    };
+
+    // Fetch current rows
+    let current_rows = match fetch_current_rows(&state.db, &tt).await {
+        Ok(r) => r,
+        Err(e) => return e.into_response(),
+    };
+
+    // Fetch updated_at map for conflict detection
+    let updated_at_map = fetch_updated_at_map(&state.db, &tt).await;
+
+    // Build current rows map (id -> row)
+    let current_map: std::collections::HashMap<String, &JsonValue> = current_rows
+        .iter()
+        .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|id_s| (id_s.to_string(), r)))
+        .collect();
+
+    let snapshot_arr = match snapshot_data.as_array() {
+        Some(arr) => arr.as_slice(),
+        None => &[],
+    };
+
+    // Determine which fields are mutable for this target type (same as compute_diff)
+    let mutable_fields: &[&str] = match &tt {
+        TargetType::Users => &["full_name", "email", "enabled"],
+        TargetType::OpcSources => &["name", "endpoint_url", "enabled"],
+        TargetType::AlarmDefinitions => &["name", "point_tag", "high_high", "high", "low", "low_low", "enabled"],
+        TargetType::ImportConnections => &["name", "connector_type", "enabled"],
+        TargetType::PointsMetadata => &[
+            "active", "criticality", "area", "aggregation_types", "barcode",
+            "notes", "gps_latitude", "gps_longitude", "write_frequency_seconds", "default_graphic_id",
+        ],
+        TargetType::UserRoles => &["role_id"],
+        TargetType::ApplicationSettings => &["value"],
+        TargetType::PointSources => &["name", "description", "enabled"],
+        TargetType::DashboardMetadata => &["name", "published"],
+        TargetType::ImportDefinitions => &["name", "description", "enabled", "batch_size", "error_strategy"],
+    };
+
+    let mut preview_rows: Vec<RestorePreviewRow> = Vec::new();
+
+    for snap_row_val in snapshot_arr {
+        let row_id = match snap_row_val.get("id").and_then(|v| v.as_str()) {
+            Some(s) => s.to_string(),
+            None => continue,
+        };
+
+        let current_val = current_map.get(&row_id).copied().cloned().unwrap_or(JsonValue::Object(Default::default()));
+
+        // Find changed fields
+        let mut changed_fields = Vec::new();
+        for &field in mutable_fields {
+            let snap_field = snap_row_val.get(field);
+            let curr_field = current_val.get(field);
+            // Normalize to string comparison for simplicity
+            let snap_str = snap_field.map(|v| v.to_string()).unwrap_or_default();
+            let curr_str = curr_field.map(|v| v.to_string()).unwrap_or_default();
+            if snap_str != curr_str {
+                changed_fields.push(field.to_string());
+            }
+        }
+
+        // Conflict check: was this row updated after the snapshot was taken?
+        let conflicted = updated_at_map
+            .get(&row_id)
+            .map(|&row_updated_at| row_updated_at > snapshot_created_at)
+            .unwrap_or(false);
+
+        preview_rows.push(RestorePreviewRow {
+            id: row_id,
+            snapshot_values: snap_row_val.clone(),
+            current_values: current_val,
+            changed_fields,
+            conflicted,
+        });
+    }
+
+    let conflicted_count = preview_rows.iter().filter(|r| r.conflicted).count();
+    let total_rows = preview_rows.len();
+
+    let preview = RestorePreview {
+        snapshot_id: id.to_string(),
+        target_type: target_type_str,
+        snapshot_created_at: snapshot_created_at.to_rfc3339(),
+        total_rows,
+        conflicted_count,
+        rows: preview_rows,
+    };
+
+    Json(ApiResponse::ok(preview)).into_response()
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/snapshots/:id/restore
 // ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct RestoreBody {
+    /// "all" or "selective"
+    #[serde(default = "default_restore_mode")]
+    pub mode: String,
+    /// Only used when mode = "selective"
+    pub row_ids: Option<Vec<String>>,
+    /// If true, create a safety snapshot before restoring (default: true)
+    #[serde(default = "default_true")]
+    pub create_safety_snapshot: bool,
+}
+
+fn default_restore_mode() -> String {
+    "all".to_string()
+}
+
+fn default_true() -> bool {
+    true
+}
 
 pub async fn restore_snapshot(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    body: Option<Json<RestoreBody>>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "settings:write") {
         return IoError::Forbidden("settings:write permission required".into()).into_response();
     }
+
+    let body = body.map(|b| b.0).unwrap_or_else(|| RestoreBody {
+        mode: "all".to_string(),
+        row_ids: None,
+        create_safety_snapshot: true,
+    });
 
     // 1. Load the snapshot to restore
     let snap_row = match sqlx::query(
@@ -1645,33 +1824,58 @@ pub async fn restore_snapshot(
 
     let uid = user_id(&claims);
 
-    // 2. Create a safety snapshot of current state before overwriting
-    let safety_snapshot_id = match snapshot_target(
-        &state.db,
-        &tt,
-        Some(&format!("pre-restore-{}", id)),
-        uid,
-    )
-    .await
-    {
-        Ok(sid) => sid,
-        Err(e) => return e.into_response(),
+    // 2. Optionally create a safety snapshot of current state before overwriting
+    let safety_snapshot_id = if body.create_safety_snapshot {
+        match snapshot_target(
+            &state.db,
+            &tt,
+            Some(&format!("pre-restore-{}", id)),
+            uid,
+        )
+        .await
+        {
+            Ok(sid) => Some(sid),
+            Err(e) => return e.into_response(),
+        }
+    } else {
+        None
     };
 
-    // 3. Apply the snapshot rows
-    let rows = match snapshot_data.as_array() {
+    // 3. Determine which rows to restore
+    let all_rows: Vec<JsonValue> = match snapshot_data.as_array() {
         Some(arr) => arr.as_slice().to_vec(),
         None => vec![],
     };
 
-    if let Err(e) = restore_snapshot_rows(&state.db, &tt, &rows).await {
+    let rows_to_restore: Vec<JsonValue> = if body.mode == "selective" {
+        if let Some(ref row_ids) = body.row_ids {
+            let id_set: std::collections::HashSet<&str> = row_ids.iter().map(|s| s.as_str()).collect();
+            all_rows
+                .into_iter()
+                .filter(|row| {
+                    row.get("id")
+                        .and_then(|v| v.as_str())
+                        .map(|id_s| id_set.contains(id_s))
+                        .unwrap_or(false)
+                })
+                .collect()
+        } else {
+            // selective mode with no row_ids → restore nothing
+            vec![]
+        }
+    } else {
+        all_rows
+    };
+
+    if let Err(e) = restore_snapshot_rows(&state.db, &tt, &rows_to_restore).await {
         return e.into_response();
     }
 
     Json(ApiResponse::ok(json!({
         "restored_snapshot_id": id.to_string(),
-        "safety_snapshot_id": safety_snapshot_id.to_string(),
-        "rows_restored": rows.len(),
+        "safety_snapshot_id": safety_snapshot_id.map(|sid| sid.to_string()),
+        "rows_restored": rows_to_restore.len(),
+        "mode": body.mode,
     })))
     .into_response()
 }
