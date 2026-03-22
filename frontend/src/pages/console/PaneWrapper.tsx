@@ -5,6 +5,7 @@ import TrendPane from './panes/TrendPane'
 import PointTablePane from './panes/PointTablePane'
 import AlarmListPane from './panes/AlarmListPane'
 import GraphicPane from './panes/GraphicPane'
+import { PaneErrorBoundary } from './PaneErrorBoundary'
 import ContextMenu from '../../shared/components/ContextMenu'
 import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from './ConsolePalette'
 import { graphicsApi } from '../../api/graphics'
@@ -398,33 +399,35 @@ export default function PaneWrapper({
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        {config.type === 'trend' && (
-          <TrendPane
-            config={config}
-            editMode={editMode}
-            onConfigurePoints={onConfigure}
-          />
-        )}
-        {config.type === 'point_table' && (
-          <PointTablePane
-            config={config}
-            editMode={editMode}
-            onConfigurePoints={onConfigure}
-          />
-        )}
-        {config.type === 'alarm_list' && <AlarmListPane config={config} />}
-        {config.type === 'graphic' && config.graphicId && (
-          <GraphicPane
-            graphicId={config.graphicId}
-            preserveAspectRatio={preserveAspectRatio}
-          />
-        )}
-        {config.type === 'graphic' && !config.graphicId && (
-          <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
-        )}
-        {config.type === 'blank' && (
-          <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
-        )}
+        <PaneErrorBoundary paneId={config.id}>
+          {config.type === 'trend' && (
+            <TrendPane
+              config={config}
+              editMode={editMode}
+              onConfigurePoints={onConfigure}
+            />
+          )}
+          {config.type === 'point_table' && (
+            <PointTablePane
+              config={config}
+              editMode={editMode}
+              onConfigurePoints={onConfigure}
+            />
+          )}
+          {config.type === 'alarm_list' && <AlarmListPane config={config} />}
+          {config.type === 'graphic' && config.graphicId && (
+            <GraphicPane
+              graphicId={config.graphicId}
+              preserveAspectRatio={preserveAspectRatio}
+            />
+          )}
+          {config.type === 'graphic' && !config.graphicId && (
+            <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
+          )}
+          {config.type === 'blank' && (
+            <BlankPane editMode={editMode} onConfigure={onConfigure} paneId={config.id} />
+          )}
+        </PaneErrorBoundary>
 
         {/* Exit Full Screen button — absolute overlay when fullscreen */}
         {isFullscreen && (
