@@ -4,3 +4,4 @@ GFX-SHAPES-004 | Fix batch shapes endpoint — URL mismatch, payload field name,
 GFX-SHAPES-007 | Fix seed_shapes.rs shape IDs to match canonical sidecar IDs | verified 2026-03-22 | commit c462120 | cargo build -p api-gateway | PASS
 GFX-SHAPES-003 | Add mandatory data-io-version and data-io-category attributes to all SVGs | verified 2026-03-22 | commit e3cf10a | npx tsc --noEmit | PASS
 GFX-SHAPES-005 | Add 6 missing column width-x-internal-type configurations to column sidecar | verified 2026-03-22 | commit c6826cc | npx tsc --noEmit | PASS
+GFX-SHAPES-006 | Add missing schema, version, alarmAnchor, and states fields to sidecars | verified 2026-03-22 | commit 4206fc4 | cd /home/io/io-dev/io/frontend && npx tsc --noEmit | PASS

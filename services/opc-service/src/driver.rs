@@ -17,10 +17,11 @@ use opcua::client::prelude::*;
 use opcua::sync::RwLock;
 use opcua::client::prelude::HistoryReadAction;
 use opcua::types::{
-    AttributeId, BrowseDescription, BrowseDirection, DecodingOptions, HistoryData,
-    HistoryReadValueId, MonitoredItemCreateRequest, MonitoringMode, MonitoringParameters,
-    NodeClass, NodeId, QualifiedName, ReadRawModifiedDetails, ReadValueId, ReferenceTypeId,
-    StatusCode, TimestampsToReturn, UAString,
+    AttributeId, BrowseDescription, BrowseDirection, DataChangeFilter, DataChangeTrigger,
+    DeadbandType, DecodingOptions, ExtensionObject, HistoryData, HistoryReadValueId,
+    MonitoredItemCreateRequest, MonitoringMode, MonitoringParameters, NodeClass, NodeId, ObjectId,
+    QualifiedName, ReadRawModifiedDetails, ReadValueId, ReferenceTypeId, StatusCode,
+    TimestampsToReturn, UAString,
 };
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -334,7 +335,9 @@ async fn run_source_once(
 
     // --- Harvest OPC UA Part 8 analog metadata (EU, limits, description) ---
     // Opportunistic — failures are non-fatal; missing properties are skipped.
-    harvest_analog_metadata(source, db, &session, &node_map, &analog_nodes).await;
+    // Returns eu_ranges: NodeId → (low, high) for analog nodes with valid EURange,
+    // used by create_subscriptions to apply PercentDeadband filters.
+    let eu_ranges = harvest_analog_metadata(source, db, &session, &node_map, &analog_nodes).await;
 
     // --- Startup history auto-recovery ---
     // On every connect, check the most recent timestamp we have for this source.
@@ -409,7 +412,7 @@ async fn run_source_once(
     // --- Subscribe ---
     let (update_tx, update_rx) = mpsc::unbounded_channel::<PointUpdate>();
 
-    let good_items = create_subscriptions(source, &session, &node_map, update_tx, config)?;
+    let good_items = create_subscriptions(source, &session, &node_map, &eu_ranges, update_tx, config)?;
 
     // --- OPC UA Part 9 A&C event subscription (non-fatal) ---
     // Store the handle so we can abort the drain task when this session ends,
@@ -703,13 +706,17 @@ fn browse_children(
 /// `analog_nodes` is the set of NodeIds known to be AnalogItemType or DataItemType from browse.
 /// If empty (server did not report TypeDefinitions), all nodes are processed as a compatibility
 /// fallback (preserves behaviour with servers that omit TypeDefinition in browse results).
+///
+/// Returns a map of `NodeId → (low, high)` for every analog node whose EURange was successfully
+/// read and has a non-degenerate range (i.e. `high - low > EPSILON`). This map is passed to
+/// `create_subscriptions` so that PercentDeadband filters can be applied at subscription time.
 async fn harvest_analog_metadata(
     source: &PointSource,
     db: &DbPool,
     session: &Arc<RwLock<Session>>,
     node_map: &HashMap<NodeId, Uuid>,
     analog_nodes: &HashSet<NodeId>,
-) {
+) -> HashMap<NodeId, (f64, f64)> {
     // OPC UA well-known property BrowseNames and their relative path from the variable node.
     // These are children of AnalogItemType nodes under the Properties reference type (ns=0;i=68).
     //
@@ -737,6 +744,9 @@ async fn harvest_analog_metadata(
     // Process in batches to avoid overwhelming the server.
     const BATCH: usize = 50;
     let mut harvested = 0usize;
+    // Accumulate EURange values for valid analog nodes (non-degenerate range).
+    // Returned to the caller for use in DataChangeFilter configuration.
+    let mut eu_ranges: HashMap<NodeId, (f64, f64)> = HashMap::new();
 
     for chunk in node_ids.chunks(BATCH) {
         let chunk: Vec<(NodeId, Uuid)> = chunk.to_vec();
@@ -748,7 +758,7 @@ async fn harvest_analog_metadata(
                 .iter()
                 .map(|(node_id, point_id)| {
                     let meta = read_analog_properties(&session_guard, node_id);
-                    (*point_id, meta)
+                    (node_id.clone(), *point_id, meta)
                 })
                 .collect::<Vec<_>>()
         })
@@ -760,7 +770,14 @@ async fn harvest_analog_metadata(
                 continue;
             }
             Ok(items) => {
-                for (point_id, meta) in items {
+                for (node_id, point_id, meta) in items {
+                    // Capture EURange for subscription-time deadband filter if non-degenerate.
+                    if let (Some(low), Some(high)) = (meta.eu_range_low, meta.eu_range_high) {
+                        if (high - low).abs() > f64::EPSILON {
+                            eu_ranges.insert(node_id, (low, high));
+                        }
+                    }
+
                     // Only write to DB if at least one field was populated.
                     let has_data = meta.description.is_some()
                         || meta.engineering_units.is_some()
@@ -796,6 +813,8 @@ async fn harvest_analog_metadata(
             "OPC UA Part 8 analog metadata harvested"
         );
     }
+
+    eu_ranges
 }
 
 /// Read OPC UA Part 8 AnalogItemType properties for a single variable node.
@@ -1122,10 +1141,15 @@ fn decode_eu_range(ext: &opcua::types::ExtensionObject) -> Option<(f64, f64)> {
 
 /// Returns the total number of monitored items that were accepted (Good status) by the server.
 /// A return value of 0 means all items failed — caller should fall back to polling mode.
+///
+/// `eu_ranges` — map of NodeId → (low, high) EU range for analog nodes with valid EURange,
+/// produced by `harvest_analog_metadata`. Nodes present in this map get a PercentDeadband 1%
+/// DataChangeFilter; all other nodes get AbsoluteDeadband 0 (report any change).
 fn create_subscriptions(
     source: &PointSource,
     session: &Arc<RwLock<Session>>,
     node_map: &HashMap<NodeId, Uuid>,
+    eu_ranges: &HashMap<NodeId, (f64, f64)>,
     update_tx: mpsc::UnboundedSender<PointUpdate>,
     config: &Arc<Config>,
 ) -> anyhow::Result<usize> {
@@ -1177,23 +1201,57 @@ fn create_subscriptions(
             }
         });
 
+        // Build per-node DataChangeFilter.
+        // Nodes with a valid EURange in `eu_ranges` get PercentDeadband 1% to reduce OPC
+        // traffic on analog signals (reduces traffic ~30-60% per §17 design doc).
+        // All other nodes (boolean, string, no EURange) get AbsoluteDeadband 0 (any-change).
+        let make_percent_filter = || -> ExtensionObject {
+            let dcf = DataChangeFilter {
+                trigger: DataChangeTrigger::StatusValue,
+                deadband_type: DeadbandType::Percent as u32,
+                deadband_value: 1.0,
+            };
+            ExtensionObject::from_encodable(
+                NodeId::from(&ObjectId::DataChangeFilter_Encoding_DefaultBinary),
+                &dcf,
+            )
+        };
+        let make_absolute_filter = || -> ExtensionObject {
+            let dcf = DataChangeFilter {
+                trigger: DataChangeTrigger::StatusValue,
+                deadband_type: DeadbandType::None as u32,
+                deadband_value: 0.0,
+            };
+            ExtensionObject::from_encodable(
+                NodeId::from(&ObjectId::DataChangeFilter_Encoding_DefaultBinary),
+                &dcf,
+            )
+        };
+
         let monitored_items: Vec<MonitoredItemCreateRequest> = chunk
             .iter()
-            .map(|(node_id, _)| MonitoredItemCreateRequest {
-                item_to_monitor: ReadValueId {
-                    node_id: node_id.clone(),
-                    attribute_id: AttributeId::Value as u32,
-                    index_range: UAString::null(),
-                    data_encoding: QualifiedName::null(),
-                },
-                monitoring_mode: MonitoringMode::Reporting,
-                requested_parameters: MonitoringParameters {
-                    client_handle: 0,
-                    sampling_interval: publishing_ms as f64,
-                    filter: Default::default(),
-                    queue_size: 1,
-                    discard_oldest: true,
-                },
+            .map(|(node_id, _)| {
+                let filter = if eu_ranges.contains_key(node_id) {
+                    make_percent_filter()
+                } else {
+                    make_absolute_filter()
+                };
+                MonitoredItemCreateRequest {
+                    item_to_monitor: ReadValueId {
+                        node_id: node_id.clone(),
+                        attribute_id: AttributeId::Value as u32,
+                        index_range: UAString::null(),
+                        data_encoding: QualifiedName::null(),
+                    },
+                    monitoring_mode: MonitoringMode::Reporting,
+                    requested_parameters: MonitoringParameters {
+                        client_handle: 0,
+                        sampling_interval: publishing_ms as f64,
+                        filter,
+                        queue_size: 1,
+                        discard_oldest: true,
+                    },
+                }
             })
             .collect();
 
@@ -1211,9 +1269,58 @@ fn create_subscriptions(
             )
             .map_err(|sc| anyhow::anyhow!("create_subscription failed: {}", sc))?;
 
-        let item_results = session_guard
+        let mut item_results = session_guard
             .create_monitored_items(sub_id, TimestampsToReturn::Both, &monitored_items)
             .map_err(|sc| anyhow::anyhow!("create_monitored_items failed: {}", sc))?;
+
+        // Fallback: if any item returned BadDeadbandFilterInvalid, the server does not support
+        // the PercentDeadband filter for that node (e.g. missing or un-configured EURange on the
+        // server side). Retry those specific items with AbsoluteDeadband 0.
+        let fallback_indices: Vec<usize> = item_results
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.status_code == StatusCode::BadDeadbandFilterInvalid)
+            .map(|(i, _)| i)
+            .collect();
+
+        if !fallback_indices.is_empty() {
+            let fallback_items: Vec<MonitoredItemCreateRequest> = fallback_indices
+                .iter()
+                .map(|&i| {
+                    let (node_id, _) = &chunk[i];
+                    warn!(
+                        source = %source.name,
+                        node_id = %node_id,
+                        "BadDeadbandFilterInvalid — falling back to AbsoluteDeadband 0 for this node"
+                    );
+                    MonitoredItemCreateRequest {
+                        item_to_monitor: ReadValueId {
+                            node_id: node_id.clone(),
+                            attribute_id: AttributeId::Value as u32,
+                            index_range: UAString::null(),
+                            data_encoding: QualifiedName::null(),
+                        },
+                        monitoring_mode: MonitoringMode::Reporting,
+                        requested_parameters: MonitoringParameters {
+                            client_handle: 0,
+                            sampling_interval: publishing_ms as f64,
+                            filter: make_absolute_filter(),
+                            queue_size: 1,
+                            discard_oldest: true,
+                        },
+                    }
+                })
+                .collect();
+
+            if let Ok(fallback_results) =
+                session_guard.create_monitored_items(sub_id, TimestampsToReturn::Both, &fallback_items)
+            {
+                // Patch the original results with the fallback outcomes.
+                for (&orig_idx, fallback_result) in fallback_indices.iter().zip(fallback_results.iter()) {
+                    item_results[orig_idx] = fallback_result.clone();
+                }
+            }
+        }
 
         // Count items with non-Good status codes and log them for diagnostics.
         let bad_items: Vec<String> = item_results

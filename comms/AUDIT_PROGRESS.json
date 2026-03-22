@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T09:44:00.275911+00:00",
+  "last_updated": "2026-03-22T10:04:37.962479+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -79,7 +79,8 @@
     "GFX-SHAPES-003": 1,
     "DD-06-005": 1,
     "MOD-PROCESS-003": 1,
-    "GFX-SHAPES-005": 1
+    "GFX-SHAPES-005": 1,
+    "MOD-PROCESS-007": 1
   },
   "queue": [
     {
@@ -138,7 +139,7 @@
       "completed_at": "2026-03-21",
       "notes": "Re-audited round 3. 7 gaps found. Previously verified tasks reset.",
       "last_audit_round": 3,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     },
     {
       "unit": "MOD-CONSOLE",
@@ -1036,7 +1037,7 @@
       "depends_on": [
         "GFX-SHAPES-001"
       ],
-      "status": "implementing",
+      "status": "verified",
       "audit_round": 3
     },
     {
@@ -1216,7 +1217,7 @@
       "wave": 2,
       "title": "Implement Navigation hierarchy tree in sidebar",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1226,7 +1227,7 @@
       "wave": 2,
       "title": "Wire up kiosk mode (?kiosk=true) in Process module",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1343,7 +1344,7 @@
       "wave": 2,
       "title": "Apply PercentDeadband 1% filter on AnalogItemType subscriptions",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 1
     },
