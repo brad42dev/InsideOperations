@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T05:59:43.913996",
+  "last_updated": "2026-03-22T06:05:44.146608+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -2637,7 +2637,7 @@
       "wave": 3,
       "title": "Rename inference route from /recognition/infer to /recognition/detect",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2647,7 +2647,7 @@
       "wave": 3,
       "title": "Fix /recognition/status response to return per-domain shape",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

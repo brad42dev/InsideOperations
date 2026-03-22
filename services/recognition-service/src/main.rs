@@ -366,12 +366,21 @@ async fn import_gap_report(
 // GET /recognition/status — service status
 async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
     let models = state.models.read().await;
+    let pid_loaded = models.iter().any(|m| m.domain == "pid" && m.loaded);
+    let dcs_loaded = models.iter().any(|m| m.domain == "dcs" && m.loaded);
     let status = serde_json::json!({
-        "models_loaded": models.iter().filter(|m| m.loaded).count(),
-        "models_total": models.len(),
-        "pid_model": models.iter().find(|m| m.domain == "pid" && m.loaded).map(|m| &m.version),
-        "dcs_model": models.iter().find(|m| m.domain == "dcs" && m.loaded).map(|m| &m.version),
-        "onnx_available": false,  // true when ort crate is integrated
+        "domains": {
+            "pid": {
+                "model_loaded": pid_loaded,
+                "hardware": "cpu",  // stub: "cpu" until ort CUDA detection is wired
+                "mode": if pid_loaded { "cpu" } else { "disabled" }
+            },
+            "dcs": {
+                "model_loaded": dcs_loaded,
+                "hardware": "cpu",
+                "mode": if dcs_loaded { "cpu" } else { "disabled" }
+            }
+        }
     });
     Json(ApiResponse::ok(status)).into_response()
 }

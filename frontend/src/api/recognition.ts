@@ -36,12 +36,17 @@ export interface Detection {
   class_id: number
 }
 
+export interface DomainStatus {
+  model_loaded: boolean
+  hardware: string
+  mode: 'gpu' | 'cpu' | 'disabled'
+}
+
 export interface RecognitionStatus {
-  models_loaded: number
-  models_total: number
-  pid_model: string | null
-  dcs_model: string | null
-  onnx_available: boolean
+  domains: {
+    pid: DomainStatus
+    dcs: DomainStatus
+  }
 }
 
 export interface InferenceOptions {

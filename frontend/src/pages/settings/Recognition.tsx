@@ -93,23 +93,16 @@ function ServiceStatusCard() {
             gap: '16px',
           }}
         >
-          <StatItem label="Models Loaded" value={`${data.models_loaded} / ${data.models_total}`} />
           <StatItem
-            label="PID Model"
-            value={data.pid_model ?? '—'}
-            subtext={data.pid_model ? 'loaded' : 'not loaded'}
+            label="P&ID Model"
+            value={data.domains.pid.model_loaded ? 'Loaded' : 'Not Loaded'}
+            subtext={`mode: ${data.domains.pid.mode} · hw: ${data.domains.pid.hardware}`}
           />
           <StatItem
             label="DCS Model"
-            value={data.dcs_model ?? '—'}
-            subtext={data.dcs_model ? 'loaded' : 'not loaded'}
+            value={data.domains.dcs.model_loaded ? 'Loaded' : 'Not Loaded'}
+            subtext={`mode: ${data.domains.dcs.mode} · hw: ${data.domains.dcs.hardware}`}
           />
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: '4px' }}>
-              ONNX Runtime
-            </div>
-            <StatusPill active={data.onnx_available} label={data.onnx_available ? 'Available' : 'Deferred'} />
-          </div>
         </div>
       )}
     </SectionCard>
