@@ -14,6 +14,33 @@ const TOKEN_KEY = 'io_access_token'
 
 export type ExportFormat = 'csv' | 'xlsx' | 'pdf' | 'json' | 'parquet' | 'html'
 
+// ---------------------------------------------------------------------------
+// Export job types (for My Exports page — GET /api/exports)
+// ---------------------------------------------------------------------------
+
+export type ExportJobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
+
+export interface ExportJob {
+  id: string
+  module: string
+  entity: string
+  format: ExportFormat
+  status: ExportJobStatus
+  file_size_bytes: number | null
+  rows_total: number | null
+  rows_processed: number | null
+  error_message: string | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+  expires_at: string | null
+}
+
+export interface ListExportsParams {
+  limit?: number
+  page?: number
+}
+
 export type ExportScope = 'filtered' | 'all'
 
 export interface CsvOptions {
@@ -69,6 +96,21 @@ export interface ExportJobRef {
 export type ExportResult =
   | { type: 'download'; blob: Blob; filename: string }
   | { type: 'queued'; job: ExportJobRef }
+
+// ---------------------------------------------------------------------------
+// Helper — authenticated fetch
+// ---------------------------------------------------------------------------
+
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = localStorage.getItem(TOKEN_KEY)
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> | undefined ?? {}),
+  }
+  if (token) {
+    headers['Authorization'] = 'Bearer ' + token
+  }
+  return fetch(url, { ...options, headers, credentials: 'include' })
+}
 
 // ---------------------------------------------------------------------------
 // Helper — derive filename from request
@@ -158,19 +200,10 @@ export const exportsApi = {
    * POST /api/exports/preview
    */
   preview: async (req: CreateExportRequest): Promise<Record<string, unknown>[]> => {
-    const token = localStorage.getItem(TOKEN_KEY)
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-    if (token) {
-      headers['Authorization'] = 'Bearer ' + token
-    }
-
     try {
-      const res = await fetch(API_BASE + '/api/exports/preview', {
+      const res = await authFetch(API_BASE + '/api/exports/preview', {
         method: 'POST',
-        headers,
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...req, limit: 5 }),
       })
 
@@ -182,6 +215,76 @@ export const exportsApi = {
       return []
     } catch {
       return []
+    }
+  },
+
+  /**
+   * List export jobs for the current user.
+   * GET /api/exports
+   */
+  listMyExports: async (params?: ListExportsParams): Promise<{ data: ExportJob[]; total: number }> => {
+    const qs = new URLSearchParams()
+    if (params?.limit !== undefined) qs.set('limit', String(params.limit))
+    if (params?.page !== undefined) qs.set('page', String(params.page))
+    const url = API_BASE + '/api/exports' + (qs.toString() ? '?' + qs.toString() : '')
+
+    const res = await authFetch(url)
+    if (!res.ok) {
+      let errorMessage = 'Failed to list exports: ' + res.status
+      try {
+        const errJson = (await res.json()) as { error?: { message: string }; message?: string }
+        errorMessage = errJson.error?.message ?? errJson.message ?? errorMessage
+      } catch { /* ignore */ }
+      throw new Error(errorMessage)
+    }
+
+    const envelope = (await res.json()) as {
+      data?: ExportJob[]
+      total?: number
+      items?: ExportJob[]
+    }
+    const items = envelope.data ?? envelope.items ?? []
+    const total = envelope.total ?? items.length
+    return { data: items as ExportJob[], total }
+  },
+
+  /**
+   * Get download URL for a completed export.
+   */
+  getDownloadUrl(jobId: string): string {
+    return API_BASE + '/api/exports/' + jobId + '/download'
+  },
+
+  /**
+   * Delete an export job.
+   * DELETE /api/exports/:id
+   */
+  deleteExport: async (jobId: string): Promise<void> => {
+    const res = await authFetch(API_BASE + '/api/exports/' + jobId, { method: 'DELETE' })
+    if (!res.ok) {
+      throw new Error('Failed to delete export: ' + res.status)
+    }
+  },
+
+  /**
+   * Cancel a queued or in-progress export job.
+   * POST /api/exports/:id/cancel
+   */
+  cancelExport: async (jobId: string): Promise<void> => {
+    const res = await authFetch(API_BASE + '/api/exports/' + jobId + '/cancel', { method: 'POST' })
+    if (!res.ok) {
+      throw new Error('Failed to cancel export: ' + res.status)
+    }
+  },
+
+  /**
+   * Retry a failed export job.
+   * POST /api/exports/:id/retry
+   */
+  retryExport: async (jobId: string): Promise<void> => {
+    const res = await authFetch(API_BASE + '/api/exports/' + jobId + '/retry', { method: 'POST' })
+    if (!res.ok) {
+      throw new Error('Failed to retry export: ' + res.status)
     }
   },
 }

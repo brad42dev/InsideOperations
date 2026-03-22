@@ -10,7 +10,8 @@
 //!   POST   /api/bulk-update/preview               — diff preview (multipart CSV)
 //!   POST   /api/bulk-update/apply                 — apply changes (multipart CSV)
 //!
-//! Permission required: `settings:write`
+//! Write/mutate endpoints require: `system:bulk_update`
+//! Read-only endpoints require: `settings:read` (or `settings:write`)
 
 use axum::{
     body::Body,
@@ -131,8 +132,9 @@ write_frequency_seconds,default_graphic_id"
 #[derive(Debug, Serialize)]
 pub struct SnapshotRow {
     pub id: Uuid,
-    pub target_type: String,
-    pub label: Option<String>,
+    pub table_name: String,
+    pub snapshot_type: String,
+    pub description: Option<String>,
     pub row_count: i32,
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -141,8 +143,9 @@ pub struct SnapshotRow {
 #[derive(Debug, Serialize)]
 pub struct SnapshotDetail {
     pub id: Uuid,
-    pub target_type: String,
-    pub label: Option<String>,
+    pub table_name: String,
+    pub snapshot_type: String,
+    pub description: Option<String>,
     pub row_count: i32,
     pub snapshot_data: JsonValue,
     pub created_by: Option<Uuid>,
@@ -156,6 +159,8 @@ pub struct SnapshotDetail {
 #[derive(Debug, Deserialize)]
 pub struct CreateSnapshotBody {
     pub target_type: String,
+    pub description: Option<String>,
+    // Keep `label` as a legacy alias — prefer `description`
     pub label: Option<String>,
 }
 
@@ -320,12 +325,15 @@ async fn snapshot_target(
         .map_err(|e| IoError::Internal(format!("serialize snapshot: {e}")))?;
 
     let id = Uuid::new_v4();
+    // snapshot_type: 'automatic' for pre-apply safety snapshots (label present), 'manual' for user-created
+    let snapshot_type = if label.is_some() { "automatic" } else { "manual" };
     sqlx::query(
-        r#"INSERT INTO change_snapshots (id, target_type, label, row_count, snapshot_data, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6)"#,
+        r#"INSERT INTO change_snapshots (id, table_name, snapshot_type, description, row_count, snapshot_data, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
     )
     .bind(id)
     .bind(tt.as_str())
+    .bind(snapshot_type)
     .bind(label)
     .bind(row_count)
     .bind(&data)
@@ -1486,7 +1494,7 @@ pub async fn list_snapshots(
     };
 
     let rows = match sqlx::query(
-        r#"SELECT id, target_type, label, row_count, created_by, created_at
+        r#"SELECT id, table_name, snapshot_type, description, row_count, created_by, created_at
            FROM change_snapshots
            ORDER BY created_at DESC
            LIMIT $1 OFFSET $2"#,
@@ -1504,8 +1512,9 @@ pub async fn list_snapshots(
         .iter()
         .map(|r| SnapshotRow {
             id: r.try_get("id").unwrap_or_default(),
-            target_type: r.try_get("target_type").unwrap_or_default(),
-            label: r.try_get("label").ok().flatten(),
+            table_name: r.try_get("table_name").unwrap_or_default(),
+            snapshot_type: r.try_get("snapshot_type").unwrap_or_default(),
+            description: r.try_get("description").ok().flatten(),
             row_count: r.try_get("row_count").unwrap_or(0),
             created_by: r.try_get("created_by").ok().flatten(),
             created_at: r.try_get("created_at").unwrap_or_else(|_| Utc::now()),
@@ -1524,8 +1533,8 @@ pub async fn create_snapshot(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSnapshotBody>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") {
+        return IoError::Forbidden("system:bulk_update permission required".into()).into_response();
     }
 
     let tt = match TargetType::from_str(&body.target_type) {
@@ -1536,8 +1545,10 @@ pub async fn create_snapshot(
         }
     };
 
+    // Accept `description` preferentially; fall back to legacy `label` field
+    let description = body.description.as_deref().or(body.label.as_deref());
     let uid = user_id(&claims);
-    match snapshot_target(&state.db, &tt, body.label.as_deref(), uid).await {
+    match snapshot_target(&state.db, &tt, description, uid).await {
         Ok(id) => Json(ApiResponse::ok(json!({ "id": id.to_string() }))).into_response(),
         Err(e) => e.into_response(),
     }
@@ -1557,7 +1568,7 @@ pub async fn get_snapshot(
     }
 
     match sqlx::query(
-        "SELECT id, target_type, label, row_count, snapshot_data, created_by, created_at FROM change_snapshots WHERE id=$1",
+        "SELECT id, table_name, snapshot_type, description, row_count, snapshot_data, created_by, created_at FROM change_snapshots WHERE id=$1",
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -1566,8 +1577,9 @@ pub async fn get_snapshot(
         Ok(Some(r)) => {
             let detail = SnapshotDetail {
                 id: r.try_get("id").unwrap_or_default(),
-                target_type: r.try_get("target_type").unwrap_or_default(),
-                label: r.try_get("label").ok().flatten(),
+                table_name: r.try_get("table_name").unwrap_or_default(),
+                snapshot_type: r.try_get("snapshot_type").unwrap_or_default(),
+                description: r.try_get("description").ok().flatten(),
                 row_count: r.try_get("row_count").unwrap_or(0),
                 snapshot_data: r.try_get("snapshot_data").unwrap_or(JsonValue::Array(vec![])),
                 created_by: r.try_get("created_by").ok().flatten(),
@@ -1589,8 +1601,8 @@ pub async fn delete_snapshot(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") {
+        return IoError::Forbidden("system:bulk_update permission required".into()).into_response();
     }
 
     match sqlx::query("DELETE FROM change_snapshots WHERE id=$1")
@@ -1627,7 +1639,7 @@ struct RestorePreviewRow {
 #[derive(Serialize)]
 struct RestorePreview {
     snapshot_id: String,
-    target_type: String,
+    table_name: String,
     snapshot_created_at: String,
     total_rows: usize,
     conflicted_count: usize,
@@ -1639,13 +1651,13 @@ pub async fn restore_preview(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") && !check_permission(&claims, "settings:read") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") && !check_permission(&claims, "settings:read") {
+        return IoError::Forbidden("settings:read permission required".into()).into_response();
     }
 
     // Load snapshot
     let snap_row = match sqlx::query(
-        "SELECT target_type, snapshot_data, created_at FROM change_snapshots WHERE id=$1",
+        "SELECT table_name, snapshot_data, created_at FROM change_snapshots WHERE id=$1",
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -1656,14 +1668,14 @@ pub async fn restore_preview(
         Err(e) => return IoError::Database(e).into_response(),
     };
 
-    let target_type_str: String = snap_row.try_get("target_type").unwrap_or_default();
+    let target_type_str: String = snap_row.try_get("table_name").unwrap_or_default();
     let snapshot_data: JsonValue = snap_row.try_get("snapshot_data").unwrap_or(JsonValue::Array(vec![]));
     let snapshot_created_at: DateTime<Utc> = snap_row.try_get("created_at").unwrap_or_else(|_| Utc::now());
 
     let tt = match TargetType::from_str(&target_type_str) {
         Some(t) => t,
         None => {
-            return IoError::BadRequest(format!("Unknown target_type in snapshot: {}", target_type_str))
+            return IoError::BadRequest(format!("Unknown table_name in snapshot: {}", target_type_str))
                 .into_response()
         }
     };
@@ -1748,7 +1760,7 @@ pub async fn restore_preview(
 
     let preview = RestorePreview {
         snapshot_id: id.to_string(),
-        target_type: target_type_str,
+        table_name: target_type_str,
         snapshot_created_at: snapshot_created_at.to_rfc3339(),
         total_rows,
         conflicted_count,
@@ -1788,8 +1800,8 @@ pub async fn restore_snapshot(
     Path(id): Path<Uuid>,
     body: Option<Json<RestoreBody>>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") {
+        return IoError::Forbidden("system:bulk_update permission required".into()).into_response();
     }
 
     let body = body.map(|b| b.0).unwrap_or_else(|| RestoreBody {
@@ -1800,7 +1812,7 @@ pub async fn restore_snapshot(
 
     // 1. Load the snapshot to restore
     let snap_row = match sqlx::query(
-        "SELECT target_type, snapshot_data FROM change_snapshots WHERE id=$1",
+        "SELECT table_name, snapshot_data FROM change_snapshots WHERE id=$1",
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -1811,13 +1823,13 @@ pub async fn restore_snapshot(
         Err(e) => return IoError::Database(e).into_response(),
     };
 
-    let target_type_str: String = snap_row.try_get("target_type").unwrap_or_default();
+    let target_type_str: String = snap_row.try_get("table_name").unwrap_or_default();
     let snapshot_data: JsonValue = snap_row.try_get("snapshot_data").unwrap_or(JsonValue::Array(vec![]));
 
     let tt = match TargetType::from_str(&target_type_str) {
         Some(t) => t,
         None => {
-            return IoError::BadRequest(format!("Unknown target_type in snapshot: {}", target_type_str))
+            return IoError::BadRequest(format!("Unknown table_name in snapshot: {}", target_type_str))
                 .into_response()
         }
     };
@@ -1889,8 +1901,8 @@ pub async fn get_template(
     Extension(claims): Extension<Claims>,
     Path(target_type): Path<String>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") {
+        return IoError::Forbidden("system:bulk_update permission required".into()).into_response();
     }
 
     let tt = match TargetType::from_str(&target_type) {
@@ -2049,8 +2061,8 @@ pub async fn preview_bulk_update(
     Extension(claims): Extension<Claims>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") {
+        return IoError::Forbidden("system:bulk_update permission required".into()).into_response();
     }
 
     let (csv_rows, tt, _extra) = match extract_file_and_target(&mut multipart).await {
@@ -2105,8 +2117,8 @@ pub async fn apply_bulk_update(
     Extension(claims): Extension<Claims>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") {
+        return IoError::Forbidden("system:bulk_update permission required".into()).into_response();
     }
 
     let (csv_rows, tt, extra_fields) = match extract_file_and_target(&mut multipart).await {
@@ -2264,13 +2276,13 @@ pub async fn get_error_report(
     Extension(claims): Extension<Claims>,
     Path(snapshot_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "settings:write") {
-        return IoError::Forbidden("settings:write permission required".into()).into_response();
+    if !check_permission(&claims, "system:bulk_update") {
+        return IoError::Forbidden("system:bulk_update permission required".into()).into_response();
     }
 
-    // Look up the snapshot to get target type and label
+    // Look up the snapshot to get table name and description
     let snap_row = match sqlx::query(
-        "SELECT target_type, label FROM change_snapshots WHERE id=$1",
+        "SELECT table_name, description FROM change_snapshots WHERE id=$1",
     )
     .bind(snapshot_id)
     .fetch_optional(&state.db)
@@ -2281,16 +2293,16 @@ pub async fn get_error_report(
         Err(e) => return IoError::Database(e).into_response(),
     };
 
-    let target_type: String = snap_row.try_get("target_type").unwrap_or_default();
-    let label: Option<String> = snap_row.try_get("label").ok().flatten();
+    let table_name: String = snap_row.try_get("table_name").unwrap_or_default();
+    let description: Option<String> = snap_row.try_get("description").ok().flatten();
 
     // Return a minimal CSV explaining this is the pre-apply safety snapshot reference
-    let mut csv = String::from("snapshot_id,target_type,label,note\n");
+    let mut csv = String::from("snapshot_id,table_name,description,note\n");
     csv.push_str(&format!(
         "{},{},{},\"This is the pre-apply safety snapshot. Use the frontend download to get validation error details.\"\n",
         snapshot_id,
-        csv_escape(&target_type),
-        csv_escape(label.as_deref().unwrap_or("")),
+        csv_escape(&table_name),
+        csv_escape(description.as_deref().unwrap_or("")),
     ));
 
     let filename = format!("bulk-update-{}-error-report.csv", snapshot_id);

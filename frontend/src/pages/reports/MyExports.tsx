@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { reportsApi, type ReportJob } from '../../api/reports'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { exportsApi, type ExportJob, type ExportJobStatus } from '../../api/exports'
 import DataTable from '../../shared/components/DataTable'
 import type { ColumnDef } from '../../shared/components/DataTable'
 
@@ -25,27 +26,27 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-type JobStatus = 'pending' | 'running' | 'completed' | 'failed'
-
-function StatusBadge({ status }: { status: JobStatus }) {
-  const styles: Record<JobStatus, React.CSSProperties> = {
-    pending: { background: 'var(--io-surface-secondary)', color: 'var(--io-text-muted)' },
-    running: {
+function StatusBadge({ status }: { status: ExportJobStatus }) {
+  const styles: Record<ExportJobStatus, React.CSSProperties> = {
+    queued: { background: 'var(--io-surface-secondary)', color: 'var(--io-text-muted)' },
+    processing: {
       background: 'rgba(45,212,191,0.15)',
       color: 'var(--io-accent)',
     },
     completed: { background: 'rgba(34,197,94,0.15)', color: 'var(--io-success)' },
     failed: { background: 'rgba(239,68,68,0.15)', color: 'var(--io-danger)' },
+    cancelled: { background: 'rgba(156,163,175,0.2)', color: 'var(--io-text-muted)' },
   }
 
-  const labels: Record<JobStatus, string> = {
-    pending: 'Queued',
-    running: 'Generating...',
+  const labels: Record<ExportJobStatus, string> = {
+    queued: 'Queued',
+    processing: 'Generating...',
     completed: 'Ready',
     failed: 'Failed',
+    cancelled: 'Cancelled',
   }
 
-  const isPulsing = status === 'running'
+  const isPulsing = status === 'processing'
 
   return (
     <span
@@ -85,37 +86,79 @@ function FormatBadge({ format }: { format: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Action button styles
+// ---------------------------------------------------------------------------
+
+const actionBtnBase: React.CSSProperties = {
+  padding: '3px 9px',
+  borderRadius: 'var(--io-radius)',
+  fontSize: '11px',
+  fontWeight: 600,
+  cursor: 'pointer',
+  border: '1px solid var(--io-border)',
+  background: 'transparent',
+  color: 'var(--io-text-secondary)',
+}
+
+// ---------------------------------------------------------------------------
 // MyExports page
 // ---------------------------------------------------------------------------
 
 export default function MyExports() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const query = useQuery({
-    queryKey: ['report-exports'],
+    queryKey: ['my-exports'],
     queryFn: async () => {
-      const result = await reportsApi.listMyExports({ limit: 100 })
-      if (!result.success) throw new Error(result.error.message)
-      return result.data.data
+      const result = await exportsApi.listMyExports({ limit: 100 })
+      return result.data
     },
     // Auto-refresh every 5 seconds if any job is still active
     refetchInterval: (query) => {
       const jobs = query.state.data ?? []
-      const hasActive = jobs.some((j) => j.status === 'pending' || j.status === 'running')
+      const hasActive = jobs.some((j) => j.status === 'queued' || j.status === 'processing')
       return hasActive ? 5000 : false
     },
   })
 
-  const jobs: ReportJob[] = query.data ?? []
+  const retryMutation = useMutation({
+    mutationFn: (jobId: string) => exportsApi.retryExport(jobId),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['my-exports'] }) },
+    onError: (e) => setActionError(e instanceof Error ? e.message : 'Failed to retry export'),
+  })
 
-  const columns: ColumnDef<ReportJob>[] = [
+  const cancelMutation = useMutation({
+    mutationFn: (jobId: string) => exportsApi.cancelExport(jobId),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['my-exports'] }) },
+    onError: (e) => setActionError(e instanceof Error ? e.message : 'Failed to cancel export'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (jobId: string) => exportsApi.deleteExport(jobId),
+    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['my-exports'] }) },
+    onError: (e) => setActionError(e instanceof Error ? e.message : 'Failed to delete export'),
+  })
+
+  const jobs: ExportJob[] = query.data ?? []
+
+  async function handleClearCompleted() {
+    const toDelete = jobs.filter((j) => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled')
+    for (const job of toDelete) {
+      await exportsApi.deleteExport(job.id).catch(() => undefined)
+    }
+    await queryClient.invalidateQueries({ queryKey: ['my-exports'] })
+  }
+
+  const columns: ColumnDef<ExportJob>[] = [
     {
       id: 'name',
-      header: 'Name / Template',
+      header: 'Export',
       cell: (_val, row) => (
         <div>
           <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--io-text-primary)' }}>
-            {row.template_name ?? `Export ${row.id.slice(0, 8)}`}
+            {row.entity ? `${row.module} — ${row.entity}` : `Export ${row.id.slice(0, 8)}`}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '1px' }}>
             ID: {row.id.slice(0, 8)}
@@ -172,11 +215,12 @@ export default function MyExports() {
       id: 'actions',
       header: 'Actions',
       cell: (_val, row) => (
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Download — completed only */}
           {row.status === 'completed' && (
             <>
               <a
-                href={reportsApi.getDownloadUrl(row.id)}
+                href={exportsApi.getDownloadUrl(row.id)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
@@ -201,31 +245,75 @@ export default function MyExports() {
                     e.stopPropagation()
                     navigate(`/reports/view/${row.id}`)
                   }}
-                  style={{
-                    padding: '3px 9px',
-                    background: 'transparent',
-                    border: '1px solid var(--io-border)',
-                    borderRadius: 'var(--io-radius)',
-                    color: 'var(--io-text-secondary)',
-                    fontSize: '11px',
-                    cursor: 'pointer',
-                  }}
+                  style={actionBtnBase}
                 >
                   View
                 </button>
               )}
             </>
           )}
+
+          {/* Retry — failed only */}
           {row.status === 'failed' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                retryMutation.mutate(row.id)
+              }}
+              disabled={retryMutation.isPending}
+              style={{
+                ...actionBtnBase,
+                color: 'var(--io-accent)',
+                borderColor: 'var(--io-accent)',
+              }}
+            >
+              Retry
+            </button>
+          )}
+
+          {/* Error message — failed only */}
+          {row.status === 'failed' && row.error_message && (
             <span style={{ fontSize: '11px', color: 'var(--io-danger)' }}>
-              {row.error_message ? row.error_message.slice(0, 36) : 'Failed'}
+              {row.error_message.slice(0, 36)}
             </span>
           )}
+
+          {/* Cancel — queued or processing */}
+          {(row.status === 'queued' || row.status === 'processing') && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                cancelMutation.mutate(row.id)
+              }}
+              disabled={cancelMutation.isPending}
+              style={{
+                ...actionBtnBase,
+                color: 'var(--io-danger)',
+                borderColor: 'rgba(239,68,68,0.4)',
+              }}
+            >
+              Cancel
+            </button>
+          )}
+
+          {/* Delete — all statuses */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              deleteMutation.mutate(row.id)
+            }}
+            disabled={deleteMutation.isPending}
+            style={{ ...actionBtnBase }}
+          >
+            Delete
+          </button>
         </div>
       ),
-      width: 180,
+      width: 220,
     },
   ]
+
+  const hasCompleted = jobs.some((j) => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled')
 
   return (
     <div
@@ -276,25 +364,44 @@ export default function MyExports() {
               My Exports
             </h2>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-muted)' }}>
-              All report and data export jobs you have generated
+              All data export jobs you have generated
             </p>
           </div>
-          {query.isFetching && (
-            <span
-              style={{
-                display: 'inline-block',
-                width: '14px',
-                height: '14px',
-                border: '2px solid var(--io-border)',
-                borderTopColor: 'var(--io-accent)',
-                borderRadius: '50%',
-                animation: 'io-spin 0.6s linear infinite',
-              }}
-            />
-          )}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {hasCompleted && (
+              <button
+                onClick={() => { void handleClearCompleted() }}
+                style={{
+                  padding: '6px 14px',
+                  background: 'transparent',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  color: 'var(--io-text-secondary)',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Completed
+              </button>
+            )}
+            {query.isFetching && (
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '14px',
+                  height: '14px',
+                  border: '2px solid var(--io-border)',
+                  borderTopColor: 'var(--io-accent)',
+                  borderRadius: '50%',
+                  animation: 'io-spin 0.6s linear infinite',
+                }}
+              />
+            )}
+          </div>
         </div>
 
-        {query.isError && (
+        {(query.isError || actionError) && (
           <div
             style={{
               padding: '12px 16px',
@@ -304,19 +411,32 @@ export default function MyExports() {
               color: 'var(--io-danger)',
               fontSize: '13px',
               marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
             }}
           >
-            Failed to load exports: {query.error instanceof Error ? query.error.message : 'Unknown error'}
+            <span>
+              {actionError ?? (query.error instanceof Error ? query.error.message : 'Failed to load exports')}
+            </span>
+            {actionError && (
+              <button
+                onClick={() => setActionError(null)}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '14px' }}
+              >
+                ✕
+              </button>
+            )}
           </div>
         )}
 
-        <DataTable<ReportJob>
+        <DataTable<ExportJob>
           data={jobs}
           columns={columns}
           height={520}
           rowHeight={48}
           loading={query.isLoading}
-          emptyMessage="No exports yet. Generate a report from the Reports module."
+          emptyMessage="No exports yet. Use the Export button on any data table to generate an export."
         />
       </div>
 
