@@ -3,7 +3,7 @@
 CREATE TABLE recognition_correction (
     correction_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     image_hash      VARCHAR(64) NOT NULL,
-    correction_type VARCHAR(20) NOT NULL,
+    correction_type VARCHAR(30) NOT NULL,
     original_data   JSONB,
     corrected_data  JSONB NOT NULL,
     model_version   VARCHAR(20) NOT NULL,
