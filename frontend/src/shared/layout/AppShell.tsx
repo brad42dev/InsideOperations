@@ -425,10 +425,18 @@ export default function AppShell() {
         return
       }
 
-      // Ctrl+Shift+B — cycle sidebar: expanded → collapsed → hidden → expanded
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'b') {
+      // Ctrl+\ — toggle Expanded ↔ Collapsed (if hidden, transitions to collapsed first)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === '\\') {
         e.preventDefault()
-        setSidebarState(s => s === 'expanded' ? 'collapsed' : s === 'collapsed' ? 'hidden' : 'expanded')
+        setSidebarState(s => s === 'hidden' ? 'collapsed' : s === 'collapsed' ? 'expanded' : 'collapsed')
+        return
+      }
+
+      // Ctrl+Shift+\ — toggle Hidden ↔ collapsed
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === '\\') {
+        e.preventDefault()
+        setSidebarState(s => s === 'hidden' ? 'collapsed' : 'hidden')
+        setCollapsedPeek(false)
         return
       }
 
@@ -649,13 +657,13 @@ export default function AppShell() {
                 </span>
               </div>
             )}
-            {/* Collapse toggle button — cycles expanded → collapsed → hidden */}
+            {/* Collapse toggle button — toggles expanded ↔ collapsed (Ctrl+\) */}
             <button
               onClick={() => {
                 setCollapsedPeek(false)
-                setSidebarState(s => s === 'expanded' ? 'collapsed' : s === 'collapsed' ? 'hidden' : 'expanded')
+                setSidebarState(s => s === 'hidden' ? 'collapsed' : s === 'collapsed' ? 'expanded' : 'collapsed')
               }}
-              title={sidebarShowFull ? 'Collapse sidebar (Ctrl+Shift+B)' : 'Expand sidebar'}
+              title={sidebarShowFull ? 'Collapse sidebar (Ctrl+\\)' : 'Expand sidebar (Ctrl+\\)'}
               style={{
                 flexShrink: 0,
                 width: '24px',
