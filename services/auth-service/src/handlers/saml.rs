@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::state::AppState;
+use crate::state::{AppState, EulaPendingEntry};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -399,9 +399,12 @@ fn extract_saml_claims(
 
 async fn issue_saml_jwt(state: &AppState, user_id: Uuid) -> Response {
     use io_auth::{build_claims, generate_access_token};
+    use rand::Rng;
+    use sha2::{Digest, Sha256};
 
     let user_row = match sqlx::query(
-        "SELECT id, username, full_name, email FROM users WHERE id = $1 AND enabled = true",
+        "SELECT id, username, full_name, email, is_service_account, is_emergency_account
+         FROM users WHERE id = $1 AND enabled = true",
     )
     .bind(user_id)
     .fetch_optional(&state.db)
@@ -413,14 +416,61 @@ async fn issue_saml_jwt(state: &AppState, user_id: Uuid) -> Response {
         }
     };
 
+    let username: String = user_row.try_get("username").unwrap_or_default();
+    let _full_name: Option<String> = user_row.try_get("full_name").ok().flatten();
+    let _email: String = user_row.try_get("email").unwrap_or_default();
+    let is_service_account: bool = user_row.try_get("is_service_account").unwrap_or(false);
+    let is_emergency_account: bool = user_row.try_get("is_emergency_account").unwrap_or(false);
+
+    // EULA gate — check acceptance before issuing JWT.
+    // Service accounts and emergency accounts are exempt.
+    if !is_service_account && !is_emergency_account {
+        let eula_not_accepted: bool = sqlx::query(
+            "SELECT NOT EXISTS (
+                SELECT 1 FROM eula_acceptances ea
+                JOIN eula_versions ev ON ev.id = ea.eula_version_id
+                WHERE ea.user_id = $1 AND ev.is_active = true AND ev.eula_type = 'end_user'
+            ) AS eula_not_accepted",
+        )
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|r| r.try_get::<bool, _>("eula_not_accepted").ok())
+        .unwrap_or(false);
+
+        if eula_not_accepted {
+            let bytes: Vec<u8> = (0..32).map(|_| rand::thread_rng().gen::<u8>()).collect();
+            let pending_token: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+
+            state.eula_pending_tokens.insert(
+                pending_token.clone(),
+                EulaPendingEntry {
+                    user_id,
+                    expires_at: Utc::now() + chrono::Duration::minutes(5),
+                    used: false,
+                },
+            );
+
+            tracing::info!(user_id = %user_id, "SAML: EULA acceptance required — redirecting to EULA page");
+
+            let frontend_url = std::env::var("FRONTEND_URL")
+                .unwrap_or_else(|_| "http://localhost:5173".to_string());
+            let redirect = format!("{}/eula-required?pending_token={}", frontend_url, pending_token);
+
+            return axum::response::Response::builder()
+                .status(axum::http::StatusCode::FOUND)
+                .header(axum::http::header::LOCATION, redirect)
+                .body(axum::body::Body::empty())
+                .unwrap_or_else(|_| IoError::Internal("redirect build failed".into()).into_response());
+        }
+    }
+
     let permissions =
         crate::handlers::auth::fetch_user_permissions(&state.db, user_id)
             .await
             .unwrap_or_default();
-
-    let username: String = user_row.try_get("username").unwrap_or_default();
-    let _full_name: Option<String> = user_row.try_get("full_name").ok().flatten();
-    let _email: String = user_row.try_get("email").unwrap_or_default();
 
     let claims = build_claims(&user_id.to_string(), &username, permissions);
     let token = match generate_access_token(&claims, &state.config.jwt_secret) {
@@ -429,7 +479,6 @@ async fn issue_saml_jwt(state: &AppState, user_id: Uuid) -> Response {
     };
 
     // Issue refresh token
-    use sha2::{Digest, Sha256};
     let refresh_token = uuid::Uuid::new_v4().to_string();
     let mut hasher = Sha256::new();
     hasher.update(refresh_token.as_bytes());

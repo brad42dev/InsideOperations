@@ -47,6 +47,20 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState::new(db, cfg.clone());
 
+    // Background task: sweep expired EULA pending tokens every 5 minutes
+    {
+        let eula_tokens = state.eula_pending_tokens.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+            loop {
+                interval.tick().await;
+                let now = chrono::Utc::now();
+                eula_tokens.retain(|_, entry| !entry.used && entry.expires_at > now);
+                tracing::debug!("eula_pending_tokens sweep complete, {} remaining", eula_tokens.len());
+            }
+        });
+    }
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_headers(Any)
@@ -70,8 +84,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/verify-pin", post(handlers::pin::verify_pin))
         // EULA — end-user routes
         // NOTE: /auth/eula/pending must be before /auth/eula/current (avoid path conflict)
+        // NOTE: /auth/eula/accept-pending must be before /auth/eula/accept (avoid path conflict)
         .route("/auth/eula/pending", get(handlers::eula::get_pending_eulas))
         .route("/auth/eula/current", get(handlers::eula::get_current_eula))
+        .route("/auth/eula/accept-pending", post(handlers::eula::accept_eula_pending))
         .route("/auth/eula/accept", post(handlers::eula::accept_eula))
         .route("/auth/eula/status", get(handlers::eula::eula_status))
         // EULA — admin routes (RBAC enforced by API gateway)

@@ -16,7 +16,7 @@ use io_error::{IoError, IoResult};
 use io_models::ApiResponse;
 
 use crate::handlers::mfa::check_mfa_required;
-use crate::state::{AppState, MfaPendingEntry};
+use crate::state::{AppState, EulaPendingEntry, MfaPendingEntry};
 
 // ---------------------------------------------------------------------------
 // Publish a session lock/unlock event to the data broker so connected
@@ -91,6 +91,20 @@ pub struct UserSummary {
     pub eula_accepted: bool,
 }
 
+#[derive(Debug, Serialize)]
+pub struct EulaRequiredResponse {
+    pub status: String,
+    pub eula_pending_token: String,
+    pub eula: EulaInfo,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EulaInfo {
+    pub version: String,
+    pub title: String,
+    pub content_url: String,
+}
+
 // ---------------------------------------------------------------------------
 // POST /auth/login
 // Local username/password authentication. Returns access token in body,
@@ -107,7 +121,8 @@ pub async fn login(
     // --- 1. Look up user ---
     let row = sqlx::query(
         "SELECT id, username, full_name, email, password_hash, enabled,
-                locked_until, failed_login_count, auth_provider, is_service_account
+                locked_until, failed_login_count, auth_provider, is_service_account,
+                is_emergency_account
          FROM users
          WHERE LOWER(username) = $1 AND deleted_at IS NULL",
     )
@@ -134,6 +149,7 @@ pub async fn login(
     let failed_login_count: i32 = row.get("failed_login_count");
     let auth_provider: String = row.get("auth_provider");
     let is_service_account: bool = row.get("is_service_account");
+    let is_emergency_account: bool = row.get("is_emergency_account");
 
     // --- 2. Validate auth provider ---
     if auth_provider != "local" {
@@ -240,10 +256,78 @@ pub async fn login(
         }
     }
 
-    // --- 6. Collect permissions ---
+    // --- 6. EULA gate ---
+    // Service accounts (API keys) and emergency break-glass accounts bypass the EULA check.
+    if !is_service_account && !is_emergency_account {
+        let eula_not_accepted: bool = sqlx::query(
+            "SELECT NOT EXISTS (
+                SELECT 1 FROM eula_acceptances ea
+                JOIN eula_versions ev ON ev.id = ea.eula_version_id
+                WHERE ea.user_id = $1 AND ev.is_active = true AND ev.eula_type = 'end_user'
+            ) AS eula_not_accepted",
+        )
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|r| r.try_get::<bool, _>("eula_not_accepted").ok())
+        .unwrap_or(false);
+
+        if eula_not_accepted {
+            // Fetch the active EULA version details for the response
+            let eula_row = sqlx::query(
+                "SELECT version, title FROM eula_versions
+                 WHERE eula_type = 'end_user' AND is_active = true
+                 LIMIT 1",
+            )
+            .fetch_optional(&state.db)
+            .await;
+
+            let (eula_version, eula_title) = match eula_row {
+                Ok(Some(r)) => (
+                    r.try_get::<String, _>("version").unwrap_or_else(|_| "1.0".to_string()),
+                    r.try_get::<String, _>("title").unwrap_or_else(|_| "End User License Agreement".to_string()),
+                ),
+                _ => ("1.0".to_string(), "End User License Agreement".to_string()),
+            };
+
+            // Generate a short-lived pending token (32 bytes = 64 hex chars)
+            use rand::Rng;
+            let bytes: Vec<u8> = (0..32).map(|_| rand::thread_rng().gen::<u8>()).collect();
+            let pending_token: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+
+            state.eula_pending_tokens.insert(
+                pending_token.clone(),
+                EulaPendingEntry {
+                    user_id,
+                    expires_at: Utc::now() + chrono::Duration::minutes(5),
+                    used: false,
+                },
+            );
+
+            info!(user_id = %user_id, "EULA acceptance required — pending token issued");
+
+            return Ok((
+                StatusCode::OK,
+                Json(ApiResponse::ok(EulaRequiredResponse {
+                    status: "eula_required".to_string(),
+                    eula_pending_token: pending_token,
+                    eula: EulaInfo {
+                        version: eula_version,
+                        title: eula_title,
+                        content_url: "/api/auth/eula/current".to_string(),
+                    },
+                })),
+            )
+                .into_response());
+        }
+    }
+
+    // --- 7. Collect permissions ---
     let permissions = fetch_user_permissions(&state.db, user_id).await?;
 
-    // --- 7. Build JWT ---
+    // --- 8. Build JWT ---
     let claims = build_claims(&user_id.to_string(), &db_username, permissions);
     let access_token = generate_access_token(&claims, &state.config.jwt_secret)
         .map_err(|e| IoError::Internal(e.to_string()))?;
@@ -307,28 +391,14 @@ pub async fn login(
     )
     .await;
 
-    // --- 10. Check current EULA acceptance ---
-    let eula_accepted: bool = sqlx::query(
-        "SELECT EXISTS (
-            SELECT 1 FROM eula_acceptances ea
-            JOIN eula_versions ev ON ev.id = ea.eula_version_id
-            WHERE ea.user_id = $1 AND ev.is_active = true
-        ) AS eula_accepted",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .and_then(|r| r.try_get::<bool, _>("eula_accepted").ok())
-    .unwrap_or(false);
-
-    // --- 11. Build response ---
+    // --- 10. Build response ---
+    // If we reach this point the EULA gate was passed (either accepted or bypassed for service/emergency
+    // accounts), so eula_accepted is always true from the client's perspective here.
     let body = ApiResponse::ok(LoginResponse {
         access_token,
         token_type: "Bearer".to_string(),
         expires_in: 900, // 15 minutes
-        user: UserSummary { id: user_id, username: db_username, full_name, email, eula_accepted },
+        user: UserSummary { id: user_id, username: db_username, full_name, email, eula_accepted: true },
     });
 
     let cookie = format!(

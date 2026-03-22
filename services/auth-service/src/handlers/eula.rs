@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::HeaderMap,
+    http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 use sqlx::Row;
 use uuid::Uuid;
 
+use io_auth::{build_claims, generate_access_token};
 use io_error::IoError;
 use io_models::ApiResponse;
 
@@ -421,6 +422,265 @@ pub async fn accept_eula(
             IoError::Database(e).into_response()
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/eula/accept-pending
+//
+// Called immediately after the EULA is presented to the user during the login
+// flow (when the normal login response returned `eula_required`).
+//
+// Does NOT require a JWT — the caller presents the short-lived `eula_pending_token`
+// that was issued by the login handler.  On success, records EULA acceptance
+// and issues the real JWT access + refresh tokens, completing the login.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct AcceptEulaPendingBody {
+    /// The short-lived token returned in the `eula_required` login response.
+    pub eula_pending_token: String,
+    /// The EULA version being accepted.
+    pub version: String,
+    /// Context — always "login" for this flow.
+    #[serde(default = "default_context")]
+    pub acceptance_context: String,
+}
+
+pub async fn accept_eula_pending(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<AcceptEulaPendingBody>,
+) -> impl IntoResponse {
+
+    // --- 1. Validate the pending token ---
+    let entry = {
+        match state.eula_pending_tokens.get(&body.eula_pending_token) {
+            Some(e) => e.clone(),
+            None => return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "invalid_or_expired_token"}))).into_response(),
+        }
+    };
+
+    if entry.used {
+        // Single-use: reject
+        state.eula_pending_tokens.remove(&body.eula_pending_token);
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "token_already_used"}))).into_response();
+    }
+
+    if entry.expires_at < Utc::now() {
+        state.eula_pending_tokens.remove(&body.eula_pending_token);
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "token_expired"}))).into_response();
+    }
+
+    let user_id = entry.user_id;
+
+    // Mark the token used atomically
+    if let Some(mut e) = state.eula_pending_tokens.get_mut(&body.eula_pending_token) {
+        e.used = true;
+    }
+
+    // Remove the token (single-use)
+    state.eula_pending_tokens.remove(&body.eula_pending_token);
+
+    // --- 2. Record EULA acceptance (same logic as accept_eula) ---
+    let version = body.version.trim().to_string();
+    if version.is_empty() {
+        return IoError::BadRequest("version is required".into()).into_response();
+    }
+
+    let version_row = sqlx::query(
+        "SELECT id, content_hash FROM eula_versions
+         WHERE eula_type = 'end_user' AND version = $1 AND is_active = true
+         LIMIT 1",
+    )
+    .bind(&version)
+    .fetch_optional(&state.db)
+    .await;
+
+    let (version_id, content_hash) = match version_row {
+        Ok(Some(r)) => {
+            let vid: Uuid = r.try_get("id").unwrap_or_else(|_| Uuid::nil());
+            let ch: String = r.try_get::<String, _>("content_hash").unwrap_or_default();
+            (vid, ch)
+        }
+        Ok(None) => {
+            tracing::warn!(version = %version, "accept_eula_pending: EULA version not found or not active");
+            return IoError::NotFound(format!("EULA v'{}' not found or not active", version)).into_response();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "accept_eula_pending: version lookup failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    // Get user info for snapshot fields
+    let user_row = sqlx::query(
+        "SELECT username, email, full_name FROM users WHERE id = $1 AND enabled = true AND deleted_at IS NULL",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let (username, email, _full_name) = match user_row {
+        Ok(Some(r)) => (
+            r.try_get::<String, _>("username").unwrap_or_default(),
+            r.try_get::<String, _>("email").unwrap_or_default(),
+            r.try_get::<Option<String>, _>("full_name").ok().flatten(),
+        ),
+        _ => {
+            tracing::warn!(user_id = %user_id, "accept_eula_pending: user not found or disabled");
+            return IoError::Unauthorized.into_response();
+        }
+    };
+
+    let user_agent: String = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .chars()
+        .take(512)
+        .collect();
+
+    let forwarded = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()))
+        .unwrap_or("127.0.0.1")
+        .trim()
+        .to_string();
+
+    // Fetch prior hash for chain continuity
+    let prev_row = sqlx::query(
+        "SELECT row_hash FROM eula_acceptances ORDER BY accepted_at DESC LIMIT 1",
+    )
+    .fetch_optional(&state.db)
+    .await;
+
+    let previous_hash: Option<String> = prev_row
+        .ok()
+        .flatten()
+        .and_then(|r| r.try_get::<Option<String>, _>("row_hash").ok().flatten());
+
+    let receipt_token = Uuid::new_v4();
+    let accepted_at_str = Utc::now().to_rfc3339();
+    let row_hash = sha256_hex(&format!(
+        "{user_id}|{version_id}|{accepted_at_str}|{forwarded}|operator|\
+         {username}|{email}||{content_hash}|\
+         {receipt_token}|{}|{}",
+        body.acceptance_context,
+        previous_hash.as_deref().unwrap_or("")
+    ));
+
+    let insert_result = sqlx::query(
+        r#"
+        INSERT INTO eula_acceptances (
+            user_id, eula_version_id,
+            accepted_from_ip, accepted_as_role,
+            username_snapshot, user_agent, content_hash,
+            receipt_token, acceptance_context,
+            user_email_snapshot, user_display_name_snapshot,
+            previous_hash, row_hash
+        )
+        SELECT $1, $2, $3::inet, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+        WHERE NOT EXISTS (
+            SELECT 1 FROM eula_acceptances
+            WHERE user_id = $1 AND eula_version_id = $2
+        )
+        "#,
+    )
+    .bind(user_id)
+    .bind(version_id)
+    .bind(&forwarded)
+    .bind("operator")
+    .bind(&username)
+    .bind(&user_agent)
+    .bind(&content_hash)
+    .bind(receipt_token)
+    .bind(&body.acceptance_context)
+    .bind(&email)
+    .bind("")           // display_name_snapshot — not available without JWT
+    .bind(&previous_hash)
+    .bind(&row_hash)
+    .execute(&state.db)
+    .await;
+
+    if let Err(e) = insert_result {
+        tracing::error!(error = %e, "accept_eula_pending: insert failed");
+        return IoError::Database(e).into_response();
+    }
+
+    // Mirror onto users table for fast login-time check
+    let _ = sqlx::query(
+        "UPDATE users SET eula_accepted = true, eula_accepted_at = NOW() WHERE id = $1",
+    )
+    .bind(user_id)
+    .execute(&state.db)
+    .await;
+
+    tracing::info!(
+        user_id = %user_id,
+        version = %version,
+        receipt_token = %receipt_token,
+        "EULA accepted via pending token — login completing"
+    );
+
+    // --- 3. Issue JWT + refresh tokens (completing the login) ---
+    let permissions = crate::handlers::auth::fetch_user_permissions(&state.db, user_id)
+        .await
+        .unwrap_or_default();
+
+    let claims = build_claims(&user_id.to_string(), &username, permissions);
+    let access_token = match generate_access_token(&claims, &state.config.jwt_secret) {
+        Ok(t) => t,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let refresh_token = Uuid::new_v4().to_string();
+    let mut hasher = Sha256::new();
+    hasher.update(refresh_token.as_bytes());
+    let refresh_token_hash = format!("{:x}", hasher.finalize());
+
+    let ttl_secs = state.config.refresh_token_ttl_secs as i64;
+    let expires_at = Utc::now() + chrono::Duration::seconds(ttl_secs);
+
+    let _ = sqlx::query(
+        "INSERT INTO user_sessions
+            (id, user_id, refresh_token_hash, expires_at, ip_address, user_agent)
+         VALUES ($1, $2, $3, $4, $5::inet, $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(user_id)
+    .bind(&refresh_token_hash)
+    .bind(expires_at)
+    .bind(&forwarded)
+    .bind(&user_agent)
+    .execute(&state.db)
+    .await;
+
+    let _ = sqlx::query(
+        "UPDATE users SET last_login_at = NOW(), failed_login_count = 0, locked_until = NULL
+         WHERE id = $1",
+    )
+    .bind(user_id)
+    .execute(&state.db)
+    .await;
+
+    let body_resp = ApiResponse::ok(serde_json::json!({
+        "access_token": access_token,
+        "token_type": "Bearer",
+        "expires_in": 900u64,
+    }));
+
+    let cookie = format!(
+        "refresh_token={refresh_token}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age={ttl_secs}"
+    );
+
+    let mut response = (StatusCode::OK, Json(body_resp)).into_response();
+    if let Ok(cookie_val) = cookie.parse() {
+        response.headers_mut().insert(header::SET_COOKIE, cookie_val);
+    }
+
+    response
 }
 
 // ---------------------------------------------------------------------------

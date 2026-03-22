@@ -50,7 +50,9 @@
     "DD-06-011": 1,
     "MOD-DESIGNER-002": 1,
     "MOD-DESIGNER-023": 1,
-    "OPC-BACKEND-002": 1
+    "OPC-BACKEND-002": 1,
+    "DD-28-002": 1,
+    "DD-28-006": 1
   },
   "queue": [
     {
@@ -2812,7 +2814,7 @@
       "wave": 3,
       "title": "Replace hand-rolled template substitution with MiniJinja engine",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2852,7 +2854,7 @@
       "wave": 3,
       "title": "Implement AES-256-GCM credential encryption at rest for provider configs",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2884,7 +2886,7 @@
       "wave": 3,
       "title": "Implement EULA hard gate \u2014 block JWT issuance until acceptance",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
