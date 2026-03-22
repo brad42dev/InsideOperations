@@ -197,7 +197,7 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
         (format!("ip:{ip}"), UNAUTH_LIMIT, AUTH_WINDOW_SECS)
     };
 
-    let allowed = {
+    let (allowed, remaining) = {
         let mut entry = RATE_BUCKETS.entry(key.clone()).or_insert_with(|| Bucket {
             tokens: limit,
             last_refill: now,
@@ -210,11 +210,13 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
 
         if entry.tokens >= 1.0 {
             entry.tokens -= 1.0;
-            true
+            (true, entry.tokens.floor() as u64)
         } else {
-            false
+            (false, 0u64)
         }
     };
+
+    let reset_ts = now + window_secs as i64;
 
     if !allowed {
         let retry_after = window_secs as u64 / limit as u64;
@@ -237,10 +239,31 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
             "x-ratelimit-limit",
             HeaderValue::from_str(&(limit as u64).to_string()).unwrap(),
         );
+        resp.headers_mut().insert(
+            "x-ratelimit-remaining",
+            HeaderValue::from_str("0").unwrap(),
+        );
+        resp.headers_mut().insert(
+            "x-ratelimit-reset",
+            HeaderValue::from_str(&reset_ts.to_string()).unwrap(),
+        );
         return resp;
     }
 
-    next.run(req).await
+    let mut resp = next.run(req).await;
+    resp.headers_mut().insert(
+        "x-ratelimit-limit",
+        HeaderValue::from_str(&(limit as u64).to_string()).unwrap(),
+    );
+    resp.headers_mut().insert(
+        "x-ratelimit-remaining",
+        HeaderValue::from_str(&remaining.to_string()).unwrap(),
+    );
+    resp.headers_mut().insert(
+        "x-ratelimit-reset",
+        HeaderValue::from_str(&reset_ts.to_string()).unwrap(),
+    );
+    resp
 }
 
 fn is_auth_endpoint(path: &str) -> bool {
