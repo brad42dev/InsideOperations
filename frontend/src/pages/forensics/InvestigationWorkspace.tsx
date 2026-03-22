@@ -18,6 +18,7 @@ import EChart from '../../shared/components/charts/EChart'
 import EvidenceRenderer from './EvidenceRenderer'
 import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
 import { useAuthStore } from '../../store/auth'
+import PointContextMenu from '../../shared/components/PointContextMenu'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -863,19 +864,26 @@ function PointsPanel({
         gap: '6px',
       }}
     >
-      <span
-        style={{
-          fontSize: '12px',
-          color: 'var(--io-text-primary)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          flex: 1,
-        }}
-        title={point.point_id}
+      <PointContextMenu
+        pointId={point.point_id}
+        tagName={point.point_tag ?? point.point_id}
+        isAlarm={false}
+        isAlarmElement={false}
       >
-        {point.point_name ?? point.point_tag ?? point.point_id}
-      </span>
+        <span
+          style={{
+            fontSize: '12px',
+            color: 'var(--io-text-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+          }}
+          title={point.point_id}
+        >
+          {point.point_name ?? point.point_tag ?? point.point_id}
+        </span>
+      </PointContextMenu>
       {showRemove && !readOnly && (
         <button
           onClick={() => removePointMutation.mutate({ pointId: point.point_id })}

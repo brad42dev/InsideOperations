@@ -7,6 +7,7 @@ import type { EvidenceItem } from '../../api/forensics'
 import { graphicsApi } from '../../api/graphics'
 import { extractPointIds } from '../../shared/graphics/pointExtractor'
 import { useHistoricalValues } from '../../shared/hooks/useHistoricalValues'
+import PointContextMenu from '../../shared/components/PointContextMenu'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -151,11 +152,41 @@ function TrendEvidence({
     (query.data ?? [])[0]?.data.map((d) => Math.floor(new Date(d.ts).getTime() / 1000)) ?? []
 
   return (
-    <TimeSeriesChart
-      timestamps={timestamps}
-      series={seriesData}
-      height={180}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {/* Point ID labels — right-click to open PointContextMenu */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+        {seriesData.map((s) => (
+          <PointContextMenu
+            key={s.label}
+            pointId={s.label}
+            tagName={s.label}
+            isAlarm={false}
+            isAlarmElement={false}
+          >
+            <span
+              style={{
+                fontSize: '11px',
+                color: s.color,
+                background: 'var(--io-surface-secondary)',
+                border: '1px solid var(--io-border)',
+                borderRadius: '4px',
+                padding: '1px 6px',
+                fontFamily: 'var(--io-font-mono, monospace)',
+                cursor: 'default',
+                userSelect: 'none',
+              }}
+            >
+              {s.label}
+            </span>
+          </PointContextMenu>
+        ))}
+      </div>
+      <TimeSeriesChart
+        timestamps={timestamps}
+        series={seriesData}
+        height={180}
+      />
+    </div>
   )
 }
 
@@ -196,7 +227,27 @@ function AlarmListEvidence({
   })
 
   const columns: ColumnDef<AlarmEntry>[] = [
-    { id: 'tag', header: 'Tag', accessorKey: 'tag' },
+    {
+      id: 'tag',
+      header: 'Tag',
+      accessorKey: 'tag',
+      cell: (val, row) => {
+        const tag = val as string | undefined
+        if (!tag) return '—'
+        return (
+          <PointContextMenu
+            pointId={row.id ?? tag}
+            tagName={tag}
+            isAlarm
+            isAlarmElement={false}
+          >
+            <span style={{ fontFamily: 'var(--io-font-mono, monospace)', fontSize: '12px' }}>
+              {tag}
+            </span>
+          </PointContextMenu>
+        )
+      },
+    },
     { id: 'message', header: 'Message', accessorKey: 'message' },
     { id: 'severity', header: 'Severity', accessorKey: 'severity' },
     {
