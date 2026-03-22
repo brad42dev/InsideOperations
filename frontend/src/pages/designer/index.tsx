@@ -279,7 +279,7 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
                   flex: 1,
                   padding: '6px 0',
                   background: mode === m ? 'var(--io-accent)' : 'var(--io-surface)',
-                  color: mode === m ? '#09090b' : 'var(--io-text-secondary)',
+                  color: mode === m ? 'var(--io-accent-foreground)' : 'var(--io-text-secondary)',
                   border: '1px solid var(--io-border)',
                   borderRadius: 'var(--io-radius)',
                   fontSize: 12,
@@ -318,7 +318,7 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
                     fontSize: 11,
                     fontWeight: isActive ? 600 : 400,
                     background: isActive ? 'var(--io-accent)' : 'var(--io-surface)',
-                    color: isActive ? '#09090b' : 'var(--io-text-secondary)',
+                    color: isActive ? 'var(--io-accent-foreground)' : 'var(--io-text-secondary)',
                     border: '1px solid var(--io-border)',
                     borderRadius: 'calc(var(--io-radius) * 2)',
                     cursor: 'pointer',
@@ -369,7 +369,7 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: proportionalLock ? 'var(--io-accent)' : 'var(--io-surface)',
-                color: proportionalLock ? '#09090b' : 'var(--io-text-muted)',
+                color: proportionalLock ? 'var(--io-accent-foreground)' : 'var(--io-text-muted)',
                 border: '1px solid var(--io-border)',
                 borderRadius: 'var(--io-radius)',
                 cursor: 'pointer',
@@ -423,7 +423,7 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
             style={{
               padding: '6px 14px',
               background: name.trim() ? 'var(--io-accent)' : 'var(--io-surface-elevated)',
-              color: name.trim() ? '#09090b' : 'var(--io-text-muted)',
+              color: name.trim() ? 'var(--io-accent-foreground)' : 'var(--io-text-muted)',
               border: 'none',
               borderRadius: 'var(--io-radius)',
               fontSize: 12,
@@ -495,16 +495,20 @@ function VerticalDivider({ onDrag }: DividerProps) {
 
 function LoadingSkeleton() {
   return (
-    <div style={{
-      flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#0a0a0b',
-      color: 'var(--io-text-muted)',
-      fontSize: 13,
-    }}>
-      Loading graphic…
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--io-surface-primary)', overflow: 'hidden' }}>
+      {/* Toolbar row */}
+      <div style={{ height: 40, background: 'var(--io-surface)', borderBottom: '1px solid var(--io-border)', flexShrink: 0 }} />
+      {/* Body row */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left palette */}
+        <div style={{ width: 240, background: 'var(--io-surface-secondary)', borderRight: '1px solid var(--io-border)', flexShrink: 0 }} />
+        {/* Canvas */}
+        <div style={{ flex: 1, background: 'var(--io-surface-primary)' }} />
+        {/* Right panel */}
+        <div style={{ width: 300, background: 'var(--io-surface-secondary)', borderLeft: '1px solid var(--io-border)', flexShrink: 0 }} />
+      </div>
+      {/* Status bar */}
+      <div style={{ height: 28, background: 'var(--io-surface)', borderTop: '1px solid var(--io-border)', flexShrink: 0 }} />
     </div>
   )
 }
@@ -521,17 +525,17 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#0a0a0b',
+      background: 'var(--io-surface-primary)',
       gap: 12,
     }}>
-      <div style={{ color: '#ef4444', fontSize: 14 }}>Failed to load graphic</div>
+      <div style={{ color: 'var(--io-alarm-critical)', fontSize: 14 }}>Failed to load graphic</div>
       <div style={{ color: 'var(--io-text-muted)', fontSize: 12 }}>{message}</div>
       <button
         onClick={onRetry}
         style={{
           padding: '6px 16px',
           background: 'var(--io-accent)',
-          color: '#09090b',
+          color: 'var(--io-accent-foreground)',
           border: 'none',
           borderRadius: 'var(--io-radius)',
           fontSize: 12,
