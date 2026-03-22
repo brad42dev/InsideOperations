@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T10:04:37.962479+00:00",
+  "last_updated": "2026-03-22T10:10:53.018640+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -80,7 +80,8 @@
     "DD-06-005": 1,
     "MOD-PROCESS-003": 1,
     "GFX-SHAPES-005": 1,
-    "MOD-PROCESS-007": 1
+    "MOD-PROCESS-007": 1,
+    "OPC-BACKEND-003": 1
   },
   "queue": [
     {
@@ -1102,7 +1103,7 @@
       "title": "Make PointDetailPanel resizable, pinnable, minimizable, and session-position-persisted",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "implementing",
       "audit_round": 8
     },
     {
@@ -1344,7 +1345,7 @@
       "wave": 2,
       "title": "Apply PercentDeadband 1% filter on AnalogItemType subscriptions",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },

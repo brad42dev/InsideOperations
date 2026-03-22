@@ -110,6 +110,8 @@ import MusterPointConfig from './pages/shifts/MusterPointConfig'
 import ToastProvider from './shared/components/Toast'
 import { ErrorBoundary } from './shared/components/ErrorBoundary'
 import { useAuthStore } from './store/auth'
+import PointDetailPanel from './shared/components/PointDetailPanel'
+import { usePointDetailStore } from './store/pointDetailStore'
 
 function AppRoutes() {
   const { isAuthenticated } = useAuthStore()
@@ -1063,11 +1065,39 @@ function AppRoutes() {
   )
 }
 
+/**
+ * Shell-level pinned PointDetailPanel host.
+ *
+ * Renders all pinned panels outside the route outlet so they survive
+ * navigation (spec CX-POINT-DETAIL non-negotiable #3).
+ */
+function PinnedPointDetailPanels() {
+  const { pinnedPanels, unpinPanel } = usePointDetailStore()
+
+  return (
+    <>
+      {pinnedPanels.map((panel) => (
+        <PointDetailPanel
+          key={panel.id}
+          pointId={panel.pointId}
+          panelId={panel.id}
+          anchorPosition={panel.anchorPosition}
+          isPinned
+          onClose={() => unpinPanel(panel.id)}
+        />
+      ))}
+    </>
+  )
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <AppRoutes />
       <ToastProvider />
+      {/* Pinned point detail panels — rendered outside the route outlet so they
+          survive navigation between Console, Process, and other modules. */}
+      <PinnedPointDetailPanels />
     </ThemeProvider>
   )
 }

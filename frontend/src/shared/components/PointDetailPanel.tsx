@@ -1,13 +1,73 @@
-import { useEffect, useRef, useState } from 'react'
+/**
+ * PointDetailPanel — floating, draggable, resizable, pinnable, minimizable.
+ *
+ * Spec: CX-POINT-DETAIL non-negotiables #1, #3, #6
+ *   - Floating window (not a modal): draggable, resizable, pinnable, minimizable.
+ *   - Session-persisted position and size under key `io-point-detail-{pointId}`.
+ *   - Panel data from GET /api/v1/points/:id/detail (single request).
+ */
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { pointsApi } from '../../api/points'
 import { useWebSocket } from '../hooks/useWebSocket'
 import TimeSeriesChart from './charts/TimeSeriesChart'
+import { usePointDetailStore } from '../../store/pointDetailStore'
 
-export interface PointDetailPanelProps {
-  pointId: string | null
-  onClose: () => void
-  anchorPosition?: { x: number; y: number }
+// ---------------------------------------------------------------------------
+// Session storage helpers
+// ---------------------------------------------------------------------------
+
+interface PanelState {
+  top: number
+  left: number
+  width: number
+  height: number
+  minimized: boolean
+}
+
+function sessionKey(pointId: string): string {
+  return `io-point-detail-${pointId}`
+}
+
+function loadPanelState(pointId: string): PanelState | null {
+  try {
+    const raw = sessionStorage.getItem(sessionKey(pointId))
+    if (!raw) return null
+    return JSON.parse(raw) as PanelState
+  } catch {
+    return null
+  }
+}
+
+function savePanelState(pointId: string, state: PanelState): void {
+  try {
+    sessionStorage.setItem(sessionKey(pointId), JSON.stringify(state))
+  } catch {
+    // Ignore quota errors
+  }
+}
+
+function defaultPanelState(anchorPosition?: { x: number; y: number }): PanelState {
+  const width = 320
+  const height = 380
+  let left: number
+  let top: number
+
+  if (anchorPosition) {
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    left = anchorPosition.x + 12
+    top = anchorPosition.y - 20
+    if (left + width > vw - 12) left = anchorPosition.x - width - 12
+    if (top + height > vh - 12) top = vh - height - 12
+    if (top < 12) top = 12
+    if (left < 12) left = 12
+  } else {
+    left = window.innerWidth - width - 16
+    top = 60
+  }
+
+  return { top, left, width, height, minimized: false }
 }
 
 // ---------------------------------------------------------------------------
@@ -42,7 +102,7 @@ function QualityBadge({ quality }: { quality: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sparkline helper — converts HistoryEntry[] to uPlot-compatible arrays
+// Sparkline helper
 // ---------------------------------------------------------------------------
 
 function useSparklineData(pointId: string | null) {
@@ -53,13 +113,72 @@ function useSparklineData(pointId: string | null) {
       if (!pointId) return null
       const now = new Date()
       const end = now.toISOString()
-      const start = new Date(now.getTime() - 60 * 60 * 1000).toISOString() // last 1 hour
+      const start = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
       const result = await pointsApi.getHistory(pointId, { start, end, limit: 20 })
       if (!result.success) return null
       return result.data
     },
     staleTime: 30_000,
   })
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+export interface PointDetailPanelProps {
+  pointId: string | null
+  onClose: () => void
+  anchorPosition?: { x: number; y: number }
+  /**
+   * When true, the panel is rendered at the shell level (App.tsx) so it
+   * survives navigation. When false, the panel is local to the current view.
+   */
+  isPinned?: boolean
+  /**
+   * Stable panel ID used to identify this instance in the pin store.
+   * Required when isPinned=true.
+   */
+  panelId?: string
+}
+
+// ---------------------------------------------------------------------------
+// Header icon button
+// ---------------------------------------------------------------------------
+
+function IconButton({
+  onClick,
+  title,
+  active,
+  children,
+}: {
+  onClick: () => void
+  title: string
+  active?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      style={{
+        background: active ? 'var(--io-accent, #3b82f6)' : 'none',
+        border: 'none',
+        color: active ? '#fff' : 'var(--io-text-muted)',
+        cursor: 'pointer',
+        fontSize: '13px',
+        lineHeight: 1,
+        padding: '3px 5px',
+        borderRadius: '4px',
+        flexShrink: 0,
+        transition: 'background 0.15s',
+      }}
+    >
+      {children}
+    </button>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -70,13 +189,155 @@ export default function PointDetailPanel({
   pointId,
   onClose,
   anchorPosition,
+  isPinned = false,
+  panelId,
 }: PointDetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const { pinPanel, unpinPanel } = usePointDetailStore()
 
-  // Fetch metadata
-  const metaQuery = useQuery({
-    queryKey: ['point-meta', pointId],
+  // ── Panel state (position, size, minimized) — session-persisted ──────────
+
+  const [panelState, setPanelStateRaw] = useState<PanelState>(() => {
+    if (!pointId) return defaultPanelState(anchorPosition)
+    return loadPanelState(pointId) ?? defaultPanelState(anchorPosition)
+  })
+
+  const setPanelState = useCallback(
+    (updater: PanelState | ((prev: PanelState) => PanelState)) => {
+      setPanelStateRaw((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater
+        if (pointId) savePanelState(pointId, next)
+        return next
+      })
+    },
+    [pointId],
+  )
+
+  // When a new pointId opens (and no session state), position near anchor
+  useEffect(() => {
+    if (!pointId) return
+    const saved = loadPanelState(pointId)
+    if (!saved) {
+      setPanelState(defaultPanelState(anchorPosition))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pointId])
+
+  // ── Drag ─────────────────────────────────────────────────────────────────
+
+  const dragState = useRef<{
+    startMouseX: number
+    startMouseY: number
+    startTop: number
+    startLeft: number
+  } | null>(null)
+
+  function handleHeaderMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.button !== 0) return
+    // Ignore clicks on buttons inside the header
+    if ((e.target as HTMLElement).closest('button')) return
+    e.preventDefault()
+    dragState.current = {
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startTop: panelState.top,
+      startLeft: panelState.left,
+    }
+
+    function onMove(ev: MouseEvent) {
+      if (!dragState.current) return
+      const dx = ev.clientX - dragState.current.startMouseX
+      const dy = ev.clientY - dragState.current.startMouseY
+      setPanelState((prev) => ({
+        ...prev,
+        top: dragState.current!.startTop + dy,
+        left: dragState.current!.startLeft + dx,
+      }))
+    }
+
+    function onUp() {
+      dragState.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  // ── Resize via ResizeObserver (CSS resize: both) ─────────────────────────
+
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        if (width > 0 && height > 0) {
+          setPanelState((prev) => ({
+            ...prev,
+            width: Math.round(width),
+            height: Math.round(height),
+          }))
+        }
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [setPanelState])
+
+  // ── Minimize ─────────────────────────────────────────────────────────────
+
+  function toggleMinimize() {
+    setPanelState((prev) => ({ ...prev, minimized: !prev.minimized }))
+  }
+
+  // ── Pin / Unpin ───────────────────────────────────────────────────────────
+
+  function handlePinToggle() {
+    if (!pointId) return
+    if (isPinned && panelId) {
+      // Unpin: remove from shell store, also close the local panel
+      unpinPanel(panelId)
+      onClose()
+    } else {
+      // Pin: add to shell store. The shell will render this panel; the local
+      // instance (inside GraphicPane) should close.
+      const id = panelId ?? crypto.randomUUID()
+      pinPanel({ id, pointId, anchorPosition })
+      onClose()
+    }
+  }
+
+  // ── Dismiss on Escape ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!pointId) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [pointId, onClose])
+
+  // ── Data fetching — single /detail endpoint, fallback to getMeta+getLatest ─
+
+  const detailQuery = useQuery({
+    queryKey: ['point-detail', pointId],
     enabled: pointId !== null,
+    queryFn: async () => {
+      if (!pointId) return null
+      const result = await pointsApi.getDetail(pointId)
+      if (!result.success) return null
+      return result.data
+    },
+    staleTime: 5_000,
+  })
+
+  // Fallback: if /detail endpoint not yet implemented (404 / error), use getMeta
+  const metaFallbackQuery = useQuery({
+    queryKey: ['point-meta', pointId],
+    enabled: pointId !== null && detailQuery.isError,
     queryFn: async () => {
       if (!pointId) return null
       const result = await pointsApi.getMeta(pointId)
@@ -86,10 +347,9 @@ export default function PointDetailPanel({
     staleTime: 60_000,
   })
 
-  // Fetch last known value (fallback while WS connects)
-  const latestQuery = useQuery({
+  const latestFallbackQuery = useQuery({
     queryKey: ['point-latest', pointId],
-    enabled: pointId !== null,
+    enabled: pointId !== null && detailQuery.isError,
     queryFn: async () => {
       if (!pointId) return null
       const result = await pointsApi.getLatest(pointId)
@@ -107,8 +367,17 @@ export default function PointDetailPanel({
   // Sparkline data
   const sparkQuery = useSparklineData(pointId)
 
-  // Determine displayed value
-  const displayValue = liveValue ?? latestQuery.data
+  // Resolve displayed data: prefer /detail, fall back to getMeta+getLatest
+  const meta = detailQuery.data ?? metaFallbackQuery.data
+  const latestFromDetail = detailQuery.data?.latest
+  const latestFromFallback = latestFallbackQuery.data
+
+  const displayValue =
+    liveValue ??
+    (latestFromDetail
+      ? { value: latestFromDetail.value, quality: latestFromDetail.quality, timestamp: latestFromDetail.timestamp }
+      : latestFromFallback)
+
   const displayTimestamp = displayValue?.timestamp
     ? new Date(displayValue.timestamp).toLocaleTimeString()
     : null
@@ -124,79 +393,33 @@ export default function PointDetailPanel({
     }
   }
 
-  // Dismiss on Escape key
-  useEffect(() => {
-    if (!pointId) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [pointId, onClose])
-
-  // Position and drag state
-  const [position, setPosition] = useState<{ top: number; left: number }>({ top: 60, left: 0 })
-  const dragState = useRef<{ startMouseX: number; startMouseY: number; startTop: number; startLeft: number } | null>(null)
-
-  function handleHeaderMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    if (e.button !== 0) return
-    e.preventDefault()
-    dragState.current = { startMouseX: e.clientX, startMouseY: e.clientY, startTop: position.top, startLeft: position.left }
-    function onMove(ev: MouseEvent) {
-      if (!dragState.current) return
-      const dx = ev.clientX - dragState.current.startMouseX
-      const dy = ev.clientY - dragState.current.startMouseY
-      setPosition({ top: dragState.current.startTop + dy, left: dragState.current.startLeft + dx })
-    }
-    function onUp() {
-      dragState.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }
-
-  useEffect(() => {
-    if (!pointId) return
-    if (anchorPosition) {
-      // Position near anchor, keep within viewport
-      const panelW = 320
-      const panelH = 360
-      const vw = window.innerWidth
-      const vh = window.innerHeight
-      let left = anchorPosition.x + 12
-      let top = anchorPosition.y - 20
-      if (left + panelW > vw - 12) left = anchorPosition.x - panelW - 12
-      if (top + panelH > vh - 12) top = vh - panelH - 12
-      if (top < 12) top = 12
-      if (left < 12) left = 12
-      setPosition({ top, left })
-    } else {
-      // Default: right edge
-      const panelW = 320
-      setPosition({ top: 60, left: window.innerWidth - panelW - 16 })
-    }
-  }, [pointId, anchorPosition])
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (!pointId) return null
 
-  const meta = metaQuery.data
+  const { top, left, width, height, minimized } = panelState
 
   return (
     <div
       ref={panelRef}
       style={{
         position: 'fixed',
-        top: position.top,
-        left: position.left,
-        width: 320,
+        top,
+        left,
+        width: minimized ? width : width,
+        height: minimized ? 'auto' : height,
+        minWidth: 240,
+        minHeight: minimized ? 'auto' : 200,
+        // CSS resize: both — browser draws resize handles on all edges/corners
+        resize: minimized ? 'none' : 'both',
+        overflow: 'hidden',
         zIndex: 2000,
         background: 'var(--io-surface-elevated)',
         border: '1px solid var(--io-border)',
         borderRadius: '8px',
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {/* Header — drag handle */}
@@ -206,14 +429,17 @@ export default function PointDetailPanel({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '10px 14px',
-          borderBottom: '1px solid var(--io-border)',
+          padding: '8px 10px',
+          borderBottom: minimized ? 'none' : '1px solid var(--io-border)',
           background: 'var(--io-surface-secondary)',
           cursor: 'move',
           userSelect: 'none',
+          flexShrink: 0,
+          gap: 6,
         }}
       >
-        <div style={{ overflow: 'hidden' }}>
+        {/* Title area */}
+        <div style={{ overflow: 'hidden', flex: 1 }}>
           <div
             style={{
               fontSize: '13px',
@@ -224,104 +450,145 @@ export default function PointDetailPanel({
               whiteSpace: 'nowrap',
             }}
           >
-            {meta?.name ?? pointId}
+            {(meta as { name?: string } | null | undefined)?.name ?? pointId}
           </div>
-          {meta?.source_name && (
+          {(meta as { source_name?: string } | null | undefined)?.source_name && (
             <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: 1 }}>
-              {meta.source_name}
+              {(meta as { source_name?: string }).source_name}
             </div>
           )}
         </div>
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--io-text-muted)',
-            cursor: 'pointer',
-            fontSize: '16px',
-            lineHeight: 1,
-            padding: '2px 4px',
-            flexShrink: 0,
-          }}
-        >
-          ×
-        </button>
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* Pin button */}
+          <IconButton
+            onClick={handlePinToggle}
+            title={isPinned ? 'Unpin panel (will close on navigation)' : 'Pin panel (keep open during navigation)'}
+            active={isPinned}
+          >
+            {/* Pin icon: simple SVG */}
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              {isPinned ? (
+                // Filled pin = pinned
+                <path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a5.927 5.927 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-1.219.902-1.414.707-.195-.195.512-1.22.707-1.414l3.182-3.182-2.828-2.829a.5.5 0 0 1 0-.707c.688-.688 1.673-.767 2.375-.72a5.922 5.922 0 0 1 1.013.16l3.134-3.133a2.772 2.772 0 0 1-.04-.461c0-.43.108-1.022.589-1.503a.5.5 0 0 1 .353-.146z"/>
+              ) : (
+                // Outline pin = unpinned
+                <path d="M9.828.722a.5.5 0 0 1 .354.146l4.95 4.95a.5.5 0 0 1 0 .707c-.48.48-1.072.588-1.503.588-.177 0-.335-.018-.46-.039l-3.134 3.134a5.927 5.927 0 0 1 .16 1.013c.046.702-.032 1.687-.72 2.375a.5.5 0 0 1-.707 0l-2.829-2.828-3.182 3.182c-.195.195-1.219.902-1.414.707-.195.195.512-1.22.707-1.414l3.182-3.182-2.828-2.829a.5.5 0 0 1 0-.707c.688-.688 1.673-.767 2.375-.72a5.922 5.922 0 0 1 1.013.16l3.134-3.133a2.772 2.772 0 0 1-.04-.461c0-.43.108-1.022.589-1.503a.5.5 0 0 1 .353-.146zm.122 2.073-.799.8 1.323 1.323.8-.799c.428-.429.745-.8.484-1.06L10.011 2.3c-.26-.26-.63.057-1.06.495zm-1.428 1.851L5.477 7.692c-.38.38-.69.81-.894 1.26l2.464 2.464c.45-.204.881-.514 1.26-.894l3.045-3.045-2.83-2.831zM6.585 9.4l-1.1 1.1-2.01 2.01L5 14.046l2.01-2.01 1.1-1.1L6.585 9.4z"/>
+              )}
+            </svg>
+          </IconButton>
+
+          {/* Minimize button */}
+          <IconButton
+            onClick={toggleMinimize}
+            title={minimized ? 'Restore panel' : 'Minimize panel'}
+          >
+            {minimized ? (
+              // Maximize / restore icon
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.5 1h13A1.5 1.5 0 0 1 16 2.5v11A1.5 1.5 0 0 1 14.5 15h-13A1.5 1.5 0 0 1 0 13.5v-11A1.5 1.5 0 0 1 1.5 1zm13 1h-13a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5z"/>
+              </svg>
+            ) : (
+              // Minimize (dash) icon
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8z"/>
+              </svg>
+            )}
+          </IconButton>
+
+          {/* Close button */}
+          <IconButton onClick={onClose} title="Close">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+            </svg>
+          </IconButton>
+        </div>
       </div>
 
-      {/* Body */}
-      <div style={{ padding: '12px 14px' }}>
-        {/* Current value */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
-            Current Value
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: '28px', fontWeight: 700, color: 'var(--io-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-              {displayValue?.value !== undefined ? String(displayValue.value) : '—'}
-            </span>
-            {meta?.engineering_unit && (
-              <span style={{ fontSize: '14px', color: 'var(--io-text-muted)' }}>
-                {meta.engineering_unit}
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-            {displayValue?.quality && <QualityBadge quality={displayValue.quality} />}
-            {displayTimestamp && (
-              <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
-                {displayTimestamp}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Description */}
-        {meta?.description && (
+      {/* Body — hidden when minimized */}
+      {!minimized && (
+        <div style={{ padding: '12px 14px', overflowY: 'auto', flex: 1 }}>
+          {/* Current value */}
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 2 }}>
-              Description
+            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
+              Current Value
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--io-text-secondary, var(--io-text-primary))' }}>
-              {meta.description}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <span
+                style={{
+                  fontSize: '28px',
+                  fontWeight: 700,
+                  color: 'var(--io-text-primary)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {displayValue?.value !== undefined ? String(displayValue.value) : '—'}
+              </span>
+              {(meta as { engineering_unit?: string | null } | null | undefined)?.engineering_unit && (
+                <span style={{ fontSize: '14px', color: 'var(--io-text-muted)' }}>
+                  {(meta as { engineering_unit?: string | null }).engineering_unit}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              {displayValue?.quality && <QualityBadge quality={displayValue.quality} />}
+              {displayTimestamp && (
+                <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
+                  {displayTimestamp}
+                </span>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Sparkline */}
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
-            Last Hour
+          {/* Description */}
+          {(meta as { description?: string | null } | null | undefined)?.description && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 2 }}>
+                Description
+              </div>
+              <div
+                style={{ fontSize: '12px', color: 'var(--io-text-secondary, var(--io-text-primary))' }}
+              >
+                {(meta as { description?: string | null }).description}
+              </div>
+            </div>
+          )}
+
+          {/* Sparkline */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: 4 }}>
+              Last Hour
+            </div>
+            <TimeSeriesChart
+              timestamps={sparkTimestamps}
+              series={
+                sparkTimestamps.length > 0
+                  ? [{ label: (meta as { name?: string } | null | undefined)?.name ?? pointId, data: sparkValues }]
+                  : []
+              }
+              height={80}
+            />
           </div>
-          <TimeSeriesChart
-            timestamps={sparkTimestamps}
-            series={
-              sparkTimestamps.length > 0
-                ? [{ label: meta?.name ?? pointId, data: sparkValues }]
-                : []
-            }
-            height={80}
-          />
-        </div>
 
-        {/* Point ID footer */}
-        <div
-          style={{
-            marginTop: 10,
-            paddingTop: 8,
-            borderTop: '1px solid var(--io-border)',
-            fontSize: '10px',
-            color: 'var(--io-text-muted)',
-            fontFamily: 'monospace',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {pointId}
+          {/* Point ID footer */}
+          <div
+            style={{
+              marginTop: 10,
+              paddingTop: 8,
+              borderTop: '1px solid var(--io-border)',
+              fontSize: '10px',
+              color: 'var(--io-text-muted)',
+              fontFamily: 'monospace',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {pointId}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -79,6 +79,26 @@ export interface PointDetail {
   source_name: string
 }
 
+/**
+ * Combined response from GET /api/v1/points/:id/detail — returns metadata
+ * and the latest value snapshot in a single round-trip.
+ */
+export interface PointDetailResponse {
+  id: string
+  name: string
+  description: string | null
+  engineering_unit: string | null
+  data_type: string
+  source_id: string
+  source_name: string
+  /** Latest value snapshot — may be null if no data has been recorded yet */
+  latest: {
+    value: number
+    quality: string
+    timestamp: string
+  } | null
+}
+
 /** Latest value snapshot from the archive */
 export interface PointLatest {
   point_id: string
@@ -140,6 +160,13 @@ export const pointsApi = {
     api.get<HistoryEntry[]>(
       `/api/archive/history/points/${pointId}${queryString(params as Record<string, unknown>)}`,
     ),
+
+  /**
+   * GET /api/v1/points/:id/detail — single request returning combined metadata
+   * and latest value snapshot (spec CX-POINT-DETAIL non-negotiable #6).
+   */
+  getDetail: (pointId: string): Promise<ApiResult<PointDetailResponse>> =>
+    api.get<PointDetailResponse>(`/api/v1/points/${pointId}/detail`),
 
   /** POST /api/points/batch-latest — bulk latest values */
   batchLatest: (pointIds: string[]): Promise<ApiResult<PointLatest[]>> =>
