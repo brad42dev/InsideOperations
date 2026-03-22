@@ -74,7 +74,8 @@
     "DD-28-003": 1,
     "DD-31-003": 1,
     "DD-34-003": 1,
-    "GFX-CORE-004": 1
+    "GFX-CORE-004": 1,
+    "GFX-DISPLAY-004": 1
   },
   "queue": [
     {
@@ -927,7 +928,7 @@
       "wave": 1,
       "title": "Fill gauge vessel-overlay mode must use vessel geometry clipPath, not a rect",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -947,7 +948,7 @@
       "wave": 1,
       "title": "Add alarm flash text fill keyframes for P2-P5 alarm indicator priorities",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -967,7 +968,7 @@
       "wave": 1,
       "title": "Replace hardcoded hex colors with CSS custom property references in display elements",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 1
     },

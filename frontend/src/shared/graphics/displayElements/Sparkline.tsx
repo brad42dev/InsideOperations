@@ -1,4 +1,5 @@
 import type { SparklineConfig } from '../../types/graphics'
+import { ALARM_COLORS, DE_COLORS } from '../displayElementColors'
 
 interface Props {
   config: SparklineConfig
@@ -8,14 +9,10 @@ interface Props {
   y?: number
 }
 
-const ALARM_COLORS: Record<number, string> = {
-  1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#06B6D4', 5: '#7C3AED',
-}
-
 export function Sparkline({ historicalValues = [], alarmPriority, x = 0, y = 0 }: Props) {
   const W = 110
   const H = 18
-  const strokeColor = alarmPriority ? ALARM_COLORS[alarmPriority] : '#A1A1AA'
+  const strokeColor = alarmPriority ? ALARM_COLORS[alarmPriority] : DE_COLORS.textSecondary
 
   // Build polyline points
   let pointsStr = ''
@@ -39,7 +36,7 @@ export function Sparkline({ historicalValues = [], alarmPriority, x = 0, y = 0 }
 
   return (
     <g className="io-display-element" data-type="sparkline" transform={`translate(${x},${y})`}>
-      <rect x={0} y={0} width={W} height={H} rx={1} fill="#27272A" />
+      <rect x={0} y={0} width={W} height={H} rx={1} fill={DE_COLORS.surfaceElevated} />
       <polyline
         points={pointsStr}
         fill="none"

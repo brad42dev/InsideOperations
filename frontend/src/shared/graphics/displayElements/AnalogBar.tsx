@@ -1,4 +1,5 @@
 import type { AnalogBarConfig } from '../../types/graphics'
+import { ALARM_COLORS, ZONE_FILLS, DE_COLORS } from '../displayElementColors'
 
 interface PointValue {
   value: number | null
@@ -13,11 +14,6 @@ interface Props {
   x?: number
   y?: number
 }
-
-const ALARM_COLORS: Record<number, string> = {
-  1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#06B6D4', 5: '#7C3AED',
-}
-const ZONE_FILLS = { hh: '#5C3A3A', h: '#5C4A32', normal: '#404048', l: '#32445C', ll: '#2E3A5C' }
 
 export function AnalogBar({ config, pointValue, setpointValue, x = 0, y = 0 }: Props) {
   const {
@@ -61,7 +57,7 @@ export function AnalogBar({ config, pointValue, setpointValue, x = 0, y = 0 }: P
   return (
     <g className="io-display-element" data-type="analog_bar" transform={`translate(${x},${y})`}>
       {/* Outer border */}
-      <rect x={0} y={0} width={barWidth} height={barHeight} fill="#27272A" stroke="#52525B" strokeWidth={0.5} />
+      <rect x={0} y={0} width={barWidth} height={barHeight} fill={DE_COLORS.surfaceElevated} stroke={DE_COLORS.borderStrong} strokeWidth={0.5} />
 
       {/* Zones */}
       {zones.map((z) => (
@@ -69,7 +65,7 @@ export function AnalogBar({ config, pointValue, setpointValue, x = 0, y = 0 }: P
           key={z.key}
           x={1} y={z.y} width={barWidth - 2} height={Math.max(0, z.h)}
           fill={z.fill}
-          stroke="#52525B"
+          stroke={DE_COLORS.borderStrong}
           strokeWidth={0.5}
         />
       ))}
@@ -83,7 +79,7 @@ export function AnalogBar({ config, pointValue, setpointValue, x = 0, y = 0 }: P
           dominantBaseline="central"
           fontFamily="JetBrains Mono"
           fontSize={7}
-          fill="#71717A"
+          fill={DE_COLORS.textMuted}
         >
           {z.label}
         </text>
@@ -94,11 +90,11 @@ export function AnalogBar({ config, pointValue, setpointValue, x = 0, y = 0 }: P
         <>
           <polygon
             points={`${barWidth},${pointerY - 3} ${barWidth + 6},${pointerY} ${barWidth},${pointerY + 3}`}
-            fill={alarmPriority ? ALARM_COLORS[alarmPriority] : '#A1A1AA'}
+            fill={alarmPriority ? ALARM_COLORS[alarmPriority] : DE_COLORS.textSecondary}
           />
           <line
             x1={1} y1={pointerY} x2={barWidth - 1} y2={pointerY}
-            stroke={alarmPriority ? ALARM_COLORS[alarmPriority] : '#A1A1AA'}
+            stroke={alarmPriority ? ALARM_COLORS[alarmPriority] : DE_COLORS.textSecondary}
             strokeWidth={1}
           />
         </>
@@ -109,7 +105,7 @@ export function AnalogBar({ config, pointValue, setpointValue, x = 0, y = 0 }: P
         <polygon
           points={`${barWidth + 6},${spY} ${barWidth + 10},${spY - 4} ${barWidth + 14},${spY} ${barWidth + 10},${spY + 4}`}
           fill="none"
-          stroke="#2DD4BF"
+          stroke={DE_COLORS.accent}
           strokeWidth={1.2}
         />
       )}
@@ -122,7 +118,7 @@ export function AnalogBar({ config, pointValue, setpointValue, x = 0, y = 0 }: P
           dominantBaseline="central"
           fontFamily="JetBrains Mono"
           fontSize={11}
-          fill={alarmPriority ? ALARM_COLORS[alarmPriority] : '#A1A1AA'}
+          fill={alarmPriority ? ALARM_COLORS[alarmPriority] : DE_COLORS.textSecondary}
           style={{ fontVariantNumeric: 'tabular-nums' }}
         >
           {value.toFixed(1)}

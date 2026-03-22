@@ -1,4 +1,5 @@
 import type { AlarmIndicatorConfig } from '../../types/graphics'
+import { ALARM_COLORS, DE_COLORS } from '../displayElementColors'
 
 interface AlarmState {
   priority: 1 | 2 | 3 | 4 | 5
@@ -15,9 +16,6 @@ interface Props {
   y?: number
 }
 
-const ALARM_COLORS: Record<number, string> = {
-  1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#06B6D4', 5: '#7C3AED',
-}
 const ALARM_PRIORITY_NAMES: Record<number, string> = { 1: '1', 2: '2', 3: '3', 4: '4', 5: 'C' }
 
 function getFlashClass(priority: number): string {
@@ -33,7 +31,7 @@ export function AlarmIndicator({ alarmState, designerMode = false, x = 0, y = 0 
   const priority = alarmState?.priority ?? 1
   const unacked = alarmState?.unacknowledged ?? false
   const isGhost = !alarmState?.active && designerMode
-  const color = isGhost ? '#808080' : ALARM_COLORS[priority]
+  const color = isGhost ? DE_COLORS.equipStroke : ALARM_COLORS[priority]
   const flashClass = unacked && !isGhost ? getFlashClass(priority) : ''
   const opacity = isGhost ? 0.25 : 1
   const label = isGhost ? '—' : ALARM_PRIORITY_NAMES[priority]

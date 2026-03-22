@@ -1,14 +1,11 @@
 import type { DigitalStatusConfig } from '../../types/graphics'
+import { ALARM_COLORS, DE_COLORS } from '../displayElementColors'
 
 interface Props {
   config: DigitalStatusConfig
   rawValue?: string | null
   x?: number
   y?: number
-}
-
-const ALARM_COLORS: Record<number, string> = {
-  1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#06B6D4', 5: '#7C3AED',
 }
 
 export function DigitalStatus({ config, rawValue, x = 0, y = 0 }: Props) {
@@ -18,8 +15,8 @@ export function DigitalStatus({ config, rawValue, x = 0, y = 0 }: Props) {
   const label = valStr !== null ? (stateLabels[valStr] ?? valStr) : '---'
   const isNormal = valStr === null || normalStates.includes(valStr)
 
-  const fill = isNormal ? '#3F3F46' : ALARM_COLORS[abnormalPriority] ?? '#EF4444'
-  const textColor = isNormal ? '#A1A1AA' : '#F9FAFB'
+  const fill = isNormal ? DE_COLORS.displayZoneInactive : ALARM_COLORS[abnormalPriority] ?? DE_COLORS.border
+  const textColor = isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary
 
   const charWidth = 7.5
   const padding = 6

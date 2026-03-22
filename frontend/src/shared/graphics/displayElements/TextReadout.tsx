@@ -1,4 +1,5 @@
 import type { TextReadoutConfig } from '../../types/graphics'
+import { ALARM_COLORS, DE_COLORS } from '../displayElementColors'
 
 interface PointValue {
   value: string | number | null
@@ -13,10 +14,6 @@ interface Props {
   pointValue?: PointValue
   x?: number
   y?: number
-}
-
-const ALARM_COLORS: Record<number, string> = {
-  1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#06B6D4', 5: '#7C3AED',
 }
 
 function formatValue(raw: string | number | null, fmt: string): string {
@@ -40,10 +37,10 @@ export function TextReadout({ config, pointValue, x = 0, y = 0 }: Props) {
   const label = showLabel ? (labelText ?? pointValue?.tag ?? '') : ''
 
   const alarmColor = priority ? ALARM_COLORS[priority] : null
-  const boxFill = alarmColor ? `${alarmColor}33` : '#27272A'
-  const boxStroke = alarmColor ?? '#3F3F46'
+  const boxFill = alarmColor ? `${alarmColor}33` : DE_COLORS.surfaceElevated
+  const boxStroke = alarmColor ?? DE_COLORS.border
   const strokeWidth = alarmColor ? 2 : 1
-  const valueColor = alarmColor ? '#F9FAFB' : '#A1A1AA'
+  const valueColor = alarmColor ? DE_COLORS.textPrimary : DE_COLORS.textSecondary
 
   // Estimate width
   const charWidth = 7 // rough JetBrains Mono 11px char width
@@ -76,7 +73,7 @@ export function TextReadout({ config, pointValue, x = 0, y = 0 }: Props) {
           dominantBaseline="hanging"
           fontFamily="Inter"
           fontSize={8}
-          fill="#71717A"
+          fill={DE_COLORS.textMuted}
         >
           {label}
         </text>
@@ -92,7 +89,7 @@ export function TextReadout({ config, pointValue, x = 0, y = 0 }: Props) {
       >
         {valueStr}
         {unitStr && (
-          <tspan fontFamily="Inter" fontSize={9} fill="#71717A">{unitStr}</tspan>
+          <tspan fontFamily="Inter" fontSize={9} fill={DE_COLORS.textMuted}>{unitStr}</tspan>
         )}
       </text>
     </g>

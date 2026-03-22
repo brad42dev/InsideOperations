@@ -9,6 +9,7 @@ import type {
   SectionBreakConfig, HeaderConfig, FooterConfig,
 } from '../types/graphics'
 import { PIPE_SERVICE_COLORS, canvasToScreen } from '../types/graphics'
+import { ALARM_COLORS, ZONE_FILLS, DE_COLORS } from './displayElementColors'
 import { fetchShapes } from './shapeCache'
 import { graphicsApi } from '../../api/graphics'
 import './alarmFlash.css'
@@ -507,14 +508,14 @@ export function SceneRenderer({
         const label = cfg.showLabel ? (cfg.labelText ?? pv?.tag ?? '') : ''
         const alarmColor = alarmPriority ? ALARM_COLORS[alarmPriority] : null
         // Box styling per quality state
-        const boxFill = isCommFail ? '#3F3F46' : alarmColor ? `${alarmColor}33` : '#27272A'
-        const boxStroke = isBad ? '#EF4444' : isCommFail ? '#52525B' : alarmColor ?? '#3F3F46'
+        const boxFill = isCommFail ? DE_COLORS.displayZoneInactive : alarmColor ? `${alarmColor}33` : DE_COLORS.surfaceElevated
+        const boxStroke = isBad ? ALARM_COLORS[1] : isCommFail ? DE_COLORS.borderStrong : alarmColor ?? DE_COLORS.border
         const strokeWidth = (isBad || alarmColor) ? 2 : 1
         const strokeDash = isStale ? '4 2' : isBad ? '4 2' : undefined
         const opacity = isStale ? 0.6 : node.opacity
         const strokeDotted = quality === 'uncertain' ? '2 2' : undefined
         const effectiveDash = strokeDash ?? strokeDotted
-        const valueColor = isCommFail ? '#71717A' : isBad ? '#EF4444' : alarmColor ? '#F9FAFB' : '#A1A1AA'
+        const valueColor = isCommFail ? DE_COLORS.textMuted : isBad ? ALARM_COLORS[1] : alarmColor ? DE_COLORS.textPrimary : DE_COLORS.textSecondary
         const charWidth = 7
         const w = Math.max(cfg.minWidth, (valueStr.length + unitStr.length) * charWidth + 10)
         const h = cfg.showLabel && label ? 36 : 24
@@ -523,13 +524,13 @@ export function SceneRenderer({
         return (
           <g key={node.id} className={`io-display-element ${flashClass}`} transform={`translate(${x},${y})`} opacity={opacity} data-node-id={node.id} data-lod="1" data-point-id={pvKey} data-display-type="text_readout">
             {cfg.showBox && <rect data-role="box" x={0} y={0} width={w} height={h} rx={2} fill={boxFill} stroke={boxStroke} strokeWidth={strokeWidth} strokeDasharray={effectiveDash} />}
-            {cfg.showLabel && label && <text x={w/2} y={6} textAnchor="middle" dominantBaseline="hanging" fontFamily="Inter" fontSize={8} fill="#71717A">{label}</text>}
+            {cfg.showLabel && label && <text x={w/2} y={6} textAnchor="middle" dominantBaseline="hanging" fontFamily="Inter" fontSize={8} fill={DE_COLORS.textMuted}>{label}</text>}
             <text data-role="value" x={w/2} y={valueY} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={11} fill={valueColor} style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {valueStr}{unitStr && <tspan fontFamily="Inter" fontSize={9} fill="#71717A">{unitStr}</tspan>}
+              {valueStr}{unitStr && <tspan fontFamily="Inter" fontSize={9} fill={DE_COLORS.textMuted}>{unitStr}</tspan>}
             </text>
             {/* Manual/forced override badge — spec: cyan 'M' badge */}
             {isManual && (
-              <text data-role="manual-badge" x={w - 2} y={2} textAnchor="end" dominantBaseline="hanging" fontFamily="Inter" fontSize={7} fontWeight={700} fill="#06B6D4">M</text>
+              <text data-role="manual-badge" x={w - 2} y={2} textAnchor="end" dominantBaseline="hanging" fontFamily="Inter" fontSize={7} fontWeight={700} fill={DE_COLORS.manualBadge}>M</text>
             )}
           </g>
         )
@@ -541,7 +542,7 @@ export function SceneRenderer({
         const priority = (pv?.alarmPriority ?? 1) as 1 | 2 | 3 | 4 | 5
         const unacked = pv?.unacknowledged ?? false
         const isGhost = !active && designerMode
-        const color = isGhost ? '#808080' : (ALARM_COLORS[priority] ?? '#EF4444')
+        const color = isGhost ? DE_COLORS.equipStroke : (ALARM_COLORS[priority] ?? ALARM_COLORS[1])
         const flashClass = unacked && !isGhost ? `io-alarm-flash-${ALARM_PRIORITY_NAMES[priority]}` : ''
         const label = isGhost ? '—' : String(priority)
         const shapeEl = renderAlarmShape(priority, isGhost, color)
@@ -558,8 +559,8 @@ export function SceneRenderer({
         const rawVal = pv?.value !== undefined && pv.value !== null ? String(pv.value) : null
         const label = rawVal !== null ? (cfg.stateLabels[rawVal] ?? rawVal) : '---'
         const isNormal = rawVal === null || cfg.normalStates.includes(rawVal)
-        const fill = isNormal ? '#3F3F46' : (ALARM_COLORS[cfg.abnormalPriority] ?? '#EF4444')
-        const textColor = isNormal ? '#A1A1AA' : '#F9FAFB'
+        const fill = isNormal ? DE_COLORS.displayZoneInactive : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1])
+        const textColor = isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary
         const w = Math.max(40, label.length * 7.5 + 12)
         return (
           <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="digital_status" data-point-id={pvKey}>
@@ -596,7 +597,6 @@ export function SceneRenderer({
 
         // Zone fill with alarm replacement — only the zone containing the current value
         // and only when that zone has a configured alarm priority that matches an active alarm
-        const ZONE_FILLS = { hh: '#5C3A3A', h: '#5C4A32', normal: '#404048', l: '#32445C', ll: '#2E3A5C' }
         const zoneFills = {
           hh: (valueZone === 'hh' && alarmPriority && cfg.thresholds?.hhAlarmPriority)
               ? ALARM_COLORS[cfg.thresholds.hhAlarmPriority] : ZONE_FILLS.hh,
@@ -617,14 +617,14 @@ export function SceneRenderer({
         ]
         return (
           <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="analog_bar" data-point-id={pvKey}>
-            <rect x={0} y={0} width={bw} height={bh} fill="#27272A" stroke="#52525B" strokeWidth={0.5} />
-            {zones.map((z, i) => <rect key={i} data-role={z.role} x={1} y={z.y} width={bw-2} height={Math.max(0,z.h)} fill={z.fill} stroke="#52525B" strokeWidth={0.5} />)}
+            <rect x={0} y={0} width={bw} height={bh} fill={DE_COLORS.surfaceElevated} stroke={DE_COLORS.borderStrong} strokeWidth={0.5} />
+            {zones.map((z, i) => <rect key={i} data-role={z.role} x={1} y={z.y} width={bw-2} height={Math.max(0,z.h)} fill={z.fill} stroke={DE_COLORS.borderStrong} strokeWidth={0.5} />)}
             {cfg.showZoneLabels && zones.filter(z => z.label).map((z, i) => (
-              <text key={i} x={-3} y={z.y + z.h/2} textAnchor="end" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={7} fill="#71717A">{z.label}</text>
+              <text key={i} x={-3} y={z.y + z.h/2} textAnchor="end" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={7} fill={DE_COLORS.textMuted}>{z.label}</text>
             ))}
             {cfg.showPointer && value !== null && <>
-              <polygon data-role="pointer" points={`${bw},${pointerY-3} ${bw+6},${pointerY} ${bw},${pointerY+3}`} fill={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'} />
-              <line data-role="pointer-line" x1={1} y1={pointerY} x2={bw-1} y2={pointerY} stroke={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'} strokeWidth={1} />
+              <polygon data-role="pointer" points={`${bw},${pointerY-3} ${bw+6},${pointerY} ${bw},${pointerY+3}`} fill={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary} />
+              <line data-role="pointer-line" x1={1} y1={pointerY} x2={bw-1} y2={pointerY} stroke={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary} strokeWidth={1} />
             </>}
             {cfg.showSetpoint && (() => {
               const spKey = cfg.setpointBinding?.pointId ?? cfg.setpointBinding?.expressionId
@@ -634,10 +634,10 @@ export function SceneRenderer({
               const spPct = Math.max(0, Math.min(1, (spVal - cfg.rangeLo) / range))
               const spY = (1 - spPct) * bh
               // Diamond marker — 5px wide, 4px tall, teal stroke, no fill
-              return <polygon points={`${bw},${spY-4} ${bw+5},${spY} ${bw},${spY+4} ${bw-5},${spY}`} fill="none" stroke="#2DD4BF" strokeWidth={1} />
+              return <polygon points={`${bw},${spY-4} ${bw+5},${spY} ${bw},${spY+4} ${bw-5},${spY}`} fill="none" stroke={DE_COLORS.accent} strokeWidth={1} />
             })()}
             {cfg.showNumericReadout && value !== null && (
-              <text data-role="numeric" x={bw/2} y={bh+10} textAnchor="middle" fontFamily="JetBrains Mono" fontSize={11} fill={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'}>
+              <text data-role="numeric" x={bw/2} y={bh+10} textAnchor="middle" fontFamily="JetBrains Mono" fontSize={11} fill={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary}>
                 {value.toFixed(1)}
               </text>
             )}
@@ -650,7 +650,7 @@ export function SceneRenderer({
                 <line
                   x1={0} y1={bh / 2}
                   x2={ex} y2={ey}
-                  stroke="#52525B"
+                  stroke={DE_COLORS.borderStrong}
                   strokeWidth={0.75}
                   strokeDasharray="3 2"
                 />
@@ -663,7 +663,7 @@ export function SceneRenderer({
       case 'sparkline': {
         const W = 110, H = 18
         const alarmPriority = pv?.alarmPriority as number | null | undefined
-        const strokeColor = alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'
+        const strokeColor = alarmPriority ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary
         const history = node.binding.pointId ? sparklineHistories.get(node.binding.pointId) : undefined
         let polylinePoints = ''
         if (history && history.length >= 2) {
@@ -682,7 +682,7 @@ export function SceneRenderer({
         }
         return (
           <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="sparkline" data-point-id={pvKey}>
-            <rect x={0} y={0} width={W} height={H} rx={1} fill="#27272A" />
+            <rect x={0} y={0} width={W} height={H} rx={1} fill={DE_COLORS.surfaceElevated} />
             {polylinePoints ? (
               <polyline points={polylinePoints} fill="none" stroke={strokeColor} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
             ) : (
@@ -700,7 +700,7 @@ export function SceneRenderer({
         const pct = value !== null ? Math.max(0, Math.min(1, (value - cfg.rangeLo) / range)) : 0
         const bw = cfg.barWidth ?? 22
         const bh = cfg.barHeight ?? 90
-        const fillColor = alarmPriority ? `${ALARM_COLORS[alarmPriority]}4D` : 'rgba(71,85,105,0.6)'
+        const fillColor = alarmPriority ? `${ALARM_COLORS[alarmPriority]}4D` : 'rgba(71,85,105,0.6)' // rgba fallback intentional — no token for translucent fill
         const fmtPct = `${(pct * 100).toFixed(0)}%`
         const clipId = `fg-clip-${node.id.replace(/[^a-z0-9]/gi, '')}`
 
@@ -718,8 +718,8 @@ export function SceneRenderer({
                 </clipPath>
               </defs>
               <rect data-role="fill" x={0} y={fillY} width={bw} height={fillH + 20} fill={fillColor} clipPath={`url(#${clipId})`} />
-              {cfg.showLevelLine && fillH > 0 && <line x1={0} y1={fillY} x2={bw} y2={fillY} stroke="#64748B" strokeWidth={1} strokeDasharray="5 3" />}
-              {cfg.showValue && fillH > 0 && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
+              {cfg.showLevelLine && fillH > 0 && <line x1={0} y1={fillY} x2={bw} y2={fillY} stroke={DE_COLORS.borderStrong} strokeWidth={1} strokeDasharray="5 3" />}
+              {cfg.showValue && fillH > 0 && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill={DE_COLORS.textSecondary}>{fmtPct}</text>}
             </g>
           )
         }
@@ -729,10 +729,10 @@ export function SceneRenderer({
         const fillY = bh - 1 - fillH
         return (
           <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={pvKey}>
-            <rect x={0} y={0} width={bw} height={bh} rx={2} fill="none" stroke="#52525B" strokeWidth={0.5} />
+            <rect x={0} y={0} width={bw} height={bh} rx={2} fill="none" stroke={DE_COLORS.borderStrong} strokeWidth={0.5} />
             <rect data-role="fill" x={1} y={fillY} width={bw-2} height={fillH} rx={1} fill={fillColor} />
-            {cfg.showLevelLine && fillH > 0 && <line x1={1} y1={fillY} x2={bw-1} y2={fillY} stroke="#64748B" strokeWidth={1} strokeDasharray="5 3" />}
-            {cfg.showValue && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
+            {cfg.showLevelLine && fillH > 0 && <line x1={1} y1={fillY} x2={bw-1} y2={fillY} stroke={DE_COLORS.borderStrong} strokeWidth={1} strokeDasharray="5 3" />}
+            {cfg.showValue && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill={DE_COLORS.textSecondary}>{fmtPct}</text>}
           </g>
         )
       }
@@ -1290,9 +1290,6 @@ export function SceneRenderer({
 
 // ---- Helpers ----
 
-const ALARM_COLORS: Record<number, string> = {
-  1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#06B6D4', 5: '#7C3AED',
-}
 const ALARM_PRIORITY_NAMES: Record<number, string> = {
   1: 'critical', 2: 'high', 3: 'medium', 4: 'advisory', 5: 'custom',
 }
@@ -1341,7 +1338,7 @@ function applyPointValue(
 
       // Value text
       const rawValueStr = isCommFail ? 'COMM' : isBad ? '????' : formatValue(value, cfg.valueFormat)
-      const valueColor = isCommFail ? '#71717A' : isBad ? '#EF4444' : '#A1A1AA'
+      const valueColor = isCommFail ? DE_COLORS.textMuted : isBad ? ALARM_COLORS[1] : DE_COLORS.textSecondary
       const textEl = el.querySelector<SVGTextElement>('[data-role="value"]')
       if (textEl) {
         textEl.textContent = rawValueStr
@@ -1349,8 +1346,8 @@ function applyPointValue(
       }
 
       // Box rect (fill, stroke, strokeDasharray, strokeWidth)
-      const boxFill = isCommFail ? '#3F3F46' : '#27272A'
-      const boxStroke = isBad ? '#EF4444' : isCommFail ? '#52525B' : '#3F3F46'
+      const boxFill = isCommFail ? DE_COLORS.displayZoneInactive : DE_COLORS.surfaceElevated
+      const boxStroke = isBad ? ALARM_COLORS[1] : isCommFail ? DE_COLORS.borderStrong : DE_COLORS.border
       const strokeDash = (isBad || isStale) ? '4 2' : isUncertain ? '2 2' : ''
       const strokeWidth = (isBad || isCommFail) ? '2' : '1'
       const rectEl = el.querySelector<SVGRectElement>('[data-role="box"]')
@@ -1379,7 +1376,7 @@ function applyPointValue(
           badge.setAttribute('font-family', 'Inter')
           badge.setAttribute('font-size', '7')
           badge.setAttribute('font-weight', '700')
-          badge.setAttribute('fill', '#06B6D4')
+          badge.setAttribute('fill', DE_COLORS.manualBadge)
           el.appendChild(badge)
         }
         // Position at top-right — read width from box rect
@@ -1443,8 +1440,7 @@ function applyPointValue(
       })()
 
       // Update zone fill colors via DOM mutation
-      const ZONE_FILLS_DOM = { hh: '#5C3A3A', h: '#5C4A32', normal: '#404048', l: '#32445C', ll: '#2E3A5C' }
-      const zoneRoles: Array<{ role: string; key: keyof typeof ZONE_FILLS_DOM; priKey: 'hhAlarmPriority' | 'hAlarmPriority' | 'lAlarmPriority' | 'llAlarmPriority' | null }> = [
+      const zoneRoles: Array<{ role: string; key: keyof typeof ZONE_FILLS; priKey: 'hhAlarmPriority' | 'hAlarmPriority' | 'lAlarmPriority' | 'llAlarmPriority' | null }> = [
         { role: 'zone-hh',     key: 'hh',     priKey: 'hhAlarmPriority' },
         { role: 'zone-h',      key: 'h',      priKey: 'hAlarmPriority'  },
         { role: 'zone-normal', key: 'normal', priKey: null               },
@@ -1454,7 +1450,7 @@ function applyPointValue(
       for (const { role, key, priKey } of zoneRoles) {
         const zoneEl = el.querySelector<SVGRectElement>(`[data-role="${role}"]`)
         if (!zoneEl) continue
-        let fill = ZONE_FILLS_DOM[key]
+        let fill = ZONE_FILLS[key]
         if (priKey && valueZone === key && alarmPri && cfg.thresholds?.[priKey]) {
           fill = ALARM_COLORS[cfg.thresholds[priKey]!] ?? fill
         }
@@ -1468,8 +1464,8 @@ function applyPointValue(
       const rawVal = value !== null ? String(value) : null
       const label = rawVal !== null ? (cfg.stateLabels[rawVal] ?? rawVal) : '---'
       const isNormal = rawVal === null || cfg.normalStates.includes(rawVal)
-      const fill = isNormal ? '#3F3F46' : (ALARM_COLORS[cfg.abnormalPriority] ?? '#EF4444')
-      const textColor = isNormal ? '#A1A1AA' : '#F9FAFB'
+      const fill = isNormal ? DE_COLORS.displayZoneInactive : (ALARM_COLORS[cfg.abnormalPriority] ?? ALARM_COLORS[1])
+      const textColor = isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary
       const bgRect = el.querySelector<SVGRectElement>('[data-role="bg"]')
       if (bgRect) bgRect.setAttribute('fill', fill)
       const textEl = el.querySelector<SVGTextElement>('[data-role="value"]')
