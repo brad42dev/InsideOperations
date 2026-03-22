@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import * as ContextMenu from '@radix-ui/react-context-menu'
 import { forensicsApi, type Investigation } from '../../api/forensics'
+import { usePermission } from '../../shared/hooks/usePermission'
 import ThresholdSearch from './ThresholdSearch'
 import AlarmSearch from './AlarmSearch'
 
@@ -177,62 +179,207 @@ function NewInvestigationModal({
 }
 
 // ---------------------------------------------------------------------------
+// Context menu styles
+// ---------------------------------------------------------------------------
+
+const menuContentStyle: React.CSSProperties = {
+  background: 'var(--io-surface-elevated)',
+  border: '1px solid var(--io-border)',
+  borderRadius: '6px',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+  padding: '4px',
+  minWidth: 180,
+  zIndex: 2500,
+  animation: 'io-context-menu-in 0.08s ease',
+}
+
+const menuItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  padding: '7px 10px',
+  borderRadius: '4px',
+  fontSize: '13px',
+  color: 'var(--io-text-primary)',
+  cursor: 'pointer',
+  outline: 'none',
+  userSelect: 'none',
+}
+
+const menuItemDestructiveStyle: React.CSSProperties = {
+  ...menuItemStyle,
+  color: 'var(--io-danger, #ef4444)',
+}
+
+const separatorStyle: React.CSSProperties = {
+  height: 1,
+  background: 'var(--io-border)',
+  margin: '4px 0',
+}
+
+// ---------------------------------------------------------------------------
 // Investigation card
 // ---------------------------------------------------------------------------
 
 function InvestigationCard({
   inv,
   onClick,
+  onClose,
+  onCancel,
+  onExport,
+  onShare,
+  onDelete,
 }: {
   inv: Investigation
   onClick: () => void
+  onClose: (id: string) => void
+  onCancel: (id: string) => void
+  onExport: (id: string) => void
+  onShare: (id: string) => void
+  onDelete: (id: string) => void
 }) {
+  const canExport = usePermission('forensics:export')
+  const canShare = usePermission('forensics:share')
+
   const createdDate = new Date(inv.created_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
 
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        background: 'var(--io-surface)',
-        border: '1px solid var(--io-border)',
-        borderRadius: '6px',
-        padding: '14px 16px',
-        cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-        transition: 'border-color 0.15s, background 0.15s',
-      }}
-      onMouseEnter={(e) => {
-        const el = e.currentTarget as HTMLDivElement
-        el.style.borderColor = 'var(--io-accent, #4A9EFF)'
-        el.style.background = 'var(--io-surface-elevated)'
-      }}
-      onMouseLeave={(e) => {
-        const el = e.currentTarget as HTMLDivElement
-        el.style.borderColor = 'var(--io-border)'
-        el.style.background = 'var(--io-surface)'
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--io-text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {inv.name}
-        </span>
-        <StatusBadge status={inv.status} />
-      </div>
+  const focusStyle = (e: React.FocusEvent<HTMLDivElement>) => {
+    ;(e.currentTarget as HTMLElement).style.background = 'var(--io-accent-subtle)'
+  }
+  const blurStyle = (e: React.FocusEvent<HTMLDivElement>) => {
+    ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+  }
 
-      <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--io-text-muted)' }}>
-        {inv.anchor_point_id && (
-          <span>Anchor: <span style={{ color: 'var(--io-text-secondary)' }}>{inv.anchor_point_id}</span></span>
-        )}
-        <span>Created {createdDate}</span>
-        <span>by {inv.created_by}</span>
-      </div>
-    </div>
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div
+          onClick={onClick}
+          style={{
+            background: 'var(--io-surface)',
+            border: '1px solid var(--io-border)',
+            borderRadius: '6px',
+            padding: '14px 16px',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            const el = e.currentTarget as HTMLDivElement
+            el.style.borderColor = 'var(--io-accent, #4A9EFF)'
+            el.style.background = 'var(--io-surface-elevated)'
+          }}
+          onMouseLeave={(e) => {
+            const el = e.currentTarget as HTMLDivElement
+            el.style.borderColor = 'var(--io-border)'
+            el.style.background = 'var(--io-surface)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--io-text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {inv.name}
+            </span>
+            <StatusBadge status={inv.status} />
+          </div>
+
+          <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--io-text-muted)' }}>
+            {inv.anchor_point_id && (
+              <span>Anchor: <span style={{ color: 'var(--io-text-secondary)' }}>{inv.anchor_point_id}</span></span>
+            )}
+            <span>Created {createdDate}</span>
+            <span>by {inv.created_by}</span>
+          </div>
+        </div>
+      </ContextMenu.Trigger>
+
+      <ContextMenu.Portal>
+        <ContextMenu.Content style={menuContentStyle}>
+          {/* Open */}
+          <ContextMenu.Item
+            style={menuItemStyle}
+            onSelect={onClick}
+            onFocus={focusStyle}
+            onBlur={blurStyle}
+          >
+            Open
+          </ContextMenu.Item>
+
+          {/* Close / Cancel — only for active investigations */}
+          {inv.status === 'active' && (
+            <>
+              <div style={separatorStyle} />
+              <ContextMenu.Item
+                style={menuItemStyle}
+                onSelect={() => onClose(inv.id)}
+                onFocus={focusStyle}
+                onBlur={blurStyle}
+              >
+                Close
+              </ContextMenu.Item>
+              <ContextMenu.Item
+                style={menuItemStyle}
+                onSelect={() => onCancel(inv.id)}
+                onFocus={focusStyle}
+                onBlur={blurStyle}
+              >
+                Cancel
+              </ContextMenu.Item>
+            </>
+          )}
+
+          {/* Export / Share — permission-gated, hidden when lacking */}
+          {(canExport || canShare) && <div style={separatorStyle} />}
+          {canExport && (
+            <ContextMenu.Item
+              style={menuItemStyle}
+              onSelect={() => onExport(inv.id)}
+              onFocus={focusStyle}
+              onBlur={blurStyle}
+            >
+              Export…
+            </ContextMenu.Item>
+          )}
+          {canShare && (
+            <ContextMenu.Item
+              style={menuItemStyle}
+              onSelect={() => onShare(inv.id)}
+              onFocus={focusStyle}
+              onBlur={blurStyle}
+            >
+              Share…
+            </ContextMenu.Item>
+          )}
+
+          {/* Delete — destructive, only for active investigations */}
+          {inv.status === 'active' && (
+            <>
+              <div style={separatorStyle} />
+              <ContextMenu.Item
+                style={menuItemDestructiveStyle}
+                onSelect={() => onDelete(inv.id)}
+                onFocus={(e) => { ;(e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)' }}
+                onBlur={blurStyle}
+              >
+                Delete
+              </ContextMenu.Item>
+            </>
+          )}
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+
+      <style>{`
+        @keyframes io-context-menu-in {
+          from { opacity: 0; transform: scale(0.97) translateY(-3px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
+    </ContextMenu.Root>
   )
 }
 
@@ -327,6 +474,50 @@ export default function ForensicsPage() {
       navigate(`/forensics/${data.id}`)
     },
   })
+
+  const closeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const result = await forensicsApi.closeInvestigation(id)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigations'] })
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const result = await forensicsApi.cancelInvestigation(id)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigations'] })
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const result = await forensicsApi.deleteInvestigation(id)
+      if (!result.success) throw new Error(result.error.message)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigations'] })
+    },
+  })
+
+  const handleExport = (id: string) => {
+    void forensicsApi.exportInvestigation(id, 'pdf').then((result) => {
+      if (result.success && result.data.url) {
+        window.open(result.data.url, '_blank')
+      }
+    })
+  }
+
+  const handleShare = (id: string) => {
+    navigate(`/forensics/${id}?action=share`)
+  }
 
   const investigations = listQuery.data ?? []
 
@@ -490,6 +681,11 @@ export default function ForensicsPage() {
                     key={inv.id}
                     inv={inv}
                     onClick={() => navigate(`/forensics/${inv.id}`)}
+                    onClose={(id) => closeMutation.mutate(id)}
+                    onCancel={(id) => cancelMutation.mutate(id)}
+                    onExport={handleExport}
+                    onShare={handleShare}
+                    onDelete={(id) => deleteMutation.mutate(id)}
                   />
                 ))}
               </div>
