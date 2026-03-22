@@ -34,8 +34,9 @@ async fn main() -> anyhow::Result<()> {
     info!(service = "archive-service", "Connecting to database");
     let db = io_db::create_pool(&cfg.database_url).await?;
 
-    let health =
+    let mut health =
         io_health::HealthRegistry::new("archive-service", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(db.clone()));
     health.mark_startup_complete();
 
     let state = AppState { db: db.clone(), config: cfg.clone() };

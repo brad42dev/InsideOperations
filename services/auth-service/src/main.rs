@@ -42,7 +42,8 @@ async fn main() -> anyhow::Result<()> {
     seed_installer_eula(&db).await;   // installer (org) EULA — v1.0
     seed_end_user_eula(&db).await;    // end-user EULA — v1.1
 
-    let health = io_health::HealthRegistry::new("auth-service", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("auth-service", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(db.clone()));
     health.mark_startup_complete();
     obs.start_watchdog_keepalive();
 

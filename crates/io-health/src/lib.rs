@@ -199,6 +199,7 @@ async fn handle_startup(State(state): State<HealthState>) -> Response {
 pub struct PgDatabaseCheck {
     pool: sqlx::PgPool,
     name: String,
+    critical: bool,
 }
 
 impl PgDatabaseCheck {
@@ -206,7 +207,15 @@ impl PgDatabaseCheck {
         Self {
             pool,
             name: "database".to_string(),
+            critical: true,
         }
+    }
+
+    /// Override the default `critical = true` so a failure yields `degraded`
+    /// instead of `not_ready`.
+    pub fn non_critical(mut self) -> Self {
+        self.critical = false;
+        self
     }
 }
 
@@ -216,19 +225,151 @@ impl HealthCheckable for PgDatabaseCheck {
         &self.name
     }
 
+    fn critical(&self) -> bool {
+        self.critical
+    }
+
     async fn check(&self) -> HealthStatus {
         let start = Instant::now();
-        match sqlx::query("SELECT 1").execute(&self.pool).await {
-            Ok(_) => HealthStatus {
+        // Use a short internal timeout (2 s) so that serial check stacking
+        // does not approach the outer 5 s handler deadline.
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            sqlx::query("SELECT 1").execute(&self.pool),
+        )
+        .await
+        {
+            Ok(Ok(_)) => HealthStatus {
                 status: CheckStatus::Ok,
                 latency_ms: start.elapsed().as_millis() as u64,
                 error: None,
             },
-            Err(e) => HealthStatus {
+            Ok(Err(e)) => HealthStatus {
                 status: CheckStatus::Error,
                 latency_ms: start.elapsed().as_millis() as u64,
                 error: Some(e.to_string()),
             },
+            Err(_) => HealthStatus {
+                status: CheckStatus::Timeout,
+                latency_ms: start.elapsed().as_millis() as u64,
+                error: Some("database check timed out".to_string()),
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// UnixSocketCheck — attempts a connect to a Unix domain socket
+// ---------------------------------------------------------------------------
+
+/// Health check that verifies a Unix domain socket path is connectable.
+///
+/// Non-critical by default — a UDS being unavailable yields `degraded`, not
+/// `not_ready`, so that e.g. the data-broker can still accept traffic while
+/// the OPC service socket is starting.
+pub struct UnixSocketCheck {
+    path: String,
+    name: String,
+    critical: bool,
+}
+
+impl UnixSocketCheck {
+    pub fn new(path: impl Into<String>) -> Self {
+        let path = path.into();
+        let name = format!("uds:{}", path);
+        Self {
+            path,
+            name,
+            critical: false,
+        }
+    }
+
+    /// Override the default `critical = false` so a failure yields `not_ready`.
+    pub fn non_critical(mut self) -> Self {
+        self.critical = false;
+        self
+    }
+}
+
+#[async_trait]
+impl HealthCheckable for UnixSocketCheck {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn critical(&self) -> bool {
+        self.critical
+    }
+
+    async fn check(&self) -> HealthStatus {
+        let start = Instant::now();
+        // Use a short internal timeout (1 s) for socket connects.
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            tokio::net::UnixStream::connect(&self.path),
+        )
+        .await
+        {
+            Ok(Ok(_)) => HealthStatus {
+                status: CheckStatus::Ok,
+                latency_ms: start.elapsed().as_millis() as u64,
+                error: None,
+            },
+            Ok(Err(e)) => HealthStatus {
+                status: CheckStatus::Error,
+                latency_ms: start.elapsed().as_millis() as u64,
+                error: Some(e.to_string()),
+            },
+            Err(_) => HealthStatus {
+                status: CheckStatus::Timeout,
+                latency_ms: start.elapsed().as_millis() as u64,
+                error: Some("unix socket check timed out".to_string()),
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RedisCheck — stub (not currently used by any service but fulfils the spec)
+// ---------------------------------------------------------------------------
+
+/// Stub health check for Redis. Returns `Ok` unconditionally until a real
+/// Redis client dependency is added to the workspace.
+pub struct RedisCheck {
+    name: String,
+    critical: bool,
+}
+
+impl RedisCheck {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            critical: false,
+        }
+    }
+
+    pub fn non_critical(mut self) -> Self {
+        self.critical = false;
+        self
+    }
+}
+
+#[async_trait]
+impl HealthCheckable for RedisCheck {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn critical(&self) -> bool {
+        self.critical
+    }
+
+    async fn check(&self) -> HealthStatus {
+        // Stub — always reports Ok. Replace with real PING once Redis is added.
+        HealthStatus {
+            status: CheckStatus::Ok,
+            latency_ms: 0,
+            error: None,
         }
     }
 }

@@ -64,7 +64,9 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(std::sync::Mutex::new(HashMap::new()));
 
     // --- Health + metrics HTTP ---
-    let health = io_health::HealthRegistry::new("opc-service", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("opc-service", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(db.clone()));
+    health.register(io_health::UnixSocketCheck::new(config.opc_broker_sock.clone()).non_critical());
     health.mark_startup_complete();
 
     let app_state = AppState {

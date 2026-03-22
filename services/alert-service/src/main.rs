@@ -35,7 +35,8 @@ async fn main() -> anyhow::Result<()> {
     let port = cfg.port;
     let state = AppState::new(cfg).await?;
 
-    let health = io_health::HealthRegistry::new("alert-service", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("alert-service", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(state.db.clone()));
     health.mark_startup_complete();
 
     // Recover any in-flight escalations from before the service restarted.

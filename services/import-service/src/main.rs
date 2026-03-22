@@ -48,8 +48,9 @@ async fn main() -> anyhow::Result<()> {
         config: Arc::new(cfg),
     };
 
-    let health =
+    let mut health =
         io_health::HealthRegistry::new("import-service", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(app_state.db.clone()));
     health.mark_startup_complete();
 
     let api = handlers::import::import_routes()

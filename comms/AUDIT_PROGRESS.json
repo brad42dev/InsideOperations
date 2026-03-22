@@ -55,7 +55,9 @@
     "DD-28-006": 1,
     "DD-29-001": 1,
     "DD-29-002": 1,
-    "DD-32-002": 1
+    "DD-32-002": 1,
+    "DD-37-001": 1,
+    "DD-33-002": 1
   },
   "queue": [
     {
@@ -3269,7 +3271,7 @@
       "wave": 3,
       "title": "Wire E2E critical paths and frontend integration tests to PR CI stage",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-33-007"
       ],
@@ -3401,7 +3403,7 @@
       "wave": 3,
       "title": "Register dependency health checks in all 11 services",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3483,7 +3485,7 @@
       "wave": 3,
       "title": "Add shared domain types to io-models crate (\u00a78 PointValue, Event, Alert, User, Source, Permission)",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },

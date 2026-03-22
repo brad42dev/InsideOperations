@@ -115,7 +115,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Build axum router.
-    let health = io_health::HealthRegistry::new("data-broker", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("data-broker", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(db.clone()));
+    health.register(io_health::UnixSocketCheck::new(cfg.opc_broker_sock.clone()).non_critical());
     health.mark_startup_complete();
 
     // The WebSocket route needs AppState; health/metrics routes have no state.

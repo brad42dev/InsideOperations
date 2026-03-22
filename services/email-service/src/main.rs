@@ -46,7 +46,8 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState::new(cfg, db);
 
-    let health = io_health::HealthRegistry::new("email-service", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("email-service", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(state.db.clone()));
     health.mark_startup_complete();
 
     // Spawn background queue worker

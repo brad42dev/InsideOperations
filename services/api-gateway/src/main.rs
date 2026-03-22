@@ -105,7 +105,8 @@ async fn main() -> anyhow::Result<()> {
     let cors_origins = cfg.cors_allowed_origins.clone();
     let state = AppState::new(cfg, db);
 
-    let health = io_health::HealthRegistry::new("api-gateway", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("api-gateway", env!("CARGO_PKG_VERSION"));
+    health.register(io_health::PgDatabaseCheck::new(state.db.clone()));
     health.mark_startup_complete();
     obs.start_watchdog_keepalive();
 
