@@ -1,6 +1,24 @@
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
+// Domain type submodules (doc 37 §8, §18)
+// ---------------------------------------------------------------------------
+
+pub mod point;
+pub mod event;
+pub mod alert;
+pub mod auth;
+pub mod source;
+pub mod permission;
+
+pub use point::{PointValue, PointQuality, PointMetadata};
+pub use event::{Event, EventType, EventSeverity};
+pub use alert::{AlertDispatch, AlertRecipient, AlertChannel};
+pub use auth::{UserIdentity, WsTicket};
+pub use source::{SourceStatus, SourceState};
+pub use permission::Permission;
+
+// ---------------------------------------------------------------------------
 // Success envelope (doc 37 §2)
 // ---------------------------------------------------------------------------
 

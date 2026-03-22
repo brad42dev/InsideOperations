@@ -54,7 +54,8 @@
     "DD-28-002": 1,
     "DD-28-006": 1,
     "DD-29-001": 1,
-    "DD-29-002": 1
+    "DD-29-002": 1,
+    "DD-32-002": 1
   },
   "queue": [
     {
@@ -3174,7 +3175,7 @@
       "wave": 3,
       "title": "Implement ECharts dynamic theme switching (register 3 named themes, react to theme changes)",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-32-003"
       ],
@@ -3482,7 +3483,7 @@
       "wave": 3,
       "title": "Add shared domain types to io-models crate (\u00a78 PointValue, Event, Alert, User, Source, Permission)",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
