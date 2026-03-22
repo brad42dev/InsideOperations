@@ -216,8 +216,8 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         // PUMPS
         // ---------------------------------------------------------------
         ShapeSeed {
-            shape_id: "pump-centrifugal-opt1",
-            display_name: "Centrifugal Pump (ISA)",
+            shape_id: "pump-centrifugal",
+            display_name: "Centrifugal Pump",
             category: "pump",
             variant: "opt1",
             shape_type: "shape",
@@ -238,32 +238,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"pump-centrifugal-opt1","category":"pumps","geometry":{"viewBox":"0 0 48 48","width":48,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":24,"direction":"left"},{"id":"discharge","type":"process","x":44,"y":24,"direction":"right"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
-        },
-        ShapeSeed {
-            shape_id: "pump-centrifugal-opt2",
-            display_name: "Centrifugal Pump (Graphical)",
-            category: "pump",
-            variant: "opt2",
-            shape_type: "shape",
-            view_box: "0 0 50 48",
-            svg_data: r##"<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 48"
-     data-io-shape="pump-centrifugal" data-io-version="1.0"
-     data-io-variant="opt2">
-  <g class="io-shape-body">
-    <path class="io-stateful"
-          d="M 14.3,37.9 L 8,43.5 L 40,43.5 L 33.7,37.9"
-          fill="none" stroke="#808080" stroke-width="1.5"/>
-    <path class="io-stateful"
-          d="M 24,1.5 L 48,1.5 L 48,9 L 39.4,9"
-          fill="none" stroke="#808080" stroke-width="1.5"/>
-    <circle class="io-stateful" cx="24" cy="21" r="19.5"
-            fill="none" stroke="#808080" stroke-width="1.5"/>
-  </g>
-</svg>
-"##,
-            sidecar: r#"{"id":"pump-centrifugal-opt2","category":"pumps","geometry":{"viewBox":"0 0 50 48","width":50,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":21,"direction":"left"},{"id":"discharge","type":"process","x":48,"y":5,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"pump-centrifugal","category":"pumps","geometry":{"viewBox":"0 0 48 48","width":48,"height":48},"variants":{"options":{"opt1":{"file":"pump-centrifugal.svg","label":"ISA Standard"},"opt2":{"file":"pump-centrifugal-opt2.svg","label":"Graphical"}},"configurations":[]},"connections":[{"id":"suction","type":"process","x":4,"y":24,"direction":"left"},{"id":"discharge","type":"process","x":44,"y":24,"direction":"right"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "pump-positive-displacement-opt1",
@@ -321,8 +296,8 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         // COMPRESSOR
         // ---------------------------------------------------------------
         ShapeSeed {
-            shape_id: "compressor-opt1",
-            display_name: "Compressor (ISA)",
+            shape_id: "compressor",
+            display_name: "Compressor",
             category: "rotating",
             variant: "opt1",
             shape_type: "shape",
@@ -341,36 +316,14 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"compressor-opt1","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"suction","type":"process","x":5,"y":25,"direction":"left"},{"id":"discharge","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
-        },
-        ShapeSeed {
-            shape_id: "compressor-opt2",
-            display_name: "Compressor (Graphical)",
-            category: "rotating",
-            variant: "opt2",
-            shape_type: "shape",
-            view_box: "0 0 50 48",
-            svg_data: r##"<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 48"
-     data-io-shape="compressor" data-io-version="1.0"
-     data-io-variant="opt2">
-  <g class="io-shape-body">
-    <path class="io-stateful"
-          d="M 14.3,37.9 L 8,43.5 L 40,43.5 L 33.7,37.9"
-          fill="none" stroke="#808080" stroke-width="1.5"/>
-    <circle class="io-stateful" cx="24" cy="21" r="19.5"
-            fill="none" stroke="#808080" stroke-width="1.5"/>
-  </g>
-</svg>
-"##,
-            sidecar: r#"{"id":"compressor-opt2","category":"rotating","geometry":{"viewBox":"0 0 50 48","width":50,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":21,"direction":"left"},{"id":"discharge","type":"process","x":44,"y":21,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"compressor","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"variants":{"options":{"opt1":{"file":"compressor.svg","label":"ISA Standard"},"opt2":{"file":"compressor-opt2.svg","label":"Graphical"}},"configurations":[]},"connections":[{"id":"suction","type":"process","x":5,"y":25,"direction":"left"},{"id":"discharge","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // FAN / BLOWER
         // ---------------------------------------------------------------
         ShapeSeed {
-            shape_id: "fan-blower-opt1",
-            display_name: "Fan / Blower (ISA)",
+            shape_id: "fan-blower",
+            display_name: "Fan / Blower",
             category: "rotating",
             variant: "opt1",
             shape_type: "shape",
@@ -398,45 +351,14 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"fan-blower-opt1","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"suction","type":"process","x":5,"y":25,"direction":"left"},{"id":"discharge","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
-        },
-        ShapeSeed {
-            shape_id: "fan-blower-opt2",
-            display_name: "Fan / Blower (Graphical)",
-            category: "rotating",
-            variant: "opt2",
-            shape_type: "shape",
-            view_box: "0 0 50 50",
-            svg_data: r##"<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"
-     data-io-shape="fan-blower" data-io-version="1.0"
-     data-io-variant="opt2">
-  <g class="io-shape-body">
-    <rect class="io-stateful" x="5" y="5" width="40" height="40" rx="3"
-          fill="none" stroke="#808080" stroke-width="1.5"/>
-    <circle cx="25" cy="25" r="16"
-            fill="none" stroke="#808080" stroke-width="0.75"/>
-    <path d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z"
-          fill="none" stroke="#808080" stroke-width="0.75"
-          transform="rotate(30, 25, 25)"/>
-    <path d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z"
-          fill="none" stroke="#808080" stroke-width="0.75"
-          transform="rotate(150, 25, 25)"/>
-    <path d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z"
-          fill="none" stroke="#808080" stroke-width="0.75"
-          transform="rotate(270, 25, 25)"/>
-    <circle cx="25" cy="25" r="1.5" fill="#808080" stroke="none"/>
-  </g>
-</svg>
-"##,
-            sidecar: r#"{"id":"fan-blower-opt2","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"inlet","type":"process","x":5,"y":25,"direction":"left"},{"id":"outlet","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.2,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"fan-blower","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"variants":{"options":{"opt1":{"file":"fan-blower.svg","label":"ISA Standard"},"opt2":{"file":"fan-blower-opt2.svg","label":"Graphical"}},"configurations":[]},"connections":[{"id":"suction","type":"process","x":5,"y":25,"direction":"left"},{"id":"discharge","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // MOTOR
         // ---------------------------------------------------------------
         ShapeSeed {
-            shape_id: "motor-opt1",
-            display_name: "Electric Motor (ISA)",
+            shape_id: "motor",
+            display_name: "Electric Motor",
             category: "rotating",
             variant: "opt1",
             shape_type: "shape",
@@ -453,37 +375,13 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"motor-opt1","category":"rotating","geometry":{"viewBox":"0 0 40 40","width":40,"height":40},"connections":[{"id":"shaft","type":"mechanical","x":20,"y":4,"direction":"top"},{"id":"electrical","type":"electrical","x":4,"y":20,"direction":"left"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.2,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
-        },
-        ShapeSeed {
-            shape_id: "motor-opt2",
-            display_name: "Electric Motor (Graphical)",
-            category: "rotating",
-            variant: "opt2",
-            shape_type: "shape",
-            view_box: "0 0 50 30",
-            svg_data: r##"<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 30"
-     data-io-shape="motor" data-io-version="1.0"
-     data-io-variant="opt2">
-  <g class="io-shape-body">
-    <path class="io-stateful"
-          d="M 13,5 L 37,5 A 5,10 0 0,1 37,25 L 13,25 A 5,10 0 0,1 13,5 Z"
-          fill="none" stroke="#808080" stroke-width="1.5"/>
-    <line x1="13" y1="5" x2="13" y2="25"
-          stroke="#808080" stroke-width="1.5"/>
-    <line x1="37" y1="5" x2="37" y2="25"
-          stroke="#808080" stroke-width="1.5"/>
-  </g>
-</svg>
-"##,
-            sidecar: r#"{"id":"motor-opt2","category":"rotating","geometry":{"viewBox":"0 0 50 30","width":50,"height":30},"connections":[{"id":"shaft-left","type":"mechanical","x":13,"y":15,"direction":"left"},{"id":"shaft-right","type":"mechanical","x":37,"y":15,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.3,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"motor","category":"rotating","geometry":{"viewBox":"0 0 40 40","width":40,"height":40},"variants":{"options":{"opt1":{"file":"motor.svg","label":"ISA Standard"},"opt2":{"file":"motor-opt2.svg","label":"Graphical"}},"configurations":[]},"connections":[{"id":"shaft","type":"mechanical","x":20,"y":4,"direction":"top"},{"id":"electrical","type":"electrical","x":4,"y":20,"direction":"left"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.2,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // HEAT EXCHANGERS
         // ---------------------------------------------------------------
         ShapeSeed {
-            shape_id: "hx-shell-tube-opt1",
+            shape_id: "heat-exchanger-shell-tube",
             display_name: "Shell & Tube HX",
             category: "heat-transfer",
             variant: "opt1",
@@ -501,10 +399,10 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"hx-shell-tube-opt1","category":"heat-exchange","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"shell-inlet","type":"process","x":5,"y":25,"direction":"left"},{"id":"shell-outlet","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"heat-exchanger-shell-tube","category":"heat-transfer","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"shell-inlet","type":"process","x":5,"y":25,"direction":"left"},{"id":"shell-outlet","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
-            shape_id: "hx-plate-opt1",
+            shape_id: "heat-exchanger-plate",
             display_name: "Plate HX",
             category: "heat-transfer",
             variant: "opt1",
@@ -530,10 +428,10 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"hx-plate-opt1","category":"heat-exchange","geometry":{"viewBox":"-2 -2 58 20","width":58,"height":20},"connections":[{"id":"inlet-left","type":"process","x":-2,"y":8,"direction":"left"},{"id":"outlet-right","type":"process","x":56,"y":8,"direction":"right"}],"textZones":[{"id":"tagname","x":27,"y":-8,"width":54,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.6,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.5},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"heat-exchanger-plate","category":"heat-transfer","geometry":{"viewBox":"-2 -2 58 20","width":58,"height":20},"connections":[{"id":"inlet-left","type":"process","x":-2,"y":8,"direction":"left"},{"id":"outlet-right","type":"process","x":56,"y":8,"direction":"right"}],"textZones":[{"id":"tagname","x":27,"y":-8,"width":54,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.6,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.5},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
-            shape_id: "heater-fired-opt1",
+            shape_id: "heater-fired",
             display_name: "Fired Heater / Furnace",
             category: "heat-transfer",
             variant: "opt1",
@@ -558,7 +456,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"heater-fired-opt1","category":"heat-exchange","geometry":{"viewBox":"-2 -2 48 64","width":48,"height":64},"connections":[{"id":"inlet","type":"process","x":22,"y":0,"direction":"top"},{"id":"outlet-left","type":"process","x":7,"y":43,"direction":"left"},{"id":"outlet-right","type":"process","x":37,"y":43,"direction":"right"},{"id":"burner","type":"process","x":22,"y":62,"direction":"bottom"}],"textZones":[{"id":"tagname","x":22,"y":-8,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"heater-fired","category":"heat-transfer","geometry":{"viewBox":"-2 -2 48 64","width":48,"height":64},"connections":[{"id":"inlet","type":"process","x":22,"y":0,"direction":"top"},{"id":"outlet-left","type":"process","x":7,"y":43,"direction":"left"},{"id":"outlet-right","type":"process","x":37,"y":43,"direction":"right"},{"id":"burner","type":"process","x":22,"y":62,"direction":"bottom"}],"textZones":[{"id":"tagname","x":22,"y":-8,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "air-cooler",
@@ -589,7 +487,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
-            sidecar: r#"{"id":"air-cooler","category":"heat-exchange","geometry":{"viewBox":"-8 0 76 38","width":76,"height":38},"connections":[{"id":"inlet","type":"process","x":-4,"y":11,"direction":"left"},{"id":"outlet","type":"process","x":63,"y":11,"direction":"right"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.3,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
+            sidecar: r#"{"id":"air-cooler","category":"heat-transfer","geometry":{"viewBox":"-8 0 76 38","width":76,"height":38},"connections":[{"id":"inlet","type":"process","x":-4,"y":11,"direction":"left"},{"id":"outlet","type":"process","x":63,"y":11,"direction":"right"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.3,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // INSTRUMENTS
