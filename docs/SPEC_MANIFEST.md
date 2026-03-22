@@ -805,6 +805,12 @@ These features span multiple modules. They are defined once here. **Every audit 
 - `/home/io/io-dev/io/design-docs/09_DESIGNER_MODULE.md`
 - `/home/io/io-dev/io/design-docs/DESIGNER_WORK_QUEUE.md` ← known work items
 
+**Decision files**:
+- `docs/decisions/designer-resize-completeness.md` — fix resize for all node types + multi-node resize (tasks 011–015)
+- `docs/decisions/designer-canvas-size-controls.md` — New Graphic dialog W/H, Properties dialog, boundary visual (tasks 016–018)
+- `docs/decisions/designer-cross-mode-palette.md` — all elements in all modes, scrollable report canvas (tasks 019–020)
+- `docs/decisions/designer-groups-and-tabs.md` — group management, in-place edit, file tabs, sub-tabs, promote group to shape (tasks 021–025)
+
 **Depends on**: GFX-CORE, GFX-DISPLAY, GFX-SHAPES (Wave 1)
 
 **Target code paths**:

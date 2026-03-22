@@ -1,6 +1,6 @@
 ---
 id: MOD-CONSOLE-007
-title: Make PointDetailPanel resizable and pinnable; persist position; use /api/v1/points/:id/detail
+title: Make PointDetailPanel resizable, pinnable, minimizable, and session-position-persisted
 unit: MOD-CONSOLE
 status: pending
 priority: medium

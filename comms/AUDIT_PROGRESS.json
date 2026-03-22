@@ -1,7 +1,7 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T01:27:17.066742Z",
-  "checkpoint_count": 9,
+  "last_updated": "2026-03-22",
+  "checkpoint_count": 10,
   "next_checkpoint_at": 24,
   "current_unit": null,
   "task_attempts": {
@@ -45,7 +45,7 @@
     "MOD-CONSOLE-006": 2,
     "MOD-CONSOLE-005": 1,
     "GFX-DISPLAY-003": 1,
-    "MOD-PROCESS-004": 0
+    "MOD-PROCESS-004": 1
   },
   "queue": [
     {
@@ -121,13 +121,13 @@
         "MOD-CONSOLE-005",
         "MOD-CONSOLE-006",
         "MOD-CONSOLE-007",
-        "MOD-CONSOLE-008",
-        "MOD-CONSOLE-009"
+        "MOD-CONSOLE-010",
+        "MOD-CONSOLE-011"
       ],
       "completed_at": "2026-03-22",
-      "notes": "Re-audited round 6. 3 tasks verified since last audit. 9 tasks remain open.",
-      "last_audit_round": 6,
-      "verified_since_last_audit": 3
+      "notes": "Re-audited round 7. 3 tasks closed (MOD-CONSOLE-003, MOD-CONSOLE-005, MOD-CONSOLE-006). 9 canonical tasks remain open. 11 task files total (includes 2 legacy).",
+      "last_audit_round": 7,
+      "verified_since_last_audit": 0
     },
     {
       "unit": "MOD-PROCESS",
@@ -168,10 +168,25 @@
         "MOD-DESIGNER-007",
         "MOD-DESIGNER-008",
         "MOD-DESIGNER-009",
-        "MOD-DESIGNER-010"
+        "MOD-DESIGNER-010",
+        "MOD-DESIGNER-011",
+        "MOD-DESIGNER-012",
+        "MOD-DESIGNER-013",
+        "MOD-DESIGNER-014",
+        "MOD-DESIGNER-015",
+        "MOD-DESIGNER-016",
+        "MOD-DESIGNER-017",
+        "MOD-DESIGNER-018",
+        "MOD-DESIGNER-019",
+        "MOD-DESIGNER-020",
+        "MOD-DESIGNER-021",
+        "MOD-DESIGNER-022",
+        "MOD-DESIGNER-023",
+        "MOD-DESIGNER-024",
+        "MOD-DESIGNER-025"
       ],
       "completed_at": "2026-03-21",
-      "notes": "Re-audited round 3. 10 gaps found. Wave 0 findings: CX-CANVAS-CONTEXT, CX-POINT-CONTEXT, CX-ERROR, CX-LOADING, CX-TOKENS.",
+      "notes": "Re-audited round 3. 10 gaps found. Wave 0 findings: CX-CANVAS-CONTEXT, CX-POINT-CONTEXT, CX-ERROR, CX-LOADING, CX-TOKENS. Round 6: 15 feature tasks added (resize completeness, canvas size controls, cross-mode palette parity, group management/tabs, promote group to shape).",
       "last_audit_round": 3,
       "verified_since_last_audit": 0
     },
@@ -993,66 +1008,66 @@
       "id": "MOD-CONSOLE-001",
       "unit": "MOD-CONSOLE",
       "wave": 2,
-      "title": "Implement auto-save failure persistent banner with exponential backoff retry",
-      "priority": "high",
-      "status": "verified",
+      "title": "Add favorites group, view-mode selector, and section-height resize to left nav panel",
+      "priority": "medium",
+      "status": "pending",
       "depends_on": [],
-      "audit_round": 5
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-002",
       "unit": "MOD-CONSOLE",
-      "title": "Preserve pane content in overflow stack when template downsizes",
-      "priority": "medium",
+      "title": "Implement detached window support for Console panes",
+      "priority": "high",
       "depends_on": [],
-      "status": "verified",
-      "audit_round": 6
+      "status": "pending",
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-003",
       "unit": "MOD-CONSOLE",
       "wave": 2,
-      "title": "Implement detached window support for individual panes via SharedWorker",
+      "title": "Persist aspect ratio lock per-workspace in WorkspaceConfig.settings",
       "priority": "medium",
-      "status": "verified",
+      "status": "pending",
       "depends_on": [],
-      "audit_round": 5
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-004",
       "unit": "MOD-CONSOLE",
-      "title": "Add favorites group, view-mode selector, and per-section search to left nav panel; make panel resizable",
+      "title": "Fix Historical Playback Bar speed values, add alarm markers, and keyboard shortcuts",
       "priority": "medium",
       "depends_on": [],
-      "status": "verified",
-      "audit_round": 6
+      "status": "pending",
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-005",
       "unit": "MOD-CONSOLE",
-      "title": "Implement all 6 export formats and async export path for Console workspace data",
-      "priority": "medium",
+      "title": "Add nested error boundaries around individual panes to isolate crashes",
+      "priority": "high",
       "depends_on": [],
-      "status": "verified",
-      "audit_round": 6
+      "status": "pending",
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-006",
       "unit": "MOD-CONSOLE",
-      "title": "Replace local point context menu in GraphicPane with shared PointContextMenu component",
-      "priority": "high",
+      "title": "Gate Create Workspace empty-state CTA on console:write permission",
+      "priority": "low",
       "depends_on": [],
-      "status": "verified",
-      "audit_round": 5
+      "status": "pending",
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-007",
       "unit": "MOD-CONSOLE",
-      "title": "Make PointDetailPanel resizable and pinnable; persist position; use /api/v1/points/:id/detail",
+      "title": "Make PointDetailPanel resizable, pinnable, minimizable, and session-position-persisted",
       "priority": "medium",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 6
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-008",
@@ -1061,7 +1076,7 @@
       "priority": "medium",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 6
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-009",
@@ -1070,7 +1085,7 @@
       "priority": "medium",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 6
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-010",
@@ -1079,7 +1094,7 @@
       "priority": "low",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 6
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-011",
@@ -1088,7 +1103,7 @@
       "priority": "low",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 6
+      "audit_round": 7
     },
     {
       "id": "MOD-CONSOLE-012",
@@ -1146,7 +1161,7 @@
       "wave": 2,
       "title": "Replace custom point right-click with shared PointContextMenu component",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -3763,7 +3778,196 @@
       "depends_on": [],
       "status": "pending",
       "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-011",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Fix resize mouseup dispatch for symbol_instance, text_block, and stencil",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-012",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add bounding box resize for annotation nodes (subtype-aware)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-013",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add group proportional resize (Figma model \u2014 scale all children)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-011"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-014",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add resize handles and drag resize for standalone display elements",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-011"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-015",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Enable multi-node resize (CompoundCommand wrapping per-node resize commands)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-011",
+        "MOD-DESIGNER-012",
+        "MOD-DESIGNER-013",
+        "MOD-DESIGNER-014"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-016",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add canvas size inputs and aspect preset buttons to New Graphic dialog",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-017",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Build File \u2192 Properties dialog for canvas resize and background color",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-016"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-018",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Render canvas boundary visual and add out-of-bounds save warning toast",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-019",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Palette parity \u2014 Widgets in Graphic mode, Stencils in Dashboard/Report mode",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-016"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-020",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Implement auto-height scrollable canvas for Report and Dashboard modes",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-016",
+        "MOD-DESIGNER-017",
+        "MOD-DESIGNER-019"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-021",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group management \u2014 create with name prompt, rename, ungroup, keyboard shortcuts",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-022",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group in-place editing (double-click enter/exit) and toolbar selector/group buttons",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-021"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-023",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Designer file tabs \u2014 multiple open graphics simultaneously",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-024",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group sub-tabs \u2014 open group content in a dedicated tab for deep editing",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-021",
+        "MOD-DESIGNER-023"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-025",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Extend Promote to Shape wizard to accept groups with display elements as value anchors",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-021"
+      ],
+      "audit_round": 6,
+      "source": "feature"
     }
   ],
-  "audit_round": 6
+  "audit_round": 7
 }

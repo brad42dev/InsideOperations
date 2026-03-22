@@ -273,12 +273,12 @@ For `repair_attempt` 1 to `MAX_REPAIR`:
 Update `PROGRESS_FILE`: increment `checkpoint_count`, set `last_updated`, `current_unit: null`.
 
 Report to user:
-**If `run_limit == 1`:** Print one-line summary and exit immediately — no prompt.
+**If `run_limit == 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"audit","work_done":{successes_this_run}}`, print one-line summary, exit.
 ```
 ✓ audit round complete — {N} unit(s) processed. Progress saved.
 ```
 
-**If `run_limit > 1`:** Print full checkpoint and ask:
+**If `run_limit > 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"audit","work_done":{successes_this_run}}`, then print full checkpoint and ask:
 ```
 === AUDIT CHECKPOINT ===
 Completed this run: <unit IDs>
@@ -422,12 +422,12 @@ Track `successes_this_run = 0`.
 
 ### Implement Checkpoint
 
-**If `run_limit == 1`:** Print one-line summary and exit immediately — no prompt.
+**If `run_limit == 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"implement","work_done":{successes_this_run}}`, print one-line summary, exit.
 ```
 ✓ implement round complete — {task-id} verified. Progress saved.
 ```
 
-**If `run_limit > 1`:** Same structure as audit checkpoint. Report tasks completed this run, ask YES/NO/SKIP.
+**If `run_limit > 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"implement","work_done":{successes_this_run}}`, then same structure as audit checkpoint. Report tasks completed this run, ask YES/NO/SKIP.
 
 ---
 
