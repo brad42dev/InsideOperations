@@ -84,6 +84,8 @@ export interface GraphicDocument extends SceneNodeBase {
     width: number
     height: number
     backgroundColor: Color
+    /** When true (report mode), canvas height grows to fit content rather than clipping */
+    autoHeight?: boolean
   }
   metadata: {
     description?: string

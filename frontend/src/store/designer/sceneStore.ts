@@ -53,9 +53,11 @@ export interface SceneStore {
    * Canvas defaults:
    *  - graphic:   1920 × 1080
    *  - dashboard: 1920 × 1080
-   *  - report:    1240 × 1754 (A4 portrait)
+   *  - report:    794 × 1123 (A4 portrait), autoHeight=true
+   *
+   * Optional width/height/autoHeight override the mode defaults (set from the dialog).
    */
-  newDocument(mode: 'graphic' | 'dashboard' | 'report', name: string): void
+  newDocument(mode: 'graphic' | 'dashboard' | 'report', name: string, width?: number, height?: number, autoHeight?: boolean): void
 
   /** Switch design mode without creating/loading a document. */
   setDesignMode(mode: 'graphic' | 'dashboard' | 'report'): void
@@ -68,10 +70,10 @@ export interface SceneStore {
 // Canvas size defaults per design mode
 // ---------------------------------------------------------------------------
 
-const CANVAS_SIZES: Record<'graphic' | 'dashboard' | 'report', { width: number; height: number }> = {
+const CANVAS_SIZES: Record<'graphic' | 'dashboard' | 'report', { width: number; height: number; autoHeight?: boolean }> = {
   graphic:   { width: 1920, height: 1080 },
   dashboard: { width: 1920, height: 1080 },
-  report:    { width: 1240, height: 1754 },
+  report:    { width: 794, height: 1123, autoHeight: true },
 }
 
 // ---------------------------------------------------------------------------
@@ -91,9 +93,15 @@ function makeDefaultLayers(): LayerDefinition[] {
 
 function makeEmptyDocument(
   mode: 'graphic' | 'dashboard' | 'report',
-  name: string
+  name: string,
+  widthOverride?: number,
+  heightOverride?: number,
+  autoHeightOverride?: boolean
 ): GraphicDocument {
-  const { width, height } = CANVAS_SIZES[mode]
+  const defaults = CANVAS_SIZES[mode]
+  const width = widthOverride ?? defaults.width
+  const height = heightOverride ?? defaults.height
+  const autoHeight = autoHeightOverride ?? defaults.autoHeight ?? false
   return {
     id: crypto.randomUUID(),
     type: 'graphic_document',
@@ -107,7 +115,7 @@ function makeEmptyDocument(
     visible: true,
     locked: false,
     opacity: 1,
-    canvas: { width, height, backgroundColor: '#09090b' },
+    canvas: { width, height, backgroundColor: '#09090b', autoHeight },
     metadata: {
       tags: [],
       designMode: mode,
@@ -159,9 +167,9 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
     set({ isDirty: false })
   },
 
-  newDocument(mode, name) {
+  newDocument(mode, name, width, height, autoHeight) {
     set({
-      doc: makeEmptyDocument(mode, name),
+      doc: makeEmptyDocument(mode, name, width, height, autoHeight),
       graphicId: null,
       isDirty: true,
       designMode: mode,

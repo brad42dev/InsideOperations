@@ -42,19 +42,182 @@ import IographicExportDialog from './components/IographicExportDialog'
 // ---------------------------------------------------------------------------
 
 interface NewGraphicDialogProps {
-  onConfirm: (name: string, mode: 'graphic' | 'dashboard' | 'report') => void
+  onConfirm: (name: string, mode: 'graphic' | 'dashboard' | 'report', width: number, height: number, autoHeight: boolean) => void
   onCancel: () => void
 }
+
+// ---------------------------------------------------------------------------
+// Aspect presets
+// ---------------------------------------------------------------------------
+
+interface AspectPreset {
+  label: string
+  width: number
+  height: number
+  reportOnly?: boolean
+}
+
+const ASPECT_PRESETS: AspectPreset[] = [
+  { label: '720p',           width: 1280,  height: 720  },
+  { label: '1080p',          width: 1920,  height: 1080 },
+  { label: '1440p',          width: 2560,  height: 1440 },
+  { label: '4K',             width: 3840,  height: 2160 },
+  { label: '16:10 M',        width: 1920,  height: 1200 },
+  { label: '16:10 L',        width: 2560,  height: 1600 },
+  { label: '4:3 Std',        width: 1024,  height: 768  },
+  { label: '4:3 Lg',         width: 1600,  height: 1200 },
+  { label: 'Ultrawide',      width: 3440,  height: 1440 },
+  { label: 'Super-UW',       width: 5120,  height: 1440 },
+  { label: 'A4 Portrait',    width: 794,   height: 1123, reportOnly: true },
+  { label: 'A4 Landscape',   width: 1123,  height: 794,  reportOnly: true },
+  { label: 'Letter Portrait', width: 816,  height: 1056, reportOnly: true },
+  { label: 'Letter Landscape', width: 1056, height: 816, reportOnly: true },
+]
+
+// Defaults per mode
+const MODE_DEFAULTS: Record<'graphic' | 'dashboard' | 'report', { width: number; height: number; autoHeight: boolean }> = {
+  graphic:   { width: 1920, height: 1080, autoHeight: false },
+  dashboard: { width: 1920, height: 1080, autoHeight: false },
+  report:    { width: 794,  height: 1123, autoHeight: true  },
+}
+
+// ---------------------------------------------------------------------------
+// Chain-link SVG icon for proportional lock toggle
+// ---------------------------------------------------------------------------
+
+function ChainLinkIcon({ locked }: { locked: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      {locked ? (
+        // Closed chain: two ovals linked
+        <>
+          <rect x="1" y="5" width="4" height="4" rx="2" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="9" y="5" width="4" height="4" rx="2" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="5" y1="7" x2="9" y2="7" stroke="currentColor" strokeWidth="1.5" />
+        </>
+      ) : (
+        // Open chain: two ovals unlinked with a gap
+        <>
+          <rect x="1" y="5" width="4" height="4" rx="2" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="9" y="5" width="4" height="4" rx="2" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="5" y1="7" x2="6.5" y2="7" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="7.5" y1="7" x2="9" y2="7" stroke="currentColor" strokeWidth="1.5" />
+        </>
+      )}
+    </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// NewGraphicDialog
+// ---------------------------------------------------------------------------
 
 function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
   const [name, setName] = useState('Untitled Graphic')
   const [mode, setMode] = useState<'graphic' | 'dashboard' | 'report'>('graphic')
+  const [width, setWidth] = useState<number>(MODE_DEFAULTS.graphic.width)
+  const [height, setHeight] = useState<number>(MODE_DEFAULTS.graphic.height)
+  const [autoHeight, setAutoHeight] = useState<boolean>(MODE_DEFAULTS.graphic.autoHeight)
+  const [proportionalLock, setProportionalLock] = useState(false)
+  const [activePreset, setActivePreset] = useState<string | null>('1080p')
+
+  // When mode changes, reset to that mode's defaults
+  function handleModeChange(newMode: 'graphic' | 'dashboard' | 'report') {
+    setMode(newMode)
+    const defaults = MODE_DEFAULTS[newMode]
+    setWidth(defaults.width)
+    setHeight(defaults.height)
+    setAutoHeight(defaults.autoHeight)
+    // Check if the new defaults match a preset
+    const matching = ASPECT_PRESETS.find(p => p.width === defaults.width && p.height === defaults.height)
+    setActivePreset(matching ? matching.label : null)
+    setProportionalLock(false)
+  }
+
+  function applyPreset(preset: AspectPreset) {
+    setWidth(preset.width)
+    setHeight(preset.height)
+    setActivePreset(preset.label)
+  }
+
+  function handleWidthChange(raw: string) {
+    const val = parseInt(raw, 10)
+    if (isNaN(val)) return
+    if (proportionalLock && height > 0 && width > 0) {
+      const newH = Math.round(val * (height / width))
+      setHeight(newH)
+    }
+    setWidth(val)
+    // Clear active preset if no match
+    const matching = ASPECT_PRESETS.find(p => {
+      const newH = proportionalLock && height > 0 && width > 0
+        ? Math.round(val * (height / width))
+        : height
+      return p.width === val && p.height === newH
+    })
+    setActivePreset(matching ? matching.label : null)
+  }
+
+  function handleHeightChange(raw: string) {
+    const val = parseInt(raw, 10)
+    if (isNaN(val)) return
+    if (proportionalLock && width > 0 && height > 0) {
+      const newW = Math.round(val * (width / height))
+      setWidth(newW)
+    }
+    setHeight(val)
+    const matching = ASPECT_PRESETS.find(p => {
+      const newW = proportionalLock && width > 0 && height > 0
+        ? Math.round(val * (width / height))
+        : width
+      return p.width === newW && p.height === val
+    })
+    setActivePreset(matching ? matching.label : null)
+  }
+
+  function clampWidth(val: number): number {
+    return Math.max(320, Math.min(20000, val))
+  }
+  function clampHeight(val: number): number {
+    return Math.max(240, Math.min(15000, val))
+  }
+
+  function handleWidthBlur() {
+    setWidth(w => clampWidth(w))
+  }
+  function handleHeightBlur() {
+    setHeight(h => clampHeight(h))
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) return
-    onConfirm(trimmed, mode)
+    onConfirm(trimmed, mode, clampWidth(width), clampHeight(height), autoHeight)
+  }
+
+  const visiblePresets = ASPECT_PRESETS.filter(p => !p.reportOnly || mode === 'report')
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '6px 8px',
+    background: 'var(--io-surface)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    color: 'var(--io-text-primary)',
+    fontSize: 13,
+    outline: 'none',
+    boxSizing: 'border-box',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--io-text-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: 4,
   }
 
   return (
@@ -74,8 +237,8 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
           border: '1px solid var(--io-border)',
           borderRadius: 'var(--io-radius)',
           padding: 24,
-          width: 380,
-          maxWidth: '90%',
+          width: 440,
+          maxWidth: '92%',
           display: 'flex',
           flexDirection: 'column',
           gap: 16,
@@ -85,39 +248,27 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
           New Graphic
         </div>
 
+        {/* Name */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-            Name
-          </label>
+          <label style={labelStyle}>Name</label>
           <input
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
             autoFocus
-            style={{
-              width: '100%',
-              padding: '6px 8px',
-              background: 'var(--io-surface)',
-              border: '1px solid var(--io-border)',
-              borderRadius: 'var(--io-radius)',
-              color: 'var(--io-text-primary)',
-              fontSize: 13,
-              outline: 'none',
-              boxSizing: 'border-box',
-            }}
+            style={inputStyle}
           />
         </div>
 
+        {/* Type / Mode */}
         <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-            Type
-          </label>
+          <label style={labelStyle}>Type</label>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['graphic', 'dashboard', 'report'] as const).map(m => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={() => handleModeChange(m)}
                 style={{
                   flex: 1,
                   padding: '6px 0',
@@ -137,6 +288,113 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
           </div>
         </div>
 
+        {/* Preset chip row */}
+        <div>
+          <label style={labelStyle}>Canvas Preset</label>
+          <div style={{
+            overflowX: 'auto',
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'nowrap',
+            paddingBottom: 2,
+          }}>
+            {visiblePresets.map(preset => {
+              const isActive = activePreset === preset.label
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => applyPreset(preset)}
+                  title={`${preset.width} \u00d7 ${preset.height}`}
+                  style={{
+                    flexShrink: 0,
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    fontWeight: isActive ? 600 : 400,
+                    background: isActive ? 'var(--io-accent)' : 'var(--io-surface)',
+                    color: isActive ? '#09090b' : 'var(--io-text-secondary)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'calc(var(--io-radius) * 2)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {preset.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Width / Height inputs with proportional lock */}
+        <div>
+          <label style={labelStyle}>
+            {mode === 'report' ? 'Min. Height' : 'Canvas Size'}
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Width */}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: 'var(--io-text-muted)', marginBottom: 2 }}>Width</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input
+                  type="number"
+                  value={width}
+                  min={320}
+                  max={20000}
+                  onChange={e => handleWidthChange(e.target.value)}
+                  onBlur={handleWidthBlur}
+                  style={{ ...inputStyle, width: '100%' }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--io-text-muted)', flexShrink: 0 }}>px</span>
+              </div>
+            </div>
+
+            {/* Proportional lock toggle */}
+            <button
+              type="button"
+              onClick={() => setProportionalLock(l => !l)}
+              title={proportionalLock ? 'Unlock proportions' : 'Lock proportions'}
+              style={{
+                flexShrink: 0,
+                width: 28,
+                height: 28,
+                marginTop: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: proportionalLock ? 'var(--io-accent)' : 'var(--io-surface)',
+                color: proportionalLock ? '#09090b' : 'var(--io-text-muted)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <ChainLinkIcon locked={proportionalLock} />
+            </button>
+
+            {/* Height */}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: 'var(--io-text-muted)', marginBottom: 2 }}>
+                {mode === 'report' ? 'Min. Height' : 'Height'}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input
+                  type="number"
+                  value={height}
+                  min={240}
+                  max={15000}
+                  onChange={e => handleHeightChange(e.target.value)}
+                  onBlur={handleHeightBlur}
+                  style={{ ...inputStyle, width: '100%' }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--io-text-muted)', flexShrink: 0 }}>px</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Buttons */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
           <button
             type="button"
@@ -665,8 +923,8 @@ export default function DesignerPage() {
   // New graphic dialog confirm
   // -------------------------------------------------------------------------
 
-  function handleNewConfirm(name: string, mode: 'graphic' | 'dashboard' | 'report') {
-    newDocument(mode, name)
+  function handleNewConfirm(name: string, mode: 'graphic' | 'dashboard' | 'report', width: number, height: number, autoHeight: boolean) {
+    newDocument(mode, name, width, height, autoHeight)
     historyClear()
     setShowNewDialog(false)
   }
