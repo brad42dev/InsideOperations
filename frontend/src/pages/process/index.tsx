@@ -555,7 +555,7 @@ export default function ProcessPage() {
     const mouseY = e.clientY - rect.top
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9
     setViewport((vp) => {
-      const newZoom = Math.max(0.05, Math.min(10, vp.zoom * zoomFactor))
+      const newZoom = Math.max(0.05, Math.min(8, vp.zoom * zoomFactor))
       const canvasX = mouseX / vp.zoom + vp.panX
       const canvasY = mouseY / vp.zoom + vp.panY
       return { ...vp, zoom: newZoom, panX: canvasX - mouseX / newZoom, panY: canvasY - mouseY / newZoom }
@@ -641,7 +641,7 @@ export default function ProcessPage() {
       const pts = Array.from(activePointers.current.values())
       const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)
       const ratio = dist / pinchBaseDist.current
-      const newZoom = Math.max(0.05, Math.min(10, pinchBaseZoom.current * ratio))
+      const newZoom = Math.max(0.05, Math.min(8, pinchBaseZoom.current * ratio))
       const rect = containerRef.current?.getBoundingClientRect()
       if (rect) {
         const midX = (pts[0].x + pts[1].x) / 2 - rect.left
@@ -677,7 +677,7 @@ export default function ProcessPage() {
   // ---- Zoom controls -------------------------------------------------------
 
   function zoomIn() {
-    setViewport((vp) => ({ ...vp, zoom: Math.min(10, vp.zoom * 1.25) }))
+    setViewport((vp) => ({ ...vp, zoom: Math.min(8, vp.zoom * 1.25) }))
   }
   function zoomOut() {
     setViewport((vp) => ({ ...vp, zoom: Math.max(0.05, vp.zoom / 1.25) }))
@@ -685,7 +685,7 @@ export default function ProcessPage() {
   function zoomFit() {
     if (!graphic?.scene_data) return
     const { width, height } = graphic.scene_data.canvas
-    const fitZoom = Math.min(viewport.screenWidth / width, viewport.screenHeight / height, 1)
+    const fitZoom = Math.min(viewport.screenWidth / width, viewport.screenHeight / height)
     setViewport((vp) => ({ ...vp, zoom: fitZoom, panX: 0, panY: 0 }))
   }
   function zoom100() {
