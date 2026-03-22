@@ -172,6 +172,10 @@ export const notificationsApi = {
     return api.post('/api/notifications/send', payload)
   },
 
+  sendEmergency(payload: SendNotificationPayload): Promise<ApiResult<NotificationMessage>> {
+    return api.post('/api/notifications/send-emergency', payload)
+  },
+
   getMessage(id: string): Promise<ApiResult<NotificationMessage>> {
     return api.get(`/api/notifications/messages/${id}`)
   },

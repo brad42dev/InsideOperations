@@ -158,6 +158,7 @@ function ConfirmDialog({
 
 function SendAlertPanel() {
   const qc = useQueryClient()
+  const canSendEmergency = usePermission('alerts:send_emergency')
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [severity, setSeverity] = useState<NotificationSeverity>('info')
@@ -215,6 +216,25 @@ function SendAlertPanel() {
     },
   })
 
+  const sendEmergencyMutation = useMutation({
+    mutationFn: (payload: SendNotificationPayload) => notificationsApi.sendEmergency(payload),
+    onSuccess: (result) => {
+      if (result.success) {
+        qc.invalidateQueries({ queryKey: ['notification-messages'] })
+        qc.invalidateQueries({ queryKey: ['notification-active'] })
+        // Reset form
+        setSelectedTemplateId('')
+        setSeverity('info')
+        setTitle('')
+        setBody('')
+        setChannels(['websocket'])
+        setVariableValues({})
+        setRecipientMode('all')
+        setSelectedGroupId('')
+      }
+    },
+  })
+
   const handleSend = () => {
     if (severity === 'emergency') {
       setShowConfirm(true)
@@ -239,7 +259,11 @@ function SendAlertPanel() {
       group_id: recipientMode === 'group' ? selectedGroupId || undefined : undefined,
       variables: Object.keys(variableValues).length > 0 ? variableValues : undefined,
     }
-    sendMutation.mutate(payload)
+    if (severity === 'emergency') {
+      sendEmergencyMutation.mutate(payload)
+    } else {
+      sendMutation.mutate(payload)
+    }
   }
 
   const toggleChannel = (ch: NotificationChannel) => {
@@ -317,30 +341,32 @@ function SendAlertPanel() {
         <div>
           <label style={labelStyle}>Severity</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['emergency', 'critical', 'warning', 'info'] as NotificationSeverity[]).map((s) => {
-              const c = SEVERITY_COLORS[s]
-              const isSelected = severity === s
-              return (
-                <button
-                  key={s}
-                  onClick={() => setSeverity(s)}
-                  style={{
-                    flex: 1,
-                    padding: '6px 0',
-                    borderRadius: 6,
-                    border: `1px solid ${isSelected ? c.border : 'var(--io-border)'}`,
-                    background: isSelected ? c.bg : 'var(--io-surface-secondary)',
-                    color: isSelected ? c.text : 'var(--io-text-muted)',
-                    fontWeight: isSelected ? 700 : 400,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                  }}
-                >
-                  {s}
-                </button>
-              )
-            })}
+            {(['emergency', 'critical', 'warning', 'info'] as NotificationSeverity[])
+              .filter((s) => s !== 'emergency' || canSendEmergency)
+              .map((s) => {
+                const c = SEVERITY_COLORS[s]
+                const isSelected = severity === s
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setSeverity(s)}
+                    style={{
+                      flex: 1,
+                      padding: '6px 0',
+                      borderRadius: 6,
+                      border: `1px solid ${isSelected ? c.border : 'var(--io-border)'}`,
+                      background: isSelected ? c.bg : 'var(--io-surface-secondary)',
+                      color: isSelected ? c.text : 'var(--io-text-muted)',
+                      fontWeight: isSelected ? 700 : 400,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
           </div>
         </div>
 
@@ -462,34 +488,41 @@ function SendAlertPanel() {
         </div>
 
         {/* Send button */}
-        <button
-          onClick={handleSend}
-          disabled={sendMutation.isPending || channels.length === 0 || hasUnfilledRequired}
-          style={{
-            padding: '10px 20px',
-            borderRadius: 6,
-            border: `1px solid ${SEVERITY_COLORS[severity].border}`,
-            background: SEVERITY_COLORS[severity].bg,
-            color: SEVERITY_COLORS[severity].text,
-            fontWeight: 700,
-            fontSize: 14,
-            cursor: sendMutation.isPending ? 'not-allowed' : 'pointer',
-            opacity: sendMutation.isPending ? 0.6 : 1,
-          } as React.CSSProperties}
-        >
-          {sendMutation.isPending ? 'Sending…' : `Send ${severity.charAt(0).toUpperCase() + severity.slice(1)} Alert`}
-        </button>
+        {(() => {
+          const activeMutation = severity === 'emergency' ? sendEmergencyMutation : sendMutation
+          return (
+            <>
+              <button
+                onClick={handleSend}
+                disabled={activeMutation.isPending || channels.length === 0 || hasUnfilledRequired}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 6,
+                  border: `1px solid ${SEVERITY_COLORS[severity].border}`,
+                  background: SEVERITY_COLORS[severity].bg,
+                  color: SEVERITY_COLORS[severity].text,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: activeMutation.isPending ? 'not-allowed' : 'pointer',
+                  opacity: activeMutation.isPending ? 0.6 : 1,
+                } as React.CSSProperties}
+              >
+                {activeMutation.isPending ? 'Sending…' : `Send ${severity.charAt(0).toUpperCase() + severity.slice(1)} Alert`}
+              </button>
 
-        {sendMutation.isSuccess && sendMutation.data?.success && (
-          <p style={{ color: '#22c55e', fontSize: 13, margin: 0 }}>
-            Alert sent to {sendMutation.data.data.recipient_count} recipient(s).
-          </p>
-        )}
-        {sendMutation.isSuccess && !sendMutation.data?.success && (
-          <p style={{ color: '#ef4444', fontSize: 13, margin: 0 }}>
-            {(sendMutation.data as { error?: { message?: string } }).error?.message ?? 'Send failed.'}
-          </p>
-        )}
+              {activeMutation.isSuccess && activeMutation.data?.success && (
+                <p style={{ color: '#22c55e', fontSize: 13, margin: 0 }}>
+                  Alert sent to {activeMutation.data.data.recipient_count} recipient(s).
+                </p>
+              )}
+              {activeMutation.isSuccess && !activeMutation.data?.success && (
+                <p style={{ color: '#ef4444', fontSize: 13, margin: 0 }}>
+                  {(activeMutation.data as { error?: { message?: string } }).error?.message ?? 'Send failed.'}
+                </p>
+              )}
+            </>
+          )
+        })()}
       </div>
 
       {/* Right column: live preview */}

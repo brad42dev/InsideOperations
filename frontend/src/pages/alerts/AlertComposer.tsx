@@ -7,8 +7,9 @@ import {
   type NotificationChannel,
   type SendNotificationPayload,
 } from '../../api/notifications'
+import { usePermission } from '../../shared/hooks/usePermission'
 
-const SEVERITIES: NotificationSeverity[] = ['emergency', 'critical', 'warning', 'info']
+const ALL_SEVERITIES: NotificationSeverity[] = ['emergency', 'critical', 'warning', 'info']
 const CHANNELS: NotificationChannel[] = ['websocket', 'email', 'sms']
 
 const SEVERITY_LABEL: Record<NotificationSeverity, string> = {
@@ -39,6 +40,9 @@ const labelStyle: React.CSSProperties = {
 
 export default function AlertComposer() {
   const navigate = useNavigate()
+  const canSendEmergency = usePermission('alerts:send_emergency')
+
+  const SEVERITIES = ALL_SEVERITIES.filter((s) => s !== 'emergency' || canSendEmergency)
 
   const [severity, setSeverity] = useState<NotificationSeverity>('info')
   const [title, setTitle] = useState('')
@@ -69,6 +73,18 @@ export default function AlertComposer() {
   const sendMutation = useMutation({
     mutationFn: async (payload: SendNotificationPayload) => {
       const result = await notificationsApi.sendNotification(payload)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      setConfirmed(true)
+      setTimeout(() => navigate('/alerts/active'), 1800)
+    },
+  })
+
+  const sendEmergencyMutation = useMutation({
+    mutationFn: async (payload: SendNotificationPayload) => {
+      const result = await notificationsApi.sendEmergency(payload)
       if (!result.success) throw new Error(result.error.message)
       return result.data
     },
@@ -109,7 +125,11 @@ export default function AlertComposer() {
       ...(selectedTemplateId ? { template_id: selectedTemplateId } : {}),
       ...(selectedGroupId ? { group_id: selectedGroupId } : {}),
     }
-    sendMutation.mutate(payload)
+    if (severity === 'emergency') {
+      sendEmergencyMutation.mutate(payload)
+    } else {
+      sendMutation.mutate(payload)
+    }
   }
 
   if (confirmed) {
@@ -143,14 +163,14 @@ export default function AlertComposer() {
         <div style={{ display: 'grid', gap: 20 }}>
 
           {/* Emergency Quick-Send: prominent emergency/critical templates */}
-          {templates && templates.filter(t => t.severity === 'emergency' || t.severity === 'critical').length > 0 && (
+          {templates && templates.filter(t => (t.severity === 'critical') || (t.severity === 'emergency' && canSendEmergency)).length > 0 && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
                 Emergency Quick-Send
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {templates
-                  .filter(t => t.severity === 'emergency' || t.severity === 'critical')
+                  .filter(t => (t.severity === 'critical') || (t.severity === 'emergency' && canSendEmergency))
                   .map(t => (
                     <button
                       key={t.id}
@@ -259,30 +279,37 @@ export default function AlertComposer() {
             </div>
           </div>
 
-          {sendMutation.isError && (
+          {(sendMutation.isError || sendEmergencyMutation.isError) && (
             <div style={{ color: '#ef4444', fontSize: 13, padding: '8px 12px', background: 'rgba(239,68,68,0.1)', borderRadius: 6 }}>
-              {sendMutation.error instanceof Error ? sendMutation.error.message : 'Failed to send alert'}
+              {(sendMutation.error ?? sendEmergencyMutation.error) instanceof Error
+                ? (sendMutation.error ?? sendEmergencyMutation.error as Error).message
+                : 'Failed to send alert'}
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
-            <button
-              type="submit"
-              disabled={sendMutation.isPending || !title.trim() || !body.trim()}
-              style={{
-                padding: '8px 24px',
-                borderRadius: 6,
-                border: 'none',
-                background: 'var(--io-accent)',
-                color: '#fff',
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: sendMutation.isPending ? 'not-allowed' : 'pointer',
-                opacity: sendMutation.isPending ? 0.7 : 1,
-              }}
-            >
-              {sendMutation.isPending ? 'Sending…' : 'Send Alert'}
-            </button>
+            {(() => {
+              const activeMutation = severity === 'emergency' ? sendEmergencyMutation : sendMutation
+              return (
+                <button
+                  type="submit"
+                  disabled={activeMutation.isPending || !title.trim() || !body.trim()}
+                  style={{
+                    padding: '8px 24px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: 'var(--io-accent)',
+                    color: '#fff',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: activeMutation.isPending ? 'not-allowed' : 'pointer',
+                    opacity: activeMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  {activeMutation.isPending ? 'Sending…' : 'Send Alert'}
+                </button>
+              )
+            })()}
             <button
               type="button"
               onClick={() => navigate('/alerts/active')}
