@@ -5,6 +5,14 @@ pub struct Config {
     pub service_secret: String,
     /// 32-byte master key used for AES-256-GCM encryption of provider secrets.
     pub master_key: [u8; 32],
+    /// How often the queue worker polls for pending messages, in milliseconds.
+    pub queue_poll_interval_ms: u64,
+    /// Number of concurrent queue worker tasks to spawn.
+    pub queue_workers: usize,
+    /// Maximum number of delivery attempts before a message is marked failed.
+    pub queue_retry_max: u8,
+    /// How many days to retain sent/failed queue records before pruning.
+    pub queue_retention_days: u32,
 }
 
 impl Config {
@@ -19,6 +27,22 @@ impl Config {
             service_secret: std::env::var("IO_SERVICE_SECRET")
                 .unwrap_or_default(),
             master_key: load_master_key()?,
+            queue_poll_interval_ms: std::env::var("EMAIL_QUEUE_POLL_INTERVAL_MS")
+                .unwrap_or_else(|_| "1000".to_string())
+                .parse()
+                .unwrap_or(1000),
+            queue_workers: std::env::var("EMAIL_QUEUE_WORKERS")
+                .unwrap_or_else(|_| "4".to_string())
+                .parse()
+                .unwrap_or(4),
+            queue_retry_max: std::env::var("EMAIL_QUEUE_RETRY_MAX")
+                .unwrap_or_else(|_| "4".to_string())
+                .parse()
+                .unwrap_or(4),
+            queue_retention_days: std::env::var("EMAIL_QUEUE_RETENTION_DAYS")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .unwrap_or(30),
         })
     }
 }

@@ -50,8 +50,12 @@ async fn main() -> anyhow::Result<()> {
     health.register(io_health::PgDatabaseCheck::new(state.db.clone()));
     health.mark_startup_complete();
 
-    // Spawn background queue worker
-    tokio::spawn(queue_worker::run_queue_worker(state.clone()));
+    // Spawn background queue workers (configurable count, default 4).
+    // Each worker independently dequeues using SKIP LOCKED for concurrency safety.
+    let worker_count = state.config.queue_workers;
+    for _ in 0..worker_count {
+        tokio::spawn(queue_worker::run_queue_worker(state.clone()));
+    }
 
     let api = Router::new()
         // Providers

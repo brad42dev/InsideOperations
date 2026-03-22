@@ -1,4 +1,4 @@
-//! Background queue worker — polls every 10 seconds and processes pending emails.
+//! Background queue worker — polls at a configurable interval (default 1 s) and processes pending emails.
 
 use sqlx::Row;
 use uuid::Uuid;
@@ -9,8 +9,9 @@ use crate::state::AppState;
 const TOKEN_REFRESH_MARGIN: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 
 pub async fn run_queue_worker(state: AppState) {
+    let poll_interval = tokio::time::Duration::from_millis(state.config.queue_poll_interval_ms);
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        tokio::time::sleep(poll_interval).await;
         if let Err(e) = process_batch(&state).await {
             tracing::error!(error = %e, "queue worker error");
         }
@@ -18,8 +19,8 @@ pub async fn run_queue_worker(state: AppState) {
 }
 
 async fn process_batch(state: &AppState) -> anyhow::Result<()> {
-    // Process up to 3 emails per cycle
-    for _ in 0..3 {
+    // Process up to 10 emails per cycle
+    for _ in 0..10 {
         let processed = process_one(state).await?;
         if !processed {
             break;
