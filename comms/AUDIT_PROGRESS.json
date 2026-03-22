@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T22:31:53.818381+00:00",
+  "last_updated": "2026-03-22T22:39:21.471107Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -3074,7 +3074,7 @@
       "wave": 3,
       "title": "Fix badge-source endpoint permissions from shifts:write to badge_config:manage",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3084,7 +3084,7 @@
       "wave": 3,
       "title": "Add shift pattern CRUD and schedule generation endpoints",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

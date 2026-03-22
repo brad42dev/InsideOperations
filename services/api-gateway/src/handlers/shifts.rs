@@ -9,7 +9,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use io_auth::Claims;
 use io_models::{PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
@@ -332,6 +332,33 @@ pub struct UpdateBadgeSourceBody {
 }
 
 // ---------------------------------------------------------------------------
+// Pattern request bodies
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePatternBody {
+    pub name: String,
+    pub pattern_type: String,
+    pub description: Option<String>,
+    pub pattern_config: Option<JsonValue>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePatternBody {
+    pub name: Option<String>,
+    pub pattern_type: Option<String>,
+    pub description: Option<String>,
+    pub pattern_config: Option<JsonValue>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GenerateFromPatternBody {
+    pub start_date: DateTime<Utc>,
+    pub weeks: u32,
+    pub crew_id: Option<Uuid>,
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/shifts/patterns — list shift patterns
 // ---------------------------------------------------------------------------
 
@@ -393,6 +420,366 @@ pub async fn list_patterns(
                 .into_response()
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/shifts/patterns — create shift pattern
+// ---------------------------------------------------------------------------
+
+pub async fn create_pattern(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreatePatternBody>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "shifts:write") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
+            .into_response();
+    }
+
+    let actor_id = user_id_from_claims(&claims);
+    let config = body.pattern_config.unwrap_or(json!({}));
+
+    let row = sqlx::query(
+        r#"INSERT INTO shift_patterns (name, pattern_type, description, config, created_by)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, name, pattern_type, description, config, created_at, created_by"#,
+    )
+    .bind(&body.name)
+    .bind(&body.pattern_type)
+    .bind(&body.description)
+    .bind(config)
+    .bind(actor_id)
+    .fetch_one(&state.db)
+    .await;
+
+    match row {
+        Ok(r) => created(ShiftPatternRow {
+            id: r.get("id"),
+            name: r.get("name"),
+            pattern_type: r.get("pattern_type"),
+            description: r.get("description"),
+            config: r.get("config"),
+            created_at: r.get("created_at"),
+            created_by: r.get("created_by"),
+        })
+        .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "create_pattern failed");
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to create shift pattern")
+                .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/shifts/patterns/:id — get single shift pattern
+// ---------------------------------------------------------------------------
+
+pub async fn get_pattern(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "shifts:read") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
+            .into_response();
+    }
+
+    let row = sqlx::query(
+        r#"SELECT id, name, pattern_type, description, config, created_at, created_by
+           FROM shift_patterns WHERE id = $1"#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match row {
+        Ok(Some(r)) => ok(ShiftPatternRow {
+            id: r.get("id"),
+            name: r.get("name"),
+            pattern_type: r.get("pattern_type"),
+            description: r.get("description"),
+            config: r.get("config"),
+            created_at: r.get("created_at"),
+            created_by: r.get("created_by"),
+        })
+        .into_response(),
+        Ok(None) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "get_pattern query failed");
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shift pattern")
+                .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// PUT /api/shifts/patterns/:id — update shift pattern
+// ---------------------------------------------------------------------------
+
+pub async fn update_pattern(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdatePatternBody>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "shifts:write") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
+            .into_response();
+    }
+
+    let row = sqlx::query(
+        r#"UPDATE shift_patterns
+           SET name         = COALESCE($2, name),
+               pattern_type = COALESCE($3, pattern_type),
+               description  = COALESCE($4, description),
+               config       = COALESCE($5, config)
+           WHERE id = $1
+           RETURNING id, name, pattern_type, description, config, created_at, created_by"#,
+    )
+    .bind(id)
+    .bind(&body.name)
+    .bind(&body.pattern_type)
+    .bind(&body.description)
+    .bind(body.pattern_config.as_ref())
+    .fetch_optional(&state.db)
+    .await;
+
+    match row {
+        Ok(Some(r)) => ok(ShiftPatternRow {
+            id: r.get("id"),
+            name: r.get("name"),
+            pattern_type: r.get("pattern_type"),
+            description: r.get("description"),
+            config: r.get("config"),
+            created_at: r.get("created_at"),
+            created_by: r.get("created_by"),
+        })
+        .into_response(),
+        Ok(None) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "update_pattern failed");
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to update shift pattern")
+                .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/shifts/patterns/:id — delete shift pattern
+// ---------------------------------------------------------------------------
+
+pub async fn delete_pattern(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "shifts:write") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
+            .into_response();
+    }
+
+    let result = sqlx::query("DELETE FROM shift_patterns WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await;
+
+    match result {
+        Ok(r) if r.rows_affected() > 0 => ok(json!({ "deleted": true })).into_response(),
+        Ok(_) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "delete_pattern failed");
+            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to delete shift pattern")
+                .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/shifts/patterns/:id/generate — generate shifts from pattern
+// ---------------------------------------------------------------------------
+
+pub async fn generate_from_pattern(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<GenerateFromPatternBody>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "shifts:write") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
+            .into_response();
+    }
+
+    let actor_id = user_id_from_claims(&claims);
+
+    // Fetch the pattern
+    let pattern_row = sqlx::query(
+        "SELECT id, name, pattern_type, config FROM shift_patterns WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let pattern = match pattern_row {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "generate_from_pattern fetch pattern failed");
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shift pattern")
+                .into_response();
+        }
+    };
+
+    let pattern_type: String = pattern.get("pattern_type");
+
+    // Determine shift slots based on pattern type
+    // Each slot: (name, start_hour, start_min, end_hour, end_min, next_day_end)
+    struct ShiftSlot {
+        name: &'static str,
+        start_hour: u32,
+        start_min: u32,
+        end_hour: u32,
+        end_min: u32,
+        /// true if end time crosses midnight (next calendar day)
+        crosses_midnight: bool,
+    }
+
+    let slots: Vec<ShiftSlot> = match pattern_type.as_str() {
+        "8x3" => vec![
+            ShiftSlot { name: "Day",   start_hour: 6,  start_min: 0, end_hour: 14, end_min: 0, crosses_midnight: false },
+            ShiftSlot { name: "Swing", start_hour: 14, start_min: 0, end_hour: 22, end_min: 0, crosses_midnight: false },
+            ShiftSlot { name: "Night", start_hour: 22, start_min: 0, end_hour: 6,  end_min: 0, crosses_midnight: true  },
+        ],
+        "12x2" => vec![
+            ShiftSlot { name: "Day",   start_hour: 6,  start_min: 0, end_hour: 18, end_min: 0, crosses_midnight: false },
+            ShiftSlot { name: "Night", start_hour: 18, start_min: 0, end_hour: 6,  end_min: 0, crosses_midnight: true  },
+        ],
+        "dupont" | "pitman" => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "success": false,
+                    "error": {
+                        "code": "NOT_IMPLEMENTED",
+                        "message": "Not implemented for this pattern type"
+                    }
+                })),
+            )
+                .into_response();
+        }
+        _ => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "UNSUPPORTED_PATTERN",
+                "Unsupported pattern type. Supported: 8x3, 12x2",
+            )
+            .into_response();
+        }
+    };
+
+    let weeks = body.weeks.min(52) as i64; // cap at 1 year
+    let total_days = weeks * 7;
+    let mut shifts_created: i64 = 0;
+
+    for day_offset in 0..total_days {
+        let day_offset_duration = Duration::days(day_offset);
+        let day_base = body.start_date + day_offset_duration;
+
+        for slot in &slots {
+            let start_time = Utc
+                .with_ymd_and_hms(
+                    day_base.year(),
+                    day_base.month(),
+                    day_base.day(),
+                    slot.start_hour,
+                    slot.start_min,
+                    0,
+                )
+                .single();
+
+            let end_base = if slot.crosses_midnight {
+                day_base + Duration::days(1)
+            } else {
+                day_base
+            };
+
+            let end_time = Utc
+                .with_ymd_and_hms(
+                    end_base.year(),
+                    end_base.month(),
+                    end_base.day(),
+                    slot.end_hour,
+                    slot.end_min,
+                    0,
+                )
+                .single();
+
+            let (Some(start_time), Some(end_time)) = (start_time, end_time) else {
+                continue;
+            };
+
+            let shift_name = format!(
+                "{} {} {}",
+                slot.name,
+                day_base.format("%Y-%m-%d"),
+                pattern_type
+            );
+
+            let shift_row = sqlx::query(
+                r#"INSERT INTO shifts (name, crew_id, pattern_id, start_time, end_time, created_by)
+                   VALUES ($1, $2, $3, $4, $5, $6)
+                   RETURNING id"#,
+            )
+            .bind(&shift_name)
+            .bind(body.crew_id)
+            .bind(id)
+            .bind(start_time)
+            .bind(end_time)
+            .bind(actor_id)
+            .fetch_one(&state.db)
+            .await;
+
+            let shift_id = match shift_row {
+                Ok(r) => {
+                    shifts_created += 1;
+                    r.get::<Uuid, _>("id")
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "generate_from_pattern shift insert failed");
+                    continue;
+                }
+            };
+
+            // If crew_id provided, also insert shift_assignments for all crew members
+            if let Some(cid) = body.crew_id {
+                let _ = sqlx::query(
+                    r#"INSERT INTO shift_assignments (shift_id, user_id, role_label, source)
+                       SELECT $1, scm.user_id, scm.role_label, 'generated'
+                       FROM shift_crew_members scm
+                       WHERE scm.crew_id = $2
+                       ON CONFLICT (shift_id, user_id) DO NOTHING"#,
+                )
+                .bind(shift_id)
+                .bind(cid)
+                .execute(&state.db)
+                .await;
+            }
+        }
+    }
+
+    ok(json!({ "shifts_created": shifts_created })).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -2241,7 +2628,12 @@ pub fn shifts_routes() -> axum::Router<AppState> {
 
     axum::Router::new()
         // Shift patterns (static before /:id)
-        .route("/api/shifts/patterns", get(list_patterns))
+        .route("/api/shifts/patterns", get(list_patterns).post(create_pattern))
+        .route(
+            "/api/shifts/patterns/:id",
+            get(get_pattern).put(update_pattern).delete(delete_pattern),
+        )
+        .route("/api/shifts/patterns/:id/generate", post(generate_from_pattern))
         // Shift crews (static before /:id)
         .route("/api/shifts/crews", get(list_crews).post(create_crew))
         .route(
