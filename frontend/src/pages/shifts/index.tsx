@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   shiftsApi,
@@ -17,6 +17,7 @@ import {
 } from '../../api/shifts'
 import { useAuthStore } from '../../store/auth'
 import { usePermission } from '../../shared/hooks/usePermission'
+import { wsManager } from '../../shared/hooks/useWebSocket'
 
 // ---------------------------------------------------------------------------
 // Shared style tokens
@@ -756,6 +757,17 @@ function MusterTab() {
   const qc = useQueryClient()
   const [accountingFilter, setAccountingFilter] = useState<string>('all')
   const [confirmDeclare, setConfirmDeclare] = useState(false)
+
+  // Subscribe to real-time muster:status WebSocket events.
+  // When the server publishes a muster status update, invalidate the queries
+  // so the UI refreshes immediately without waiting for the polling fallback.
+  useEffect(() => {
+    const unsub = wsManager.onMusterStatus(() => {
+      qc.invalidateQueries({ queryKey: ['muster-events'] })
+      qc.invalidateQueries({ queryKey: ['muster-event'] })
+    })
+    return unsub
+  }, [qc])
 
   const activeEventsQ = useQuery({
     queryKey: ['muster-events', 'active'],

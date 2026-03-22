@@ -1997,6 +1997,30 @@ pub async fn declare_muster_event(
     .execute(&state.db)
     .await;
 
+    // Publish muster:status after DB inserts are committed
+    {
+        let http = state.http_client.clone();
+        let broker_url = state.config.broker_url.clone();
+        let secret = state.config.service_secret.clone();
+        let event_id_str = event_id.to_string();
+        let total = on_site_count;
+        tokio::spawn(async move {
+            crate::broker::broadcast(
+                &http,
+                &broker_url,
+                &secret,
+                "muster_status",
+                serde_json::json!({
+                    "muster_event_id": event_id_str,
+                    "accounted": 0,
+                    "unaccounted": total,
+                    "total": total,
+                }),
+            )
+            .await;
+        });
+    }
+
     created(MusterEventRow {
         id: event.get("id"),
         trigger_type: event.get("trigger_type"),
@@ -2160,14 +2184,64 @@ pub async fn resolve_muster_event(
     .await;
 
     match row {
-        Ok(Some(r)) => ok(json!({
-            "id": r.get::<Uuid, _>("id"),
-            "status": r.get::<String, _>("status"),
-            "resolved_by": r.get::<Option<Uuid>, _>("resolved_by"),
-            "resolved_at": r.get::<Option<DateTime<Utc>>, _>("resolved_at"),
-            "notes": r.get::<Option<String>, _>("notes"),
-        }))
-        .into_response(),
+        Ok(Some(r)) => {
+            // Query final accounting totals for the publish payload
+            let resolved_id: Uuid = r.get("id");
+            let totals = sqlx::query(
+                r#"SELECT
+                       COUNT(*) AS total,
+                       COUNT(*) FILTER (WHERE status <> 'unaccounted') AS accounted
+                   FROM muster_accounting
+                   WHERE muster_event_id = $1"#,
+            )
+            .bind(resolved_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+
+            let (total, accounted) = totals
+                .as_ref()
+                .map(|t| {
+                    let total: i64 = t.get("total");
+                    let accounted: i64 = t.get("accounted");
+                    (total, accounted)
+                })
+                .unwrap_or((0, 0));
+
+            // Publish muster:status with final counts and "resolved" status
+            {
+                let http = state.http_client.clone();
+                let broker_url = state.config.broker_url.clone();
+                let secret = state.config.service_secret.clone();
+                let event_id_str = resolved_id.to_string();
+                tokio::spawn(async move {
+                    crate::broker::broadcast(
+                        &http,
+                        &broker_url,
+                        &secret,
+                        "muster_status",
+                        serde_json::json!({
+                            "muster_event_id": event_id_str,
+                            "accounted": accounted,
+                            "unaccounted": total - accounted,
+                            "total": total,
+                            "status": "resolved",
+                        }),
+                    )
+                    .await;
+                });
+            }
+
+            ok(json!({
+                "id": r.get::<Uuid, _>("id"),
+                "status": r.get::<String, _>("status"),
+                "resolved_by": r.get::<Option<Uuid>, _>("resolved_by"),
+                "resolved_at": r.get::<Option<DateTime<Utc>>, _>("resolved_at"),
+                "notes": r.get::<Option<String>, _>("notes"),
+            }))
+            .into_response()
+        }
         Ok(None) => {
             error_response(
                 StatusCode::NOT_FOUND,
@@ -2229,7 +2303,11 @@ pub async fn account_person(
     match row {
         Ok(r) => {
             let user_id: Uuid = r.get("user_id");
-            // Fetch user details for the response
+            let muster_event_id: Uuid = r.get("muster_event_id");
+            let accounting_status: String = r.get("status");
+            let muster_point_id: Option<Uuid> = r.get("muster_point_id");
+
+            // Fetch user details for the response and for the WS publish payload
             let user_row = sqlx::query(
                 "SELECT full_name, email FROM users WHERE id = $1",
             )
@@ -2238,15 +2316,98 @@ pub async fn account_person(
             .await
             .unwrap_or(None);
 
+            let person_name: String = user_row
+                .as_ref()
+                .and_then(|u| u.get::<Option<String>, _>("full_name"))
+                .unwrap_or_default();
+
+            // Fetch muster point name (if assigned)
+            let muster_point_name: String = if let Some(mp_id) = muster_point_id {
+                sqlx::query_scalar("SELECT name FROM muster_points WHERE id = $1")
+                    .bind(mp_id)
+                    .fetch_optional(&state.db)
+                    .await
+                    .unwrap_or(None)
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            };
+
+            // Re-query accounting totals
+            let totals = sqlx::query(
+                r#"SELECT
+                       COUNT(*) AS total,
+                       COUNT(*) FILTER (WHERE status <> 'unaccounted') AS accounted
+                   FROM muster_accounting
+                   WHERE muster_event_id = $1"#,
+            )
+            .bind(muster_event_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+
+            let (total, accounted) = totals
+                .as_ref()
+                .map(|t| {
+                    let total: i64 = t.get("total");
+                    let accounted: i64 = t.get("accounted");
+                    (total, accounted)
+                })
+                .unwrap_or((0, 0));
+
+            // Publish muster:status and muster:person_accounted
+            {
+                let http = state.http_client.clone();
+                let broker_url = state.config.broker_url.clone();
+                let secret = state.config.service_secret.clone();
+                let event_id_str = muster_event_id.to_string();
+                let person_name_clone = person_name.clone();
+                let muster_point_name_clone = muster_point_name.clone();
+                let method = if accounting_status == "accounted_badge" {
+                    "badge"
+                } else {
+                    "manual"
+                };
+                let method_str = method.to_string();
+                tokio::spawn(async move {
+                    crate::broker::broadcast(
+                        &http,
+                        &broker_url,
+                        &secret,
+                        "muster_status",
+                        serde_json::json!({
+                            "muster_event_id": event_id_str,
+                            "accounted": accounted,
+                            "unaccounted": total - accounted,
+                            "total": total,
+                        }),
+                    )
+                    .await;
+                    crate::broker::broadcast(
+                        &http,
+                        &broker_url,
+                        &secret,
+                        "muster_person_accounted",
+                        serde_json::json!({
+                            "person_name": person_name_clone,
+                            "muster_point": muster_point_name_clone,
+                            "method": method_str,
+                        }),
+                    )
+                    .await;
+                });
+            }
+
             ok(MusterAccountingRow {
                 id: r.get("id"),
-                muster_event_id: r.get("muster_event_id"),
+                muster_event_id,
                 user_id,
                 display_name: user_row.as_ref().and_then(|u| u.get("full_name")),
                 email: user_row.as_ref().and_then(|u| u.get("email")),
-                muster_point_id: r.get("muster_point_id"),
+                muster_point_id,
                 muster_point_name: None,
-                status: r.get("status"),
+                status: accounting_status,
                 accounted_at: r.get("accounted_at"),
                 accounted_by: r.get("accounted_by"),
                 notes: r.get("notes"),

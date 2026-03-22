@@ -44,6 +44,17 @@ const sourceHandlers = new Set<(id: string, name: string, online: boolean) => vo
 const sessionLockHandlers = new Set<(sessionId: string) => void>()
 const sessionUnlockHandlers = new Set<(sessionId: string) => void>()
 
+// Presence and muster real-time event handlers
+export interface PresenceHeadcount { on_site: number; on_shift: number }
+export interface PresenceBadgeEvent { person_name: string; event_type: string; area: string; time: string }
+export interface MusterStatus { muster_event_id: string; accounted: number; unaccounted: number; total: number; status?: string }
+export interface MusterPersonAccounted { person_name: string; muster_point: string; method: string }
+
+const presenceHeadcountHandlers = new Set<(data: PresenceHeadcount) => void>()
+const presenceBadgeEventHandlers = new Set<(data: PresenceBadgeEvent) => void>()
+const musterStatusHandlers = new Set<(data: MusterStatus) => void>()
+const musterPersonAccountedHandlers = new Set<(data: MusterPersonAccounted) => void>()
+
 let currentState: WsConnectionState = 'disconnected'
 
 // ---------------------------------------------------------------------------
@@ -220,6 +231,46 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
       void issueTicket()
       break
     }
+    case 'presence_headcount': {
+      const data: PresenceHeadcount = {
+        on_site: (msg.on_site as number | undefined) ?? 0,
+        on_shift: (msg.on_shift as number | undefined) ?? 0,
+      }
+      presenceHeadcountHandlers.forEach((fn) => fn(data))
+      break
+    }
+    case 'presence_badge_event': {
+      const data: PresenceBadgeEvent = {
+        person_name: (msg.person_name as string | undefined) ?? '',
+        event_type: (msg.event_type as string | undefined) ?? '',
+        area: (msg.area as string | undefined) ?? '',
+        time: (msg.time as string | undefined) ?? '',
+      }
+      presenceBadgeEventHandlers.forEach((fn) => fn(data))
+      break
+    }
+    case 'muster_status': {
+      const payload = (msg.payload as Record<string, unknown> | undefined) ?? msg
+      const data: MusterStatus = {
+        muster_event_id: (payload.muster_event_id as string | undefined) ?? '',
+        accounted: (payload.accounted as number | undefined) ?? 0,
+        unaccounted: (payload.unaccounted as number | undefined) ?? 0,
+        total: (payload.total as number | undefined) ?? 0,
+        status: payload.status as string | undefined,
+      }
+      musterStatusHandlers.forEach((fn) => fn(data))
+      break
+    }
+    case 'muster_person_accounted': {
+      const payload = (msg.payload as Record<string, unknown> | undefined) ?? msg
+      const data: MusterPersonAccounted = {
+        person_name: (payload.person_name as string | undefined) ?? '',
+        muster_point: (payload.muster_point as string | undefined) ?? '',
+        method: (payload.method as string | undefined) ?? '',
+      }
+      musterPersonAccountedHandlers.forEach((fn) => fn(data))
+      break
+    }
   }
 }
 
@@ -308,6 +359,30 @@ export const wsWorkerConnector = {
     return () => { sessionUnlockHandlers.delete(fn) }
   },
 
+  /** Subscribe to presence headcount updates (published after each badge swipe). */
+  onPresenceHeadcount(fn: (data: PresenceHeadcount) => void): () => void {
+    presenceHeadcountHandlers.add(fn)
+    return () => { presenceHeadcountHandlers.delete(fn) }
+  },
+
+  /** Subscribe to individual badge event notifications. */
+  onPresenceBadgeEvent(fn: (data: PresenceBadgeEvent) => void): () => void {
+    presenceBadgeEventHandlers.add(fn)
+    return () => { presenceBadgeEventHandlers.delete(fn) }
+  },
+
+  /** Subscribe to muster status updates (published after declare/account/resolve). */
+  onMusterStatus(fn: (data: MusterStatus) => void): () => void {
+    musterStatusHandlers.add(fn)
+    return () => { musterStatusHandlers.delete(fn) }
+  },
+
+  /** Subscribe to individual muster person-accounted events. */
+  onMusterPersonAccounted(fn: (data: MusterPersonAccounted) => void): () => void {
+    musterPersonAccountedHandlers.add(fn)
+    return () => { musterPersonAccountedHandlers.delete(fn) }
+  },
+
   sendStatusReport(renderFps: number, pendingUpdates: number, lastBatchProcessMs: number) {
     const p = getPort()
     p.postMessage({
@@ -325,6 +400,10 @@ export const wsWorkerConnector = {
     sourceHandlers.clear()
     sessionLockHandlers.clear()
     sessionUnlockHandlers.clear()
+    presenceHeadcountHandlers.clear()
+    presenceBadgeEventHandlers.clear()
+    musterStatusHandlers.clear()
+    musterPersonAccountedHandlers.clear()
     currentState = 'disconnected'
     stateListeners.forEach((fn) => fn('disconnected'))
   },

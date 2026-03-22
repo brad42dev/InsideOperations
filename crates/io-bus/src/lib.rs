@@ -299,6 +299,33 @@ pub enum WsServerMessage {
         session_id: Uuid,
     },
     ServerRestarting,
+    /// Presence headcount update — published after every badge swipe.
+    PresenceHeadcount {
+        on_site: i64,
+        on_shift: i64,
+    },
+    /// Individual badge event — published for each swipe.
+    PresenceBadgeEvent {
+        person_name: String,
+        event_type: String,
+        area: String,
+        time: String,
+    },
+    /// Muster accounting totals — published after declare / account / resolve.
+    MusterStatus {
+        muster_event_id: String,
+        accounted: i64,
+        unaccounted: i64,
+        total: i64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
+    },
+    /// Individual person-accounted event during active muster.
+    MusterPersonAccounted {
+        person_name: String,
+        muster_point: String,
+        method: String,
+    },
 }
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ use tower_http::timeout::TimeoutLayer;
 use tracing::info;
 
 mod badge;
+mod broker;
 mod config;
 mod correlation;
 mod file_scan;
@@ -79,7 +80,20 @@ async fn main() -> anyhow::Result<()> {
     seed_shapes::seed_shape_library(&db).await;
 
     // Spawn badge polling engine (polls access_control_sources for badge events)
-    tokio::spawn(badge::poller::run_badge_poller(db.clone()));
+    {
+        let badge_http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to build badge poller HTTP client");
+        let badge_broker_url = cfg.broker_url.clone();
+        let badge_secret = cfg.service_secret.clone();
+        tokio::spawn(badge::poller::run_badge_poller(
+            db.clone(),
+            badge_http,
+            badge_broker_url,
+            badge_secret,
+        ));
+    }
 
     // Spawn hourly export-file cleanup task (deletes files older than EXPORT_RETENTION_HOURS)
     {

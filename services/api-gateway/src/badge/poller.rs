@@ -22,11 +22,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use reqwest::Client;
 use sqlx::PgPool;
 use tokio::time;
 use uuid::Uuid;
 
 use super::{build_adapter, BadgeAdapter, BadgeEvent, BadgeEventType};
+
+/// Broker configuration threaded through the polling engine.
+#[derive(Clone)]
+struct BrokerConfig {
+    http: Client,
+    broker_url: String,
+    service_secret: String,
+}
 
 /// How often the root task re-discovers enabled sources (handles adds/removes).
 const SOURCE_DISCOVERY_INTERVAL: Duration = Duration::from_secs(60);
@@ -49,9 +58,15 @@ const FAILURE_ALERT_THRESHOLD: i32 = 5;
 ///
 /// The function never returns unless the database pool is closed.  All errors
 /// are logged; none are propagated.
-pub async fn run_badge_poller(db: PgPool) {
+pub async fn run_badge_poller(
+    db: PgPool,
+    http: Client,
+    broker_url: String,
+    service_secret: String,
+) {
     tracing::info!("badge poller starting");
 
+    let broker = BrokerConfig { http, broker_url, service_secret };
     let mut known_source_ids: HashSet<Uuid> = HashSet::new();
     let mut discovery_interval = time::interval(SOURCE_DISCOVERY_INTERVAL);
     // Skip the first tick (fires immediately) so we do an immediate discovery.
@@ -59,7 +74,7 @@ pub async fn run_badge_poller(db: PgPool) {
 
     loop {
         discovery_interval.tick().await;
-        discover_and_spawn_sources(&db, &mut known_source_ids).await;
+        discover_and_spawn_sources(&db, &broker, &mut known_source_ids).await;
     }
 }
 
@@ -69,7 +84,7 @@ pub async fn run_badge_poller(db: PgPool) {
 
 /// Fetches all enabled badge sources and spawns a polling task for any that
 /// are not already being polled.
-async fn discover_and_spawn_sources(db: &PgPool, known: &mut HashSet<Uuid>) {
+async fn discover_and_spawn_sources(db: &PgPool, broker: &BrokerConfig, known: &mut HashSet<Uuid>) {
     #[derive(sqlx::FromRow)]
     struct SourceRow {
         id: Uuid,
@@ -119,6 +134,7 @@ async fn discover_and_spawn_sources(db: &PgPool, known: &mut HashSet<Uuid>) {
 
                 tokio::spawn(run_source_poll_loop(
                     db_clone,
+                    broker.clone(),
                     adapter,
                     source_id,
                     source_name,
@@ -136,6 +152,7 @@ async fn discover_and_spawn_sources(db: &PgPool, known: &mut HashSet<Uuid>) {
 /// Runs indefinitely for a single badge source.
 async fn run_source_poll_loop(
     db: PgPool,
+    broker: BrokerConfig,
     adapter: Arc<dyn BadgeAdapter>,
     source_id: Uuid,
     source_name: String,
@@ -146,13 +163,14 @@ async fn run_source_poll_loop(
 
     loop {
         ticker.tick().await;
-        poll_once(&db, &*adapter, source_id, &source_name).await;
+        poll_once(&db, &broker, &*adapter, source_id, &source_name).await;
     }
 }
 
 /// Execute one poll cycle for the given source.
 async fn poll_once(
     db: &PgPool,
+    broker: &BrokerConfig,
     adapter: &dyn BadgeAdapter,
     source_id: Uuid,
     source_name: &str,
@@ -207,7 +225,7 @@ async fn poll_once(
     // 3. Process each event
     let mut latest_ts: Option<DateTime<Utc>> = None;
     for event in &events {
-        process_event(db, source_id, event).await;
+        process_event(db, broker, source_id, event).await;
         if latest_ts.map_or(true, |ts| event.occurred_at > ts) {
             latest_ts = Some(event.occurred_at);
         }
@@ -242,7 +260,7 @@ async fn poll_once(
 // ---------------------------------------------------------------------------
 
 /// Insert a single badge event (with deduplication) and update presence.
-async fn process_event(db: &PgPool, source_id: Uuid, event: &BadgeEvent) {
+async fn process_event(db: &PgPool, broker: &BrokerConfig, source_id: Uuid, event: &BadgeEvent) {
     // Map badge_id / employee_id → I/O user
     let user_id = resolve_user_id(db, event).await;
 
@@ -286,6 +304,76 @@ async fn process_event(db: &PgPool, source_id: Uuid, event: &BadgeEvent) {
     if let Some(uid) = user_id {
         update_presence(db, uid, event).await;
     }
+
+    // 3e. Publish presence:headcount and presence:badge_event to the Data Broker
+    publish_presence_events(db, broker, event, user_id).await;
+}
+
+/// Publish presence:headcount and presence:badge_event after a badge event is processed.
+async fn publish_presence_events(
+    db: &PgPool,
+    broker: &BrokerConfig,
+    event: &BadgeEvent,
+    user_id: Option<uuid::Uuid>,
+) {
+    // Query current on-site count
+    let on_site: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM presence_status WHERE on_site = true")
+        .fetch_one(db)
+        .await
+        .unwrap_or(0);
+
+    let on_shift: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM presence_status WHERE on_shift = true")
+        .fetch_one(db)
+        .await
+        .unwrap_or(0);
+
+    // Resolve person name for the badge event publish
+    let person_name: String = if let Some(uid) = user_id {
+        sqlx::query_scalar::<_, String>("SELECT COALESCE(display_name, full_name, '') FROM users WHERE id = $1")
+            .bind(uid)
+            .fetch_optional(db)
+            .await
+            .unwrap_or(None)
+            .unwrap_or_default()
+    } else {
+        event.employee_id.clone().unwrap_or_default()
+    };
+
+    let event_type_str = badge_event_type_snake(&event.event_type);
+    let area = event.reader_name.clone().unwrap_or_default();
+    let time_str = event.occurred_at.to_rfc3339();
+
+    let http = broker.http.clone();
+    let broker_url = broker.broker_url.clone();
+    let secret = broker.service_secret.clone();
+
+    tokio::spawn(async move {
+        crate::broker::broadcast(
+            &http,
+            &broker_url,
+            &secret,
+            "presence_headcount",
+            serde_json::json!({
+                "on_site": on_site,
+                "on_shift": on_shift,
+            }),
+        )
+        .await;
+
+        crate::broker::broadcast(
+            &http,
+            &broker_url,
+            &secret,
+            "presence_badge_event",
+            serde_json::json!({
+                "person_name": person_name,
+                "event_type": event_type_str,
+                "area": area,
+                "time": time_str,
+            }),
+        )
+        .await;
+    });
 }
 
 /// Attempt to resolve an I/O user ID from the event's employee_id or badge_id.
@@ -443,5 +531,19 @@ fn badge_event_type_str(t: &BadgeEventType) -> &'static str {
         BadgeEventType::Duress => "Duress",
         BadgeEventType::PassbackViolation => "PassbackViolation",
         BadgeEventType::Tailgate => "Tailgate",
+    }
+}
+
+/// snake_case event type string for WebSocket payloads.
+fn badge_event_type_snake(t: &BadgeEventType) -> &'static str {
+    match t {
+        BadgeEventType::SwipeIn => "swipe_in",
+        BadgeEventType::SwipeOut => "swipe_out",
+        BadgeEventType::AccessDenied => "access_denied",
+        BadgeEventType::DoorForced => "door_forced",
+        BadgeEventType::DoorHeldOpen => "door_held_open",
+        BadgeEventType::Duress => "duress",
+        BadgeEventType::PassbackViolation => "passback_violation",
+        BadgeEventType::Tailgate => "tailgate",
     }
 }

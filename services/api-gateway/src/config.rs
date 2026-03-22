@@ -21,6 +21,8 @@ pub struct Config {
     pub recognition_service_url: String,
     /// Base URL of the alert-service (e.g. http://127.0.0.1:3007)
     pub alert_service_url: String,
+    /// Base URL of the data-broker for internal publish/broadcast (e.g. http://127.0.0.1:3001)
+    pub broker_url: String,
     /// Comma-separated list of allowed CORS origins.
     /// If None, defaults to wildcard (*) — dev only.
     /// Example: "https://app.example.com,https://ops.example.com"
@@ -72,6 +74,8 @@ impl Config {
                 .unwrap_or_else(|_| "http://127.0.0.1:3010".to_string()),
             alert_service_url: std::env::var("ALERT_SERVICE_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:3007".to_string()),
+            broker_url: std::env::var("BROKER_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:3001".to_string()),
             cors_allowed_origins: std::env::var("CORS_ALLOWED_ORIGINS").ok().map(|v| {
                 v.split(',')
                     .map(|s| s.trim().to_string())
