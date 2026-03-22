@@ -1,9 +1,9 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22",
-  "checkpoint_count": 10,
+  "last_updated": "2026-03-22T00:00:00Z",
+  "checkpoint_count": 11,
   "next_checkpoint_at": 24,
-  "current_unit": null,
+  "current_unit": "MOD-CONSOLE",
   "task_attempts": {
     "GFX-SHAPES-001": 1,
     "GFX-SHAPES-002": 0,
@@ -45,7 +45,9 @@
     "MOD-CONSOLE-006": 2,
     "MOD-CONSOLE-005": 1,
     "GFX-DISPLAY-003": 1,
-    "MOD-PROCESS-004": 1
+    "MOD-PROCESS-004": 1,
+    "MOD-DESIGNER-016": 1,
+    "DD-06-011": 1
   },
   "queue": [
     {
@@ -109,25 +111,26 @@
     {
       "unit": "MOD-CONSOLE",
       "wave": 2,
-      "status": "completed",
-      "attempts": 3,
+      "status": "in_progress",
+      "attempts": 4,
       "repair_attempts": 0,
       "catalog": "docs/catalogs/MOD-CONSOLE.md",
       "tasks_open": [
         "MOD-CONSOLE-001",
         "MOD-CONSOLE-002",
         "MOD-CONSOLE-003",
-        "MOD-CONSOLE-004",
         "MOD-CONSOLE-005",
         "MOD-CONSOLE-006",
         "MOD-CONSOLE-007",
+        "MOD-CONSOLE-008",
+        "MOD-CONSOLE-009",
         "MOD-CONSOLE-010",
         "MOD-CONSOLE-011"
       ],
-      "completed_at": "2026-03-22",
-      "notes": "Re-audited round 7. 3 tasks closed (MOD-CONSOLE-003, MOD-CONSOLE-005, MOD-CONSOLE-006). 9 canonical tasks remain open. 11 task files total (includes 2 legacy).",
-      "last_audit_round": 7,
-      "verified_since_last_audit": 0
+      "completed_at": "2026-03-22T02:44:13.591467+00:00",
+      "notes": "11 tasks generated, 10 open, wave0 findings yes",
+      "last_audit_round": 8,
+      "verified_since_last_audit": 5
     },
     {
       "unit": "MOD-PROCESS",
@@ -1010,9 +1013,9 @@
       "wave": 2,
       "title": "Add favorites group, view-mode selector, and section-height resize to left nav panel",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
-      "audit_round": 7
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -1020,8 +1023,8 @@
       "title": "Implement detached window support for Console panes",
       "priority": "high",
       "depends_on": [],
-      "status": "pending",
-      "audit_round": 7
+      "status": "verified",
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-003",
@@ -1029,9 +1032,9 @@
       "wave": 2,
       "title": "Persist aspect ratio lock per-workspace in WorkspaceConfig.settings",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
-      "audit_round": 7
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-004",
@@ -1039,7 +1042,7 @@
       "title": "Fix Historical Playback Bar speed values, add alarm markers, and keyboard shortcuts",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 7
     },
     {
@@ -1048,17 +1051,17 @@
       "title": "Add nested error boundaries around individual panes to isolate crashes",
       "priority": "high",
       "depends_on": [],
-      "status": "pending",
-      "audit_round": 7
+      "status": "verified",
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-006",
       "unit": "MOD-CONSOLE",
-      "title": "Gate Create Workspace empty-state CTA on console:write permission",
+      "title": "Gate \"Create Workspace\" empty-state CTA on console:write permission",
       "priority": "low",
       "depends_on": [],
-      "status": "pending",
-      "audit_round": 7
+      "status": "verified",
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-007",
@@ -1067,34 +1070,34 @@
       "priority": "medium",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 7
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-008",
       "unit": "MOD-CONSOLE",
-      "title": "Fix playback bar speed options, add alarm markers, loop region, and keyboard shortcuts",
+      "title": "Fix playback bar speed options, add loop region, reverse transport, step interval dropdown, and keyboard shortcuts",
       "priority": "medium",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 7
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-009",
       "unit": "MOD-CONSOLE",
-      "title": "Fix ErrorBoundary button label to [Reload Module] and add nested per-pane boundaries",
+      "title": "Fix ErrorBoundary button label to \"[Reload Module]\" and add nested per-pane boundaries",
       "priority": "medium",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 7
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-010",
       "unit": "MOD-CONSOLE",
-      "title": "Replace Loading workspaces text with module-shaped skeleton loading state",
+      "title": "Replace \"Loading workspaces\u2026\" text with module-shaped skeleton loading state",
       "priority": "low",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 7
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-011",
@@ -1103,7 +1106,7 @@
       "priority": "low",
       "depends_on": [],
       "status": "pending",
-      "audit_round": 7
+      "audit_round": 8
     },
     {
       "id": "MOD-CONSOLE-012",
@@ -1288,7 +1291,7 @@
       "wave": 2,
       "title": "Endpoint auto-selection fallback must select highest-security endpoint, not lowest",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -3729,7 +3732,7 @@
       "wave": 3,
       "title": "Rewrite LockOverlay \u2014 transparent passive state, server-sync, SSO popup, PIN support",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-29-009",
         "DD-29-010",
@@ -3785,7 +3788,7 @@
       "wave": 2,
       "title": "Fix resize mouseup dispatch for symbol_instance, text_block, and stencil",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"
@@ -3849,7 +3852,7 @@
       "wave": 2,
       "title": "Add canvas size inputs and aspect preset buttons to New Graphic dialog",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"
@@ -3912,7 +3915,7 @@
       "wave": 2,
       "title": "Group management \u2014 create with name prompt, rename, ungroup, keyboard shortcuts",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"
@@ -3969,5 +3972,5 @@
       "source": "feature"
     }
   ],
-  "audit_round": 7
+  "audit_round": 9
 }

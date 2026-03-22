@@ -7,3 +7,9 @@ MOD-CONSOLE-003 | SharedWorker WebSocket bridge | verified 2026-03-22 | commit a
 MOD-CONSOLE-002 | Preserve pane content in overflow stack when template downsizes | verified 2026-03-22 | commit a320c57 | npx tsc --noEmit | PASS
 MOD-CONSOLE-004 | Add favorites group, view-mode selector, and per-section search to left nav panel; make panel resizable | verified 2026-03-22 | commit a320c57 | npx tsc --noEmit | PASS
 MOD-CONSOLE-005 | Implement all 6 export formats and async export path for Console workspace data | verified 2026-03-22 | commit a320c57 | npx tsc --noEmit | PASS
+MOD-CONSOLE-001 | Add favorites group, view-mode selector, and section-height resize to left nav panel | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
+MOD-CONSOLE-002 | Implement detached window support for Console panes | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
+MOD-CONSOLE-003 | Persist aspect ratio lock per-workspace in WorkspaceConfig.settings | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
+MOD-CONSOLE-004 | Fix Historical Playback Bar speed values, add alarm markers, and keyboard shortcuts | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
+MOD-CONSOLE-005 | Add nested error boundaries around individual panes to isolate crashes | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
+MOD-CONSOLE-006 | Gate Create Workspace empty-state CTA on console:write permission | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS

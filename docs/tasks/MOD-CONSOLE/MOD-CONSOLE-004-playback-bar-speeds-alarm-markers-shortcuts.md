@@ -5,6 +5,7 @@ unit: MOD-CONSOLE
 status: pending
 priority: medium
 depends-on: []
+superseded-by: MOD-CONSOLE-008
 ---
 
 ## What This Feature Should Do

@@ -327,7 +327,7 @@ export class GroupNodesCommand implements SceneCommand {
   private group!: SceneNode & { children: SceneNode[] }
   private removedNodes: Array<{ node: SceneNode; index: number }> = []
 
-  constructor(private nodeIds: NodeId[]) {}
+  constructor(private nodeIds: NodeId[], private groupName = 'Group') {}
 
   execute(doc: GraphicDocument): GraphicDocument {
     const d = clone(doc)
@@ -352,7 +352,7 @@ export class GroupNodesCommand implements SceneCommand {
     this.group = {
       id: groupId,
       type: 'group',
-      name: 'Group',
+      name: this.groupName,
       transform: { position: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
       visible: true,
       locked: false,

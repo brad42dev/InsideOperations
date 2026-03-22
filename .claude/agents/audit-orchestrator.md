@@ -295,7 +295,7 @@ Wait for response.
 
 ### Audit Complete
 
-When all units are completed/escalated/skipped, report full summary and exit.
+Write `comms/LAST_ROUND.json` with `{"mode":"audit","work_done":0}`. Report full summary and exit.
 
 ---
 
@@ -323,6 +323,7 @@ Skip these statuses — do not re-select them here:
 Filter to **unblocked** tasks: every ID in `depends_on` must have `status: "verified"` in the registry (or `depends_on` is empty).
 
 **If no candidates exist** (all tasks are verified, escalated, or blocked):
+- Write `comms/LAST_ROUND.json` with `{"mode":"implement","work_done":0}`
 - Report: "No pending tasks remaining. Run `audit` to re-audit units with verified tasks and check for new gaps."
 - Stop.
 

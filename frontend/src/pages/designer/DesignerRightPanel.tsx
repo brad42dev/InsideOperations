@@ -1400,9 +1400,33 @@ function GroupPanel({ node }: { node: Group }) {
   const executeCmd = useExecuteCmd()
   const doc = useSceneStore(s => s.doc)
   const pos = node.transform.position
+  const [nameValue, setNameValue] = useState(node.name ?? '')
+
+  // Keep local name in sync if node changes externally (e.g. undo)
+  React.useEffect(() => { setNameValue(node.name ?? '') }, [node.name])
 
   return (
     <div style={{ padding: '0 12px' }}>
+      <Field label="Name">
+        <input
+          value={nameValue}
+          onChange={e => setNameValue(e.target.value)}
+          onBlur={() => {
+            const trimmed = nameValue.trim()
+            if (trimmed && trimmed !== (node.name ?? '')) {
+              executeCmd(new ChangePropertyCommand(node.id, 'name', trimmed, node.name ?? ''))
+            } else {
+              setNameValue(node.name ?? '')
+            }
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+            if (e.key === 'Escape') { setNameValue(node.name ?? ''); (e.target as HTMLInputElement).blur() }
+          }}
+          style={inputStyle}
+          placeholder="Group name"
+        />
+      </Field>
       <Field label="Children">
         <input readOnly value={`${node.children.length} elements`}
           style={{ ...inputStyle, color: 'var(--io-text-muted)' }} />
@@ -1750,6 +1774,181 @@ function LayerPropertiesPanel({ layer }: { layer: LayerDefinition }) {
           style={{ cursor: 'pointer' }}
         />
       </Field>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Scene Tree Panel — collapsible node hierarchy, groups shown as rows with
+// chevron toggle; double-click a group row to rename inline.
+// ---------------------------------------------------------------------------
+
+type SceneTreeNode = SceneNode & { children?: SceneNode[] }
+
+function nodeTypeLabel(type: string): string {
+  switch (type) {
+    case 'symbol_instance': return 'Symbol'
+    case 'display_element': return 'Display'
+    case 'primitive': return 'Shape'
+    case 'pipe': return 'Pipe'
+    case 'text_block': return 'Text'
+    case 'stencil': return 'Stencil'
+    case 'group': return 'Group'
+    case 'annotation': return 'Annotation'
+    case 'image': return 'Image'
+    case 'widget': return 'Widget'
+    case 'embedded_svg': return 'SVG'
+    default: return type
+  }
+}
+
+function SceneTreeRow({
+  node,
+  depth,
+  selectedIds,
+  onSelect,
+  executeCmd,
+}: {
+  node: SceneTreeNode
+  depth: number
+  selectedIds: string[]
+  onSelect: (id: string) => void
+  executeCmd: (cmd: import('../../shared/graphics/commands').SceneCommand) => void
+}) {
+  const isGroup = node.type === 'group'
+  const children = isGroup ? ((node as Group).children ?? []) : []
+  const [expanded, setExpanded] = useState(true)
+  const [renaming, setRenaming] = useState(false)
+  const [renameVal, setRenameVal] = useState(node.name ?? '')
+  const isSelected = selectedIds.includes(node.id)
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    paddingLeft: 8 + depth * 12,
+    paddingRight: 8,
+    paddingTop: 2,
+    paddingBottom: 2,
+    fontSize: 11,
+    cursor: 'pointer',
+    background: isSelected ? 'var(--io-accent-muted, rgba(59,130,246,0.15))' : 'transparent',
+    color: isSelected ? 'var(--io-accent)' : 'var(--io-text-primary)',
+    userSelect: 'none',
+  }
+
+  function commitRename() {
+    const trimmed = renameVal.trim()
+    if (trimmed && trimmed !== (node.name ?? '')) {
+      executeCmd(new ChangePropertyCommand(node.id, 'name', trimmed, node.name ?? ''))
+    } else {
+      setRenameVal(node.name ?? '')
+    }
+    setRenaming(false)
+  }
+
+  return (
+    <>
+      <div
+        style={rowStyle}
+        onClick={() => onSelect(node.id)}
+        onDoubleClick={() => {
+          if (isGroup) { setRenameVal(node.name ?? ''); setRenaming(true) }
+        }}
+      >
+        {/* Chevron for groups */}
+        {isGroup ? (
+          <span
+            style={{ marginRight: 4, fontSize: 9, color: 'var(--io-text-muted)', flexShrink: 0, lineHeight: 1 }}
+            onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
+          >
+            {expanded ? '▾' : '▸'}
+          </span>
+        ) : (
+          <span style={{ marginRight: 4, width: 13, flexShrink: 0 }} />
+        )}
+
+        {renaming ? (
+          <input
+            autoFocus
+            value={renameVal}
+            onChange={e => setRenameVal(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitRename()
+              if (e.key === 'Escape') { setRenameVal(node.name ?? ''); setRenaming(false) }
+            }}
+            onClick={e => e.stopPropagation()}
+            style={{
+              flex: 1, fontSize: 11, padding: '1px 4px',
+              background: 'var(--io-surface-sunken)', border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)', color: 'var(--io-text-primary)', outline: 'none',
+            }}
+          />
+        ) : (
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {node.name ?? nodeTypeLabel(node.type)}
+          </span>
+        )}
+
+        <span style={{ fontSize: 9, color: 'var(--io-text-muted)', marginLeft: 4, flexShrink: 0 }}>
+          {nodeTypeLabel(node.type)}
+        </span>
+      </div>
+
+      {isGroup && expanded && children.map(child => (
+        <SceneTreeRow
+          key={child.id}
+          node={child as SceneTreeNode}
+          depth={depth + 1}
+          selectedIds={selectedIds}
+          onSelect={onSelect}
+          executeCmd={executeCmd}
+        />
+      ))}
+    </>
+  )
+}
+
+function SceneTreePanel({ selectedIds }: { selectedIds: string[] }) {
+  const executeCmd = useExecuteCmd()
+  const doc = useSceneStore(s => s.doc)
+  const [collapsed, setCollapsed] = useState(false)
+
+  if (!doc) return null
+
+  function handleSelect(id: string) {
+    document.dispatchEvent(new CustomEvent('io:selection-change', { detail: { ids: [id] } }))
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--io-border)', flexShrink: 0, maxHeight: 200, display: 'flex', flexDirection: 'column' }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', cursor: 'pointer', userSelect: 'none', flexShrink: 0 }}
+        onClick={() => setCollapsed(v => !v)}
+      >
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--io-text-secondary)', textTransform: 'uppercase', flex: 1 }}>
+          Scene
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--io-text-muted)' }}>{collapsed ? '▸' : '▾'}</span>
+      </div>
+      {!collapsed && (
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {doc.children.length === 0 ? (
+            <div style={{ padding: '4px 12px', fontSize: 11, color: 'var(--io-text-muted)' }}>No elements</div>
+          ) : (
+            [...doc.children].reverse().map(node => (
+              <SceneTreeRow
+                key={node.id}
+                node={node as SceneTreeNode}
+                depth={0}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                executeCmd={executeCmd}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -2126,6 +2325,8 @@ export default function DesignerRightPanel({ collapsed, width }: DesignerRightPa
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {renderContent()}
       </div>
+      {/* Scene tree — shows node hierarchy with groups as collapsible rows */}
+      <SceneTreePanel selectedIds={selectedIds} />
       {/* Layer panel — always visible at the bottom */}
       <LayersPanel />
     </div>

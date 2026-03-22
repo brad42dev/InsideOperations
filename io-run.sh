@@ -109,6 +109,35 @@ echo "Progress saved after every round. Ctrl+C stops between rounds."
 echo ""
 
 while [ $ROUND -lt $COUNT ] && [ $INTERRUPTED -eq 0 ]; do
+
+    # Check for available work before spending a session on it
+    HAS_WORK=$(python3 - <<PYEOF
+import json
+with open("comms/AUDIT_PROGRESS.json") as f:
+    data = json.load(f)
+mode = "$MODE"
+if mode == "audit":
+    eligible = [u for u in data.get("queue", [])
+                if u.get("last_audit_round") is None or u.get("verified_since_last_audit", 0) > 0]
+    print(1 if eligible else 0)
+elif mode == "implement":
+    eligible = [t for t in data.get("task_registry", [])
+                if t.get("status") in ("pending", "failed")]
+    print(1 if eligible else 0)
+else:  # full
+    has_audit = any(u.get("last_audit_round") is None or u.get("verified_since_last_audit", 0) > 0
+                    for u in data.get("queue", []))
+    has_impl  = any(t.get("status") in ("pending", "failed")
+                    for t in data.get("task_registry", []))
+    print(1 if (has_audit or has_impl) else 0)
+PYEOF
+)
+    if [ "$HAS_WORK" = "0" ]; then
+        echo ""
+        echo "No more work available for '$MODE'. All caught up."
+        break
+    fi
+
     ROUND=$((ROUND + 1))
     echo "─── $MODE round $ROUND of $COUNT ───────────────────────────────"
 

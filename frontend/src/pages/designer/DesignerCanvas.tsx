@@ -153,6 +153,114 @@ function emitSelection(ids: NodeId[]) {
 }
 
 // ---------------------------------------------------------------------------
+// Group naming helpers
+// ---------------------------------------------------------------------------
+
+/** Returns "Group N" where N is one higher than the max existing "Group N" name */
+function nextGroupName(doc: GraphicDocument): string {
+  let max = 0
+  function scan(nodes: SceneNode[]) {
+    for (const n of nodes) {
+      const m = n.name?.match(/^Group (\d+)$/)
+      if (m) max = Math.max(max, parseInt(m[1]))
+      if ('children' in n && Array.isArray(n.children)) {
+        scan(n.children as SceneNode[])
+      }
+    }
+  }
+  scan(doc.children)
+  return `Group ${max + 1}`
+}
+
+// ---------------------------------------------------------------------------
+// NameGroupPrompt — small native <dialog> for naming/renaming groups
+// ---------------------------------------------------------------------------
+
+interface NameGroupPromptProps {
+  defaultName: string
+  title?: string
+  onConfirm: (name: string) => void
+  onCancel: () => void
+}
+
+function NameGroupPrompt({ defaultName, title = 'Name Group', onConfirm, onCancel }: NameGroupPromptProps) {
+  const [value, setValue] = React.useState(defaultName)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    inputRef.current?.select()
+  }, [])
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); handleConfirm() }
+    if (e.key === 'Escape') { e.preventDefault(); onCancel() }
+  }
+
+  function handleConfirm() {
+    const trimmed = value.trim()
+    if (trimmed) onConfirm(trimmed)
+  }
+
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed', inset: 0, zIndex: 2000,
+    background: 'rgba(0,0,0,0.5)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+  const dialogStyle: React.CSSProperties = {
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+    padding: '20px',
+    minWidth: 280,
+    display: 'flex', flexDirection: 'column', gap: 12,
+  }
+  const titleStyle: React.CSSProperties = {
+    fontSize: 13, fontWeight: 600, color: 'var(--io-text-primary)',
+    margin: 0,
+  }
+  const inputStyleLocal: React.CSSProperties = {
+    width: '100%', padding: '6px 8px',
+    background: 'var(--io-surface-sunken)', border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)', color: 'var(--io-text-primary)',
+    fontSize: 13, outline: 'none', boxSizing: 'border-box',
+  }
+  const rowStyle: React.CSSProperties = {
+    display: 'flex', gap: 8, justifyContent: 'flex-end',
+  }
+  const btnBase: React.CSSProperties = {
+    padding: '5px 14px', fontSize: 12, cursor: 'pointer',
+    borderRadius: 'var(--io-radius)', border: '1px solid var(--io-border)',
+    background: 'transparent', color: 'var(--io-text-secondary)',
+  }
+  const btnPrimary: React.CSSProperties = {
+    ...btnBase,
+    background: 'var(--io-accent)', color: '#09090b', border: 'none', fontWeight: 600,
+  }
+
+  return (
+    <div style={overlayStyle} onMouseDown={e => { if (e.target === e.currentTarget) onCancel() }}>
+      <div style={dialogStyle} onMouseDown={e => e.stopPropagation()}>
+        <p style={titleStyle}>{title}</p>
+        <input
+          ref={inputRef}
+          autoFocus
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          style={inputStyleLocal}
+          placeholder="Group name"
+        />
+        <div style={rowStyle}>
+          <button style={btnBase} onClick={onCancel}>Cancel</button>
+          <button style={btnPrimary} onClick={handleConfirm} disabled={!value.trim()}>OK</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Node bounding box (canvas coordinates)
 // ---------------------------------------------------------------------------
 
@@ -1543,6 +1651,16 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
   // Promote-to-shape wizard — holds selected nodes to promote
   const [promoteNodes, setPromoteNodes] = useState<SceneNode[] | null>(null)
 
+  // Name Group prompt state
+  const [groupPrompt, setGroupPrompt] = useState<{
+    defaultName: string
+    pendingIds: NodeId[]
+    title?: string
+    /** When set, this is a rename operation on an existing group node */
+    renameNodeId?: NodeId
+    currentName?: string
+  } | null>(null)
+
   // Track currently selected IDs in a ref for use inside event handlers
   // (avoids stale closures in mouse handlers)
   const docRef = useRef(doc)
@@ -2594,20 +2712,31 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
     if (ctrl && e.key === 'g' && !e.shiftKey) {
       e.preventDefault()
       const ids = Array.from(selectedIdsRef.current)
-      if (ids.length > 1 && docRef.current) executeCmd(new GroupNodesCommand(ids))
+      if (ids.length > 1 && docRef.current) {
+        const d = docRef.current
+        // Filter out pipe nodes per task spec — only group non-pipe nodes
+        const eligible = ids.filter(id => d.children.find(n => n.id === id)?.type !== 'pipe')
+        if (eligible.length > 1) {
+          setGroupPrompt({ defaultName: nextGroupName(d), pendingIds: eligible })
+        }
+      }
       return
     }
     if (ctrl && e.key === 'G' && e.shiftKey) {
       e.preventDefault()
       // Ungroup all selected group nodes
+      const ungroupedChildIds: NodeId[] = []
       for (const id of Array.from(selectedIdsRef.current)) {
         const d = docRef.current
         if (!d) break
         const node = d.children.find(n => n.id === id)
-        if (node?.type === 'group') executeCmd(new UngroupCommand(id))
+        if (node?.type === 'group') {
+          ungroupedChildIds.push(...((node as Group).children ?? []).map(c => c.id))
+          executeCmd(new UngroupCommand(id))
+        }
       }
-      selectedIdsRef.current = new Set()
-      emitSelection([])
+      selectedIdsRef.current = new Set(ungroupedChildIds)
+      emitSelection(ungroupedChildIds)
       return
     }
 
@@ -3502,6 +3631,36 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
         />
       )}
 
+      {/* Name Group / Rename Group prompt */}
+      {groupPrompt && (
+        <NameGroupPrompt
+          defaultName={groupPrompt.renameNodeId ? (groupPrompt.currentName ?? groupPrompt.defaultName) : groupPrompt.defaultName}
+          title={groupPrompt.renameNodeId ? 'Rename Group' : 'Name Group'}
+          onCancel={() => setGroupPrompt(null)}
+          onConfirm={(name) => {
+            if (groupPrompt.renameNodeId) {
+              // Rename existing group
+              executeCmd(new ChangePropertyCommand(groupPrompt.renameNodeId, 'name', name, groupPrompt.currentName ?? ''))
+            } else {
+              // Create new group with name
+              executeCmd(new GroupNodesCommand(groupPrompt.pendingIds, name))
+              // Select the new group (it will be created by the command; find it after execute)
+              // The historyStore already applied the command via executeCmd, so doc is updated
+              const newDoc = docRef.current
+              if (newDoc) {
+                // The group was inserted at minIndex of the pending nodes; find it by type='group' + name
+                const newGroup = newDoc.children.find(n => n.type === 'group' && n.name === name)
+                if (newGroup) {
+                  selectedIdsRef.current = new Set([newGroup.id])
+                  emitSelection([newGroup.id])
+                }
+              }
+            }
+            setGroupPrompt(null)
+          }}
+        />
+      )}
+
       {/* Bind Point modal */}
       <PointPickerModal
         open={bindingNodeId !== null}
@@ -3541,6 +3700,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       emitSelection={emitSelection}
       containerRef={containerRef}
       fitToCanvas={fitToCanvas}
+      setGroupPrompt={setGroupPrompt}
     />
     </ContextMenuPrimitive.Root>
   )
@@ -3789,6 +3949,13 @@ interface DesignerContextMenuContentProps {
   emitSelection: (ids: NodeId[]) => void
   containerRef: React.RefObject<HTMLDivElement>
   fitToCanvas: (w: number, h: number, vw: number, vh: number) => void
+  setGroupPrompt: React.Dispatch<React.SetStateAction<{
+    defaultName: string
+    pendingIds: NodeId[]
+    title?: string
+    renameNodeId?: NodeId
+    currentName?: string
+  } | null>>
 }
 
 function DesignerContextMenuContent({
@@ -3806,6 +3973,7 @@ function DesignerContextMenuContent({
   emitSelection,
   containerRef,
   fitToCanvas,
+  setGroupPrompt,
 }: DesignerContextMenuContentProps) {
   const getShape = useLibraryStore(s => s.getShape)
 
@@ -3970,9 +4138,31 @@ function DesignerContextMenuContent({
 
         <ContextMenuPrimitive.Separator style={sepStyle} />
 
+        {/* Group Selection — shown for multi-selection with no locked nodes */}
+        {selectedIds.size >= 2 && (() => {
+          const hasLocked = doc ? Array.from(selectedIds).some(id => doc.children.find(n => n.id === id)?.locked) : false
+          return !hasLocked ? (
+            <>
+              <ContextMenuPrimitive.Item style={itemStyle} disabled={!hasDoc}
+                onSelect={() => {
+                  if (!doc) return
+                  const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
+                  if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
+                }}>
+                Group Selection… (Ctrl+G)
+              </ContextMenuPrimitive.Item>
+              <ContextMenuPrimitive.Separator style={sepStyle} />
+            </>
+          ) : null
+        })()}
+
         {/* Group / Ungroup */}
         <ContextMenuPrimitive.Item style={itemStyle} disabled={selectedIds.size < 2 || !hasDoc}
-          onSelect={() => executeCmd(new GroupNodesCommand(Array.from(selectedIds)))}>
+          onSelect={() => {
+            if (!doc) return
+            const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
+            if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
+          }}>
           Group
         </ContextMenuPrimitive.Item>
 
@@ -4278,6 +4468,24 @@ function DesignerContextMenuContent({
             <ContextMenuPrimitive.Separator style={sepStyle} />
             <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
               onSelect={() => {
+                if (!nodeId || !groupNode) return
+                setGroupPrompt({ defaultName: '', pendingIds: [], renameNodeId: nodeId, currentName: groupNode.name ?? '' })
+              }}>
+              Rename…
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
+              onSelect={() => {
+                if (!nodeId || !doc) return
+                const children = (doc.children.find(n => n.id === nodeId) as Group | undefined)?.children ?? []
+                const childIds = children.map(c => c.id)
+                executeCmd(new UngroupCommand(nodeId))
+                selectedIdsRef.current = new Set(childIds)
+                emitSelection(childIds)
+              }}>
+              Ungroup (Ctrl+Shift+G)
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId}
+              onSelect={() => {
                 if (nodeId) {
                   setActiveGroup(nodeId)
                   selectedIdsRef.current = new Set()
@@ -4285,6 +4493,16 @@ function DesignerContextMenuContent({
                 }
               }}>
               Enter Group
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={true}>
+              Open in Tab
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={itemStyle} disabled={!nodeId} onSelect={() => {
+              if (!nodeId || !docRef.current) return
+              const node = docRef.current.children.find(n => n.id === nodeId)
+              if (node) setPromoteNodes([node])
+            }}>
+              Promote to Shape…
             </ContextMenuPrimitive.Item>
           </>
         )}
