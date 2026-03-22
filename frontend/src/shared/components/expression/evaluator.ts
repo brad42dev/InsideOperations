@@ -71,9 +71,8 @@ function evalTile(
     case 'round': {
       const inner = evalSingleChild(tile, values, currentPointValue)
       if (inner === null) return null
-      const decimals = tile.precision ?? 0
-      const factor = Math.pow(10, decimals)
-      return Math.round(inner * factor) / factor
+      const increment = tile.precision ?? 1
+      return Math.round(inner / increment) * increment
     }
 
     case 'negate': {

@@ -2485,7 +2485,7 @@
       "wave": 3,
       "title": "Implement drag-and-drop from palette to workspace (Method 2)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2517,7 +2517,7 @@
       "wave": 3,
       "title": "Fix Round tile precision to use powers-of-10 increment values per spec",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

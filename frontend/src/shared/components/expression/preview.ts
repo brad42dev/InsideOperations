@@ -78,8 +78,8 @@ function tileToString(tile: ExpressionTile): string {
 
     case 'round': {
       const inner = tile.children ? tilesToString(tile.children) : '?'
-      const decimals = tile.precision ?? 0
-      return `round(${inner}, ${decimals})`
+      const increment = tile.precision ?? 1
+      return `round(${inner}, ${increment})`
     }
 
     case 'negate': {

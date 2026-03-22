@@ -108,6 +108,15 @@ function getPaletteItems(context: ExpressionContext): PaletteItem[] {
 }
 
 // ---------------------------------------------------------------------------
+// Round tile increment values — powers of 10 from 0.0000001 to 1000000
+// ---------------------------------------------------------------------------
+
+const ROUND_INCREMENTS = [
+  0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1,
+  1, 10, 100, 1000, 10000, 100000, 1000000,
+]
+
+// ---------------------------------------------------------------------------
 // Tile color logic
 // ---------------------------------------------------------------------------
 
@@ -209,7 +218,7 @@ function createTile(type: TileType): ExpressionTile {
     case 'field_ref':
       return { ...base, fieldName: '' }
     case 'round':
-      return { ...base, precision: 2, children: [] }
+      return { ...base, precision: 1, children: [] }
     case 'group':
     case 'square':
     case 'cube':
@@ -775,7 +784,7 @@ function getTileLabel(tile: ExpressionTile): string {
     case 'group':    return '(…)'
     case 'square':   return 'x²'
     case 'cube':     return 'x³'
-    case 'round':    return `round(${tile.precision ?? 2})`
+    case 'round':    return `round(${tile.precision ?? 1})`
     case 'negate':   return '−x'
     case 'abs':      return '|x|'
     case 'if_then_else': return 'IF…THEN…ELSE'
@@ -803,7 +812,7 @@ function getTileAriaLabel(tile: ExpressionTile, depth: number): string {
       case 'group':        return `Group, level ${depth + 1}`
       case 'square':       return `Square container, level ${depth + 1}`
       case 'cube':         return `Cube container, level ${depth + 1}`
-      case 'round':        return `Round container, precision ${tile.precision ?? 2}, level ${depth + 1}`
+      case 'round':        return `Round container, increment ${tile.precision ?? 1}, level ${depth + 1}`
       case 'negate':       return `Negate container, level ${depth + 1}`
       case 'abs':          return `Absolute value container, level ${depth + 1}`
       case 'if_then_else': return `If-then-else container, level ${depth + 1}`
@@ -1072,10 +1081,10 @@ function ContainerTileContent({
       />
       {tile.type === 'round' && (
         <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>decimals:</span>
+          <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>increment:</span>
           <select
-            value={tile.precision ?? 2}
-            onChange={(e) => dispatch({ type: 'UPDATE_TILE', id: tile.id, patch: { precision: parseInt(e.target.value) } })}
+            value={tile.precision ?? 1}
+            onChange={(e) => dispatch({ type: 'UPDATE_TILE', id: tile.id, patch: { precision: parseFloat(e.target.value) } })}
             onClick={(e) => e.stopPropagation()}
             style={{
               background: 'var(--io-surface-sunken)',
@@ -1086,8 +1095,8 @@ function ContainerTileContent({
               padding: '2px 4px',
             }}
           >
-            {[0,1,2,3,4,5,6,7].map((n) => (
-              <option key={n} value={n}>{n}</option>
+            {ROUND_INCREMENTS.map((inc) => (
+              <option key={inc} value={inc}>{inc}</option>
             ))}
           </select>
         </div>
