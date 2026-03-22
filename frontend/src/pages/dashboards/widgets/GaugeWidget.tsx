@@ -5,6 +5,7 @@ import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
 import { usePointValues } from '../../../shared/hooks/usePointValues'
 import PointContextMenu from '../../../shared/components/PointContextMenu'
+import { useUomStore, convertUom } from '../../../store/uomStore'
 
 interface GaugeConfig {
   title: string
@@ -19,6 +20,7 @@ interface PointCurrentResponse {
   value: number
   quality: string
   timestamp: string
+  engineering_unit?: string | null
 }
 
 interface Props {
@@ -29,6 +31,7 @@ interface Props {
 export default function GaugeWidget({ config }: Props) {
   const cfg = config.config as unknown as GaugeConfig
   const { pointId, min = 0, max = 100, unit = '', thresholds } = cfg
+  const uomCatalog = useUomStore((s) => s.catalog)
 
   const query = useQuery({
     queryKey: ['point-current', pointId],
@@ -48,7 +51,19 @@ export default function GaugeWidget({ config }: Props) {
   const livePoint = pointId ? liveValues.get(pointId) : undefined
 
   const rawValue = livePoint?.value ?? query.data?.value ?? min
-  const clampedValue = Math.min(max, Math.max(min, rawValue))
+
+  // Client-side UOM conversion for real-time gauge reading.
+  // spec: design-docs/10_DASHBOARDS_MODULE.md §UOM Conversion
+  // Falls through to rawValue when no display unit is configured or the pair
+  // is not in the catalog (never throws).
+  const sourceUnit = query.data?.engineering_unit ?? null
+  const displayUnit = unit || null
+  const convertedRaw =
+    sourceUnit && displayUnit && sourceUnit !== displayUnit
+      ? convertUom(rawValue, sourceUnit, displayUnit, uomCatalog)
+      : rawValue
+
+  const clampedValue = Math.min(max, Math.max(min, convertedRaw))
   const quality = livePoint?.quality ?? query.data?.quality ?? 'unknown'
   const isStale = livePoint?.stale === true || quality === 'uncertain' || quality === 'bad'
 

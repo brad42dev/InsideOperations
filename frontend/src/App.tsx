@@ -8,6 +8,7 @@ import PermissionGuard from './shared/components/PermissionGuard'
 import { ErrorBoundary } from './shared/components/ErrorBoundary'
 import { useAuthStore } from './store/auth'
 import { useUiStore } from './store/ui'
+import { useUomStore } from './store/uomStore'
 import { subscribeToSync } from './lib/broadcastSync'
 import PointDetailPanel from './shared/components/PointDetailPanel'
 import { usePointDetailStore } from './store/pointDetailStore'
@@ -1185,6 +1186,25 @@ function PinnedPointDetailPanels() {
  * open windows.  Published by store/ui.ts and store/auth.ts.
  * spec: 06_FRONTEND_SHELL.md §BroadcastChannel State Sync
  */
+/**
+ * UomCatalogInit — fetches the UOM catalog once at app startup.
+ *
+ * Renders null. Kicks off fetchCatalog() which is idempotent — safe to call
+ * repeatedly even if the component ever remounts.
+ *
+ * spec: design-docs/10_DASHBOARDS_MODULE.md §UOM Conversion
+ * "The UOM catalog is cached at application startup."
+ */
+function UomCatalogInit() {
+  const fetchCatalog = useUomStore((s) => s.fetchCatalog)
+
+  useEffect(() => {
+    void fetchCatalog()
+  }, [fetchCatalog])
+
+  return null
+}
+
 function BroadcastSyncReceiver() {
   const { lockLocal, unlockLocal, setThemeLocal } = useUiStore()
   const { setAccessToken } = useAuthStore()
@@ -1226,6 +1246,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <BroadcastSyncReceiver />
+      <UomCatalogInit />
       <AppRoutes />
       <ToastProvider />
       {/* Pinned point detail panels — rendered outside the route outlet so they

@@ -3,6 +3,7 @@ import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
 import { usePointValues } from '../../../shared/hooks/usePointValues'
 import PointContextMenu from '../../../shared/components/PointContextMenu'
+import { useUomStore, convertUom } from '../../../store/uomStore'
 
 interface KpiConfig {
   title: string
@@ -16,6 +17,7 @@ interface PointCurrentResponse {
   value: number
   quality: string
   timestamp: string
+  engineering_unit?: string | null
 }
 
 function getTrendColor(value: number, thresholds?: { warning: number; critical: number }): string {
@@ -33,6 +35,7 @@ interface Props {
 export default function KpiCard({ config }: Props) {
   const cfg = config.config as unknown as KpiConfig
   const pointId = cfg.metric
+  const uomCatalog = useUomStore((s) => s.catalog)
 
   const query = useQuery({
     queryKey: ['point-current', pointId],
@@ -54,8 +57,19 @@ export default function KpiCard({ config }: Props) {
     ? cfg.staticValue
     : (livePoint?.value ?? query.data?.value ?? null)
 
-  const displayValue = value !== null ? value.toFixed(2) : '—'
-  const color = value !== null ? getTrendColor(value, cfg.thresholds) : 'var(--io-text-muted)'
+  // Client-side UOM conversion for real-time values.
+  // spec: design-docs/10_DASHBOARDS_MODULE.md §UOM Conversion
+  // Falls through to raw value when no display unit is configured or the pair
+  // is not in the catalog (never throws).
+  const sourceUnit = query.data?.engineering_unit ?? null
+  const displayUnit = cfg.unit ?? null
+  const convertedValue =
+    value !== null && sourceUnit && displayUnit && sourceUnit !== displayUnit
+      ? convertUom(value, sourceUnit, displayUnit, uomCatalog)
+      : value
+
+  const displayValue = convertedValue !== null ? convertedValue.toFixed(2) : '—'
+  const color = convertedValue !== null ? getTrendColor(convertedValue, cfg.thresholds) : 'var(--io-text-muted)'
   // Prefer live quality; fall back to API quality
   const quality = livePoint?.quality ?? query.data?.quality ?? 'unknown'
   const isStale = livePoint?.stale === true || quality === 'uncertain' || quality === 'bad'
