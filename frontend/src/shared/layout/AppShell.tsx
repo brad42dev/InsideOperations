@@ -10,6 +10,8 @@ import {
   CheckSquare,
   BookOpen,
   MoreHorizontal,
+  Download,
+  Info,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
@@ -385,7 +387,7 @@ function AlertBell() {
 
 export default function AppShell() {
   const { user, logout } = useAuthStore()
-  const { isKiosk, isLocked, lock, unlock, setLockMeta, setKiosk } = useUiStore()
+  const { isKiosk, isLocked, lock, unlock, setLockMeta, setKiosk, theme, setTheme } = useUiStore()
 
   // Derive sidebar groups from the central route registry, filtered by user permissions
   const navGroups: NavGroup[] = getSidebarGroups(user?.permissions ?? [])
@@ -1356,6 +1358,93 @@ export default function AppShell() {
                           </div>
                         )}
                       </div>
+                      {/* Theme switcher */}
+                      <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--io-border)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginBottom: '6px' }}>Theme</div>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {(['light', 'dark', 'hphmi'] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setTheme(t)}
+                              style={{
+                                flex: 1,
+                                padding: '4px',
+                                border: '1px solid var(--io-border)',
+                                borderRadius: 'var(--io-radius)',
+                                fontSize: '11px',
+                                background: theme === t ? 'var(--io-accent-subtle)' : 'transparent',
+                                color: theme === t ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                                cursor: 'pointer',
+                                textTransform: 'capitalize',
+                              }}
+                            >
+                              {t === 'hphmi' ? 'HPHMI' : t.charAt(0).toUpperCase() + t.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Navigation items */}
+                      <NavLink
+                        to="/my-exports"
+                        onClick={() => setUserMenuOpen(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 14px',
+                          textDecoration: 'none',
+                          color: 'var(--io-text-secondary)',
+                          fontSize: '13px',
+                        }}
+                      >
+                        <Download size={14} /> My Exports
+                      </NavLink>
+
+                      <NavLink
+                        to="/settings/about"
+                        onClick={() => setUserMenuOpen(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 14px',
+                          textDecoration: 'none',
+                          color: 'var(--io-text-secondary)',
+                          fontSize: '13px',
+                        }}
+                      >
+                        <Info size={14} /> About Inside/Operations
+                      </NavLink>
+
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false)
+                          if (isKiosk) {
+                            exitKiosk()
+                          } else {
+                            enterKiosk()
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 14px',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--io-text-secondary)',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Monitor size={14} /> {isKiosk ? 'Exit Kiosk Mode' : 'Enter Kiosk Mode'}
+                      </button>
+
+                      <div style={{ height: '1px', background: 'var(--io-border)' }} />
+
                       <button
                         onClick={handleLogout}
                         style={{
