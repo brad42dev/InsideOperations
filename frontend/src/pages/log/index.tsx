@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi, type LogInstance, type LogTemplate, type SearchResult } from '../../api/logs'
 import { useAuthStore } from '../../store/auth'
+import { ExportButton } from '../../shared/components/ExportDialog'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -299,7 +300,15 @@ function SearchResults({ results }: { results: SearchResult[] }) {
 // Completed instances table
 // ---------------------------------------------------------------------------
 
-function CompletedTable({ instances }: { instances: LogInstance[] }) {
+const LOG_EXPORT_COLUMNS = [
+  { id: 'template', label: 'Template' },
+  { id: 'date', label: 'Date' },
+  { id: 'team', label: 'Team' },
+  { id: 'completed_at', label: 'Completed At' },
+  { id: 'status', label: 'Status' },
+]
+
+function CompletedTable({ instances, hasExport }: { instances: LogInstance[]; hasExport: boolean }) {
   const navigate = useNavigate()
   return (
     <div
@@ -310,6 +319,26 @@ function CompletedTable({ instances }: { instances: LogInstance[] }) {
         overflow: 'hidden',
       }}
     >
+      {/* Export toolbar */}
+      {hasExport && instances.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '10px 16px',
+            borderBottom: '1px solid var(--io-border)',
+          }}
+        >
+          <ExportButton
+            module="log"
+            entity="Log Entries"
+            filteredRowCount={instances.length}
+            totalRowCount={instances.length}
+            availableColumns={LOG_EXPORT_COLUMNS}
+            visibleColumns={LOG_EXPORT_COLUMNS.map((c) => c.id)}
+          />
+        </div>
+      )}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--io-border)' }}>
@@ -399,6 +428,7 @@ export default function LogPage() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
   const isAdmin = user?.permissions.includes('log:admin') || user?.permissions.includes('*')
+  const hasExport = user?.permissions.includes('log:export') || user?.permissions.includes('*') || false
 
   const [tab, setTab] = useState<Tab>('active')
   const [searchQuery, setSearchQuery] = useState('')
@@ -646,7 +676,7 @@ export default function LogPage() {
             {completedLoading ? (
               <div style={{ color: 'var(--io-text-muted)', fontSize: '14px' }}>Loading...</div>
             ) : (
-              <CompletedTable instances={completedData ?? []} />
+              <CompletedTable instances={completedData ?? []} hasExport={hasExport} />
             )}
           </>
         )}
