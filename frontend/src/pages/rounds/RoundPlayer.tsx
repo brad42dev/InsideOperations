@@ -263,22 +263,26 @@ function BarcodeGate({
       const codeReader = new BrowserMultiFormatReader()
       codeReaderRef.current = codeReader
       try {
-        await codeReader.decodeFromVideoDevice(null, videoRef.current!, (result: any, err: any) => {
-          if (result) {
-            codeReader.reset()
-            codeReaderRef.current = null
-            stopScan()
-            const raw = result.getText()
-            if (expectedValue && raw !== expectedValue) {
-              setScanError(`Wrong barcode. Expected: ${expectedValue}`)
-              return
+        await codeReader.decodeFromConstraints(
+          { video: { facingMode: 'environment' } },
+          videoRef.current!,
+          (result: any, err: any) => {
+            if (result) {
+              codeReader.reset()
+              codeReaderRef.current = null
+              stopScan()
+              const raw = result.getText()
+              if (expectedValue && raw !== expectedValue) {
+                setScanError(`Wrong barcode. Expected: ${expectedValue}`)
+                return
+              }
+              onUnlock(raw)
             }
-            onUnlock(raw)
+            if (err && !(err instanceof NotFoundException)) {
+              // transient decode errors during scanning are normal — ignore them
+            }
           }
-          if (err && !(err instanceof NotFoundException)) {
-            // transient decode errors during scanning are normal — ignore them
-          }
-        })
+        )
         setScanning(true)
       } catch {
         codeReaderRef.current = null
