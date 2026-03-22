@@ -23,6 +23,7 @@ import EmergencyAlert from '../components/EmergencyAlert'
 import CommandPalette from '../components/CommandPalette'
 import { SystemHealthDot, SystemHealthDotRow } from '../components/SystemHealthDot'
 import { authApi } from '../../api/auth'
+import { wsManager } from '../hooks/useWebSocket'
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes per spec
 
@@ -212,7 +213,7 @@ function AlertBell() {
 
 export default function AppShell() {
   const { user, logout } = useAuthStore()
-  const { isKiosk, isLocked, lock, setKiosk } = useUiStore()
+  const { isKiosk, isLocked, lock, unlock, setLockMeta, setKiosk } = useUiStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -301,6 +302,12 @@ export default function AppShell() {
   lockRef.current = lock
   const isKioskRef2 = useRef(isKiosk)
   isKioskRef2.current = isKiosk
+  // Used by keyboard handler to suppress kiosk-exit while lock overlay is visible
+  const isLockedRef = useRef(isLocked)
+  isLockedRef.current = isLocked
+
+  // Per-session idle timeout — default is IDLE_TIMEOUT_MS; boot sync may override.
+  const idleTimeoutRef = useRef(IDLE_TIMEOUT_MS)
 
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== null) {
@@ -314,7 +321,7 @@ export default function AppShell() {
       authApi.lockSession().catch(() => {
         // Best-effort — UI is already locked even if the API call fails.
       })
-    }, IDLE_TIMEOUT_MS)
+    }, idleTimeoutRef.current)
   }, [])
 
   // Set up idle detection
@@ -337,6 +344,80 @@ export default function AppShell() {
       }
     }
   }, [resetIdleTimer])
+
+  // ---------------------------------------------------------------------------
+  // Boot-time lock state sync
+  // On app load, query GET /api/auth/me to check if the session is locked
+  // server-side (e.g. user locked in another tab, or page refreshed while locked).
+  // If is_locked = true: set lock state in store WITHOUT showing the overlay.
+  // The overlay only appears on the next user interaction.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false
+    async function bootSyncLock() {
+      try {
+        const result = await authApi.sessionCheck()
+        if (cancelled) return
+        if (!result.success) return
+
+        const session = result.data
+        // Apply per-session idle timeout if provided
+        if (typeof session.idle_timeout_ms === 'number' && session.idle_timeout_ms > 0) {
+          idleTimeoutRef.current = session.idle_timeout_ms
+          // Restart idle timer with the new value
+          resetIdleTimer()
+        }
+
+        // Sync lock meta regardless of lock state (for correct unlock card on next lock)
+        setLockMeta({
+          authProvider: session.auth_provider,
+          authProviderName: session.auth_provider_name ?? '',
+          hasPin: session.has_pin,
+        })
+
+        if (session.is_locked) {
+          // Lock immediately — overlay will NOT show until next interaction
+          lock({
+            authProvider: session.auth_provider,
+            authProviderName: session.auth_provider_name ?? '',
+            hasPin: session.has_pin,
+          })
+        }
+      } catch {
+        // Non-critical — if this fails, session stays unlocked until WS event
+        // or the idle timer fires.
+      }
+    }
+    void bootSyncLock()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ---------------------------------------------------------------------------
+  // WebSocket session lock/unlock event listeners
+  // The wsWorker already calls useUiStore.getState().lock/unlock() on these
+  // events. Here we register explicit component-level listeners so AppShell
+  // can reset the idle timer on unlock and re-sync lock meta on lock.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const offLock = wsManager.onSessionLock(() => {
+      // wsWorker already called lock() — just ensure idle timer is still running
+      // (it is, since data keeps flowing). No additional action needed here;
+      // the LockOverlay will show on next user interaction.
+    })
+
+    const offUnlock = wsManager.onSessionUnlock(() => {
+      // wsWorker already called unlock() — reset idle timer so the user gets
+      // a fresh window of inactivity after unlocking from another tab.
+      unlock()
+      resetIdleTimer()
+    })
+
+    return () => {
+      offLock()
+      offUnlock()
+    }
+  }, [unlock, resetIdleTimer])
 
   // G-key navigation state (tracks whether 'g' was pressed first)
   const gKeyPending = useRef(false)
@@ -370,8 +451,11 @@ export default function AppShell() {
         return
       }
 
-      // Escape — exit kiosk if active
-      if (e.key === 'Escape' && isKioskRef.current) {
+      // Escape — exit kiosk if active.
+      // IMPORTANT: When the lock overlay is visible it handles Escape in capture
+      // phase (dismiss overlay only, no unlock). We must not also exit kiosk here.
+      // Check isLocked so AppShell's handler is a no-op while the overlay is up.
+      if (e.key === 'Escape' && isKioskRef.current && !isLockedRef.current) {
         e.preventDefault()
         exitKioskRef.current()
         return
