@@ -289,6 +289,92 @@ function ModifiedSection({ rows }: { rows: ModifiedRow[] }) {
   )
 }
 
+function ConflictedSection({
+  rows,
+  resolution,
+  onChangeResolution,
+}: {
+  rows: ModifiedRow[]
+  resolution: 'skip' | 'overwrite'
+  onChangeResolution: (v: 'skip' | 'overwrite') => void
+}) {
+  if (rows.length === 0) return null
+  return (
+    <div style={{ marginBottom: 'var(--io-space-4)', border: '1px solid var(--io-warning)', borderRadius: '6px', padding: 'var(--io-space-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--io-space-2)', marginBottom: 'var(--io-space-3)' }}>
+        <span style={{ fontSize: '16px' }}>⚠</span>
+        <Badge color="warning">Conflict</Badge>
+        <span style={{ color: 'var(--io-warning)', fontSize: '13px', fontWeight: 600 }}>
+          {rows.length} row{rows.length !== 1 ? 's' : ''} modified in database since template was exported
+        </span>
+      </div>
+      <p style={{ fontSize: '12px', color: 'var(--io-text-secondary)', marginBottom: 'var(--io-space-3)' }}>
+        These rows were updated by another user or process after you downloaded the template.
+        Choose how to resolve:
+      </p>
+      <div style={{ display: 'flex', gap: 'var(--io-space-4)', marginBottom: 'var(--io-space-3)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--io-space-2)', fontSize: '13px', cursor: 'pointer' }}>
+          <input
+            type="radio"
+            name="conflict_resolution"
+            value="skip"
+            checked={resolution === 'skip'}
+            onChange={() => onChangeResolution('skip')}
+          />
+          Skip conflicted rows (default — preserve newer database values)
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--io-space-2)', fontSize: '13px', cursor: 'pointer' }}>
+          <input
+            type="radio"
+            name="conflict_resolution"
+            value="overwrite"
+            checked={resolution === 'overwrite'}
+            onChange={() => onChangeResolution('overwrite')}
+          />
+          Overwrite with template values
+        </label>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={TABLE}>
+          <thead>
+            <tr>
+              <th style={TH}>ID</th>
+              <th style={TH}>Changed Fields</th>
+              <th style={{ ...TH, color: 'var(--io-warning)' }}>Template Value (after)</th>
+              <th style={TH}>Current DB Value (before)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id} style={{ background: 'color-mix(in srgb, var(--io-warning) 5%, transparent)' }}>
+                <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px' }}>
+                  <span style={{ marginRight: '4px' }}>⚠</span>
+                  {row.id}
+                </td>
+                <td style={TD}>
+                  {row.changed_fields.length > 0
+                    ? row.changed_fields.map((f) => <Badge key={f} color="warning">{f}</Badge>)
+                    : <span style={{ color: 'var(--io-text-muted)', fontSize: '11px' }}>conflict (no field changes)</span>}
+                </td>
+                <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px', color: 'var(--io-warning)' }}>
+                  {row.changed_fields.map((f) => (
+                    <div key={f}>{f}: {String(row.after[f] ?? '')}</div>
+                  ))}
+                </td>
+                <td style={{ ...TD, fontFamily: 'monospace', fontSize: '11px', color: 'var(--io-text-secondary)' }}>
+                  {row.changed_fields.map((f) => (
+                    <div key={f}>{f}: {String(row.before[f] ?? '')}</div>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Step 2 sub-component: Validate & Map
 // ---------------------------------------------------------------------------
@@ -567,6 +653,7 @@ function BulkUpdateTab() {
   const [showApplyConfirm, setShowApplyConfirm] = useState(false)
   const [showUndoConfirm, setShowUndoConfirm] = useState(false)
   const [undoDone, setUndoDone] = useState(false)
+  const [conflictResolution, setConflictResolution] = useState<'skip' | 'overwrite'>('skip')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const previewMutation = useMutation({
@@ -587,8 +674,8 @@ function BulkUpdateTab() {
   })
 
   const applyMutation = useMutation({
-    mutationFn: ({ type, f }: { type: TargetType; f: File }) =>
-      bulkUpdateApi.apply(type, f),
+    mutationFn: ({ type, f, conflictRes }: { type: TargetType; f: File; conflictRes?: 'skip' | 'overwrite' }) =>
+      bulkUpdateApi.apply(type, f, conflictRes ?? 'skip'),
     onSuccess: (res) => {
       if (res.success) {
         setApplyResult(res.data)
@@ -672,7 +759,7 @@ function BulkUpdateTab() {
   const confirmApply = () => {
     setShowApplyConfirm(false)
     if (!file) return
-    applyMutation.mutate({ type: targetType, f: file })
+    applyMutation.mutate({ type: targetType, f: file, conflictRes: conflictResolution })
   }
 
   const handleDownloadValidationErrorReport = () => {
@@ -706,7 +793,12 @@ function BulkUpdateTab() {
   }
 
   const hasChanges =
-    preview && (preview.added.length > 0 || preview.modified.length > 0 || preview.removed.length > 0)
+    preview && (
+      preview.added.length > 0 ||
+      preview.modified.length > 0 ||
+      preview.removed.length > 0 ||
+      (preview.conflicted?.length ?? 0) > 0
+    )
 
   const resetWizard = () => {
     setStep(1)
@@ -715,6 +807,7 @@ function BulkUpdateTab() {
     setApplyResult(null)
     setColumnMappingOverrides({})
     setUndoDone(false)
+    setConflictResolution('skip')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -764,7 +857,7 @@ function BulkUpdateTab() {
           </button>
         </div>
 
-        <SectionTitle>Upload Modified CSV</SectionTitle>
+        <SectionTitle>Upload Modified File (CSV or XLSX)</SectionTitle>
         <div
           style={{
             border: `2px dashed ${isDragging ? 'var(--io-accent)' : 'var(--io-border)'}`,
@@ -783,7 +876,7 @@ function BulkUpdateTab() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
@@ -883,17 +976,27 @@ function BulkUpdateTab() {
             <span style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
               Unchanged: {preview.unchanged_count}
             </span>
+            {(preview.conflicted?.length ?? 0) > 0 && (
+              <span style={{ fontSize: '13px', color: 'var(--io-warning)' }}>
+                ⚠ Conflicted: <strong>{preview.conflicted.length}</strong> (modified since export)
+              </span>
+            )}
             {preview.validation.errors.length > 0 && (
               <span style={{ fontSize: '13px', color: 'var(--io-danger)' }}>
                 Validation errors: <strong>{preview.validation.errors.length}</strong> (rows will be skipped)
               </span>
             )}
           </div>
-          {!hasChanges && (
+          {!hasChanges && (preview.conflicted?.length ?? 0) === 0 && (
             <p style={{ color: 'var(--io-text-muted)', fontSize: '13px' }}>
-              No changes detected — the uploaded CSV matches current data.
+              No changes detected — the uploaded file matches current data.
             </p>
           )}
+          <ConflictedSection
+            rows={preview.conflicted ?? []}
+            resolution={conflictResolution}
+            onChangeResolution={setConflictResolution}
+          />
           <DiffSection title="Added" color="success" rows={preview.added} />
           <ModifiedSection rows={preview.modified} />
           <DiffSection title="Removed" color="danger" rows={preview.removed} />

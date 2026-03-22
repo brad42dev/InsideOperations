@@ -88,6 +88,8 @@ export interface ValidationSummary {
 export interface DiffPreview {
   added: Record<string, unknown>[]
   modified: ModifiedRow[]
+  /** Rows where updated_at > _exported_at — modified in the DB since template was downloaded. */
+  conflicted: ModifiedRow[]
   removed: Record<string, unknown>[]
   unchanged_count: number
   column_mapping: ColumnMapping[]
@@ -226,11 +228,13 @@ export const bulkUpdateApi = {
     return multipartPost<DiffPreview>('/api/bulk-update/preview', fd)
   },
 
-  /** Apply changes from a CSV upload. Creates a safety snapshot first. */
-  apply: (targetType: TargetType, file: File) => {
+  /** Apply changes from a CSV/XLSX upload. Creates a safety snapshot first.
+   *  conflictResolution: 'skip' (default) skips conflicted rows; 'overwrite' applies them. */
+  apply: (targetType: TargetType, file: File, conflictResolution: 'skip' | 'overwrite' = 'skip') => {
     const fd = new FormData()
     fd.append('target_type', targetType)
     fd.append('file', file)
+    fd.append('conflict_resolution', conflictResolution)
     return multipartPost<ApplySummary>('/api/bulk-update/apply', fd)
   },
 

@@ -19,6 +19,7 @@ use axum::{
     response::{IntoResponse, Response},
     Extension, Json,
 };
+use calamine::{open_workbook_from_rs, Data, Reader, Xlsx};
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
@@ -26,6 +27,7 @@ use io_models::{ApiResponse, PagedResponse, PageParams};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use sqlx::Row;
+use std::io::Cursor;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -93,28 +95,31 @@ impl TargetType {
     }
 
     /// CSV header row for this target type.
+    /// All templates include an `_exported_at` column with the UTC timestamp of download.
+    /// This column is used for conflict detection: rows where `updated_at > _exported_at`
+    /// are flagged as conflicted during preview.
     fn csv_headers(&self) -> &'static str {
         match self {
-            Self::Users => "__id,username [READ-ONLY],full_name,email,enabled",
-            Self::OpcSources => "__id,name,endpoint_url,enabled",
-            Self::AlarmDefinitions => "__id,name,point_tag,high_high,high,low,low_low,enabled",
-            Self::ImportConnections => "__id,name,connector_type,enabled",
+            Self::Users => "_exported_at,__id,username [READ-ONLY],full_name,email,enabled",
+            Self::OpcSources => "_exported_at,__id,name,endpoint_url,enabled",
+            Self::AlarmDefinitions => "_exported_at,__id,name,point_tag,high_high,high,low,low_low,enabled",
+            Self::ImportConnections => "_exported_at,__id,name,connector_type,enabled",
             // Points metadata: editable + read-only reference columns
             Self::PointsMetadata => {
-                "__id,tagname [READ-ONLY],description [READ-ONLY],engineering_units [READ-ONLY],\
+                "_exported_at,__id,tagname [READ-ONLY],description [READ-ONLY],engineering_units [READ-ONLY],\
 active,criticality,area,aggregation_types,barcode,notes,gps_latitude,gps_longitude,\
 write_frequency_seconds,default_graphic_id"
             }
             // User roles: one row per user-role pair
-            Self::UserRoles => "__id,user_id [READ-ONLY],username [READ-ONLY],role_id,role_name [READ-ONLY]",
+            Self::UserRoles => "_exported_at,__id,user_id [READ-ONLY],username [READ-ONLY],role_id,role_name [READ-ONLY]",
             // Application settings
-            Self::ApplicationSettings => "__id,key [READ-ONLY],description [READ-ONLY],value",
+            Self::ApplicationSettings => "_exported_at,__id,key [READ-ONLY],description [READ-ONLY],value",
             // Point sources
-            Self::PointSources => "__id,name,description,enabled",
+            Self::PointSources => "_exported_at,__id,name,description,enabled",
             // Dashboard metadata
-            Self::DashboardMetadata => "__id,name,published",
+            Self::DashboardMetadata => "_exported_at,__id,name,published",
             // Import definitions
-            Self::ImportDefinitions => "__id,name,description,enabled,batch_size,error_strategy",
+            Self::ImportDefinitions => "_exported_at,__id,name,description,enabled,batch_size,error_strategy",
         }
     }
 }
@@ -197,6 +202,8 @@ pub struct ValidationSummary {
 pub struct DiffPreview {
     pub added: Vec<JsonValue>,
     pub modified: Vec<ModifiedRow>,
+    /// Rows where `updated_at > _exported_at` — modified in the DB since the template was downloaded.
+    pub conflicted: Vec<ModifiedRow>,
     pub removed: Vec<JsonValue>,
     pub unchanged_count: usize,
     pub column_mapping: Vec<ColumnMapping>,
@@ -602,6 +609,48 @@ async fn fetch_current_rows(db: &sqlx::PgPool, tt: &TargetType) -> Result<Vec<Js
 }
 
 // ---------------------------------------------------------------------------
+// updated_at fetch helper for conflict detection
+// ---------------------------------------------------------------------------
+
+/// Fetch a map of `id → updated_at` for all rows of the given target type.
+/// Returns an empty map for target types whose underlying table does not have
+/// an `updated_at` column — conflict detection is silently skipped for those types.
+async fn fetch_updated_at_map(
+    db: &sqlx::PgPool,
+    tt: &TargetType,
+) -> std::collections::HashMap<String, DateTime<Utc>> {
+    let query = match tt {
+        TargetType::Users => Some("SELECT id::text, updated_at FROM users"),
+        TargetType::OpcSources => Some("SELECT id::text, updated_at FROM opc_sources"),
+        TargetType::AlarmDefinitions => Some("SELECT id::text, updated_at FROM alarm_definitions"),
+        TargetType::ImportConnections => Some("SELECT id::text, updated_at FROM import_connections"),
+        TargetType::PointsMetadata => Some("SELECT id::text, updated_at FROM points_metadata"),
+        TargetType::UserRoles => None, // no updated_at column
+        TargetType::ApplicationSettings => None, // settings table may not have updated_at
+        TargetType::PointSources => Some("SELECT id::text, updated_at FROM point_sources"),
+        TargetType::DashboardMetadata => Some("SELECT id::text, updated_at FROM dashboards"),
+        TargetType::ImportDefinitions => Some("SELECT id::text, updated_at FROM import_definitions"),
+    };
+
+    let sql = match query {
+        Some(q) => q,
+        None => return std::collections::HashMap::new(),
+    };
+
+    match sqlx::query(sql).fetch_all(db).await {
+        Ok(rows) => rows
+            .iter()
+            .filter_map(|r| {
+                let id: String = r.try_get("id").ok()?;
+                let updated_at: DateTime<Utc> = r.try_get("updated_at").ok()?;
+                Some((id, updated_at))
+            })
+            .collect(),
+        Err(_) => std::collections::HashMap::new(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Diff engine
 // ---------------------------------------------------------------------------
 
@@ -657,8 +706,11 @@ fn compute_column_mapping(headers: &[String], tt: &TargetType) -> Vec<ColumnMapp
     headers.iter().map(|h| {
         // Strip " [READ-ONLY]" suffix to get the base field name
         let base = h.trim_end_matches(" [READ-ONLY]").trim_end_matches(" [read-only]");
-        let is_known = all_fields.iter().any(|&f| f == base || f == h);
-        let is_read_only = read_only_fields.iter().any(|&f| f == base)
+        // _exported_at is a metadata column used for conflict detection — always read-only
+        let is_known = base == "_exported_at"
+            || all_fields.iter().any(|&f| f == base || f == h);
+        let is_read_only = base == "_exported_at"
+            || read_only_fields.iter().any(|&f| f == base)
             || h.contains("[READ-ONLY]") || h.contains("[read-only]");
 
         let status = if !is_known {
@@ -873,7 +925,17 @@ fn validate_rows(
     }
 }
 
-fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType, column_mapping: Vec<ColumnMapping>, validation: ValidationSummary) -> DiffPreview {
+fn compute_diff(
+    current: &[JsonValue],
+    incoming: &[JsonValue],
+    tt: &TargetType,
+    column_mapping: Vec<ColumnMapping>,
+    validation: ValidationSummary,
+    // id → updated_at from DB; used for conflict detection when file contains `_exported_at`
+    db_updated_at: &std::collections::HashMap<String, DateTime<Utc>>,
+    // export timestamp from the uploaded file's `_exported_at` column (if present)
+    exported_at: Option<DateTime<Utc>>,
+) -> DiffPreview {
     use std::collections::HashMap;
 
     // Build a map of id → row for current data
@@ -905,6 +967,7 @@ fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType, 
 
     let mut added = Vec::new();
     let mut modified = Vec::new();
+    let mut conflicted = Vec::new();
     let mut removed = Vec::new();
     let mut unchanged_count = 0usize;
 
@@ -922,8 +985,22 @@ fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType, 
                 .map(|f| f.to_string())
                 .collect();
 
-            if changed_fields.is_empty() {
+            // Conflict detection: check if this row was updated in the DB after template export
+            let is_conflicted = if let (Some(exp_at), Some(db_upd)) = (exported_at, db_updated_at.get(id)) {
+                *db_upd > exp_at
+            } else {
+                false
+            };
+
+            if changed_fields.is_empty() && !is_conflicted {
                 unchanged_count += 1;
+            } else if is_conflicted {
+                conflicted.push(ModifiedRow {
+                    id: id.clone(),
+                    before: (*cur_row).clone(),
+                    after: (*inc_row).clone(),
+                    changed_fields,
+                });
             } else {
                 modified.push(ModifiedRow {
                     id: id.clone(),
@@ -945,7 +1022,7 @@ fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType, 
         }
     }
 
-    DiffPreview { added, modified, removed, unchanged_count, column_mapping, validation }
+    DiffPreview { added, modified, conflicted, removed, unchanged_count, column_mapping, validation }
 }
 
 // ---------------------------------------------------------------------------
@@ -1264,26 +1341,88 @@ async fn restore_snapshot_rows(
 }
 
 // ---------------------------------------------------------------------------
-// Extract CSV from multipart
+// Extract and parse file from multipart — supports CSV and XLSX
 // ---------------------------------------------------------------------------
 
-async fn extract_csv_and_target(
+/// Parse an XLSX byte slice into a Vec of header→value HashMaps.
+/// Uses the first sheet; converts all cell values to String.
+fn parse_xlsx_bytes(
+    bytes: &[u8],
+) -> Result<Vec<std::collections::HashMap<String, String>>, String> {
+    let cursor = Cursor::new(bytes);
+    let mut workbook: Xlsx<_> = open_workbook_from_rs(cursor)
+        .map_err(|e| format!("Failed to open XLSX: {e}"))?;
+
+    let sheet_name = {
+        let names = workbook.sheet_names();
+        names.into_iter().next().ok_or_else(|| "XLSX has no sheets".to_string())?
+    };
+
+    let range = workbook
+        .worksheet_range(&sheet_name)
+        .map_err(|e| format!("Failed to read sheet '{sheet_name}': {e}"))?;
+
+    let mut rows_iter = range.rows();
+
+    // First row is the header
+    let headers: Vec<String> = match rows_iter.next() {
+        Some(header_row) => header_row
+            .iter()
+            .map(|cell| cell.to_string().trim().to_string())
+            .collect(),
+        None => return Ok(vec![]),
+    };
+
+    let mut result = Vec::new();
+    for row in rows_iter {
+        let mut map = std::collections::HashMap::new();
+        for (i, h) in headers.iter().enumerate() {
+            let val = row.get(i).map(|c| match c {
+                Data::Empty => String::new(),
+                Data::String(s) => s.clone(),
+                Data::Float(f) => f.to_string(),
+                Data::Int(n) => n.to_string(),
+                Data::Bool(b) => b.to_string(),
+                Data::DateTime(dt) => dt.to_string(),
+                Data::DateTimeIso(s) => s.clone(),
+                Data::DurationIso(s) => s.clone(),
+                Data::Error(e) => format!("{:?}", e),
+            }).unwrap_or_default();
+            map.insert(h.clone(), val);
+        }
+        result.push(map);
+    }
+
+    Ok(result)
+}
+
+/// Extract file, target_type, and optional extra text fields from a multipart request.
+/// Detects file format (CSV vs XLSX) by content_type or filename extension.
+/// Returns parsed rows as Vec<HashMap<String, String>> regardless of format,
+/// plus the target type and a map of any extra text fields (e.g. "conflict_resolution").
+async fn extract_file_and_target(
     multipart: &mut Multipart,
-) -> Result<(String, TargetType), Response> {
-    let mut csv_text: Option<String> = None;
+) -> Result<(Vec<std::collections::HashMap<String, String>>, TargetType, std::collections::HashMap<String, String>), Response> {
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_is_xlsx = false;
     let mut target_type_str: Option<String> = None;
+    let mut extra_fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     while let Ok(Some(field)) = multipart.next_field().await {
         match field.name() {
             Some("file") => {
+                // Detect format from content_type or filename
+                let ct = field.content_type().unwrap_or("").to_lowercase();
+                let fname = field.file_name().unwrap_or("").to_lowercase();
+                if ct.contains("spreadsheetml") || ct.contains("excel") || fname.ends_with(".xlsx") {
+                    file_is_xlsx = true;
+                }
                 match field.bytes().await {
                     Ok(bytes) => {
-                        let text = String::from_utf8(bytes.to_vec())
-                            .map_err(|_| IoError::BadRequest("CSV file must be UTF-8".into()).into_response())?;
-                        csv_text = Some(text);
+                        file_bytes = Some(bytes.to_vec());
                     }
                     Err(_) => {
-                        return Err(IoError::BadRequest("Failed to read CSV file".into()).into_response());
+                        return Err(IoError::BadRequest("Failed to read uploaded file".into()).into_response());
                     }
                 }
             }
@@ -1292,16 +1431,33 @@ async fn extract_csv_and_target(
                     target_type_str = Some(t);
                 }
             }
-            _ => {}
+            Some(name) => {
+                // Capture any additional text fields (e.g. conflict_resolution)
+                let key = name.to_string();
+                if let Ok(val) = field.text().await {
+                    extra_fields.insert(key, val);
+                }
+            }
+            None => {}
         }
     }
 
-    let csv = csv_text.ok_or_else(|| IoError::BadRequest("No 'file' field in multipart".into()).into_response())?;
+    let bytes = file_bytes.ok_or_else(|| IoError::BadRequest("No 'file' field in multipart".into()).into_response())?;
     let tt_str = target_type_str.ok_or_else(|| IoError::BadRequest("No 'target_type' field in multipart".into()).into_response())?;
     let tt = TargetType::from_str(&tt_str)
         .ok_or_else(|| IoError::BadRequest(format!("Unknown target_type: {}", tt_str)).into_response())?;
 
-    Ok((csv, tt))
+    let rows = if file_is_xlsx {
+        parse_xlsx_bytes(&bytes)
+            .map_err(|e| IoError::BadRequest(format!("XLSX parse error: {e}")).into_response())?
+    } else {
+        let text = String::from_utf8(bytes)
+            .map_err(|_| IoError::BadRequest("CSV file must be UTF-8".into()).into_response())?;
+        parse_csv(&text)
+            .ok_or_else(|| IoError::BadRequest("Could not parse CSV — empty or malformed".into()).into_response())?
+    };
+
+    Ok((rows, tt, extra_fields))
 }
 
 // ---------------------------------------------------------------------------
@@ -1547,6 +1703,9 @@ pub async fn get_template(
         Err(e) => return e.into_response(),
     };
 
+    // Embed the export timestamp in every data row for conflict detection on re-import.
+    let exported_at_str = Utc::now().to_rfc3339();
+
     let mut csv = String::new();
     csv.push_str(tt.csv_headers());
     csv.push('\n');
@@ -1554,7 +1713,8 @@ pub async fn get_template(
     for row in &rows {
         let line = match &tt {
             TargetType::Users => format!(
-                "{},{},{},{},{}",
+                "{},{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("username").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("full_name").and_then(|v| v.as_str()).unwrap_or("")),
@@ -1562,14 +1722,16 @@ pub async fn get_template(
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::OpcSources => format!(
-                "{},{},{},{}",
+                "{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("endpoint_url").and_then(|v| v.as_str()).unwrap_or("")),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::AlarmDefinitions => format!(
-                "{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("point_tag").and_then(|v| v.as_str()).unwrap_or("")),
@@ -1580,14 +1742,16 @@ pub async fn get_template(
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::ImportConnections => format!(
-                "{},{},{},{}",
+                "{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("connector_type").and_then(|v| v.as_str()).unwrap_or("")),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::PointsMetadata => format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("tagname").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
@@ -1604,7 +1768,8 @@ pub async fn get_template(
                 row.get("default_graphic_id").and_then(|v| v.as_str()).unwrap_or(""),
             ),
             TargetType::UserRoles => format!(
-                "{},{},{},{},{}",
+                "{},{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 row.get("user_id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("username").and_then(|v| v.as_str()).unwrap_or("")),
@@ -1612,27 +1777,31 @@ pub async fn get_template(
                 csv_escape(row.get("role_name").and_then(|v| v.as_str()).unwrap_or("")),
             ),
             TargetType::ApplicationSettings => format!(
-                "{},{},{},{}",
+                "{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("key").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("value").and_then(|v| v.as_str()).unwrap_or("")),
             ),
             TargetType::PointSources => format!(
-                "{},{},{},{}",
+                "{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::DashboardMetadata => format!(
-                "{},{},{}",
+                "{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 row.get("published").and_then(|v| v.as_bool()).unwrap_or(false),
             ),
             TargetType::ImportDefinitions => format!(
-                "{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{}",
+                exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
@@ -1680,20 +1849,25 @@ pub async fn preview_bulk_update(
         return IoError::Forbidden("settings:write permission required".into()).into_response();
     }
 
-    let (csv_text, tt) = match extract_csv_and_target(&mut multipart).await {
+    let (csv_rows, tt, _extra) = match extract_file_and_target(&mut multipart).await {
         Ok(v) => v,
         Err(resp) => return resp,
-    };
-
-    let csv_rows = match parse_csv(&csv_text) {
-        Some(r) => r,
-        None => return IoError::BadRequest("Could not parse CSV — empty or malformed".into()).into_response(),
     };
 
     let current = match fetch_current_rows(&state.db, &tt).await {
         Ok(r) => r,
         Err(e) => return e.into_response(),
     };
+
+    // Fetch updated_at timestamps for conflict detection
+    let db_updated_at = fetch_updated_at_map(&state.db, &tt).await;
+
+    // Extract _exported_at from the first row (all rows share the same timestamp from template gen)
+    let exported_at: Option<DateTime<Utc>> = csv_rows
+        .first()
+        .and_then(|r| r.get("_exported_at"))
+        .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
+        .map(|dt| dt.with_timezone(&Utc));
 
     // Build column mapping from actual CSV headers
     let headers: Vec<String> = if let Some(first_row) = csv_rows.first() {
@@ -1714,7 +1888,7 @@ pub async fn preview_bulk_update(
 
     let incoming: Vec<JsonValue> = csv_rows.iter().map(|r| csv_row_to_json(r, &tt)).collect();
 
-    let diff = compute_diff(&current, &incoming, &tt, column_mapping, validation);
+    let diff = compute_diff(&current, &incoming, &tt, column_mapping, validation, &db_updated_at, exported_at);
     Json(ApiResponse::ok(diff)).into_response()
 }
 
@@ -1731,20 +1905,32 @@ pub async fn apply_bulk_update(
         return IoError::Forbidden("settings:write permission required".into()).into_response();
     }
 
-    let (csv_text, tt) = match extract_csv_and_target(&mut multipart).await {
+    let (csv_rows, tt, extra_fields) = match extract_file_and_target(&mut multipart).await {
         Ok(v) => v,
         Err(resp) => return resp,
     };
 
-    let csv_rows = match parse_csv(&csv_text) {
-        Some(r) => r,
-        None => return IoError::BadRequest("Could not parse CSV — empty or malformed".into()).into_response(),
-    };
+    // Read conflict_resolution from the multipart extra fields.
+    // "overwrite" means apply template values over conflicted rows; anything else means skip.
+    let overwrite_conflicts = extra_fields
+        .get("conflict_resolution")
+        .map(|v| v.as_str() == "overwrite")
+        .unwrap_or(false);
 
     let current = match fetch_current_rows(&state.db, &tt).await {
         Ok(r) => r,
         Err(e) => return e.into_response(),
     };
+
+    // Fetch updated_at timestamps for conflict detection
+    let db_updated_at = fetch_updated_at_map(&state.db, &tt).await;
+
+    // Extract _exported_at from the first row
+    let exported_at: Option<DateTime<Utc>> = csv_rows
+        .first()
+        .and_then(|r| r.get("_exported_at"))
+        .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
+        .map(|dt| dt.with_timezone(&Utc));
 
     // Build current IDs set and validate rows
     let current_ids: std::collections::HashSet<String> = current
@@ -1784,7 +1970,7 @@ pub async fn apply_bulk_update(
         valid_id_count: 0, duplicate_id_count: 0, invalid_id_count: 0,
         type_error_count: 0, required_field_error_count: 0, errors: vec![],
     };
-    let diff = compute_diff(&current, &valid_incoming, &tt, empty_headers, empty_validation);
+    let diff = compute_diff(&current, &valid_incoming, &tt, empty_headers, empty_validation, &db_updated_at, exported_at);
 
     // Create safety snapshot before applying
     let uid = user_id(&claims);
@@ -1798,6 +1984,31 @@ pub async fn apply_bulk_update(
     let removed_count = diff.removed.len();
     let unchanged = diff.unchanged_count;
     let validation_failed = validation.invalid_id_count + validation.type_error_count + validation.required_field_error_count;
+
+    // Handle conflicted rows per the user's preference
+    if overwrite_conflicts {
+        // User chose to overwrite conflicted rows with template values — apply them
+        for modrow in &diff.conflicted {
+            if let Err(e) = apply_update(&state.db, &tt, &modrow.after).await {
+                failed_rows.push(FailedRow {
+                    row: 0,
+                    id: modrow.id.clone(),
+                    reason_type: "apply_error".to_string(),
+                    reason: e.to_string(),
+                });
+            }
+        }
+    } else {
+        // Default: skip conflicted rows and record them as skipped
+        for modrow in &diff.conflicted {
+            failed_rows.push(FailedRow {
+                row: 0,
+                id: modrow.id.clone(),
+                reason_type: "skipped_conflict".to_string(),
+                reason: "Row was modified after template export — skipped to avoid overwriting newer data".to_string(),
+            });
+        }
+    }
 
     // Apply diff — individual row errors get reported but don't abort the entire apply
     let mut apply_error_count = 0usize;
