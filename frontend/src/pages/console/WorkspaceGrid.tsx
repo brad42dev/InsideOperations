@@ -3,6 +3,7 @@ import { GridLayout, noCompactor, type LayoutItem } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import PaneWrapper from './PaneWrapper'
+import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
 import type { ConsoleDragItem } from './ConsolePalette'
 import type { WorkspaceLayout, PaneConfig, LayoutPreset, GridItem } from './types'
 
@@ -150,6 +151,17 @@ export default function WorkspaceGrid({
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
   const [containerHeight, setContainerHeight] = useState(600)
+
+  // ── Per-pane error boundary retry counters ───────────────────────────────
+  const [paneRetryCounters, setPaneRetryCounters] = useState<Map<string, number>>(new Map())
+
+  const retryPane = useCallback((paneId: string) => {
+    setPaneRetryCounters((prev) => {
+      const next = new Map(prev)
+      next.set(paneId, (prev.get(paneId) ?? 0) + 1)
+      return next
+    })
+  }, [])
 
   // ── Swap target visual indicator ─────────────────────────────────────────
   const [swapTargetId, setSwapTargetId] = useState<string | null>(null)
@@ -438,6 +450,7 @@ export default function WorkspaceGrid({
           // When another pane is fullscreen, hide this one
           const isHidden = fullscreenPaneId !== null && !isPaneFullscreen
           const isSwapTarget = swapTargetId === pane.id
+          const retryCount = paneRetryCounters.get(pane.id) ?? 0
           return (
             <div
               key={pane.id}
@@ -450,22 +463,57 @@ export default function WorkspaceGrid({
                 outlineOffset: isSwapTarget ? '-2px' : undefined,
               }}
             >
-              <PaneWrapper
-                config={pane}
-                editMode={editMode}
-                isSelected={selectedPaneIds?.has(pane.id) ?? false}
-                isFullscreen={isPaneFullscreen}
-                onToggleFullscreen={() => toggleFullscreen(pane.id)}
-                onConfigure={onConfigurePane}
-                onRemove={onRemovePane}
-                onSelect={onSelectPane}
-                onPaletteDrop={onPaletteDrop}
-                preserveAspectRatio={preserveAspectRatio}
-                swapModeSourceId={swapModeSourceId}
-                onSwapWith={onSwapWith}
-                onSwapComplete={onSwapComplete}
-                onReplace={onReplace}
-              />
+              <ErrorBoundary
+                key={`${pane.id}-${retryCount}`}
+                module={`Pane ${pane.id.slice(0, 8)}`}
+                fallback={
+                  <div style={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    color: 'var(--io-text-muted)',
+                    fontSize: 13,
+                    background: 'var(--io-surface-secondary)',
+                    padding: '16px',
+                  }}>
+                    <div>Pane failed to render.</div>
+                    <button
+                      onClick={() => retryPane(pane.id)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 'var(--io-radius)',
+                        border: '1px solid var(--io-border)',
+                        background: 'var(--io-surface)',
+                        color: 'var(--io-text-primary)',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                }
+              >
+                <PaneWrapper
+                  config={pane}
+                  editMode={editMode}
+                  isSelected={selectedPaneIds?.has(pane.id) ?? false}
+                  isFullscreen={isPaneFullscreen}
+                  onToggleFullscreen={() => toggleFullscreen(pane.id)}
+                  onConfigure={onConfigurePane}
+                  onRemove={onRemovePane}
+                  onSelect={onSelectPane}
+                  onPaletteDrop={onPaletteDrop}
+                  preserveAspectRatio={preserveAspectRatio}
+                  swapModeSourceId={swapModeSourceId}
+                  onSwapWith={onSwapWith}
+                  onSwapComplete={onSwapComplete}
+                  onReplace={onReplace}
+                />
+              </ErrorBoundary>
             </div>
           )
         })}
