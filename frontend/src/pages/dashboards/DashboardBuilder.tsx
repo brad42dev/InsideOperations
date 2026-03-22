@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '../../store/auth'
 import {
   DndContext,
   PointerSensor,
@@ -565,6 +566,9 @@ export default function DashboardBuilder() {
   const queryClient = useQueryClient()
   const isNew = !id
 
+  const user = useAuthStore((s) => s.user)
+  const canPublish = user?.permissions.includes('dashboards:publish') ?? false
+
   const [name, setName] = useState('Untitled Dashboard')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('')
@@ -614,7 +618,7 @@ export default function DashboardBuilder() {
         layout: {},
         widgets,
         variables,
-        published,
+        ...(canPublish ? { published } : {}),
       }
 
       if (isNew) {
@@ -764,24 +768,26 @@ export default function DashboardBuilder() {
             Variables ({variables.length})
           </button>
 
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              color: 'var(--io-text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={published}
-              onChange={(e) => setPublished(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            Published
-          </label>
+          {canPublish && (
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                color: 'var(--io-text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={published}
+                onChange={(e) => setPublished(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Published
+            </label>
+          )}
 
           <button
             onClick={() => navigate(isNew ? '/dashboards' : `/dashboards/${id}`)}
