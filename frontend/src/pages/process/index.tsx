@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import RBush from 'rbush'
 import { graphicsApi } from '../../api/graphics'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneRenderer'
@@ -138,42 +139,79 @@ function getBufferFraction(zoom: number): number {
   return 0.05
 }
 
-function getVisiblePointIds(
-  doc: { children: SceneNode[] },
-  vp: ViewportState,
-): string[] {
-  const visible = new Set<string>()
-  // Pre-fetch buffer scales with zoom level (spec §5.3)
-  const bufFrac = getBufferFraction(vp.zoom)
-  const visW = vp.screenWidth / vp.zoom
-  const visH = vp.screenHeight / vp.zoom
-  const buf = Math.max(visW, visH) * bufFrac
-  const vLeft = vp.panX - buf
-  const vTop = vp.panY - buf
-  const vRight = vp.panX + vp.screenWidth / vp.zoom + buf
-  const vBottom = vp.panY + vp.screenHeight / vp.zoom + buf
+// ---------------------------------------------------------------------------
+// Spatial binding index (spec §5.6 Binding Index Pre-Computation)
+// ---------------------------------------------------------------------------
+
+/** Minimum LOD level at which this display type becomes visible (spec §4.3.2) */
+function displayElementLod(displayType: string): number {
+  switch (displayType) {
+    case 'text_readout':    return 1
+    case 'alarm_indicator': return 1
+    case 'analog_bar':      return 2
+    case 'fill_gauge':      return 2
+    case 'sparkline':       return 2
+    case 'digital_status':  return 2
+    default:                return 1
+  }
+}
+
+/** One entry in the pre-built spatial binding index. */
+interface SpatialBindingEntry {
+  nodeId: string
+  bbox: { left: number; top: number; right: number; bottom: number }
+  lodLevel: number
+  pointIds: Set<string>
+}
+
+/** rbush item shape — minX/minY/maxX/maxY required by the library. */
+interface RBushItem {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  entry: SpatialBindingEntry
+}
+
+/**
+ * Walk the scene graph once and return a flat array of all bound-node
+ * bounding boxes, sorted by bbox.left for O(n) sweep-line intersection.
+ * For graphics with >2,000 entries the caller should use an RBush index
+ * instead (see queryBindingIndex).
+ */
+function buildBindingIndex(doc: { children: SceneNode[] }): SpatialBindingEntry[] {
+  const entries: SpatialBindingEntry[] = []
 
   function scanNode(node: SceneNode) {
-    if (!node.visible) return
     const { x, y } = node.transform.position
 
     if (node.type === 'display_element') {
       const de = node as DisplayElement
       const [w, h] = displayElementSize(de)
-      if (x < vRight && x + w > vLeft && y < vBottom && y + h > vTop) {
-        if (de.binding?.pointId) visible.add(de.binding.pointId)
-        if (de.binding?.expressionId) visible.add(de.binding.expressionId)
+      const pointIds = new Set<string>()
+      if (de.binding?.pointId) pointIds.add(de.binding.pointId)
+      if (de.binding?.expressionId) pointIds.add(de.binding.expressionId)
+      if (pointIds.size > 0) {
+        entries.push({
+          nodeId: de.id,
+          bbox: { left: x, top: y, right: x + w, bottom: y + h },
+          lodLevel: displayElementLod(de.displayType),
+          pointIds,
+        })
       }
     } else if (node.type === 'symbol_instance') {
-      // No size info without fetching the shape SVG — use 200px estimate
       const si = node as SymbolInstance
-      if (x < vRight && x + 200 > vLeft && y < vBottom && y + 200 > vTop) {
-        if (si.stateBinding?.pointId) visible.add(si.stateBinding.pointId)
-        if (si.stateBinding?.expressionId) visible.add(si.stateBinding.expressionId)
-        // Also collect display element children
-        for (const child of si.children) scanNode(child as SceneNode)
+      const pointIds = new Set<string>()
+      if (si.stateBinding?.pointId) pointIds.add(si.stateBinding.pointId)
+      if (si.stateBinding?.expressionId) pointIds.add(si.stateBinding.expressionId)
+      if (pointIds.size > 0) {
+        entries.push({
+          nodeId: si.id,
+          bbox: { left: x, top: y, right: x + 200, bottom: y + 200 },
+          lodLevel: 0,
+          pointIds,
+        })
       }
-      return // children already handled above
     }
 
     if ('children' in node && Array.isArray(node.children)) {
@@ -182,8 +220,66 @@ function getVisiblePointIds(
   }
 
   for (const node of doc.children) scanNode(node)
-  return Array.from(visible)
+  // Sort by left edge for sweep-line intersection (spec §5.6)
+  return entries.sort((a, b) => a.bbox.left - b.bbox.left)
 }
+
+/** Query a flat sorted binding index with a sweep-line intersection. */
+function queryFlatIndex(
+  index: SpatialBindingEntry[],
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+  currentLod: number,
+): Set<string> {
+  const visible = new Set<string>()
+  for (const entry of index) {
+    if (entry.bbox.left > right) break          // sorted — past right edge
+    if (entry.lodLevel > currentLod) continue   // hidden at this LOD
+    if (
+      entry.bbox.right < left ||
+      entry.bbox.top > bottom ||
+      entry.bbox.bottom < top
+    ) continue
+    for (const id of entry.pointIds) visible.add(id)
+  }
+  return visible
+}
+
+/** Query an RBush index (used when entry count exceeds 2,000). */
+function queryRBushIndex(
+  tree: RBush<RBushItem>,
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+  currentLod: number,
+): Set<string> {
+  const visible = new Set<string>()
+  const results = tree.search({ minX: left, minY: top, maxX: right, maxY: bottom })
+  for (const item of results) {
+    if (item.entry.lodLevel > currentLod) continue
+    for (const id of item.entry.pointIds) visible.add(id)
+  }
+  return visible
+}
+
+/** Build an RBush R-tree from a pre-built flat index (spec §5.6). */
+function buildRBushIndex(entries: SpatialBindingEntry[]): RBush<RBushItem> {
+  const tree = new RBush<RBushItem>()
+  const items: RBushItem[] = entries.map((entry) => ({
+    minX: entry.bbox.left,
+    minY: entry.bbox.top,
+    maxX: entry.bbox.right,
+    maxY: entry.bbox.bottom,
+    entry,
+  }))
+  tree.load(items)
+  return tree
+}
+
+const RBUSH_THRESHOLD = 2000
 
 // ---------------------------------------------------------------------------
 // Count total bound points in a graphic
@@ -739,10 +835,39 @@ export default function ProcessPage() {
     return () => clearTimeout(id)
   }, [viewport])
 
-  const visiblePointIds = useMemo(() => {
+  // ---- Spatial binding index (rebuilt only when scene_data changes) ────────
+  // spec §5.6: flat sorted array by default; RBush R-tree when >2,000 entries.
+
+  const bindingIndex = useMemo(() => {
     if (!graphic?.scene_data) return []
-    return getVisiblePointIds(graphic.scene_data, debouncedVp)
-  }, [graphic?.scene_data, debouncedVp])
+    return buildBindingIndex(graphic.scene_data)
+  }, [graphic?.scene_data])
+
+  const rbushIndex = useMemo(() => {
+    if (bindingIndex.length <= RBUSH_THRESHOLD) return null
+    return buildRBushIndex(bindingIndex)
+  }, [bindingIndex])
+
+  // ---- Visible point IDs — queried from the pre-built index ────────────────
+
+  const visiblePointIds = useMemo(() => {
+    if (!bindingIndex.length) return []
+    const bufFrac = getBufferFraction(debouncedVp.zoom)
+    const visW = debouncedVp.screenWidth / debouncedVp.zoom
+    const visH = debouncedVp.screenHeight / debouncedVp.zoom
+    const buf = Math.max(visW, visH) * bufFrac
+    const left   = debouncedVp.panX - buf
+    const top    = debouncedVp.panY - buf
+    const right  = debouncedVp.panX + visW + buf
+    const bottom = debouncedVp.panY + visH + buf
+    const currentLod = zoomToLod(debouncedVp.zoom)
+
+    const visible = rbushIndex
+      ? queryRBushIndex(rbushIndex, left, top, right, bottom, currentLod)
+      : queryFlatIndex(bindingIndex, left, top, right, bottom, currentLod)
+
+    return Array.from(visible)
+  }, [bindingIndex, rbushIndex, debouncedVp])
 
   const totalPoints = useMemo(() => {
     if (!graphic?.scene_data) return 0
