@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notificationsApi, type MusterStatus, type MusterMark } from '../../api/notifications'
+import { wsManager } from '../../shared/hooks/useWebSocket'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -348,8 +349,26 @@ export default function MusterDashboard() {
     queryKey: ['muster-status', messageId],
     queryFn: () => notificationsApi.getMusterStatus(messageId!),
     enabled: Boolean(messageId),
-    refetchInterval: 15_000,
+    // Fallback polling — WS subscriptions below handle real-time updates.
+    refetchInterval: 120_000,
   })
+
+  // Subscribe to muster status and person-accounted events via WebSocket.
+  useEffect(() => {
+    if (!messageId) return
+    const unsubStatus = wsManager.onMusterStatus((data) => {
+      if (!data.muster_event_id || data.muster_event_id === messageId) {
+        void qc.invalidateQueries({ queryKey: ['muster-status', messageId] })
+      }
+    })
+    const unsubPerson = wsManager.onMusterPersonAccounted(() => {
+      void qc.invalidateQueries({ queryKey: ['muster-status', messageId] })
+    })
+    return () => {
+      unsubStatus()
+      unsubPerson()
+    }
+  }, [messageId, qc])
 
   const { data: msgResult } = useQuery({
     queryKey: ['notification-message', messageId],

@@ -55,6 +55,10 @@ const presenceBadgeEventHandlers = new Set<(data: PresenceBadgeEvent) => void>()
 const musterStatusHandlers = new Set<(data: MusterStatus) => void>()
 const musterPersonAccountedHandlers = new Set<(data: MusterPersonAccounted) => void>()
 
+// Notification delivery status events (from Alert Service)
+export interface NotificationStatusChanged { message_id: string; status: string; channel?: string; recipient_count?: number }
+const notificationStatusHandlers = new Set<(data: NotificationStatusChanged) => void>()
+
 let currentState: WsConnectionState = 'disconnected'
 
 // ---------------------------------------------------------------------------
@@ -271,6 +275,17 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
       musterPersonAccountedHandlers.forEach((fn) => fn(data))
       break
     }
+    case 'notification_status_changed': {
+      const payload = (msg.payload as Record<string, unknown> | undefined) ?? msg
+      const data: NotificationStatusChanged = {
+        message_id: (payload.message_id as string | undefined) ?? '',
+        status: (payload.status as string | undefined) ?? '',
+        channel: payload.channel as string | undefined,
+        recipient_count: payload.recipient_count as number | undefined,
+      }
+      notificationStatusHandlers.forEach((fn) => fn(data))
+      break
+    }
   }
 }
 
@@ -383,6 +398,12 @@ export const wsWorkerConnector = {
     return () => { musterPersonAccountedHandlers.delete(fn) }
   },
 
+  /** Subscribe to notification delivery status change events (Alert Service). */
+  onNotificationStatusChanged(fn: (data: NotificationStatusChanged) => void): () => void {
+    notificationStatusHandlers.add(fn)
+    return () => { notificationStatusHandlers.delete(fn) }
+  },
+
   sendStatusReport(renderFps: number, pendingUpdates: number, lastBatchProcessMs: number) {
     const p = getPort()
     p.postMessage({
@@ -404,6 +425,7 @@ export const wsWorkerConnector = {
     presenceBadgeEventHandlers.clear()
     musterStatusHandlers.clear()
     musterPersonAccountedHandlers.clear()
+    notificationStatusHandlers.clear()
     currentState = 'disconnected'
     stateListeners.forEach((fn) => fn('disconnected'))
   },

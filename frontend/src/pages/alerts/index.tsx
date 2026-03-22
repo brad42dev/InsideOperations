@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { usePermission } from '../../shared/hooks/usePermission'
+import { wsManager } from '../../shared/hooks/useWebSocket'
 import {
   notificationsApi,
   type NotificationTemplate,
@@ -585,8 +586,16 @@ function ActiveAlertsPanel() {
   const { data: activeResult, isLoading } = useQuery({
     queryKey: ['notification-active'],
     queryFn: () => notificationsApi.getActive(),
-    refetchInterval: 30_000,
+    // Fallback polling — WS subscription below handles real-time updates.
+    refetchInterval: 120_000,
   })
+
+  // Subscribe to delivery status changes via WebSocket for real-time updates.
+  useEffect(() => {
+    return wsManager.onNotificationStatusChanged(() => {
+      void qc.invalidateQueries({ queryKey: ['notification-active'] })
+    })
+  }, [qc])
 
   const resolveMutation = useMutation({
     mutationFn: (id: string) => notificationsApi.resolveMessage(id),
