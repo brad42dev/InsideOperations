@@ -6,18 +6,22 @@
  * Controls:
  *  - Live / Historical toggle
  *  - Date/time range picker (start + end)
- *  - Scrub slider (position within range)
- *  - Step-back / step-forward buttons
- *  - Play / Pause with selectable speed (1×, 2×, 5×, 10×, 60×, 300×)
+ *  - Scrub slider (position within range) with loop region handles
+ *  - Step-back / step-forward buttons with step interval dropdown
+ *  - Reverse / Play / Pause transport buttons
+ *  - Speed selector: x1, x2, x4, x8, x16, x32
+ *  - Loop region with two draggable handles
+ *  - Loop toggle button
  *  - Current timestamp display (RFC 3339)
+ *  - Keyboard shortcuts (Space, arrows, [, ], L/l, Home, End)
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { usePlaybackStore, type PlaybackSpeed } from '../../store/playback'
 import { alarmsApi, type AlarmPriority } from '../../api/alarms'
 
-const SPEEDS: PlaybackSpeed[] = [1, 2, 5, 10, 60, 300]
+const SPEEDS: PlaybackSpeed[] = [1, 2, 4, 8, 16, 32]
 
 const ALARM_PRIORITY_COLORS: Record<AlarmPriority, string> = {
   critical: 'var(--io-alarm-critical)',
@@ -27,8 +31,7 @@ const ALARM_PRIORITY_COLORS: Record<AlarmPriority, string> = {
 }
 
 function speedLabel(s: PlaybackSpeed): string {
-  if (s < 60) return `${s}×`
-  return `${s / 60}m/s`
+  return `x${s}`
 }
 
 function fmtTimestamp(epochMs: number): string {
@@ -42,19 +45,52 @@ function fmtDatetimeLocal(epochMs: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+interface StepOption {
+  label: string
+  ms: number
+}
+
+const STEP_OPTIONS: StepOption[] = [
+  { label: 'Next change', ms: 0 },
+  { label: '1 second',    ms: 1_000 },
+  { label: '5 seconds',   ms: 5_000 },
+  { label: '30 seconds',  ms: 30_000 },
+  { label: '1 minute',    ms: 60_000 },
+  { label: '5 minutes',   ms: 300_000 },
+  { label: '15 minutes',  ms: 900_000 },
+  { label: '1 hour',      ms: 3_600_000 },
+]
+
+/** Index of the step to use when Shift+Arrow is pressed (next larger interval) */
+function largerStepIndex(currentIdx: number): number {
+  return Math.min(STEP_OPTIONS.length - 1, currentIdx + 1)
+}
+
 export default function HistoricalPlaybackBar() {
   const {
     mode,
     timestamp,
     timeRange,
     isPlaying,
+    isReversing,
     speed,
+    loopStart,
+    loopEnd,
+    loopEnabled,
     setMode,
     setTimestamp,
     setTimeRange,
     setPlaying,
+    setReversing,
     setSpeed,
+    setLoopStart,
+    setLoopEnd,
+    setLoopEnabled,
   } = usePlaybackStore()
+
+  // Step interval state — default to index 4 (1 minute)
+  const [stepIdx, setStepIdx] = useState<number>(4)
+  const selectedStepMs = STEP_OPTIONS[stepIdx].ms
 
   // Fetch alarm events for the current time range in historical mode
   const { data: alarmEvents } = useQuery({
@@ -71,7 +107,7 @@ export default function HistoricalPlaybackBar() {
     staleTime: 30_000,
   })
 
-  // Advance playback timer when playing
+  // Advance (or reverse) playback timer when playing
   const rafRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastRealRef = useRef<number>(Date.now())
 
@@ -93,18 +129,102 @@ export default function HistoricalPlaybackBar() {
       const simElapsed = realElapsed * speed
 
       usePlaybackStore.setState((s) => {
-        const next = s.timestamp + simElapsed
-        if (next >= s.timeRange.end) {
-          return { timestamp: s.timeRange.end, isPlaying: false }
+        if (s.isReversing) {
+          // Reverse playback — decrement timestamp
+          const next = s.timestamp - simElapsed
+          if (next <= s.timeRange.start) {
+            return { timestamp: s.timeRange.start, isPlaying: false }
+          }
+          return { timestamp: next }
+        } else {
+          // Forward playback
+          const next = s.timestamp + simElapsed
+          // Loop region check
+          if (s.loopEnabled && s.loopEnd !== null && next >= s.loopEnd) {
+            return { timestamp: s.loopStart ?? s.timeRange.start }
+          }
+          if (next >= s.timeRange.end) {
+            return { timestamp: s.timeRange.end, isPlaying: false }
+          }
+          return { timestamp: next }
         }
-        return { timestamp: next }
       })
     }, 100)
 
     return () => {
       if (rafRef.current !== null) clearInterval(rafRef.current)
     }
-  }, [isPlaying, mode, speed])
+  }, [isPlaying, isReversing, mode, speed])
+
+  // Keyboard shortcuts — active only in historical mode
+  useEffect(() => {
+    if (mode !== 'historical') return
+
+    const handler = (e: KeyboardEvent) => {
+      // Guard: do not intercept keys when focus is in an input/textarea/select
+      const target = e.target as HTMLElement
+      const tag = target.tagName.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+
+      const store = usePlaybackStore.getState()
+
+      switch (e.key) {
+        case ' ': {
+          e.preventDefault()
+          store.setPlaying(!store.isPlaying)
+          break
+        }
+        case 'ArrowLeft': {
+          if (e.shiftKey) {
+            // Larger step back
+            const biggerIdx = largerStepIndex(stepIdx)
+            const biggerMs = STEP_OPTIONS[biggerIdx].ms || 60_000
+            store.setTimestamp(Math.max(store.timeRange.start, store.timestamp - biggerMs))
+          } else {
+            const ms = selectedStepMs || 60_000
+            store.setTimestamp(Math.max(store.timeRange.start, store.timestamp - ms))
+          }
+          break
+        }
+        case 'ArrowRight': {
+          if (e.shiftKey) {
+            // Larger step forward
+            const biggerIdx = largerStepIndex(stepIdx)
+            const biggerMs = STEP_OPTIONS[biggerIdx].ms || 60_000
+            store.setTimestamp(Math.min(store.timeRange.end, store.timestamp + biggerMs))
+          } else {
+            const ms = selectedStepMs || 60_000
+            store.setTimestamp(Math.min(store.timeRange.end, store.timestamp + ms))
+          }
+          break
+        }
+        case 'Home': {
+          store.setTimestamp(store.timeRange.start)
+          break
+        }
+        case 'End': {
+          store.setTimestamp(store.timeRange.end)
+          break
+        }
+        case '[': {
+          store.setLoopStart(store.timestamp)
+          break
+        }
+        case ']': {
+          store.setLoopEnd(store.timestamp)
+          break
+        }
+        case 'l':
+        case 'L': {
+          store.setLoopEnabled(!store.loopEnabled)
+          break
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [mode, stepIdx, selectedStepMs])
 
   if (mode === 'live') {
     return (
@@ -128,7 +248,13 @@ export default function HistoricalPlaybackBar() {
   const progress = rangeMs > 0 ? (timestamp - timeRange.start) / rangeMs : 0
   const sliderValue = Math.round(progress * 1000)
 
-  const stepMs = Math.max(60_000, rangeMs / 1000) // step ~0.1% of range, min 1 min
+  // Loop region handle positions as 0–1000 slider units
+  const loopStartSlider = loopStart !== null && rangeMs > 0
+    ? Math.round(((loopStart - timeRange.start) / rangeMs) * 1000)
+    : null
+  const loopEndSlider = loopEnd !== null && rangeMs > 0
+    ? Math.round(((loopEnd - timeRange.start) / rangeMs) * 1000)
+    : null
 
   return (
     <div style={barStyle}>
@@ -165,35 +291,121 @@ export default function HistoricalPlaybackBar() {
         style={inputStyle}
       />
 
+      {/* Step interval dropdown */}
+      <select
+        value={stepIdx}
+        onChange={(e) => setStepIdx(Number(e.target.value))}
+        style={inputStyle}
+        title="Step interval"
+      >
+        {STEP_OPTIONS.map((opt, i) => (
+          <option key={i} value={i}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+
       {/* Step back */}
       <button
-        onClick={() => setTimestamp(Math.max(timeRange.start, timestamp - stepMs))}
+        onClick={() => {
+          const ms = selectedStepMs || 60_000
+          setTimestamp(Math.max(timeRange.start, timestamp - ms))
+        }}
         style={iconBtnStyle}
         title="Step back"
       >
         ⏮
       </button>
 
+      {/* Reverse button */}
+      <button
+        onClick={() => {
+          if (isReversing && isPlaying) {
+            // Already reversing — pause
+            setPlaying(false)
+            setReversing(false)
+          } else {
+            setReversing(true)
+            setPlaying(true)
+          }
+        }}
+        style={{
+          ...iconBtnStyle,
+          minWidth: 32,
+          color: isReversing && isPlaying ? 'var(--io-accent)' : 'var(--io-text-primary)',
+          borderColor: isReversing && isPlaying ? 'var(--io-accent)' : 'var(--io-border)',
+        }}
+        title={isReversing && isPlaying ? 'Pause reverse' : 'Reverse'}
+      >
+        ◀◀
+      </button>
+
       {/* Play / Pause */}
       <button
-        onClick={() => setPlaying(!isPlaying)}
-        style={{ ...iconBtnStyle, minWidth: 32 }}
-        title={isPlaying ? 'Pause' : 'Play'}
+        onClick={() => {
+          if (isPlaying && !isReversing) {
+            setPlaying(false)
+          } else {
+            setReversing(false)
+            setPlaying(true)
+          }
+        }}
+        style={{
+          ...iconBtnStyle,
+          minWidth: 32,
+          color: isPlaying && !isReversing ? 'var(--io-accent)' : 'var(--io-text-primary)',
+          borderColor: isPlaying && !isReversing ? 'var(--io-accent)' : 'var(--io-border)',
+        }}
+        title={isPlaying && !isReversing ? 'Pause' : 'Play'}
       >
-        {isPlaying ? '⏸' : '▶'}
+        {isPlaying && !isReversing ? '⏸' : '▶'}
       </button>
 
       {/* Step forward */}
       <button
-        onClick={() => setTimestamp(Math.min(timeRange.end, timestamp + stepMs))}
+        onClick={() => {
+          const ms = selectedStepMs || 60_000
+          setTimestamp(Math.min(timeRange.end, timestamp + ms))
+        }}
         style={iconBtnStyle}
         title="Step forward"
       >
         ⏭
       </button>
 
-      {/* Scrub slider with alarm event markers */}
+      {/* Loop toggle button */}
+      <button
+        onClick={() => setLoopEnabled(!loopEnabled)}
+        style={{
+          ...iconBtnStyle,
+          color: loopEnabled ? 'var(--io-accent)' : 'var(--io-text-muted)',
+          borderColor: loopEnabled ? 'var(--io-accent)' : 'var(--io-border)',
+        }}
+        title={loopEnabled ? 'Disable loop' : 'Enable loop (set handles with [ and ])'}
+      >
+        ↺
+      </button>
+
+      {/* Scrub slider with alarm event markers and loop region handles */}
       <div style={{ position: 'relative', flex: 1, minWidth: 80, maxWidth: 300, display: 'flex', alignItems: 'center' }}>
+        {/* Loop region shading */}
+        {loopEnabled && loopStartSlider !== null && loopEndSlider !== null && loopEndSlider > loopStartSlider && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: `${loopStartSlider / 10}%`,
+              width: `${(loopEndSlider - loopStartSlider) / 10}%`,
+              top: 0,
+              bottom: 0,
+              background: 'var(--io-accent)',
+              opacity: 0.15,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          />
+        )}
+
         <input
           type="range"
           min={0}
@@ -203,8 +415,99 @@ export default function HistoricalPlaybackBar() {
             const pct = Number(e.target.value) / 1000
             setTimestamp(timeRange.start + pct * rangeMs)
           }}
-          style={{ width: '100%', cursor: 'pointer', margin: 0 }}
+          style={{ width: '100%', cursor: 'pointer', margin: 0, position: 'relative', zIndex: 2 }}
         />
+
+        {/* Loop start handle */}
+        {loopStartSlider !== null && (
+          <input
+            type="range"
+            min={0}
+            max={1000}
+            value={loopStartSlider}
+            onChange={(e) => {
+              const pct = Number(e.target.value) / 1000
+              setLoopStart(timeRange.start + pct * rangeMs)
+            }}
+            title="Loop start"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              width: '100%',
+              margin: 0,
+              opacity: 0,
+              cursor: 'ew-resize',
+              zIndex: 3,
+            }}
+          />
+        )}
+
+        {/* Loop start marker line */}
+        {loopStartSlider !== null && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: `${loopStartSlider / 10}%`,
+              transform: 'translateX(-50%)',
+              top: 2,
+              bottom: 2,
+              width: 3,
+              background: 'var(--io-accent)',
+              borderRadius: 2,
+              pointerEvents: 'none',
+              zIndex: 4,
+              opacity: 0.85,
+            }}
+          />
+        )}
+
+        {/* Loop end handle — draggable range input */}
+        {loopEndSlider !== null && (
+          <input
+            type="range"
+            min={0}
+            max={1000}
+            value={loopEndSlider}
+            onChange={(e) => {
+              const pct = Number(e.target.value) / 1000
+              setLoopEnd(timeRange.start + pct * rangeMs)
+            }}
+            title="Loop end"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              width: '100%',
+              margin: 0,
+              opacity: 0,
+              cursor: 'ew-resize',
+              zIndex: 3,
+            }}
+          />
+        )}
+
+        {/* Loop end marker line */}
+        {loopEndSlider !== null && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: `${loopEndSlider / 10}%`,
+              transform: 'translateX(-50%)',
+              top: 2,
+              bottom: 2,
+              width: 3,
+              background: 'var(--io-accent)',
+              borderRadius: 2,
+              pointerEvents: 'none',
+              zIndex: 4,
+              opacity: 0.85,
+            }}
+          />
+        )}
+
         {/* Alarm event tick marks — rendered on top of the range track */}
         {rangeMs > 0 && alarmEvents && alarmEvents.length > 0 && (
           <div
@@ -216,6 +519,7 @@ export default function HistoricalPlaybackBar() {
               bottom: 0,
               height: 8,
               pointerEvents: 'none',
+              zIndex: 5,
             }}
           >
             {alarmEvents.map((event) => {
@@ -237,6 +541,7 @@ export default function HistoricalPlaybackBar() {
                     bottom: 0,
                     pointerEvents: 'auto',
                     cursor: 'pointer',
+                    zIndex: 6,
                   }}
                 />
               )

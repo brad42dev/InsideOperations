@@ -99,12 +99,12 @@ describe('usePlaybackStore — setPlaying / setSpeed', () => {
   })
 
   it('sets speed', () => {
-    usePlaybackStore.getState().setSpeed(10)
-    expect(usePlaybackStore.getState().speed).toBe(10)
+    usePlaybackStore.getState().setSpeed(8)
+    expect(usePlaybackStore.getState().speed).toBe(8)
   })
 
   it('accepts valid speed values', () => {
-    const speeds = [1, 2, 5, 10, 60, 300] as const
+    const speeds = [1, 2, 4, 8, 16, 32] as const
     for (const s of speeds) {
       usePlaybackStore.getState().setSpeed(s)
       expect(usePlaybackStore.getState().speed).toBe(s)
