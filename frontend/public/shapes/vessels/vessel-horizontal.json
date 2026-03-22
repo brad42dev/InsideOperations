@@ -1,6 +1,27 @@
 {
-  "id": "vessel-horizontal",
+  "$schema": "io-shape-v1",
+  "shape_id": "vessel-horizontal",
+  "version": "1.0",
+  "display_name": "Horizontal Vessel (Welded)",
   "category": "vessels",
+  "subcategory": "horizontal",
+  "tags": ["vessel", "horizontal", "separator", "drum"],
+  "recognition_class": "vessel_horizontal",
+  "variants": {
+    "options": {},
+    "configurations": [
+      { "file": "vessel-horizontal.svg", "label": "Welded" },
+      { "file": "vessel-horizontal-flanged-left.svg", "label": "Flanged Left" },
+      { "file": "vessel-horizontal-flanged-right.svg", "label": "Flanged Right" },
+      { "file": "vessel-horizontal-flanged.svg", "label": "Flanged Both" }
+    ]
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 80 40", "width": 80, "height": 40 },
   "connections": [
     { "id": "inlet-left",   "type": "process", "x": 12, "y": 20, "direction": "left" },

@@ -1,8 +1,26 @@
 {
-  "id": "agitator-propeller",
+  "$schema": "io-shape-v1",
+  "shape_id": "agitator-propeller",
+  "version": "1.0",
+  "display_name": "Agitator — Propeller",
   "category": "agitators",
+  "subcategory": "propeller",
+  "tags": ["agitator", "propeller", "mixing", "part"],
+  "recognition_class": "agitator_propeller",
   "isPart": true,
   "partClass": "io-part-agitator",
+  "variants": {
+    "options": {
+      "opt1": { "file": "agitator-propeller.svg", "label": "Propeller" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
   "connections": [
     { "id": "shaft-top", "type": "mechanical", "x": 20, "y": 7, "direction": "top" }

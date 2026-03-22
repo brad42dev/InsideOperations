@@ -1,6 +1,24 @@
 {
-  "id": "mixer-inline",
+  "$schema": "io-shape-v1",
+  "shape_id": "mixer-inline",
+  "version": "1.0",
+  "display_name": "Mixer — Inline Static",
   "category": "mixers",
+  "subcategory": "inline-static",
+  "tags": ["mixer", "inline", "static", "mixing"],
+  "recognition_class": "mixer_inline",
+  "variants": {
+    "options": {
+      "opt1": { "file": "mixer-inline.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 70 30", "width": 70, "height": 30 },
   "connections": [
     { "id": "inlet",  "type": "process", "x": 2,  "y": 15, "direction": "left" },

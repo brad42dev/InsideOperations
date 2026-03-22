@@ -1,6 +1,24 @@
 {
-  "id": "interlock-sis",
+  "$schema": "io-shape-v1",
+  "shape_id": "interlock-sis",
+  "version": "1.0",
+  "display_name": "Interlock — SIS",
   "category": "interlocks",
+  "subcategory": "sis",
+  "tags": ["interlock", "SIS", "safety", "SIL"],
+  "recognition_class": "interlock_sis",
+  "variants": {
+    "options": {
+      "opt1": { "file": "interlock-sis.svg", "label": "SIS" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 60 44", "width": 60, "height": 44 },
   "connections": [
     { "id": "input",  "type": "signal", "x": 4,  "y": 22, "direction": "left" },

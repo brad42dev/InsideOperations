@@ -1,15 +1,17 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+
 import { useQuery } from '@tanstack/react-query'
 import { graphicsApi } from '../../../api/graphics'
 import { pointsApi } from '../../../api/points'
 import { SceneRenderer } from '../../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../../shared/graphics/SceneRenderer'
-import { useWebSocketRaf, detectDeviceType } from '../../../shared/hooks/useWebSocket'
+import { useWebSocketRaf, wsManager, detectDeviceType } from '../../../shared/hooks/useWebSocket'
+import type { PointValue as WsPointValue } from '../../../shared/hooks/useWebSocket'
 import { useHistoricalValues } from '../../../shared/hooks/useHistoricalValues'
 import { usePlaybackStore } from '../../../store/playback'
 import TileGraphicViewer from '../../../shared/components/TileGraphicViewer'
-import ContextMenu from '../../../shared/components/ContextMenu'
+import PointContextMenu from '../../../shared/components/PointContextMenu'
+import PointDetailPanel from '../../../shared/components/PointDetailPanel'
 import type { SceneNode, GraphicDocument, ViewportState } from '../../../shared/types/graphics'
 
 // ── Tooltip state shape ──────────────────────────────────────────────────────
@@ -44,26 +46,30 @@ interface Props {
   preserveAspectRatio?: boolean
 }
 
-/** Walk a SceneNode tree and collect every bound pointId. */
+/** Walk a SceneNode tree and collect every bound pointId or expressionId. */
 function extractPointIds(nodes: SceneNode[]): string[] {
   const ids = new Set<string>()
 
   function walk(n: SceneNode) {
     // Direct binding (DisplayElement, TextBlock, AnalogBar, etc.)
+    // Also picks up expressionId — the broker treats expression results as virtual points
     if ('binding' in n && n.binding && typeof n.binding === 'object') {
-      const pid = (n.binding as { pointId?: string }).pointId
-      if (pid) ids.add(pid)
+      const b = n.binding as { pointId?: string; expressionId?: string }
+      if (b.pointId) ids.add(b.pointId)
+      if (b.expressionId) ids.add(b.expressionId)
     }
     // Series bindings (TrendWidget)
     if ('series' in n && Array.isArray(n.series)) {
-      for (const s of n.series as { binding?: { pointId?: string } }[]) {
+      for (const s of n.series as { binding?: { pointId?: string; expressionId?: string } }[]) {
         if (s.binding?.pointId) ids.add(s.binding.pointId)
+        if (s.binding?.expressionId) ids.add(s.binding.expressionId)
       }
     }
     // Slice bindings (PieChart)
     if ('slices' in n && Array.isArray(n.slices)) {
-      for (const s of n.slices as { binding?: { pointId?: string } }[]) {
+      for (const s of n.slices as { binding?: { pointId?: string; expressionId?: string } }[]) {
         if (s.binding?.pointId) ids.add(s.binding.pointId)
+        if (s.binding?.expressionId) ids.add(s.binding.expressionId)
       }
     }
     // Recurse into child nodes
@@ -130,7 +136,6 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio = true }: Props) {
-  const navigate = useNavigate()
   const [statusView, setStatusView] = useState(false)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['graphic', graphicId],
@@ -177,14 +182,14 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
   const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore()
   const isHistorical = playbackMode === 'historical'
 
-  // Subscribe to live values with RAF coalescing — batches React state updates to
-  // ~60fps regardless of broker push rate (spec §6.2 Real-Time Update Pipeline)
-  const { values: wsValues } = useWebSocketRaf(isHistorical ? [] : pointIds)
+  // Phone path only: RAF-coalesced subscription feeding TileGraphicViewer (React prop)
+  // Desktop live path: SceneRenderer subscribes to wsManager directly (liveSubscribe=true)
+  const { values: wsValues } = useWebSocketRaf(isPhone && !isHistorical ? pointIds : [])
 
   // Fetch historical values at playback timestamp (only when in historical mode)
   const historicalValues = useHistoricalValues(isHistorical ? pointIds : [], isHistorical ? playbackTs : undefined)
 
-  // Adapt wire-format PointValue → SceneRenderer PointValue
+  // Adapt wire-format PointValue → SceneRenderer PointValue (used by phone path + historical)
   const pointValues = useMemo(() => {
     const source = isHistorical ? historicalValues : wsValues
     const out = new Map<string, ScenePointValue>()
@@ -200,6 +205,18 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
     return out
   }, [isHistorical, wsValues, historicalValues])
 
+  // Tooltip value ref — updated by direct wsManager subscription (no React state → no re-renders)
+  // Used by handleSvgMouseMove for desktop live mode. Historical mode reads from pointValues.
+  const tooltipValuesRef = useRef<Map<string, WsPointValue>>(new Map())
+
+  useEffect(() => {
+    if (isPhone || isHistorical || pointIds.length === 0) return
+    const handler = (pv: WsPointValue) => { tooltipValuesRef.current.set(pv.pointId, pv) }
+    pointIds.forEach(id => wsManager.subscribe(id, handler))
+    return () => { pointIds.forEach(id => wsManager.unsubscribe(id, handler)) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPhone, isHistorical, pointIds.join(',')])
+
   // Phone: derive tile overlay bindings from scene node positions
   const tileBindings = useMemo(
     () => (isPhone && data ? extractTileBindings(data.scene_data) : []),
@@ -213,7 +230,34 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
 
   // ── Point context menu state ─────────────────────────────────────────────────
 
-  const [pointCtxMenu, setPointCtxMenu] = useState<{ x: number; y: number; pointId: string } | null>(null)
+  const [pointCtxMenu, setPointCtxMenu] = useState<{
+    x: number
+    y: number
+    pointId: string
+    tagName: string
+    isAlarm: boolean
+    isAlarmElement: boolean
+  } | null>(null)
+
+  // ── Point Detail floating panels (up to 3 concurrent per spec §7.2) ──────────
+
+  const MAX_POINT_DETAIL_PANELS = 3
+  const [pointDetailPanels, setPointDetailPanels] = useState<Array<{ id: string; pointId: string; x: number; y: number }>>([])
+
+  function openPointDetail(pointId: string, x: number, y: number) {
+    setPointDetailPanels(prev => {
+      // Don't open duplicate for same point
+      if (prev.some(p => p.pointId === pointId)) return prev
+      const entry = { id: crypto.randomUUID(), pointId, x, y }
+      // Enforce max 3 concurrent — evict oldest
+      const next = prev.length >= MAX_POINT_DETAIL_PANELS ? prev.slice(1) : prev
+      return [...next, entry]
+    })
+  }
+
+  function closePointDetail(id: string) {
+    setPointDetailPanels(prev => prev.filter(p => p.id !== id))
+  }
 
   // ── Zoom / Pan state ────────────────────────────────────────────────────────
 
@@ -261,19 +305,26 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
       const clientX = e.clientX
       const clientY = e.clientY
       tooltipTimerRef.current = setTimeout(() => {
-        const pv = pointValues.get(pointId)
+        // Live mode: read from the ref (no re-render dependency)
+        // Historical mode: read from the React state pointValues map
+        const livePv = !isHistorical ? tooltipValuesRef.current.get(pointId) : undefined
+        const reactPv = isHistorical ? pointValues.get(pointId) : undefined
+        const value = livePv?.value ?? reactPv?.value
+        const quality = livePv?.quality ?? reactPv?.quality
         setTooltip({
           x: clientX,
           y: clientY,
           pointId,
-          value: pv?.value !== null && pv?.value !== undefined ? String(pv.value) : '---',
-          units: pv?.units ?? '',
-          quality: pv?.quality ?? 'unknown',
+          value: value !== null && value !== undefined ? String(value) : '---',
+          units: '',
+          quality: quality ?? 'unknown',
           timestamp: new Date().toLocaleTimeString(),
         })
       }, 500)
     },
-    [pointValues],
+    // pointValues only needed for historical mode; live mode reads from ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isHistorical, pointValues],
   )
 
   // Note: Per-element mouse-leave is handled at the container level via handleContainerMouseLeave.
@@ -303,10 +354,45 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
       // Point found — show point context menu instead of pane context menu
       e.preventDefault()
       e.stopPropagation()
-      setPointCtxMenu({ x: e.clientX, y: e.clientY, pointId })
+      // Resolve alarm state from cached tooltip values; tagName falls back to pointId
+      // (WsPointValue does not carry tagName — the server sends pointId as the canonical identifier)
+      const pv = tooltipValuesRef.current.get(pointId)
+      const tagName = pointId
+      const isAlarm = pv?.quality === 'alarm'
+      setPointCtxMenu({ x: e.clientX, y: e.clientY, pointId, tagName, isAlarm, isAlarmElement: false })
     },
     [],
   )
+
+  // ── Double-click on point element → open Point Detail (spec §7.2) ────────────
+
+  const handleSvgDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const pointId = findPointId(e.target)
+      if (!pointId) return
+      e.preventDefault()
+      e.stopPropagation()
+      openPointDetail(pointId, e.clientX, e.clientY)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  // ── Ctrl+I → open Point Detail for hovered point (spec §7.2) ─────────────────
+
+  const lastHoveredPointRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.key === 'i' && lastHoveredPointRef.current) {
+        e.preventDefault()
+        openPointDetail(lastHoveredPointRef.current, window.innerWidth / 2, window.innerHeight / 2)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLDivElement>) => {
@@ -433,6 +519,9 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
       onMouseMove={(e) => {
         handleMouseMove(e)
         handleSvgMouseMove(e)
+        // Track last hovered point for Ctrl+I shortcut
+        const hovered = findPointId(e.target)
+        lastHoveredPointRef.current = hovered
       }}
       onMouseUp={handleMouseUp}
       onMouseLeave={() => {
@@ -440,10 +529,14 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
         handleContainerMouseLeave()
       }}
       onContextMenu={handleSvgContextMenu}
+      onDoubleClick={handleSvgDoubleClick}
     >
       <SceneRenderer
         document={data.scene_data}
-        pointValues={pointValues}
+        // Historical mode: pass REST-fetched point values for React rendering
+        // Live mode: SceneRenderer subscribes to wsManager directly (liveSubscribe=true)
+        pointValues={isHistorical ? pointValues : undefined}
+        liveSubscribe={!isHistorical}
         sparklineHistories={sparklineHistories ?? undefined}
         onNavigate={onNavigate}
         viewport={viewport}
@@ -528,61 +621,33 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
         </div>
       )}
 
-      {/* Point right-click context menu */}
+      {/* Point right-click context menu — shared PointContextMenu component (spec CX-POINT-CONTEXT) */}
       {pointCtxMenu && (
-        <ContextMenu
-          x={pointCtxMenu.x}
-          y={pointCtxMenu.y}
-          onClose={() => setPointCtxMenu(null)}
-          items={[
-            {
-              label: 'Point Detail',
-              onClick: () => {
-                // Show tooltip permanently by re-opening it at menu position
-                const pv = pointValues.get(pointCtxMenu.pointId)
-                setTooltip({
-                  x: pointCtxMenu.x,
-                  y: pointCtxMenu.y,
-                  pointId: pointCtxMenu.pointId,
-                  value: pv?.value !== null && pv?.value !== undefined ? String(pv.value) : '---',
-                  units: pv?.units ?? '',
-                  quality: pv?.quality ?? 'unknown',
-                  timestamp: new Date().toLocaleTimeString(),
-                })
-              },
-            },
-            {
-              label: 'Trend Point',
-              onClick: () => {
-                // Open a forensics trend pre-loaded with this point
-                navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}&mode=trend`)
-                setPointCtxMenu(null)
-              },
-            },
-            {
-              label: 'Investigate Point',
-              onClick: () => {
-                navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
-                setPointCtxMenu(null)
-              },
-            },
-            {
-              label: 'Report on Point',
-              onClick: () => {
-                navigate(`/reports?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
-                setPointCtxMenu(null)
-              },
-            },
-            {
-              label: 'Investigate Alarm',
-              onClick: () => {
-                navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}&mode=alarm`)
-                setPointCtxMenu(null)
-              },
-            },
-          ]}
-        />
+        <PointContextMenu
+          pointId={pointCtxMenu.pointId}
+          tagName={pointCtxMenu.tagName}
+          isAlarm={pointCtxMenu.isAlarm}
+          isAlarmElement={pointCtxMenu.isAlarmElement}
+          onViewDetail={(pid) => {
+            openPointDetail(pid, pointCtxMenu.x, pointCtxMenu.y)
+            setPointCtxMenu(null)
+          }}
+          onAddToTrend={() => { setPointCtxMenu(null) }}
+        >
+          {/* Invisible fixed-position portal anchor — PointContextMenu opens at this location */}
+          <span style={{ position: 'fixed', top: pointCtxMenu.y, left: pointCtxMenu.x, width: 0, height: 0 }} />
+        </PointContextMenu>
       )}
+
+      {/* Point Detail floating panels (up to 3 concurrent per spec §7.2) */}
+      {pointDetailPanels.map(panel => (
+        <PointDetailPanel
+          key={panel.id}
+          pointId={panel.pointId}
+          onClose={() => closePointDetail(panel.id)}
+          anchorPosition={{ x: panel.x, y: panel.y }}
+        />
+      ))}
     </div>
   )
 }

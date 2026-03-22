@@ -40,6 +40,12 @@ function evalTile(
       return v !== undefined ? v : null
     }
 
+    case 'field_ref': {
+      if (!tile.fieldName) return null
+      const v = values[tile.fieldName]
+      return v !== undefined ? v : null
+    }
+
     case 'constant': {
       if (tile.value === undefined || isNaN(tile.value)) return null
       return tile.value

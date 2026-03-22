@@ -10,7 +10,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use io_bus::{WsClientMessage, WsServerMessage};
+use io_bus::{WsBatchUpdate, WsClientMessage, WsPointValue, WsServerMessage};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -86,6 +86,13 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
     // Register the client's sender in the connections map.
     state.connections.insert(client_id, tx.clone());
 
+    // Register user_id → client_id in the reverse map (used for targeted publish).
+    state
+        .user_connections
+        .entry(user_id)
+        .or_default()
+        .insert(client_id);
+
     // Record updated connection count gauge.
     metrics::gauge!("io_ws_connections").set(state.connections.len() as f64);
 
@@ -131,17 +138,23 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
                                 );
 
                                 // Send immediate Update for each newly subscribed
-                                // point that has a cached value.
-                                for point_id in &subscribed {
-                                    if let Some(cached) = state.cache.get(point_id) {
-                                        let update = WsServerMessage::Update {
-                                            point_id: *point_id,
-                                            value: cached.value,
-                                            quality: cached.quality.clone(),
-                                            timestamp: cached.timestamp.to_rfc3339(),
-                                        };
-                                        let _ = tx.try_send(update);
-                                    }
+                                // point that has a cached value. Batch all points
+                                // into a single WsBatchUpdate message.
+                                let points: Vec<WsPointValue> = subscribed
+                                    .iter()
+                                    .filter_map(|point_id| {
+                                        state.cache.get(point_id).map(|cached| WsPointValue {
+                                            id: *point_id,
+                                            v: cached.value,
+                                            q: cached.quality.clone(),
+                                            t: cached.timestamp.timestamp_millis(),
+                                        })
+                                    })
+                                    .collect();
+                                if !points.is_empty() {
+                                    let _ = tx.try_send(WsServerMessage::Update(
+                                        WsBatchUpdate { points },
+                                    ));
                                 }
                             }
                             Ok(WsClientMessage::Unsubscribe { points }) => {
@@ -192,6 +205,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
     // Clean up on disconnect.
     state.registry.remove_client(client_id);
     state.connections.remove(&client_id);
+
+    // Remove client from user_connections reverse map.
+    if let Some(mut client_set) = state.user_connections.get_mut(&user_id) {
+        client_set.remove(&client_id);
+    }
 
     // Update gauges to reflect the post-disconnect counts.
     metrics::gauge!("io_ws_connections").set(state.connections.len() as f64);

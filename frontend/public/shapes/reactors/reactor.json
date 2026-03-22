@@ -1,6 +1,27 @@
 {
-  "id": "reactor",
+  "$schema": "io-shape-v1",
+  "shape_id": "reactor",
+  "version": "1.0",
+  "display_name": "Reactor (Base)",
   "category": "reactors",
+  "subcategory": "reactor",
+  "tags": ["reactor", "vessel", "chemical"],
+  "recognition_class": "reactor",
+  "variants": {
+    "options": {},
+    "configurations": [
+      { "file": "reactor.svg", "label": "Base" },
+      { "file": "reactor-flat-top.svg", "label": "Flat Top" },
+      { "file": "reactor-closed.svg", "label": "Closed" },
+      { "file": "reactor-trayed.svg", "label": "Trayed" }
+    ]
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
   "connections": [
     { "id": "inlet",        "type": "process", "x": 10, "y": 30, "direction": "left" },

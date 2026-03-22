@@ -11,6 +11,7 @@ import {
   type CreateDefinitionBody,
 } from '../../api/import'
 import { showToast } from '../../shared/components/Toast'
+import { usePermission } from '../../shared/hooks/usePermission'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -513,6 +514,7 @@ function ConnectionsTab() {
   const queryClient = useQueryClient()
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editConn, setEditConn] = useState<ImportConnection | null>(null)
+  const canManageConnections = usePermission('system:import_connections')
 
   const { data, isLoading } = useQuery({
     queryKey: ['import-connections'],
@@ -551,9 +553,11 @@ function ConnectionsTab() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-        <button onClick={() => setWizardOpen(true)} style={primaryBtnStyle}>
-          + New Connection
-        </button>
+        {canManageConnections && (
+          <button onClick={() => setWizardOpen(true)} style={primaryBtnStyle}>
+            + New Connection
+          </button>
+        )}
       </div>
 
       {connections.length === 0 ? (
@@ -609,32 +613,36 @@ function ConnectionsTab() {
                 ) : (
                   <StatusBadge status="untested" />
                 )}
-                <button
-                  onClick={() => testMutation.mutate(conn.id)}
-                  disabled={testMutation.isPending}
-                  style={secondaryBtnStyle}
-                  title="Test connection"
-                >
-                  Test
-                </button>
-                <button
-                  onClick={() => setEditConn(conn)}
-                  style={secondaryBtnStyle}
-                  title="Edit connection"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete connection "${conn.name}"?`)) {
-                      deleteMutation.mutate(conn.id)
-                    }
-                  }}
-                  style={dangerBtnStyle}
-                  title="Delete connection"
-                >
-                  Delete
-                </button>
+                {canManageConnections && (
+                  <>
+                    <button
+                      onClick={() => testMutation.mutate(conn.id)}
+                      disabled={testMutation.isPending}
+                      style={secondaryBtnStyle}
+                      title="Test connection"
+                    >
+                      Test
+                    </button>
+                    <button
+                      onClick={() => setEditConn(conn)}
+                      style={secondaryBtnStyle}
+                      title="Edit connection"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete connection "${conn.name}"?`)) {
+                          deleteMutation.mutate(conn.id)
+                        }
+                      }}
+                      style={dangerBtnStyle}
+                      title="Delete connection"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -1063,6 +1071,8 @@ function RunsTab() {
   const [selectedRun, setSelectedRun] = useState<ImportRun | null>(null)
   const [runErrors, setRunErrors] = useState<ImportError[]>([])
   const [errorsOpen, setErrorsOpen] = useState(false)
+  const canViewHistory = usePermission('system:import_history')
+  const canExecute = usePermission('system:import_execute')
 
   // Fetch all definitions to show run buttons
   const { data: definitions } = useQuery({
@@ -1133,10 +1143,27 @@ function RunsTab() {
     setErrorsOpen(true)
   }
 
+  if (!canViewHistory) {
+    return (
+      <div
+        style={{
+          textAlign: 'center',
+          padding: '48px',
+          color: 'var(--io-text-muted)',
+          background: 'var(--io-surface-secondary)',
+          borderRadius: 'var(--io-radius)',
+          border: '1px solid var(--io-border)',
+        }}
+      >
+        You do not have permission to view import run history.
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* Definitions quick-run panel */}
-      {definitions && definitions.length > 0 && (
+      {canExecute && definitions && definitions.length > 0 && (
         <div
           style={{
             background: 'var(--io-surface-secondary)',
@@ -1249,7 +1276,7 @@ function RunsTab() {
                   <td style={tdStyle}>{formatDate(run.started_at)}</td>
                   <td style={tdStyle}>{formatDuration(run.started_at, run.completed_at)}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {(run.status === 'pending' || run.status === 'running') && (
+                    {canExecute && (run.status === 'pending' || run.status === 'running') && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -1823,6 +1850,8 @@ function DefinitionWizard({
 function DefinitionsTab() {
   const queryClient = useQueryClient()
   const [wizardOpen, setWizardOpen] = useState(false)
+  const canManageDefinitions = usePermission('system:import_definitions')
+  const canExecute = usePermission('system:import_execute')
 
   const { data: defsResult, isLoading } = useQuery({
     queryKey: ['import-definitions'],
@@ -1865,9 +1894,11 @@ function DefinitionsTab() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-        <button onClick={() => setWizardOpen(true)} style={primaryBtnStyle}>
-          + New Definition
-        </button>
+        {canManageDefinitions && (
+          <button onClick={() => setWizardOpen(true)} style={primaryBtnStyle}>
+            + New Definition
+          </button>
+        )}
       </div>
 
       {definitions.length === 0 ? (
@@ -1899,36 +1930,44 @@ function DefinitionsTab() {
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                  <button
-                    onClick={() => runMutation.mutate({ id: def.id, dry_run: true })}
-                    disabled={runMutation.isPending}
-                    style={secondaryBtnStyle}
-                    title="Dry run (preview without writing)"
-                  >
-                    Dry Run
-                  </button>
-                  <button
-                    onClick={() => runMutation.mutate({ id: def.id, dry_run: false })}
-                    disabled={runMutation.isPending}
-                    style={secondaryBtnStyle}
-                    title="Trigger import now"
-                  >
-                    Run Now
-                  </button>
-                  <button
-                    onClick={() => toggleMutation.mutate({ id: def.id, enabled: !def.enabled })}
-                    style={secondaryBtnStyle}
-                  >
-                    {def.enabled ? 'Disable' : 'Enable'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm(`Delete definition "${def.name}"?`)) deleteMutation.mutate(def.id)
-                    }}
-                    style={dangerBtnStyle}
-                  >
-                    Delete
-                  </button>
+                  {canExecute && (
+                    <>
+                      <button
+                        onClick={() => runMutation.mutate({ id: def.id, dry_run: true })}
+                        disabled={runMutation.isPending}
+                        style={secondaryBtnStyle}
+                        title="Dry run (preview without writing)"
+                      >
+                        Dry Run
+                      </button>
+                      <button
+                        onClick={() => runMutation.mutate({ id: def.id, dry_run: false })}
+                        disabled={runMutation.isPending}
+                        style={secondaryBtnStyle}
+                        title="Trigger import now"
+                      >
+                        Run Now
+                      </button>
+                    </>
+                  )}
+                  {canManageDefinitions && (
+                    <>
+                      <button
+                        onClick={() => toggleMutation.mutate({ id: def.id, enabled: !def.enabled })}
+                        style={secondaryBtnStyle}
+                      >
+                        {def.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete definition "${def.name}"?`)) deleteMutation.mutate(def.id)
+                        }}
+                        style={dangerBtnStyle}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )
@@ -1958,14 +1997,20 @@ function DefinitionsTab() {
 type Tab = 'connectors' | 'connections' | 'definitions' | 'runs'
 
 export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab }) {
+  const canManageConnections = usePermission('system:import_connections')
+  const canManageDefinitions = usePermission('system:import_definitions')
+  const canViewHistory = usePermission('system:import_history')
+
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab ?? 'connectors')
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'connectors', label: 'Connectors' },
-    { id: 'connections', label: 'Connections' },
-    { id: 'definitions', label: 'Definitions' },
-    { id: 'runs', label: 'Run History' },
+  const tabs: { id: Tab; label: string; visible: boolean }[] = [
+    { id: 'connectors', label: 'Connectors', visible: canManageConnections },
+    { id: 'connections', label: 'Connections', visible: canManageConnections },
+    { id: 'definitions', label: 'Definitions', visible: canManageDefinitions },
+    { id: 'runs', label: 'Run History', visible: canViewHistory },
   ]
+
+  const visibleTabs = tabs.filter((t) => t.visible)
 
   return (
     <div>
@@ -1993,7 +2038,7 @@ export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab })
           marginBottom: '24px',
         }}
       >
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}

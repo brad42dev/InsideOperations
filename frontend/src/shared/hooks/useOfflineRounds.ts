@@ -11,16 +11,33 @@
  * can be used in standalone PWA mode without the rest of the app being loaded.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { MobileSyncPayload } from '../../api/mobile'
+import { showToast } from '../components/Toast'
 
 // ---------------------------------------------------------------------------
 // IndexedDB helpers
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'io-offline'
-const STORE_NAME = 'pending-rounds'
-const DB_VERSION = 1
+const STORE_NAME = 'sync-queue'
+const DB_VERSION = 2
+
+/**
+ * All five spec-defined object stores for the io-offline database.
+ * - sync-queue:   Pending round mutations awaiting network sync
+ * - rounds-data:  In-progress round definitions and checkpoint data
+ * - media-blobs:  Photos, videos, audio (stored as Blobs)
+ * - point-cache:  Last-known point values for offline graphic display
+ * - tile-cache:   Graphic tile pyramids (LRU, up to 10 graphics)
+ */
+const ALL_STORES = [
+  'sync-queue',
+  'rounds-data',
+  'media-blobs',
+  'point-cache',
+  'tile-cache',
+] as const
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -28,8 +45,19 @@ function openDb(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true })
+      const oldVersion = e.oldVersion
+
+      // Migrate from v1: delete legacy pending-rounds store (data loss acceptable;
+      // any truly offline-pending data should be rare in dev / test environments).
+      if (oldVersion < 2 && db.objectStoreNames.contains('pending-rounds')) {
+        db.deleteObjectStore('pending-rounds')
+      }
+
+      // Create any missing stores
+      for (const name of ALL_STORES) {
+        if (!db.objectStoreNames.contains(name)) {
+          db.createObjectStore(name, { keyPath: 'id', autoIncrement: true })
+        }
       }
     }
 
@@ -52,6 +80,40 @@ export interface PendingRoundResponse {
   /** ISO-8601 timestamp of when the response was captured offline. */
   timestamp: string
   synced: boolean
+  /** Client-generated UUID for server-side idempotency detection. */
+  idempotencyKey: string
+  /** Number of failed sync attempts; starts at 0. */
+  retryCount: number
+  /** Server error message from the last failed attempt. */
+  lastError?: string
+  /** True when the server returned a 4xx validation error; stops retrying. */
+  requiresReview?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// IndexedDB update helper — update a single record's fields by ID
+// ---------------------------------------------------------------------------
+
+async function updatePendingRecord(
+  id: number,
+  patch: Partial<PendingRoundResponse>,
+): Promise<void> {
+  const db = await openDb()
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    const req = store.get(id)
+    req.onsuccess = () => {
+      const existing = req.result as PendingRoundResponse | undefined
+      if (!existing) {
+        resolve()
+        return
+      }
+      store.put({ ...existing, ...patch })
+    }
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +141,7 @@ export async function batchSyncRounds(
     response_value: String(p.value ?? ''),
     notes: p.notes || undefined,
     captured_at: p.timestamp,
+    idempotency_key: p.idempotencyKey,
   }))
 
   try {
@@ -111,6 +174,31 @@ export async function batchSyncRounds(
 export function useOfflineRounds() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingCount, setPendingCount] = useState(0)
+  const [hasSyncFailures, setHasSyncFailures] = useState(false)
+
+  // Track the previous pending count so we can fire the "Synced" toast when
+  // the queue transitions from non-zero to zero during an active sync.
+  const prevPendingCountRef = useRef<number>(0)
+  const wasSyncingRef = useRef<boolean>(false)
+
+  // Refresh both pendingCount and hasSyncFailures from IndexedDB
+  const refreshCounts = useCallback(async () => {
+    try {
+      const db = await openDb()
+      const items = await new Promise<PendingRoundResponse[]>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly')
+        const req = tx.objectStore(STORE_NAME).getAll()
+        req.onsuccess = () => resolve(req.result as PendingRoundResponse[])
+        req.onerror = () => reject(req.error)
+      })
+      const count = items.length
+      const failures = items.some((item) => item.retryCount > 0 && !item.requiresReview)
+      setPendingCount(count)
+      setHasSyncFailures(failures)
+    } catch {
+      // IndexedDB unavailable (private browsing, etc.) — ignore
+    }
+  }, [])
 
   // Track online / offline transitions
   useEffect(() => {
@@ -128,39 +216,14 @@ export function useOfflineRounds() {
 
   // Hydrate pendingCount from IndexedDB on mount
   useEffect(() => {
-    openDb()
-      .then(
-        (db) =>
-          new Promise<number>((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readonly')
-            const req = tx.objectStore(STORE_NAME).count()
-            req.onsuccess = () => resolve(req.result)
-            req.onerror = () => reject(req.error)
-          })
-      )
-      .then((count) => setPendingCount(count))
-      .catch(() => {
-        // IndexedDB unavailable (private browsing, etc.) — ignore
-      })
-  }, [])
+    refreshCounts()
+  }, [refreshCounts])
 
   // Listen for service-worker sync-complete messages
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'sync-complete') {
-        // Re-read the pending count after the SW notifies us
-        openDb()
-          .then(
-            (db) =>
-              new Promise<number>((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readonly')
-                const req = tx.objectStore(STORE_NAME).count()
-                req.onsuccess = () => resolve(req.result)
-                req.onerror = () => reject(req.error)
-              })
-          )
-          .then((count) => setPendingCount(count))
-          .catch(() => {})
+        refreshCounts()
       }
     }
 
@@ -173,18 +236,23 @@ export function useOfflineRounds() {
         navigator.serviceWorker.removeEventListener('message', handler)
       }
     }
-  }, [])
+  }, [refreshCounts])
 
   /**
    * Persist a checkpoint response to IndexedDB.  Call this instead of the
    * network API when `isOnline` is false.
    */
   const saveOfflineResponse = useCallback(
-    async (response: Omit<PendingRoundResponse, 'id' | 'synced'>): Promise<void> => {
+    async (response: Omit<PendingRoundResponse, 'id' | 'synced' | 'idempotencyKey' | 'retryCount'>): Promise<void> => {
       const db = await openDb()
       return new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite')
-        tx.objectStore(STORE_NAME).add({ ...response, synced: false })
+        tx.objectStore(STORE_NAME).add({
+          ...response,
+          synced: false,
+          idempotencyKey: crypto.randomUUID(),
+          retryCount: 0,
+        })
         tx.oncomplete = () => {
           setPendingCount((c) => c + 1)
           resolve()
@@ -225,24 +293,85 @@ export function useOfflineRounds() {
   /**
    * Attempt to submit every pending response using `submitFn`.
    * Records that are successfully submitted are removed from IndexedDB.
+   * Failed records have their retryCount incremented and are scheduled for
+   * retry with exponential backoff (up to 30 seconds max).
+   * Items that receive a 4xx validation error are flagged requiresReview=true
+   * and are not retried.
    *
    * @param submitFn  Async function that submits one response and returns
    *                  `true` on success, `false` on failure.
+   *                  Throw an error with `{ status: number }` for HTTP errors,
+   *                  or with a `{ validationError: true }` flag to trigger the
+   *                  requiresReview path.
    * @returns Number of records that were successfully synced.
    */
   const syncPending = useCallback(
-    async (submitFn: (response: PendingRoundResponse) => Promise<boolean>): Promise<number> => {
+    async (
+      submitFn: (response: PendingRoundResponse) => Promise<boolean>,
+    ): Promise<number> => {
       const pending = await getPendingResponses()
-      const synced: number[] = []
+      // Skip items flagged for manual review — they require explicit user action
+      const eligible = pending.filter((item) => !item.requiresReview)
 
-      for (const item of pending) {
+      const synced: number[] = []
+      const prevCount = pending.length
+
+      // Record that a sync is in flight (used for the "Synced" toast logic)
+      if (prevCount > 0) {
+        wasSyncingRef.current = true
+        prevPendingCountRef.current = prevCount
+      }
+
+      for (const item of eligible) {
         try {
           const success = await submitFn(item)
           if (success && item.id != null) {
             synced.push(item.id)
+          } else if (!success && item.id != null) {
+            // Generic failure — increment retry count
+            const newRetryCount = (item.retryCount ?? 0) + 1
+            await updatePendingRecord(item.id, {
+              retryCount: newRetryCount,
+              lastError: 'Sync failed',
+            })
+            // Schedule a retry with exponential backoff
+            const delayMs = Math.min(1000 * Math.pow(2, newRetryCount - 1), 30000)
+            setTimeout(() => {
+              syncPending(submitFn).catch(() => {})
+            }, delayMs)
           }
-        } catch {
-          // Keep the item in IndexedDB; it will be retried on the next sync.
+        } catch (err: unknown) {
+          if (item.id != null) {
+            // Check if this is a 4xx validation error
+            const isValidationError =
+              (err instanceof Error &&
+                (err as Error & { status?: number }).status !== undefined &&
+                ((err as Error & { status?: number }).status ?? 0) >= 400 &&
+                ((err as Error & { status?: number }).status ?? 0) < 500) ||
+              (typeof err === 'object' &&
+                err !== null &&
+                'validationError' in err &&
+                (err as { validationError: boolean }).validationError === true)
+
+            if (isValidationError) {
+              // 4xx — flag for user review, stop retrying
+              await updatePendingRecord(item.id, {
+                requiresReview: true,
+                lastError: err instanceof Error ? err.message : 'Validation error',
+              })
+            } else {
+              // 5xx or network error — increment retry count, schedule backoff
+              const newRetryCount = (item.retryCount ?? 0) + 1
+              await updatePendingRecord(item.id, {
+                retryCount: newRetryCount,
+                lastError: err instanceof Error ? err.message : 'Network error',
+              })
+              const delayMs = Math.min(1000 * Math.pow(2, newRetryCount - 1), 30000)
+              setTimeout(() => {
+                syncPending(submitFn).catch(() => {})
+              }, delayMs)
+            }
+          }
         }
       }
 
@@ -250,9 +379,17 @@ export function useOfflineRounds() {
         await clearSynced(synced)
       }
 
+      // Refresh counts and check if queue cleared during this sync
+      await refreshCounts()
+      const newPending = await getPendingResponses()
+      if (wasSyncingRef.current && prevPendingCountRef.current > 0 && newPending.length === 0) {
+        wasSyncingRef.current = false
+        showToast({ title: 'Synced', variant: 'success', duration: 3000 })
+      }
+
       return synced.length
     },
-    [getPendingResponses, clearSynced]
+    [getPendingResponses, clearSynced, refreshCounts],
   )
 
   // When connectivity is restored and there are pending items, request a
@@ -276,6 +413,7 @@ export function useOfflineRounds() {
   return {
     isOnline,
     pendingCount,
+    hasSyncFailures,
     saveOfflineResponse,
     getPendingResponses,
     clearSynced,

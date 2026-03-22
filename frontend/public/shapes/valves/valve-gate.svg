@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" data-io-shape="valve-gate">
   <g class="io-shape-body">
-    <polygon points="0,0 24,12 0,24" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <polygon points="48,0 24,12 48,24" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polygon class="io-stateful" points="0,0 24,12 0,24" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polygon class="io-stateful" points="48,0 24,12 48,24" fill="none" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="0" cy="12" r="3"/>

@@ -436,7 +436,21 @@ pub async fn delete_user(
 
 // ---------------------------------------------------------------------------
 // GET /auth/me  (returns the currently authenticated user's profile)
+// Extends UserDetail with `is_locked` (from the active session) and
+// `auth_provider` (already on UserRow) so the frontend can render the
+// correct lock-screen unlock UI.
 // ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct MeDetail {
+    #[serde(flatten)]
+    pub detail: UserDetail,
+    /// True when the active session has locked_since IS NOT NULL.
+    pub is_locked: bool,
+    /// True when the user has set a lock-screen PIN (lock_pin_hash IS NOT NULL).
+    /// The frontend uses this to decide whether to show the PIN or password field.
+    pub has_pin: bool,
+}
 
 pub async fn get_me(
     State(state): State<AppState>,
@@ -449,5 +463,74 @@ pub async fn get_me(
     let user_id: Uuid = user_id_str
         .parse()
         .map_err(|_| IoError::Unauthorized)?;
-    get_user(State(state), Path(user_id)).await
+
+    // Fetch user + roles (delegates to get_user response extraction inline).
+    let row = sqlx::query(
+        "SELECT id, username, email, full_name, enabled, auth_provider, created_at, last_login_at
+         FROM users WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(IoError::Unauthorized)?;
+
+    let user = UserRow {
+        id: row.get("id"),
+        username: row.get("username"),
+        email: row.get("email"),
+        full_name: row.get("full_name"),
+        enabled: row.get("enabled"),
+        auth_provider: row.get("auth_provider"),
+        created_at: row.get("created_at"),
+        last_login_at: row.get("last_login_at"),
+    };
+
+    let role_rows = sqlx::query(
+        "SELECT r.id, r.name, r.display_name FROM roles r
+         JOIN user_roles ur ON ur.role_id = r.id
+         WHERE ur.user_id = $1 AND r.deleted_at IS NULL
+         ORDER BY r.name",
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let roles: Vec<RoleSummary> = role_rows
+        .into_iter()
+        .map(|r| RoleSummary {
+            id: r.get("id"),
+            name: r.get("name"),
+            display_name: r.get("display_name"),
+        })
+        .collect();
+
+    // Check whether the active session is locked.
+    let is_locked: bool = sqlx::query_scalar(
+        "SELECT locked_since IS NOT NULL
+         FROM user_sessions
+         WHERE user_id = $1
+           AND revoked_at IS NULL
+           AND expires_at > NOW()
+         ORDER BY created_at DESC
+         LIMIT 1",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(false);
+
+    // Check whether the user has a lock-screen PIN set.
+    let has_pin: bool = sqlx::query_scalar(
+        "SELECT lock_pin_hash IS NOT NULL FROM users WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(false);
+
+    Ok(Json(ApiResponse::ok(MeDetail {
+        detail: UserDetail { user, roles },
+        is_locked,
+        has_pin,
+    })))
 }

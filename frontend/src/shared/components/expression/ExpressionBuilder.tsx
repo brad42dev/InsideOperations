@@ -17,9 +17,11 @@ import { CSS } from '@dnd-kit/utilities'
 import type { ExpressionAst, ExpressionContext, ExpressionTile, TileType } from '../../types/expression'
 import { evaluateExpression } from './evaluator'
 import { expressionToString } from './preview'
+import { tilesToAst } from './ast'
 import { useAuthStore } from '../../../store/auth'
 import { api } from '../../../api/client'
 import type { PointMeta } from '../../../api/points'
+import { showToast } from '../Toast'
 
 // ---------------------------------------------------------------------------
 // Palette definition
@@ -76,7 +78,13 @@ const WIDGET_EXTRA: PaletteItem[] = [
   { type: 'agg_count', label: 'count()', group: 'Aggregation' },
 ]
 
-const CONTROL_FLOW: PaletteItem[] = [
+const ROUNDS_EXTRA: PaletteItem[] = [
+  { type: 'field_ref', label: 'Field Ref', group: 'Values' },
+  { type: 'if_then_else', label: 'IF…THEN…ELSE', group: 'Control' },
+]
+
+const LOG_EXTRA: PaletteItem[] = [
+  { type: 'field_ref', label: 'Field Ref', group: 'Values' },
   { type: 'if_then_else', label: 'IF…THEN…ELSE', group: 'Control' },
 ]
 
@@ -87,8 +95,9 @@ function getPaletteItems(context: ExpressionContext): PaletteItem[] {
     case 'widget':
       return [...BASE_PALETTE, ...WIDGET_EXTRA]
     case 'rounds_checkpoint':
+      return [...BASE_PALETTE, ...ROUNDS_EXTRA]
     case 'log_segment':
-      return [...BASE_PALETTE, ...CONTROL_FLOW]
+      return [...BASE_PALETTE, ...LOG_EXTRA]
     default:
       return BASE_PALETTE
   }
@@ -107,7 +116,7 @@ function getTileColor(type: TileType): string {
   const aggregation = ['agg_avg', 'agg_sum', 'agg_min', 'agg_max', 'agg_count']
   const time = ['time_now', 'elapsed_since', 'duration_above', 'duration_below']
 
-  if (type === 'point_ref' || type === 'constant') return '#2563eb'
+  if (type === 'point_ref' || type === 'field_ref' || type === 'constant') return '#2563eb'
   if (operators.includes(type)) return '#16a34a'
   if (compares.includes(type)) return '#d97706'
   if (booleans.includes(type)) return '#4f46e5'
@@ -134,6 +143,34 @@ function newId(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Nesting depth limit
+// ---------------------------------------------------------------------------
+
+const MAX_NESTING_DEPTH = 5
+
+const CONTAINER_TILE_TYPES: TileType[] = [
+  'group', 'square', 'cube', 'round', 'negate', 'abs', 'if_then_else',
+]
+
+/**
+ * Returns the nesting depth of the tile identified by `targetId` within the
+ * tile tree rooted at `tiles`. Top-level tiles have depth 0, tiles inside a
+ * top-level container have depth 1, and so on.
+ * Returns -1 if the tile is not found.
+ */
+function getTileDepth(tiles: ExpressionTile[], targetId: string, currentDepth = 0): number {
+  for (const t of tiles) {
+    if (t.id === targetId) return currentDepth
+    for (const sub of [t.children, t.condition, t.thenBranch, t.elseBranch]) {
+      if (!sub) continue
+      const found = getTileDepth(sub, targetId, currentDepth + 1)
+      if (found !== -1) return found
+    }
+  }
+  return -1
+}
+
+// ---------------------------------------------------------------------------
 // Factory: create a blank tile from palette
 // ---------------------------------------------------------------------------
 
@@ -142,6 +179,8 @@ function createTile(type: TileType): ExpressionTile {
   switch (type) {
     case 'constant':
       return { ...base, value: 0 }
+    case 'field_ref':
+      return { ...base, fieldName: '' }
     case 'round':
       return { ...base, precision: 2, children: [] }
     case 'group':
@@ -576,6 +615,8 @@ function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds }: Work
           onToggleSearch={() => setShowPointSearch((v) => !v)}
           onCloseSearch={() => setShowPointSearch(false)}
         />
+      ) : tile.type === 'field_ref' ? (
+        <FieldRefEditor tile={tile} dispatch={dispatch} />
       ) : isContainer ? (
         <ContainerTileContent tile={tile} depth={depth} dispatch={dispatch} allSelectedIds={allSelectedIds} />
       ) : isControlFlow ? (
@@ -619,6 +660,7 @@ function getTileLabel(tile: ExpressionTile): string {
     case 'agg_max':  return 'max()'
     case 'agg_count': return 'count()'
     case 'point_ref': return tile.pointLabel ?? tile.pointId ?? 'current_point'
+    case 'field_ref': return tile.fieldName ? tile.fieldName : 'field?'
     case 'constant':  return String(tile.value ?? 0)
     default: return tile.type
   }
@@ -751,6 +793,69 @@ function PointRefEditor({
 }
 
 // ---------------------------------------------------------------------------
+// FieldRef editor
+// ---------------------------------------------------------------------------
+
+function FieldRefEditor({ tile, dispatch }: { tile: ExpressionTile; dispatch: React.Dispatch<Action> }) {
+  const [editing, setEditing] = useState(false)
+  const [temp, setTemp] = useState(tile.fieldName ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function startEdit(e: React.MouseEvent) {
+    e.stopPropagation()
+    setTemp(tile.fieldName ?? '')
+    setEditing(true)
+  }
+
+  function commit() {
+    dispatch({ type: 'UPDATE_TILE', id: tile.id, patch: { fieldName: temp.trim() } })
+    setEditing(false)
+  }
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={temp}
+        onChange={(e) => setTemp(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit()
+          if (e.key === 'Escape') setEditing(false)
+          e.stopPropagation()
+        }}
+        onClick={(e) => e.stopPropagation()}
+        placeholder="field name"
+        style={{
+          width: '80px',
+          padding: '2px 6px',
+          background: 'rgba(255,255,255,0.15)',
+          border: '1px solid rgba(255,255,255,0.4)',
+          borderRadius: '4px',
+          color: '#fff',
+          fontSize: '12px',
+          outline: 'none',
+        }}
+      />
+    )
+  }
+
+  return (
+    <span
+      onDoubleClick={startEdit}
+      title="Double-click to set field name"
+      style={{ cursor: 'text' }}
+    >
+      {tile.fieldName ? tile.fieldName : 'field?'}
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Container tile content
 // ---------------------------------------------------------------------------
 
@@ -862,6 +967,10 @@ interface DropZoneRowProps {
 }
 
 function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds }: DropZoneRowProps) {
+  // When the depth at this zone equals or exceeds MAX_NESTING_DEPTH, container
+  // tiles cannot be dropped here. We show a subtle visual hint.
+  const depthBlocked = depth >= MAX_NESTING_DEPTH
+
   return (
     <SortableContext
       items={tiles.map((t) => t.id)}
@@ -874,12 +983,18 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds }: DropZ
           gap: '4px',
           minHeight: '36px',
           padding: '4px',
-          border: '1px dashed var(--io-border)',
+          border: depthBlocked
+            ? '1px dashed var(--io-danger, #ef4444)'
+            : '1px dashed var(--io-border)',
           borderRadius: 'var(--io-radius)',
           alignItems: 'flex-start',
-          background: 'rgba(255,255,255,0.02)',
+          background: depthBlocked
+            ? 'rgba(239,68,68,0.05)'
+            : 'rgba(255,255,255,0.02)',
         }}
         data-parent-id={parentId ?? 'root'}
+        data-depth-blocked={depthBlocked ? 'true' : undefined}
+        title={depthBlocked ? 'Maximum nesting depth (5 levels) reached.' : undefined}
       >
         {tiles.map((tile) => (
           <WorkspaceTile
@@ -1054,14 +1169,14 @@ export function ExpressionBuilder({
   const isAdmin = user?.permissions.includes('users:write') ?? false
 
   const [state, dispatch] = useReducer(exprReducer, {
-    tiles: initialExpression ? cloneTiles(initialExpression.tiles) : [],
+    tiles: [],
     selectedIds: [],
     cursorParentId: null,
     cursorIndex: 0,
-    name: initialExpression?.name ?? '',
-    description: initialExpression?.description ?? '',
-    outputType: initialExpression?.outputType ?? 'float',
-    outputPrecision: initialExpression?.precision ?? 2,
+    name: '',
+    description: '',
+    outputType: initialExpression?.output?.type ?? 'float',
+    outputPrecision: initialExpression?.output?.precision ?? 2,
     saveForFuture: false,
     shareExpression: false,
     past: [],
@@ -1107,6 +1222,19 @@ export function ExpressionBuilder({
   }, [])
 
   function handleAddFromPalette(type: TileType) {
+    // Enforce nesting depth limit for container tiles
+    if (CONTAINER_TILE_TYPES.includes(type) && state.cursorParentId !== null) {
+      const parentDepth = getTileDepth(state.tiles, state.cursorParentId)
+      if (parentDepth !== -1 && parentDepth + 1 >= MAX_NESTING_DEPTH) {
+        showToast({
+          title: 'Nesting limit reached',
+          description: 'Maximum nesting depth (5 levels) reached.',
+          variant: 'warning',
+          duration: 4000,
+        })
+        return
+      }
+    }
     const tile = createTile(type)
     dispatch({
       type: 'INSERT_TILE',
@@ -1132,6 +1260,23 @@ export function ExpressionBuilder({
       const fromLoc = findTileLocation(state.tiles, String(active.id))
       const toLoc = findTileLocation(state.tiles, String(over.id))
       if (!fromLoc || !toLoc) return
+
+      // Enforce nesting depth limit: if we are moving a container tile, check
+      // that the destination depth will not exceed MAX_NESTING_DEPTH.
+      const activeTile = fromLoc.arr[fromLoc.index]
+      if (CONTAINER_TILE_TYPES.includes(activeTile.type)) {
+        const destDepth = getTileDepth(state.tiles, String(over.id))
+        if (destDepth !== -1 && destDepth >= MAX_NESTING_DEPTH) {
+          showToast({
+            title: 'Nesting limit reached',
+            description: 'Maximum nesting depth (5 levels) reached.',
+            variant: 'warning',
+            duration: 4000,
+          })
+          return
+        }
+      }
+
       // Check same parent array by reference equality (use JSON comparison as fallback)
       dispatch({
         type: 'MOVE_TILE',
@@ -1145,13 +1290,15 @@ export function ExpressionBuilder({
 
   function handleApply() {
     if (!validation.valid) return
+    const root = tilesToAst(state.tiles, context)
     const ast: ExpressionAst = {
       version: 1,
-      tiles: state.tiles,
-      outputType: state.outputType,
-      precision: state.outputPrecision,
-      name: state.name || undefined,
-      description: state.description || undefined,
+      context,
+      root,
+      output: {
+        type: state.outputType,
+        precision: state.outputPrecision,
+      },
     }
     onApply(ast)
   }

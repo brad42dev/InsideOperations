@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 40" data-io-shape="alarm-annunciator-opt2">
   <g class="io-shape-body">
-    <rect x="12" y="14" width="8" height="12" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <polyline points="20,14 36,6 36,34 20,26" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <path d="M39,14 C43,17 43,23 39,26" fill="none" stroke="#808080" stroke-width="0.75"/>
-    <path d="M42,10 C48,15 48,25 42,30" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <rect class="io-stateful" x="12" y="14" width="8" height="12" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polyline class="io-stateful" points="20,14 36,6 36,34 20,26" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <path class="io-stateful" d="M39,14 C43,17 43,23 39,26" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <path class="io-stateful" d="M42,10 C48,15 48,25 42,30" fill="none" stroke="#808080" stroke-width="0.75"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="signal" data-conn-type="signal" data-conn-dir="left" cx="12" cy="20" r="3"/>

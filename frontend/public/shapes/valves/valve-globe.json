@@ -1,6 +1,24 @@
 {
-  "id": "valve-globe",
+  "$schema": "io-shape-v1",
+  "shape_id": "valve-globe",
+  "version": "1.0",
+  "display_name": "Globe Valve",
   "category": "valves",
+  "subcategory": "globe",
+  "tags": ["valve", "globe", "throttling"],
+  "recognition_class": "valve_globe",
+  "variants": {
+    "options": {
+      "opt1": { "file": "valve-globe.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 48 24", "width": 48, "height": 24 },
   "connections": [
     { "id": "inlet",  "type": "process", "x": 0,  "y": 12, "direction": "left" },

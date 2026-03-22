@@ -1,6 +1,29 @@
 {
-  "id": "tank-storage-cone-roof",
+  "$schema": "io-shape-v1",
+  "shape_id": "tank-storage-cone-roof",
+  "version": "1.0",
+  "display_name": "Tank — Cone Roof",
   "category": "tanks",
+  "subcategory": "storage",
+  "tags": ["tank", "storage", "cone-roof", "atmospheric"],
+  "recognition_class": "tank_storage_cone_roof",
+  "variants": {
+    "options": {},
+    "configurations": [
+      { "file": "tank-storage-cone-roof.svg", "label": "Cone Roof" },
+      { "file": "tank-storage-dome-roof.svg", "label": "Dome Roof" },
+      { "file": "tank-storage-open-top.svg", "label": "Open Top" },
+      { "file": "tank-storage-floating-roof.svg", "label": "Floating Roof" },
+      { "file": "tank-storage-sphere.svg", "label": "Sphere" },
+      { "file": "tank-storage-capsule.svg", "label": "Capsule" }
+    ]
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 70 70", "width": 70, "height": 70 },
   "connections": [
     { "id": "inlet",   "type": "process", "x": 10, "y": 40, "direction": "left" },

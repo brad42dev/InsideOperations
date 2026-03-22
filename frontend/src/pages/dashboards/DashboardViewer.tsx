@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dashboardsApi, type DashboardVariable } from '../../api/dashboards'
 import { useAuthStore } from '../../store/auth'
+import { useUiStore } from '../../store/ui'
 import WidgetContainer from './widgets/WidgetContainer'
 
 // ---------------------------------------------------------------------------
@@ -150,10 +151,17 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuthStore()
+  const { setKiosk } = useUiStore()
   const queryClient = useQueryClient()
 
   const kioskParam = searchParams.get('kiosk') === 'true'
   const isKiosk = kioskProp ?? kioskParam
+
+  // Propagate kiosk state to global UI store so AppShell hides chrome
+  useEffect(() => {
+    setKiosk(isKiosk)
+    return () => setKiosk(false)
+  }, [isKiosk, setKiosk])
 
   const [varValues, setVarValues] = useState<Record<string, string[]>>({})
   const [showKioskStrip, setShowKioskStrip] = useState(false)

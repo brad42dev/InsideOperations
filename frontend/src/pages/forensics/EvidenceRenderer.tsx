@@ -18,6 +18,8 @@ interface Props {
   stageEnd: string
   onDelete?: () => void
   readOnly?: boolean
+  onUpdateConfig?: (evidenceId: string, patch: Record<string, unknown>) => void
+  isUpdating?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -339,10 +341,12 @@ function AnnotationEvidence({
   item,
   readOnly,
   onUpdateText,
+  isPending,
 }: {
   item: EvidenceItem
   readOnly: boolean
   onUpdateText: (text: string) => void
+  isPending?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState((item.config.text as string | undefined) ?? '')
@@ -384,22 +388,24 @@ function AnnotationEvidence({
             Cancel
           </button>
           <button
+            disabled={isPending}
             onClick={() => {
               onUpdateText(text)
               setEditing(false)
             }}
             style={{
               padding: '4px 10px',
-              background: 'var(--io-accent)',
+              background: isPending ? 'var(--io-text-muted)' : 'var(--io-accent)',
               border: 'none',
               borderRadius: 'var(--io-radius)',
-              cursor: 'pointer',
+              cursor: isPending ? 'not-allowed' : 'pointer',
               fontSize: '12px',
               color: '#fff',
               fontWeight: 600,
+              opacity: isPending ? 0.7 : 1,
             }}
           >
-            Save
+            {isPending ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
@@ -584,7 +590,7 @@ function GraphicSnapshotEvidence({ item }: { item: EvidenceItem }) {
 // EvidenceRenderer
 // ---------------------------------------------------------------------------
 
-export default function EvidenceRenderer({ item, stageStart, stageEnd, onDelete, readOnly = false }: Props) {
+export default function EvidenceRenderer({ item, stageStart, stageEnd, onDelete, readOnly = false, onUpdateConfig, isUpdating = false }: Props) {
   const typeLabels: Record<string, { label: string; icon: string }> = {
     trend: { label: 'Trend Chart', icon: '📈' },
     annotation: { label: 'Annotation', icon: '📝' },
@@ -610,9 +616,9 @@ export default function EvidenceRenderer({ item, stageStart, stageEnd, onDelete,
           <AnnotationEvidence
             item={item}
             readOnly={readOnly}
-            onUpdateText={() => {
-              // Config update is handled by the parent via updateEvidence mutation;
-              // for now the local state in AnnotationEvidence handles optimistic display.
+            isPending={isUpdating}
+            onUpdateText={(text) => {
+              onUpdateConfig?.(item.id, { text })
             }}
           />
         )

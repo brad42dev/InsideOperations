@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 48 64" data-io-shape="heater-fired-opt1">
   <g class="io-shape-body">
-    <path d="M 15,2 L 29,2 L 29,18 L 37,28 L 37,58 L 7,58 L 7,28 L 15,18 Z" fill="none" stroke="#808080" stroke-width="1.5" stroke-linejoin="miter"/>
-    <polyline points="37,55 20,55 33,44 20,31 37,31" fill="none" stroke="#808080" stroke-width="1.5" stroke-linejoin="miter"/>
-    <line x1="25.5" y1="58" x2="25.5" y2="55" stroke="#808080" stroke-width="1.5"/>
-    <line x1="33.5" y1="58" x2="33.5" y2="55" stroke="#808080" stroke-width="1.5"/>
+    <path class="io-stateful" d="M 15,2 L 29,2 L 29,18 L 37,28 L 37,58 L 7,58 L 7,28 L 15,18 Z" fill="none" stroke="#808080" stroke-width="1.5" stroke-linejoin="miter"/>
+    <polyline class="io-stateful" points="37,55 20,55 33,44 20,31 37,31" fill="none" stroke="#808080" stroke-width="1.5" stroke-linejoin="miter"/>
+    <line class="io-stateful" x1="25.5" y1="58" x2="25.5" y2="55" stroke="#808080" stroke-width="1.5"/>
+    <line class="io-stateful" x1="33.5" y1="58" x2="33.5" y2="55" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="top" cx="22" cy="0" r="3"/>

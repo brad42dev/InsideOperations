@@ -1,10 +1,11 @@
 use axum::{
     extract::{Request, State},
     middleware,
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
-    Router,
+    Extension, Json, Router,
 };
+use io_auth::Claims;
 use std::{net::SocketAddr, sync::Arc};
 use tower_http::catch_panic::CatchPanicLayer;
 use axum::http::{header, Method};
@@ -14,10 +15,12 @@ use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
 use tower_http::timeout::TimeoutLayer;
 use tracing::info;
 
+mod badge;
 mod config;
 mod correlation;
 mod file_scan;
 mod handlers;
+mod metrics_collector;
 mod mw;
 mod proxy;
 mod report_generator;
@@ -67,6 +70,37 @@ async fn main() -> anyhow::Result<()> {
 
     // Seed built-in shape library (idempotent — skips existing entries)
     seed_shapes::seed_shape_library(&db).await;
+
+    // Spawn badge polling engine (polls access_control_sources for badge events)
+    tokio::spawn(badge::poller::run_badge_poller(db.clone()));
+
+    // Spawn hourly export-file cleanup task (deletes files older than EXPORT_RETENTION_HOURS)
+    {
+        let cleanup_db = db.clone();
+        let cleanup_export_dir = cfg.export_dir.clone();
+        tokio::spawn(handlers::exports::run_export_cleanup_task(
+            cleanup_db,
+            cleanup_export_dir,
+        ));
+    }
+
+    // Spawn metrics collector background task (polls all service /metrics every IO_METRICS_INTERVAL).
+    // Disabled when IO_METRICS_COLLECTOR_ENABLED is explicitly set to "false" or "0".
+    let metrics_enabled = std::env::var("IO_METRICS_COLLECTOR_ENABLED")
+        .map(|v| !matches!(v.to_lowercase().trim(), "false" | "0"))
+        .unwrap_or(true);
+    if metrics_enabled {
+        let metrics_db = db.clone();
+        // Build a dedicated HTTP client for the metrics collector with a short timeout.
+        let metrics_http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .expect("Failed to build metrics HTTP client");
+        tokio::spawn(metrics_collector::run(metrics_db, metrics_http));
+        info!("Metrics collector spawned");
+    } else {
+        info!("Metrics collector disabled (IO_METRICS_COLLECTOR_ENABLED=false)");
+    }
 
     let cors_origins = cfg.cors_allowed_origins.clone();
     let state = AppState::new(cfg, db);
@@ -122,6 +156,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/login", post(proxy_auth))
         .route("/api/auth/refresh", post(proxy_auth))
         .route("/api/auth/logout", post(proxy_auth))
+        // Lock-screen unlock (JWT-protected — not in is_public_path)
+        .route("/api/auth/verify-password", post(proxy_auth))
         .route("/api/auth/eula/current", get(proxy_auth))
         .route("/api/auth/eula/pending", get(proxy_auth))
         .route("/api/auth/eula/accept", post(proxy_auth))
@@ -237,8 +273,13 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::graphics::get_graphic_points),
         )
         // Batch shape / stencil loaders
-        .route("/api/shapes/batch", post(handlers::graphics::batch_shapes))
-        .route("/api/stencils/batch", post(handlers::graphics::batch_stencils))
+        .route("/api/v1/shapes/batch", post(handlers::graphics::batch_shapes))
+        .route("/api/v1/stencils/batch", post(handlers::graphics::batch_stencils))
+        // iographic analyze — static path MUST be before parameterised /:id routes
+        .route(
+            "/api/v1/design-objects/import/iographic/analyze",
+            post(handlers::iographic::analyze_iographic),
+        )
         // Design objects (shapes / stencils)
         // NOTE: routes registered under both /api/design-objects (legacy) and
         //       /api/v1/design-objects (doc-21 canonical) so that the frontend
@@ -374,9 +415,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/sessions/mine/:id", delete(proxy_auth))
         // Expression library (proxied to auth-service)
         .route("/api/expressions", get(proxy_auth).post(proxy_auth))
-        .route("/api/expressions/evaluate", post(proxy_auth))
+        // IMPORTANT: static sub-paths (/evaluate) must be before parameterised (/:id) routes.
+        .route(
+            "/api/expressions/evaluate",
+            post(handlers::expressions::evaluate_expression_handler),
+        )
         .route("/api/expressions/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
-        .route("/api/expressions/:id/evaluate", post(proxy_auth))
+        .route(
+            "/api/expressions/:id/evaluate",
+            post(handlers::expressions::evaluate_saved_expression_handler),
+        )
         // Alarm definitions (proxied to auth-service)
         .route("/api/alarm-definitions", get(proxy_auth).post(proxy_auth))
         .route("/api/alarm-definitions/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
@@ -583,6 +631,20 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/bulk-update/template/:target_type", get(handlers::bulk_update::get_template))
         .route("/api/bulk-update/preview", post(handlers::bulk_update::preview_bulk_update))
         .route("/api/bulk-update/apply", post(handlers::bulk_update::apply_bulk_update))
+        // Universal Export (Phase 9 — doc 25)
+        // IMPORTANT: static sub-paths (/exports/:id/download) must be before parameterised (/:id)
+        .route(
+            "/api/exports",
+            get(handlers::exports::list_exports).post(handlers::exports::create_export),
+        )
+        .route(
+            "/api/exports/:id/download",
+            get(handlers::exports::download_export),
+        )
+        .route(
+            "/api/exports/:id",
+            get(handlers::exports::get_export).delete(handlers::exports::delete_export),
+        )
         // User preferences (viewport bookmarks, sidebar state, etc.)
         .route(
             "/api/user/preferences",
@@ -680,9 +742,62 @@ async fn proxy_email(State(state): State<AppState>, req: Request) -> Response {
     proxy::proxy(&state, req, &state.config.email_service_url, &downstream).await
 }
 
-/// Proxy all `/api/import/...` requests to the import-service, stripping `/api/import`.
-async fn proxy_import(State(state): State<AppState>, req: Request) -> Response {
+/// Proxy all `/api/import/...` requests to the import-service, enforcing RBAC.
+///
+/// Permission matrix (doc 24 §15):
+///   system:import_connections  — /connections (all methods), /connector-templates (GET)
+///   system:import_definitions  — /definitions (all methods)
+///   system:import_execute      — /definitions/:id/runs (POST), /runs/:id/cancel (POST)
+///   system:import_history      — /runs (GET), /runs/:id (GET), /runs/:id/errors (GET)
+async fn proxy_import(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Arc<Claims>>,
+    req: Request,
+) -> Response {
+    use axum::http::StatusCode;
+
     let path = req.uri().path().to_string();
+    let method = req.method().clone();
+
+    // Determine the required permission based on path and HTTP method.
+    // Path segments after /api/import: e.g. /connections, /definitions, /runs, /connector-templates
+    let sub = path.strip_prefix("/api/import").unwrap_or("");
+
+    let required: &str = if sub.starts_with("/connector-templates") {
+        // Browsing connector templates requires connections permission
+        "system:import_connections"
+    } else if sub.starts_with("/connections") {
+        "system:import_connections"
+    } else if sub.contains("/runs") {
+        // POST to /definitions/:id/runs  → execute
+        // POST to /runs/:id/cancel       → execute
+        // GET  /runs* or /definitions/:id/runs → history
+        if method == Method::GET {
+            "system:import_history"
+        } else {
+            "system:import_execute"
+        }
+    } else if sub.starts_with("/definitions") {
+        "system:import_definitions"
+    } else {
+        // Any unrecognised sub-path under /api/import defaults to connections permission
+        "system:import_connections"
+    };
+
+    let has_permission = claims.permissions.iter().any(|p| p == "*" || p == required);
+    if !has_permission {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": {
+                    "code": "FORBIDDEN",
+                    "message": "Insufficient permissions"
+                }
+            })),
+        )
+            .into_response();
+    }
+
     let downstream = path.strip_prefix("/api/import").unwrap_or(&path).to_string();
     proxy::proxy(&state, req, &state.config.import_service_url, &downstream).await
 }

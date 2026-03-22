@@ -63,6 +63,21 @@ export const authApi = {
   refresh: () => api.post<RefreshResponse>('/api/auth/refresh', {}),
   providers: () => api.get<AuthProvider[]>('/api/auth/providers'),
 
+  /**
+   * Persist session lock state server-side.
+   * Called by the idle timer when it fires so the locked state survives a
+   * page refresh.  Backend: POST /api/auth/lock
+   */
+  lockSession: () => api.post<{ locked: boolean }>('/api/auth/lock', {}),
+
+  /**
+   * Verify current user's password during the visual lock overlay.
+   * Backend: POST /api/auth/verify-password  { password }
+   * Returns 200 OK on success, 401 on wrong password, 423 on lockout.
+   */
+  verifyPassword: (password: string) =>
+    api.post<{ ok: boolean }>('/api/auth/verify-password', { password }),
+
   /** Fetch the active EULA for the given type (default: end_user) */
   eulaGetCurrent: (type: 'installer' | 'end_user' = 'end_user') =>
     api.get<EulaVersion>(`/api/auth/eula/current?type=${type}`),

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
+import { useThemeColors } from '../../theme/ThemeContext'
 
 export interface Series {
   label: string
@@ -32,6 +33,9 @@ export default function TimeSeriesChart({
   const uplotRef = useRef<uPlot | null>(null)
   const [containerWidth, setContainerWidth] = useState<number>(width ?? 0)
 
+  // Get theme-aware colors from context — no CSS variable reads
+  const colors = useThemeColors()
+
   // Track controlled vs auto width
   const isAutoWidth = width === undefined
 
@@ -59,7 +63,7 @@ export default function TimeSeriesChart({
 
   const resolvedWidth = isAutoWidth ? containerWidth : (width ?? 0)
 
-  // Build uPlot instance
+  // Build uPlot instance — rebuilds on dimension or theme color changes
   useEffect(() => {
     if (!containerRef.current || resolvedWidth === 0) return
     if (timestamps.length === 0) {
@@ -91,15 +95,15 @@ export default function TimeSeriesChart({
       axes: [
         {
           // x axis — time
-          stroke: 'var(--io-text-muted, #888)',
-          ticks: { stroke: 'var(--io-border, #333)' },
-          grid: { stroke: 'var(--io-border, #333)', width: 1 },
+          stroke: colors.chartAxis,
+          ticks: { stroke: colors.chartGrid },
+          grid: { stroke: colors.chartGrid, width: 1 },
         },
         {
           // y axis — auto-scale
-          stroke: 'var(--io-text-muted, #888)',
-          ticks: { stroke: 'var(--io-border, #333)' },
-          grid: { stroke: 'var(--io-border, #333)', width: 1 },
+          stroke: colors.chartAxis,
+          ticks: { stroke: colors.chartGrid },
+          grid: { stroke: colors.chartGrid, width: 1 },
         },
       ],
       scales: {
@@ -124,7 +128,7 @@ export default function TimeSeriesChart({
       uplotRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedWidth, height])
+  }, [resolvedWidth, height, colors])
 
   // Update data without rebuilding the chart
   useEffect(() => {

@@ -230,15 +230,27 @@ pub struct NotifyPointMetadataChanged {
 // WebSocket outbound message types (broker → client, doc 16)
 // ---------------------------------------------------------------------------
 
+/// Batch of point value updates sent from broker to client.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsBatchUpdate {
+    pub points: Vec<WsPointValue>,
+}
+
+/// A single point value within a WebSocket batch update.
+/// Abbreviated field names reduce wire size (doc 37 §13).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsPointValue {
+    pub id: Uuid,
+    pub v: f64,
+    pub q: String, // "good", "uncertain", "bad"
+    pub t: i64,    // epoch milliseconds
+}
+
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", content = "payload")]
+#[serde(rename_all = "snake_case")]
 pub enum WsServerMessage {
-    Update {
-        point_id: Uuid,
-        value: f64,
-        quality: String,
-        timestamp: String, // RFC 3339
-    },
+    Update(WsBatchUpdate),
     Ping,
     Error {
         message: String,
@@ -273,6 +285,15 @@ pub enum WsServerMessage {
     },
     ExportProgress {
         payload: serde_json::Value,
+    },
+    /// Server-side session was locked (idle timer fired or manual lock).
+    /// Frontend should enter locked state on the next user interaction.
+    SessionLocked {
+        session_id: Uuid,
+    },
+    /// Session was unlocked (verify-password / verify-pin succeeded).
+    SessionUnlocked {
+        session_id: Uuid,
     },
     ServerRestarting,
 }
@@ -438,15 +459,21 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn ws_server_update_serializes_with_type_field() {
-        let msg = WsServerMessage::Update {
-            point_id: Uuid::nil(),
-            value: 1.23,
-            quality: "good".to_string(),
-            timestamp: "2024-01-01T00:00:00Z".to_string(),
-        };
+    fn ws_server_update_serializes_with_type_and_payload_fields() {
+        let msg = WsServerMessage::Update(WsBatchUpdate {
+            points: vec![WsPointValue {
+                id: Uuid::nil(),
+                v: 1.23,
+                q: "good".to_string(),
+                t: 1_234_567_890,
+            }],
+        });
         let json = serde_json::to_string(&msg).expect("serialisation should succeed");
         assert!(json.contains(r#""type":"update""#));
+        assert!(json.contains(r#""payload""#));
+        assert!(json.contains(r#""points""#));
+        assert!(json.contains(r#""q":"good""#));
+        assert!(json.contains(r#""t":1234567890"#));
     }
 
     // ------------------------------------------------------------------

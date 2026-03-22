@@ -1,8 +1,26 @@
 {
-  "id": "support-skirt",
+  "$schema": "io-shape-v1",
+  "shape_id": "support-skirt",
+  "version": "1.0",
+  "display_name": "Support — Skirt",
   "category": "supports",
+  "subcategory": "skirt",
+  "tags": ["support", "skirt", "vessel", "part"],
+  "recognition_class": "support_skirt",
   "isPart": true,
   "partClass": "io-part-support",
+  "variants": {
+    "options": {
+      "opt1": { "file": "support-skirt.svg", "label": "Skirt" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 86", "width": 40, "height": 86 },
   "connections": [],
   "textZones": [],

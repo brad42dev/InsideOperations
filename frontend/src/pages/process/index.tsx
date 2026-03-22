@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { graphicsApi } from '../../api/graphics'
 import { SceneRenderer } from '../../shared/graphics/SceneRenderer'
 import type { PointValue as ScenePointValue } from '../../shared/graphics/SceneRenderer'
-import { useWebSocket } from '../../shared/hooks/useWebSocket'
+import { useWebSocketRaf } from '../../shared/hooks/useWebSocket'
 import { useHistoricalValues } from '../../shared/hooks/useHistoricalValues'
 import { usePlaybackStore } from '../../store/playback'
 import { bookmarksApi } from '../../api/bookmarks'
@@ -12,6 +12,7 @@ import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '.
 import type { DesignObjectSummary } from '../../api/graphics'
 import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
 import ContextMenu from '../../shared/components/ContextMenu'
+import PointDetailPanel from '../../shared/components/PointDetailPanel'
 import ProcessMinimap from './ProcessMinimap'
 import ProcessSidebar from './ProcessSidebar'
 import type { ViewportBookmark } from './ProcessSidebar'
@@ -124,9 +125,17 @@ function displayElementSize(node: DisplayElement): [number, number] {
     case 'fill_gauge':   return [cfg?.barWidth ?? 22, cfg?.barHeight ?? 90]
     case 'sparkline':    return [110, 18]
     case 'alarm_indicator': return [20, 20]
-    case 'digital_status':  return [80, 18]
+    case 'digital_status':  return [80, 22]
     default:             return [60, 24]
   }
+}
+
+/** Zoom-dependent pre-fetch buffer fraction (spec §5.3) */
+function getBufferFraction(zoom: number): number {
+  const zoomPct = zoom * 100
+  if (zoomPct > 100) return 0.10
+  if (zoomPct > 30)  return 0.08
+  return 0.05
 }
 
 function getVisiblePointIds(
@@ -134,8 +143,11 @@ function getVisiblePointIds(
   vp: ViewportState,
 ): string[] {
   const visible = new Set<string>()
-  // 10% pre-fetch buffer (spec §4.2)
-  const buf = Math.max(vp.screenWidth, vp.screenHeight) * 0.1 / vp.zoom
+  // Pre-fetch buffer scales with zoom level (spec §5.3)
+  const bufFrac = getBufferFraction(vp.zoom)
+  const visW = vp.screenWidth / vp.zoom
+  const visH = vp.screenHeight / vp.zoom
+  const buf = Math.max(visW, visH) * bufFrac
   const vLeft = vp.panX - buf
   const vTop = vp.panY - buf
   const vRight = vp.panX + vp.screenWidth / vp.zoom + buf
@@ -150,12 +162,14 @@ function getVisiblePointIds(
       const [w, h] = displayElementSize(de)
       if (x < vRight && x + w > vLeft && y < vBottom && y + h > vTop) {
         if (de.binding?.pointId) visible.add(de.binding.pointId)
+        if (de.binding?.expressionId) visible.add(de.binding.expressionId)
       }
     } else if (node.type === 'symbol_instance') {
       // No size info without fetching the shape SVG — use 200px estimate
       const si = node as SymbolInstance
       if (x < vRight && x + 200 > vLeft && y < vBottom && y + 200 > vTop) {
         if (si.stateBinding?.pointId) visible.add(si.stateBinding.pointId)
+        if (si.stateBinding?.expressionId) visible.add(si.stateBinding.expressionId)
         // Also collect display element children
         for (const child of si.children) scanNode(child as SceneNode)
       }
@@ -182,10 +196,12 @@ function countTotalPoints(doc: { children: SceneNode[] }): number {
     if (node.type === 'display_element') {
       const de = node as DisplayElement
       if (de.binding?.pointId) seen.add(de.binding.pointId)
+      if (de.binding?.expressionId) seen.add(de.binding.expressionId)
     }
     if (node.type === 'symbol_instance') {
       const si = node as SymbolInstance
       if (si.stateBinding?.pointId) seen.add(si.stateBinding.pointId)
+      if (si.stateBinding?.expressionId) seen.add(si.stateBinding.expressionId)
     }
     if ('children' in node && Array.isArray(node.children)) {
       for (const child of node.children) scanNode(child as SceneNode)
@@ -234,6 +250,36 @@ export default function ProcessPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const isPanning = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
+  const viewportAnimRef = useRef<number | null>(null)
+
+  // Animate viewport smoothly to target over ~300ms (spec §4.4, §5.3)
+  const animateViewportTo = useCallback((target: { panX: number; panY: number; zoom: number }) => {
+    if (viewportAnimRef.current !== null) cancelAnimationFrame(viewportAnimRef.current)
+    const start = performance.now()
+    const DURATION = 300
+    // Capture current viewport synchronously via functional updater trick
+    setViewport((current) => {
+      const from = { panX: current.panX, panY: current.panY, zoom: current.zoom }
+      function step(now: number) {
+        const t = Math.min(1, (now - start) / DURATION)
+        // Ease-out cubic
+        const e = 1 - Math.pow(1 - t, 3)
+        setViewport((vp) => ({
+          ...vp,
+          panX: from.panX + (target.panX - from.panX) * e,
+          panY: from.panY + (target.panY - from.panY) * e,
+          zoom: from.zoom + (target.zoom - from.zoom) * e,
+        }))
+        if (t < 1) {
+          viewportAnimRef.current = requestAnimationFrame(step)
+        } else {
+          viewportAnimRef.current = null
+        }
+      }
+      viewportAnimRef.current = requestAnimationFrame(step)
+      return current // don't change state yet — the RAF loop will do it
+    })
+  }, [])
 
   // ---- Graphics data --------------------------------------------------------
 
@@ -300,7 +346,13 @@ export default function ProcessPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['bookmarks', 'viewport'] }),
   })
 
+  const MAX_BOOKMARKS = 50
+
   function handleAddBookmark() {
+    if (viewportBookmarks.length >= MAX_BOOKMARKS) {
+      alert(`Maximum ${MAX_BOOKMARKS} bookmarks per graphic. Please delete some before adding more.`)
+      return
+    }
     addViewportBookmarkMutation.mutate({
       panX: viewport.panX,
       panY: viewport.panY,
@@ -309,7 +361,7 @@ export default function ProcessPage() {
   }
 
   function handleSelectBookmark(bm: { panX: number; panY: number; zoom: number }) {
-    setViewport((vp) => ({ ...vp, panX: bm.panX, panY: bm.panY, zoom: bm.zoom }))
+    animateViewportTo(bm)
   }
 
   const deleteViewportBookmarkMutation = useMutation({
@@ -546,10 +598,13 @@ export default function ProcessPage() {
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Ref so tooltip callback always reads latest point values without ordering constraint
   const pointValuesRef = useRef<Map<string, ScenePointValue>>(new Map())
+  // Track the last hovered point ID for Ctrl+I shortcut
+  const lastHoveredPointRef = useRef<{ id: string; x: number; y: number } | null>(null)
 
   const handleContainerMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const pointId = findPointId(e.target)
+      if (pointId) lastHoveredPointRef.current = { id: pointId, x: e.clientX, y: e.clientY }
       if (!pointId) {
         if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
         return
@@ -582,6 +637,21 @@ export default function ProcessPage() {
 
   const [canvasCtxMenu, setCanvasCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [pointCtxMenu, setPointCtxMenu] = useState<{ x: number; y: number; pointId: string } | null>(null)
+  const [pointDetailPanels, setPointDetailPanels] = useState<{ id: string; pointId: string; x: number; y: number }[]>([])
+  const MAX_DETAIL_PANELS = 3
+
+  const openPointDetail = useCallback((pointId: string, x: number, y: number) => {
+    setPointDetailPanels((prev) => {
+      const existing = prev.find((p) => p.pointId === pointId)
+      if (existing) return prev
+      const next = [...prev, { id: crypto.randomUUID(), pointId, x, y }]
+      return next.length > MAX_DETAIL_PANELS ? next.slice(next.length - MAX_DETAIL_PANELS) : next
+    })
+  }, [])
+
+  const closePointDetail = useCallback((id: string) => {
+    setPointDetailPanels((prev) => prev.filter((p) => p.id !== id))
+  }, [])
 
   const handleContainerContextMenu = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -639,10 +709,19 @@ export default function ProcessPage() {
       if (ctrl && e.key === '1') { e.preventDefault(); zoom100(); return }
       // Ctrl+Shift+B — add bookmark
       if (ctrl && e.shiftKey && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); handleAddBookmark(); return }
+      // Ctrl+I — open Point Detail for hovered point
+      if (ctrl && (e.key === 'i' || e.key === 'I') && !e.shiftKey) {
+        e.preventDefault()
+        if (lastHoveredPointRef.current) {
+          const { id, x, y } = lastHoveredPointRef.current
+          openPointDetail(id, x, y)
+        }
+        return
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward])
+  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward, openPointDetail])
 
   // ---- Debounced viewport for point subscriptions ─────────────────────────
 
@@ -669,7 +748,7 @@ export default function ProcessPage() {
 
   // ---- Real-time / historical values ---------------------------------------
 
-  const { values: wsValues, connectionState } = useWebSocket(isHistorical ? [] : visiblePointIds)
+  const { values: wsValues, connectionState } = useWebSocketRaf(isHistorical ? [] : visiblePointIds)
   const historicalValues = useHistoricalValues(
     isHistorical ? visiblePointIds : [],
     isHistorical ? playbackTs : undefined,
@@ -908,33 +987,51 @@ export default function ProcessPage() {
                 {
                   label: 'Point Detail',
                   onClick: () => {
-                    const pv = pointValuesRef.current.get(pointCtxMenu.pointId)
-                    setTooltip({
-                      x: pointCtxMenu.x,
-                      y: pointCtxMenu.y,
-                      pointId: pointCtxMenu.pointId,
-                      value: pv?.value !== null && pv?.value !== undefined ? String(pv.value) : '---',
-                      quality: pv?.quality ?? 'unknown',
-                      timestamp: new Date().toLocaleTimeString(),
-                    })
+                    openPointDetail(pointCtxMenu.pointId, pointCtxMenu.x, pointCtxMenu.y)
+                    setPointCtxMenu(null)
+                  },
+                },
+                {
+                  label: 'Copy Tag',
+                  onClick: () => {
+                    navigator.clipboard.writeText(pointCtxMenu.pointId).catch(() => {/* silent */})
                     setPointCtxMenu(null)
                   },
                 },
                 {
                   label: 'Trend Point',
-                  onClick: () => { console.log('[Process] Trend point:', pointCtxMenu.pointId); setPointCtxMenu(null) },
+                  onClick: () => {
+                    navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}&mode=trend`)
+                    setPointCtxMenu(null)
+                  },
                 },
                 {
                   label: 'Investigate Point',
-                  onClick: () => { console.log('[Process] Investigate:', pointCtxMenu.pointId); setPointCtxMenu(null) },
+                  onClick: () => {
+                    navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
+                    setPointCtxMenu(null)
+                  },
                 },
                 {
                   label: 'Report on Point',
-                  onClick: () => { console.log('[Process] Report:', pointCtxMenu.pointId); setPointCtxMenu(null) },
+                  onClick: () => {
+                    navigate(`/reports?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
+                    setPointCtxMenu(null)
+                  },
                 },
               ]}
             />
           )}
+
+          {/* Point Detail floating panels (up to 3 concurrent) */}
+          {pointDetailPanels.map(panel => (
+            <PointDetailPanel
+              key={panel.id}
+              pointId={panel.pointId}
+              onClose={() => closePointDetail(panel.id)}
+              anchorPosition={{ x: panel.x, y: panel.y }}
+            />
+          ))}
 
           {/* View toolbar */}
           <div style={{

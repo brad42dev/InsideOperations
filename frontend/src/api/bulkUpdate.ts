@@ -7,13 +7,29 @@ const TOKEN_KEY = 'io_access_token'
 // Types
 // ---------------------------------------------------------------------------
 
-export type TargetType = 'users' | 'opc_sources' | 'alarm_definitions' | 'import_connections'
+export type TargetType =
+  | 'users'
+  | 'opc_sources'
+  | 'alarm_definitions'
+  | 'import_connections'
+  | 'points_metadata'
+  | 'user_roles'
+  | 'application_settings'
+  | 'point_sources'
+  | 'dashboard_metadata'
+  | 'import_definitions'
 
 export const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   users: 'Users',
   opc_sources: 'OPC Sources',
   alarm_definitions: 'Alarm Definitions',
   import_connections: 'Import Connections',
+  points_metadata: 'Points Metadata',
+  user_roles: 'User Role Assignments',
+  application_settings: 'Application Settings',
+  point_sources: 'Point Sources',
+  dashboard_metadata: 'Dashboard Metadata',
+  import_definitions: 'Import Definitions',
 }
 
 export interface Snapshot {

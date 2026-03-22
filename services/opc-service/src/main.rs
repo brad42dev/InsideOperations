@@ -37,6 +37,7 @@ async fn main() -> anyhow::Result<()> {
         metrics_enabled: true,
         tracing_enabled: false,
     })?;
+    obs.start_watchdog_keepalive();
 
     info!(service = "opc-service", "Starting up");
 

@@ -16,6 +16,8 @@ pub struct Config {
     pub lockout_duration_secs: u64,
     /// Base URL of the email-service for sending MFA codes.
     pub email_service_url: String,
+    /// Base URL of the data-broker for publishing typed WebSocket events.
+    pub data_broker_url: String,
 }
 
 impl Config {
@@ -45,6 +47,8 @@ impl Config {
                 .unwrap_or(300),
             email_service_url: std::env::var("EMAIL_SERVICE_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:3008".to_string()),
+            data_broker_url: std::env::var("DATA_BROKER_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:3001".to_string()),
         })
     }
 }

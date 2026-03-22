@@ -2,7 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 20"
      data-io-shape="fail-open" data-io-version="3.0">
   <g class="io-shape-body" stroke="#808080" stroke-width="1.5">
-    <polygon points="8,2 2,10 14,10" fill="#808080" stroke="none"/>
-    <line x1="8" y1="10" x2="8" y2="18"/>
+    <polygon class="io-stateful" points="8,2 2,10 14,10" fill="#808080" stroke="none"/>
+    <line class="io-stateful" x1="8" y1="10" x2="8" y2="18"/>
   </g>
 </svg>

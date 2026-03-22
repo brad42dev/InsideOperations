@@ -489,7 +489,7 @@ export function SceneRenderer({
         const alarmColor = alarmPriority ? ALARM_COLORS[alarmPriority] : null
         // Box styling per quality state
         const boxFill = isCommFail ? '#3F3F46' : alarmColor ? `${alarmColor}33` : '#27272A'
-        const boxStroke = isBad ? '#EF4444' : alarmColor ?? '#3F3F46'
+        const boxStroke = isBad ? '#EF4444' : isCommFail ? '#52525B' : alarmColor ?? '#3F3F46'
         const strokeWidth = (isBad || alarmColor) ? 2 : 1
         const strokeDash = isStale ? '4 2' : isBad ? '4 2' : undefined
         const opacity = isStale ? 0.6 : node.opacity
@@ -510,7 +510,7 @@ export function SceneRenderer({
             </text>
             {/* Manual/forced override badge — spec: cyan 'M' badge */}
             {isManual && (
-              <text x={w - 2} y={2} textAnchor="end" dominantBaseline="hanging" fontFamily="Inter" fontSize={7} fontWeight={700} fill="#06B6D4">M</text>
+              <text data-role="manual-badge" x={w - 2} y={2} textAnchor="end" dominantBaseline="hanging" fontFamily="Inter" fontSize={7} fontWeight={700} fill="#06B6D4">M</text>
             )}
           </g>
         )
@@ -1032,21 +1032,61 @@ function applyPointValue(
   switch (displayType) {
     case 'text_readout': {
       const cfg = config as TextReadoutConfig
+      const isUncertain = quality === 'uncertain'
+      const isManual = pv.manual ?? false
+
+      // Value text
       const rawValueStr = isCommFail ? 'COMM' : isBad ? '????' : formatValue(value, cfg.valueFormat)
       const valueColor = isCommFail ? '#71717A' : isBad ? '#EF4444' : '#A1A1AA'
-      const boxFill = isCommFail ? '#3F3F46' : '#27272A'
-      const boxStroke = isBad ? '#EF4444' : '#3F3F46'
       const textEl = el.querySelector<SVGTextElement>('[data-role="value"]')
       if (textEl) {
         textEl.textContent = rawValueStr
         textEl.setAttribute('fill', valueColor)
       }
+
+      // Box rect (fill, stroke, strokeDasharray, strokeWidth)
+      const boxFill = isCommFail ? '#3F3F46' : '#27272A'
+      const boxStroke = isBad ? '#EF4444' : isCommFail ? '#52525B' : '#3F3F46'
+      const strokeDash = (isBad || isStale) ? '4 2' : isUncertain ? '2 2' : ''
+      const strokeWidth = (isBad || isCommFail) ? '2' : '1'
       const rectEl = el.querySelector<SVGRectElement>('[data-role="box"]')
       if (rectEl) {
         rectEl.setAttribute('fill', boxFill)
         rectEl.setAttribute('stroke', boxStroke)
+        rectEl.setAttribute('stroke-width', strokeWidth)
+        if (strokeDash) {
+          rectEl.setAttribute('stroke-dasharray', strokeDash)
+        } else {
+          rectEl.removeAttribute('stroke-dasharray')
+        }
       }
+
+      // Opacity (stale = 60%)
       el.style.opacity = isStale ? '0.6' : ''
+
+      // Manual badge — find or create
+      let badge = el.querySelector<SVGTextElement>('[data-role="manual-badge"]')
+      if (isManual) {
+        if (!badge) {
+          badge = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+          badge.setAttribute('data-role', 'manual-badge')
+          badge.setAttribute('text-anchor', 'end')
+          badge.setAttribute('dominant-baseline', 'hanging')
+          badge.setAttribute('font-family', 'Inter')
+          badge.setAttribute('font-size', '7')
+          badge.setAttribute('font-weight', '700')
+          badge.setAttribute('fill', '#06B6D4')
+          el.appendChild(badge)
+        }
+        // Position at top-right — read width from box rect
+        const w = rectEl ? Number(rectEl.getAttribute('width') ?? 60) : 60
+        badge.setAttribute('x', String(w - 2))
+        badge.setAttribute('y', '2')
+        badge.textContent = 'M'
+        badge.style.display = ''
+      } else if (badge) {
+        badge.style.display = 'none'
+      }
       break
     }
 

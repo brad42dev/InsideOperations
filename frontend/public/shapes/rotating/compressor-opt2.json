@@ -1,6 +1,25 @@
 {
-  "id": "compressor-opt2",
+  "$schema": "io-shape-v1",
+  "shape_id": "compressor",
+  "version": "1.0",
+  "display_name": "Compressor",
   "category": "rotating",
+  "subcategory": "compressor",
+  "tags": ["compressor", "rotating", "gas"],
+  "recognition_class": "compressor",
+  "variants": {
+    "options": {
+      "opt1": { "file": "compressor-opt1.svg", "label": "ISA Standard" },
+      "opt2": { "file": "compressor-opt2.svg", "label": "Graphical" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 50 48", "width": 50, "height": 48 },
   "connections": [
     { "id": "suction",   "type": "process", "x": 4,  "y": 21, "direction": "left" },

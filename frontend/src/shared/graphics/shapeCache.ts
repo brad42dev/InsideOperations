@@ -1,3 +1,41 @@
+export interface ShapeVariantOption {
+  file: string
+  label: string
+}
+
+export interface ShapeVariants {
+  options: Record<string, ShapeVariantOption>
+  configurations: Array<{ file: string; label: string }>
+}
+
+export interface ShapeAlarmBinding {
+  stateSource: string
+  priorityMapping: Record<string, string>
+  unacknowledgedFlash: boolean
+  flashRate: string
+}
+
+export interface ShapeSidecar {
+  $schema?: string
+  shape_id?: string
+  version?: string
+  display_name?: string
+  category?: string
+  subcategory?: string
+  tags?: string[]
+  recognition_class?: string
+  isPart?: boolean
+  partClass?: string
+  variants?: ShapeVariants
+  alarmBinding?: ShapeAlarmBinding
+  geometry: { viewBox: string; width: number; height: number }
+  connections: Array<{ id: string; type: string; x: number; y: number; direction: string }>
+  textZones: Array<{ id: string; x: number; y: number; width: number; anchor: string; fontSize: number }>
+  valueAnchors: Array<{ nx: number; ny: number; preferredElement: string }>
+  alarmAnchor: { nx: number; ny: number } | null
+  states: Record<string, string>
+}
+
 export interface ShapeData {
   svg: string
   sidecar: Record<string, unknown>
@@ -63,11 +101,32 @@ async function getShapeIndex(): Promise<Map<string, string>> {
 }
 
 /**
+ * Resolve the SVG filename for a shape from its sidecar.
+ * For shapes with variants.options, defaults to opt1.
+ * For shapes without variants (or with no options), falls back to "{shapeId}.svg".
+ */
+function resolveSvgFilename(shapeId: string, sidecar: Record<string, unknown>, optionKey?: string): string {
+  const variants = sidecar['variants'] as Record<string, unknown> | undefined
+  if (variants) {
+    const options = variants['options'] as Record<string, Record<string, unknown>> | undefined
+    if (options) {
+      const key = optionKey ?? 'opt1'
+      const option = options[key] ?? Object.values(options)[0]
+      const file = option?.['file']
+      if (typeof file === 'string') return file
+    }
+  }
+  // No variants.options — fall back to shape ID as filename
+  return `${shapeId}.svg`
+}
+
+/**
  * Fetch shapes from public static files (fallback when backend API is unavailable).
- * Reads /shapes/{category}/{id}.svg and /shapes/{category}/{id}.json in parallel.
+ * Reads /shapes/{category}/{id}.json then resolves SVG filename from sidecar variants.
  */
 export async function fetchShapesFromPublic(
-  shapeIds: string[]
+  shapeIds: string[],
+  optionKey?: string
 ): Promise<Record<string, ShapeData>> {
   const index = await getShapeIndex()
   const results: Record<string, ShapeData> = {}
@@ -78,12 +137,15 @@ export async function fetchShapesFromPublic(
       if (!category) return
       const base = `/shapes/${category}/${id}`
       try {
-        const [svgRes, jsonRes] = await Promise.all([
-          fetch(`${base}.svg`),
-          fetch(`${base}.json`),
-        ])
-        if (!svgRes.ok || !jsonRes.ok) return
-        const [svg, sidecar] = await Promise.all([svgRes.text(), jsonRes.json()])
+        const jsonRes = await fetch(`${base}.json`)
+        if (!jsonRes.ok) return
+        const sidecar = (await jsonRes.json()) as Record<string, unknown>
+
+        const svgFilename = resolveSvgFilename(id, sidecar, optionKey)
+        const svgRes = await fetch(`/shapes/${category}/${svgFilename}`)
+        if (!svgRes.ok) return
+        const svg = await svgRes.text()
+
         results[id] = { svg, sidecar }
       } catch {
         // shape not found — skip

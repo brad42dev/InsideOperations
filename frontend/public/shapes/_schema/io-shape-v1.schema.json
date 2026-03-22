@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "io-shape-v1",
+  "title": "IO Shape Sidecar v1",
+  "description": "Schema for Inside/Operations shape sidecar JSON files",
+  "type": "object",
+  "required": [
+    "$schema", "shape_id", "version", "display_name", "category",
+    "subcategory", "tags", "recognition_class", "variants", "alarmBinding",
+    "geometry", "connections", "textZones", "valueAnchors", "alarmAnchor", "states"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "io-shape-v1"
+    },
+    "shape_id": {
+      "type": "string",
+      "description": "Unique identifier matching the canonical filename base (e.g. pump-centrifugal)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this sidecar"
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Human-readable label shown in the shape palette"
+    },
+    "category": {
+      "type": "string",
+      "description": "Top-level category folder (e.g. pumps, valves)"
+    },
+    "subcategory": {
+      "type": "string",
+      "description": "Equipment subtype within the category"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Keywords for palette search"
+    },
+    "recognition_class": {
+      "type": "string",
+      "description": "Snake_case recognition identifier matching doc 26 classes"
+    },
+    "isPart": {
+      "type": "boolean",
+      "description": "True if this shape is a composable part, not a standalone shape"
+    },
+    "partClass": {
+      "type": "string",
+      "description": "CSS class applied to the part overlay (e.g. io-part-agitator)"
+    },
+    "variants": {
+      "type": "object",
+      "required": ["options", "configurations"],
+      "properties": {
+        "options": {
+          "type": "object",
+          "description": "Named visual variants (opt1, opt2, etc.)",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["file", "label"],
+            "properties": {
+              "file": { "type": "string" },
+              "label": { "type": "string" }
+            }
+          }
+        },
+        "configurations": {
+          "type": "array",
+          "description": "Physical configuration variants (e.g. for vessels, columns)",
+          "items": {
+            "type": "object",
+            "required": ["file", "label"],
+            "properties": {
+              "file": { "type": "string" },
+              "label": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "alarmBinding": {
+      "type": "object",
+      "required": ["stateSource", "priorityMapping", "unacknowledgedFlash", "flashRate"],
+      "properties": {
+        "stateSource": {
+          "type": "string",
+          "description": "Source of alarm state (e.g. point_alarm_state)"
+        },
+        "priorityMapping": {
+          "type": "object",
+          "description": "Maps numeric priority to CSS class",
+          "additionalProperties": { "type": "string" }
+        },
+        "unacknowledgedFlash": {
+          "type": "boolean"
+        },
+        "flashRate": {
+          "type": "string",
+          "description": "Flash rate for unacknowledged alarms (e.g. 1Hz)"
+        }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "required": ["viewBox", "width", "height"],
+      "properties": {
+        "viewBox": { "type": "string" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "x", "y", "direction"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["process", "signal", "mechanical", "electrical"] },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "direction": { "type": "string", "enum": ["left", "right", "top", "bottom"] }
+        }
+      }
+    },
+    "textZones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "x", "y", "width", "anchor", "fontSize"],
+        "properties": {
+          "id": { "type": "string" },
+          "x": { "type": "number" },
+          "y": { "type": "number" },
+          "width": { "type": "number" },
+          "anchor": { "type": "string" },
+          "fontSize": { "type": "number" }
+        }
+      }
+    },
+    "valueAnchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["nx", "ny", "preferredElement"],
+        "properties": {
+          "nx": { "type": "number" },
+          "ny": { "type": "number" },
+          "preferredElement": { "type": "string" }
+        }
+      }
+    },
+    "alarmAnchor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["nx", "ny"],
+          "properties": {
+            "nx": { "type": "number" },
+            "ny": { "type": "number" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "states": {
+      "type": "object",
+      "description": "Map of state name to CSS class",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

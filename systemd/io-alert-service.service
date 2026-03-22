@@ -13,8 +13,8 @@ WorkingDirectory=/opt/io
 ExecStart=/opt/io/bin/alert-service
 ExecReload=/bin/kill -HUP $MAINPID
 
-Restart=on-failure
-RestartSec=5s
+Restart=always
+RestartSec=3s
 RestartMaxDelaySec=60s
 StartLimitIntervalSec=0
 

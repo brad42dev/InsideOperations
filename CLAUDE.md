@@ -6,6 +6,26 @@
 
 ---
 
+## 0. Spec Docs — HIGHEST AUTHORITY (READ FIRST)
+
+`/home/io/spec_docs/` contains detailed implementation specs that **override** the design-docs when they conflict. Always read the relevant spec doc before working on these modules:
+
+| Module / Area | Spec File | Overrides |
+|---------------|-----------|-----------|
+| Console module | `/home/io/spec_docs/console-implementation-spec.md` | design-docs/07 |
+| Process module | `/home/io/spec_docs/process-implementation-spec.md` | design-docs/08 |
+| Designer module | `/home/io/spec_docs/designer-implementation-spec.md` | design-docs/09 |
+| Designer UI | `/home/io/spec_docs/designer-ui-prompt.md` | design-docs/09 |
+| Graphics / scene graph | `/home/io/spec_docs/graphics-scene-graph-implementation-spec.md` | design-docs/19 |
+| Display elements | `/home/io/spec_docs/display-elements-implementation-spec.md` | design-docs/19 |
+| Shape library | `/home/io/spec_docs/shape-library-implementation-spec.md` | design-docs/35 |
+| OPC protocol | `/home/io/spec_docs/opc-server-protocol-spec.md` | design-docs/17 |
+| Context menus (all modules) | `/home/io/spec_docs/context-menu-implementation-spec.md` + `/home/io/spec_docs/context-menu-addendum.md` | design-docs/32 §11, all module docs |
+
+**Rule:** If spec_docs and design-docs conflict → **spec_docs wins**.
+
+---
+
 ## 1. Licensing Requirements (CRITICAL)
 
 **ALL libraries, frameworks, and dependencies used in this project MUST be licensed for royalty-free commercial use.** Before incorporating ANY third-party library, verify its license. This is non-negotiable.
@@ -246,76 +266,65 @@ These docs are the canonical reference for their domain. When in doubt, they win
 
 ---
 
-## 6. Task Instructions
+## 6. Build Commands
 
-### Step 1: Read and Understand All 40 Design Documents
+```bash
+# Frontend (from /home/io/io-dev/io/frontend)
+pnpm dev          # Start dev server (Vite, port 5173)
+pnpm build        # Production build
+pnpm test         # Run Vitest unit tests
+pnpm lint         # ESLint
 
-Read every document in `design-docs/`. Take time to understand:
+# Backend (from /home/io/io-dev/io)
+cargo build                          # Build all workspace crates
+cargo build -p io-api-gateway        # Build a specific service
+cargo test                           # Run all tests
+cargo test -p io-api-gateway         # Test a specific service
+cargo clippy -- -D warnings          # Lint (must be clean)
 
-- The 11-service architecture and how services communicate (UDS primary, NOTIFY/LISTEN fallback)
-- Data flows: OPC UA → OPC Service → Data Broker → WebSocket → frontend
-- The security model: JWT + RBAC + audit logging + ticket-based WebSocket auth
-- The database schema (~106 tables across multiple schemas)
-- Performance targets: <2s point updates, <1.5s graphic render, <200ms API p95, 200+ concurrent users
-- Each module's purpose, features, and requirements
-- The 17-phase build sequence and what each installer delivers
-
-### Step 2: Deep Dive and Analysis
-
-After reading all documents:
-
-1. **Identify technical challenges** — Real-time data handling, WebSocket fanout at scale, SVG rendering with 3,000+ elements, time-series aggregation, OPC UA connection management
-2. **Understand data relationships** — How OPC data flows from source to UI, how user data is stored, how the equipment table serves as cross-domain join key
-3. **Map dependencies** — Which services depend on which shared crates, which modules can be built in parallel per doc 05
-4. **Internalize the wire formats** — Doc 37 defines every inter-service message. All Rust services consume these via io-* crates. TypeScript types must match.
-5. **Clarify requirements** — If any design doc is unclear, ask for clarification before proceeding
-
-### Step 3: Create Custom Agents
-
-Create specialized agents to assist with development. Consider:
-
-- **Rust Backend** — Axum, Tokio, async Rust, SQLx, service architecture
-- **React Frontend** — React 18, TypeScript, Vite, Zustand, TanStack Query, Radix UI
-- **Database** — PostgreSQL, TimescaleDB, schema design, migrations, seed data
-- **WebSocket/Real-Time** — tokio-tungstenite, subscription management, backpressure, adaptive throttling
-- **Security** — JWT, RBAC, Argon2, multi-provider auth, SCIM, MFA
-- **API Design** — REST patterns, error handling, validation, pagination
-- **OPC UA** — Industrial protocols, metadata crawling, subscription batching
-- **Testing** — Unit, integration, E2E, CI pipeline (doc 33)
-- **DevOps** — Docker Compose (dev), systemd + nginx (production), installer packaging
-
-Create these as reusable tools invokable throughout development. Each agent should be specialized and able to work autonomously within its domain.
-
-### Step 4: Initialize Project Structure
-
-1. **Create a Git repository** in the current directory
-2. **Initialize the project structure:**
-   - Cargo workspace with 11 service crates + 11 shared io-* crates
-   - Frontend package (React 18 + TypeScript + Vite)
-   - Database migrations folder
-   - Docker Compose for dev PostgreSQL + TimescaleDB
-   - Installer packaging scripts
-3. **Set up development environment** — .env template, .gitignore, workspace Cargo.toml
-4. **Create README.md** with project overview and setup instructions
-
-### Step 5: Execute Phased Development
-
-Follow the **17-phase development approach** in `05_DEVELOPMENT_PHASES.md`. The phases are demo-first — each phase produces a testable increment on Server 2.
-
-**For each phase:**
-
-1. **Review phase requirements** from the relevant design docs
-2. **Plan the implementation** — Break into tasks, assign to appropriate agents
-3. **Build and test** — Use shared crates, follow wire formats from doc 37
-4. **Verify RBAC** — Every endpoint must enforce permissions from doc 03
-5. **Package installer** — At milestone phases (v0.2, v0.4, v0.7, v0.9, v0.13, v0.16, v1.0)
-6. **Commit regularly** — Atomic commits with clear messages
+# Database (dev)
+docker compose up -d                 # Start PostgreSQL + TimescaleDB
+sqlx migrate run                     # Apply pending migrations
+```
 
 ---
 
-## 7. Quality and Best Practices
+## 7. Current Project State
 
-Throughout development:
+The project is in active development. The codebase structure is initialized. Work proceeds according to the 17-phase plan in `design-docs/05_DEVELOPMENT_PHASES.md`.
+
+**When picking up a task:**
+1. Check which phase is current — read `docs/SPEC_MANIFEST.md` for audit status per unit
+2. Read the relevant spec doc from `/home/io/spec_docs/` before editing any module file
+3. For unspecced cross-cutting features (marked ⚠️ NOT SPECCED in manifest), run `/design-qa` first
+4. Run `/audit <unit-id>` to verify an implementation against the spec
+
+---
+
+## 8. Audit System
+
+The project has a spec-driven audit system to prevent false-DONE implementations.
+
+**Key files:**
+- `docs/SPEC_MANIFEST.md` — Master rulebook: all units, non-negotiables, false-DONE patterns, cross-cutting contracts
+- `docs/decisions/` — Decision files from `/design-qa` sessions (specifies unwritten behaviors)
+- `docs/tasks/` — Task files for verified gaps
+
+**Workflow:**
+```
+/design-qa <contract>   → discover implementations, Q&A, write decision file
+/audit <unit-id>        → verify code against spec, produce task files for gaps
+```
+
+**Wave 0 cross-cutting contracts** (apply to ALL modules — check these before marking any module done):
+- CX-EXPORT, CX-POINT-CONTEXT, CX-ENTITY-CONTEXT, CX-CANVAS-CONTEXT
+- CX-POINT-DETAIL, CX-PLAYBACK, CX-RBAC, CX-ERROR, CX-LOADING, CX-EMPTY, CX-TOKENS, CX-KIOSK
+
+See `docs/SPEC_MANIFEST.md` §Wave 0 for the full applies-to matrix.
+
+---
+
+## 9. Quality and Best Practices
 
 - **Write clean, idiomatic code** — Rust best practices (clippy clean), React best practices (hooks, composition)
 - **Handle errors using the io-error crate** — Consistent error types across all services, user-friendly messages in UI
@@ -325,29 +334,7 @@ Throughout development:
 - **Security by default** — HTTPS only, JWT with expiration, Argon2 password hashing, RBAC on every endpoint, audit logging
 - **Test critical paths** — Unit tests for business logic, integration tests for APIs, E2E for critical workflows (doc 33)
 - **Observability** — Health endpoints on every service, Prometheus metrics, distributed tracing (doc 36)
-- **Document complex logic** — Code comments for non-obvious implementations, API documentation
 
 ---
 
-## 8. Success Criteria
-
-The project is successful when:
-
-1. All 11 frontend modules are implemented with their specified features
-2. All 11 backend services are operational, healthy, and passing health checks
-3. All 11 shared crates are published to the workspace and consumed by services
-4. Real-time data flows from OPC UA sources through Data Broker to frontend UI at <2s latency
-5. 118 RBAC permissions are enforced across all API endpoints and UI routes
-6. Multi-provider authentication (Local + OIDC + SAML + LDAP) works with MFA
-7. The database schema (~106 tables) supports all modules with proper relationships and retention
-8. WebSocket broker handles 200+ concurrent connections with adaptive throttling
-9. All 7 milestone installers deploy cleanly to Server 2
-10. All 17 development phases are complete
-11. Frontend is responsive, accessible, and meets the "professional calm" aesthetic
-12. Code is clean, tested, documented, and maintainable
-
----
-
-**The design docs are the source of truth. All 40 documents have been cross-referenced for consistency. When you encounter a conflict between your assumptions and a design doc, the design doc wins. Start by reading all 40 documents, then begin Phase 1.**
-
-Good luck building Inside/Operations! 🚀
+**spec_docs win over design-docs. SPEC_MANIFEST.md defines what "done" means. When in doubt, read the spec.**

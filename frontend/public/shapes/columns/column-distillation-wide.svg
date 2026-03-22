@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 120" data-io-shape="column-distillation-wide">
   <g class="io-shape-body">
-    <path d="M10,10 A15,5 0 0,1 40,10" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <line x1="10" y1="10" x2="10" y2="110" stroke="#808080" stroke-width="1.5"/>
-    <line x1="40" y1="10" x2="40" y2="110" stroke="#808080" stroke-width="1.5"/>
-    <path d="M10,110 A15,5 0 0,0 40,110" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <path class="io-stateful" d="M10,10 A15,5 0 0,1 40,10" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <line class="io-stateful" x1="10" y1="10" x2="10" y2="110" stroke="#808080" stroke-width="1.5"/>
+    <line class="io-stateful" x1="40" y1="10" x2="40" y2="110" stroke="#808080" stroke-width="1.5"/>
+    <path class="io-stateful" d="M10,110 A15,5 0 0,0 40,110" fill="none" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="feed" data-conn-type="process" data-conn-dir="left" cx="10" cy="60" r="3"/>

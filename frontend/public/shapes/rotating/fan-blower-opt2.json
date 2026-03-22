@@ -1,6 +1,25 @@
 {
-  "id": "fan-blower-opt2",
+  "$schema": "io-shape-v1",
+  "shape_id": "fan-blower",
+  "version": "1.0",
+  "display_name": "Fan / Blower",
   "category": "rotating",
+  "subcategory": "fan-blower",
+  "tags": ["fan", "blower", "rotating", "air"],
+  "recognition_class": "fan_blower",
+  "variants": {
+    "options": {
+      "opt1": { "file": "fan-blower-opt1.svg", "label": "ISA Standard" },
+      "opt2": { "file": "fan-blower-opt2.svg", "label": "Graphical" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 50 50", "width": 50, "height": 50 },
   "connections": [
     { "id": "inlet",  "type": "process", "x": 5,  "y": 25, "direction": "left" },

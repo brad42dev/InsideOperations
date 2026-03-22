@@ -23,3 +23,14 @@ io-observability = { path = "../../crates/io-observability" }
 io-models = { path = "../../crates/io-models" }
 uuid.workspace = true
 chrono.workspace = true
+sha2.workspace = true
+zip.workspace = true
+hex = "0.4"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
+ort = { version = "2.0.0-rc.12", features = ["load-dynamic"] }
+digest = "0.10"
+
+[dev-dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+sha2 = { workspace = true }

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 44" data-io-shape="interlock">
   <g class="io-shape-body">
-    <polygon points="30,4 56,22 30,40 4,22" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polygon class="io-stateful" points="30,4 56,22 30,40 4,22" fill="none" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="input" data-conn-type="signal" data-conn-dir="left" cx="4" cy="22" r="3"/>

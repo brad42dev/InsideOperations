@@ -1,6 +1,24 @@
 {
-  "id": "valve-butterfly",
+  "$schema": "io-shape-v1",
+  "shape_id": "valve-butterfly",
+  "version": "1.0",
+  "display_name": "Butterfly Valve",
   "category": "valves",
+  "subcategory": "butterfly",
+  "tags": ["valve", "butterfly", "isolation", "throttling"],
+  "recognition_class": "valve_butterfly",
+  "variants": {
+    "options": {
+      "opt1": { "file": "valve-butterfly.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 60 24", "width": 60, "height": 24 },
   "connections": [
     { "id": "inlet",  "type": "process", "x": 0,  "y": 12, "direction": "left" },

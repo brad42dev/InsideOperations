@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import TrendPane from './panes/TrendPane'
 import PointTablePane from './panes/PointTablePane'
 import AlarmListPane from './panes/AlarmListPane'
 import GraphicPane from './panes/GraphicPane'
 import ContextMenu from '../../shared/components/ContextMenu'
 import { CONSOLE_DRAG_KEY, type ConsoleDragItem } from './ConsolePalette'
+import { graphicsApi } from '../../api/graphics'
 import type { PaneConfig } from './types'
 
 export interface PaneWrapperProps {
@@ -27,6 +29,14 @@ export interface PaneWrapperProps {
   onZoomToFit?: (paneId: string) => void
   /** Called when user selects Reset Zoom (graphic panes only) */
   onResetZoom?: (paneId: string) => void
+  /** Called when user selects "Swap With..." — initiates swap mode */
+  onSwapWith?: (paneId: string) => void
+  /** ID of the pane currently in swap-source mode (null = not swapping) */
+  swapModeSourceId?: string | null
+  /** Called when this pane is clicked as the swap target */
+  onSwapComplete?: (targetId: string) => void
+  /** Called when user selects a new graphic in the Replace dialog */
+  onReplace?: (paneId: string, graphicId: string, graphicName: string) => void
 }
 
 const PANE_TYPE_LABELS: Record<string, string> = {
@@ -131,12 +141,29 @@ export default function PaneWrapper({
   onDuplicate,
   onZoomToFit,
   onResetZoom,
+  onSwapWith,
+  swapModeSourceId,
+  onSwapComplete,
+  onReplace,
 }: PaneWrapperProps) {
   const navigate = useNavigate()
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
   const [paneCtxMenu, setPaneCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
+  const [replaceSearch, setReplaceSearch] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [hovered, setHovered] = useState(false)
+
+  const { data: replaceGraphics = [] } = useQuery({
+    queryKey: ['console-replace-graphics'],
+    queryFn: async () => {
+      const r = await graphicsApi.list({ scope: 'console' })
+      if (!r.success) return []
+      return r.data.data ?? []
+    },
+    enabled: replaceDialogOpen,
+    staleTime: 30_000,
+  })
 
   function handleDragOver(e: React.DragEvent) {
     if (e.dataTransfer.types.includes(CONSOLE_DRAG_KEY)) {
@@ -165,7 +192,15 @@ export default function PaneWrapper({
     }
   }
 
+  const isSwapSource = swapModeSourceId === config.id
+  const isSwapTarget = swapModeSourceId !== null && swapModeSourceId !== config.id
+
   function handlePaneClick(e: React.MouseEvent) {
+    // If swap mode is active and this is a valid target, complete the swap
+    if (isSwapTarget) {
+      onSwapComplete?.(config.id)
+      return
+    }
     // Ignore clicks on buttons / context menus
     if ((e.target as HTMLElement).closest('button, [role="menu"]')) return
     onSelect?.(config.id, e.ctrlKey || e.metaKey || e.shiftKey)
@@ -205,16 +240,22 @@ export default function PaneWrapper({
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--io-surface)',
+        contain: 'layout style paint',
         border: dragOver
           ? '2px dashed var(--io-accent)'
-          : isSelected
-            ? '2px solid var(--io-accent)'
-            : hovered
-              ? '1px solid var(--io-border)'
-              : '1px solid transparent',
+          : isSwapSource
+            ? '2px solid #F59E0B'
+            : isSwapTarget
+              ? '2px dashed var(--io-accent)'
+              : isSelected
+                ? '2px solid var(--io-accent)'
+                : hovered
+                  ? '1px solid var(--io-border)'
+                  : '1px solid transparent',
         borderRadius: 4,
         overflow: 'hidden',
         boxSizing: 'border-box',
+        cursor: isSwapTarget ? 'crosshair' : undefined,
         outline: isSelected ? '1px solid var(--io-accent)' : undefined,
         outlineOffset: isSelected ? '-1px' : undefined,
         ...fullscreenStyle,
@@ -448,6 +489,22 @@ export default function PaneWrapper({
               },
             },
             {
+              label: 'Replace…',
+              onClick: () => {
+                setPaneCtxMenu(null)
+                setReplaceSearch('')
+                setReplaceDialogOpen(true)
+              },
+            },
+            {
+              label: 'Swap With…',
+              divider: true,
+              onClick: () => {
+                setPaneCtxMenu(null)
+                onSwapWith?.(config.id)
+              },
+            },
+            {
               label: 'Configure Pane…',
               divider: true,
               onClick: () => onConfigure(config.id),
@@ -488,6 +545,76 @@ export default function PaneWrapper({
             },
           ]}
         />
+      )}
+
+      {/* Replace Graphic Dialog — graphic browser modal */}
+      {replaceDialogOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 4000,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setReplaceDialogOpen(false) }}
+        >
+          <div
+            style={{
+              width: 480, maxHeight: '80vh',
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 8,
+              boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+              display: 'flex', flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--io-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--io-text-primary)' }}>Replace Graphic</span>
+              <button onClick={() => setReplaceDialogOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--io-text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 4px' }}>×</button>
+            </div>
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--io-border)' }}>
+              <input
+                autoFocus
+                value={replaceSearch}
+                onChange={(e) => setReplaceSearch(e.target.value)}
+                placeholder="Search graphics…"
+                style={{
+                  width: '100%', boxSizing: 'border-box', padding: '6px 10px',
+                  background: 'var(--io-surface-secondary)', border: '1px solid var(--io-border)',
+                  borderRadius: 4, color: 'var(--io-text-primary)', fontSize: 13, outline: 'none',
+                }}
+              />
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+              {replaceGraphics
+                .filter((g) => !replaceSearch || g.name.toLowerCase().includes(replaceSearch.toLowerCase()))
+                .map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => { onReplace?.(config.id, g.id, g.name); setReplaceDialogOpen(false) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      width: '100%', padding: '8px 16px', border: 'none',
+                      background: g.id === config.graphicId ? 'color-mix(in srgb, var(--io-accent) 12%, transparent)' : 'transparent',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <path d="M3 9h18M9 21V9" />
+                    </svg>
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--io-text-primary)' }}>{g.name}</span>
+                    {g.id === config.graphicId && (
+                      <span style={{ fontSize: 10, color: 'var(--io-accent)', fontWeight: 600 }}>CURRENT</span>
+                    )}
+                  </button>
+                ))}
+              {replaceGraphics.filter((g) => !replaceSearch || g.name.toLowerCase().includes(replaceSearch.toLowerCase())).length === 0 && (
+                <div style={{ padding: '16px', fontSize: 13, color: 'var(--io-text-muted)', textAlign: 'center' }}>No graphics found</div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

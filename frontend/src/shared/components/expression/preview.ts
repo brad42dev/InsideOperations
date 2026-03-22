@@ -38,6 +38,10 @@ function tileToString(tile: ExpressionTile): string {
       return `(${label})`
     }
 
+    case 'field_ref': {
+      return tile.fieldName ? tile.fieldName : '?'
+    }
+
     case 'constant': {
       if (tile.value === undefined) return '?'
       return String(tile.value)

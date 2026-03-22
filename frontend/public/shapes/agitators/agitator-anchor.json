@@ -1,8 +1,26 @@
 {
-  "id": "agitator-anchor",
+  "$schema": "io-shape-v1",
+  "shape_id": "agitator-anchor",
+  "version": "1.0",
+  "display_name": "Agitator — Anchor",
   "category": "agitators",
+  "subcategory": "anchor",
+  "tags": ["agitator", "anchor", "mixing", "part"],
+  "recognition_class": "agitator_anchor",
   "isPart": true,
   "partClass": "io-part-agitator",
+  "variants": {
+    "options": {
+      "opt1": { "file": "agitator-anchor.svg", "label": "Anchor" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
   "connections": [
     { "id": "shaft-top", "type": "mechanical", "x": 20, "y": 7, "direction": "top" }

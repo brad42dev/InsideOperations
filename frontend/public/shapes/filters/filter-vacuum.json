@@ -1,6 +1,24 @@
 {
-  "id": "filter-vacuum",
+  "$schema": "io-shape-v1",
+  "shape_id": "filter-vacuum",
+  "version": "1.0",
+  "display_name": "Filter (Vacuum)",
   "category": "filters",
+  "subcategory": "vacuum",
+  "tags": ["filter", "vacuum", "separation"],
+  "recognition_class": "filter_vacuum",
+  "variants": {
+    "options": {
+      "opt1": { "file": "filter-vacuum.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 66 55", "width": 66, "height": 55 },
   "connections": [
     { "id": "inlet",       "type": "process", "x": 9,  "y": 20, "direction": "left" },

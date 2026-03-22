@@ -1,0 +1,15 @@
+# DD-06 — Task State Index
+Wave 3 | Audit: ✅ completed 2026-03-21
+
+| Task | Title | Status | Attempts |
+|------|-------|--------|----------|
+| DD-06-001 | Implement correct sidebar keyboard shortcuts (Ctrl+\, C… | pending | 0 |
+| DD-06-002 | Wire kiosk mode to URL parameter and keyboard shortcut … | pending | 0 |
+| DD-06-003 | Add visual hint overlay for G-key navigation | pending | 0 |
+| DD-06-004 | Implement password-based visual lock overlay (not click… | pending | 0 |
+| DD-06-005 | Replace alert bell navigation with dropdown panel showi… | pending | 0 |
+| DD-06-006 | Make breadcrumb segments clickable links (except the la… | pending | 0 |
+| DD-06-007 | Add missing user menu items: Enter Kiosk Mode, My Expor… | pending | 0 |
+| DD-06-008 | Fix ErrorBoundary button label and add nested boundarie… | pending | 0 |
+| DD-06-009 | Replace static About page with API-driven license brows… | pending | 0 |
+| DD-06-010 | Implement sidebar state persistence, BroadcastChannel s… | pending | 0 |

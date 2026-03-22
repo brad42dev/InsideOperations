@@ -48,12 +48,10 @@ export type DashboardsPermission =
   | 'dashboards:export'
   | 'dashboards:admin'
 
-// Reports Module (7)
+// Reports Module (5)
 export type ReportsPermission =
   | 'reports:read'
   | 'reports:write'
-  | 'reports:generate'
-  | 'reports:schedule_manage'
   | 'reports:delete'
   | 'reports:export'
   | 'reports:admin'
@@ -207,9 +205,9 @@ const ALL_PERMISSIONS = new Set<string>([
   // Dashboards (6)
   'dashboards:read', 'dashboards:write', 'dashboards:delete',
   'dashboards:publish', 'dashboards:export', 'dashboards:admin',
-  // Reports (7)
-  'reports:read', 'reports:write', 'reports:generate',
-  'reports:schedule_manage', 'reports:delete', 'reports:export', 'reports:admin',
+  // Reports (5)
+  'reports:read', 'reports:write',
+  'reports:delete', 'reports:export', 'reports:admin',
   // Forensics (7)
   'forensics:read', 'forensics:write', 'forensics:share',
   'forensics:search', 'forensics:correlate', 'forensics:export', 'forensics:admin',

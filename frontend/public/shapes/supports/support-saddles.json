@@ -1,8 +1,26 @@
 {
-  "id": "support-saddles",
+  "$schema": "io-shape-v1",
+  "shape_id": "support-saddles",
+  "version": "1.0",
+  "display_name": "Support — Saddles",
   "category": "supports",
+  "subcategory": "saddles",
+  "tags": ["support", "saddles", "horizontal-vessel", "part"],
+  "recognition_class": "support_saddles",
   "isPart": true,
   "partClass": "io-part-support",
+  "variants": {
+    "options": {
+      "opt1": { "file": "support-saddles.svg", "label": "Saddles" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 80 14", "width": 80, "height": 14 },
   "connections": [],
   "textZones": [],

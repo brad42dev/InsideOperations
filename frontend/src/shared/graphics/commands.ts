@@ -1106,6 +1106,33 @@ export class ChangeShapeVariantCommand implements SceneCommand {
 }
 
 // ---------------------------------------------------------------------------
+// ChangeShapeConfigurationCommand — change shapeRef.configuration on a SymbolInstance
+// ---------------------------------------------------------------------------
+
+export class ChangeShapeConfigurationCommand implements SceneCommand {
+  description = 'Change Shape Configuration'
+  constructor(
+    private nodeId: NodeId,
+    private newConfig: string | undefined,
+    private prevConfig: string | undefined
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      shapeRef: { ...(node as { shapeRef: Record<string, unknown> }).shapeRef, configuration: this.newConfig },
+    }))
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      shapeRef: { ...(node as { shapeRef: Record<string, unknown> }).shapeRef, configuration: this.prevConfig },
+    }))
+  }
+}
+
+// ---------------------------------------------------------------------------
 // AddComposablePartCommand — attach a ComposablePart to a SymbolInstance
 // ---------------------------------------------------------------------------
 
@@ -1242,6 +1269,87 @@ export class ResizeNodeWithDimsCommand implements SceneCommand {
       [wk]: this.prevDims.width,
       [hk]: this.prevDims.height,
     }))
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ChangeDisplayElementTypeCommand — change displayType + reset config, preserve binding
+// ---------------------------------------------------------------------------
+
+export class ChangeDisplayElementTypeCommand implements SceneCommand {
+  description = 'Change Display Element Type'
+  constructor(
+    private nodeId: NodeId,
+    private newType: string,
+    private newConfig: DisplayElementConfig,
+    private prevType: string,
+    private prevConfig: DisplayElementConfig,
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      displayType: this.newType,
+      config: clone(this.newConfig),
+    }))
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    return updateNode(clone(doc), this.nodeId, (node) => ({
+      ...node,
+      displayType: this.prevType,
+      config: clone(this.prevConfig),
+    }))
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DetachDisplayElementCommand — move a DisplayElement from a SymbolInstance
+//   child to the doc root, recalculating absolute position
+// ---------------------------------------------------------------------------
+
+export class DetachDisplayElementCommand implements SceneCommand {
+  description = 'Detach from Shape'
+  constructor(
+    private nodeId: NodeId,
+    private parentId: NodeId,
+    private elementSnapshot: DisplayElement,
+    private absPosition: { x: number; y: number },
+  ) {}
+
+  execute(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc)
+    // Remove from parent's children
+    const parentResult = findNode(d, this.parentId)
+    if (parentResult) {
+      const parent = parentResult.node as { children?: SceneNode[] }
+      if (parent.children) {
+        parent.children = parent.children.filter((c) => c.id !== this.nodeId)
+      }
+    }
+    // Add to doc root with absolute position
+    const detached: DisplayElement = {
+      ...clone(this.elementSnapshot),
+      transform: {
+        ...this.elementSnapshot.transform,
+        position: { x: this.absPosition.x, y: this.absPosition.y },
+      },
+    }
+    d.children.push(detached as unknown as SceneNode)
+    return d
+  }
+
+  undo(doc: GraphicDocument): GraphicDocument {
+    const d = clone(doc)
+    // Remove from doc root
+    d.children = d.children.filter((n) => n.id !== this.nodeId)
+    // Re-add to parent
+    const parentResult = findNode(d, this.parentId)
+    if (parentResult) {
+      const parent = parentResult.node as { children?: SceneNode[] }
+      parent.children = [...(parent.children ?? []), clone(this.elementSnapshot) as unknown as SceneNode]
+    }
+    return d
   }
 }
 

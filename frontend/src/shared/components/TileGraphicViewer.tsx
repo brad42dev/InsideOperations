@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { PointValue } from '../graphics/SceneRenderer'
+import { getTile, cacheTile, evictLRU } from '../hooks/tileCacheDb'
 
 export interface TileGraphicViewerProps {
   graphicId: string
@@ -53,6 +54,106 @@ function alarmColor(value: PointValue | undefined): string {
   if (value.quality === 'bad') return '#EF4444'
   return '#22C55E'
 }
+
+// ---------------------------------------------------------------------------
+// OfflineTileLayer — Leaflet TileLayer subclass with IndexedDB caching
+// ---------------------------------------------------------------------------
+
+/**
+ * A Leaflet TileLayer that transparently caches tiles in IndexedDB using the
+ * `tile-cache` store.  On a cache hit it serves the Blob immediately (avoiding
+ * the network entirely), and on a cache miss it fetches from the network then
+ * persists the Blob for future offline use.
+ *
+ * `evictLRU()` is called once when the first tile load for a graphic begins so
+ * we stay within the spec-defined storage budget before writing new tiles.
+ *
+ * We use `(this as any)` at the boundary because Leaflet's `.extend()` pattern
+ * does not propagate explicit `this` parameter annotations through all language
+ * server implementations — casting at each use site is more robust.
+ */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const OfflineTileLayerClass = (L.TileLayer as any).extend({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  initialize(url: string, options: L.TileLayerOptions & { graphicId: string }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(L.TileLayer.prototype as any).initialize.call(this, url, options)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(this as any)._graphicId = options.graphicId
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(this as any)._evictRun = false
+  },
+
+  createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
+    const tile = document.createElement('img')
+    tile.setAttribute('role', 'presentation')
+
+    const z = (coords as unknown as { z: number }).z
+    const x = (coords as unknown as { x: number }).x
+    const y = (coords as unknown as { y: number }).y
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const graphicId = (this as any)._graphicId as string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const evictRun = (this as any)._evictRun as boolean
+    const runEvict = !evictRun
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (runEvict) (this as any)._evictRun = true
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getTileUrl = ((this as any).getTileUrl as (coords: L.Coords) => string).bind(this)
+
+    ;(async () => {
+      try {
+        // Run LRU eviction once per layer mount (before the first new write)
+        if (runEvict) {
+          await evictLRU()
+        }
+
+        // Try cache first
+        const cached = await getTile(graphicId, z, x, y)
+        if (cached) {
+          const blobUrl = URL.createObjectURL(cached)
+          tile.src = blobUrl
+          tile.onload = () => {
+            URL.revokeObjectURL(blobUrl)
+            done(undefined, tile)
+          }
+          tile.onerror = () => done(new Error('tile load error'), tile)
+          return
+        }
+
+        // Cache miss — fetch from network
+        const tileUrl = getTileUrl(coords)
+        const resp = await fetch(tileUrl)
+        if (!resp.ok) {
+          // Silently skip caching for missing tiles
+          done(undefined, tile)
+          return
+        }
+        const blob = await resp.blob()
+
+        // Store in cache (fire-and-forget)
+        cacheTile(graphicId, z, x, y, blob).catch(() => {})
+
+        const blobUrl = URL.createObjectURL(blob)
+        tile.src = blobUrl
+        tile.onload = () => {
+          URL.revokeObjectURL(blobUrl)
+          done(undefined, tile)
+        }
+        tile.onerror = () => done(new Error('tile load error'), tile)
+      } catch {
+        // On any error fall back to standard network tile URL
+        tile.src = getTileUrl(coords)
+        tile.onload = () => done(undefined, tile)
+        tile.onerror = () => done(new Error('tile load error'), tile)
+      }
+    })()
+
+    return tile
+  },
+})
 
 // ---------------------------------------------------------------------------
 // StatusView — simplified schematic with colored status dots
@@ -161,14 +262,16 @@ export default function TileGraphicViewer({
       maxBounds: bounds.pad(0.2),
     })
 
-    // Tile layer pointing to API tile pyramid
+    // Tile layer pointing to API tile pyramid — uses IndexedDB caching
     const tileUrl = `/api/v1/design-objects/${graphicId}/tiles/{z}/{x}/{y}.png`
-    const tileLayer = L.tileLayer(tileUrl, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tileLayer = new (OfflineTileLayerClass as any)(tileUrl, {
       tileSize: 256,
       noWrap: true,
       bounds,
       errorTileUrl: '', // silently ignore missing tiles
-    })
+      graphicId,
+    }) as L.TileLayer
 
     tileLayer.on('tileerror', () => setLeafletError(true))
     tileLayer.addTo(map)

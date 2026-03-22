@@ -4,6 +4,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi, User, UserDetail, CreateUserRequest, UpdateUserRequest } from '../../api/users'
 import { rolesApi, Role } from '../../api/roles'
 import type { PaginatedResult } from '../../api/client'
+import { ExportButton } from '../../shared/components/ExportDialog'
+
+// ---------------------------------------------------------------------------
+// Column definitions for users export
+// ---------------------------------------------------------------------------
+const USERS_COLUMNS = [
+  { id: 'id', label: 'ID' },
+  { id: 'username', label: 'Username' },
+  { id: 'email', label: 'Email' },
+  { id: 'full_name', label: 'Full Name' },
+  { id: 'enabled', label: 'Status' },
+  { id: 'auth_provider', label: 'Auth Provider' },
+  { id: 'last_login_at', label: 'Last Login' },
+  { id: 'created_at', label: 'Created At' },
+]
+
+const USERS_DEFAULT_VISIBLE = ['username', 'email', 'full_name', 'enabled', 'auth_provider', 'last_login_at']
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -629,9 +646,19 @@ export default function UsersPage() {
             Manage user accounts and access
           </p>
         </div>
-        <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
-          + Add User
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <ExportButton
+            module="settings"
+            entity="users"
+            filteredRowCount={pagination?.total ?? users.length}
+            totalRowCount={pagination?.total ?? users.length}
+            availableColumns={USERS_COLUMNS}
+            visibleColumns={USERS_DEFAULT_VISIBLE}
+          />
+          <button style={btnPrimary} onClick={() => setCreateOpen(true)}>
+            + Add User
+          </button>
+        </div>
       </div>
 
       {bannerError && <ErrorBanner message={bannerError} />}

@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import WorkspaceGrid from './WorkspaceGrid'
+import { usePermission } from '../../shared/hooks/usePermission'
+
+import WorkspaceGrid, { presetToGridItems } from './WorkspaceGrid'
 import type { GridItem } from './types'
 import ConsolePalette, { type ConsoleDragItem } from './ConsolePalette'
 import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
@@ -11,6 +13,11 @@ import { uuidv4 } from '../../lib/uuid'
 import { consoleApi } from '../../api/console'
 import { useAuthStore } from '../../store/auth'
 import { usePlaybackStore } from '../../store/playback'
+import { useWorkspaceStore, useWorkspaceTemporal, makeNewWorkspace } from '../../store/workspaceStore'
+import { useSelectionStore } from '../../store/selectionStore'
+import { useRealtimeStore } from '../../store/realtimeStore'
+import { ExportDialog } from '../../shared/components/ExportDialog'
+import { exportsApi, type ExportFormat } from '../../api/exports'
 
 // ---------------------------------------------------------------------------
 // ConsoleStatusBar
@@ -18,13 +25,12 @@ import { usePlaybackStore } from '../../store/playback'
 
 function ConsoleStatusBar({
   workspaceName,
-  subscribedPoints,
 }: {
   workspaceName: string
-  subscribedPoints: number
 }) {
   const { mode } = usePlaybackStore()
   const isHistorical = mode === 'historical'
+  const { connectionStatus, subscribedPointCount } = useRealtimeStore()
 
   return (
     <div
@@ -49,15 +55,26 @@ function ConsoleStatusBar({
             width: 6,
             height: 6,
             borderRadius: '50%',
-            background: '#22C55E',
+            background:
+              connectionStatus === 'connected'
+                ? '#22C55E'
+                : connectionStatus === 'connecting'
+                ? '#F59E0B'
+                : '#EF4444',
             display: 'inline-block',
           }}
         />
-        Connected
+        {connectionStatus === 'connected'
+          ? 'Connected'
+          : connectionStatus === 'connecting'
+          ? 'Connecting…'
+          : connectionStatus === 'error'
+          ? 'Error'
+          : 'Disconnected'}
       </span>
       <span style={{ color: 'var(--io-border)' }}>|</span>
       {/* Points */}
-      <span>{subscribedPoints} points subscribed</span>
+      <span>{subscribedPointCount} points subscribed</span>
       <span style={{ color: 'var(--io-border)' }}>|</span>
       {/* Workspace name */}
       {workspaceName && (
@@ -118,55 +135,8 @@ function saveWorkspacesLocal(workspaces: WorkspaceLayout[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Layout preset metadata
 // ---------------------------------------------------------------------------
-
-function makeBlankPanes(count: number): PaneConfig[] {
-  return Array.from({ length: count }, () => ({ id: uuidv4(), type: 'blank' as const }))
-}
-
-function layoutPaneCount(layout: LayoutPreset): number {
-  switch (layout) {
-    // Even grids
-    case '1x1': return 1
-    case '2x1': return 2
-    case '1x2': return 2
-    case '2x2': return 4
-    case '3x1': return 3
-    case '1x3': return 3
-    case '3x2': return 6
-    case '2x3': return 6
-    case '3x3': return 9
-    case '4x1': return 4
-    case '1x4': return 4
-    case '4x2': return 8
-    case '2x4': return 8
-    case '4x3': return 12
-    case '3x4': return 12
-    case '4x4': return 16
-    // Asymmetric
-    case 'big-left-3-right': return 4
-    case 'big-right-3-left': return 4
-    case 'big-top-3-bottom': return 4
-    case 'big-bottom-3-top': return 4
-    case '2-big-4-small': return 6
-    case 'pip': return 2
-    case 'featured-sidebar': return 2
-    case 'side-by-side-unequal': return 2
-    // Legacy
-    case '2x1+1': return 3
-    default: return 1
-  }
-}
-
-function makeNewWorkspace(name: string, layout: LayoutPreset = '2x2'): WorkspaceLayout {
-  return {
-    id: uuidv4(),
-    name,
-    layout,
-    panes: makeBlankPanes(layoutPaneCount(layout)),
-  }
-}
 
 const LAYOUT_PRESETS: { value: LayoutPreset; label: string }[] = [
   // Even grids
@@ -206,6 +176,38 @@ export default function ConsolePage() {
   const { isAuthenticated, user } = useAuthStore()
   const canPublish = user?.permissions.includes('console:workspace_publish') ?? false
 
+  // ---- Zustand stores ------------------------------------------------------
+
+  const {
+    workspaces,
+    activeId,
+    editMode,
+    preserveAspectRatio,
+    setWorkspaces,
+    setActiveId,
+    setEditMode,
+    setPreserveAspectRatio,
+    updateWorkspace,
+    renameWorkspace,
+    changeLayout,
+    updateGridItems,
+    updatePane,
+    removePane,
+    swapPanes,
+    clearPanes,
+  } = useWorkspaceStore()
+
+  const temporal = useWorkspaceTemporal()
+
+  const {
+    selectedPaneIds,
+    swapModeSourceId,
+    selectPane,
+    selectAll,
+    clearSelection,
+    setSwapModeSourceId,
+  } = useSelectionStore()
+
   // ---- API-backed state (when authenticated) --------------------------------
 
   const {
@@ -223,39 +225,56 @@ export default function ConsolePage() {
     staleTime: 30_000,
   })
 
-  // ---- Local fallback state (when not authenticated or API fails) -----------
-
-  const [localWorkspaces, setLocalWorkspaces] = useState<WorkspaceLayout[]>(() =>
-    loadWorkspacesLocal(),
-  )
-
   // Decide which source to use
   const useApi = isAuthenticated && !isError
-  const workspaces: WorkspaceLayout[] = useApi
-    ? (apiWorkspaces ?? [])
-    : localWorkspaces
 
-  // ---- Active workspace tracking -------------------------------------------
-
-  const [activeId, setActiveId] = useState<string | null>(null)
-
-  // Set active to first workspace once data loads
+  // Sync API workspaces → WorkspaceStore when they load
   useEffect(() => {
-    if (workspaces.length > 0 && activeId === null) {
-      setActiveId(workspaces[0].id)
+    if (useApi && apiWorkspaces) {
+      setWorkspaces(apiWorkspaces)
+      if (apiWorkspaces.length > 0 && (activeId === null || !apiWorkspaces.find((w) => w.id === activeId))) {
+        setActiveId(apiWorkspaces[0].id)
+      }
     }
-    // Clear active if the active workspace was deleted
-    if (activeId !== null && !workspaces.find((w) => w.id === activeId)) {
-      setActiveId(workspaces[0]?.id ?? null)
+  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId])
+
+  // Sync localStorage workspaces → WorkspaceStore when not using API
+  const [localWorkspacesLoaded, setLocalWorkspacesLoaded] = useState(false)
+  useEffect(() => {
+    if (!useApi && !localWorkspacesLoaded) {
+      const local = loadWorkspacesLocal()
+      setWorkspaces(local)
+      if (local.length > 0) setActiveId(local[0].id)
+      setLocalWorkspacesLoaded(true)
     }
-  }, [workspaces, activeId])
+  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId])
 
   // ---- API mutations --------------------------------------------------------
 
   const saveMutation = useMutation({
     mutationFn: (ws: WorkspaceLayout) => consoleApi.saveWorkspace(ws),
     onSuccess: () => {
+      saveFailCountRef.current = 0
+      setShowSaveBanner(false)
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
       void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+    },
+    onError: (_err, ws) => {
+      saveFailCountRef.current += 1
+      const next = saveFailCountRef.current
+      if (next >= 3) {
+        setShowSaveBanner(true)
+      } else {
+        // Exponential backoff: 1s after first failure, 2s after second
+        const delay = Math.pow(2, next - 1) * 1000
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = setTimeout(() => {
+          saveMutation.mutate(ws)
+        }, delay)
+      }
     },
   })
 
@@ -281,86 +300,75 @@ export default function ConsolePage() {
       if (useApi) {
         saveMutation.mutate(ws)
       } else {
-        setLocalWorkspaces((prev) => {
-          const exists = prev.find((w) => w.id === ws.id)
-          const updated = exists ? prev.map((w) => (w.id === ws.id ? ws : w)) : [...prev, ws]
-          saveWorkspacesLocal(updated)
-          return updated
-        })
+        const current = useWorkspaceStore.getState().workspaces
+        const exists = current.find((w) => w.id === ws.id)
+        const updated = exists ? current.map((w) => (w.id === ws.id ? ws : w)) : [...current, ws]
+        saveWorkspacesLocal(updated)
       }
     },
     [useApi, saveMutation],
   )
 
-  const deleteWorkspace = useCallback(
-    (id: string) => {
-      if (useApi) {
-        deleteMutation.mutate(id)
-      } else {
-        setLocalWorkspaces((prev) => {
-          const updated = prev.filter((w) => w.id !== id)
-          saveWorkspacesLocal(updated)
-          return updated
-        })
-      }
-      if (activeId === id) {
-        setActiveId(workspaces.find((w) => w.id !== id)?.id ?? null)
-      }
+  // ---- Debounced auto-save (2s after last layout change) -----------------
+
+  const scheduleSave = useCallback(
+    (ws: WorkspaceLayout) => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
+      saveDebounceRef.current = setTimeout(() => {
+        persistWorkspace(ws)
+        saveDebounceRef.current = null
+      }, 2000)
     },
-    [useApi, deleteMutation, activeId, workspaces],
+    [persistWorkspace],
   )
 
-  // ---- Undo/Redo stacks (scoped to active workspace) ----------------------
+  // Clear debounce on unmount to avoid stale saves
+  useEffect(() => {
+    return () => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
+    }
+  }, [])
 
-  const MAX_UNDO = 50
-  // Refs for stacks so we can read them synchronously in callbacks
-  const undoStackRef = useRef<WorkspaceLayout[]>([])
-  const redoStackRef = useRef<WorkspaceLayout[]>([])
-  // State shadows for reactive UI (canUndo/canRedo buttons)
+  // ---- Undo / Redo (via zundo temporal store) ----------------------------
+
+  const handleUndo = useCallback(() => {
+    temporal.getState().undo()
+  }, [temporal])
+
+  const handleRedo = useCallback(() => {
+    temporal.getState().redo()
+  }, [temporal])
+
+  // Reactive undo/redo depth for button enabled state
   const [undoDepth, setUndoDepth] = useState(0)
   const [redoDepth, setRedoDepth] = useState(0)
 
-  // Reset stacks when switching workspaces
   useEffect(() => {
-    undoStackRef.current = []
-    redoStackRef.current = []
-    setUndoDepth(0)
-    setRedoDepth(0)
-  }, [activeId])
+    // Subscribe to temporal store changes to update button states
+    const unsub = temporal.subscribe((state) => {
+      setUndoDepth(state.pastStates.length)
+      setRedoDepth(state.futureStates.length)
+    })
+    return unsub
+  }, [temporal])
 
-  const pushUndo = useCallback((snapshot: WorkspaceLayout) => {
-    undoStackRef.current = [...undoStackRef.current, snapshot].slice(-MAX_UNDO)
-    redoStackRef.current = []
-    setUndoDepth(undoStackRef.current.length)
-    setRedoDepth(0)
-  }, [])
-
-  // Apply an update function to the workspace list and persist the changed workspace
-  const updateWorkspace = useCallback(
-    (id: string, updater: (w: WorkspaceLayout) => WorkspaceLayout, skipUndo = false) => {
-      const target = workspaces.find((w) => w.id === id)
-      if (!target) return
-      // Snapshot current state for undo (unless this IS an undo/redo restore)
-      if (!skipUndo) pushUndo(target)
-      const updated = updater(target)
-      persistWorkspace(updated)
-      // Optimistically update local list (API will re-fetch via invalidation)
-      if (useApi) {
-        queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
-          prev ? prev.map((w) => (w.id === id ? updated : w)) : prev,
-        )
-      }
-    },
-    [workspaces, persistWorkspace, useApi, queryClient, pushUndo],
-  )
+  // Reset undo history when switching workspaces
+  useEffect(() => {
+    temporal.getState().clear()
+  }, [activeId, temporal])
 
   // ---- UI state -----------------------------------------------------------
 
-  const [editMode, setEditMode] = useState(false)
+  const saveFailCountRef = useRef(0)
+  const [showSaveBanner, setShowSaveBanner] = useState(false)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const [paletteVisible, setPaletteVisible] = useState(true)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
-  const [selectedPaneIds, setSelectedPaneIds] = useState<Set<string>>(new Set())
-  const [preserveAspectRatio, setPreserveAspectRatio] = useState(true)
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const canExport = usePermission('console:export')
   const copiedPanesRef = useRef<PaneConfig[]>([])
   const [tabContextMenu, setTabContextMenu] = useState<{
     x: number
@@ -380,20 +388,30 @@ export default function ConsolePage() {
   const createWorkspace = () => {
     const name = `Workspace ${workspaces.length + 1}`
     const ws = makeNewWorkspace(name)
+    // Add to store
+    updateWorkspace(ws.id, () => ws) // won't find it — use setWorkspaces approach
+    const currentWorkspaces = useWorkspaceStore.getState().workspaces
+    setWorkspaces([...currentWorkspaces, ws])
+    setActiveId(ws.id)
+    setEditMode(true)
     persistWorkspace(ws)
-    // Optimistically add to local list for API mode
     if (useApi) {
       queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
         prev ? [...prev, ws] : [ws],
       )
     }
-    setActiveId(ws.id)
-    setEditMode(true)
   }
 
   const deleteActiveWorkspace = () => {
     if (!activeId) return
-    deleteWorkspace(activeId)
+    const nextWorkspaces = workspaces.filter((w) => w.id !== activeId)
+    setWorkspaces(nextWorkspaces)
+    setActiveId(nextWorkspaces[0]?.id ?? null)
+    if (useApi) {
+      deleteMutation.mutate(activeId)
+    } else {
+      saveWorkspacesLocal(nextWorkspaces)
+    }
   }
 
   const duplicateWorkspace = (id: string) => {
@@ -405,13 +423,15 @@ export default function ConsolePage() {
       name: `${source.name} (copy)`,
       panes: source.panes.map((p) => ({ ...p, id: uuidv4() })),
     }
+    const currentWorkspaces = useWorkspaceStore.getState().workspaces
+    setWorkspaces([...currentWorkspaces, copy])
+    setActiveId(copy.id)
     persistWorkspace(copy)
     if (useApi) {
       queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
         prev ? [...prev, copy] : [copy],
       )
     }
-    setActiveId(copy.id)
   }
 
   const handleTabContextMenu = useCallback((e: React.MouseEvent, workspaceId: string) => {
@@ -419,63 +439,33 @@ export default function ConsolePage() {
     setTabContextMenu({ x: e.clientX, y: e.clientY, workspaceId })
   }, [])
 
-  const renameWorkspace = (id: string, name: string) => {
-    updateWorkspace(id, (w) => ({ ...w, name }))
+  const handleRenameWorkspace = (id: string, name: string) => {
+    renameWorkspace(id, name)
+    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id)
+    if (ws) persistWorkspace({ ...ws, name })
   }
 
-  const changeLayout = (layout: LayoutPreset) => {
+  const handleChangeLayout = (layout: LayoutPreset) => {
     if (!activeId) return
-    updateWorkspace(activeId, (w) => {
-      const needed = layoutPaneCount(layout)
-      const existing = w.panes.slice(0, needed)
-      const extra = makeBlankPanes(Math.max(0, needed - existing.length))
-      // Clear saved grid positions so the new preset's defaults take effect
-      return { ...w, layout, panes: [...existing, ...extra], gridItems: undefined }
-    })
+    changeLayout(activeId, layout)
+    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+    if (ws) scheduleSave(ws)
   }
 
   const handleGridLayoutChange = useCallback(
     (items: GridItem[]) => {
       if (!activeId) return
-      updateWorkspace(activeId, (w) => ({ ...w, gridItems: items }))
+      updateGridItems(activeId, items)
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (ws) scheduleSave(ws)
     },
-    [activeId, updateWorkspace],
+    [activeId, updateGridItems, scheduleSave],
   )
 
   const saveEdit = () => setEditMode(false)
 
-  // ---- Undo / Redo ---------------------------------------------------------
+  // ---- Keyboard shortcuts -------------------------------------------------
 
-  const handleUndo = useCallback(() => {
-    if (!activeId || undoStackRef.current.length === 0) return
-    const stack = [...undoStackRef.current]
-    const snapshot = stack.pop()!
-    const current = workspaces.find((w) => w.id === activeId)
-    if (current) {
-      redoStackRef.current = [...redoStackRef.current, current]
-      setRedoDepth(redoStackRef.current.length)
-    }
-    undoStackRef.current = stack
-    setUndoDepth(stack.length)
-    // Restore snapshot without pushing a new undo entry
-    updateWorkspace(activeId, () => snapshot, true)
-  }, [activeId, workspaces, updateWorkspace])
-
-  const handleRedo = useCallback(() => {
-    if (!activeId || redoStackRef.current.length === 0) return
-    const stack = [...redoStackRef.current]
-    const snapshot = stack.pop()!
-    const current = workspaces.find((w) => w.id === activeId)
-    if (current) {
-      undoStackRef.current = [...undoStackRef.current, current]
-      setUndoDepth(undoStackRef.current.length)
-    }
-    redoStackRef.current = stack
-    setRedoDepth(stack.length)
-    updateWorkspace(activeId, () => snapshot, true)
-  }, [activeId, workspaces, updateWorkspace])
-
-  // Keyboard shortcuts: undo/redo, pane selection ops
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const ctrl = e.ctrlKey || e.metaKey
@@ -483,7 +473,7 @@ export default function ConsolePage() {
       if (ctrl && e.key === 's') {
         e.preventDefault()
         if (activeId) {
-          const ws = workspaces.find((w) => w.id === activeId)
+          const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
           if (ws) persistWorkspace(ws)
         }
         return
@@ -494,14 +484,14 @@ export default function ConsolePage() {
       // Ctrl+A — select all panes in active workspace
       if (ctrl && e.key === 'a' && editMode && activeId) {
         e.preventDefault()
-        const ws = workspaces.find((w) => w.id === activeId)
-        if (ws) setSelectedPaneIds(new Set(ws.panes.map((p) => p.id)))
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+        if (ws) selectAll(ws.panes.map((p) => p.id))
         return
       }
       // Ctrl+C — copy selected panes
       if (ctrl && e.key === 'c' && editMode && activeId && selectedPaneIds.size > 0) {
         e.preventDefault()
-        const ws = workspaces.find((w) => w.id === activeId)
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
         if (ws) {
           copiedPanesRef.current = ws.panes.filter((p) => selectedPaneIds.has(p.id))
         }
@@ -510,54 +500,46 @@ export default function ConsolePage() {
       // Ctrl+V — paste copied panes into active workspace
       if (ctrl && e.key === 'v' && editMode && activeId && copiedPanesRef.current.length > 0) {
         e.preventDefault()
-        updateWorkspace(activeId, (w) => ({
-          ...w,
-          panes: [
-            ...w.panes,
-            ...copiedPanesRef.current.map((p) => ({
-              ...p,
-              id: `pane-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            })),
-          ],
+        const pasted = copiedPanesRef.current.map((p) => ({
+          ...p,
+          id: `pane-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         }))
+        updateWorkspace(activeId, (w) => ({ ...w, panes: [...w.panes, ...pasted] }))
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+        if (ws) scheduleSave(ws)
         return
       }
-      // Escape — clear selection
+      // Escape — cancel swap mode or clear selection
       if (e.key === 'Escape') {
-        setSelectedPaneIds(new Set())
+        if (swapModeSourceId !== null) {
+          setSwapModeSourceId(null)
+          return
+        }
+        clearSelection()
         return
       }
       // Delete / Backspace — remove selected panes (edit mode only)
       if ((e.key === 'Delete' || e.key === 'Backspace') && editMode && activeId) {
-        setSelectedPaneIds((prev) => {
-          if (prev.size === 0) return prev
-          updateWorkspace(activeId, (w) => ({
-            ...w,
-            panes: w.panes.filter((p) => !prev.has(p.id)),
-          }))
-          return new Set()
-        })
+        const currentSelection = useSelectionStore.getState().selectedPaneIds
+        if (currentSelection.size === 0) return
+        updateWorkspace(activeId, (w) => ({
+          ...w,
+          panes: w.panes.filter((p) => !currentSelection.has(p.id)),
+        }))
+        clearSelection()
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+        if (ws) scheduleSave(ws)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleUndo, handleRedo, editMode, activeId, workspaces, updateWorkspace, selectedPaneIds, persistWorkspace])
+  }, [handleUndo, handleRedo, editMode, activeId, selectedPaneIds, swapModeSourceId, updateWorkspace, selectAll, clearSelection, setSwapModeSourceId, persistWorkspace, scheduleSave])
 
   // ---- Pane management ----------------------------------------------------
 
   const handlePaneSelect = useCallback((paneId: string, addToSelection: boolean) => {
-    setSelectedPaneIds((prev) => {
-      if (addToSelection) {
-        const next = new Set(prev)
-        if (next.has(paneId)) next.delete(paneId)
-        else next.add(paneId)
-        return next
-      }
-      // Single-select: toggle off if already the only selected
-      if (prev.size === 1 && prev.has(paneId)) return new Set()
-      return new Set([paneId])
-    })
-  }, [])
+    selectPane(paneId, addToSelection)
+  }, [selectPane])
 
   const handleConfigurePane = useCallback((paneId: string) => {
     setConfiguringPaneId(paneId)
@@ -566,22 +548,119 @@ export default function ConsolePage() {
   const handleRemovePane = useCallback(
     (paneId: string) => {
       if (!activeId) return
+      removePane(activeId, paneId)
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (ws) scheduleSave(ws)
+    },
+    [activeId, removePane, scheduleSave],
+  )
+
+  const handleSwapWith = useCallback((paneId: string) => {
+    setSwapModeSourceId(paneId)
+  }, [setSwapModeSourceId])
+
+  const handleSwapComplete = useCallback(
+    (targetId: string) => {
+      if (!activeId || !swapModeSourceId) return
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (!ws) return
+      const items = ws.gridItems?.length ? ws.gridItems : presetToGridItems(ws.layout, ws.panes)
+      swapPanes(activeId, swapModeSourceId, targetId, items)
+      setSwapModeSourceId(null)
+      const updated = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (updated) scheduleSave(updated)
+    },
+    [activeId, swapModeSourceId, swapPanes, setSwapModeSourceId, scheduleSave],
+  )
+
+  const handleReplacePane = useCallback(
+    (paneId: string, graphicId: string, graphicName: string) => {
+      if (!activeId) return
       updateWorkspace(activeId, (w) => ({
         ...w,
         panes: w.panes.map((p) =>
-          p.id === paneId ? { id: uuidv4(), type: 'blank' as const } : p,
+          p.id === paneId ? { ...p, type: 'graphic', graphicId, title: graphicName } : p,
         ),
       }))
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (ws) scheduleSave(ws)
     },
-    [activeId, updateWorkspace],
+    [activeId, updateWorkspace, scheduleSave],
   )
+
+  // ---------------------------------------------------------------------------
+  // Export helpers
+  // ---------------------------------------------------------------------------
+
+  /** Produces spec-compliant filename: console_workspace_{YYYY-MM-DD_HHmm}.{ext} */
+  function exportFilename(ext: string): string {
+    const now = new Date()
+    const datePart = now.toISOString().slice(0, 10)
+    const timePart = now.toTimeString().slice(0, 5).replace(':', '')
+    return `console_workspace_${datePart}_${timePart}.${ext}`
+  }
+
+  /** Collect all point IDs from all pane types in the active workspace. */
+  function collectWorkspacePointIds(ws: WorkspaceLayout): string[] {
+    const ids: string[] = []
+    for (const pane of ws.panes) {
+      if (pane.trendPointIds?.length) ids.push(...pane.trendPointIds)
+      if (pane.tablePointIds?.length) ids.push(...pane.tablePointIds)
+      // Graphic pane: points are tracked by the realtime store under their graphicId;
+      // include them via the subscribed set which covers all graphic bindings.
+    }
+    return [...new Set(ids)]
+  }
+
+  const LARGE_EXPORT_THRESHOLD = 50_000
+
+  /** Quick-format export triggered from dropdown — uses exportsApi for all 6 formats. */
+  const handleExport = useCallback(async (format: ExportFormat) => {
+    setExportDropdownOpen(false)
+    if (!activeWorkspace) return
+
+    const pointIds = collectWorkspacePointIds(activeWorkspace)
+    // Columns are the point IDs themselves for a workspace export
+    const columns = pointIds.length > 0 ? pointIds : ['tagname', 'value', 'quality', 'timestamp']
+    const estimatedRows = pointIds.length
+
+    try {
+      if (estimatedRows >= LARGE_EXPORT_THRESHOLD) {
+        // Async path: submit job, WebSocket export_complete will notify the user
+        const result = await exportsApi.create({
+          module: 'console',
+          entity: 'workspace',
+          format,
+          scope: 'all',
+          columns,
+        })
+        if (result.type === 'download') {
+          exportsApi.triggerDownload(result.blob, exportFilename(format))
+        }
+        // If 'queued', the WebSocket export_complete event will show a toast
+      } else {
+        const result = await exportsApi.create({
+          module: 'console',
+          entity: 'workspace',
+          format,
+          scope: 'all',
+          columns,
+        })
+        if (result.type === 'download') {
+          // Override server filename with spec-compliant name
+          exportsApi.triggerDownload(result.blob, exportFilename(format))
+        }
+      }
+    } catch (err) {
+      console.error('[Console] Export failed:', err)
+    }
+  }, [activeWorkspace])
 
   const handleSavePane = (updated: PaneConfig) => {
     if (!activeId) return
-    updateWorkspace(activeId, (w) => ({
-      ...w,
-      panes: w.panes.map((p) => (p.id === updated.id ? updated : p)),
-    }))
+    updatePane(activeId, updated)
+    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+    if (ws) scheduleSave(ws)
     setConfiguringPaneId(null)
   }
 
@@ -623,8 +702,10 @@ export default function ConsolePage() {
           }
         }),
       }))
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (ws) scheduleSave(ws)
     },
-    [activeId, updateWorkspace],
+    [activeId, updateWorkspace, scheduleSave],
   )
 
   // ---- Palette double-click quick-place (§5.4) ----------------------------
@@ -690,8 +771,10 @@ export default function ConsolePage() {
           gridItems: [...(w.gridItems ?? []), newGridItem],
         }
       })
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (ws) scheduleSave(ws)
     },
-    [activeId, updateWorkspace, selectedPaneIds],
+    [activeId, updateWorkspace, selectedPaneIds, scheduleSave],
   )
 
   // ---- Configuring pane object --------------------------------------------
@@ -877,7 +960,7 @@ export default function ConsolePage() {
               {/* Layout selector */}
               <select
                 value={activeWorkspace.layout}
-                onChange={(e) => changeLayout(e.target.value as LayoutPreset)}
+                onChange={(e) => handleChangeLayout(e.target.value as LayoutPreset)}
                 style={{
                   background: 'var(--io-surface-secondary)',
                   border: '1px solid var(--io-border)',
@@ -900,10 +983,9 @@ export default function ConsolePage() {
               <button
                 onClick={() => {
                   if (!activeId) return
-                  updateWorkspace(activeId, (w) => ({
-                    ...w,
-                    panes: w.panes.map(() => ({ id: uuidv4(), type: 'blank' as const })),
-                  }))
+                  clearPanes(activeId)
+                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+                  if (ws) persistWorkspace(ws)
                 }}
                 title="Clear all panes"
                 style={{
@@ -923,7 +1005,7 @@ export default function ConsolePage() {
               <button
                 onClick={() => {
                   const newName = prompt('Workspace name:', activeWorkspace.name)
-                  if (newName && newName.trim()) renameWorkspace(activeWorkspace.id, newName.trim())
+                  if (newName && newName.trim()) handleRenameWorkspace(activeWorkspace.id, newName.trim())
                 }}
                 title="Rename workspace"
                 style={{
@@ -1002,7 +1084,7 @@ export default function ConsolePage() {
           {/* Aspect ratio toggle — always visible when a workspace is active */}
           {activeWorkspace && (
             <button
-              onClick={() => setPreserveAspectRatio((v) => !v)}
+              onClick={() => setPreserveAspectRatio(!preserveAspectRatio)}
               title={preserveAspectRatio ? 'Preserve aspect ratio (click to stretch to fill pane)' : 'Stretch to fill pane (click to preserve aspect ratio)'}
               style={{
                 background: preserveAspectRatio ? 'transparent' : 'var(--io-accent)',
@@ -1031,6 +1113,107 @@ export default function ConsolePage() {
               )}
               AR
             </button>
+          )}
+
+          {/* Export split button — gated by console:export */}
+          {activeWorkspace && !editMode && canExport && (
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              {/* Left: open full Export Dialog */}
+              <button
+                onClick={() => setExportDialogOpen(true)}
+                title="Export workspace data"
+                style={{
+                  background: 'transparent', border: '1px solid var(--io-border)',
+                  borderRight: 'none',
+                  borderRadius: '6px 0 0 6px', padding: '5px 10px', cursor: 'pointer',
+                  fontSize: 13, color: 'var(--io-text-primary)',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Export
+              </button>
+              {/* Right: chevron opens quick-format dropdown */}
+              <button
+                onClick={() => setExportDropdownOpen((v) => !v)}
+                title="Quick export format"
+                style={{
+                  background: 'transparent', border: '1px solid var(--io-border)',
+                  borderRadius: '0 6px 6px 0', padding: '5px 7px', cursor: 'pointer',
+                  fontSize: 11, color: 'var(--io-text-primary)',
+                  display: 'flex', alignItems: 'center',
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <polygon points="2,3 8,3 5,7" />
+                </svg>
+              </button>
+              {exportDropdownOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                    onClick={() => setExportDropdownOpen(false)}
+                  />
+                  <div style={{
+                    position: 'absolute', top: '100%', right: 0, zIndex: 1000,
+                    background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)',
+                    borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.3)', overflow: 'hidden',
+                    minWidth: 140, marginTop: 4,
+                  }}>
+                    {(
+                      [
+                        { label: 'CSV',     fmt: 'csv'     },
+                        { label: 'XLSX',    fmt: 'xlsx'    },
+                        { label: 'JSON',    fmt: 'json'    },
+                        { label: 'PDF',     fmt: 'pdf'     },
+                        { label: 'Parquet', fmt: 'parquet' },
+                        { label: 'HTML',    fmt: 'html'    },
+                      ] as { label: string; fmt: ExportFormat }[]
+                    ).map(({ label, fmt }) => (
+                      <button
+                        key={fmt}
+                        onClick={() => { void handleExport(fmt) }}
+                        style={{
+                          display: 'block', width: '100%', padding: '8px 14px',
+                          background: 'none', border: 'none', textAlign: 'left',
+                          cursor: 'pointer', fontSize: 13, color: 'var(--io-text-primary)',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {/* Full Export Dialog */}
+              <ExportDialog
+                open={exportDialogOpen}
+                onClose={() => setExportDialogOpen(false)}
+                module="console"
+                entity="workspace"
+                filteredRowCount={activeWorkspace.panes.reduce((n, p) => {
+                  if (p.trendPointIds?.length) return n + p.trendPointIds.length
+                  if (p.tablePointIds?.length) return n + p.tablePointIds.length
+                  return n
+                }, 0)}
+                totalRowCount={activeWorkspace.panes.reduce((n, p) => {
+                  if (p.trendPointIds?.length) return n + p.trendPointIds.length
+                  if (p.tablePointIds?.length) return n + p.tablePointIds.length
+                  return n
+                }, 0)}
+                availableColumns={[
+                  { id: 'tagname',     label: 'Tag Name'    },
+                  { id: 'value',       label: 'Value'       },
+                  { id: 'quality',     label: 'Quality'     },
+                  { id: 'timestamp',   label: 'Timestamp'   },
+                  { id: 'description', label: 'Description' },
+                  { id: 'units',       label: 'Units'       },
+                ]}
+                visibleColumns={['tagname', 'value', 'quality', 'timestamp']}
+              />
+            </div>
           )}
 
           {/* Edit toggle */}
@@ -1072,10 +1255,79 @@ export default function ConsolePage() {
       {/* Body */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
         {/* Left palette */}
-        <ConsolePalette visible={paletteVisible} onToggle={() => setPaletteVisible((v) => !v)} onQuickPlace={handleQuickPlace} />
+        <ConsolePalette
+          visible={paletteVisible}
+          onToggle={() => setPaletteVisible((v) => !v)}
+          onQuickPlace={handleQuickPlace}
+          workspaces={workspaces}
+          activeWorkspaceId={activeId}
+          onSelectWorkspace={setActiveId}
+        />
 
         {/* Workspace area */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {/* Swap mode banner */}
+          {swapModeSourceId && (
+            <div style={{
+              flexShrink: 0,
+              padding: '6px 14px',
+              background: '#92400E',
+              color: '#FEF3C7',
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              Click another pane to swap positions — press Escape to cancel
+              <button
+                onClick={() => setSwapModeSourceId(null)}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#FEF3C7', cursor: 'pointer', fontSize: 11 }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {/* Auto-save failure banner — persistent until manually retried or save succeeds */}
+          {showSaveBanner && (
+            <div
+              style={{
+                flexShrink: 0,
+                padding: '6px 14px',
+                background: 'var(--io-alarm-high)',
+                color: '#fff',
+                fontSize: 13,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <span>Workspace changes not saved. Retry?</span>
+              <button
+                onClick={() => {
+                  if (activeWorkspace) {
+                    saveFailCountRef.current = 0
+                    setShowSaveBanner(false)
+                    saveMutation.mutate(activeWorkspace)
+                  }
+                }}
+                style={{
+                  background: 'rgba(0,0,0,0.25)',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  borderRadius: 4,
+                  color: '#fff',
+                  padding: '2px 10px',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                }}
+              >
+                Save now
+              </button>
+            </div>
+          )}
+
           {workspaces.length === 0 ? (
             /* Empty state */
             <div
@@ -1139,6 +1391,10 @@ export default function ConsolePage() {
               onPaletteDrop={handlePaletteDrop}
               onGridLayoutChange={handleGridLayoutChange}
               onWorkspaceContextMenu={handleWorkspaceContextMenu}
+              swapModeSourceId={swapModeSourceId}
+              onSwapWith={handleSwapWith}
+              onSwapComplete={handleSwapComplete}
+              onReplace={handleReplacePane}
             />
           ) : (
             <div
@@ -1162,7 +1418,6 @@ export default function ConsolePage() {
           {workspaces.length > 0 && (
             <ConsoleStatusBar
               workspaceName={activeWorkspace?.name ?? ''}
-              subscribedPoints={0}
             />
           )}
         </div>
@@ -1196,6 +1451,8 @@ export default function ConsolePage() {
                       title: 'New Pane',
                     }],
                   }))
+                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+                  if (ws) persistWorkspace(ws)
                 }
                 setWorkspaceBgCtxMenu(null)
               },
@@ -1210,6 +1467,8 @@ export default function ConsolePage() {
                     id: `pane-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                   }))
                   updateWorkspace(activeId, (w) => ({ ...w, panes: [...w.panes, ...pasted] }))
+                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+                  if (ws) persistWorkspace(ws)
                 }
                 setWorkspaceBgCtxMenu(null)
               },
@@ -1218,8 +1477,8 @@ export default function ConsolePage() {
               label: 'Select All',
               onClick: () => {
                 if (activeId) {
-                  const ws = workspaces.find((w) => w.id === activeId)
-                  if (ws) setSelectedPaneIds(new Set(ws.panes.map((p) => p.id)))
+                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+                  if (ws) selectAll(ws.panes.map((p) => p.id))
                 }
                 setWorkspaceBgCtxMenu(null)
               },
@@ -1230,6 +1489,8 @@ export default function ConsolePage() {
               onClick: () => {
                 if (activeId) {
                   updateWorkspace(activeId, (w) => ({ ...w, panes: [] }))
+                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+                  if (ws) persistWorkspace(ws)
                 }
                 setWorkspaceBgCtxMenu(null)
               },
@@ -1238,12 +1499,11 @@ export default function ConsolePage() {
               label: 'Workspace Properties…',
               onClick: () => {
                 setWorkspaceBgCtxMenu(null)
-                // Reuse the rename flow via tab context menu dialog
                 if (activeId) {
-                  const ws = workspaces.find((w) => w.id === activeId)
+                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
                   const newName = prompt('Workspace name:', ws?.name ?? '')
                   if (newName?.trim()) {
-                    updateWorkspace(activeId, (w) => ({ ...w, name: newName.trim() }))
+                    handleRenameWorkspace(activeId, newName.trim())
                   }
                 }
               },
@@ -1271,7 +1531,7 @@ export default function ConsolePage() {
                 divider: false,
                 onClick: () => {
                   const newName = prompt('Workspace name:', ws.name)
-                  if (newName && newName.trim()) renameWorkspace(ws.id, newName.trim())
+                  if (newName && newName.trim()) handleRenameWorkspace(ws.id, newName.trim())
                 },
               },
               {
@@ -1287,7 +1547,17 @@ export default function ConsolePage() {
                 label: 'Delete',
                 divider: true,
                 disabled: workspaces.length <= 1,
-                onClick: () => deleteWorkspace(ws.id),
+                onClick: () => {
+                  const nextWorkspaces = workspaces.filter((w) => w.id !== ws.id)
+                  setWorkspaces(nextWorkspaces)
+                  if (activeId === ws.id) setActiveId(nextWorkspaces[0]?.id ?? null)
+                  if (useApi) {
+                    deleteMutation.mutate(ws.id)
+                  } else {
+                    saveWorkspacesLocal(nextWorkspaces)
+                  }
+                  setTabContextMenu(null)
+                },
               },
             ]}
           />

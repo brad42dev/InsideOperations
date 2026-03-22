@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { graphicsApi } from '../../api/graphics'
+import type { WorkspaceLayout } from './types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -183,6 +184,65 @@ function DraggableItem({
       }}
     >
       {children}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Workspaces section
+// ---------------------------------------------------------------------------
+
+function WorkspacesSection({
+  workspaces,
+  activeWorkspaceId,
+  onSelectWorkspace,
+}: {
+  workspaces: WorkspaceLayout[]
+  activeWorkspaceId: string | null
+  onSelectWorkspace?: (id: string) => void
+}) {
+  if (workspaces.length === 0) {
+    return (
+      <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+        No saved workspaces.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '4px 0' }}>
+      {workspaces.map((ws) => {
+        const isActive = ws.id === activeWorkspaceId
+        return (
+          <button
+            key={ws.id}
+            onClick={() => onSelectWorkspace?.(ws.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              width: '100%', padding: '5px 10px', border: 'none',
+              background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
+              cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+            <span style={{
+              flex: 1, fontSize: 12, color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              fontWeight: isActive ? 600 : 400,
+            }}>
+              {ws.name}
+            </span>
+            {ws.published && (
+              <span style={{ fontSize: 9, background: 'var(--io-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 600, letterSpacing: '0.03em' }}>
+                PUB
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -450,10 +510,14 @@ interface ConsolePaletteProps {
   visible: boolean
   onToggle: () => void
   onQuickPlace?: (item: ConsoleDragItem) => void
+  workspaces?: WorkspaceLayout[]
+  activeWorkspaceId?: string | null
+  onSelectWorkspace?: (id: string) => void
 }
 
-export default function ConsolePalette({ visible, onToggle, onQuickPlace }: ConsolePaletteProps) {
+export default function ConsolePalette({ visible, onToggle, onQuickPlace, workspaces = [], activeWorkspaceId = null, onSelectWorkspace }: ConsolePaletteProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    workspaces: false,
     graphics: true,
     widgets: false,
     points: false,
@@ -543,6 +607,15 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace }: Cons
 
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
+        <AccordionSection
+          title="Workspaces"
+          open={openSections.workspaces}
+          onToggle={() => toggleSection('workspaces')}
+          badge={workspaces.length}
+        >
+          <WorkspacesSection workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} onSelectWorkspace={onSelectWorkspace} />
+        </AccordionSection>
+
         <AccordionSection
           title="Graphics"
           open={openSections.graphics}

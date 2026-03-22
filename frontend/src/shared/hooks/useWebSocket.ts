@@ -19,7 +19,10 @@ export interface PointValue {
   quality: string
   timestamp: string
   stale?: boolean
+  /** True when point is in manual/forced override */
+  manual?: boolean
   alarmPriority?: 1 | 2 | 3 | 4 | 5 | null
+  unacknowledged?: boolean
 }
 
 type PointUpdateHandler = (update: PointValue) => void

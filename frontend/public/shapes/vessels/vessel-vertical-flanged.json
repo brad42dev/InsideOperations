@@ -1,6 +1,27 @@
 {
-  "id": "vessel-vertical-flanged",
+  "$schema": "io-shape-v1",
+  "shape_id": "vessel-vertical-flanged",
+  "version": "1.0",
+  "display_name": "Vertical Vessel (Flanged Both)",
   "category": "vessels",
+  "subcategory": "vertical",
+  "tags": ["vessel", "vertical", "flanged", "separator", "drum"],
+  "recognition_class": "vessel_vertical_flanged",
+  "variants": {
+    "options": {},
+    "configurations": [
+      { "file": "vessel-vertical.svg", "label": "Welded" },
+      { "file": "vessel-vertical-flanged-top.svg", "label": "Flanged Top" },
+      { "file": "vessel-vertical-flanged-bottom.svg", "label": "Flanged Bottom" },
+      { "file": "vessel-vertical-flanged.svg", "label": "Flanged Both" }
+    ]
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
   "connections": [
     { "id": "inlet",        "type": "process", "x": 10, "y": 25, "direction": "left" },

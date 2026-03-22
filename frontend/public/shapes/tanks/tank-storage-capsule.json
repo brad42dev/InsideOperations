@@ -1,6 +1,29 @@
 {
-  "id": "tank-storage-capsule",
+  "$schema": "io-shape-v1",
+  "shape_id": "tank-storage-capsule",
+  "version": "1.0",
+  "display_name": "Tank — Capsule",
   "category": "tanks",
+  "subcategory": "storage",
+  "tags": ["tank", "storage", "capsule", "pressurized", "horizontal"],
+  "recognition_class": "tank_storage_capsule",
+  "variants": {
+    "options": {},
+    "configurations": [
+      { "file": "tank-storage-cone-roof.svg", "label": "Cone Roof" },
+      { "file": "tank-storage-dome-roof.svg", "label": "Dome Roof" },
+      { "file": "tank-storage-open-top.svg", "label": "Open Top" },
+      { "file": "tank-storage-floating-roof.svg", "label": "Floating Roof" },
+      { "file": "tank-storage-sphere.svg", "label": "Sphere" },
+      { "file": "tank-storage-capsule.svg", "label": "Capsule" }
+    ]
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 80 52", "width": 80, "height": 52 },
   "connections": [
     { "id": "inlet-left",  "type": "process", "x": 8,  "y": 26, "direction": "left" },

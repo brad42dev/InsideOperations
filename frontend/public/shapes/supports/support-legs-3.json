@@ -1,8 +1,26 @@
 {
-  "id": "support-legs-3",
+  "$schema": "io-shape-v1",
+  "shape_id": "support-legs-3",
+  "version": "1.0",
+  "display_name": "Support — 3 Splayed Legs",
   "category": "supports",
+  "subcategory": "legs",
+  "tags": ["support", "legs", "3-leg", "vessel", "part"],
+  "recognition_class": "support_legs_3",
   "isPart": true,
   "partClass": "io-part-support",
+  "variants": {
+    "options": {
+      "opt1": { "file": "support-legs-3.svg", "label": "3 Legs" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 86", "width": 40, "height": 86 },
   "connections": [],
   "textZones": [],

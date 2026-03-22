@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" data-io-shape="fan-blower-opt2">
   <g class="io-shape-body">
-    <rect x="5" y="5" width="40" height="40" rx="3" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <circle cx="25" cy="25" r="16" fill="none" stroke="#808080" stroke-width="0.75"/>
-    <path d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z" fill="none" stroke="#808080" stroke-width="0.75" transform="rotate(30, 25, 25)"/>
-    <path d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z" fill="none" stroke="#808080" stroke-width="0.75" transform="rotate(150, 25, 25)"/>
-    <path d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z" fill="none" stroke="#808080" stroke-width="0.75" transform="rotate(270, 25, 25)"/>
+    <rect class="io-stateful" x="5" y="5" width="40" height="40" rx="3" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <circle class="io-stateful" cx="25" cy="25" r="16" fill="none" stroke="#808080" stroke-width="0.75"/>
+    <path class="io-stateful" d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z" fill="none" stroke="#808080" stroke-width="0.75" transform="rotate(30, 25, 25)"/>
+    <path class="io-stateful" d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z" fill="none" stroke="#808080" stroke-width="0.75" transform="rotate(150, 25, 25)"/>
+    <path class="io-stateful" d="M 25,25 C 25.8,25 29.5,11 25,11 C 20.5,11 24.2,25 25,25 Z" fill="none" stroke="#808080" stroke-width="0.75" transform="rotate(270, 25, 25)"/>
     <circle cx="25" cy="25" r="1.5" fill="#808080" stroke="none"/>
   </g>
   <g class="io-connections" display="none">

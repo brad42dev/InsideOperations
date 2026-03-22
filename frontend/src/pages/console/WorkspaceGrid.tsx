@@ -112,6 +112,14 @@ export interface WorkspaceGridProps {
   onGridLayoutChange?: (items: GridItem[]) => void
   /** Called when user right-clicks the workspace background (not on a pane) */
   onWorkspaceContextMenu?: (x: number, y: number) => void
+  /** Pane ID that initiated "Swap With..." mode */
+  swapModeSourceId?: string | null
+  /** Called when user clicks "Swap With..." on a pane */
+  onSwapWith?: (paneId: string) => void
+  /** Called when user clicks a swap target pane */
+  onSwapComplete?: (targetId: string) => void
+  /** Called when user selects a new graphic in the Replace dialog */
+  onReplace?: (paneId: string, graphicId: string, graphicName: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +142,10 @@ export default function WorkspaceGrid({
   onSelectPane,
   onPaletteDrop,
   onGridLayoutChange,
+  swapModeSourceId,
+  onSwapWith,
+  onSwapComplete,
+  onReplace,
 }: WorkspaceGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
@@ -449,6 +461,10 @@ export default function WorkspaceGrid({
                 onSelect={onSelectPane}
                 onPaletteDrop={onPaletteDrop}
                 preserveAspectRatio={preserveAspectRatio}
+                swapModeSourceId={swapModeSourceId}
+                onSwapWith={onSwapWith}
+                onSwapComplete={onSwapComplete}
+                onReplace={onReplace}
               />
             </div>
           )

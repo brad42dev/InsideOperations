@@ -1,6 +1,29 @@
 {
-  "id": "column-distillation-packed",
+  "$schema": "io-shape-v1",
+  "shape_id": "column-distillation-packed",
+  "version": "1.0",
+  "display_name": "Column — Packed",
   "category": "columns",
+  "subcategory": "distillation",
+  "tags": ["column", "distillation", "separation", "fractionator", "packed"],
+  "recognition_class": "column_distillation_packed",
+  "variants": {
+    "options": {},
+    "configurations": [
+      { "file": "column-distillation.svg", "label": "Standard Plain" },
+      { "file": "column-distillation-trayed.svg", "label": "Trayed-6" },
+      { "file": "column-distillation-trayed-10.svg", "label": "Trayed-10" },
+      { "file": "column-distillation-packed.svg", "label": "Packed" },
+      { "file": "column-distillation-narrow.svg", "label": "Narrow Plain" },
+      { "file": "column-distillation-wide.svg", "label": "Wide Plain" }
+    ]
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 44 120", "width": 44, "height": 120 },
   "connections": [
     { "id": "feed",           "type": "process", "x": 10, "y": 60,  "direction": "left" },

@@ -31,6 +31,7 @@ export interface MobileSyncPayload {
   captured_at?: string
   gps_lat?: number
   gps_lon?: number
+  idempotency_key?: string
 }
 
 export interface BatchSyncResult {

@@ -27,3 +27,11 @@ io-db = { path = "../../crates/io-db" }
 uuid.workspace = true
 chrono.workspace = true
 reqwest.workspace = true
+dashmap.workspace = true
+tokio-util.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }

@@ -1,4 +1,5 @@
 use chrono::Utc;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -21,7 +22,7 @@ pub fn dispatch_tier(
 async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     // Load alert status and policy_id
     let alert_row = sqlx::query(
-        "SELECT status, policy_id, title, body FROM alert_instances WHERE id = $1",
+        "SELECT status, severity, escalation_policy, title, message FROM alerts WHERE id = $1",
     )
     .bind(alert_id)
     .fetch_optional(&state.db)
@@ -41,9 +42,10 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
 
     use sqlx::Row;
     let status: String = alert_row.get("status");
-    let policy_id: Option<Uuid> = alert_row.get("policy_id");
+    let severity: String = alert_row.get("severity");
+    let escalation_policy: Option<serde_json::Value> = alert_row.get("escalation_policy");
     let title: String = alert_row.get("title");
-    let body: Option<String> = alert_row.get("body");
+    let message: Option<String> = alert_row.get("message");
 
     // Only dispatch if still active
     if status != "active" {
@@ -54,6 +56,13 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
         );
         return;
     }
+
+    // Extract policy_id from escalation_policy JSONB if present
+    let policy_id: Option<Uuid> = escalation_policy
+        .as_ref()
+        .and_then(|v| v.get("policy_id"))
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<Uuid>().ok());
 
     let policy_id = match policy_id {
         Some(p) => p,
@@ -90,40 +99,47 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     let notify_users: Vec<Uuid> = tier_row.get("notify_users");
     let channels: Vec<String> = tier_row.get("channels");
 
-    // Update current_tier on the alert instance
+    // Update current_escalation on the alert
     if let Err(e) = sqlx::query(
-        "UPDATE alert_instances SET current_tier = $1 WHERE id = $2",
+        "UPDATE alerts SET current_escalation = $1 WHERE id = $2",
     )
     .bind(tier)
     .bind(alert_id)
     .execute(&state.db)
     .await
     {
-        error!(alert_id = %alert_id, error = %e, "dispatch_tier: failed to update current_tier");
+        error!(alert_id = %alert_id, error = %e, "dispatch_tier: failed to update current_escalation");
     }
 
     // Dispatch each channel
     for channel in &channels {
         match channel.as_str() {
             "email" => {
-                dispatch_email(&state, alert_id, tier, &title, body.as_deref(), &notify_users)
+                dispatch_email(&state, alert_id, tier, &title, message.as_deref(), &notify_users)
                     .await;
             }
             "websocket" => {
-                // WebSocket push via data-broker: logged for now.
-                // Full implementation would POST to data-broker's broadcast endpoint.
-                info!(
-                    alert_id = %alert_id,
+                dispatch_websocket(
+                    &state,
+                    alert_id,
                     tier,
-                    "dispatch_tier: websocket channel — would push via data-broker"
-                );
-                record_delivery(&state, alert_id, tier, "websocket", None, "sent", None).await;
+                    &title,
+                    message.as_deref(),
+                    &severity,
+                    &channels,
+                )
+                .await;
             }
             other => {
                 warn!(alert_id = %alert_id, channel = other, "dispatch_tier: unknown channel");
             }
         }
     }
+
+    // Create a CancellationToken for this alert and register it.
+    // A single token per alert covers all future tiers — cancelling it stops the chain.
+    let token = CancellationToken::new();
+    state.escalation_tokens.insert(alert_id, token.clone());
 
     // Schedule next escalation after escalate_after_mins
     let delay_mins = escalate_after_mins as u64;
@@ -132,11 +148,19 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     // Clone state for the background task
     let state_for_task = state.clone();
     tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(delay_mins * 60)).await;
+        tokio::select! {
+            _ = token.cancelled() => {
+                info!(alert_id = %alert_id, tier, "Escalation timer cancelled");
+                // Remove the token from the registry (clean up)
+                state_for_task.escalation_tokens.remove(&alert_id);
+                return;
+            }
+            _ = tokio::time::sleep(std::time::Duration::from_secs(delay_mins * 60)) => {}
+        }
 
         // Re-check if alert is still active before escalating
         let still_active = sqlx::query(
-            "SELECT status FROM alert_instances WHERE id = $1",
+            "SELECT status FROM alerts WHERE id = $1",
         )
         .bind(alert_id)
         .fetch_optional(&state_for_task.db)
@@ -149,16 +173,21 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
             }
             Ok(None) => {
                 warn!(alert_id = %alert_id, "Alert disappeared, halting escalation");
+                state_for_task.escalation_tokens.remove(&alert_id);
                 return;
             }
             Err(e) => {
                 error!(alert_id = %alert_id, error = %e, "Failed to check alert status for escalation");
+                state_for_task.escalation_tokens.remove(&alert_id);
                 return;
             }
         };
 
         match current_status.as_deref() {
             Some("active") => {
+                // Remove old token before dispatching next tier (next tier will insert a new one)
+                state_for_task.escalation_tokens.remove(&alert_id);
+
                 // Check if next tier exists
                 let next_exists = sqlx::query(
                     "SELECT EXISTS(SELECT 1 FROM escalation_tiers WHERE policy_id = $1 AND tier_order = $2) AS exists",
@@ -186,12 +215,88 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
             }
             Some(s) => {
                 info!(alert_id = %alert_id, status = s, "Alert no longer active, halting escalation");
+                state_for_task.escalation_tokens.remove(&alert_id);
             }
             None => {
                 warn!(alert_id = %alert_id, "Alert disappeared, halting escalation");
+                state_for_task.escalation_tokens.remove(&alert_id);
             }
         }
     });
+}
+
+/// Broadcast an alert_notification WebSocket message to ALL connected sessions
+/// via the data-broker's /internal/broadcast HTTP endpoint.
+///
+/// For EMERGENCY severity, `full_screen_takeover` is set to `true`.
+/// Delivery is recorded as "sent" on HTTP 200, "failed" otherwise.
+async fn dispatch_websocket(
+    state: &AppState,
+    alert_id: Uuid,
+    tier: i16,
+    title: &str,
+    body: Option<&str>,
+    severity: &str,
+    channels_active: &[String],
+) {
+    let payload = serde_json::json!({
+        "type": "alert_notification",
+        "payload": {
+            "alert_id": alert_id,
+            "severity": severity,
+            "title": title,
+            "message": body.unwrap_or(""),
+            "triggered_at": Utc::now(),
+            "triggered_by": "Alert Service",
+            "requires_acknowledgment": true,
+            "full_screen_takeover": severity == "emergency",
+            "channels_active": channels_active,
+        }
+    });
+
+    let url = format!("{}/internal/broadcast", state.config.data_broker_url);
+    let result = state
+        .http
+        .post(&url)
+        .header("x-io-service-secret", &state.config.service_secret)
+        .json(&payload)
+        .send()
+        .await;
+
+    let (delivery_status, failure_reason): (&str, Option<String>) = match result {
+        Ok(resp) if resp.status().is_success() => {
+            info!(
+                alert_id = %alert_id,
+                tier,
+                "dispatch_websocket: alert_notification broadcast sent"
+            );
+            ("sent", None)
+        }
+        Ok(resp) => {
+            let code = resp.status().as_u16();
+            let msg = format!("data-broker returned HTTP {}", code);
+            warn!(alert_id = %alert_id, tier, status_code = code, "dispatch_websocket: broadcast failed");
+            ("failed", Some(msg))
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            error!(alert_id = %alert_id, error = %msg, "dispatch_websocket: request error");
+            ("failed", Some(msg))
+        }
+    };
+
+    record_delivery(
+        state,
+        alert_id,
+        tier,
+        "websocket",
+        None,
+        None,
+        None,
+        delivery_status,
+        failure_reason.as_deref(),
+    )
+    .await;
 }
 
 /// Send email notifications via the email-service /internal/send endpoint.
@@ -200,7 +305,7 @@ async fn dispatch_email(
     alert_id: Uuid,
     tier: i16,
     title: &str,
-    body: Option<&str>,
+    message: Option<&str>,
     recipients: &[Uuid],
 ) {
     if recipients.is_empty() {
@@ -209,16 +314,16 @@ async fn dispatch_email(
     }
 
     for &recipient_id in recipients {
-        // Look up the user's email address
-        let email_row = sqlx::query("SELECT email FROM users WHERE id = $1")
+        // Look up the user's email address and display name
+        let email_row = sqlx::query("SELECT email, display_name FROM users WHERE id = $1")
             .bind(recipient_id)
             .fetch_optional(&state.db)
             .await;
 
-        let email_addr: String = match email_row {
+        let (email_addr, recipient_name): (String, Option<String>) = match email_row {
             Ok(Some(row)) => {
                 use sqlx::Row;
-                row.get("email")
+                (row.get("email"), row.try_get("display_name").unwrap_or(None))
             }
             Ok(None) => {
                 warn!(
@@ -232,6 +337,8 @@ async fn dispatch_email(
                     tier,
                     "email",
                     Some(recipient_id),
+                    None,
+                    None,
                     "failed",
                     Some("User not found"),
                 )
@@ -247,6 +354,8 @@ async fn dispatch_email(
                     tier,
                     "email",
                     Some(recipient_id),
+                    None,
+                    None,
                     "failed",
                     Some(&err_str),
                 )
@@ -258,11 +367,11 @@ async fn dispatch_email(
         let payload = serde_json::json!({
             "to": email_addr,
             "subject": format!("[Alert] {}", title),
-            "text": body.unwrap_or(title),
+            "text": message.unwrap_or(title),
             "html": format!(
                 "<p><strong>Alert:</strong> {}</p><p>{}</p>",
                 title,
-                body.unwrap_or("")
+                message.unwrap_or("")
             ),
         });
 
@@ -288,6 +397,8 @@ async fn dispatch_email(
                     tier,
                     "email",
                     Some(recipient_id),
+                    recipient_name.as_deref(),
+                    Some(&email_addr),
                     "sent",
                     None,
                 )
@@ -308,6 +419,8 @@ async fn dispatch_email(
                     tier,
                     "email",
                     Some(recipient_id),
+                    recipient_name.as_deref(),
+                    Some(&email_addr),
                     "failed",
                     Some(&err_msg),
                 )
@@ -322,6 +435,8 @@ async fn dispatch_email(
                     tier,
                     "email",
                     Some(recipient_id),
+                    recipient_name.as_deref(),
+                    Some(&email_addr),
                     "failed",
                     Some(&err_str),
                 )
@@ -332,30 +447,36 @@ async fn dispatch_email(
 }
 
 /// Insert a delivery record into alert_deliveries.
+#[allow(clippy::too_many_arguments)]
 async fn record_delivery(
     state: &AppState,
     alert_id: Uuid,
-    tier: i16,
-    channel: &str,
-    recipient_id: Option<Uuid>,
+    escalation_level: i16,
+    channel_type: &str,
+    recipient_user_id: Option<Uuid>,
+    recipient_name: Option<&str>,
+    recipient_contact: Option<&str>,
     status: &str,
-    error: Option<&str>,
+    failure_reason: Option<&str>,
 ) {
     let sent_at: Option<chrono::DateTime<Utc>> =
         if status == "sent" { Some(Utc::now()) } else { None };
 
     if let Err(e) = sqlx::query(
         "INSERT INTO alert_deliveries
-             (alert_id, tier, channel, recipient_id, status, sent_at, error)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+             (alert_id, escalation_level, channel_type, recipient_user_id,
+              recipient_name, recipient_contact, status, sent_at, failure_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(alert_id)
-    .bind(tier)
-    .bind(channel)
-    .bind(recipient_id)
+    .bind(escalation_level)
+    .bind(channel_type)
+    .bind(recipient_user_id)
+    .bind(recipient_name)
+    .bind(recipient_contact)
     .bind(status)
     .bind(sent_at)
-    .bind(error)
+    .bind(failure_reason)
     .execute(&state.db)
     .await
     {

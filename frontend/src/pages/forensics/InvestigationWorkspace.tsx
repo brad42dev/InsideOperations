@@ -156,6 +156,17 @@ function StageCard({
     },
   })
 
+  const updateEvidenceMutation = useMutation({
+    mutationFn: async ({ evidenceId, config }: { evidenceId: string; config: Record<string, unknown> }) => {
+      const result = await forensicsApi.updateEvidence(investigationId, stage.id, evidenceId, config)
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] })
+    },
+  })
+
   const formatRange = (start: string, end: string) => {
     const s = new Date(start).toLocaleString()
     const e = new Date(end).toLocaleString()
@@ -355,6 +366,15 @@ function StageCard({
                   : () => deleteEvidenceMutation.mutate(ev.id)
               }
               readOnly={readOnly}
+              onUpdateConfig={
+                readOnly
+                  ? undefined
+                  : (evidenceId, patch) => updateEvidenceMutation.mutate({ evidenceId, config: patch })
+              }
+              isUpdating={
+                updateEvidenceMutation.isPending &&
+                updateEvidenceMutation.variables?.evidenceId === ev.id
+              }
             />
           ))}
 

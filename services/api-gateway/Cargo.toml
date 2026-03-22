@@ -36,14 +36,26 @@ zip.workspace = true
 sha2.workspace = true
 csv = "1"
 rust_xlsxwriter = "0.81"
+parquet = { version = "52", features = ["snap"] }
 ndarray = "0.16"
 ndarray-stats = "0.6"
 rustfft = "6.4"
 realfft = "3.5"
 rayon = "1.10"
+rhai.workspace = true
 resvg.workspace = true
 tiny-skia.workspace = true
 x509-parser.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+futures.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+io-auth = { path = "../../crates/io-auth" }
+assert-json-diff.workspace = true
 
 [features]
 # Enable Typst-based PDF compilation.  Requires the typst-as-lib crate to be

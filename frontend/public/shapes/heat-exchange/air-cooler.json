@@ -1,6 +1,24 @@
 {
-  "id": "air-cooler",
+  "$schema": "io-shape-v1",
+  "shape_id": "air-cooler",
+  "version": "1.0",
+  "display_name": "Air Cooler / Fin-Fan",
   "category": "heat-exchange",
+  "subcategory": "air-cooler",
+  "tags": ["air-cooler", "fin-fan", "aerial-cooler", "heat-transfer"],
+  "recognition_class": "air_cooler",
+  "variants": {
+    "options": {
+      "opt1": { "file": "air-cooler.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "-8 0 76 38", "width": 76, "height": 38 },
   "connections": [
     { "id": "inlet",  "type": "process", "x": -4, "y": 11, "direction": "left" },

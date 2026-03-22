@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 58 20" data-io-shape="hx-plate-opt1">
   <g class="io-shape-body">
-    <rect x="0" y="0" width="54" height="16" fill="none" stroke="#808080" stroke-width="1"/>
-    <line x1="13.5" y1="0" x2="13.5" y2="16" stroke="#808080" stroke-width="1"/>
-    <line x1="27" y1="0" x2="27" y2="16" stroke="#808080" stroke-width="1"/>
-    <line x1="40.5" y1="0" x2="40.5" y2="16" stroke="#808080" stroke-width="1"/>
-    <line x1="10" y1="0" x2="44" y2="16" stroke="#808080" stroke-width="1"/>
-    <line x1="10" y1="16" x2="44" y2="0" stroke="#808080" stroke-width="1"/>
+    <rect class="io-stateful" x="0" y="0" width="54" height="16" fill="none" stroke="#808080" stroke-width="1"/>
+    <line class="io-stateful" x1="13.5" y1="0" x2="13.5" y2="16" stroke="#808080" stroke-width="1"/>
+    <line class="io-stateful" x1="27" y1="0" x2="27" y2="16" stroke="#808080" stroke-width="1"/>
+    <line class="io-stateful" x1="40.5" y1="0" x2="40.5" y2="16" stroke="#808080" stroke-width="1"/>
+    <line class="io-stateful" x1="10" y1="0" x2="44" y2="16" stroke="#808080" stroke-width="1"/>
+    <line class="io-stateful" x1="10" y1="16" x2="44" y2="0" stroke="#808080" stroke-width="1"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="inlet-left" data-conn-type="process" data-conn-dir="left" cx="-2" cy="8" r="3"/>

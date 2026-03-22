@@ -52,6 +52,12 @@ enum TargetType {
     OpcSources,
     AlarmDefinitions,
     ImportConnections,
+    PointsMetadata,
+    UserRoles,
+    ApplicationSettings,
+    PointSources,
+    DashboardMetadata,
+    ImportDefinitions,
 }
 
 impl TargetType {
@@ -61,6 +67,12 @@ impl TargetType {
             "opc_sources" => Some(Self::OpcSources),
             "alarm_definitions" => Some(Self::AlarmDefinitions),
             "import_connections" => Some(Self::ImportConnections),
+            "points_metadata" => Some(Self::PointsMetadata),
+            "user_roles" => Some(Self::UserRoles),
+            "application_settings" => Some(Self::ApplicationSettings),
+            "point_sources" => Some(Self::PointSources),
+            "dashboard_metadata" => Some(Self::DashboardMetadata),
+            "import_definitions" => Some(Self::ImportDefinitions),
             _ => None,
         }
     }
@@ -71,16 +83,38 @@ impl TargetType {
             Self::OpcSources => "opc_sources",
             Self::AlarmDefinitions => "alarm_definitions",
             Self::ImportConnections => "import_connections",
+            Self::PointsMetadata => "points_metadata",
+            Self::UserRoles => "user_roles",
+            Self::ApplicationSettings => "application_settings",
+            Self::PointSources => "point_sources",
+            Self::DashboardMetadata => "dashboard_metadata",
+            Self::ImportDefinitions => "import_definitions",
         }
     }
 
     /// CSV header row for this target type.
     fn csv_headers(&self) -> &'static str {
         match self {
-            Self::Users => "id,username,full_name,email,enabled",
-            Self::OpcSources => "id,name,endpoint_url,enabled",
-            Self::AlarmDefinitions => "id,name,point_tag,high_high,high,low,low_low,enabled",
-            Self::ImportConnections => "id,name,connector_type,enabled",
+            Self::Users => "__id,username [READ-ONLY],full_name,email,enabled",
+            Self::OpcSources => "__id,name,endpoint_url,enabled",
+            Self::AlarmDefinitions => "__id,name,point_tag,high_high,high,low,low_low,enabled",
+            Self::ImportConnections => "__id,name,connector_type,enabled",
+            // Points metadata: editable + read-only reference columns
+            Self::PointsMetadata => {
+                "__id,tagname [READ-ONLY],description [READ-ONLY],engineering_units [READ-ONLY],\
+active,criticality,area,aggregation_types,barcode,notes,gps_latitude,gps_longitude,\
+write_frequency_seconds,default_graphic_id"
+            }
+            // User roles: one row per user-role pair
+            Self::UserRoles => "__id,user_id [READ-ONLY],username [READ-ONLY],role_id,role_name [READ-ONLY]",
+            // Application settings
+            Self::ApplicationSettings => "__id,key [READ-ONLY],description [READ-ONLY],value",
+            // Point sources
+            Self::PointSources => "__id,name,description,enabled",
+            // Dashboard metadata
+            Self::DashboardMetadata => "__id,name,published",
+            // Import definitions
+            Self::ImportDefinitions => "__id,name,description,enabled,batch_size,error_strategy",
         }
     }
 }
@@ -345,6 +379,173 @@ async fn fetch_current_rows(db: &sqlx::PgPool, tt: &TargetType) -> Result<Vec<Js
                 })
                 .collect()
         }
+        TargetType::PointsMetadata => {
+            let rows = sqlx::query(
+                r#"SELECT id, tagname, description, engineering_units,
+                          active, criticality, area, aggregation_types,
+                          barcode, notes, gps_latitude, gps_longitude,
+                          write_frequency_seconds, default_graphic_id
+                   FROM points_metadata
+                   ORDER BY tagname"#,
+            )
+            .fetch_all(db)
+            .await
+            .map_err(IoError::Database)?;
+            rows.iter()
+                .map(|r| {
+                    let id: Uuid = r.try_get("id").unwrap_or_default();
+                    let tagname: String = r.try_get("tagname").unwrap_or_default();
+                    let description: Option<String> = r.try_get("description").ok().flatten();
+                    let engineering_units: Option<String> = r.try_get("engineering_units").ok().flatten();
+                    let active: bool = r.try_get("active").unwrap_or(true);
+                    let criticality: Option<String> = r.try_get("criticality").ok().flatten();
+                    let area: Option<String> = r.try_get("area").ok().flatten();
+                    let aggregation_types: Option<String> = r.try_get("aggregation_types").ok().flatten();
+                    let barcode: Option<String> = r.try_get("barcode").ok().flatten();
+                    let notes: Option<String> = r.try_get("notes").ok().flatten();
+                    let gps_latitude: Option<f64> = r.try_get("gps_latitude").ok().flatten();
+                    let gps_longitude: Option<f64> = r.try_get("gps_longitude").ok().flatten();
+                    let write_frequency_seconds: Option<i32> = r.try_get("write_frequency_seconds").ok().flatten();
+                    let default_graphic_id: Option<Uuid> = r.try_get("default_graphic_id").ok().flatten();
+                    Ok(json!({
+                        "id": id.to_string(),
+                        "tagname": tagname,
+                        "description": description,
+                        "engineering_units": engineering_units,
+                        "active": active,
+                        "criticality": criticality,
+                        "area": area,
+                        "aggregation_types": aggregation_types,
+                        "barcode": barcode,
+                        "notes": notes,
+                        "gps_latitude": gps_latitude,
+                        "gps_longitude": gps_longitude,
+                        "write_frequency_seconds": write_frequency_seconds,
+                        "default_graphic_id": default_graphic_id.map(|u| u.to_string()),
+                    }))
+                })
+                .collect()
+        }
+        TargetType::UserRoles => {
+            // One row per user-role pair; include username and role_name as read-only references
+            let rows = sqlx::query(
+                r#"SELECT ur.id, ur.user_id, u.username, ur.role_id, r.name AS role_name
+                   FROM user_roles ur
+                   JOIN users u ON u.id = ur.user_id
+                   JOIN roles r ON r.id = ur.role_id
+                   ORDER BY u.username, r.name"#,
+            )
+            .fetch_all(db)
+            .await
+            .map_err(IoError::Database)?;
+            rows.iter()
+                .map(|r| {
+                    let id: Uuid = r.try_get("id").unwrap_or_default();
+                    let user_id: Uuid = r.try_get("user_id").unwrap_or_default();
+                    let username: String = r.try_get("username").unwrap_or_default();
+                    let role_id: Uuid = r.try_get("role_id").unwrap_or_default();
+                    let role_name: String = r.try_get("role_name").unwrap_or_default();
+                    Ok(json!({
+                        "id": id.to_string(),
+                        "user_id": user_id.to_string(),
+                        "username": username,
+                        "role_id": role_id.to_string(),
+                        "role_name": role_name,
+                    }))
+                })
+                .collect()
+        }
+        TargetType::ApplicationSettings => {
+            let rows = sqlx::query(
+                "SELECT id, key, description, value FROM settings ORDER BY key",
+            )
+            .fetch_all(db)
+            .await
+            .map_err(IoError::Database)?;
+            rows.iter()
+                .map(|r| {
+                    let id: Uuid = r.try_get("id").unwrap_or_default();
+                    let key: String = r.try_get("key").unwrap_or_default();
+                    let description: Option<String> = r.try_get("description").ok().flatten();
+                    let value: Option<String> = r.try_get("value").ok().flatten();
+                    Ok(json!({
+                        "id": id.to_string(),
+                        "key": key,
+                        "description": description,
+                        "value": value,
+                    }))
+                })
+                .collect()
+        }
+        TargetType::PointSources => {
+            let rows = sqlx::query(
+                "SELECT id, name, description, enabled FROM point_sources ORDER BY name",
+            )
+            .fetch_all(db)
+            .await
+            .map_err(IoError::Database)?;
+            rows.iter()
+                .map(|r| {
+                    let id: Uuid = r.try_get("id").unwrap_or_default();
+                    let name: String = r.try_get("name").unwrap_or_default();
+                    let description: Option<String> = r.try_get("description").ok().flatten();
+                    let enabled: bool = r.try_get("enabled").unwrap_or(true);
+                    Ok(json!({
+                        "id": id.to_string(),
+                        "name": name,
+                        "description": description,
+                        "enabled": enabled,
+                    }))
+                })
+                .collect()
+        }
+        TargetType::DashboardMetadata => {
+            let rows = sqlx::query(
+                "SELECT id, name, published FROM dashboards ORDER BY name",
+            )
+            .fetch_all(db)
+            .await
+            .map_err(IoError::Database)?;
+            rows.iter()
+                .map(|r| {
+                    let id: Uuid = r.try_get("id").unwrap_or_default();
+                    let name: String = r.try_get("name").unwrap_or_default();
+                    let published: bool = r.try_get("published").unwrap_or(false);
+                    Ok(json!({
+                        "id": id.to_string(),
+                        "name": name,
+                        "published": published,
+                    }))
+                })
+                .collect()
+        }
+        TargetType::ImportDefinitions => {
+            let rows = sqlx::query(
+                r#"SELECT id, name, description, enabled, batch_size, error_strategy
+                   FROM import_definitions ORDER BY name"#,
+            )
+            .fetch_all(db)
+            .await
+            .map_err(IoError::Database)?;
+            rows.iter()
+                .map(|r| {
+                    let id: Uuid = r.try_get("id").unwrap_or_default();
+                    let name: String = r.try_get("name").unwrap_or_default();
+                    let description: Option<String> = r.try_get("description").ok().flatten();
+                    let enabled: bool = r.try_get("enabled").unwrap_or(true);
+                    let batch_size: Option<i32> = r.try_get("batch_size").ok().flatten();
+                    let error_strategy: Option<String> = r.try_get("error_strategy").ok().flatten();
+                    Ok(json!({
+                        "id": id.to_string(),
+                        "name": name,
+                        "description": description,
+                        "enabled": enabled,
+                        "batch_size": batch_size,
+                        "error_strategy": error_strategy,
+                    }))
+                })
+                .collect()
+        }
     }
 }
 
@@ -367,10 +568,19 @@ fn compute_diff(current: &[JsonValue], incoming: &[JsonValue], tt: &TargetType) 
         .collect();
 
     let mutable_fields: &[&str] = match tt {
-        TargetType::Users => &["username", "full_name", "email", "enabled"],
+        TargetType::Users => &["full_name", "email", "enabled"],
         TargetType::OpcSources => &["name", "endpoint_url", "enabled"],
         TargetType::AlarmDefinitions => &["name", "point_tag", "high_high", "high", "low", "low_low", "enabled"],
         TargetType::ImportConnections => &["name", "connector_type", "enabled"],
+        TargetType::PointsMetadata => &[
+            "active", "criticality", "area", "aggregation_types", "barcode",
+            "notes", "gps_latitude", "gps_longitude", "write_frequency_seconds", "default_graphic_id",
+        ],
+        TargetType::UserRoles => &["role_id"],
+        TargetType::ApplicationSettings => &["value"],
+        TargetType::PointSources => &["name", "description", "enabled"],
+        TargetType::DashboardMetadata => &["name", "published"],
+        TargetType::ImportDefinitions => &["name", "description", "enabled", "batch_size", "error_strategy"],
     };
 
     let mut added = Vec::new();
@@ -428,20 +638,20 @@ fn csv_row_to_json(
 ) -> JsonValue {
     match tt {
         TargetType::Users => json!({
-            "id": row.get("id").cloned().unwrap_or_default(),
-            "username": row.get("username").cloned().unwrap_or_default(),
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
+            "username": row.get("username [READ-ONLY]").or_else(|| row.get("username")).cloned().unwrap_or_default(),
             "full_name": row.get("full_name").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
             "email": row.get("email").cloned().unwrap_or_default(),
             "enabled": row.get("enabled").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(true),
         }),
         TargetType::OpcSources => json!({
-            "id": row.get("id").cloned().unwrap_or_default(),
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
             "name": row.get("name").cloned().unwrap_or_default(),
             "endpoint_url": row.get("endpoint_url").cloned().unwrap_or_default(),
             "enabled": row.get("enabled").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(true),
         }),
         TargetType::AlarmDefinitions => json!({
-            "id": row.get("id").cloned().unwrap_or_default(),
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
             "name": row.get("name").cloned().unwrap_or_default(),
             "point_tag": row.get("point_tag").cloned().unwrap_or_default(),
             "high_high": row.get("high_high").and_then(|v| v.parse::<f64>().ok()),
@@ -451,10 +661,60 @@ fn csv_row_to_json(
             "enabled": row.get("enabled").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(true),
         }),
         TargetType::ImportConnections => json!({
-            "id": row.get("id").cloned().unwrap_or_default(),
+            "id": row.get("id").or_else(|| row.get("__id")).cloned().unwrap_or_default(),
             "name": row.get("name").cloned().unwrap_or_default(),
             "connector_type": row.get("connector_type").cloned().unwrap_or_default(),
             "enabled": row.get("enabled").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(true),
+        }),
+        TargetType::PointsMetadata => json!({
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
+            // read-only reference fields preserved for display
+            "tagname": row.get("tagname [READ-ONLY]").or_else(|| row.get("tagname")).cloned().unwrap_or_default(),
+            "description": row.get("description [READ-ONLY]").or_else(|| row.get("description")).and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "engineering_units": row.get("engineering_units [READ-ONLY]").or_else(|| row.get("engineering_units")).and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            // editable fields
+            "active": row.get("active").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(true),
+            "criticality": row.get("criticality").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "area": row.get("area").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "aggregation_types": row.get("aggregation_types").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "barcode": row.get("barcode").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "notes": row.get("notes").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "gps_latitude": row.get("gps_latitude").and_then(|v| v.parse::<f64>().ok()),
+            "gps_longitude": row.get("gps_longitude").and_then(|v| v.parse::<f64>().ok()),
+            "write_frequency_seconds": row.get("write_frequency_seconds").and_then(|v| v.parse::<i32>().ok()),
+            "default_graphic_id": row.get("default_graphic_id").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+        }),
+        TargetType::UserRoles => json!({
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
+            "user_id": row.get("user_id [READ-ONLY]").or_else(|| row.get("user_id")).cloned().unwrap_or_default(),
+            "username": row.get("username [READ-ONLY]").or_else(|| row.get("username")).cloned().unwrap_or_default(),
+            "role_id": row.get("role_id").cloned().unwrap_or_default(),
+            "role_name": row.get("role_name [READ-ONLY]").or_else(|| row.get("role_name")).cloned().unwrap_or_default(),
+        }),
+        TargetType::ApplicationSettings => json!({
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
+            "key": row.get("key [READ-ONLY]").or_else(|| row.get("key")).cloned().unwrap_or_default(),
+            "description": row.get("description [READ-ONLY]").or_else(|| row.get("description")).and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "value": row.get("value").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+        }),
+        TargetType::PointSources => json!({
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
+            "name": row.get("name").cloned().unwrap_or_default(),
+            "description": row.get("description").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "enabled": row.get("enabled").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(true),
+        }),
+        TargetType::DashboardMetadata => json!({
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
+            "name": row.get("name").cloned().unwrap_or_default(),
+            "published": row.get("published").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(false),
+        }),
+        TargetType::ImportDefinitions => json!({
+            "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
+            "name": row.get("name").cloned().unwrap_or_default(),
+            "description": row.get("description").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
+            "enabled": row.get("enabled").map(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes")).unwrap_or(true),
+            "batch_size": row.get("batch_size").and_then(|v| v.parse::<i32>().ok()),
+            "error_strategy": row.get("error_strategy").and_then(|v| if v.is_empty() { None } else { Some(v.clone()) }),
         }),
     }
 }
@@ -552,6 +812,113 @@ async fn apply_update(db: &sqlx::PgPool, tt: &TargetType, row: &JsonValue) -> Re
             .bind(name)
             .bind(connector_type)
             .bind(enabled)
+            .bind(id)
+            .execute(db)
+            .await
+            .map_err(IoError::Database)?;
+        }
+        TargetType::PointsMetadata => {
+            // Only update editable columns — never touch tagname, description,
+            // engineering_units, data_type, min_value, max_value, source_id.
+            let active = row.get("active").and_then(|v| v.as_bool()).unwrap_or(true);
+            let criticality = row.get("criticality").and_then(|v| v.as_str());
+            let area = row.get("area").and_then(|v| v.as_str());
+            let aggregation_types = row.get("aggregation_types").and_then(|v| v.as_str());
+            let barcode = row.get("barcode").and_then(|v| v.as_str());
+            let notes = row.get("notes").and_then(|v| v.as_str());
+            let gps_latitude = row.get("gps_latitude").and_then(|v| v.as_f64());
+            let gps_longitude = row.get("gps_longitude").and_then(|v| v.as_f64());
+            let write_frequency_seconds = row.get("write_frequency_seconds").and_then(|v| v.as_i64()).map(|v| v as i32);
+            let default_graphic_id = row
+                .get("default_graphic_id")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok());
+            sqlx::query(
+                r#"UPDATE points_metadata
+                   SET active=$1, criticality=$2, area=$3, aggregation_types=$4,
+                       barcode=$5, notes=$6, gps_latitude=$7, gps_longitude=$8,
+                       write_frequency_seconds=$9, default_graphic_id=$10
+                   WHERE id=$11"#,
+            )
+            .bind(active)
+            .bind(criticality)
+            .bind(area)
+            .bind(aggregation_types)
+            .bind(barcode)
+            .bind(notes)
+            .bind(gps_latitude)
+            .bind(gps_longitude)
+            .bind(write_frequency_seconds)
+            .bind(default_graphic_id)
+            .bind(id)
+            .execute(db)
+            .await
+            .map_err(IoError::Database)?;
+        }
+        TargetType::UserRoles => {
+            // Update the role_id for this user-role pair
+            let role_id_str = row.get("role_id").and_then(|v| v.as_str()).unwrap_or("");
+            let role_id = Uuid::parse_str(role_id_str)
+                .map_err(|_| IoError::BadRequest(format!("Invalid role_id UUID: {}", role_id_str)))?;
+            sqlx::query("UPDATE user_roles SET role_id=$1 WHERE id=$2")
+                .bind(role_id)
+                .bind(id)
+                .execute(db)
+                .await
+                .map_err(IoError::Database)?;
+        }
+        TargetType::ApplicationSettings => {
+            let value = row.get("value").and_then(|v| v.as_str());
+            sqlx::query("UPDATE settings SET value=$1 WHERE id=$2")
+                .bind(value)
+                .bind(id)
+                .execute(db)
+                .await
+                .map_err(IoError::Database)?;
+        }
+        TargetType::PointSources => {
+            // Never include connection_config
+            let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let description = row.get("description").and_then(|v| v.as_str());
+            let enabled = row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+            sqlx::query("UPDATE point_sources SET name=$1, description=$2, enabled=$3 WHERE id=$4")
+                .bind(name)
+                .bind(description)
+                .bind(enabled)
+                .bind(id)
+                .execute(db)
+                .await
+                .map_err(IoError::Database)?;
+        }
+        TargetType::DashboardMetadata => {
+            // Exclude layout, widgets JSONB
+            let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let published = row.get("published").and_then(|v| v.as_bool()).unwrap_or(false);
+            sqlx::query("UPDATE dashboards SET name=$1, published=$2 WHERE id=$3")
+                .bind(name)
+                .bind(published)
+                .bind(id)
+                .execute(db)
+                .await
+                .map_err(IoError::Database)?;
+        }
+        TargetType::ImportDefinitions => {
+            // Exclude source_config, field_mappings JSONB
+            let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let description = row.get("description").and_then(|v| v.as_str());
+            let enabled = row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+            let batch_size = row.get("batch_size").and_then(|v| v.as_i64()).map(|v| v as i32);
+            let error_strategy = row.get("error_strategy").and_then(|v| v.as_str());
+            sqlx::query(
+                r#"UPDATE import_definitions
+                   SET name=$1, description=$2, enabled=$3, batch_size=$4, error_strategy=$5
+                   WHERE id=$6"#,
+            )
+            .bind(name)
+            .bind(description)
+            .bind(enabled)
+            .bind(batch_size)
+            .bind(error_strategy)
             .bind(id)
             .execute(db)
             .await
@@ -898,6 +1265,60 @@ pub async fn get_template(
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("connector_type").and_then(|v| v.as_str()).unwrap_or("")),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+            ),
+            TargetType::PointsMetadata => format!(
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+                csv_escape(row.get("tagname").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("engineering_units").and_then(|v| v.as_str()).unwrap_or("")),
+                row.get("active").and_then(|v| v.as_bool()).unwrap_or(true),
+                csv_escape(row.get("criticality").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("area").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("aggregation_types").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("barcode").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("notes").and_then(|v| v.as_str()).unwrap_or("")),
+                row.get("gps_latitude").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
+                row.get("gps_longitude").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
+                row.get("write_frequency_seconds").and_then(|v| v.as_i64()).map(|n| n.to_string()).unwrap_or_default(),
+                row.get("default_graphic_id").and_then(|v| v.as_str()).unwrap_or(""),
+            ),
+            TargetType::UserRoles => format!(
+                "{},{},{},{},{}",
+                row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+                row.get("user_id").and_then(|v| v.as_str()).unwrap_or(""),
+                csv_escape(row.get("username").and_then(|v| v.as_str()).unwrap_or("")),
+                row.get("role_id").and_then(|v| v.as_str()).unwrap_or(""),
+                csv_escape(row.get("role_name").and_then(|v| v.as_str()).unwrap_or("")),
+            ),
+            TargetType::ApplicationSettings => format!(
+                "{},{},{},{}",
+                row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+                csv_escape(row.get("key").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("value").and_then(|v| v.as_str()).unwrap_or("")),
+            ),
+            TargetType::PointSources => format!(
+                "{},{},{},{}",
+                row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+                csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
+                row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+            ),
+            TargetType::DashboardMetadata => format!(
+                "{},{},{}",
+                row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+                csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
+                row.get("published").and_then(|v| v.as_bool()).unwrap_or(false),
+            ),
+            TargetType::ImportDefinitions => format!(
+                "{},{},{},{},{},{}",
+                row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+                csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
+                row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+                row.get("batch_size").and_then(|v| v.as_i64()).map(|n| n.to_string()).unwrap_or_default(),
+                csv_escape(row.get("error_strategy").and_then(|v| v.as_str()).unwrap_or("")),
             ),
         };
         csv.push_str(&line);

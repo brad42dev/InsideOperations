@@ -3,6 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import Image from '@tiptap/extension-image'
+import { Table } from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import { TextStyle } from '@tiptap/extension-text-style'
+import Color from '@tiptap/extension-color'
 import { logsApi, type LogSegment, type LogTemplate } from '../../api/logs'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
 
@@ -90,7 +98,17 @@ function WysiwygSegment({
   readOnly: boolean
 }) {
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      Underline,
+      Image,
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      TextStyle,
+      Color,
+    ],
     content: (initialContent.doc as object) ?? '',
     editable: !readOnly,
     onUpdate: ({ editor }) => {
@@ -128,9 +146,16 @@ function WysiwygSegment({
           <ToolbarBtn
             title="Underline"
             active={editor.isActive('underline')}
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+          >
+            <u>U</u>
+          </ToolbarBtn>
+          <ToolbarBtn
+            title="Strikethrough"
+            active={editor.isActive('strike')}
             onClick={() => editor.chain().focus().toggleStrike().run()}
           >
-            S
+            <s>S</s>
           </ToolbarBtn>
           <span
             style={{
@@ -181,6 +206,50 @@ function WysiwygSegment({
           >
             1. List
           </ToolbarBtn>
+          <span
+            style={{
+              width: '1px',
+              background: 'var(--io-border)',
+              margin: '4px 4px',
+            }}
+          />
+          <ToolbarBtn
+            title="Insert Image"
+            onClick={() => {
+              const url = window.prompt('Image URL')
+              if (url) editor.chain().focus().setImage({ src: url }).run()
+            }}
+          >
+            Img
+          </ToolbarBtn>
+          <ToolbarBtn
+            title="Insert Table"
+            onClick={() =>
+              editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+            }
+          >
+            Table
+          </ToolbarBtn>
+          <label
+            title="Text color"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              color: 'var(--io-text-secondary)',
+              padding: '4px 6px',
+              borderRadius: '4px',
+            }}
+          >
+            A
+            <input
+              type="color"
+              style={{ width: '18px', height: '18px', padding: 0, border: 'none', cursor: 'pointer', background: 'none' }}
+              onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+            />
+          </label>
         </div>
       )}
       <div

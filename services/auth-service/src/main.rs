@@ -61,6 +61,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh))
         .route("/auth/logout", post(handlers::auth::logout))
+        // Session lock (idle timer) — requires a valid JWT; never issues new tokens
+        .route("/auth/lock", post(handlers::auth::lock_session))
+        // Lock-screen unlock — requires a valid JWT; never issues new tokens
+        .route("/auth/verify-password", post(handlers::auth::verify_password_unlock))
+        // PIN management — set, delete, and verify a 6-digit lock-screen PIN
+        .route("/auth/pin", post(handlers::pin::set_pin).delete(handlers::pin::delete_pin))
+        .route("/auth/verify-pin", post(handlers::pin::verify_pin))
         // EULA — end-user routes
         // NOTE: /auth/eula/pending must be before /auth/eula/current (avoid path conflict)
         .route("/auth/eula/pending", get(handlers::eula::get_pending_eulas))
@@ -165,6 +172,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/mfa/challenge", post(handlers::mfa::mfa_challenge))
         .route("/auth/mfa/recover", post(handlers::mfa::use_recovery_code))
         .route("/auth/mfa/totp", delete(handlers::mfa::disable_totp))
+        // MFA login-flow verify — completes login after primary auth when MFA is required.
+        // Public: caller presents mfa_token (short-lived) + code, receives JWT on success.
+        .route("/auth/mfa/login-verify", post(handlers::mfa::mfa_verify_login))
         // API key management
         .route("/api-keys", get(handlers::api_keys::list_api_keys).post(handlers::api_keys::create_api_key))
         .route("/api-keys/:id", delete(handlers::api_keys::delete_api_key))

@@ -230,7 +230,7 @@ export default function RoundsPage() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<TabId>('available')
   const [startingId, setStartingId] = useState<string | null>(null)
-  const { isOnline, pendingCount } = useOfflineRounds()
+  const { isOnline, pendingCount, hasSyncFailures } = useOfflineRounds()
 
   const { data: availableResult, isLoading: loadingAvailable } = useQuery({
     queryKey: ['rounds', 'instances', 'pending'],
@@ -317,7 +317,7 @@ export default function RoundsPage() {
                 Offline
               </span>
             )}
-            {isOnline && pendingCount > 0 && (
+            {isOnline && pendingCount > 0 && !hasSyncFailures && (
               <span
                 style={{
                   fontSize: '11px',
@@ -330,6 +330,21 @@ export default function RoundsPage() {
                 }}
               >
                 {pendingCount} syncing
+              </span>
+            )}
+            {hasSyncFailures && (
+              <span
+                style={{
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '100px',
+                  background: 'rgba(239,68,68,0.12)',
+                  color: '#b91c1c',
+                  fontWeight: 700,
+                  border: '1px solid rgba(239,68,68,0.3)',
+                }}
+              >
+                Sync failed — tap for details
               </span>
             )}
           </div>

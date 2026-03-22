@@ -32,11 +32,14 @@ interface WizardState {
   shapeIdPrefix: string
   displayName: string
   category: string
+  newCategoryInput: string
+  tags: string[]
   // Step 2
   boundingBoxConfirmed: boolean
   // Step 3
   connectionPoints: CPDraft[]
-  // Step 4 — stateful element IDs (SVG element class markers)
+  // Step 4 — supported states + stateful element IDs
+  supportedStates: string[]
   statefulElements: string[]
   // Step 5
   textZones: TextZone[]
@@ -84,12 +87,16 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tagInput, setTagInput] = useState('')
   const [state, setState] = useState<WizardState>({
     shapeIdPrefix: '',
     displayName: '',
     category: 'Custom',
+    newCategoryInput: '',
+    tags: [],
     boundingBoxConfirmed: true,
     connectionPoints: [],
+    supportedStates: ['normal'],
     statefulElements: [],
     textZones: [],
     valueAnchors: [],
@@ -112,6 +119,7 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
   // ---------------------------------------------------------------------------
 
   function renderStep0() {
+    const allCategories = [...SHAPE_CATEGORIES, ...(state.newCategoryInput ? [state.newCategoryInput] : [])]
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Field label="Shape ID Prefix *">
@@ -128,7 +136,12 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
           <input
             type="text"
             value={state.displayName}
-            onChange={e => updateState({ displayName: e.target.value })}
+            onChange={e => {
+              updateState({
+                displayName: e.target.value,
+                shapeIdPrefix: state.shapeIdPrefix || e.target.value.replace(/\s+/g, '-').toLowerCase(),
+              })
+            }}
             placeholder="Wet Gas Scrubber"
             style={inputStyle}
           />
@@ -136,11 +149,52 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
         <Field label="Category">
           <select
             value={state.category}
-            onChange={e => updateState({ category: e.target.value })}
+            onChange={e => {
+              if (e.target.value === '__new__') {
+                updateState({ category: state.newCategoryInput || 'New Category' })
+              } else {
+                updateState({ category: e.target.value })
+              }
+            }}
             style={inputStyle}
           >
-            {SHAPE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+            <option value="__new__">New Category…</option>
           </select>
+          {!SHAPE_CATEGORIES.includes(state.category) && (
+            <input
+              type="text"
+              value={state.newCategoryInput}
+              onChange={e => updateState({ newCategoryInput: e.target.value, category: e.target.value })}
+              placeholder="New category name"
+              style={{ ...inputStyle, marginTop: 4 }}
+            />
+          )}
+        </Field>
+        <Field label="Tags">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+            {state.tags.map((tag, i) => (
+              <span key={i} style={{ background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: 10, padding: '2px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {tag}
+                <button onClick={() => updateState({ tags: state.tags.filter((_, j) => j !== i) })}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+          <input
+            type="text"
+            value={tagInput}
+            onChange={e => setTagInput(e.target.value)}
+            onKeyDown={e => {
+              if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+                e.preventDefault()
+                updateState({ tags: [...state.tags, tagInput.trim()] })
+                setTagInput('')
+              }
+            }}
+            placeholder="scrubber, gas, wash — press Enter to add"
+            style={inputStyle}
+          />
         </Field>
       </div>
     )
@@ -254,36 +308,66 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
   }
 
   function renderStep3() {
+    const ALL_STATES = ['normal', 'running', 'stopped', 'open', 'closed', 'transitioning', 'fault', 'manual', 'out_of_service']
+    const STATE_LABELS: Record<string, string> = {
+      normal: 'Normal', running: 'Running', stopped: 'Stopped', open: 'Open', closed: 'Closed',
+      transitioning: 'Transitioning', fault: 'Fault', manual: 'Manual', out_of_service: 'Out of Service',
+    }
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <p style={{ margin: 0, fontSize: 12, color: 'var(--io-text-secondary)', lineHeight: 1.5 }}>
-          Mark which SVG element IDs should change appearance with operational state
-          (normal/running/stopped/fault). These receive the <code>io-stateful</code> CSS class.
-        </p>
-        <p style={{ margin: 0, fontSize: 11, color: 'var(--io-text-muted)' }}>
-          Enter element IDs from your SVG (e.g., <code>body</code>, <code>fill-region</code>).
-          If left empty, the shape will be purely structural.
-        </p>
-        {state.statefulElements.map((el, i) => (
-          <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input
-              value={el}
-              style={{ ...inputStyle, flex: 1 }}
-              placeholder="SVG element ID"
-              onChange={e => {
-                const els = [...state.statefulElements]
-                els[i] = e.target.value
-                updateState({ statefulElements: els })
-              }}
-            />
-            <button onClick={() => updateState({ statefulElements: state.statefulElements.filter((_, j) => j !== i) })}
-              style={{ background: 'none', border: 'none', color: 'var(--io-text-muted)', cursor: 'pointer', fontSize: 14 }}>×</button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--io-text-secondary)', lineHeight: 1.5, fontWeight: 500 }}>
+            Supported operational states:
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {ALL_STATES.map(s => (
+              <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: s === 'normal' ? 'default' : 'pointer', color: s === 'normal' ? 'var(--io-text-muted)' : 'var(--io-text-primary)' }}>
+                <input
+                  type="checkbox"
+                  checked={state.supportedStates.includes(s)}
+                  disabled={s === 'normal'}
+                  onChange={e => {
+                    if (s === 'normal') return
+                    const states = e.target.checked
+                      ? [...state.supportedStates, s]
+                      : state.supportedStates.filter(st => st !== s)
+                    updateState({ supportedStates: states })
+                  }}
+                />
+                {STATE_LABELS[s]}
+              </label>
+            ))}
           </div>
-        ))}
-        <button
-          onClick={() => updateState({ statefulElements: [...state.statefulElements, ''] })}
-          style={addBtnStyle}
-        >+ Add Element ID</button>
+        </div>
+        <div>
+          <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--io-text-secondary)', lineHeight: 1.5, fontWeight: 500 }}>
+            Stateful SVG element IDs (receive <code>io-stateful</code> CSS class):
+          </p>
+          <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--io-text-muted)' }}>
+            Enter element IDs from your SVG (e.g., <code>body</code>, <code>fill-region</code>).
+            If left empty, the shape is purely structural.
+          </p>
+          {state.statefulElements.map((el, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+              <input
+                value={el}
+                style={{ ...inputStyle, flex: 1 }}
+                placeholder="SVG element ID"
+                onChange={e => {
+                  const els = [...state.statefulElements]
+                  els[i] = e.target.value
+                  updateState({ statefulElements: els })
+                }}
+              />
+              <button onClick={() => updateState({ statefulElements: state.statefulElements.filter((_, j) => j !== i) })}
+                style={{ background: 'none', border: 'none', color: 'var(--io-text-muted)', cursor: 'pointer', fontSize: 14 }}>×</button>
+            </div>
+          ))}
+          <button
+            onClick={() => updateState({ statefulElements: [...state.statefulElements, ''] })}
+            style={addBtnStyle}
+          >+ Add Element ID</button>
+        </div>
       </div>
     )
   }
@@ -426,6 +510,8 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
           <SummaryRow label="Text Zones" value={String(state.textZones.length)} />
           <SummaryRow label="Value Anchors" value={String(state.valueAnchors.length)} />
           <SummaryRow label="Mirrorable" value={state.mirrorable ? 'Yes' : 'No'} />
+          <SummaryRow label="Supported States" value={state.supportedStates.join(', ')} />
+          {state.tags.length > 0 && <SummaryRow label="Tags" value={state.tags.join(', ')} />}
         </div>
         <div style={{ marginTop: 8, padding: 12, background: 'var(--io-surface-elevated)', borderRadius: 4, border: '1px solid var(--io-border)', display: 'flex', justifyContent: 'center' }}>
           <svg width="120" height="120" viewBox={VIEWBOX} style={{ border: '1px dashed var(--io-accent)' }}>
@@ -468,6 +554,7 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
       const sidecar = {
         id: `${state.shapeIdPrefix}.custom`,
         category: state.category,
+        tags: state.tags,
         geometry: {
           viewBox: VIEWBOX,
           width: 48,
@@ -478,6 +565,8 @@ export function PromoteToShapeWizard({ selectedNodes, onClose, onSaved }: Promot
         connections: state.connectionPoints,
         textZones: state.textZones,
         valueAnchors: state.valueAnchors,
+        supportedStates: state.supportedStates,
+        statefulElements: state.statefulElements.filter(Boolean),
       }
 
       const result = await graphicsApi.createStencil({

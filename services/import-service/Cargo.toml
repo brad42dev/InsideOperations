@@ -27,3 +27,12 @@ io-error = { path = "../../crates/io-error" }
 io-health = { path = "../../crates/io-health" }
 io-observability = { path = "../../crates/io-observability" }
 io-models = { path = "../../crates/io-models" }
+aes-gcm.workspace = true
+base64.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+wiremock.workspace = true

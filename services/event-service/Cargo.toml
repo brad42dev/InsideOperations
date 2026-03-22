@@ -7,6 +7,10 @@ edition = "2021"
 name = "event-service"
 path = "src/main.rs"
 
+[lib]
+name = "event_service_lib"
+path = "src/lib.rs"
+
 [dependencies]
 tokio.workspace = true
 axum.workspace = true
@@ -27,3 +31,8 @@ uuid.workspace = true
 chrono.workspace = true
 once_cell.workspace = true
 metrics.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

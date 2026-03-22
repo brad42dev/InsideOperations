@@ -1041,8 +1041,13 @@ pub async fn get_image_asset(
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/shapes/batch — batch load shape SVGs and sidecars
+// POST /api/v1/shapes/batch — batch load shape SVGs and sidecars
 // ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct BatchShapesBody {
+    pub shape_ids: Vec<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct BatchIdsBody {
@@ -1052,41 +1057,30 @@ pub struct BatchIdsBody {
 pub async fn batch_shapes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<BatchIdsBody>,
+    Json(body): Json<BatchShapesBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "process:read") && !check_permission(&claims, "console:read") {
         return IoError::Forbidden("process:read or console:read permission required".into())
             .into_response();
     }
 
-    if body.ids.is_empty() {
-        return Json(ApiResponse::ok(serde_json::json!({ "items": [] }))).into_response();
+    if body.shape_ids.is_empty() {
+        return Json(ApiResponse::ok(serde_json::json!({}))).into_response();
     }
 
-    let placeholders: String = body
-        .ids
-        .iter()
-        .enumerate()
-        .map(|(i, _)| format!("${}", i + 1))
-        .collect::<Vec<_>>()
-        .join(",");
-
-    let sql = format!(
+    let rows = match sqlx::query(
         r#"
-        SELECT id, name, type, svg_data, bindings, metadata
+        SELECT metadata->>'shape_id' as shape_id, svg_data, metadata
         FROM design_objects
-        WHERE id IN ({})
+        WHERE metadata->>'source' = 'library'
+          AND metadata->>'shape_id' = ANY($1)
           AND type IN ('shape', 'shape_part')
         "#,
-        placeholders
-    );
-
-    let mut q = sqlx::query(&sql);
-    for id in &body.ids {
-        q = q.bind(id);
-    }
-
-    let rows = match q.fetch_all(&state.db).await {
+    )
+    .bind(&body.shape_ids)
+    .fetch_all(&state.db)
+    .await
+    {
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, "batch_shapes query failed");
@@ -1094,29 +1088,33 @@ pub async fn batch_shapes(
         }
     };
 
-    let items: Vec<JsonValue> = rows
-        .iter()
-        .filter_map(|row| {
-            let id: Uuid = row.try_get("id").ok()?;
-            let name: String = row.try_get("name").ok()?;
-            let svg_data: Option<String> = row.try_get("svg_data").ok().flatten();
-            let bindings: Option<JsonValue> = row.try_get("bindings").ok().flatten();
-            let metadata: Option<JsonValue> = row.try_get("metadata").ok().flatten();
-            Some(serde_json::json!({
-                "id": id,
-                "name": name,
-                "svg_data": svg_data,
-                "bindings": bindings,
-                "metadata": metadata,
-            }))
-        })
-        .collect();
+    let mut result = serde_json::Map::new();
+    for row in &rows {
+        let shape_id: Option<String> = row.try_get("shape_id").ok().flatten();
+        let svg_data: Option<String> = row.try_get("svg_data").ok().flatten();
+        let metadata: Option<JsonValue> = row.try_get("metadata").ok().flatten();
 
-    Json(ApiResponse::ok(serde_json::json!({ "items": items }))).into_response()
+        if let (Some(sid), Some(svg)) = (shape_id, svg_data) {
+            let sidecar = metadata
+                .as_ref()
+                .and_then(|m| m.get("sidecar"))
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
+            result.insert(
+                sid,
+                serde_json::json!({
+                    "svg": svg,
+                    "sidecar": sidecar,
+                }),
+            );
+        }
+    }
+
+    Json(ApiResponse::ok(JsonValue::Object(result))).into_response()
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/stencils/batch — batch load stencil SVGs
+// POST /api/v1/stencils/batch — batch load stencil SVGs
 // ---------------------------------------------------------------------------
 
 pub async fn batch_stencils(

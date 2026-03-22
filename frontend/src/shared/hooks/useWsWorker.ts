@@ -1,0 +1,330 @@
+// Client-side connector for the wsWorker SharedWorker.
+// This module owns the SharedWorker instance (one per browser origin) and
+// exposes the same subscribe/unsubscribe/onStateChange API as the old WsManager
+// so existing callers (useWebSocket.ts) can delegate to it without rewriting.
+
+import { wsTicketApi } from '../../api/ws-ticket'
+
+// Local copy of detectDeviceType — cannot import from useWebSocket.ts as that
+// module imports wsWorkerConnector from this file (would create a circular dep).
+function detectDeviceType(): 'phone' | 'tablet' | 'desktop' {
+  const ua = navigator.userAgent
+  if (/Mobi|Android.*Mobile|iPhone|iPod/i.test(ua)) return 'phone'
+  if (/Tablet|iPad|Android(?!.*Mobile)/i.test(ua)) return 'tablet'
+  return 'desktop'
+}
+
+const WS_BASE =
+  (import.meta.env.VITE_WS_URL as string | undefined) ??
+  `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
+
+export type WsConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error'
+export type PointUpdateHandler = (update: PointValue) => void
+
+export interface PointValue {
+  pointId: string
+  value: number
+  quality: string
+  timestamp: string
+  stale?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Shared worker singleton — one per browser origin
+// ---------------------------------------------------------------------------
+
+let worker: SharedWorker | null = null
+let port: MessagePort | null = null
+
+// Handlers registered by React hooks / components on the main thread
+const stateListeners = new Set<(s: WsConnectionState) => void>()
+const subscribers = new Map<string, Set<PointUpdateHandler>>()
+const staleHandlers = new Set<(id: string, ts: string) => void>()
+const sourceHandlers = new Set<(id: string, name: string, online: boolean) => void>()
+const sessionLockHandlers = new Set<(sessionId: string) => void>()
+const sessionUnlockHandlers = new Set<(sessionId: string) => void>()
+
+let currentState: WsConnectionState = 'disconnected'
+
+// ---------------------------------------------------------------------------
+// Page Visibility — pause reconnects when backgrounded, resume on foreground
+// ---------------------------------------------------------------------------
+
+let pendingReconnect = false
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    // App is backgrounded — tell worker to stop reconnecting
+    port?.postMessage({ type: 'pause' })
+  } else if (document.visibilityState === 'visible' && pendingReconnect) {
+    // Foregrounded with a pending reconnect — reconnect now, reset backoff
+    pendingReconnect = false
+    port?.postMessage({ type: 'resume' })
+    void issueTicket()
+  }
+}
+
+document.addEventListener('visibilitychange', handleVisibilityChange)
+
+function getPort(): MessagePort {
+  if (port) return port
+
+  worker = new SharedWorker(new URL('../workers/wsWorker.ts', import.meta.url), {
+    type: 'module',
+    name: 'io-ws-worker',
+  })
+  port = worker.port
+  port.start()
+
+  port.onmessage = (ev: MessageEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const msg = ev.data as Record<string, unknown>
+    handleWorkerMessage(msg)
+  }
+
+  return port
+}
+
+// ---------------------------------------------------------------------------
+// Worker message routing
+// ---------------------------------------------------------------------------
+
+function handleWorkerMessage(msg: Record<string, unknown>) {
+  switch (msg.type) {
+    case 'state': {
+      const state = msg.state as WsConnectionState
+      currentState = state
+      if (state === 'disconnected' && document.visibilityState === 'hidden') {
+        pendingReconnect = true  // will reconnect when visible
+      }
+      stateListeners.forEach((fn) => fn(state))
+      break
+    }
+    case 'update': {
+      const point_id = msg.point_id as string | undefined
+      if (!point_id) break
+      const handlers = subscribers.get(point_id)
+      if (handlers) {
+        const update: PointValue = {
+          pointId: point_id,
+          value: (msg.value as number | undefined) ?? 0,
+          quality: (msg.quality as string | undefined) ?? 'unknown',
+          timestamp: (msg.timestamp as string | undefined) ?? new Date().toISOString(),
+          stale: false,
+        }
+        handlers.forEach((fn) => fn(update))
+      }
+      break
+    }
+    case 'point_stale': {
+      const point_id = msg.point_id as string | undefined
+      if (!point_id) break
+      const last_updated_at = (msg.last_updated_at as string | undefined) ?? ''
+      staleHandlers.forEach((fn) => fn(point_id, last_updated_at))
+      const handlers = subscribers.get(point_id)
+      if (handlers) {
+        const update: PointValue = {
+          pointId: point_id,
+          value: 0,
+          quality: 'uncertain',
+          timestamp: last_updated_at,
+          stale: true,
+        }
+        handlers.forEach((fn) => fn(update))
+      }
+      break
+    }
+    case 'point_fresh': {
+      const point_id = msg.point_id as string | undefined
+      if (!point_id) break
+      const handlers = subscribers.get(point_id)
+      if (handlers) {
+        const update: PointValue = {
+          pointId: point_id,
+          value: (msg.value as number | undefined) ?? 0,
+          quality: 'good',
+          timestamp: (msg.timestamp as string | undefined) ?? '',
+          stale: false,
+        }
+        handlers.forEach((fn) => fn(update))
+      }
+      break
+    }
+    case 'source_offline': {
+      const source_id = msg.source_id as string | undefined
+      if (!source_id) break
+      sourceHandlers.forEach((fn) => fn(source_id, (msg.source_name as string | undefined) ?? '', false))
+      break
+    }
+    case 'source_online': {
+      const source_id = msg.source_id as string | undefined
+      if (!source_id) break
+      sourceHandlers.forEach((fn) => fn(source_id, (msg.source_name as string | undefined) ?? '', true))
+      break
+    }
+    case 'export_complete': {
+      const job_id = msg.job_id as string | undefined
+      if (!job_id) break
+      // Dynamically import to avoid pulling in Toast at module load time
+      import('../components/Toast').then(({ showToast }) => {
+        import('../../api/reports').then(({ reportsApi }) => {
+          const downloadUrl = reportsApi.getDownloadUrl(job_id)
+          showToast({
+            title: 'Your report is ready',
+            description: 'Click Download to save the file.',
+            variant: 'success',
+            action: {
+              label: 'Download',
+              onClick: () => { window.open(downloadUrl, '_blank') },
+            },
+            duration: 10000,
+          })
+        })
+      })
+      break
+    }
+    case 'alert_notification': {
+      if (msg.full_screen_takeover && msg.message) {
+        import('../../store/ui').then((mod) => {
+          mod.useUiStore.getState().showEmergencyAlert(msg.message as string)
+        })
+      }
+      break
+    }
+    case 'session_locked': {
+      // Server notified that this session was locked.
+      // Retrieve the session_id from the payload envelope.
+      const payload = msg.payload as Record<string, unknown> | undefined
+      const sessionId = (payload?.session_id ?? '') as string
+      // Update the ui store so the lock overlay activates on next interaction.
+      import('../../store/ui').then((mod) => {
+        mod.useUiStore.getState().lock()
+      })
+      sessionLockHandlers.forEach((fn) => fn(sessionId))
+      break
+    }
+    case 'session_unlocked': {
+      // Server notified that this session was unlocked.
+      const payload = msg.payload as Record<string, unknown> | undefined
+      const sessionId = (payload?.session_id ?? '') as string
+      // Clear the lock overlay if it is showing.
+      import('../../store/ui').then((mod) => {
+        mod.useUiStore.getState().unlock()
+      })
+      sessionUnlockHandlers.forEach((fn) => fn(sessionId))
+      break
+    }
+    case 'need_ticket': {
+      // Worker lost connection and needs a fresh ticket to reconnect
+      void issueTicket()
+      break
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Connection management
+// ---------------------------------------------------------------------------
+
+async function issueTicket() {
+  try {
+    const result = await wsTicketApi.create()
+    if (!result.success) {
+      currentState = 'error'
+      stateListeners.forEach((fn) => fn('error'))
+      return
+    }
+    const p = getPort()
+    const deviceType = detectDeviceType()
+    p.postMessage({ type: 'connect', ticket: result.data.ticket, wsBase: WS_BASE })
+    p.postMessage({ type: 'client_hint', device_type: deviceType })
+  } catch {
+    currentState = 'error'
+    stateListeners.forEach((fn) => fn('error'))
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API — mirrors old WsManager interface
+// ---------------------------------------------------------------------------
+
+export const wsWorkerConnector = {
+  getState(): WsConnectionState {
+    return currentState
+  },
+
+  onStateChange(fn: (s: WsConnectionState) => void): () => void {
+    stateListeners.add(fn)
+    return () => { stateListeners.delete(fn) }
+  },
+
+  async connect() {
+    if (currentState === 'connecting' || currentState === 'connected') return
+    // Ensure the worker/port is initialised
+    getPort()
+    await issueTicket()
+  },
+
+  subscribe(pointId: string, handler: PointUpdateHandler) {
+    const p = getPort()
+    if (!subscribers.has(pointId)) {
+      subscribers.set(pointId, new Set())
+      p.postMessage({ type: 'subscribe', points: [pointId] })
+    }
+    subscribers.get(pointId)!.add(handler)
+  },
+
+  unsubscribe(pointId: string, handler: PointUpdateHandler) {
+    const handlers = subscribers.get(pointId)
+    if (!handlers) return
+    handlers.delete(handler)
+    if (handlers.size === 0) {
+      subscribers.delete(pointId)
+      const p = getPort()
+      p.postMessage({ type: 'unsubscribe', points: [pointId] })
+    }
+  },
+
+  onStale(fn: (id: string, ts: string) => void): () => void {
+    staleHandlers.add(fn)
+    return () => { staleHandlers.delete(fn) }
+  },
+
+  onSource(fn: (id: string, name: string, online: boolean) => void): () => void {
+    sourceHandlers.add(fn)
+    return () => { sourceHandlers.delete(fn) }
+  },
+
+  /** Register a callback invoked when the server reports this session was locked. */
+  onSessionLock(fn: (sessionId: string) => void): () => void {
+    sessionLockHandlers.add(fn)
+    return () => { sessionLockHandlers.delete(fn) }
+  },
+
+  /** Register a callback invoked when the server reports this session was unlocked. */
+  onSessionUnlock(fn: (sessionId: string) => void): () => void {
+    sessionUnlockHandlers.add(fn)
+    return () => { sessionUnlockHandlers.delete(fn) }
+  },
+
+  sendStatusReport(renderFps: number, pendingUpdates: number, lastBatchProcessMs: number) {
+    const p = getPort()
+    p.postMessage({
+      type: 'status_report',
+      render_fps: renderFps,
+      pending_updates: pendingUpdates,
+      last_batch_process_ms: lastBatchProcessMs,
+    })
+  },
+
+  disconnect() {
+    port?.postMessage({ type: 'disconnect' })
+    subscribers.clear()
+    staleHandlers.clear()
+    sourceHandlers.clear()
+    sessionLockHandlers.clear()
+    sessionUnlockHandlers.clear()
+    currentState = 'disconnected'
+    stateListeners.forEach((fn) => fn('disconnected'))
+  },
+}

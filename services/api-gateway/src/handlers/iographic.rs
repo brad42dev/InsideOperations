@@ -11,7 +11,9 @@ use io_error::IoError;
 use io_models::ApiResponse;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 use sqlx::Row;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Write;
 use uuid::Uuid;
 use zip::write::SimpleFileOptions;
@@ -30,6 +32,21 @@ fn check_permission(claims: &Claims, permission: &str) -> bool {
 // ---------------------------------------------------------------------------
 // Manifest types — matches design doc 39 format
 // ---------------------------------------------------------------------------
+
+/// Inventory entry for a custom shape packaged in a .iographic file (doc 39 §3).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IographicShapeEntry {
+    pub directory: String,
+    pub name: String,
+    pub shape_id: String,
+}
+
+/// Inventory entry for a stencil packaged in a .iographic file (doc 39 §3).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IographicStencilEntry {
+    pub directory: String,
+    pub name: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IographicManifest {
@@ -53,6 +70,16 @@ pub struct IographicManifest {
     /// Legacy compat: old builds wrote a single "graphic" object.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graphic: Option<LegacyGraphicMeta>,
+    /// Inventory of custom shapes packaged for portability (doc 39 §3).
+    pub shapes: Vec<IographicShapeEntry>,
+    /// Inventory of stencils packaged for portability (doc 39 §3).
+    pub stencils: Vec<IographicStencilEntry>,
+    /// Deduplicated list of ALL shape library IDs referenced across all graphics (doc 39 §3).
+    pub shape_dependencies: Vec<String>,
+    /// Deduplicated list of all point tag names referenced in bindings (doc 39 §3).
+    pub point_tags: Vec<String>,
+    /// SHA-256 digest of all other files in the ZIP (excluding manifest.json itself) (doc 39 §3).
+    pub checksum: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,6 +96,7 @@ pub struct IographicGenerator {
 // composable model (shapes + pipes) rather than pre-rendered SVG.
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GraphicModel {
     #[serde(default)]
@@ -84,6 +112,7 @@ struct GraphicModel {
     bindings: JsonValue,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Default)]
 struct GraphicModelMeta {
     #[serde(default = "default_view_box")]
@@ -102,6 +131,7 @@ fn default_view_box() -> String { "0 0 1920 1080".to_string() }
 fn default_width() -> f64 { 1920.0 }
 fn default_height() -> f64 { 1080.0 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ShapeInstance {
     #[serde(alias = "id")]
@@ -502,6 +532,170 @@ fn slugify(name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// UUID → tag resolution helpers for export
+// ---------------------------------------------------------------------------
+
+/// Recursively walks a JSON value and collects all UUID strings found under the
+/// keys `point_id`, `setpoint_point_id`, and `equipment_point_ids`.
+fn collect_point_ids_from_bindings(val: &JsonValue, out: &mut HashSet<Uuid>) {
+    match val {
+        JsonValue::Object(map) => {
+            for (key, child) in map {
+                match key.as_str() {
+                    "point_id" | "setpoint_point_id" => {
+                        if let JsonValue::String(s) = child {
+                            if let Ok(uuid) = Uuid::parse_str(s) {
+                                out.insert(uuid);
+                            }
+                        }
+                    }
+                    "equipment_point_ids" => {
+                        if let JsonValue::Array(arr) = child {
+                            for item in arr {
+                                if let JsonValue::String(s) = item {
+                                    if let Ok(uuid) = Uuid::parse_str(s) {
+                                        out.insert(uuid);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        collect_point_ids_from_bindings(child, out);
+                    }
+                }
+            }
+        }
+        JsonValue::Array(arr) => {
+            for item in arr {
+                collect_point_ids_from_bindings(item, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Recursively walks a JSON value and replaces UUID-based point reference fields
+/// with tag-based fields using the provided lookup map.
+///
+/// Replacements performed:
+/// - `"point_id": "uuid"` → `"point_tag": "FIC-101.PV"`, adds `"source_hint": "OPC-DCS-1"`
+/// - `"setpoint_point_id": "uuid"` → `"setpoint_point_tag": "..."`
+/// - `"equipment_point_ids": [...]` → `"equipment_point_tags": [...]`
+///
+/// Missing UUIDs produce `"point_tag": "<DELETED:uuid>"` and `"source_hint": null`.
+fn transform_bindings_uuids_to_tags(
+    val: JsonValue,
+    lookup: &HashMap<Uuid, (String, String)>,
+) -> JsonValue {
+    match val {
+        JsonValue::Object(map) => {
+            let mut new_map = serde_json::Map::new();
+            // Track whether we injected source_hint for the "point_id" replacement so we
+            // only do it once per object level.
+            let mut injected_source_hint = false;
+
+            for (key, child) in map {
+                match key.as_str() {
+                    "point_id" => {
+                        if let JsonValue::String(ref s) = child {
+                            if let Ok(uuid) = Uuid::parse_str(s) {
+                                match lookup.get(&uuid) {
+                                    Some((tag, src)) => {
+                                        new_map.insert(
+                                            "point_tag".to_string(),
+                                            JsonValue::String(tag.clone()),
+                                        );
+                                        new_map.insert(
+                                            "source_hint".to_string(),
+                                            JsonValue::String(src.clone()),
+                                        );
+                                    }
+                                    None => {
+                                        new_map.insert(
+                                            "point_tag".to_string(),
+                                            JsonValue::String(format!("<DELETED:{}>", s)),
+                                        );
+                                        new_map.insert(
+                                            "source_hint".to_string(),
+                                            JsonValue::Null,
+                                        );
+                                    }
+                                }
+                                injected_source_hint = true;
+                                continue; // skip inserting original "point_id"
+                            }
+                        }
+                        // Not a valid UUID string — keep as-is
+                        new_map.insert(key, child);
+                    }
+                    "source_hint" if injected_source_hint => {
+                        // We already injected source_hint — skip the stale one from the DB
+                        continue;
+                    }
+                    "setpoint_point_id" => {
+                        if let JsonValue::String(ref s) = child {
+                            if let Ok(uuid) = Uuid::parse_str(s) {
+                                let tag_val = match lookup.get(&uuid) {
+                                    Some((tag, _)) => JsonValue::String(tag.clone()),
+                                    None => JsonValue::String(format!("<DELETED:{}>", s)),
+                                };
+                                new_map.insert("setpoint_point_tag".to_string(), tag_val);
+                                continue;
+                            }
+                        }
+                        new_map.insert(key, child);
+                    }
+                    "equipment_point_ids" => {
+                        if let JsonValue::Array(arr) = child {
+                            let tags: Vec<JsonValue> = arr
+                                .into_iter()
+                                .map(|item| {
+                                    if let JsonValue::String(ref s) = item {
+                                        if let Ok(uuid) = Uuid::parse_str(s) {
+                                            return match lookup.get(&uuid) {
+                                                Some((tag, _)) => {
+                                                    JsonValue::String(tag.clone())
+                                                }
+                                                None => JsonValue::String(
+                                                    format!("<DELETED:{}>", s),
+                                                ),
+                                            };
+                                        }
+                                    }
+                                    item
+                                })
+                                .collect();
+                            new_map.insert(
+                                "equipment_point_tags".to_string(),
+                                JsonValue::Array(tags),
+                            );
+                            continue;
+                        }
+                        new_map.insert(key, child);
+                    }
+                    _ => {
+                        new_map.insert(
+                            key,
+                            transform_bindings_uuids_to_tags(child, lookup),
+                        );
+                    }
+                }
+            }
+            JsonValue::Object(new_map)
+        }
+        JsonValue::Array(arr) => {
+            JsonValue::Array(
+                arr.into_iter()
+                    .map(|item| transform_bindings_uuids_to_tags(item, lookup))
+                    .collect(),
+            )
+        }
+        other => other,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/graphics/:id/export
 // Returns a .iographic ZIP file as a download (doc 39 format)
 // ---------------------------------------------------------------------------
@@ -536,6 +730,56 @@ pub async fn export_graphic(
     let graphic_type: String = row.try_get("type").unwrap_or_else(|_| "graphic".to_string());
     let svg_data: Option<String> = row.try_get("svg_data").ok().flatten();
     let bindings: Option<JsonValue> = row.try_get("bindings").ok().flatten();
+    let metadata_val: Option<JsonValue> = row.try_get("metadata").ok().flatten();
+
+    // 1a. Resolve point UUIDs → tag names for portable graphic.json
+    //
+    // Walk the raw bindings JSON, collect all UUIDs from "point_id",
+    // "setpoint_point_id", and "equipment_point_ids" fields, then batch-resolve
+    // them in a single SQL query.
+    let uuid_to_tag: HashMap<Uuid, (String, String)> = {
+        let mut uuid_set: HashSet<Uuid> = HashSet::new();
+        if let Some(ref b) = bindings {
+            collect_point_ids_from_bindings(b, &mut uuid_set);
+        }
+
+        if uuid_set.is_empty() {
+            HashMap::new()
+        } else {
+            let ids: Vec<Uuid> = uuid_set.into_iter().collect();
+            match sqlx::query(
+                "SELECT pm.id, pm.tagname, ps.name AS source_name \
+                 FROM points_metadata pm \
+                 JOIN point_sources ps ON pm.source_id = ps.id \
+                 WHERE pm.id = ANY($1)",
+            )
+            .bind(&ids)
+            .fetch_all(&state.db)
+            .await
+            {
+                Ok(rows) => {
+                    let mut map = HashMap::new();
+                    for r in rows {
+                        let pid: Uuid = match r.try_get("id") {
+                            Ok(v) => v,
+                            Err(_) => continue,
+                        };
+                        let tagname: String = r.try_get("tagname").unwrap_or_default();
+                        let source_name: String = r.try_get("source_name").unwrap_or_default();
+                        map.insert(pid, (tagname, source_name));
+                    }
+                    map
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "export_graphic: failed to resolve point UUIDs (non-fatal, continuing with empty map)"
+                    );
+                    HashMap::new()
+                }
+            }
+        }
+    };
 
     // 2. Load associated shapes
     let shape_rows = match sqlx::query(
@@ -555,14 +799,223 @@ pub async fn export_graphic(
 
     let dir = slugify(&name);
 
-    // 3. Build ZIP in memory
-    let mut zip_bytes: Vec<u8> = Vec::new();
-    let cursor = std::io::Cursor::new(&mut zip_bytes);
-    let mut zip = ZipWriter::new(cursor);
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    // 3. Collect all non-manifest file contents into a BTreeMap (sorted by path).
+    //    This lets us compute the checksum before writing the manifest.
+    let mut file_map: BTreeMap<String, Vec<u8>> = BTreeMap::new();
 
-    // manifest.json
+    // graphics/{dir}/graphic.svg
+    let svg_content = svg_data.unwrap_or_default();
+    file_map.insert(
+        format!("graphics/{}/graphic.svg", dir),
+        svg_content.into_bytes(),
+    );
+
+    // graphics/{dir}/graphic.json — full spec-compliant structure with tag-based bindings.
+    //
+    // The raw `bindings` JSONB from the DB contains UUID `point_id` fields which are
+    // instance-specific. We transform them to portable `point_tag` + `source_hint` fields
+    // before writing. The graphic.json envelope follows the doc 39 §4 schema.
+    let raw_bindings = bindings.unwrap_or(JsonValue::Object(serde_json::Map::new()));
+
+    // Extract sub-fields from the DB JSONB if it is a GraphicModel-style object
+    // (top-level: shapes, pipes, annotations, bindings, metadata).
+    let (model_shapes, model_pipes, model_annotations, model_layers, inner_bindings) =
+        if let JsonValue::Object(ref obj) = raw_bindings {
+            let shapes = obj
+                .get("shapes")
+                .cloned()
+                .unwrap_or(JsonValue::Array(vec![]));
+            let pipes = obj
+                .get("pipes")
+                .cloned()
+                .unwrap_or(JsonValue::Array(vec![]));
+            let annotations = obj
+                .get("annotations")
+                .cloned()
+                .unwrap_or(JsonValue::Array(vec![]));
+            let layers = obj
+                .get("layers")
+                .cloned()
+                .unwrap_or(JsonValue::Array(vec![]));
+            // The bindings sub-object is what actually holds per-element point references
+            let inner = obj
+                .get("bindings")
+                .cloned()
+                .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+            (shapes, pipes, annotations, layers, inner)
+        } else {
+            (
+                JsonValue::Array(vec![]),
+                JsonValue::Array(vec![]),
+                JsonValue::Array(vec![]),
+                JsonValue::Array(vec![]),
+                raw_bindings.clone(),
+            )
+        };
+
+    // Transform the inner bindings object: replace all UUID point references with tags
+    let tag_based_bindings = transform_bindings_uuids_to_tags(inner_bindings, &uuid_to_tag);
+
+    // Build the metadata envelope for the graphic.json
+    let graphic_metadata = {
+        let mut m = serde_json::Map::new();
+        // Prefer the metadata JSONB from the DB row; supplement with sensible defaults
+        if let Some(JsonValue::Object(ref db_meta)) = metadata_val {
+            for (k, v) in db_meta {
+                m.insert(k.clone(), v.clone());
+            }
+        }
+        // Ensure at minimum viewBox, width, height are present
+        if !m.contains_key("viewBox") && !m.contains_key("view_box") {
+            m.insert("viewBox".to_string(), JsonValue::String("0 0 1920 1080".to_string()));
+        }
+        if !m.contains_key("width") {
+            m.insert("width".to_string(), serde_json::json!(1920));
+        }
+        if !m.contains_key("height") {
+            m.insert("height".to_string(), serde_json::json!(1080));
+        }
+        JsonValue::Object(m)
+    };
+
+    // Assemble the full graphic.json object (doc 39 §4 schema)
+    let graphic_json_obj = serde_json::json!({
+        "name": name,
+        "type": graphic_type,
+        "metadata": graphic_metadata,
+        "shapes": model_shapes,
+        "pipes": model_pipes,
+        "bindings": tag_based_bindings,
+        "expressions": {},
+        "annotations": model_annotations,
+        "layers": model_layers
+    });
+
+    let graphic_json = serde_json::to_string_pretty(&graphic_json_obj)
+        .unwrap_or_else(|_| "{}".to_string());
+    file_map.insert(
+        format!("graphics/{}/graphic.json", dir),
+        graphic_json.into_bytes(),
+    );
+
+    // 3a. Derive shape_dependencies and point_tags from the graphic model.
+    //
+    // shape_dependencies: every unique `shape_id` from the shapes array.
+    // point_tags: all tag names from the already-transformed tag-based bindings.
+    let mut shape_dep_set: HashSet<String> = HashSet::new();
+    let mut point_tag_set: HashSet<String> = HashSet::new();
+
+    // Collect shape_ids from model_shapes
+    if let JsonValue::Array(ref shapes_arr) = model_shapes {
+        for shape_entry in shapes_arr {
+            if let Some(JsonValue::String(sid)) = shape_entry.get("shape_id") {
+                if !sid.is_empty() {
+                    shape_dep_set.insert(sid.clone());
+                }
+            }
+        }
+    }
+
+    // Collect point tags from the already-resolved tag-based bindings.
+    // Look for "point_tag" and "setpoint_point_tag" string values, and items in
+    // "equipment_point_tags" arrays.
+    fn collect_tag_strings(val: &JsonValue, set: &mut HashSet<String>) {
+        match val {
+            JsonValue::Object(m) => {
+                for (key, child) in m {
+                    match key.as_str() {
+                        "point_tag" | "setpoint_point_tag" => {
+                            if let JsonValue::String(s) = child {
+                                if !s.is_empty() && !s.starts_with("<DELETED:") {
+                                    set.insert(s.clone());
+                                }
+                            }
+                        }
+                        "equipment_point_tags" => {
+                            if let JsonValue::Array(arr) = child {
+                                for item in arr {
+                                    if let JsonValue::String(s) = item {
+                                        if !s.is_empty() && !s.starts_with("<DELETED:") {
+                                            set.insert(s.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            collect_tag_strings(child, set);
+                        }
+                    }
+                }
+            }
+            JsonValue::Array(arr) => {
+                for item in arr {
+                    collect_tag_strings(item, set);
+                }
+            }
+            _ => {}
+        }
+    }
+    collect_tag_strings(&tag_based_bindings, &mut point_tag_set);
+
+    let mut shape_dependencies: Vec<String> = shape_dep_set.into_iter().collect();
+    shape_dependencies.sort();
+
+    let mut point_tags: Vec<String> = point_tag_set.into_iter().collect();
+    point_tags.sort();
+
+    // 3b. Build shapes inventory and add shape SVGs to file_map.
+    let mut shapes_inventory: Vec<IographicShapeEntry> = Vec::new();
+
+    for shape_row in &shape_rows {
+        let shape_id: Uuid = match shape_row.try_get("id") {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let shape_name: String = shape_row
+            .try_get::<String, _>("name")
+            .unwrap_or_default();
+        let shape_svg: String = shape_row
+            .try_get::<Option<String>, _>("svg_data")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        let shape_dir = format!("{}.custom.{}", slugify(&shape_name), shape_id);
+        let shape_id_str = format!(".custom.{}", shape_id);
+
+        shapes_inventory.push(IographicShapeEntry {
+            directory: format!("shapes/{}", shape_dir),
+            name: shape_name.clone(),
+            shape_id: shape_id_str.clone(),
+        });
+
+        // Add to shape_dependencies if not already present (custom shapes may or may not
+        // appear in the graphic's shapes array by their custom ID)
+        if !shape_dependencies.contains(&shape_id_str) {
+            shape_dependencies.push(shape_id_str);
+        }
+
+        file_map.insert(
+            format!("shapes/{}/shape.svg", shape_dir),
+            shape_svg.into_bytes(),
+        );
+    }
+
+    // Re-sort shape_dependencies after possible additions from custom shapes
+    shape_dependencies.sort();
+
+    // 3c. Compute SHA-256 checksum over all non-manifest files (sorted by path = BTreeMap order).
+    let mut hasher = Sha256::new();
+    for (_, content) in &file_map {
+        hasher.update(content);
+    }
+    let hash_bytes = hasher.finalize();
+    let checksum = format!(
+        "sha256:{}",
+        hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+    );
+
+    // 4. Build the manifest with all required fields.
     let manifest = IographicManifest {
         format: "iographic".to_string(),
         format_version: "1.0".to_string(),
@@ -580,6 +1033,11 @@ pub async fn export_graphic(
             path: None,
         }],
         graphic: None,
+        shapes: shapes_inventory,
+        stencils: vec![],
+        shape_dependencies,
+        point_tags,
+        checksum,
     };
 
     let manifest_json = match serde_json::to_string_pretty(&manifest) {
@@ -589,6 +1047,13 @@ pub async fn export_graphic(
             return IoError::Internal("Failed to serialize manifest".into()).into_response();
         }
     };
+
+    // 5. Write all entries to the ZIP.
+    let mut zip_bytes: Vec<u8> = Vec::new();
+    let cursor = std::io::Cursor::new(&mut zip_bytes);
+    let mut zip = ZipWriter::new(cursor);
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
 
     macro_rules! zip_write {
         ($path:expr, $bytes:expr) => {
@@ -603,46 +1068,12 @@ pub async fn export_graphic(
         };
     }
 
+    // Write manifest.json first
     zip_write!("manifest.json", manifest_json.as_bytes());
 
-    // graphics/{dir}/graphic.svg
-    let svg_content = svg_data.unwrap_or_default();
-    zip_write!(
-        &format!("graphics/{}/graphic.svg", dir),
-        svg_content.as_bytes()
-    );
-
-    // graphics/{dir}/graphic.json  (bindings + metadata)
-    let graphic_json = serde_json::to_string_pretty(
-        &bindings.unwrap_or(JsonValue::Object(serde_json::Map::new())),
-    )
-    .unwrap_or_else(|_| "{}".to_string());
-    zip_write!(
-        &format!("graphics/{}/graphic.json", dir),
-        graphic_json.as_bytes()
-    );
-
-    // shapes/{shape_id}/shape.svg
-    for shape_row in &shape_rows {
-        let shape_id: Uuid = match shape_row.try_get("id") {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        let shape_name: String = shape_row
-            .try_get::<String, _>("name")
-            .unwrap_or_default();
-        let shape_svg: String = shape_row
-            .try_get::<Option<String>, _>("svg_data")
-            .ok()
-            .flatten()
-            .unwrap_or_default();
-        let shape_dir = format!("{}.custom.{}", slugify(&shape_name), shape_id);
-
-        if let Err(e) = zip.start_file(format!("shapes/{}/shape.svg", shape_dir), options) {
-            tracing::warn!(error = %e, shape_id = %shape_id, "export_graphic: skipping shape");
-            continue;
-        }
-        let _ = zip.write_all(shape_svg.as_bytes());
+    // Write all other files from the sorted map
+    for (path, content) in &file_map {
+        zip_write!(path.as_str(), content.as_slice());
     }
 
     // Finalize ZIP
@@ -1010,4 +1441,307 @@ fn read_zip_entry_string(
         }
     }
     None
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/design-objects/import/iographic/analyze
+// Read-only analysis step: parse ZIP, validate manifest, resolve tags & shapes.
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+struct TagResolution {
+    tag: String,
+    status: String,          // "resolved", "ambiguous", "unresolved"
+    resolved_to: Option<String>,          // UUID string if resolved
+    candidates: Vec<serde_json::Value>,  // populated when ambiguous
+}
+
+#[derive(Serialize)]
+struct ShapeStatus {
+    shape_id: String,
+    status: String,  // "available", "missing", "custom_new", "custom_exists"
+}
+
+#[derive(Serialize)]
+struct StencilStatus {
+    stencil_id: String,
+    name: String,
+    status: String,  // "new", "exists"
+}
+
+#[derive(Serialize)]
+struct IographicAnalysis {
+    manifest: IographicManifest,
+    tag_resolutions: Vec<TagResolution>,
+    shape_statuses: Vec<ShapeStatus>,
+    stencil_statuses: Vec<StencilStatus>,
+    valid: bool,
+    errors: Vec<String>,
+}
+
+pub async fn analyze_iographic(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:read") && !check_permission(&claims, "designer:write") {
+        return IoError::Forbidden("designer:read permission required".into()).into_response();
+    }
+
+    // 1. Extract file bytes from multipart
+    let mut file_bytes: Option<Vec<u8>> = None;
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() == Some("file") {
+            match field.bytes().await {
+                Ok(bytes) => {
+                    file_bytes = Some(bytes.to_vec());
+                    break;
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "analyze_iographic: failed to read file field");
+                    return IoError::BadRequest("Failed to read uploaded file".into()).into_response();
+                }
+            }
+        }
+    }
+
+    let bytes = match file_bytes {
+        Some(b) => b,
+        None => {
+            return IoError::BadRequest("No file field in multipart request".into())
+                .into_response()
+        }
+    };
+
+    // 2. Parse ZIP
+    let cursor = std::io::Cursor::new(bytes.clone());
+    let mut zip = match zip::ZipArchive::new(cursor) {
+        Ok(z) => z,
+        Err(e) => {
+            tracing::error!(error = %e, "analyze_iographic: not a valid ZIP");
+            return IoError::BadRequest(
+                "Invalid .iographic file (not a valid ZIP archive)".into(),
+            )
+            .into_response();
+        }
+    };
+
+    // 3. Read and parse manifest.json
+    let manifest: IographicManifest = {
+        use std::io::Read as _;
+        let mut f = match zip.by_name("manifest.json") {
+            Ok(f) => f,
+            Err(_) => {
+                return IoError::BadRequest(
+                    "manifest.json not found — this does not appear to be a valid .iographic package".into(),
+                )
+                .into_response()
+            }
+        };
+        let mut content = String::new();
+        if f.read_to_string(&mut content).is_err() {
+            return IoError::BadRequest("Failed to read manifest.json".into()).into_response();
+        }
+        match serde_json::from_str::<IographicManifest>(&content) {
+            Ok(m) => m,
+            Err(e) => {
+                return IoError::BadRequest(format!("Invalid manifest.json: {}", e)).into_response();
+            }
+        }
+    };
+
+    let mut errors: Vec<String> = Vec::new();
+
+    // 4. Validate format field
+    if manifest.format != "iographic" {
+        errors.push(format!(
+            "Unrecognised format '{}' — expected 'iographic'",
+            manifest.format
+        ));
+    }
+
+    // 5. Verify checksum — re-read all files except manifest.json sorted by path (BTreeMap order).
+    //    We re-open the ZIP from the original bytes so we have a fresh cursor.
+    {
+        let cursor2 = std::io::Cursor::new(bytes);
+        match zip::ZipArchive::new(cursor2) {
+            Ok(mut zip2) => {
+                use std::io::Read as _;
+                // Collect all entry names first
+                let all_names: Vec<String> = (0..zip2.len())
+                    .filter_map(|i| zip2.by_index(i).ok().map(|e| e.name().to_string()))
+                    .filter(|n| n != "manifest.json")
+                    .collect();
+
+                // Build a sorted map of path → bytes (BTreeMap sorts by key)
+                let mut file_map: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+                for name in &all_names {
+                    if let Ok(mut entry) = zip2.by_name(name) {
+                        let mut buf = Vec::new();
+                        if entry.read_to_end(&mut buf).is_ok() {
+                            file_map.insert(name.clone(), buf);
+                        }
+                    }
+                }
+
+                // Compute SHA-256 over sorted file contents
+                let mut hasher = Sha256::new();
+                for (_, content) in &file_map {
+                    hasher.update(content);
+                }
+                let hash_bytes = hasher.finalize();
+                let computed = format!(
+                    "sha256:{}",
+                    hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                );
+
+                if computed != manifest.checksum {
+                    errors.push(format!(
+                        "Checksum mismatch: expected '{}', computed '{}'",
+                        manifest.checksum, computed
+                    ));
+                }
+            }
+            Err(e) => {
+                errors.push(format!("Failed to re-read ZIP for checksum verification: {}", e));
+            }
+        }
+    }
+
+    // 6. Resolve point tags
+    let mut tag_resolutions: Vec<TagResolution> = Vec::new();
+    for tag in &manifest.point_tags {
+        let rows_result = sqlx::query(
+            "SELECT pm.id::text AS id, pm.tagname, ps.name AS source \
+             FROM points_metadata pm \
+             JOIN point_sources ps ON pm.source_id = ps.id \
+             WHERE pm.tagname = $1",
+        )
+        .bind(tag)
+        .fetch_all(&state.db)
+        .await;
+
+        match rows_result {
+            Ok(rows) => {
+                match rows.len() {
+                    0 => {
+                        tag_resolutions.push(TagResolution {
+                            tag: tag.clone(),
+                            status: "unresolved".to_string(),
+                            resolved_to: None,
+                            candidates: vec![],
+                        });
+                    }
+                    1 => {
+                        let id: String = rows[0].try_get("id").unwrap_or_default();
+                        tag_resolutions.push(TagResolution {
+                            tag: tag.clone(),
+                            status: "resolved".to_string(),
+                            resolved_to: Some(id),
+                            candidates: vec![],
+                        });
+                    }
+                    _ => {
+                        let candidates: Vec<serde_json::Value> = rows
+                            .iter()
+                            .map(|r| {
+                                serde_json::json!({
+                                    "id": r.try_get::<String, _>("id").unwrap_or_default(),
+                                    "tagname": r.try_get::<String, _>("tagname").unwrap_or_default(),
+                                    "source": r.try_get::<String, _>("source").unwrap_or_default(),
+                                })
+                            })
+                            .collect();
+                        tag_resolutions.push(TagResolution {
+                            tag: tag.clone(),
+                            status: "ambiguous".to_string(),
+                            resolved_to: None,
+                            candidates,
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, tag = %tag, "analyze_iographic: tag resolution query failed");
+                tag_resolutions.push(TagResolution {
+                    tag: tag.clone(),
+                    status: "unresolved".to_string(),
+                    resolved_to: None,
+                    candidates: vec![],
+                });
+            }
+        }
+    }
+
+    // 7. Check shape availability
+    let mut shape_statuses: Vec<ShapeStatus> = Vec::new();
+    for shape_id in &manifest.shape_dependencies {
+        let is_custom = shape_id.starts_with(".custom.");
+        let status = match sqlx::query(
+            "SELECT id FROM design_objects \
+             WHERE type = 'shape' AND metadata->>'shape_id' = $1 \
+             LIMIT 1",
+        )
+        .bind(shape_id)
+        .fetch_optional(&state.db)
+        .await
+        {
+            Ok(Some(_)) => {
+                if is_custom { "custom_exists" } else { "available" }
+            }
+            Ok(None) => {
+                if is_custom { "custom_new" } else { "missing" }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, shape_id = %shape_id, "analyze_iographic: shape lookup failed");
+                if is_custom { "custom_new" } else { "missing" }
+            }
+        };
+        shape_statuses.push(ShapeStatus {
+            shape_id: shape_id.clone(),
+            status: status.to_string(),
+        });
+    }
+
+    // 8. Check stencil availability
+    let mut stencil_statuses: Vec<StencilStatus> = Vec::new();
+    for stencil in &manifest.stencils {
+        let status = match sqlx::query(
+            "SELECT id FROM design_objects \
+             WHERE type = 'stencil' AND name = $1 \
+             LIMIT 1",
+        )
+        .bind(&stencil.name)
+        .fetch_optional(&state.db)
+        .await
+        {
+            Ok(Some(_)) => "exists",
+            Ok(None) => "new",
+            Err(e) => {
+                tracing::warn!(error = %e, name = %stencil.name, "analyze_iographic: stencil lookup failed");
+                "new"
+            }
+        };
+        // Use directory as stencil_id (the stable identifier in the ZIP)
+        stencil_statuses.push(StencilStatus {
+            stencil_id: stencil.directory.clone(),
+            name: stencil.name.clone(),
+            status: status.to_string(),
+        });
+    }
+
+    // 9. Compute valid flag
+    let all_tags_ok = tag_resolutions.iter().all(|t| t.status != "unresolved");
+    let valid = errors.is_empty() && all_tags_ok;
+
+    let analysis = IographicAnalysis {
+        manifest,
+        tag_resolutions,
+        shape_statuses,
+        stencil_statuses,
+        valid,
+        errors,
+    };
+
+    Json(ApiResponse::ok(analysis)).into_response()
 }

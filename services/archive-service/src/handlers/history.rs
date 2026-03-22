@@ -143,7 +143,7 @@ pub async fn get_point_history(
             let raw_rows = sqlx::query(
                 "SELECT timestamp, value, quality \
                  FROM points_history_raw \
-                 WHERE point_id = $1 AND timestamp BETWEEN $2 AND $3 AND quality = 'Good' \
+                 WHERE point_id = $1 AND timestamp BETWEEN $2 AND $3 \
                  ORDER BY timestamp \
                  LIMIT $4",
             )
@@ -367,7 +367,7 @@ pub async fn get_batch_history(
                 let raw_rows = sqlx::query(
                     "SELECT timestamp, value, quality \
                      FROM points_history_raw \
-                     WHERE point_id = $1 AND timestamp BETWEEN $2 AND $3 AND quality = 'Good' \
+                     WHERE point_id = $1 AND timestamp BETWEEN $2 AND $3 \
                      ORDER BY timestamp \
                      LIMIT 10000",
                 )

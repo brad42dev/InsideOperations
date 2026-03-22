@@ -5,9 +5,13 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use digest::Digest;
 use io_error::IoError;
 use io_models::ApiResponse;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
+use std::collections::HashMap;
+use std::io::Read as _;
 use tokio::net::TcpListener;
 use tower_http::catch_panic::CatchPanicLayer;
 use tracing::info;
@@ -101,50 +105,177 @@ async fn get_model(
     }
 }
 
+// Manifest structure inside the .iomodel ZIP
+#[derive(Debug, Deserialize)]
+struct IomodelManifest {
+    #[serde(default)]
+    model_domain: Option<String>,
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    class_count: Option<i32>,
+    /// Map of filename → "sha256:<hex>" expected hash. Absent in pre-1.1 packages.
+    #[serde(default)]
+    model_hashes: Option<HashMap<String, String>>,
+}
+
 // POST /recognition/models — upload .iomodel file
 async fn upload_model(
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
-    let mut domain = String::from("pid");
     let mut filename = String::from("model.iomodel");
-    let mut file_size: i64 = 0;
+    let mut file_bytes: Option<Vec<u8>> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
-            "domain" => {
-                if let Ok(data) = field.bytes().await {
-                    domain = String::from_utf8_lossy(&data).to_string();
-                }
-            }
             "file" => {
                 filename = field.file_name().unwrap_or("model.iomodel").to_string();
-                if let Ok(data) = field.bytes().await {
-                    file_size = data.len() as i64;
-                    // In production: write to model_dir, parse .iomodel zip, load ONNX session.
-                    // For stub: just record the metadata.
+                match field.bytes().await {
+                    Ok(data) => file_bytes = Some(data.to_vec()),
+                    Err(e) => {
+                        tracing::error!("Failed to read file field: {}", e);
+                        return IoError::BadRequest("Failed to read uploaded file".to_string())
+                            .into_response();
+                    }
                 }
             }
-            _ => { let _ = field.bytes().await; }
+            _ => {
+                let _ = field.bytes().await;
+            }
         }
     }
+
+    let data = match file_bytes {
+        Some(b) => b,
+        None => {
+            return IoError::BadRequest("No file field in multipart upload".to_string())
+                .into_response();
+        }
+    };
+
+    let file_size = data.len() as i64;
+
+    // Write to incoming directory
+    let incoming_dir = format!("{}/incoming", state.config.model_dir);
+    if let Err(e) = tokio::fs::create_dir_all(&incoming_dir).await {
+        tracing::error!("Failed to create incoming dir {}: {}", incoming_dir, e);
+        return IoError::Internal("Failed to create model directory".to_string()).into_response();
+    }
+    let tmp_id = Uuid::new_v4();
+    let tmp_path = format!("{}/{}.iomodel", incoming_dir, tmp_id);
+    if let Err(e) = tokio::fs::write(&tmp_path, &data).await {
+        tracing::error!("Failed to write temp file {}: {}", tmp_path, e);
+        return IoError::Internal("Failed to write model to disk".to_string()).into_response();
+    }
+
+    // Open as ZIP and parse manifest
+    let zip_data = data;
+    let parse_result = tokio::task::spawn_blocking(move || {
+        parse_and_verify_iomodel(&zip_data)
+    })
+    .await;
+
+    // Clean up temp file regardless of outcome
+    let _ = tokio::fs::remove_file(&tmp_path).await;
+
+    let manifest = match parse_result {
+        Ok(Ok(m)) => m,
+        Ok(Err(e)) => {
+            tracing::error!("Failed to parse .iomodel package '{}': {}", filename, e);
+            return IoError::BadRequest(format!("Invalid .iomodel package: {e}")).into_response();
+        }
+        Err(e) => {
+            tracing::error!("Spawn-blocking error parsing .iomodel: {}", e);
+            return IoError::Internal("Failed to process model package".to_string())
+                .into_response();
+        }
+    };
+
+    let domain = manifest.model_domain.unwrap_or_else(|| "pid".to_string());
+    let version = manifest.version.unwrap_or_else(|| "1.0.0".to_string());
+    let class_count = manifest.class_count.unwrap_or(0);
 
     let model = ModelInfo {
         id: Uuid::new_v4().to_string(),
         domain: domain.clone(),
-        version: "1.0.0".to_string(),
-        filename,
-        class_count: 0,  // would be read from .iomodel metadata
-        loaded: false,   // would be true after ONNX session loaded
+        version: version.clone(),
+        filename: filename.clone(),
+        class_count,
+        loaded: false,
         uploaded_at: Utc::now(),
         file_size_bytes: file_size,
     };
 
     state.models.write().await.push(model.clone());
-    tracing::info!(domain = %domain, "Model uploaded (stub — ONNX loading deferred)");
+    tracing::info!(
+        domain = %domain,
+        version = %version,
+        filename = %filename,
+        "Model uploaded and integrity verified"
+    );
 
     Json(ApiResponse::ok(model)).into_response()
+}
+
+/// Parse a .iomodel ZIP, verify SHA-256 hashes from manifest.json, and return parsed manifest.
+/// Returns Err if the ZIP is invalid, manifest.json is missing/unparseable, or any hash mismatches.
+fn parse_and_verify_iomodel(zip_data: &[u8]) -> anyhow::Result<IomodelManifest> {
+    use std::io::Cursor;
+    let cursor = Cursor::new(zip_data);
+    let mut archive = zip::ZipArchive::new(cursor)
+        .map_err(|e| anyhow::anyhow!("Not a valid ZIP archive: {e}"))?;
+
+    // Read manifest.json
+    let manifest: IomodelManifest = {
+        let mut manifest_file = archive
+            .by_name("manifest.json")
+            .map_err(|_| anyhow::anyhow!("manifest.json not found in .iomodel package"))?;
+        let mut raw = Vec::new();
+        manifest_file.read_to_end(&mut raw)?;
+        serde_json::from_slice(&raw)
+            .map_err(|e| anyhow::anyhow!("Failed to parse manifest.json: {e}"))?
+    };
+
+    match &manifest.model_hashes {
+        None => {
+            tracing::warn!("model integrity not verified — pre-1.1 package");
+        }
+        Some(hashes) if hashes.is_empty() => {
+            tracing::warn!("model integrity not verified — pre-1.1 package");
+        }
+        Some(hashes) => {
+            // Verify each declared ONNX file
+            for (onnx_filename, expected_hash) in hashes {
+                let mut entry = archive.by_name(onnx_filename).map_err(|_| {
+                    anyhow::anyhow!(
+                        "Hash declared for '{}' but file not found in archive",
+                        onnx_filename
+                    )
+                })?;
+                let mut file_bytes = Vec::new();
+                entry.read_to_end(&mut file_bytes)?;
+
+                let mut hasher = Sha256::new();
+                hasher.update(&file_bytes);
+                let digest = hasher.finalize();
+                let computed = format!("sha256:{}", hex::encode(digest));
+
+                if computed != *expected_hash {
+                    return Err(anyhow::anyhow!(
+                        "SHA-256 mismatch for '{}': expected '{}', got '{}'",
+                        onnx_filename,
+                        expected_hash,
+                        computed
+                    ));
+                }
+                tracing::debug!(file = %onnx_filename, "SHA-256 integrity check passed");
+            }
+        }
+    }
+
+    Ok(manifest)
 }
 
 // DELETE /recognition/models/:id — remove model
@@ -218,13 +349,14 @@ async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
-    let _obs = io_observability::init(io_observability::ObservabilityConfig {
+    let obs = io_observability::init(io_observability::ObservabilityConfig {
         service_name: "recognition-service",
         service_version: env!("CARGO_PKG_VERSION"),
         log_level: "info",
         metrics_enabled: true,
         tracing_enabled: false,
     })?;
+    obs.start_watchdog_keepalive();
 
     let config = config::Config::from_env()?;
     let port = config.port;

@@ -1,6 +1,24 @@
 {
-  "id": "instrument-panel",
+  "$schema": "io-shape-v1",
+  "shape_id": "instrument-panel",
+  "version": "1.0",
+  "display_name": "Instrument (Panel)",
   "category": "instruments",
+  "subcategory": "panel",
+  "tags": ["instrument", "panel", "mounted", "circle"],
+  "recognition_class": "instrument_panel",
+  "variants": {
+    "options": {
+      "opt1": { "file": "instrument-panel.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 40", "width": 40, "height": 40 },
   "connections": [
     { "id": "signal", "type": "signal", "x": 20, "y": 4, "direction": "top" }

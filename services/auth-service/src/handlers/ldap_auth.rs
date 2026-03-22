@@ -16,8 +16,9 @@ use io_error::{IoError, IoResult};
 use io_models::ApiResponse;
 
 use crate::handlers::auth::fetch_user_permissions;
+use crate::handlers::mfa::check_mfa_required;
 use crate::handlers::oidc::apply_group_role_mappings;
-use crate::state::AppState;
+use crate::state::{AppState, MfaPendingEntry};
 
 // ---------------------------------------------------------------------------
 // Request / response types
@@ -299,6 +300,40 @@ async fn ldap_login_inner(
     // Apply group → role mappings
     if !groups.is_empty() {
         apply_group_role_mappings(&state.db, config_id, db_user_id, &groups).await?;
+    }
+
+    // --- MFA gate ---
+    // Check is_service_account for the db user before applying the gate.
+    let is_service_account: bool = sqlx::query_scalar(
+        "SELECT is_service_account FROM users WHERE id = $1",
+    )
+    .bind(db_user_id)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(false);
+
+    if !is_service_account {
+        if let Some((mfa_token, allowed_methods)) =
+            check_mfa_required(&state.db, db_user_id).await?
+        {
+            state.mfa_pending_tokens.insert(
+                mfa_token.clone(),
+                MfaPendingEntry {
+                    user_id: db_user_id,
+                    allowed_methods: allowed_methods.clone(),
+                    expires_at: chrono::Utc::now() + chrono::Duration::minutes(5),
+                },
+            );
+            return Ok((
+                StatusCode::OK,
+                Json(ApiResponse::ok(serde_json::json!({
+                    "mfa_required": true,
+                    "mfa_token": mfa_token,
+                    "allowed_methods": allowed_methods,
+                }))),
+            )
+                .into_response());
+        }
     }
 
     // Issue JWT

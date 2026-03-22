@@ -232,3 +232,82 @@ impl HealthCheckable for PgDatabaseCheck {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- CheckStatus equality ---
+
+    #[test]
+    fn check_status_variants_are_distinguishable() {
+        assert_ne!(CheckStatus::Ok, CheckStatus::Error);
+        assert_ne!(CheckStatus::Ok, CheckStatus::Timeout);
+        assert_ne!(CheckStatus::Timeout, CheckStatus::Error);
+    }
+
+    // --- HealthStatus serialization round-trip ---
+
+    #[test]
+    fn health_status_ok_serializes_to_snake_case() {
+        let status = HealthStatus {
+            status: CheckStatus::Ok,
+            latency_ms: 5,
+            error: None,
+        };
+        let json = serde_json::to_string(&status).expect("must serialize");
+        assert!(
+            json.contains("\"ok\""),
+            "CheckStatus::Ok must serialize as \"ok\": {json}"
+        );
+    }
+
+    #[test]
+    fn health_status_error_carries_message() {
+        let status = HealthStatus {
+            status: CheckStatus::Error,
+            latency_ms: 100,
+            error: Some("connection refused".to_string()),
+        };
+        let json = serde_json::to_string(&status).expect("must serialize");
+        assert!(json.contains("connection refused"));
+    }
+
+    #[test]
+    fn health_status_timeout_round_trips_through_json() {
+        let original = HealthStatus {
+            status: CheckStatus::Timeout,
+            latency_ms: 5000,
+            error: Some("check timed out".to_string()),
+        };
+        let json = serde_json::to_string(&original).expect("serialise");
+        let restored: HealthStatus = serde_json::from_str(&json).expect("deserialise");
+        assert_eq!(restored.status, CheckStatus::Timeout);
+        assert_eq!(restored.latency_ms, 5000);
+    }
+
+    // --- HealthRegistry ---
+
+    #[test]
+    fn health_registry_starts_with_startup_incomplete() {
+        let reg = HealthRegistry::new("test-service", "0.1.0");
+        // startup_complete flag starts as false; mark_startup_complete flips it.
+        // We can observe this indirectly via the startup atomic before marking.
+        assert_eq!(reg.service_name, "test-service");
+        assert_eq!(reg.version, "0.1.0");
+        assert!(
+            !reg.startup_complete.load(std::sync::atomic::Ordering::SeqCst),
+            "Startup must not be marked complete before mark_startup_complete() is called"
+        );
+    }
+
+    #[test]
+    fn mark_startup_complete_flips_flag() {
+        let reg = HealthRegistry::new("svc", "1.0.0");
+        reg.mark_startup_complete();
+        assert!(
+            reg.startup_complete.load(std::sync::atomic::Ordering::SeqCst),
+            "mark_startup_complete must set the atomic flag"
+        );
+    }
+}

@@ -98,8 +98,8 @@ pub async fn generate_report(
         Err(_) => return IoError::Unauthorized.into_response(),
     };
 
-    if !claims.permissions.iter().any(|p| p == "*" || p == "reports:run") {
-        return IoError::Forbidden("reports:run permission required".into()).into_response();
+    if !claims.permissions.iter().any(|p| p == "*" || p == "reports:export") {
+        return IoError::Forbidden("reports:export permission required".into()).into_response();
     }
 
     let valid_formats = ["csv", "xlsx", "html", "json", "pdf"];

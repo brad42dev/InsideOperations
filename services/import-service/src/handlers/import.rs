@@ -15,6 +15,8 @@ use serde_json::Value as JsonValue;
 use sqlx::Row;
 use uuid::Uuid;
 
+use crate::crypto;
+use crate::pipeline;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -129,6 +131,7 @@ pub struct ListTemplatesParams {
     pub domain: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct ListConnectionsParams {
     pub enabled: Option<bool>,
@@ -235,11 +238,16 @@ fn row_to_connector_template(row: &sqlx::postgres::PgRow) -> Result<ConnectorTem
 }
 
 fn row_to_connection(row: &sqlx::postgres::PgRow) -> Result<ImportConnectionRow, sqlx::Error> {
+    let raw_config: JsonValue = row.try_get("config").unwrap_or(JsonValue::Object(Default::default()));
+    // Mask any sensitive fields (password, api_key, etc.) that may have been
+    // placed in config. auth_config is stored separately and is never returned
+    // to callers via this struct.
+    let config = crypto::mask_sensitive_fields(&raw_config);
     Ok(ImportConnectionRow {
         id: row.try_get("id")?,
         name: row.try_get("name")?,
         connection_type: row.try_get("connection_type")?,
-        config: row.try_get("config").unwrap_or(JsonValue::Object(Default::default())),
+        config,
         auth_type: row.try_get("auth_type").unwrap_or_else(|_| "none".to_string()),
         enabled: row.try_get("enabled").unwrap_or(true),
         last_tested_at: row.try_get("last_tested_at").ok().flatten(),
@@ -448,7 +456,9 @@ pub async fn create_connection(
 
     let config = body.config.unwrap_or(JsonValue::Object(Default::default()));
     let auth_type = body.auth_type.unwrap_or_else(|| "none".to_string());
-    let auth_config = body.auth_config.unwrap_or(JsonValue::Object(Default::default()));
+    let raw_auth_config = body.auth_config.unwrap_or(JsonValue::Object(Default::default()));
+    // Encrypt sensitive credential fields before persisting to the database.
+    let auth_config = crypto::encrypt_sensitive_fields(&raw_auth_config, &state.config.master_key);
     let is_supplemental = body.is_supplemental_connector.unwrap_or(false);
 
     let row = sqlx::query(
@@ -528,7 +538,9 @@ pub async fn update_connection(
     let connection_type: String = body.connection_type.unwrap_or_else(|| current_row.try_get("connection_type").unwrap_or_default());
     let config: JsonValue = body.config.unwrap_or_else(|| current_row.try_get("config").unwrap_or(JsonValue::Object(Default::default())));
     let auth_type: String = body.auth_type.unwrap_or_else(|| current_row.try_get("auth_type").unwrap_or_else(|_| "none".to_string()));
-    let auth_config: JsonValue = body.auth_config.unwrap_or_else(|| current_row.try_get("auth_config").unwrap_or(JsonValue::Object(Default::default())));
+    let raw_auth_config: JsonValue = body.auth_config.unwrap_or_else(|| current_row.try_get("auth_config").unwrap_or(JsonValue::Object(Default::default())));
+    // Re-encrypt sensitive credential fields before persisting to the database.
+    let auth_config = crypto::encrypt_sensitive_fields(&raw_auth_config, &state.config.master_key);
     let enabled: bool = body.enabled.unwrap_or_else(|| current_row.try_get("enabled").unwrap_or(true));
 
     let row = sqlx::query(
@@ -603,24 +615,78 @@ pub async fn test_connection(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    // Update last_tested_at and set status to 'ok' (stub — real connectors not implemented yet)
-    let result = sqlx::query(
-        "UPDATE import_connections \
-         SET last_tested_at = NOW(), last_test_status = 'ok', \
-             last_test_message = 'Connection test succeeded', updated_at = NOW() \
+    use crate::connectors;
+
+    // Fetch the full connection row so we can dispatch to the correct connector.
+    let row = sqlx::query(
+        "SELECT id, connection_type, config, auth_type, auth_config \
+         FROM import_connections \
          WHERE id = $1",
     )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let row = match row {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return IoError::NotFound(format!("Connection {id} not found")).into_response();
+        }
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let connection_type: String = row.try_get("connection_type").unwrap_or_default();
+    let config: serde_json::Value = row
+        .try_get::<serde_json::Value, _>("config")
+        .unwrap_or(serde_json::Value::Null);
+    let auth_type: String = row.try_get("auth_type").unwrap_or_default();
+    let auth_config_raw: serde_json::Value = row
+        .try_get::<serde_json::Value, _>("auth_config")
+        .unwrap_or(serde_json::Value::Null);
+    // Decrypt credential fields so the connector receives plain-text values.
+    let auth_config = crypto::decrypt_sensitive_fields(&auth_config_raw, &state.config.master_key);
+
+    let cfg = connectors::extract_connector_config(id, &config, &auth_type, &auth_config);
+
+    // Dispatch to the appropriate connector, or return an honest "not supported" message.
+    let (test_status, test_message) = if let Some(connector) = connectors::get_connector(&connection_type) {
+        match connector.test_connection(&cfg).await {
+            Ok(()) => (
+                "connected".to_string(),
+                "Connection successful".to_string(),
+            ),
+            Err(e) => ("error".to_string(), e.to_string()),
+        }
+    } else {
+        (
+            "error".to_string(),
+            format!(
+                "Connection test not supported for connector type '{}' yet",
+                connection_type
+            ),
+        )
+    };
+
+    // Persist the result back to the DB.
+    let update_result = sqlx::query(
+        "UPDATE import_connections \
+         SET last_tested_at = NOW(), last_test_status = $1, \
+             last_test_message = $2, updated_at = NOW() \
+         WHERE id = $3",
+    )
+    .bind(&test_status)
+    .bind(&test_message)
     .bind(id)
     .execute(&state.db)
     .await;
 
-    match result {
+    match update_result {
         Ok(r) if r.rows_affected() == 0 => {
             IoError::NotFound(format!("Connection {id} not found")).into_response()
         }
         Ok(_) => Json(ApiResponse::ok(serde_json::json!({
-            "status": "ok",
-            "message": "Connection test succeeded"
+            "status": test_status,
+            "message": test_message
         })))
         .into_response(),
         Err(e) => IoError::Database(e).into_response(),
@@ -1027,19 +1093,12 @@ pub async fn trigger_run(
         Err(e) => return IoError::Internal(format!("Row mapping error: {e}")).into_response(),
     };
 
-    // Spawn background task to simulate completion
-    let state_clone = state.clone();
+    // Spawn background ETL pipeline task
+    let db_clone = state.db.clone();
     tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        let _ = sqlx::query(
-            "UPDATE import_runs \
-             SET status = 'completed', completed_at = NOW(), \
-                 rows_extracted = 0, rows_loaded = 0, rows_errored = 0 \
-             WHERE id = $1",
-        )
-        .bind(run_id)
-        .execute(&state_clone.db)
-        .await;
+        if let Err(e) = pipeline::execute(&db_clone, run_id, def_id, dry_run).await {
+            tracing::warn!(run_id = %run_id, error = %e, "import pipeline error");
+        }
     });
 
     (StatusCode::CREATED, Json(ApiResponse::ok(run))).into_response()

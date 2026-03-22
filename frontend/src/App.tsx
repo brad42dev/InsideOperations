@@ -1,6 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
-import { initTheme } from './shared/theme/tokens'
+import { ThemeProvider } from './shared/theme/ThemeContext'
 import AppShell from './shared/layout/AppShell'
 import PermissionGuard from './shared/components/PermissionGuard'
 import DesignerPage from './pages/designer/index'
@@ -40,6 +39,10 @@ import SecurityPage from './pages/settings/Security'
 import ImportSettingsPage from './pages/settings/Import'
 import RecognitionPage from './pages/settings/Recognition'
 import AuthProvidersPage from './pages/settings/AuthProviders'
+import MfaSettingsPage from './pages/settings/MfaSettings'
+import ApiKeysPage from './pages/settings/ApiKeys'
+import ScimTokensPage from './pages/settings/ScimTokens'
+import SmsProvidersPage from './pages/settings/SmsProviders'
 import SystemHealth from './pages/settings/SystemHealth'
 import Sessions from './pages/settings/Sessions'
 import Display from './pages/settings/Display'
@@ -389,7 +392,7 @@ function AppRoutes() {
         <Route
           path="reports/generate/:template_id"
           element={
-            <PermissionGuard permission="reports:generate">
+            <PermissionGuard permission="reports:read">
               <ErrorBoundary module="Reports">
                 <ReportGenerator />
               </ErrorBoundary>
@@ -409,7 +412,7 @@ function AppRoutes() {
         <Route
           path="reports/schedules"
           element={
-            <PermissionGuard permission="reports:schedule_manage">
+            <PermissionGuard permission="reports:admin">
               <ErrorBoundary module="Reports">
                 <ReportSchedules />
               </ErrorBoundary>
@@ -918,10 +921,10 @@ function AppRoutes() {
               </PermissionGuard>
             }
           />
-          <Route path="display" element={<Display />} />
-          <Route path="appearance" element={<AppearancePage />} />
-          <Route path="health" element={<HealthPage />} />
-          <Route path="about" element={<AboutPage />} />
+          <Route path="display" element={<PermissionGuard permission={null}><Display /></PermissionGuard>} />
+          <Route path="appearance" element={<PermissionGuard permission={null}><AppearancePage /></PermissionGuard>} />
+          <Route path="health" element={<PermissionGuard permission="system:monitor"><HealthPage /></PermissionGuard>} />
+          <Route path="about" element={<PermissionGuard permission={null}><AboutPage /></PermissionGuard>} />
           <Route
             path="eula"
             element={
@@ -930,11 +933,11 @@ function AppRoutes() {
               </PermissionGuard>
             }
           />
-          <Route path="certificates" element={<CertificatesPage />} />
-          <Route path="backup" element={<BackupRestorePage />} />
-          <Route path="expressions" element={<ExpressionLibrary />} />
-          <Route path="report-scheduling" element={<ReportScheduling />} />
-          <Route path="export-presets" element={<ExportPresets />} />
+          <Route path="certificates" element={<PermissionGuard permission="system:certificates"><CertificatesPage /></PermissionGuard>} />
+          <Route path="backup" element={<PermissionGuard permission="system:change_backup"><BackupRestorePage /></PermissionGuard>} />
+          <Route path="expressions" element={<PermissionGuard permission="system:configure"><ExpressionLibrary /></PermissionGuard>} />
+          <Route path="report-scheduling" element={<PermissionGuard permission="reports:schedule_manage"><ReportScheduling /></PermissionGuard>} />
+          <Route path="export-presets" element={<PermissionGuard permission="settings:export"><ExportPresets /></PermissionGuard>} />
           <Route
             path="email"
             element={
@@ -943,7 +946,7 @@ function AppRoutes() {
               </PermissionGuard>
             }
           />
-          <Route path="security" element={<SecurityPage />} />
+          <Route path="security" element={<PermissionGuard permission="system:configure"><SecurityPage /></PermissionGuard>} />
           <Route
             path="import"
             element={
@@ -975,6 +978,38 @@ function AppRoutes() {
             element={
               <PermissionGuard permission="auth:configure">
                 <AuthProvidersPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="mfa"
+            element={
+              <PermissionGuard permission="auth:manage_mfa">
+                <MfaSettingsPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="api-keys"
+            element={
+              <PermissionGuard permission="auth:manage_api_keys">
+                <ApiKeysPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="scim"
+            element={
+              <PermissionGuard permission="auth:configure">
+                <ScimTokensPage />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="sms-providers"
+            element={
+              <PermissionGuard permission="system:configure">
+                <SmsProvidersPage />
               </PermissionGuard>
             }
           />
@@ -1021,14 +1056,10 @@ function AppRoutes() {
 }
 
 export default function App() {
-  useEffect(() => {
-    initTheme()
-  }, [])
-
   return (
-    <>
+    <ThemeProvider>
       <AppRoutes />
       <ToastProvider />
-    </>
+    </ThemeProvider>
   )
 }

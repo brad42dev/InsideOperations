@@ -2240,3 +2240,155 @@ fn parse_der_cert_fields(
 
     (subject, issuer, not_before, not_after)
 }
+
+// ---------------------------------------------------------------------------
+// Reconnect backoff — pure helper (extracted for testability)
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- next_backoff pure helper (mirrors the backoff_secs doubling in run_source) ---
+
+    fn next_backoff(current_secs: u64, max_secs: u64) -> u64 {
+        (current_secs * 2).min(max_secs)
+    }
+
+    // --- variant_to_f64 ---
+
+    #[test]
+    fn variant_double_converts_to_f64() {
+        assert!((variant_to_f64(&Variant::Double(3.14)).unwrap() - 3.14).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn variant_float_converts_to_f64() {
+        let v = variant_to_f64(&Variant::Float(1.0_f32)).unwrap();
+        assert!((v - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn variant_int32_converts_to_f64() {
+        assert_eq!(variant_to_f64(&Variant::Int32(-7)).unwrap(), -7.0);
+    }
+
+    #[test]
+    fn variant_uint32_converts_to_f64() {
+        assert_eq!(variant_to_f64(&Variant::UInt32(42)).unwrap(), 42.0);
+    }
+
+    #[test]
+    fn variant_boolean_true_converts_to_1() {
+        assert_eq!(variant_to_f64(&Variant::Boolean(true)).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn variant_boolean_false_converts_to_0() {
+        assert_eq!(variant_to_f64(&Variant::Boolean(false)).unwrap(), 0.0);
+    }
+
+    #[test]
+    fn variant_numeric_string_converts_to_f64() {
+        let v = Variant::String(UAString::from("99.5"));
+        assert!((variant_to_f64(&v).unwrap() - 99.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn variant_non_numeric_string_returns_none() {
+        let v = Variant::String(UAString::from("not-a-number"));
+        assert!(variant_to_f64(&v).is_none());
+    }
+
+    // --- str_to_quality ---
+
+    #[test]
+    fn str_to_quality_maps_good_string() {
+        assert_eq!(str_to_quality("good"), PointQuality::Good);
+    }
+
+    #[test]
+    fn str_to_quality_maps_uncertain_string() {
+        assert_eq!(str_to_quality("uncertain"), PointQuality::Uncertain);
+    }
+
+    #[test]
+    fn str_to_quality_maps_unknown_strings_to_bad() {
+        assert_eq!(str_to_quality("bad"), PointQuality::Bad);
+        assert_eq!(str_to_quality(""), PointQuality::Bad);
+        assert_eq!(str_to_quality("GOOD"), PointQuality::Bad);
+    }
+
+    // --- extract_value: NaN/infinity → Bad quality ---
+
+    #[test]
+    fn extract_value_maps_nan_to_zero_with_bad_quality() {
+        let mut dv = DataValue::default();
+        dv.value = Some(Variant::Double(f64::NAN));
+        let (val, q) = extract_value(&dv);
+        assert_eq!(val, 0.0, "NaN must be normalised to 0.0");
+        assert_eq!(q, PointQuality::Bad, "NaN must produce Bad quality per doc 37");
+    }
+
+    #[test]
+    fn extract_value_maps_infinity_to_zero_with_bad_quality() {
+        let mut dv = DataValue::default();
+        dv.value = Some(Variant::Double(f64::INFINITY));
+        let (val, q) = extract_value(&dv);
+        assert_eq!(val, 0.0);
+        assert_eq!(q, PointQuality::Bad, "Infinity must produce Bad quality per doc 37");
+    }
+
+    #[test]
+    fn extract_value_normal_float_passes_through() {
+        let mut dv = DataValue::default();
+        dv.value = Some(Variant::Double(55.5));
+        let (val, q) = extract_value(&dv);
+        assert!((val - 55.5).abs() < f64::EPSILON);
+        assert_eq!(q, PointQuality::Good);
+    }
+
+    // --- next_backoff ---
+
+    #[test]
+    fn backoff_doubles_from_initial_value() {
+        assert_eq!(next_backoff(5, 60), 10);
+    }
+
+    #[test]
+    fn backoff_doubles_again_on_second_failure() {
+        assert_eq!(next_backoff(10, 60), 20);
+    }
+
+    #[test]
+    fn backoff_is_capped_at_max_secs() {
+        // 40 * 2 = 80, but cap is 60.
+        assert_eq!(next_backoff(40, 60), 60);
+    }
+
+    #[test]
+    fn backoff_stays_at_cap_once_reached() {
+        assert_eq!(next_backoff(60, 60), 60);
+    }
+
+    #[test]
+    fn backoff_sequence_matches_documented_5_10_20_40_60() {
+        let max = 60u64;
+        let mut backoff = 5u64;
+        let mut sequence = vec![backoff];
+        for _ in 0..4 {
+            backoff = next_backoff(backoff, max);
+            sequence.push(backoff);
+        }
+        assert_eq!(sequence, vec![5, 10, 20, 40, 60]);
+    }
+
+    #[test]
+    fn backoff_with_custom_max_caps_correctly() {
+        // max=30: 5→10→20→30→30
+        let max = 30u64;
+        let mut b = 5u64;
+        let seq: Vec<u64> = (0..4).map(|_| { b = next_backoff(b, max); b }).collect();
+        assert_eq!(seq, vec![10, 20, 30, 30]);
+    }
+}

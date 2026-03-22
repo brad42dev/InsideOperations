@@ -134,8 +134,28 @@ export default function PointDetailPanel({
     return () => document.removeEventListener('keydown', handler)
   }, [pointId, onClose])
 
-  // Position logic
+  // Position and drag state
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 60, left: 0 })
+  const dragState = useRef<{ startMouseX: number; startMouseY: number; startTop: number; startLeft: number } | null>(null)
+
+  function handleHeaderMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    dragState.current = { startMouseX: e.clientX, startMouseY: e.clientY, startTop: position.top, startLeft: position.left }
+    function onMove(ev: MouseEvent) {
+      if (!dragState.current) return
+      const dx = ev.clientX - dragState.current.startMouseX
+      const dy = ev.clientY - dragState.current.startMouseY
+      setPosition({ top: dragState.current.startTop + dy, left: dragState.current.startLeft + dx })
+    }
+    function onUp() {
+      dragState.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
 
   useEffect(() => {
     if (!pointId) return
@@ -179,8 +199,9 @@ export default function PointDetailPanel({
         overflow: 'hidden',
       }}
     >
-      {/* Header */}
+      {/* Header — drag handle */}
       <div
+        onMouseDown={handleHeaderMouseDown}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -188,6 +209,8 @@ export default function PointDetailPanel({
           padding: '10px 14px',
           borderBottom: '1px solid var(--io-border)',
           background: 'var(--io-surface-secondary)',
+          cursor: 'move',
+          userSelect: 'none',
         }}
       >
         <div style={{ overflow: 'hidden' }}>

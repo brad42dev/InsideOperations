@@ -2,11 +2,19 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { dashboardsApi } from '../../api/dashboards'
+import { useUiStore } from '../../store/ui'
 import DashboardViewer from './DashboardViewer'
 
 export default function PlaylistPlayer() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { setKiosk } = useUiStore()
+
+  // PlaylistPlayer always runs in kiosk mode — hide AppShell chrome
+  useEffect(() => {
+    setKiosk(true)
+    return () => setKiosk(false)
+  }, [setKiosk])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)

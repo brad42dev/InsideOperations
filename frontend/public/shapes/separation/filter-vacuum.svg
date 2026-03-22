@@ -2,12 +2,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 66 55"
      data-io-shape="filter-vacuum" data-io-version="3.0">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
-    <polyline points="0,0 33,50 66,0"/>
-    <polyline points="8,0 33,40 58,0"/>
-    <line x1="0" y1="0" x2="8" y2="0"/>
-    <line x1="58" y1="0" x2="66" y2="0"/>
-    <line x1="33" y1="40" x2="33" y2="50"/>
-    <line x1="26" y1="50" x2="40" y2="50"/>
-    <path d="M 26,50 A 7,7 0 0,0 40,50"/>
+    <polyline class="io-stateful" points="0,0 33,50 66,0"/>
+    <polyline class="io-stateful" points="8,0 33,40 58,0"/>
+    <line class="io-stateful" x1="0" y1="0" x2="8" y2="0"/>
+    <line class="io-stateful" x1="58" y1="0" x2="66" y2="0"/>
+    <line class="io-stateful" x1="33" y1="40" x2="33" y2="50"/>
+    <line class="io-stateful" x1="26" y1="50" x2="40" y2="50"/>
+    <path class="io-stateful" d="M 26,50 A 7,7 0 0,0 40,50"/>
   </g>
 </svg>

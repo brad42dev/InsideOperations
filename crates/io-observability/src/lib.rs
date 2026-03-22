@@ -110,3 +110,42 @@ pub fn init(config: ObservabilityConfig) -> Result<ObservabilityHandle, anyhow::
 
     Ok(ObservabilityHandle { prometheus_handle })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- init with metrics disabled ---
+
+    #[test]
+    fn init_without_metrics_returns_ok() {
+        let cfg = ObservabilityConfig {
+            service_name: "test-svc",
+            service_version: "0.0.1",
+            log_level: "warn",
+            metrics_enabled: false,
+            tracing_enabled: false,
+        };
+        let handle = init(cfg).expect("init must succeed when metrics are disabled");
+        // metrics_router returns a router even when metrics are disabled (returns 404).
+        let _ = handle.metrics_router();
+    }
+
+    // --- ObservabilityConfig fields ---
+
+    #[test]
+    fn observability_config_fields_are_accessible() {
+        let cfg = ObservabilityConfig {
+            service_name: "io-api-gateway",
+            service_version: "1.2.3",
+            log_level: "info",
+            metrics_enabled: true,
+            tracing_enabled: true,
+        };
+        assert_eq!(cfg.service_name, "io-api-gateway");
+        assert_eq!(cfg.service_version, "1.2.3");
+        assert_eq!(cfg.log_level, "info");
+        assert!(cfg.metrics_enabled);
+        assert!(cfg.tracing_enabled);
+    }
+}

@@ -1,8 +1,26 @@
 {
-  "id": "agitator-turbine",
+  "$schema": "io-shape-v1",
+  "shape_id": "agitator-turbine",
+  "version": "1.0",
+  "display_name": "Agitator — Turbine",
   "category": "agitators",
+  "subcategory": "turbine",
+  "tags": ["agitator", "turbine", "mixing", "part"],
+  "recognition_class": "agitator_turbine",
   "isPart": true,
   "partClass": "io-part-agitator",
+  "variants": {
+    "options": {
+      "opt1": { "file": "agitator-turbine.svg", "label": "Turbine" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
   "connections": [
     { "id": "shaft-top", "type": "mechanical", "x": 20, "y": 7, "direction": "top" }

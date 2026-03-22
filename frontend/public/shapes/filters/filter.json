@@ -1,6 +1,24 @@
 {
-  "id": "filter",
+  "$schema": "io-shape-v1",
+  "shape_id": "filter",
+  "version": "1.0",
+  "display_name": "Filter (Standard)",
   "category": "filters",
+  "subcategory": "standard",
+  "tags": ["filter", "strainer", "separation"],
+  "recognition_class": "filter",
+  "variants": {
+    "options": {
+      "opt1": { "file": "filter.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 50 60", "width": 50, "height": 60 },
   "connections": [
     { "id": "inlet",  "type": "process", "x": 6,  "y": 10, "direction": "left" },

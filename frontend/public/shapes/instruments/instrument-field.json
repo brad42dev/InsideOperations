@@ -1,6 +1,24 @@
 {
-  "id": "instrument-field",
+  "$schema": "io-shape-v1",
+  "shape_id": "instrument-field",
+  "version": "1.0",
+  "display_name": "Instrument (Field)",
   "category": "instruments",
+  "subcategory": "field",
+  "tags": ["instrument", "field", "transmitter", "circle"],
+  "recognition_class": "instrument_field",
+  "variants": {
+    "options": {
+      "opt1": { "file": "instrument-field.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 40 40", "width": 40, "height": 40 },
   "connections": [
     { "id": "signal", "type": "signal", "x": 20, "y": 4, "direction": "top" }

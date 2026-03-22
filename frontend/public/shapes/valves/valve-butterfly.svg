@@ -2,7 +2,7 @@
   <g class="io-shape-body">
     <line x1="7" y1="0" x2="7" y2="24" stroke="#808080" stroke-width="1.5"/>
     <line x1="53" y1="0" x2="53" y2="24" stroke="#808080" stroke-width="1.5"/>
-    <line x1="10" y1="4" x2="50" y2="20" stroke="#808080" stroke-width="2"/>
+    <line class="io-stateful" x1="10" y1="4" x2="50" y2="20" stroke="#808080" stroke-width="2"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="0" cy="12" r="3"/>

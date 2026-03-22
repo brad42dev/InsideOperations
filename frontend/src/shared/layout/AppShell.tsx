@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Monitor,
@@ -17,12 +17,14 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
+import { showToast } from '../components/Toast'
 import LockOverlay from '../components/LockOverlay'
 import EmergencyAlert from '../components/EmergencyAlert'
 import CommandPalette from '../components/CommandPalette'
 import { SystemHealthDot, SystemHealthDotRow } from '../components/SystemHealthDot'
+import { authApi } from '../../api/auth'
 
-const IDLE_TIMEOUT_MS = 60_000
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes per spec
 
 interface NavItem {
   path: string
@@ -210,9 +212,10 @@ function AlertBell() {
 
 export default function AppShell() {
   const { user, logout } = useAuthStore()
-  const { isKiosk, lock } = useUiStore()
+  const { isKiosk, isLocked, lock, setKiosk } = useUiStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // 3-state sidebar: 'expanded' | 'collapsed' | 'hidden'
   const [sidebarState, setSidebarState] = useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
@@ -234,6 +237,56 @@ export default function AppShell() {
   const [userMenuPos, setUserMenuPos] = useState({ top: 0, right: 0 })
   const [paletteOpen, setPaletteOpen] = useState(false)
 
+  // Refs to save pre-kiosk sidebar/topbar state for restoration on exit
+  const preKioskSidebarRef = useRef<'expanded' | 'collapsed' | 'hidden'>('expanded')
+  const preKioskTopbarRef = useRef(false)
+
+  // Refs to hold kiosk helpers — avoids stale closures in the keyboard effect
+  const isKioskRef = useRef(isKiosk)
+  isKioskRef.current = isKiosk
+
+  function enterKiosk() {
+    preKioskSidebarRef.current = sidebarState
+    preKioskTopbarRef.current = topbarHidden
+    setKiosk(true)
+    setSidebarState('hidden')
+    setTopbarHidden(true)
+    sessionStorage.setItem('io_kiosk', '1')
+    const params = new URLSearchParams(searchParams)
+    params.set('mode', 'kiosk')
+    setSearchParams(params, { replace: true })
+    showToast({ title: 'Kiosk mode active. Press Escape to exit.', variant: 'info', duration: 2000 })
+  }
+
+  function exitKiosk() {
+    setKiosk(false)
+    setSidebarState(preKioskSidebarRef.current)
+    setTopbarHidden(preKioskTopbarRef.current)
+    sessionStorage.removeItem('io_kiosk')
+    const params = new URLSearchParams(searchParams)
+    params.delete('mode')
+    setSearchParams(params, { replace: true })
+  }
+
+  // Stable refs so the keyboard handler effect never needs these in its dep array
+  const enterKioskRef = useRef(enterKiosk)
+  enterKioskRef.current = enterKiosk
+  const exitKioskRef = useRef(exitKiosk)
+  exitKioskRef.current = exitKiosk
+
+  // Activate kiosk on mount if URL param or sessionStorage says so
+  useEffect(() => {
+    const isKioskParam =
+      searchParams.get('mode') === 'kiosk' || sessionStorage.getItem('io_kiosk') === '1'
+    if (isKioskParam) {
+      setKiosk(true)
+      setSidebarState('hidden')
+      setTopbarHidden(true)
+    }
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Sidebar badge counts
   const alertBadgeCount = useUnacknowledgedAlertCount()
   const roundsBadgeCount = useActiveRoundsCount()
@@ -246,13 +299,21 @@ export default function AppShell() {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lockRef = useRef(lock)
   lockRef.current = lock
+  const isKioskRef2 = useRef(isKiosk)
+  isKioskRef2.current = isKiosk
 
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current !== null) {
       clearTimeout(idleTimerRef.current)
     }
     idleTimerRef.current = setTimeout(() => {
+      // Kiosk sessions never auto-lock on idle (spec DD-29-010 §kiosk).
+      if (isKioskRef2.current) return
       lockRef.current()
+      // Persist lock state server-side so it survives page refresh.
+      authApi.lockSession().catch(() => {
+        // Best-effort — UI is already locked even if the API call fails.
+      })
     }, IDLE_TIMEOUT_MS)
   }, [])
 
@@ -309,10 +370,28 @@ export default function AppShell() {
         return
       }
 
+      // Escape — exit kiosk if active
+      if (e.key === 'Escape' && isKioskRef.current) {
+        e.preventDefault()
+        exitKioskRef.current()
+        return
+      }
+
       // Ctrl+K / Cmd+K — command palette
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault()
         setPaletteOpen((v) => !v)
+        return
+      }
+
+      // Ctrl+Shift+K — toggle kiosk mode
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'k') {
+        e.preventDefault()
+        if (isKioskRef.current) {
+          exitKioskRef.current()
+        } else {
+          enterKioskRef.current()
+        }
         return
       }
 
@@ -1044,12 +1123,13 @@ export default function AppShell() {
           </div>
         </header>
 
-        {/* Content */}
+        {/* Content — pointer-events disabled when locked so data renders but interaction is blocked */}
         <main
           style={{
             flex: 1,
             overflowY: 'auto',
             background: 'var(--io-surface-primary)',
+            pointerEvents: isLocked ? 'none' : undefined,
           }}
           className="main-content"
         >

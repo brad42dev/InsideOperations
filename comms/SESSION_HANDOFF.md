@@ -1,114 +1,111 @@
-# Session Handoff — 2026-03-17
+# Session Handoff — 2026-03-21
 
 ## What We Worked On This Session
 
-### 1. Console Workspace Undo/Redo — DONE ✓
-**Commit:** `8c9e6ff`
-**File:** `frontend/src/pages/console/index.tsx`
+### 1. Expression ID Subscriptions — DONE ✓
+**Files:** `SceneRenderer.tsx`, `GraphicPane.tsx`, `process/index.tsx`
 
-Added `useRef`-based undo/redo stacks (max 50 entries) scoped to the active workspace.
-- Stacks reset when switching workspaces
-- `updateWorkspace` snapshots before every mutation; `skipUndo=true` for restores
-- Keyboard: Ctrl+Z (undo), Ctrl+Y / Ctrl+Shift+Z (redo)
-- Undo/Redo buttons appear in the edit mode toolbar (disabled when stack is empty)
+`PointBinding` has both `pointId` and `expressionId`. The Data Broker publishes expression evaluation results under `expressionId` as a virtual point. Fixed throughout:
+- `SceneRenderer.tsx`: `pvKey = node.binding.pointId ?? node.binding.expressionId` for all display element value lookups; same for `stateBinding`
+- `GraphicPane.tsx` `extractPointIds`: collects both `b.pointId` and `b.expressionId` from all binding types (direct, series, slices)
+- `process/index.tsx` `getVisiblePointIds` + `countTotalPoints`: same dual-key extraction
 
-### 2. Complete Design Token Registry — DONE ✓
-**Commit:** `14e6f1a`
-**File:** `frontend/src/shared/theme/tokens.ts`
+### 2. Instrument Text Auto-Fit — DONE ✓
+**File:** `shared/graphics/SceneRenderer.tsx` — `textZoneElements` in `renderSymbolInstance`
 
-Added all missing tokens to all 3 themes (dark/light/hphmi) to reach the full 138 tokens specified in doc 38:
-- Layer 4 component tokens: btn (6), sidebar (3 remaining), topbar (2 remaining), card (4), table (6), input (5), modal (3), toast (3)
-- Z-index scale: `--io-z-base` through `--io-z-emergency` (12 tokens)
-- Typography font-size: `--io-text-4xl` through `--io-text-code-sm` (16 tokens)
-- `--io-text-link` per theme
+Per doc 19 spec for SymbolInstance text zones:
+- Designation zones (zone type === 'designation'): Arial 12px, weight 600
+- Zones with explicit `zone.width`: add `textLength={zone.width}` + `lengthAdjust="spacingAndGlyphs"` SVG attributes for auto-fit typography
 
-### 3. Route Aliases — DONE ✓
-**Commit:** `14e6f1a`
-**File:** `frontend/src/App.tsx`
+### 3. Analog Bar Signal Line — DONE ✓
+**File:** `shared/graphics/SceneRenderer.tsx`
 
-- Added `/login/callback` as alias for `/oidc-callback` (doc 38 compliance)
-- Added `/settings/imports` as alias for `/settings/import` (doc 38 compliance)
+- `renderDisplayElement` now accepts optional `parentOffset?: { x: number; y: number }`
+- Call site in `renderSymbolInstance`: `node.children.map((child) => renderDisplayElement(child, child.transform.position))`
+- When `cfg.showSignalLine && parentOffset`, draws `<line>` from `(0, bh/2)` to `(-parentOffset.x, -parentOffset.y)` with `stroke="#52525B" strokeWidth={0.75} strokeDasharray="3 2"`
 
-### 4. GAP_ANALYSIS.md Updated — DONE ✓
-**Commit:** `6a3b1c8`
-**File:** `design-docs/GAP_ANALYSIS.md`
+### 4. Data Quality Visual Treatment — DONE ✓
+**File:** `shared/graphics/SceneRenderer.tsx`
 
-Full pass-2 audit. All "straightforward fixes" are now marked DONE. Many items listed as gaps were already implemented and have been marked accordingly.
+Updated `PointValue` interface: added `stale?`, `manual?`, `description?`; broadened `quality` to `string`.
 
----
+Full treatment in `text_readout`:
+- `comm_fail`: renders `COMM`, gray fill
+- `bad`: renders `????`, red dashed border
+- `stale`: 60% opacity, dashed border
+- `uncertain`: dotted border
+- `manual`: cyan `M` badge overlay
+- `uncertain`: dotted border (lowest severity)
 
-## Verified Already-Done (Were Listed as Gaps)
+### 5. Console Replace Dialog — DONE ✓
+**Files:** `console/PaneWrapper.tsx`, `console/WorkspaceGrid.tsx`
 
-These were listed as gaps in the initial gap analysis but were actually already implemented:
-- Sidebar navigation grouping (Monitoring/Analysis/Operations/Management) — `NAV_GROUPS` in AppShell
-- Alert notification bell — `AlertBell` component in AppShell
-- Breadcrumbs — `buildBreadcrumbs` in AppShell
-- G-key navigation (G+C/P/B/R/F/L/O/A/H/S/D) — `G_KEY_MAP` in AppShell
-- Console 24 layout presets — all in WorkspaceGrid + ConsolePage
-- Console real-time WebSocket — `useWebSocket` in all 4 pane types
-- Console API workspace persistence — `consoleApi` with localStorage fallback
-- Dashboard kiosk URL param — `useSearchParams` in DashboardViewer
-- Dashboard template variable URL sync — `var-{name}` params in DashboardViewer
-- Dashboard widget real-time — `usePointValues` in KpiCard, LineChart, GaugeWidget
-- Print stylesheet — `@media print` in `index.css`
+- Replace Graphic modal lives in `PaneWrapper` (self-contained)
+- State: `replaceDialogOpen`, `replaceSearch`, graphic list query (enabled only when dialog open)
+- Graphic list shows "CURRENT" badge on the active graphic
+- Selection bubbles up via `onReplace(paneId, graphicId, graphicName)` callback
+- `WorkspaceGrid` and `ConsolePage` wired with `onReplace` prop
 
----
+### 6. Console Workspaces Palette Section — DONE ✓
+**File:** `console/ConsolePalette.tsx`
 
-## Plugins Installed This Session
+- Added `WorkspacesSection` component: lists workspaces, active highlighted (accent bg + bold text), "PUB" badge for published workspaces
+- Added `workspaces`, `activeWorkspaceId`, `onSelectWorkspace` props to `ConsolePaletteProps`
+- Workspaces accordion section is the first section (before Graphics, Widgets, Points)
+- `console/index.tsx` passes workspace data + `onSelectWorkspace={setActiveId}`
 
-Run `/reload-plugins` after relaunch to confirm all are active.
+### 7. Console Export Button — DONE ✓
+**File:** `console/index.tsx`
 
-| Plugin | Status |
-|--------|--------|
-| `typescript-lsp` | Installed ✓ |
-| `rust-analyzer-lsp` | Installed ✓ |
-| `frontend-design` | Installed ✓ |
-| `pr-review-toolkit` | Installed ✓ |
+- `canExport = usePermission('console:export')` gates the button
+- `[Export ▼]` split button in toolbar; dropdown shows CSV option
+- `handleExportCsv`: collects `trendPointIds` from all active workspace panes, fetches latest values via `pointsApi`, downloads as CSV
 
-**LSP servers confirmed active:** `/reload-plugins` output showed `2 plugin LSP servers` (Rust + TypeScript).
+### 8. Process Point Context Menu + Point Detail — DONE ✓
+**File:** `process/index.tsx`
 
-### PostgreSQL MCP Server
-Added via `claude mcp add` — **requires new session to activate**.
-Connection: `postgresql://io:io_password@localhost:5432/io_dev`
-After relaunch: run `/mcp` to confirm it shows as connected.
+- `pointDetailPanels` state (max 3 floating panels)
+- `openPointDetail` / `closePointDetail` callbacks
+- `lastHoveredPointRef` tracks point under cursor for Ctrl+I shortcut
+- Real navigation for Trend/Investigate/Report actions; Copy Tag to clipboard
+- `PointDetailPanel` components rendered for each open panel entry
+- Ctrl+I keyboard shortcut opens panel for last-hovered point
 
 ---
 
 ## Current Project State
 
-- **All 17 phases complete** + all polish passes
-- **All gap analysis straightforward fixes complete**
+- **All design doc features implemented** (+ spec gap pass above)
 - `cargo check` clean, `tsc --noEmit` clean
 - 27 frontend tests passing, 102 Rust unit tests passing
-- 49 migrations, 138 design tokens, 24 console layout presets
+- 49 migrations, 138 design tokens, 102 frontend routes, 31 ISA-101 shapes
 
 ---
 
 ## What's Next (Prioritized)
 
-Pick one of these to start on after relaunch:
-
 ### High Impact
-1. **iographic import → editable objects** *(Designer, 1-2 days)*
-   When a `.iographic` file is imported, shapes should parse into individual SVG.js objects (selectable/movable/resizable) rather than a static SVG blob.
+1. **iographic import → editable objects** *(Designer)*
+   `.iographic` file import should parse shapes into individual scene-graph nodes rather than a static SVG blob.
 
-2. **Report objects in Designer** *(Designer, 1-2 days)*
-   Report mode placed objects (data tables, charts, text blocks, KPI cells) are non-functional. Need meaningful placeholders or live data rendering.
+2. **Thumbnail previews in pickers** *(cross-module)*
+   The z0 tile is already generated on graphic save. Console palette / Process browser / Designer should fetch and render it as a thumbnail.
 
-3. **Thumbnail previews in pickers** *(cross-module, 1-2 days)*
-   Graphic pickers (Console palette, Process browser, Designer) show names only. The tile pyramid (resvg z0 tile) is already generated on graphic save — just need to fetch and display it as a thumbnail.
+3. **Report objects in Designer** *(Designer)*
+   Report-mode placed objects (data tables, charts, text blocks, KPI cells) need meaningful placeholders or live data rendering.
 
 ### Medium Complexity
-4. **Process viewport-aware subscriptions** *(2-3 days)*
-   `PointBindingLayer` subscribes to every point in a graphic. For large process views, subscribe only to points visible in the current viewport, unsubscribing as the user pans away (500ms debounce).
+4. **Process viewport-aware subscriptions**
+   Subscribe only to points visible in the current viewport, unsubscribing as user pans (500ms debounce).
 
-5. **Console historical playback** *(2-3 days)*
-   Live ↔ Historical mode toggle with a scrub bar — all panes sync to a single playback timestamp from archive-service.
+5. **Console historical playback**
+   Live ↔ Historical mode toggle with scrub bar; all panes sync to single playback timestamp from archive-service.
 
 ### Lower Priority
-6. **Multi-window / detached windows** *(4-6 days, architectural)*
-7. **Sidebar hidden (0px) state** *(< 1 day)*
-8. **Console pane swap/copy-paste** *(1 day)*
+6. Multi-window / detached windows (architectural)
+7. Sidebar hidden (0px) state (< 1 day)
+8. Console pane swap/copy-paste (1 day)
+9. Continue checking remaining spec gaps in docs 07, 08, 19, 32
 
 ---
 
@@ -116,17 +113,15 @@ Pick one of these to start on after relaunch:
 
 | What | Where |
 |------|-------|
-| Gap analysis | `design-docs/GAP_ANALYSIS.md` |
-| Designer work queue | `design-docs/DESIGNER_WORK_QUEUE.md` |
-| Project memory | `/home/io/.claude/projects/-home-io-io-dev-io/memory/project_status.md` |
+| SceneRenderer | `frontend/src/shared/graphics/SceneRenderer.tsx` |
+| GraphicPane | `frontend/src/pages/console/panes/GraphicPane.tsx` |
 | Console page | `frontend/src/pages/console/index.tsx` |
 | Console palette | `frontend/src/pages/console/ConsolePalette.tsx` |
-| App shell / sidebar | `frontend/src/shared/layout/AppShell.tsx` |
-| Theme tokens | `frontend/src/shared/theme/tokens.ts` |
-| Designer canvas | `frontend/src/pages/designer/DesignerCanvas.tsx` |
-| Designer index | `frontend/src/pages/designer/index.tsx` |
-| Point binding layer | `frontend/src/shared/components/graphics/PointBindingLayer.tsx` |
-| Route map | `frontend/src/App.tsx` |
+| PaneWrapper | `frontend/src/pages/console/PaneWrapper.tsx` |
+| WorkspaceGrid | `frontend/src/pages/console/WorkspaceGrid.tsx` |
+| Process page | `frontend/src/pages/process/index.tsx` |
+| Project memory | `/home/io/.claude/projects/-home-io-io-dev-io/memory/project_status.md` |
+| Gap analysis | `design-docs/GAP_ANALYSIS.md` |
 
 ---
 

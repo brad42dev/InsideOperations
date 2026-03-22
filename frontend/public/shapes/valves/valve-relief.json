@@ -1,6 +1,24 @@
 {
-  "id": "valve-relief",
+  "$schema": "io-shape-v1",
+  "shape_id": "valve-relief",
+  "version": "1.0",
+  "display_name": "Relief / Safety Valve",
   "category": "valves",
+  "subcategory": "relief",
+  "tags": ["valve", "relief", "safety", "PSV", "PRV"],
+  "recognition_class": "valve_relief",
+  "variants": {
+    "options": {
+      "opt1": { "file": "valve-relief.svg", "label": "ISA Standard" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 48 62", "width": 48, "height": 62 },
   "connections": [
     { "id": "inlet",    "type": "process",    "x": 20, "y": 62, "direction": "bottom" },

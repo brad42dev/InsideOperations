@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" data-io-shape="valve-ball">
   <g class="io-shape-body">
-    <path d="M 18.6,9.3 L 0,0 L 0,24 L 18.6,14.7" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <path d="M 29.4,9.3 L 48,0 L 48,24 L 29.4,14.7" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <circle cx="24" cy="12" r="6" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <path class="io-stateful" d="M 18.6,9.3 L 0,0 L 0,24 L 18.6,14.7" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <path class="io-stateful" d="M 29.4,9.3 L 48,0 L 48,24 L 29.4,14.7" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <circle class="io-stateful" cx="24" cy="12" r="6" fill="none" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="inlet" data-conn-type="process" data-conn-dir="left" cx="0" cy="12" r="3"/>

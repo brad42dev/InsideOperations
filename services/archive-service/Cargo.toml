@@ -25,3 +25,8 @@ io-models = { path = "../../crates/io-models" }
 io-db = { path = "../../crates/io-db" }
 uuid.workspace = true
 chrono.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+chrono = { workspace = true }

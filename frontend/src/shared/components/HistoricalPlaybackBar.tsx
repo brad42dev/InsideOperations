@@ -13,9 +13,18 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { usePlaybackStore, type PlaybackSpeed } from '../../store/playback'
+import { alarmsApi, type AlarmPriority } from '../../api/alarms'
 
 const SPEEDS: PlaybackSpeed[] = [1, 2, 5, 10, 60, 300]
+
+const ALARM_PRIORITY_COLORS: Record<AlarmPriority, string> = {
+  critical: 'var(--io-alarm-critical)',
+  high: 'var(--io-alarm-high)',
+  medium: 'var(--io-alarm-medium)',
+  advisory: 'var(--io-alarm-advisory)',
+}
 
 function speedLabel(s: PlaybackSpeed): string {
   if (s < 60) return `${s}×`
@@ -46,6 +55,21 @@ export default function HistoricalPlaybackBar() {
     setPlaying,
     setSpeed,
   } = usePlaybackStore()
+
+  // Fetch alarm events for the current time range in historical mode
+  const { data: alarmEvents } = useQuery({
+    queryKey: ['alarm-events', mode, timeRange.start, timeRange.end],
+    queryFn: async () => {
+      const result = await alarmsApi.getEvents({
+        start: new Date(timeRange.start).toISOString(),
+        end: new Date(timeRange.end).toISOString(),
+        limit: 500,
+      })
+      return result.success ? result.data : []
+    },
+    enabled: mode === 'historical',
+    staleTime: 30_000,
+  })
 
   // Advance playback timer when playing
   const rafRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -168,18 +192,58 @@ export default function HistoricalPlaybackBar() {
         ⏭
       </button>
 
-      {/* Scrub slider */}
-      <input
-        type="range"
-        min={0}
-        max={1000}
-        value={sliderValue}
-        onChange={(e) => {
-          const pct = Number(e.target.value) / 1000
-          setTimestamp(timeRange.start + pct * rangeMs)
-        }}
-        style={{ flex: 1, minWidth: 80, maxWidth: 300, cursor: 'pointer' }}
-      />
+      {/* Scrub slider with alarm event markers */}
+      <div style={{ position: 'relative', flex: 1, minWidth: 80, maxWidth: 300, display: 'flex', alignItems: 'center' }}>
+        <input
+          type="range"
+          min={0}
+          max={1000}
+          value={sliderValue}
+          onChange={(e) => {
+            const pct = Number(e.target.value) / 1000
+            setTimestamp(timeRange.start + pct * rangeMs)
+          }}
+          style={{ width: '100%', cursor: 'pointer', margin: 0 }}
+        />
+        {/* Alarm event tick marks — rendered on top of the range track */}
+        {rangeMs > 0 && alarmEvents && alarmEvents.length > 0 && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 8,
+              pointerEvents: 'none',
+            }}
+          >
+            {alarmEvents.map((event) => {
+              const ts = new Date(event.timestamp).getTime()
+              if (ts < timeRange.start || ts > timeRange.end) return null
+              const pct = ((ts - timeRange.start) / rangeMs) * 100
+              return (
+                <div
+                  key={event.id}
+                  title={`${event.priority.toUpperCase()}: ${event.message} @ ${new Date(event.timestamp).toLocaleTimeString()}`}
+                  onClick={() => setTimestamp(ts)}
+                  style={{
+                    position: 'absolute',
+                    left: `${pct}%`,
+                    transform: 'translateX(-50%)',
+                    width: 2,
+                    height: 8,
+                    background: ALARM_PRIORITY_COLORS[event.priority],
+                    bottom: 0,
+                    pointerEvents: 'auto',
+                    cursor: 'pointer',
+                  }}
+                />
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Timestamp display */}
       <span

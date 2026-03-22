@@ -2,7 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 24"
      data-io-shape="actuator-hydraulic" data-io-version="3.0">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
-    <rect x="2" y="2" width="30" height="20"/>
+    <rect class="io-stateful" x="2" y="2" width="30" height="20"/>
     <text x="17" y="13" text-anchor="middle" dominant-baseline="central"
           font-family="Arial,sans-serif" font-size="14" font-weight="600"
           fill="#808080" stroke="none">H</text>

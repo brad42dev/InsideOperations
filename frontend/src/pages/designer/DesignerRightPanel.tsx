@@ -42,6 +42,7 @@ import {
   ChangeLayerPropertyCommand,
   ChangeNavigationLinkCommand,
   ChangeShapeVariantCommand,
+  ChangeShapeConfigurationCommand,
   AddComposablePartCommand,
   RemoveComposablePartCommand,
   ChangeDisplayElementConfigCommand,
@@ -443,6 +444,24 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
             options={[
               { value: 'default', label: 'Default' },
               ...variants.map(opt => ({ value: opt.id, label: opt.label })),
+            ]}
+          />
+        </Field>
+      )}
+
+      {/* Configuration picker (physical config: welded/flanged/etc.) */}
+      {shapeEntry?.sidecar.configurations && shapeEntry.sidecar.configurations.length > 0 && (
+        <Field label="Configuration">
+          <SelectInput
+            value={node.shapeRef.configuration ?? 'default'}
+            onChange={v => executeCmd(new ChangeShapeConfigurationCommand(
+              node.id,
+              v === 'default' ? undefined : v,
+              node.shapeRef.configuration,
+            ))}
+            options={[
+              { value: 'default', label: 'Default' },
+              ...shapeEntry.sidecar.configurations.map(cfg => ({ value: cfg.id, label: cfg.label })),
             ]}
           />
         </Field>

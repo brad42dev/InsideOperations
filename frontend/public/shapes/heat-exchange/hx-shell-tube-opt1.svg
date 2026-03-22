@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" data-io-shape="hx-shell-tube-opt1">
   <g class="io-shape-body">
-    <circle cx="25" cy="25" r="20" fill="none" stroke="#808080" stroke-width="1.5"/>
-    <polyline points="5,25 12,25 19,13 31,37 38,25 45,25" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <circle class="io-stateful" cx="25" cy="25" r="20" fill="none" stroke="#808080" stroke-width="1.5"/>
+    <polyline class="io-stateful" points="5,25 12,25 19,13 31,37 38,25 45,25" fill="none" stroke="#808080" stroke-width="1.5"/>
   </g>
   <g class="io-connections" display="none">
     <circle data-conn-id="shell-inlet" data-conn-type="process" data-conn-dir="left" cx="5" cy="25" r="3"/>

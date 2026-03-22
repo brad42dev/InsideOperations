@@ -26,6 +26,7 @@ async fn main() -> anyhow::Result<()> {
         metrics_enabled: true,
         tracing_enabled: false,
     })?;
+    obs.start_watchdog_keepalive();
 
     let cfg = config::Config::from_env()?;
     let port = cfg.port;

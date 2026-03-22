@@ -27,6 +27,7 @@ async fn main() -> anyhow::Result<()> {
         metrics_enabled: true,
         tracing_enabled: false,
     })?;
+    obs.start_watchdog_keepalive();
 
     info!(service = "alert-service", "Starting up");
 
@@ -72,6 +73,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/alerts/:id/resolve",
             post(handlers::alerts::resolve_alert),
+        )
+        .route(
+            "/alerts/:id/cancel",
+            post(handlers::alerts::cancel_alert),
         )
         .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
         .with_state(state);

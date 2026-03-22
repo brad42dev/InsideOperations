@@ -4,7 +4,6 @@ pub struct Config {
     pub service_secret: String,
     pub database_url: String,
     pub email_service_url: String,
-    #[allow(dead_code)]
     pub data_broker_url: String,
 }
 

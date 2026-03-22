@@ -2,15 +2,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 120"
      data-io-shape="column-distillation-narrow-trayed" data-io-version="3.0">
   <g class="io-shape-body" fill="none" stroke="#808080" stroke-width="1.5">
-    <path d="M 12,8 A 8,4 0 0,1 28,8"/>
-    <line x1="12" y1="8" x2="12" y2="112"/>
-    <line x1="28" y1="8" x2="28" y2="112"/>
-    <path d="M 12,112 A 8,4 0 0,0 28,112"/>
-    <line x1="12" y1="22" x2="28" y2="22" stroke-width="0.75"/>
-    <line x1="12" y1="36" x2="28" y2="36" stroke-width="0.75"/>
-    <line x1="12" y1="50" x2="28" y2="50" stroke-width="0.75"/>
-    <line x1="12" y1="64" x2="28" y2="64" stroke-width="0.75"/>
-    <line x1="12" y1="78" x2="28" y2="78" stroke-width="0.75"/>
-    <line x1="12" y1="98" x2="28" y2="98" stroke-width="0.75"/>
+    <path class="io-stateful" d="M 12,8 A 8,4 0 0,1 28,8"/>
+    <line class="io-stateful" x1="12" y1="8" x2="12" y2="112"/>
+    <line class="io-stateful" x1="28" y1="8" x2="28" y2="112"/>
+    <path class="io-stateful" d="M 12,112 A 8,4 0 0,0 28,112"/>
+    <line class="io-stateful" x1="12" y1="22" x2="28" y2="22" stroke-width="0.75"/>
+    <line class="io-stateful" x1="12" y1="36" x2="28" y2="36" stroke-width="0.75"/>
+    <line class="io-stateful" x1="12" y1="50" x2="28" y2="50" stroke-width="0.75"/>
+    <line class="io-stateful" x1="12" y1="64" x2="28" y2="64" stroke-width="0.75"/>
+    <line class="io-stateful" x1="12" y1="78" x2="28" y2="78" stroke-width="0.75"/>
+    <line class="io-stateful" x1="12" y1="98" x2="28" y2="98" stroke-width="0.75"/>
   </g>
 </svg>

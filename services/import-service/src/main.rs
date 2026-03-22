@@ -10,7 +10,9 @@ use tracing::{info, warn};
 
 mod config;
 mod connectors;
+mod crypto;
 mod handlers;
+mod pipeline;
 mod state;
 
 use state::AppState;
@@ -26,6 +28,7 @@ async fn main() -> anyhow::Result<()> {
         metrics_enabled: true,
         tracing_enabled: false,
     })?;
+    obs.start_watchdog_keepalive();
 
     info!(service = "import-service", "Starting up");
 
@@ -38,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
     seed_connector_templates(&db).await;
 
     // Background task: poll DCS supplemental connectors every 5 minutes
-    tokio::spawn(run_supplemental_connectors(db.clone()));
+    tokio::spawn(run_supplemental_connectors(db.clone(), cfg.master_key));
 
     let app_state = AppState {
         db,
@@ -129,17 +132,17 @@ async fn service_secret_middleware(
 // ---------------------------------------------------------------------------
 
 /// Spawned at startup; polls all enabled supplemental connectors every 5 minutes.
-async fn run_supplemental_connectors(db: sqlx::PgPool) {
+async fn run_supplemental_connectors(db: sqlx::PgPool, master_key: [u8; 32]) {
     let mut interval = tokio::time::interval(Duration::from_secs(300));
     loop {
         interval.tick().await;
-        if let Err(e) = poll_supplemental_connectors(&db).await {
+        if let Err(e) = poll_supplemental_connectors(&db, &master_key).await {
             warn!("supplemental connector poll error: {e}");
         }
     }
 }
 
-async fn poll_supplemental_connectors(db: &sqlx::PgPool) -> anyhow::Result<()> {
+async fn poll_supplemental_connectors(db: &sqlx::PgPool, master_key: &[u8; 32]) -> anyhow::Result<()> {
     use sqlx::Row as _;
 
     let rows = sqlx::query(
@@ -155,7 +158,9 @@ async fn poll_supplemental_connectors(db: &sqlx::PgPool) -> anyhow::Result<()> {
         let conn_type: String = row.try_get("connection_type")?;
         let config: serde_json::Value = row.try_get("config")?;
         let auth_type: String = row.try_get("auth_type")?;
-        let auth_config: serde_json::Value = row.try_get("auth_config")?;
+        let auth_config_raw: serde_json::Value = row.try_get("auth_config")?;
+        // Decrypt credential fields before passing to connector
+        let auth_config = crate::crypto::decrypt_sensitive_fields(&auth_config_raw, master_key);
         let point_source_id: Option<uuid::Uuid> = row.try_get("point_source_id").ok().flatten();
 
         let source_id = match point_source_id {

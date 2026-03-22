@@ -145,6 +145,26 @@ export interface LibraryStore {
   /** IDs currently being fetched (deduplication). */
   loadingIds: Set<string>
 
+  /** Stencil SVG cache — keyed by stencilId (design_objects.id), value is raw SVG string. */
+  stencilCache: Map<string, string>
+
+  /**
+   * Load a stencil SVG by its design_objects ID.
+   * Deduplicates concurrent calls. Returns SVG string or null on error.
+   */
+  loadStencil(id: string): Promise<string | null>
+
+  /**
+   * Synchronous stencil SVG lookup. Returns null if not yet cached.
+   */
+  getStencil(id: string): string | null
+
+  /**
+   * Populate the stencil cache from a list-stencils API response.
+   * Call this after a successful listStencils() to avoid per-stencil fetches.
+   */
+  cacheStencilList(items: Array<{ id: string; svg_data?: string }>): void
+
   /**
    * Fetch /shapes/index.json and populate `index`.
    * Safe to call multiple times — subsequent calls are no-ops if already loaded.
@@ -262,6 +282,12 @@ async function fetchIndexOnce(): Promise<ShapeIndexItem[]> {
 const shapeInFlight = new Map<string, Promise<ShapeEntry | null>>()
 
 // ---------------------------------------------------------------------------
+// Stencil in-flight deduplication (module-level)
+// ---------------------------------------------------------------------------
+
+const stencilInFlight = new Map<string, Promise<string | null>>()
+
+// ---------------------------------------------------------------------------
 // Zustand store
 // ---------------------------------------------------------------------------
 
@@ -272,6 +298,7 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   indexError: null,
   cache: new Map(),
   loadingIds: new Set(),
+  stencilCache: new Map(),
 
   async loadIndex() {
     // Atomically check-and-set indexLoading to prevent a race where two concurrent
@@ -422,5 +449,56 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
     // For now, return the base SVG (callers that need a specific variant SVG
     // should use loadShape() with the variant file path directly).
     return entry.svg
+  },
+
+  // ---------------------------------------------------------------------------
+  // Stencil methods
+  // ---------------------------------------------------------------------------
+
+  getStencil(id) {
+    return get().stencilCache.get(id) ?? null
+  },
+
+  cacheStencilList(items) {
+    const sc = new Map(get().stencilCache)
+    for (const item of items) {
+      if (item.svg_data && !sc.has(item.id)) {
+        sc.set(item.id, item.svg_data)
+      }
+    }
+    set({ stencilCache: sc })
+  },
+
+  async loadStencil(id) {
+    const cached = get().stencilCache.get(id)
+    if (cached) return cached
+
+    const existing = stencilInFlight.get(id)
+    if (existing) return existing
+
+    const promise: Promise<string | null> = (async (): Promise<string | null> => {
+      try {
+        const resp = await fetch(`/api/v1/design-objects/${id}`)
+        if (!resp.ok) throw new Error(`/api/v1/design-objects/${id} returned ${resp.status}`)
+        const data = await resp.json() as { data: { svg_data?: string } }
+        const svg = data.data.svg_data ?? null
+        if (svg) {
+          set((state) => {
+            const sc = new Map(state.stencilCache)
+            sc.set(id, svg)
+            return { stencilCache: sc }
+          })
+        }
+        return svg
+      } catch (err) {
+        console.warn(`[libraryStore] Failed to load stencil ${id}:`, err)
+        return null
+      } finally {
+        stencilInFlight.delete(id)
+      }
+    })()
+
+    stencilInFlight.set(id, promise)
+    return promise
   },
 }))

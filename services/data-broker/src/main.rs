@@ -1,16 +1,18 @@
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use cache::ShadowCache;
 use dashmap::DashMap;
 use registry::SubscriptionRegistry;
 use state::AppState;
-use std::{net::SocketAddr, sync::Arc};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 use tower_http::catch_panic::CatchPanicLayer;
 use tracing::info;
 
+mod broadcast;
 mod cache;
 mod config;
 mod fanout;
 mod notify;
+mod publish;
 mod registry;
 mod staleness;
 mod state;
@@ -28,6 +30,7 @@ async fn main() -> anyhow::Result<()> {
         metrics_enabled: true,
         tracing_enabled: false,
     })?;
+    obs.start_watchdog_keepalive();
 
     info!(service = "data-broker", "Starting up");
 
@@ -43,12 +46,14 @@ async fn main() -> anyhow::Result<()> {
 
     let registry = Arc::new(SubscriptionRegistry::new());
     let connections: Arc<DashMap<_, _>> = Arc::new(DashMap::new());
+    let user_connections: Arc<DashMap<uuid::Uuid, HashSet<uuid::Uuid>>> = Arc::new(DashMap::new());
 
     let state = AppState {
         config: Arc::clone(&cfg),
         cache: Arc::clone(&shadow_cache),
         registry: Arc::clone(&registry),
         connections: Arc::clone(&connections),
+        user_connections: Arc::clone(&user_connections),
         http_client: reqwest::Client::new(),
     };
 
@@ -117,6 +122,8 @@ async fn main() -> anyhow::Result<()> {
     // Build with_state first, then nest stateless routers.
     let app = Router::new()
         .route("/ws", get(ws::ws_handler))
+        .route("/internal/publish", post(publish::publish_handler))
+        .route("/internal/broadcast", post(broadcast::broadcast_handler))
         .with_state(state)
         .merge(health.into_router())
         .merge(obs.metrics_router())

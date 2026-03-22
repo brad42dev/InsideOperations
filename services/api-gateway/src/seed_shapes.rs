@@ -13,6 +13,7 @@ struct ShapeSeed {
     shape_type: &'static str, // 'shape' or 'shape_part'
     svg_data: &'static str,
     view_box: &'static str,
+    sidecar: &'static str, // JSON string — full sidecar for batch response
 }
 
 pub async fn seed_shape_library(db: &io_db::DbPool) {
@@ -21,6 +22,8 @@ pub async fn seed_shape_library(db: &io_db::DbPool) {
     let mut skipped = 0u32;
 
     for s in &shapes {
+        let sidecar_value: serde_json::Value =
+            serde_json::from_str(s.sidecar).unwrap_or(serde_json::json!({}));
         let metadata = serde_json::json!({
             "shape_id": s.shape_id,
             "source": "library",
@@ -28,7 +31,8 @@ pub async fn seed_shape_library(db: &io_db::DbPool) {
             "category": s.category,
             "variant": s.variant,
             "view_box": s.view_box,
-            "schema": "io-shape-v1"
+            "schema": "io-shape-v1",
+            "sidecar": sidecar_value
         });
 
         let result: Result<sqlx::postgres::PgQueryResult, _> = sqlx::query(
@@ -87,6 +91,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"valve-gate","category":"valves","geometry":{"viewBox":"0 0 48 24","width":48,"height":24},"connections":[{"id":"inlet","type":"process","x":0,"y":12,"direction":"left"},{"id":"outlet","type":"process","x":48,"y":12,"direction":"right"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.4,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "valve-globe",
@@ -107,6 +112,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"valve-globe","category":"valves","geometry":{"viewBox":"0 0 48 24","width":48,"height":24},"connections":[{"id":"inlet","type":"process","x":0,"y":12,"direction":"left"},{"id":"outlet","type":"process","x":48,"y":12,"direction":"right"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.4,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "valve-ball",
@@ -130,6 +136,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"valve-ball","category":"valves","geometry":{"viewBox":"0 0 48 24","width":48,"height":24},"connections":[{"id":"inlet","type":"process","x":0,"y":12,"direction":"left"},{"id":"outlet","type":"process","x":48,"y":12,"direction":"right"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.4,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "valve-butterfly",
@@ -151,6 +158,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"valve-butterfly","category":"valves","geometry":{"viewBox":"0 0 60 24","width":60,"height":24},"connections":[{"id":"inlet","type":"process","x":0,"y":12,"direction":"left"},{"id":"outlet","type":"process","x":60,"y":12,"direction":"right"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.4,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "valve-control",
@@ -174,6 +182,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"valve-control","category":"valves","geometry":{"viewBox":"0 0 48 44","width":48,"height":44},"connections":[{"id":"inlet","type":"process","x":0,"y":32,"direction":"left"},{"id":"outlet","type":"process","x":48,"y":32,"direction":"right"},{"id":"actuator","type":"signal","x":24,"y":0,"direction":"top"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"},{"nx":0.5,"ny":1.3,"preferredElement":"sparkline"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "valve-relief",
@@ -201,6 +210,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"valve-relief","category":"valves","geometry":{"viewBox":"0 0 48 62","width":48,"height":62},"connections":[{"id":"inlet","type":"process","x":20,"y":62,"direction":"bottom"},{"id":"outlet","type":"process","x":42,"y":38,"direction":"right"},{"id":"stem-top","type":"mechanical","x":20,"y":0,"direction":"top"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // PUMPS
@@ -228,6 +238,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"pump-centrifugal-opt1","category":"pumps","geometry":{"viewBox":"0 0 48 48","width":48,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":24,"direction":"left"},{"id":"discharge","type":"process","x":44,"y":24,"direction":"right"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "pump-centrifugal-opt2",
@@ -252,6 +263,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"pump-centrifugal-opt2","category":"pumps","geometry":{"viewBox":"0 0 50 48","width":50,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":21,"direction":"left"},{"id":"discharge","type":"process","x":48,"y":5,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "pump-positive-displacement-opt1",
@@ -276,6 +288,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"pump-positive-displacement-opt1","category":"pumps","geometry":{"viewBox":"0 0 48 48","width":48,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":24,"direction":"left"},{"id":"discharge","type":"process","x":44,"y":24,"direction":"right"}],"textZones":[{"id":"tagname","x":24,"y":-6,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "pump-positive-displacement-opt2",
@@ -302,6 +315,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"pump-positive-displacement-opt2","category":"pumps","geometry":{"viewBox":"0 0 50 48","width":50,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":21,"direction":"left"},{"id":"discharge","type":"process","x":48,"y":5,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // COMPRESSOR
@@ -327,6 +341,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"compressor-opt1","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"suction","type":"process","x":5,"y":25,"direction":"left"},{"id":"discharge","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "compressor-opt2",
@@ -348,6 +363,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"compressor-opt2","category":"rotating","geometry":{"viewBox":"0 0 50 48","width":50,"height":48},"connections":[{"id":"suction","type":"process","x":4,"y":21,"direction":"left"},{"id":"discharge","type":"process","x":44,"y":21,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // FAN / BLOWER
@@ -382,6 +398,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"fan-blower-opt1","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"suction","type":"process","x":5,"y":25,"direction":"left"},{"id":"discharge","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "fan-blower-opt2",
@@ -412,6 +429,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"fan-blower-opt2","category":"rotating","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"inlet","type":"process","x":5,"y":25,"direction":"left"},{"id":"outlet","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.2,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // MOTOR
@@ -435,6 +453,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"motor-opt1","category":"rotating","geometry":{"viewBox":"0 0 40 40","width":40,"height":40},"connections":[{"id":"shaft","type":"mechanical","x":20,"y":4,"direction":"top"},{"id":"electrical","type":"electrical","x":4,"y":20,"direction":"left"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.2,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "motor-opt2",
@@ -458,6 +477,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"motor-opt2","category":"rotating","geometry":{"viewBox":"0 0 50 30","width":50,"height":30},"connections":[{"id":"shaft-left","type":"mechanical","x":13,"y":15,"direction":"left"},{"id":"shaft-right","type":"mechanical","x":37,"y":15,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.3,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // HEAT EXCHANGERS
@@ -481,6 +501,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"hx-shell-tube-opt1","category":"heat-exchange","geometry":{"viewBox":"0 0 50 50","width":50,"height":50},"connections":[{"id":"shell-inlet","type":"process","x":5,"y":25,"direction":"left"},{"id":"shell-outlet","type":"process","x":45,"y":25,"direction":"right"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "hx-plate-opt1",
@@ -509,6 +530,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"hx-plate-opt1","category":"heat-exchange","geometry":{"viewBox":"-2 -2 58 20","width":58,"height":20},"connections":[{"id":"inlet-left","type":"process","x":-2,"y":8,"direction":"left"},{"id":"outlet-right","type":"process","x":56,"y":8,"direction":"right"}],"textZones":[{"id":"tagname","x":27,"y":-8,"width":54,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.6,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.5},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "heater-fired-opt1",
@@ -536,6 +558,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"heater-fired-opt1","category":"heat-exchange","geometry":{"viewBox":"-2 -2 48 64","width":48,"height":64},"connections":[{"id":"inlet","type":"process","x":22,"y":0,"direction":"top"},{"id":"outlet-left","type":"process","x":7,"y":43,"direction":"left"},{"id":"outlet-right","type":"process","x":37,"y":43,"direction":"right"},{"id":"burner","type":"process","x":22,"y":62,"direction":"bottom"}],"textZones":[{"id":"tagname","x":22,"y":-8,"width":48,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "air-cooler",
@@ -566,6 +589,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"air-cooler","category":"heat-exchange","geometry":{"viewBox":"-8 0 76 38","width":76,"height":38},"connections":[{"id":"inlet","type":"process","x":-4,"y":11,"direction":"left"},{"id":"outlet","type":"process","x":63,"y":11,"direction":"right"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.3,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // INSTRUMENTS
@@ -587,6 +611,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"instrument-field","category":"instruments","geometry":{"viewBox":"0 0 40 40","width":40,"height":40},"connections":[{"id":"signal","type":"signal","x":20,"y":4,"direction":"top"}],"textZones":[{"id":"tag","x":20,"y":20,"width":30,"anchor":"middle","fontSize":10},{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "instrument-panel",
@@ -607,6 +632,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"instrument-panel","category":"instruments","geometry":{"viewBox":"0 0 40 40","width":40,"height":40},"connections":[{"id":"signal","type":"signal","x":20,"y":4,"direction":"top"}],"textZones":[{"id":"tag","x":20,"y":20,"width":30,"anchor":"middle","fontSize":10},{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "instrument-behind-panel",
@@ -628,6 +654,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"instrument-behind-panel","category":"instruments","geometry":{"viewBox":"0 0 40 40","width":40,"height":40},"connections":[{"id":"signal","type":"signal","x":20,"y":4,"direction":"top"}],"textZones":[{"id":"tag","x":20,"y":20,"width":30,"anchor":"middle","fontSize":10},{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // VERTICAL VESSELS
@@ -657,6 +684,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-vertical","category":"vessels","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":25,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":55,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "vessel-vertical-flanged-top",
@@ -685,6 +713,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-vertical-flanged-top","category":"vessels","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":25,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":55,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "vessel-vertical-flanged-bottom",
@@ -713,6 +742,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-vertical-flanged-bottom","category":"vessels","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":25,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":55,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "vessel-vertical-flanged",
@@ -743,6 +773,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-vertical-flanged","category":"vessels","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":25,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":55,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // HORIZONTAL VESSELS
@@ -772,6 +803,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-horizontal","category":"vessels","geometry":{"viewBox":"0 0 80 40","width":80,"height":40},"connections":[{"id":"inlet-left","type":"process","x":12,"y":20,"direction":"left"},{"id":"outlet-right","type":"process","x":68,"y":20,"direction":"right"},{"id":"top-nozzle","type":"process","x":40,"y":10,"direction":"top"}],"textZones":[{"id":"tagname","x":40,"y":-6,"width":80,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"},{"nx":1.1,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.05,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "vessel-horizontal-flanged-left",
@@ -800,6 +832,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-horizontal-flanged-left","category":"vessels","geometry":{"viewBox":"0 0 80 40","width":80,"height":40},"connections":[{"id":"inlet-left","type":"process","x":12,"y":20,"direction":"left"},{"id":"outlet-right","type":"process","x":68,"y":20,"direction":"right"},{"id":"top-nozzle","type":"process","x":40,"y":10,"direction":"top"}],"textZones":[{"id":"tagname","x":40,"y":-6,"width":80,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"},{"nx":1.1,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.05,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "vessel-horizontal-flanged-right",
@@ -828,6 +861,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-horizontal-flanged-right","category":"vessels","geometry":{"viewBox":"0 0 80 40","width":80,"height":40},"connections":[{"id":"inlet-left","type":"process","x":12,"y":20,"direction":"left"},{"id":"outlet-right","type":"process","x":68,"y":20,"direction":"right"},{"id":"top-nozzle","type":"process","x":40,"y":10,"direction":"top"}],"textZones":[{"id":"tagname","x":40,"y":-6,"width":80,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"},{"nx":1.1,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.05,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "vessel-horizontal-flanged",
@@ -858,6 +892,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"vessel-horizontal-flanged","category":"vessels","geometry":{"viewBox":"0 0 80 40","width":80,"height":40},"connections":[{"id":"inlet-left","type":"process","x":12,"y":20,"direction":"left"},{"id":"outlet-right","type":"process","x":68,"y":20,"direction":"right"},{"id":"top-nozzle","type":"process","x":40,"y":10,"direction":"top"}],"textZones":[{"id":"tagname","x":40,"y":-6,"width":80,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"},{"nx":1.1,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.05,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // REACTORS
@@ -886,6 +921,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"reactor","category":"reactors","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":30,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":60,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "reactor-flat-top",
@@ -911,6 +947,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"reactor-flat-top","category":"reactors","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":30,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":60,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "reactor-closed",
@@ -937,6 +974,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"reactor-closed","category":"reactors","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":30,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":60,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "reactor-trayed",
@@ -972,6 +1010,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"reactor-trayed","category":"reactors","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"inlet","type":"process","x":10,"y":30,"direction":"left"},{"id":"outlet","type":"process","x":10,"y":60,"direction":"left"},{"id":"top-nozzle","type":"process","x":20,"y":12,"direction":"top"},{"id":"bottom-drain","type":"process","x":20,"y":68,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.08,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.15,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // DISTILLATION COLUMNS — Standard width
@@ -1001,6 +1040,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation","category":"columns","geometry":{"viewBox":"0 0 44 120","width":44,"height":120},"connections":[{"id":"feed","type":"process","x":10,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":22,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":22,"y":110,"direction":"bottom"},{"id":"reflux","type":"process","x":34,"y":30,"direction":"right"},{"id":"side-draw","type":"process","x":34,"y":80,"direction":"right"}],"textZones":[{"id":"tagname","x":22,"y":-8,"width":44,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.2,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"},{"nx":1.15,"ny":0.3,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.1,"ny":-0.03},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "column-distillation-trayed",
@@ -1033,6 +1073,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation-trayed","category":"columns","geometry":{"viewBox":"0 0 44 120","width":44,"height":120},"connections":[{"id":"feed","type":"process","x":10,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":22,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":22,"y":110,"direction":"bottom"},{"id":"reflux","type":"process","x":34,"y":30,"direction":"right"},{"id":"side-draw","type":"process","x":34,"y":80,"direction":"right"}],"textZones":[{"id":"tagname","x":22,"y":-8,"width":44,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.2,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"},{"nx":1.15,"ny":0.3,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.1,"ny":-0.03},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "column-distillation-trayed-10",
@@ -1069,6 +1110,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation-trayed-10","category":"columns","geometry":{"viewBox":"0 0 44 120","width":44,"height":120},"connections":[{"id":"feed","type":"process","x":10,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":22,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":22,"y":110,"direction":"bottom"},{"id":"reflux","type":"process","x":34,"y":30,"direction":"right"},{"id":"side-draw","type":"process","x":34,"y":80,"direction":"right"}],"textZones":[{"id":"tagname","x":22,"y":-8,"width":44,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.2,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"},{"nx":1.15,"ny":0.3,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.1,"ny":-0.03},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "column-distillation-packed",
@@ -1103,6 +1145,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation-packed","category":"columns","geometry":{"viewBox":"0 0 44 120","width":44,"height":120},"connections":[{"id":"feed","type":"process","x":10,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":22,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":22,"y":110,"direction":"bottom"},{"id":"reflux","type":"process","x":34,"y":30,"direction":"right"},{"id":"side-draw","type":"process","x":34,"y":80,"direction":"right"}],"textZones":[{"id":"tagname","x":22,"y":-8,"width":44,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.2,"preferredElement":"text_readout"},{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"},{"nx":1.15,"ny":0.3,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.1,"ny":-0.03},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // DISTILLATION COLUMNS — Narrow width
@@ -1132,6 +1175,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation-narrow","category":"columns","geometry":{"viewBox":"0 0 40 120","width":40,"height":120},"connections":[{"id":"feed","type":"process","x":12,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":20,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":20,"y":110,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-8,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "column-distillation-narrow-trayed",
@@ -1164,6 +1208,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation-narrow-trayed","category":"columns","geometry":{"viewBox":"0 0 40 120","width":40,"height":120},"connections":[{"id":"feed","type":"process","x":12,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":20,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":20,"y":110,"direction":"bottom"}],"textZones":[{"id":"tagname","x":20,"y":-8,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // DISTILLATION COLUMNS — Wide width
@@ -1193,6 +1238,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation-wide","category":"columns","geometry":{"viewBox":"0 0 50 120","width":50,"height":120},"connections":[{"id":"feed","type":"process","x":10,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":25,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":25,"y":110,"direction":"bottom"}],"textZones":[{"id":"tagname","x":25,"y":-8,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "column-distillation-wide-trayed",
@@ -1225,6 +1271,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"column-distillation-wide-trayed","category":"columns","geometry":{"viewBox":"0 0 50 120","width":50,"height":120},"connections":[{"id":"feed","type":"process","x":10,"y":60,"direction":"left"},{"id":"overhead-vapor","type":"process","x":25,"y":10,"direction":"top"},{"id":"bottoms","type":"process","x":25,"y":110,"direction":"bottom"}],"textZones":[{"id":"tagname","x":25,"y":-8,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":1.2,"ny":0.5,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // STORAGE TANKS
@@ -1245,6 +1292,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
             fill="none" stroke="#808080" stroke-width="1.5"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"tank-storage-cone-roof","category":"tanks","geometry":{"viewBox":"0 0 70 70","width":70,"height":70},"connections":[{"id":"inlet","type":"process","x":10,"y":40,"direction":"left"},{"id":"outlet","type":"process","x":60,"y":40,"direction":"right"},{"id":"top-vent","type":"process","x":35,"y":6,"direction":"top"}],"textZones":[{"id":"tagname","x":35,"y":-6,"width":70,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.1,"preferredElement":"text_readout"},{"nx":1.1,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.6,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "tank-storage-dome-roof",
@@ -1262,6 +1310,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         fill="none" stroke="#808080" stroke-width="1.5"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"tank-storage-dome-roof","category":"tanks","geometry":{"viewBox":"0 0 70 70","width":70,"height":70},"connections":[{"id":"inlet","type":"process","x":10,"y":40,"direction":"left"},{"id":"outlet","type":"process","x":60,"y":40,"direction":"right"},{"id":"top-vent","type":"process","x":35,"y":10,"direction":"top"}],"textZones":[{"id":"tagname","x":35,"y":-6,"width":70,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.1,"preferredElement":"text_readout"},{"nx":1.1,"ny":0.5,"preferredElement":"analog_bar"},{"nx":0.5,"ny":0.6,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "tank-storage-open-top",
@@ -1285,6 +1334,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         stroke="#808080" stroke-width="1.5"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"tank-storage-open-top","category":"tanks","geometry":{"viewBox":"0 0 70 70","width":70,"height":70},"connections":[{"id":"inlet","type":"process","x":10,"y":40,"direction":"left"},{"id":"outlet","type":"process","x":60,"y":40,"direction":"right"}],"textZones":[{"id":"tagname","x":35,"y":-6,"width":70,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.1,"preferredElement":"text_readout"},{"nx":0.5,"ny":0.6,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "tank-storage-floating-roof",
@@ -1314,6 +1364,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         stroke="#808080" stroke-width="0.75"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"tank-storage-floating-roof","category":"tanks","geometry":{"viewBox":"0 0 70 70","width":70,"height":70},"connections":[{"id":"inlet","type":"process","x":10,"y":40,"direction":"left"},{"id":"outlet","type":"process","x":60,"y":40,"direction":"right"}],"textZones":[{"id":"tagname","x":35,"y":-6,"width":70,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.1,"preferredElement":"text_readout"},{"nx":0.5,"ny":0.6,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.1,"ny":-0.05},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "tank-storage-sphere",
@@ -1329,6 +1380,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
           fill="none" stroke="#808080" stroke-width="1.5"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"tank-storage-sphere","category":"tanks","geometry":{"viewBox":"0 0 70 56","width":70,"height":56},"connections":[{"id":"inlet","type":"process","x":13,"y":26,"direction":"left"},{"id":"outlet","type":"process","x":57,"y":26,"direction":"right"},{"id":"top-vent","type":"process","x":35,"y":4,"direction":"top"}],"textZones":[{"id":"tagname","x":35,"y":-6,"width":70,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"},{"nx":1.15,"ny":0.5,"preferredElement":"analog_bar"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "tank-storage-capsule",
@@ -1350,6 +1402,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         fill="none" stroke="#808080" stroke-width="1.5"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"tank-storage-capsule","category":"tanks","geometry":{"viewBox":"0 0 80 52","width":80,"height":52},"connections":[{"id":"inlet-left","type":"process","x":8,"y":26,"direction":"left"},{"id":"outlet-right","type":"process","x":72,"y":26,"direction":"right"}],"textZones":[{"id":"tagname","x":40,"y":-6,"width":80,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.15,"preferredElement":"text_readout"},{"nx":0.5,"ny":0.5,"preferredElement":"fill_gauge"}],"alarmAnchor":{"nx":1.05,"ny":-0.15},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // FILTERS
@@ -1374,6 +1427,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
             fill="none" stroke="#808080" stroke-width="0.75" stroke-dasharray="3,2"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"filter","category":"filters","geometry":{"viewBox":"0 0 50 60","width":50,"height":60},"connections":[{"id":"inlet","type":"process","x":6,"y":10,"direction":"left"},{"id":"outlet","type":"process","x":44,"y":10,"direction":"right"},{"id":"drain","type":"process","x":25,"y":50,"direction":"bottom"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.1,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "filter-vacuum",
@@ -1401,6 +1455,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         fill="none" stroke="#808080" stroke-width="1.5"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"filter-vacuum","category":"filters","geometry":{"viewBox":"0 0 66 55","width":66,"height":55},"connections":[{"id":"inlet","type":"process","x":9,"y":20,"direction":"left"},{"id":"outlet","type":"process","x":57,"y":20,"direction":"right"},{"id":"vacuum-port","type":"process","x":33,"y":0,"direction":"top"}],"textZones":[{"id":"tagname","x":33,"y":-6,"width":66,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.1,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // ALARM ANNUNCIATORS
@@ -1421,6 +1476,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"alarm-annunciator","category":"annunciators","geometry":{"viewBox":"0 0 40 40","width":40,"height":40},"connections":[{"id":"signal","type":"signal","x":20,"y":4,"direction":"top"}],"textZones":[{"id":"tag","x":20,"y":20,"width":30,"anchor":"middle","fontSize":10},{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "alarm-annunciator-opt2",
@@ -1444,6 +1500,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"alarm-annunciator-opt2","category":"annunciators","geometry":{"viewBox":"0 0 50 40","width":50,"height":40},"connections":[{"id":"signal","type":"signal","x":12,"y":20,"direction":"left"}],"textZones":[{"id":"tagname","x":25,"y":-6,"width":50,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // MIXERS
@@ -1468,6 +1525,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"mixer","category":"mixers","geometry":{"viewBox":"0 0 60 30","width":60,"height":30},"connections":[{"id":"shaft","type":"mechanical","x":30,"y":2,"direction":"top"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.3,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "mixer-motor",
@@ -1491,6 +1549,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"mixer-motor","category":"mixers","geometry":{"viewBox":"0 0 60 34","width":60,"height":34},"connections":[{"id":"shaft","type":"mechanical","x":30,"y":2,"direction":"top"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.3,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "mixer-inline",
@@ -1514,6 +1573,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"mixer-inline","category":"mixers","geometry":{"viewBox":"0 0 70 30","width":70,"height":30},"connections":[{"id":"inlet","type":"process","x":2,"y":15,"direction":"left"},{"id":"outlet","type":"process","x":68,"y":15,"direction":"right"}],"textZones":[{"id":"tagname","x":35,"y":-6,"width":70,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.05,"ny":-0.2},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // INTERLOCKS
@@ -1534,6 +1594,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"interlock","category":"interlocks","geometry":{"viewBox":"0 0 60 44","width":60,"height":44},"connections":[{"id":"input","type":"signal","x":4,"y":22,"direction":"left"},{"id":"output","type":"signal","x":56,"y":22,"direction":"right"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "interlock-sis",
@@ -1554,6 +1615,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"interlock-sis","category":"interlocks","geometry":{"viewBox":"0 0 60 44","width":60,"height":44},"connections":[{"id":"input","type":"signal","x":4,"y":22,"direction":"left"},{"id":"output","type":"signal","x":56,"y":22,"direction":"right"}],"textZones":[{"id":"tagname","x":30,"y":-6,"width":60,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.25,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.1,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         ShapeSeed {
             shape_id: "interlock-opt2",
@@ -1577,6 +1639,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"interlock-opt2","category":"interlocks","geometry":{"viewBox":"0 0 40 50","width":40,"height":50},"connections":[{"id":"input","type":"signal","x":8,"y":32,"direction":"left"},{"id":"output","type":"signal","x":32,"y":32,"direction":"right"}],"textZones":[{"id":"tagname","x":20,"y":-6,"width":40,"anchor":"middle","fontSize":11}],"valueAnchors":[{"nx":0.5,"ny":1.2,"preferredElement":"text_readout"}],"alarmAnchor":{"nx":1.15,"ny":-0.1},"states":{"running":"io-running","stopped":"io-stopped","fault":"io-fault","transitioning":"io-transitioning","oos":"io-oos"}}"#,
         },
         // ---------------------------------------------------------------
         // COMPOSABLE PARTS — Agitators
@@ -1601,6 +1664,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"agitator-turbine","category":"agitators","isPart":true,"partClass":"io-part-agitator","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"shaft-top","type":"mechanical","x":20,"y":7,"direction":"top"}],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         ShapeSeed {
             shape_id: "agitator-propeller",
@@ -1622,6 +1686,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"agitator-propeller","category":"agitators","isPart":true,"partClass":"io-part-agitator","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"shaft-top","type":"mechanical","x":20,"y":7,"direction":"top"}],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         ShapeSeed {
             shape_id: "agitator-anchor",
@@ -1644,6 +1709,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"agitator-anchor","category":"agitators","isPart":true,"partClass":"io-part-agitator","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"shaft-top","type":"mechanical","x":20,"y":7,"direction":"top"}],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         ShapeSeed {
             shape_id: "agitator-paddle",
@@ -1662,6 +1728,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"agitator-paddle","category":"agitators","isPart":true,"partClass":"io-part-agitator","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"shaft-top","type":"mechanical","x":20,"y":7,"direction":"top"}],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         ShapeSeed {
             shape_id: "agitator-helical",
@@ -1681,6 +1748,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"agitator-helical","category":"agitators","isPart":true,"partClass":"io-part-agitator","geometry":{"viewBox":"0 0 40 80","width":40,"height":80},"connections":[{"id":"shaft-top","type":"mechanical","x":20,"y":7,"direction":"top"}],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         // ---------------------------------------------------------------
         // COMPOSABLE PARTS — Supports (Reactor / Column)
@@ -1705,6 +1773,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"support-skirt","category":"supports","isPart":true,"partClass":"io-part-support","geometry":{"viewBox":"0 0 40 86","width":40,"height":86},"connections":[],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         ShapeSeed {
             shape_id: "support-legs-3",
@@ -1726,6 +1795,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"support-legs-3","category":"supports","isPart":true,"partClass":"io-part-support","geometry":{"viewBox":"0 0 40 86","width":40,"height":86},"connections":[],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         ShapeSeed {
             shape_id: "support-legs-4",
@@ -1746,6 +1816,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   </g>
 </svg>
 "##,
+            sidecar: r#"{"id":"support-legs-4","category":"supports","isPart":true,"partClass":"io-part-support","geometry":{"viewBox":"0 0 40 86","width":40,"height":86},"connections":[],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         // ---------------------------------------------------------------
         // COMPOSABLE PARTS — Tank Supports
@@ -1766,6 +1837,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
         stroke="#808080" stroke-width="1.5"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"support-legs-splayed","category":"supports","isPart":true,"partClass":"io-part-support","geometry":{"viewBox":"0 0 70 20","width":70,"height":20},"connections":[],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
         ShapeSeed {
             shape_id: "support-saddles",
@@ -1785,6 +1857,7 @@ fn shape_seeds() -> Vec<ShapeSeed> {
   <line x1="53" y1="10" x2="60" y2="10" stroke="#808080" stroke-width="0.75"/>
 </svg>
 "##,
+            sidecar: r#"{"id":"support-saddles","category":"supports","isPart":true,"partClass":"io-part-support","geometry":{"viewBox":"0 0 80 14","width":80,"height":14},"connections":[],"textZones":[],"valueAnchors":[],"alarmAnchor":null,"states":{}}"#,
         },
     ]
 }

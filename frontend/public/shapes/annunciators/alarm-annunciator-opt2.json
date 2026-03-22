@@ -1,6 +1,25 @@
 {
-  "id": "alarm-annunciator-opt2",
+  "$schema": "io-shape-v1",
+  "shape_id": "alarm-annunciator",
+  "version": "1.0",
+  "display_name": "Alarm Annunciator",
   "category": "annunciators",
+  "subcategory": "annunciator",
+  "tags": ["alarm", "annunciator", "indicator", "horn"],
+  "recognition_class": "alarm_annunciator",
+  "variants": {
+    "options": {
+      "opt1": { "file": "alarm-annunciator.svg", "label": "ISA Standard" },
+      "opt2": { "file": "alarm-annunciator-opt2.svg", "label": "Horn" }
+    },
+    "configurations": []
+  },
+  "alarmBinding": {
+    "stateSource": "point_alarm_state",
+    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "unacknowledgedFlash": true,
+    "flashRate": "1Hz"
+  },
   "geometry": { "viewBox": "0 0 50 40", "width": 50, "height": 40 },
   "connections": [
     { "id": "signal", "type": "signal", "x": 12, "y": 20, "direction": "left" }
