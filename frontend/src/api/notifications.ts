@@ -256,4 +256,9 @@ export const notificationsApi = {
   getEnabledChannels(): Promise<ApiResult<NotificationChannel[]>> {
     return api.get('/api/notifications/channels/enabled')
   },
+
+  // Muster export — returns a URL string for use in an anchor tag
+  exportMusterUnaccounted(messageId: string): string {
+    return `/api/notifications/muster/${messageId}/export`
+  },
 }

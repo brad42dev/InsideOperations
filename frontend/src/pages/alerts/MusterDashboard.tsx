@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notificationsApi, type MusterStatus, type MusterMark } from '../../api/notifications'
 import { wsManager } from '../../shared/hooks/useWebSocket'
+import { usePermission } from '../../shared/hooks/usePermission'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -342,6 +343,7 @@ export default function MusterDashboard() {
   const { messageId } = useParams<{ messageId: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const canMuster = usePermission('alerts:muster')
   const [markTarget, setMarkTarget] = useState<MusterMark | null>(null)
   const [filter, setFilter] = useState<MusterStatus | 'all'>('all')
 
@@ -546,6 +548,30 @@ export default function MusterDashboard() {
           <PersonCard key={mark.id} mark={mark} onMarkClick={setMarkTarget} />
         ))}
       </div>
+
+      {/* Export unaccounted list — gated on alerts:muster permission */}
+      {canMuster && (
+        <div style={{ marginTop: 20 }}>
+          <a
+            href={notificationsApi.exportMusterUnaccounted(messageId)}
+            download
+            style={{
+              display: 'inline-block',
+              padding: '7px 16px',
+              borderRadius: 6,
+              border: '1px solid var(--io-border)',
+              background: 'var(--io-surface-secondary)',
+              color: 'var(--io-text)',
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Export Unaccounted List
+          </a>
+        </div>
+      )}
 
       {/* Mark modal */}
       {markTarget && (
