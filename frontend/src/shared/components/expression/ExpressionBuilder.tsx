@@ -243,6 +243,8 @@ interface ExprBuilderState {
   // undo/redo stacks (store snapshots of tiles)
   past: ExpressionTile[][]
   future: ExpressionTile[][]
+  // clipboard for copy/cut/paste
+  clipboard: ExpressionTile[] | null
 }
 
 type Action =
@@ -260,11 +262,30 @@ type Action =
   | { type: 'SET_OUTPUT_PRECISION'; value: number }
   | { type: 'SET_SAVE_FUTURE'; value: boolean }
   | { type: 'SET_SHARE'; value: boolean }
+  | { type: 'COPY_SELECTION' }
+  | { type: 'CUT_SELECTION' }
+  | { type: 'PASTE' }
 
 const MAX_HISTORY = 50
 
 function cloneTiles(tiles: ExpressionTile[]): ExpressionTile[] {
   return JSON.parse(JSON.stringify(tiles)) as ExpressionTile[]
+}
+
+/**
+ * Deep-clone tiles and replace every `id` in the tree with a fresh UUID.
+ * This prevents duplicate IDs when pasting, which would break dnd-kit and
+ * findTileLocation.
+ */
+function reassignIds(tiles: ExpressionTile[]): ExpressionTile[] {
+  return tiles.map((tile) => {
+    const next: ExpressionTile = { ...tile, id: newId() }
+    if (tile.children) next.children = reassignIds(tile.children)
+    if (tile.condition) next.condition = reassignIds(tile.condition)
+    if (tile.thenBranch) next.thenBranch = reassignIds(tile.thenBranch)
+    if (tile.elseBranch) next.elseBranch = reassignIds(tile.elseBranch)
+    return next
+  })
 }
 
 // Find a tile by id in a tree and return the parent array + index
@@ -407,6 +428,74 @@ function exprReducer(state: ExprBuilderState, action: Action): ExprBuilderState 
         tiles: next,
         past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
         future: rest,
+      }
+    }
+
+    case 'COPY_SELECTION': {
+      if (state.selectedIds.length === 0) return state
+      // Collect selected top-level tiles in document order, deep-clone them
+      const selected: ExpressionTile[] = []
+      function collectSelected(tiles: ExpressionTile[]) {
+        for (const t of tiles) {
+          if (state.selectedIds.includes(t.id)) {
+            selected.push(t)
+          }
+          // Also walk children so nested selections can be collected
+          for (const sub of [t.children, t.condition, t.thenBranch, t.elseBranch]) {
+            if (sub) collectSelected(sub)
+          }
+        }
+      }
+      collectSelected(state.tiles)
+      return { ...state, clipboard: cloneTiles(selected) }
+    }
+
+    case 'CUT_SELECTION': {
+      if (state.selectedIds.length === 0) return state
+      // Same as COPY_SELECTION, but also removes selected tiles
+      const selected: ExpressionTile[] = []
+      function collectForCut(tiles: ExpressionTile[]) {
+        for (const t of tiles) {
+          if (state.selectedIds.includes(t.id)) {
+            selected.push(t)
+          }
+          for (const sub of [t.children, t.condition, t.thenBranch, t.elseBranch]) {
+            if (sub) collectForCut(sub)
+          }
+        }
+      }
+      collectForCut(state.tiles)
+      const clipboard = cloneTiles(selected)
+
+      // Remove selected tiles from the tree
+      const newTiles = cloneTiles(state.tiles)
+      for (const id of state.selectedIds) {
+        const loc = findTileLocation(newTiles, id)
+        if (loc) loc.arr.splice(loc.index, 1)
+      }
+      return {
+        ...state,
+        tiles: newTiles,
+        clipboard,
+        selectedIds: [],
+        past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
+        future: [],
+      }
+    }
+
+    case 'PASTE': {
+      if (!state.clipboard || state.clipboard.length === 0) return state
+      const pasted = reassignIds(cloneTiles(state.clipboard))
+      const newTiles = cloneTiles(state.tiles)
+      const arr = getChildArray(newTiles, state.cursorParentId)
+      if (!arr) return state
+      arr.splice(state.cursorIndex, 0, ...pasted)
+      return {
+        ...state,
+        tiles: newTiles,
+        past: [cloneTiles(state.tiles), ...state.past].slice(0, MAX_HISTORY),
+        future: [],
+        cursorIndex: state.cursorIndex + pasted.length,
       }
     }
 
@@ -1307,6 +1396,7 @@ export function ExpressionBuilder({
     shareExpression: false,
     past: [],
     future: [],
+    clipboard: null,
   })
 
   const [showTest, setShowTest] = useState(false)
@@ -1317,6 +1407,9 @@ export function ExpressionBuilder({
 
   // Cancel-confirmation dialog state
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  // Cut-confirmation dialog state
+  const [showCutConfirm, setShowCutConfirm] = useState(false)
 
   // Capture initial header field values on mount for dirty tracking
   const initialHeaderRef = useRef({
@@ -1365,7 +1458,7 @@ export function ExpressionBuilder({
 
   const validation = validateExpression(state)
 
-  // Keyboard shortcut undo/redo
+  // Keyboard shortcut undo/redo + clipboard
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey) {
@@ -1375,6 +1468,16 @@ export function ExpressionBuilder({
         } else if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) {
           e.preventDefault()
           dispatch({ type: 'REDO' })
+        } else if (e.key === 'c') {
+          e.preventDefault()
+          dispatch({ type: 'COPY_SELECTION' })
+        } else if (e.key === 'x') {
+          e.preventDefault()
+          // Show confirmation before cutting (destroying tiles)
+          setShowCutConfirm(true)
+        } else if (e.key === 'v') {
+          e.preventDefault()
+          dispatch({ type: 'PASTE' })
         }
       }
     }
@@ -2335,6 +2438,55 @@ export function ExpressionBuilder({
                 if (ast) void doSaveAndApply(ast)
               }}>
                 Accept &amp; Apply
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* ---- Cut confirmation dialog ---- */}
+      <Dialog.Root open={showCutConfirm} onOpenChange={setShowCutConfirm}>
+        <Dialog.Portal>
+          <Dialog.Overlay style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 1000,
+          }} />
+          <Dialog.Content style={{
+            position: 'fixed',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'var(--io-surface)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            padding: '24px',
+            minWidth: '360px',
+            maxWidth: '480px',
+            zIndex: 1001,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}>
+            <Dialog.Title style={{ fontSize: '15px', fontWeight: 600, color: 'var(--io-text-primary)', marginBottom: '12px' }}>
+              Cut {state.selectedIds.length} tile{state.selectedIds.length !== 1 ? 's' : ''}?
+            </Dialog.Title>
+            <Dialog.Description style={{ fontSize: '14px', color: 'var(--io-text-secondary)', marginBottom: '20px' }}>
+              The selected tile{state.selectedIds.length !== 1 ? 's' : ''} will be copied to the clipboard and removed from the workspace.
+            </Dialog.Description>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button style={btnSecondary} onClick={() => setShowCutConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                style={{
+                  ...btnSecondary,
+                  color: 'var(--io-danger)',
+                  borderColor: 'rgba(239,68,68,0.4)',
+                }}
+                onClick={() => {
+                  setShowCutConfirm(false)
+                  dispatch({ type: 'CUT_SELECTION' })
+                }}
+              >
+                Cut
               </button>
             </div>
           </Dialog.Content>

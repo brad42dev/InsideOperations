@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T19:02:01Z",
+  "last_updated": "2026-03-22T00:00:00Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -114,7 +114,9 @@
     "DD-18-006": 1,
     "DD-20-005": 1,
     "DD-22-005": 1,
-    "DD-22-006": 1
+    "DD-22-006": 1,
+    "DD-23-006": 1,
+    "DD-23-008": 1
   },
   "queue": [
     {
@@ -2400,7 +2402,7 @@
       "wave": 3,
       "title": "Fix nesting level colors to match Okabe-Ito spec with theme variants",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2420,7 +2422,7 @@
       "wave": 3,
       "title": "Fix Share checkbox permission to use system:expression_manage",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2443,7 +2445,7 @@
       "wave": 3,
       "title": "Add unsaved-changes confirmation prompt to Cancel button",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2453,7 +2455,7 @@
       "wave": 3,
       "title": "Implement Ctrl+C, Ctrl+X, Ctrl+V clipboard operations for tiles",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
