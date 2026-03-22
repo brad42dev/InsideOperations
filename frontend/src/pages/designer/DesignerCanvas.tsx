@@ -3684,8 +3684,27 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
   // -------------------------------------------------------------------------
 
   const { panX, panY, zoom } = viewport
-  const canvasW = doc?.canvas.width  ?? 1920
-  const canvasH = doc?.canvas.height ?? 1080
+  const canvasW    = doc?.canvas.width  ?? 1920
+  const declaredH  = doc?.canvas.height ?? 1080
+  const autoHeightEnabled = doc?.canvas.autoHeight ?? false
+
+  // Compute the bottom of all visible content — memoized on scene graph changes
+  const contentBoundingBoxBottom = useMemo(() => {
+    if (!doc || !autoHeightEnabled) return declaredH
+    let maxY = 0
+    for (const node of doc.children) {
+      if (!node.visible) continue
+      const b = getNodeBounds(node)
+      if (b) maxY = Math.max(maxY, b.y + b.h)
+    }
+    return maxY
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.children, autoHeightEnabled, declaredH])
+
+  // When autoHeight is on, canvas grows to fit content (min = declaredH, 80px bottom padding)
+  const canvasH = autoHeightEnabled
+    ? Math.max(declaredH, contentBoundingBoxBottom + 80)
+    : declaredH
   const bgColor = doc?.canvas.backgroundColor ?? '#09090b'
 
   // Stable shape SVG getter that re-evaluates when the library cache changes (version triggers re-render)
@@ -3898,10 +3917,10 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
               (panX + viewportW / zoom) > canvasW ||
               (panY + viewportH / zoom) > canvasH
             if (!boundaryVisible) return null
-            const autoH = (doc.canvas as Record<string, unknown> & { autoHeight?: boolean }).autoHeight === true
-            if (autoH) {
-              // autoHeight: top, left, right edges only (no bottom) + horizontal guide line at canvasH
-              const edgeD = `M0,${canvasH} L0,0 L${canvasW},0 L${canvasW},${canvasH}`
+            if (autoHeightEnabled) {
+              // autoHeight: top, left, right edges only (no bottom edge)
+              // The page guide line is drawn at the declared minimum height (declaredH), not the auto-computed canvasH
+              const edgeD = `M0,${declaredH} L0,0 L${canvasW},0 L${canvasW},${declaredH}`
               return (
                 <>
                   <path
@@ -3914,7 +3933,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
                     pointerEvents="none"
                   />
                   <line
-                    x1={0} y1={canvasH} x2={canvasW} y2={canvasH}
+                    x1={0} y1={declaredH} x2={canvasW} y2={declaredH}
                     stroke="var(--io-border-subtle)"
                     strokeOpacity={0.4}
                     strokeWidth={1 / zoom}

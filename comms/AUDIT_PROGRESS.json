@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T10:52:20.622848+00:00",
+  "last_updated": "2026-03-22T10:59:54.094027+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -83,7 +83,8 @@
     "MOD-PROCESS-007": 1,
     "OPC-BACKEND-003": 1,
     "MOD-CONSOLE-007": 1,
-    "MOD-DESIGNER-003": 1
+    "MOD-DESIGNER-003": 1,
+    "MOD-DESIGNER-018": 1
   },
   "queue": [
     {
@@ -3912,7 +3913,7 @@
       "wave": 2,
       "title": "Render canvas boundary visual and add out-of-bounds save warning toast",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"
@@ -3936,7 +3937,7 @@
       "wave": 2,
       "title": "Implement auto-height scrollable canvas for Report and Dashboard modes",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-016",
         "MOD-DESIGNER-017",

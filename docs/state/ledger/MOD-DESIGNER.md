@@ -13,3 +13,4 @@ MOD-DESIGNER-014 | Add resize handles and drag resize for standalone display ele
 MOD-DESIGNER-019 | Widgets/Stencils sections in left palette per mode | verified 2026-03-22 | commit 252b4e5 | npx tsc --noEmit | PASS
 MOD-DESIGNER-003 | Move selection state from local useRef into uiStore | verified 2026-03-22 | commit e38fb10 | npx tsc --noEmit | PASS
 MOD-DESIGNER-015 | Enable multi-node resize (CompoundCommand wrapping per-node resize commands) | verified 2026-03-22 | commit c5bd2c1 | npx tsc --noEmit | PASS
+MOD-DESIGNER-018 | Render canvas boundary visual and add out-of-bounds save warning toast | verified 2026-03-22 | commit a6e5f6d | npx tsc --noEmit | PASS

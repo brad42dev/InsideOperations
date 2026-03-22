@@ -445,7 +445,7 @@ export default function CanvasPropertiesDialog({ onClose }: CanvasPropertiesDial
 
             {/* Height */}
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>{isReport && autoHeight ? 'Min. Height' : 'Height'}</label>
+              <label style={labelStyle}>{autoHeight ? 'Min. Height / Page Height' : 'Height'}</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                 <input
                   type="number"
@@ -454,13 +454,10 @@ export default function CanvasPropertiesDialog({ onClose }: CanvasPropertiesDial
                   max={15000}
                   onChange={e => handleHeightChange(e.target.value)}
                   onBlur={handleHeightBlur}
-                  disabled={autoHeight && isReport}
-                  title={autoHeight && isReport ? 'Canvas grows automatically' : undefined}
+                  title={autoHeight ? 'The canvas grows automatically to fit content. This value sets the minimum height.' : undefined}
                   style={{
                     ...inputStyle,
                     width: '100%',
-                    opacity: autoHeight && isReport ? 0.5 : 1,
-                    cursor: autoHeight && isReport ? 'not-allowed' : 'text',
                   }}
                 />
                 <span style={{ fontSize: 11, color: 'var(--io-text-muted)', flexShrink: 0 }}>px</span>
@@ -468,8 +465,8 @@ export default function CanvasPropertiesDialog({ onClose }: CanvasPropertiesDial
             </div>
           </div>
 
-          {/* Auto-grow checkbox (report mode only) */}
-          {isReport && (
+          {/* Auto-grow checkbox (report and dashboard modes) */}
+          {(isReport || designMode === 'dashboard') && (
             <label style={{
               display: 'flex',
               alignItems: 'center',
