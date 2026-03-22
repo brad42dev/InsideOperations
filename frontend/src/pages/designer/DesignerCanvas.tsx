@@ -60,6 +60,7 @@ import {
   RotateNodesCommand,
   FlipNodesCommand,
   ResizePrimitiveCommand,
+  ResizeNodeCommand,
   ResizeNodeWithDimsCommand,
   ChangeShapeVariantCommand,
   ChangeShapeConfigurationCommand,
@@ -195,9 +196,13 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
     const si = node as SymbolInstance
     const shapeData = useLibraryStore.getState().getShape(si.shapeRef.shapeId)
     const geo = shapeData?.sidecar.geometry
-    const bw = geo?.baseSize?.[0] ?? geo?.width ?? 64
-    const bh = geo?.baseSize?.[1] ?? geo?.height ?? 64
-    return { x, y, w: bw, h: bh }
+    const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? 64
+    const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? 64
+    return { x, y, w: naturalW * (si.transform.scale.x ?? 1), h: naturalH * (si.transform.scale.y ?? 1) }
+  }
+  if (node.type === 'stencil') {
+    const st = node as Stencil
+    return { x, y, w: st.size?.width ?? 48, h: st.size?.height ?? 24 }
   }
   if (node.type === 'display_element') {
     const de = node as DisplayElement
@@ -2209,6 +2214,39 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
             newT, { width: nw, height: nh },
             prevT, { width: esn.width, height: esn.height },
           ))
+        } else if (target?.type === 'symbol_instance') {
+          const si = target as SymbolInstance
+          const prevT = inter.resizeOrigTransform
+          const shapeData = useLibraryStore.getState().getShape(si.shapeRef.shapeId)
+          const geo = shapeData?.sidecar.geometry
+          const naturalW = geo?.baseSize?.[0] ?? geo?.width ?? inter.resizeOrigBounds.w
+          const naturalH = geo?.baseSize?.[1] ?? geo?.height ?? inter.resizeOrigBounds.h
+          const clampedW = Math.max(10, nw)
+          const clampedH = Math.max(10, nh)
+          const newScaleX = clampedW / naturalW
+          const newScaleY = clampedH / naturalH
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny }, scale: { x: newScaleX, y: newScaleY } }
+          executeCmd(new ResizeNodeCommand(inter.resizeNodeId, newT, prevT))
+        } else if (target?.type === 'text_block') {
+          const tb = target as TextBlock
+          const prevT = inter.resizeOrigTransform
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+          const newW = Math.max(20, nw)
+          executeCmd(new CompoundCommand('Resize', [
+            new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
+            new ChangePropertyCommand(inter.resizeNodeId, 'maxWidth', newW, tb.maxWidth ?? 120),
+          ]))
+        } else if (target?.type === 'stencil') {
+          const st = target as Stencil
+          const prevT = inter.resizeOrigTransform
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+          const newW = Math.max(16, nw)
+          const newH = Math.max(16, nh)
+          const prevSize = st.size ?? { width: 48, height: 24 }
+          executeCmd(new CompoundCommand('Resize', [
+            new ResizeNodeCommand(inter.resizeNodeId, newT, prevT),
+            new ChangePropertyCommand(inter.resizeNodeId, 'size', { width: newW, height: newH }, prevSize),
+          ]))
         }
       }
       inter.type = 'none'
