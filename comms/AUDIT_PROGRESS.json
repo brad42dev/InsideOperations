@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T00:00:00Z",
+  "last_updated": "2026-03-22T01:27:17.066742Z",
   "checkpoint_count": 9,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -44,7 +44,8 @@
     "DD-23-003": 1,
     "MOD-CONSOLE-006": 2,
     "MOD-CONSOLE-005": 1,
-    "GFX-DISPLAY-003": 1
+    "GFX-DISPLAY-003": 1,
+    "MOD-PROCESS-004": 0
   },
   "queue": [
     {
@@ -1125,7 +1126,7 @@
       "wave": 2,
       "title": "Pre-build spatial binding index on graphic load",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1145,7 +1146,7 @@
       "wave": 2,
       "title": "Replace custom point right-click with shared PointContextMenu component",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 1
     },

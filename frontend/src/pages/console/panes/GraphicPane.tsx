@@ -628,11 +628,10 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
           tagName={pointCtxMenu.tagName}
           isAlarm={pointCtxMenu.isAlarm}
           isAlarmElement={pointCtxMenu.isAlarmElement}
-          onViewDetail={(pid) => {
+          onPointDetail={(pid) => {
             openPointDetail(pid, pointCtxMenu.x, pointCtxMenu.y)
             setPointCtxMenu(null)
           }}
-          onAddToTrend={() => { setPointCtxMenu(null) }}
         >
           {/* Invisible fixed-position portal anchor — PointContextMenu opens at this location */}
           <span style={{ position: 'fixed', top: pointCtxMenu.y, left: pointCtxMenu.x, width: 0, height: 0 }} />

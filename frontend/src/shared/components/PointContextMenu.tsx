@@ -6,11 +6,18 @@ import { usePermission } from '../hooks/usePermission'
 export interface PointContextMenuProps {
   pointId: string
   tagName: string
-  isAlarm: boolean
-  isAlarmElement: boolean
+  isAlarm?: boolean
+  isAlarmElement?: boolean
   children: React.ReactNode
-  onViewDetail?: (pointId: string) => void
-  onAddToTrend?: (pointId: string) => void
+  /** Controlled open state — when provided, the menu is driven externally */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /**
+   * Optional override for "Point Detail" action.
+   * When omitted, the default navigates to the point detail route.
+   * Modules that show an in-pane panel (e.g. Console floating panel) pass this.
+   */
+  onPointDetail?: (pointId: string) => void
 }
 
 const menuContentStyle: React.CSSProperties = {
@@ -37,14 +44,21 @@ const menuItemStyle: React.CSSProperties = {
   userSelect: 'none',
 }
 
+const separatorStyle: React.CSSProperties = {
+  height: 1,
+  background: 'var(--io-border)',
+  margin: '4px 0',
+}
+
 export default function PointContextMenu({
   pointId,
   tagName,
-  isAlarm,
-  isAlarmElement,
+  isAlarm = false,
+  isAlarmElement = false,
   children,
-  onViewDetail,
-  onAddToTrend,
+  open,
+  onOpenChange,
+  onPointDetail,
 }: PointContextMenuProps) {
   const navigate = useNavigate()
   const canForensics = usePermission('forensics:read')
@@ -58,12 +72,16 @@ export default function PointContextMenu({
     }
   }, [tagName])
 
-  const handleViewHistory = useCallback(() => {
-    navigate(`/forensics?point=${encodeURIComponent(pointId)}`)
-  }, [navigate, pointId])
+  const handlePointDetail = useCallback(() => {
+    if (onPointDetail) {
+      onPointDetail(pointId)
+    } else {
+      navigate(`/forensics?point=${encodeURIComponent(pointId)}&panel=detail`)
+    }
+  }, [navigate, pointId, onPointDetail])
 
-  const handleInvestigateAlarm = useCallback(() => {
-    navigate(`/forensics/new?alarm=${encodeURIComponent(pointId)}`)
+  const handleTrendThisPoint = useCallback(() => {
+    navigate(`/forensics?point=${encodeURIComponent(pointId)}&mode=trend`)
   }, [navigate, pointId])
 
   const handleInvestigatePoint = useCallback(() => {
@@ -74,6 +92,10 @@ export default function PointContextMenu({
     navigate(`/reports?point=${encodeURIComponent(pointId)}`)
   }, [navigate, pointId])
 
+  const handleInvestigateAlarm = useCallback(() => {
+    navigate(`/forensics/new?alarm=${encodeURIComponent(pointId)}`)
+  }, [navigate, pointId])
+
   const focusStyle = (e: React.FocusEvent<HTMLDivElement>) => {
     ;(e.currentTarget as HTMLElement).style.background = 'var(--io-accent-subtle)'
   }
@@ -81,23 +103,34 @@ export default function PointContextMenu({
     ;(e.currentTarget as HTMLElement).style.background = 'transparent'
   }
 
+  const isControlled = open !== undefined
+
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild onContextMenu={(e) => e.preventDefault()}>
-        {/* Wrap in a span that captures right-click and delegates to Radix trigger */}
-        <span
-          onContextMenu={(e) => {
-            e.preventDefault()
-            // Programmatically open the dropdown by dispatching a click on the trigger
-            ;(e.currentTarget as HTMLElement).dispatchEvent(
-              new MouseEvent('click', { bubbles: true }),
-            )
-          }}
-          style={{ display: 'contents' }}
-        >
+    <DropdownMenu.Root
+      open={isControlled ? open : undefined}
+      onOpenChange={isControlled ? onOpenChange : undefined}
+    >
+      {!isControlled ? (
+        <DropdownMenu.Trigger asChild onContextMenu={(e) => e.preventDefault()}>
+          {/* Wrap in a span that captures right-click and delegates to Radix trigger */}
+          <span
+            onContextMenu={(e) => {
+              e.preventDefault()
+              // Programmatically open the dropdown by dispatching a click on the trigger
+              ;(e.currentTarget as HTMLElement).dispatchEvent(
+                new MouseEvent('click', { bubbles: true }),
+              )
+            }}
+            style={{ display: 'contents' }}
+          >
+            {children}
+          </span>
+        </DropdownMenu.Trigger>
+      ) : (
+        <DropdownMenu.Trigger asChild>
           {children}
-        </span>
-      </DropdownMenu.Trigger>
+        </DropdownMenu.Trigger>
+      )}
 
       <DropdownMenu.Portal>
         <DropdownMenu.Content
@@ -106,64 +139,30 @@ export default function PointContextMenu({
           align="start"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          {/* Copy Tag Name — always present */}
+          {/* 1. Point Detail — always visible */}
           <DropdownMenu.Item
             style={menuItemStyle}
-            onSelect={() => { void handleCopyTagName() }}
+            onSelect={handlePointDetail}
             onFocus={focusStyle}
             onBlur={blurStyle}
           >
-            <span>📋</span>
-            Copy Tag Name
+            Point Detail
           </DropdownMenu.Item>
 
-          {/* View History — always present */}
+          {/* 2. Trend This Point — always visible, no permission gate */}
           <DropdownMenu.Item
             style={menuItemStyle}
-            onSelect={handleViewHistory}
+            onSelect={handleTrendThisPoint}
             onFocus={focusStyle}
             onBlur={blurStyle}
           >
-            <span>🕐</span>
-            View History
-          </DropdownMenu.Item>
-
-          {/* View Point Detail — always present */}
-          <DropdownMenu.Item
-            style={menuItemStyle}
-            onSelect={() => onViewDetail?.(pointId)}
-            onFocus={focusStyle}
-            onBlur={blurStyle}
-          >
-            <span>🔍</span>
-            View Point Detail
-          </DropdownMenu.Item>
-
-          {/* Trend This Point — always present, no permission gate */}
-          <DropdownMenu.Item
-            style={menuItemStyle}
-            onSelect={() => onAddToTrend?.(pointId)}
-            onFocus={focusStyle}
-            onBlur={blurStyle}
-          >
-            <span>📈</span>
             Trend This Point
           </DropdownMenu.Item>
 
-          {/* Investigate Alarm — only when isAlarm or isAlarmElement is true */}
-          {(isAlarm || isAlarmElement) && (
-            <DropdownMenu.Item
-              style={menuItemStyle}
-              onSelect={handleInvestigateAlarm}
-              onFocus={focusStyle}
-              onBlur={blurStyle}
-            >
-              <span>🚨</span>
-              Investigate Alarm
-            </DropdownMenu.Item>
-          )}
+          {/* Separator */}
+          <div style={separatorStyle} />
 
-          {/* Investigate Point — gated on forensics:read */}
+          {/* 3. Investigate Point — hidden if user lacks forensics:read */}
           {canForensics && (
             <DropdownMenu.Item
               style={menuItemStyle}
@@ -171,12 +170,11 @@ export default function PointContextMenu({
               onFocus={focusStyle}
               onBlur={blurStyle}
             >
-              <span>🔎</span>
               Investigate Point
             </DropdownMenu.Item>
           )}
 
-          {/* Report on Point — gated on reports:read */}
+          {/* 4. Report on Point — hidden if user lacks reports:read */}
           {canReports && (
             <DropdownMenu.Item
               style={menuItemStyle}
@@ -184,10 +182,37 @@ export default function PointContextMenu({
               onFocus={focusStyle}
               onBlur={blurStyle}
             >
-              <span>📊</span>
               Report on Point
             </DropdownMenu.Item>
           )}
+
+          {/* Conditional separator + Investigate Alarm — only when isAlarm or isAlarmElement */}
+          {(isAlarm || isAlarmElement) && (
+            <>
+              <div style={separatorStyle} />
+              <DropdownMenu.Item
+                style={menuItemStyle}
+                onSelect={handleInvestigateAlarm}
+                onFocus={focusStyle}
+                onBlur={blurStyle}
+              >
+                Investigate Alarm
+              </DropdownMenu.Item>
+            </>
+          )}
+
+          {/* Separator before Copy Tag Name */}
+          <div style={separatorStyle} />
+
+          {/* 7. Copy Tag Name — always visible */}
+          <DropdownMenu.Item
+            style={menuItemStyle}
+            onSelect={() => { void handleCopyTagName() }}
+            onFocus={focusStyle}
+            onBlur={blurStyle}
+          >
+            Copy Tag Name
+          </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
 

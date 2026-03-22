@@ -13,6 +13,7 @@ import type { ViewportState, SceneNode, DisplayElement, SymbolInstance } from '.
 import type { DesignObjectSummary } from '../../api/graphics'
 import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
 import ContextMenu from '../../shared/components/ContextMenu'
+import PointContextMenu from '../../shared/components/PointContextMenu'
 import PointDetailPanel from '../../shared/components/PointDetailPanel'
 import ProcessMinimap from './ProcessMinimap'
 import ProcessSidebar from './ProcessSidebar'
@@ -28,7 +29,7 @@ const SIDEBAR_VISIBLE_KEY = 'io-process-sidebar-visible'
 const MAX_RECENT = 10
 
 // ---------------------------------------------------------------------------
-// DOM walker — find nearest ancestor with data-point-id
+// DOM walkers — find nearest ancestor with data-point-id / data-display-type
 // ---------------------------------------------------------------------------
 
 function findPointId(target: EventTarget | null): string | null {
@@ -40,6 +41,23 @@ function findPointId(target: EventTarget | null): string | null {
     el = el.parentElement
   }
   return null
+}
+
+/**
+ * Walk up the DOM from `target` to find the nearest ancestor that has a
+ * `data-point-id` attribute, then check whether that ancestor has
+ * `data-display-type="alarm_indicator"`.
+ */
+function findIsAlarmElement(target: EventTarget | null): boolean {
+  let el = target as HTMLElement | null
+  while (el) {
+    const pid = el.dataset?.pointId ?? el.getAttribute?.('data-point-id')
+    if (pid) {
+      return el.getAttribute('data-display-type') === 'alarm_indicator'
+    }
+    el = el.parentElement
+  }
+  return false
 }
 
 // ---------------------------------------------------------------------------
@@ -550,10 +568,22 @@ export default function ProcessPage() {
   const pinchBaseDist = useRef<number>(0)
   const pinchMidCanvas = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
+  // Mobile long-press for point context menu (500ms, cancel on move > 10px)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressOrigin = useRef<{ x: number; y: number; target: EventTarget | null } | null>(null)
+
+  function cancelLongPress() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+    longPressOrigin.current = null
+  }
+
+  useEffect(() => () => { cancelLongPress() }, [])
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     // Pinch-to-zoom: activate when 2 touch pointers are down (60px+ apart)
     if (e.pointerType === 'touch' && activePointers.current.size === 2) {
+      cancelLongPress()
       const pts = Array.from(activePointers.current.values())
       const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)
       if (dist >= 60) {
@@ -571,6 +601,24 @@ export default function ProcessPage() {
       }
       return
     }
+    // Mobile long-press: start 500ms timer on single touch that targets a point element
+    if (e.pointerType === 'touch' && activePointers.current.size === 1) {
+      const pointId = findPointId(e.target)
+      if (pointId) {
+        cancelLongPress()
+        const cx = e.clientX
+        const cy = e.clientY
+        const tgt = e.target
+        longPressOrigin.current = { x: cx, y: cy, target: tgt }
+        longPressTimer.current = setTimeout(() => {
+          longPressTimer.current = null
+          longPressOrigin.current = null
+          const isAlarmElement = findIsAlarmElement(tgt)
+          setPointCtxMenu({ x: cx, y: cy, pointId, isAlarmElement })
+        }, 500)
+        return
+      }
+    }
     // Middle-click, Alt+left-click, or left-click on background canvas (not interactive elements)
     const target = e.target as HTMLElement
     const isBackground = target === containerRef.current || target.tagName === 'DIV'
@@ -582,6 +630,12 @@ export default function ProcessPage() {
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    // Cancel long-press if touch moves more than 10px
+    if (e.pointerType === 'touch' && longPressOrigin.current) {
+      const dx = e.clientX - longPressOrigin.current.x
+      const dy = e.clientY - longPressOrigin.current.y
+      if (Math.hypot(dx, dy) > 10) cancelLongPress()
+    }
     // Pinch-to-zoom gesture (§4.1)
     if (e.pointerType === 'touch' && activePointers.current.size === 2 && pinchBaseZoom.current !== null) {
       const pts = Array.from(activePointers.current.values())
@@ -612,6 +666,8 @@ export default function ProcessPage() {
     activePointers.current.delete(e.pointerId)
     if (activePointers.current.size < 2) pinchBaseZoom.current = null
     isPanning.current = false
+    // Cancel long-press if finger lifts before 500ms
+    if (e.pointerType === 'touch') cancelLongPress()
   }, [])
 
   const handleMinimapViewportChange = useCallback((panX: number, panY: number) => {
@@ -740,7 +796,7 @@ export default function ProcessPage() {
   // ---- Context menus (§13) -------------------------------------------------
 
   const [canvasCtxMenu, setCanvasCtxMenu] = useState<{ x: number; y: number } | null>(null)
-  const [pointCtxMenu, setPointCtxMenu] = useState<{ x: number; y: number; pointId: string } | null>(null)
+  const [pointCtxMenu, setPointCtxMenu] = useState<{ x: number; y: number; pointId: string; isAlarmElement: boolean } | null>(null)
   const [pointDetailPanels, setPointDetailPanels] = useState<{ id: string; pointId: string; x: number; y: number }[]>([])
   const MAX_DETAIL_PANELS = 3
 
@@ -762,7 +818,8 @@ export default function ProcessPage() {
       e.preventDefault()
       const pointId = findPointId(e.target)
       if (pointId) {
-        setPointCtxMenu({ x: e.clientX, y: e.clientY, pointId })
+        const isAlarmElement = findIsAlarmElement(e.target)
+        setPointCtxMenu({ x: e.clientX, y: e.clientY, pointId, isAlarmElement })
       } else {
         setCanvasCtxMenu({ x: e.clientX, y: e.clientY })
       }
@@ -1110,50 +1167,27 @@ export default function ProcessPage() {
             />
           )}
 
-          {/* Point right-click menu (§13.3) */}
+          {/* Point right-click / long-press menu (§13.3) — uses shared PointContextMenu */}
           {pointCtxMenu && (
-            <ContextMenu
-              x={pointCtxMenu.x}
-              y={pointCtxMenu.y}
-              onClose={() => setPointCtxMenu(null)}
-              items={[
-                {
-                  label: 'Point Detail',
-                  onClick: () => {
-                    openPointDetail(pointCtxMenu.pointId, pointCtxMenu.x, pointCtxMenu.y)
-                    setPointCtxMenu(null)
-                  },
-                },
-                {
-                  label: 'Copy Tag',
-                  onClick: () => {
-                    navigator.clipboard.writeText(pointCtxMenu.pointId).catch(() => {/* silent */})
-                    setPointCtxMenu(null)
-                  },
-                },
-                {
-                  label: 'Trend Point',
-                  onClick: () => {
-                    navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}&mode=trend`)
-                    setPointCtxMenu(null)
-                  },
-                },
-                {
-                  label: 'Investigate Point',
-                  onClick: () => {
-                    navigate(`/forensics?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
-                    setPointCtxMenu(null)
-                  },
-                },
-                {
-                  label: 'Report on Point',
-                  onClick: () => {
-                    navigate(`/reports?point=${encodeURIComponent(pointCtxMenu.pointId)}`)
-                    setPointCtxMenu(null)
-                  },
-                },
-              ]}
-            />
+            <PointContextMenu
+              pointId={pointCtxMenu.pointId}
+              tagName={pointCtxMenu.pointId}
+              isAlarmElement={pointCtxMenu.isAlarmElement}
+              open={true}
+              onOpenChange={(open) => { if (!open) setPointCtxMenu(null) }}
+            >
+              {/* Zero-size absolutely-positioned anchor at the right-click / long-press location */}
+              <div
+                style={{
+                  position: 'fixed',
+                  left: pointCtxMenu.x,
+                  top: pointCtxMenu.y,
+                  width: 0,
+                  height: 0,
+                  pointerEvents: 'none',
+                }}
+              />
+            </PointContextMenu>
           )}
 
           {/* Point Detail floating panels (up to 3 concurrent) */}
