@@ -7,6 +7,9 @@ import {
   LayoutDashboard,
   Bell,
   Settings as SettingsIcon,
+  CheckSquare,
+  BookOpen,
+  MoreHorizontal,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
@@ -187,6 +190,7 @@ export default function AppShell() {
   const userMenuBtnRef = useRef<HTMLButtonElement>(null)
   const [userMenuPos, setUserMenuPos] = useState({ top: 0, right: 0 })
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   // Refs to save pre-kiosk sidebar/topbar state for restoration on exit
   const preKioskSidebarRef = useRef<'expanded' | 'collapsed' | 'hidden'>('expanded')
@@ -1179,18 +1183,44 @@ export default function AppShell() {
             alignItems: 'stretch',
           }}
         >
-          {[
-            { path: '/console', label: 'Console', icon: Monitor },
-            { path: '/process', label: 'Process', icon: Layers },
-            { path: '/dashboards', label: 'Dashboards', icon: LayoutDashboard },
-            { path: '/alerts', label: 'Alerts', icon: Bell },
-            { path: '/settings', label: 'Settings', icon: SettingsIcon },
-          ].map(({ path, label, icon: Icon }) => {
-            const active = location.pathname === path || location.pathname.startsWith(path + '/')
+          {/* Monitor tab — active when on console, process, or dashboards */}
+          {(() => {
+            const monitorActive =
+              location.pathname.startsWith('/console') ||
+              location.pathname.startsWith('/process') ||
+              location.pathname.startsWith('/dashboards')
             return (
               <NavLink
-                key={path}
-                to={path}
+                to="/console"
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  textDecoration: 'none',
+                  color: monitorActive ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                  fontSize: '10px',
+                  fontWeight: monitorActive ? 600 : 400,
+                  padding: '6px 0',
+                  borderTop: monitorActive ? '2px solid var(--io-accent)' : '2px solid transparent',
+                  background: 'none',
+                }}
+              >
+                <Monitor size={20} />
+                Monitor
+              </NavLink>
+            )
+          })()}
+
+          {/* Rounds tab */}
+          {(() => {
+            const active =
+              location.pathname === '/rounds' || location.pathname.startsWith('/rounds/')
+            return (
+              <NavLink
+                to="/rounds"
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -1207,12 +1237,165 @@ export default function AppShell() {
                   background: 'none',
                 }}
               >
+                <CheckSquare size={20} />
+                Rounds
+              </NavLink>
+            )
+          })()}
+
+          {/* Log tab */}
+          {(() => {
+            const active =
+              location.pathname === '/log' || location.pathname.startsWith('/log/')
+            return (
+              <NavLink
+                to="/log"
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  textDecoration: 'none',
+                  color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                  fontSize: '10px',
+                  fontWeight: active ? 600 : 400,
+                  padding: '6px 0',
+                  borderTop: active ? '2px solid var(--io-accent)' : '2px solid transparent',
+                  background: 'none',
+                }}
+              >
+                <BookOpen size={20} />
+                Log
+              </NavLink>
+            )
+          })()}
+
+          {/* Alerts tab */}
+          {(() => {
+            const active =
+              location.pathname === '/alerts' || location.pathname.startsWith('/alerts/')
+            return (
+              <NavLink
+                to="/alerts"
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  textDecoration: 'none',
+                  color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                  fontSize: '10px',
+                  fontWeight: active ? 600 : 400,
+                  padding: '6px 0',
+                  borderTop: active ? '2px solid var(--io-accent)' : '2px solid transparent',
+                  background: 'none',
+                }}
+              >
+                <Bell size={20} />
+                Alerts
+              </NavLink>
+            )
+          })()}
+
+          {/* More tab — opens bottom sheet */}
+          {(() => {
+            const moreActive =
+              location.pathname.startsWith('/shifts') ||
+              location.pathname.startsWith('/reports')
+            return (
+              <button
+                onClick={() => setMoreOpen(true)}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: moreActive ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                  fontSize: '10px',
+                  fontWeight: moreActive ? 600 : 400,
+                  padding: '6px 0',
+                  borderTop: moreActive ? '2px solid var(--io-accent)' : '2px solid transparent',
+                }}
+              >
+                <MoreHorizontal size={20} />
+                More
+              </button>
+            )
+          })()}
+        </nav>
+      )}
+
+      {/* More bottom sheet — secondary nav items on mobile */}
+      {moreOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setMoreOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.4)',
+              zIndex: 200,
+            }}
+          />
+          {/* Sheet */}
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: 'var(--io-surface-elevated)',
+              borderTop: '1px solid var(--io-border)',
+              borderRadius: '12px 12px 0 0',
+              zIndex: 201,
+              padding: '12px 0 calc(12px + env(safe-area-inset-bottom))',
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '4px',
+                background: 'var(--io-border)',
+                borderRadius: '2px',
+                margin: '0 auto 16px',
+              }}
+            />
+            {[
+              { path: '/shifts', label: 'Shifts', icon: Layers },
+              { path: '/reports', label: 'Reports', icon: LayoutDashboard },
+              { path: '/dashboards', label: 'Dashboards', icon: LayoutDashboard },
+              { path: '/settings', label: 'Settings', icon: SettingsIcon },
+            ].map(({ path, label, icon: Icon }) => (
+              <NavLink
+                key={path}
+                to={path}
+                onClick={() => setMoreOpen(false)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  padding: '14px 24px',
+                  textDecoration: 'none',
+                  color: 'var(--io-text-primary)',
+                  fontSize: '15px',
+                }}
+              >
                 <Icon size={20} />
                 {label}
               </NavLink>
-            )
-          })}
-        </nav>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Overlays — mounted at the AppShell level */}

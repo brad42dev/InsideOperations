@@ -2123,7 +2123,7 @@
       "wave": 3,
       "title": "Fix bottom tab bar items to match spec (Monitor/Rounds/Log/Alerts/More)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3903,7 +3903,7 @@
       "wave": 2,
       "title": "Palette parity \u2014 Widgets in Graphic mode, Stencils in Dashboard/Report mode",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "MOD-DESIGNER-016"
       ],

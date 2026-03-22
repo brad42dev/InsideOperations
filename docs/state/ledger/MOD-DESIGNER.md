@@ -10,3 +10,4 @@ MOD-DESIGNER-004 | Differentiate empty-canvas context menu (RC-DES-1) from node 
 MOD-DESIGNER-012 | Add bounding box resize for annotation nodes (subtype-aware) | verified 2026-03-22 | commit b81125e | npx tsc --noEmit | PASS
 MOD-DESIGNER-013 | Add group proportional resize (Figma model — scale all children) | verified 2026-03-22 | commit 4a974dc | npx tsc --noEmit | PASS
 MOD-DESIGNER-014 | Add resize handles and drag resize for standalone display elements | verified 2026-03-22 | commit 3b26605 | npx tsc --noEmit | PASS
+MOD-DESIGNER-019 | Widgets/Stencils sections in left palette per mode | verified 2026-03-22 | commit 252b4e5 | npx tsc --noEmit | PASS
