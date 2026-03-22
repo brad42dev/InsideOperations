@@ -4,6 +4,7 @@ import type {
   Pipe, TextBlock, Group, Annotation, ImageNode, EmbeddedSvgNode,
   WidgetNode, ViewportState, LayerDefinition,
   TextReadoutConfig, AnalogBarConfig, FillGaugeConfig, DigitalStatusConfig,
+  Stencil,
 } from '../types/graphics'
 import { PIPE_SERVICE_COLORS, canvasToScreen } from '../types/graphics'
 import { fetchShapes } from './shapeCache'
@@ -11,6 +12,8 @@ import { graphicsApi } from '../../api/graphics'
 import './alarmFlash.css'
 import './operationalState.css'
 import './lod.css'
+import { wsManager } from '../hooks/useWebSocket'
+import type { PointValue as WsPointValue } from '../hooks/useWebSocket'
 
 // ---- Point value types received from WebSocket ----
 
@@ -21,7 +24,13 @@ export interface PointValue {
   tag?: string
   alarmPriority?: 1 | 2 | 3 | 4 | 5 | null
   unacknowledged?: boolean
-  quality?: 'good' | 'bad' | 'uncertain'
+  /** OPC UA quality: 'good' | 'bad' | 'uncertain' | 'comm_fail' | string */
+  quality?: string
+  /** True when no update received within stale timeout */
+  stale?: boolean
+  /** True when point is in manual/forced override */
+  manual?: boolean
+  description?: string
 }
 
 // ---- Props ----
@@ -45,6 +54,12 @@ export interface SceneRendererProps {
   onNodeClick?: (nodeId: string, event: React.MouseEvent) => void
   /** SVG preserveAspectRatio attribute — 'xMidYMid meet' (default) or 'none' to stretch */
   preserveAspectRatio?: string
+  /**
+   * When true, SceneRenderer subscribes to wsManager directly and applies point-value
+   * updates via direct SVG DOM mutation (bypassing React re-renders on the hot path).
+   * Set false for designer mode and historical/playback mode (those pass pointValues prop).
+   */
+  liveSubscribe?: boolean
   className?: string
   style?: React.CSSProperties
 }
@@ -61,12 +76,14 @@ export function SceneRenderer({
   selectedNodeIds = new Set(),
   onNodeClick,
   preserveAspectRatio = 'xMidYMid meet',
+  liveSubscribe = false,
   className,
   style,
 }: SceneRendererProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [shapeMap, setShapeMap] = useState<Map<string, { svg: string; sidecar: Record<string, unknown> }>>(new Map())
+  const [stencilMap, setStencilMap] = useState<Map<string, string>>(new Map())
 
   const { canvas, layers, children } = document
   const vp = viewport ?? {
@@ -88,6 +105,103 @@ export function SceneRenderer({
     el.classList.remove('lod-0', 'lod-1', 'lod-2', 'lod-3')
     el.classList.add(`lod-${lodLevel}`)
   }, [lodLevel])
+
+  // ---- Live DOM mutation path (spec §5.1 Real-Time Update Pipeline) ----
+  // nodeId → {displayType, config, binding} for applyPointValue lookups
+  type NodeConfig = { displayType: string; config: unknown; binding: { pointId?: string; expressionId?: string } }
+  const nodeConfigMapRef = useRef<Map<string, NodeConfig>>(new Map())
+  // pointId → SVGGElement[] for O(1) element lookup
+  const pointToElementsRef = useRef<Map<string, SVGGElement[]>>(new Map())
+  // Mutable update buffer — incoming WS messages accumulate here, drained each rAF
+  const pendingDomRef = useRef<Map<string, WsPointValue>>(new Map())
+  const domRafPendingRef = useRef(false)
+
+  // Build node config map whenever the scene graph changes
+  useEffect(() => {
+    if (!liveSubscribe) return
+    const map = new Map<string, NodeConfig>()
+    function walkForConfigs(nodes: SceneNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'display_element') {
+          const de = n as DisplayElement
+          map.set(de.id, { displayType: de.displayType, config: de.config, binding: de.binding })
+        }
+        if (n.type === 'symbol_instance') {
+          const si = n as SymbolInstance
+          if (si.stateBinding?.pointId || si.stateBinding?.expressionId) {
+            map.set(si.id, {
+              displayType: 'symbol_state',
+              config: {},
+              binding: { pointId: si.stateBinding.pointId, expressionId: si.stateBinding.expressionId },
+            })
+          }
+          for (const child of si.children) {
+            const de = child as DisplayElement
+            map.set(de.id, { displayType: de.displayType, config: de.config, binding: de.binding })
+          }
+        }
+        if ('children' in n && n.type !== 'symbol_instance' && Array.isArray(n.children)) {
+          walkForConfigs(n.children as SceneNode[])
+        }
+      }
+    }
+    walkForConfigs(children)
+    nodeConfigMapRef.current = map
+  }, [document.id, children, liveSubscribe])
+
+  // After each render: rebuild pointToElements map from DOM and subscribe to wsManager
+  useEffect(() => {
+    if (!liveSubscribe || !svgRef.current) return
+
+    if (wsManager.getState() === 'disconnected') {
+      void wsManager.connect()
+    }
+
+    // Query all point-bound elements and build the lookup map
+    const map = new Map<string, SVGGElement[]>()
+    const elements = svgRef.current.querySelectorAll<SVGGElement>('[data-point-id]')
+    for (const el of elements) {
+      const pointId = el.getAttribute('data-point-id')
+      if (!pointId) continue
+      if (!map.has(pointId)) map.set(pointId, [])
+      map.get(pointId)!.push(el)
+    }
+    pointToElementsRef.current = map
+
+    const pointIds = Array.from(map.keys())
+    if (pointIds.length === 0) return
+
+    const handler = (pv: WsPointValue) => {
+      pendingDomRef.current.set(pv.pointId, pv)
+      if (!domRafPendingRef.current) {
+        domRafPendingRef.current = true
+        requestAnimationFrame(() => {
+          domRafPendingRef.current = false
+          const pending = pendingDomRef.current
+          if (pending.size === 0) return
+          const updates = new Map(pending)
+          pending.clear()
+          for (const [pid, update] of updates) {
+            const els = pointToElementsRef.current.get(pid)
+            if (!els) continue
+            for (const el of els) {
+              const nodeId = el.getAttribute('data-node-id')
+              if (!nodeId) continue
+              const conf = nodeConfigMapRef.current.get(nodeId)
+              if (!conf) continue
+              applyPointValue(el, conf.displayType, conf.config, update)
+            }
+          }
+        })
+      }
+    }
+
+    pointIds.forEach(id => wsManager.subscribe(id, handler))
+    return () => {
+      pointIds.forEach(id => wsManager.unsubscribe(id, handler))
+      pendingDomRef.current.clear()
+    }
+  }, [document.id, children, liveSubscribe])
 
   // Build layer lookup
   const layerMap = new Map<string, LayerDefinition>()
@@ -132,6 +246,37 @@ export function SceneRenderer({
       return {}
     }).then(setShapeMap).catch(console.error)
   }, [document.id, children, collectShapeIds])
+
+  // Collect stencil IDs and fetch their SVG on mount / document change
+  useEffect(() => {
+    const stencilIds: string[] = []
+    function walkForStencils(nodes: SceneNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'stencil') stencilIds.push((n as Stencil).stencilRef.stencilId)
+        if ('children' in n && Array.isArray(n.children)) walkForStencils(n.children as SceneNode[])
+      }
+    }
+    walkForStencils(children)
+    const unique = [...new Set(stencilIds)]
+    if (unique.length === 0) return
+
+    Promise.all(
+      unique.map(async (id) => {
+        try {
+          const resp = await fetch(`/api/v1/design-objects/${id}`)
+          if (!resp.ok) return null
+          const data = await resp.json() as { data?: { svg_data?: string } }
+          return data.data?.svg_data ? { id, svg: data.data.svg_data } : null
+        } catch {
+          return null
+        }
+      })
+    ).then(results => {
+      const m = new Map<string, string>()
+      for (const r of results) { if (r) m.set(r.id, r.svg) }
+      if (m.size > 0) setStencilMap(prev => new Map([...prev, ...m]))
+    }).catch(console.error)
+  }, [document.id, children])
 
   // SVG transform for viewport pan/zoom
   const svgTransform = `translate(${-vp.panX * vp.zoom}, ${-vp.panY * vp.zoom}) scale(${vp.zoom})`
@@ -291,8 +436,39 @@ export function SceneRenderer({
     )
   }
 
-  function renderDisplayElement(node: DisplayElement): React.ReactElement | null {
-    const pv = node.binding.pointId ? pointValues.get(node.binding.pointId) : undefined
+  function renderStencil(node: Stencil): React.ReactElement {
+    const svgContent = stencilMap.get(node.stencilRef.stencilId)
+    const w = node.size?.width ?? 48
+    const h = node.size?.height ?? 48
+    if (!svgContent) {
+      // Placeholder while loading
+      return (
+        <g key={node.id} transform={getTransformAttr(node)} opacity={node.opacity} data-node-id={node.id} data-lod="0">
+          <rect width={w} height={h} fill="none" stroke="var(--io-border, #3F3F46)" strokeWidth={1} strokeDasharray="4 2" />
+          <text x={w / 2} y={h / 2 + 4} textAnchor="middle" fontSize={8} fill="var(--io-text-muted, #71717A)">
+            {node.name || 'Stencil'}
+          </text>
+        </g>
+      )
+    }
+    return (
+      <g
+        key={node.id}
+        transform={getTransformAttr(node)}
+        opacity={node.opacity}
+        data-node-id={node.id}
+        data-lod="0"
+        dangerouslySetInnerHTML={{ __html: svgContent }}
+      />
+    )
+  }
+
+  // parentOffset: displacement of this element from parent SymbolInstance origin (in parent space).
+  // Used to draw the signal line back toward the parent shape.
+  function renderDisplayElement(node: DisplayElement, parentOffset?: { x: number; y: number }): React.ReactElement | null {
+    // Use pointId if bound; fall back to expressionId (broker publishes expression results as virtual points)
+    const pvKey = node.binding.pointId ?? node.binding.expressionId
+    const pv = pvKey ? pointValues.get(pvKey) : undefined
     const { x, y } = node.transform.position
 
     switch (node.displayType) {
@@ -300,26 +476,42 @@ export function SceneRenderer({
         const cfg = node.config as TextReadoutConfig
         const alarmPriority = (pv?.alarmPriority ?? null) as 1 | 2 | 3 | 4 | 5 | null
         const unacked = pv?.unacknowledged ?? false
-        const valueStr = formatValue(pv?.value ?? null, cfg.valueFormat)
-        const unitStr = cfg.showUnits && pv?.units ? ` ${pv.units}` : ''
+        const quality = pv?.quality ?? 'good'
+        const isStale = pv?.stale ?? false
+        const isCommFail = quality === 'comm_fail'
+        const isBad = quality === 'bad' && !isCommFail
+        const isManual = pv?.manual ?? false
+        // Display value: spec-defined replacements for bad quality states
+        const rawValueStr = isCommFail ? 'COMM' : isBad ? '????' : formatValue(pv?.value ?? null, cfg.valueFormat)
+        const valueStr = rawValueStr
+        const unitStr = cfg.showUnits && pv?.units && !isCommFail && !isBad ? ` ${pv.units}` : ''
         const label = cfg.showLabel ? (cfg.labelText ?? pv?.tag ?? '') : ''
         const alarmColor = alarmPriority ? ALARM_COLORS[alarmPriority] : null
-        const boxFill = alarmColor ? `${alarmColor}33` : '#27272A'
-        const boxStroke = alarmColor ?? '#3F3F46'
-        const strokeWidth = alarmColor ? 2 : 1
-        const valueColor = alarmColor ? '#F9FAFB' : '#A1A1AA'
+        // Box styling per quality state
+        const boxFill = isCommFail ? '#3F3F46' : alarmColor ? `${alarmColor}33` : '#27272A'
+        const boxStroke = isBad ? '#EF4444' : alarmColor ?? '#3F3F46'
+        const strokeWidth = (isBad || alarmColor) ? 2 : 1
+        const strokeDash = isStale ? '4 2' : isBad ? '4 2' : undefined
+        const opacity = isStale ? 0.6 : node.opacity
+        const strokeDotted = quality === 'uncertain' ? '2 2' : undefined
+        const effectiveDash = strokeDash ?? strokeDotted
+        const valueColor = isCommFail ? '#71717A' : isBad ? '#EF4444' : alarmColor ? '#F9FAFB' : '#A1A1AA'
         const charWidth = 7
         const w = Math.max(cfg.minWidth, (valueStr.length + unitStr.length) * charWidth + 10)
         const h = cfg.showLabel && label ? 36 : 24
         const valueY = cfg.showLabel && label ? h * 0.65 : h / 2
         const flashClass = unacked && alarmColor ? 'io-alarm-flash' : ''
         return (
-          <g key={node.id} className={`io-display-element ${flashClass}`} transform={`translate(${x},${y})`} opacity={node.opacity} data-node-id={node.id} data-lod="1" data-point-id={node.binding.pointId} data-display-type="text_readout">
-            {cfg.showBox && <rect x={0} y={0} width={w} height={h} rx={2} fill={boxFill} stroke={boxStroke} strokeWidth={strokeWidth} />}
+          <g key={node.id} className={`io-display-element ${flashClass}`} transform={`translate(${x},${y})`} opacity={opacity} data-node-id={node.id} data-lod="1" data-point-id={pvKey} data-display-type="text_readout">
+            {cfg.showBox && <rect data-role="box" x={0} y={0} width={w} height={h} rx={2} fill={boxFill} stroke={boxStroke} strokeWidth={strokeWidth} strokeDasharray={effectiveDash} />}
             {cfg.showLabel && label && <text x={w/2} y={6} textAnchor="middle" dominantBaseline="hanging" fontFamily="Inter" fontSize={8} fill="#71717A">{label}</text>}
-            <text x={w/2} y={valueY} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={11} fill={valueColor} style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <text data-role="value" x={w/2} y={valueY} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={11} fill={valueColor} style={{ fontVariantNumeric: 'tabular-nums' }}>
               {valueStr}{unitStr && <tspan fontFamily="Inter" fontSize={9} fill="#71717A">{unitStr}</tspan>}
             </text>
+            {/* Manual/forced override badge — spec: cyan 'M' badge */}
+            {isManual && (
+              <text x={w - 2} y={2} textAnchor="end" dominantBaseline="hanging" fontFamily="Inter" fontSize={7} fontWeight={700} fill="#06B6D4">M</text>
+            )}
           </g>
         )
       }
@@ -335,7 +527,7 @@ export function SceneRenderer({
         const label = isGhost ? '—' : String(priority)
         const shapeEl = renderAlarmShape(priority, isGhost, color)
         return (
-          <g key={node.id} className={`io-alarm-indicator ${flashClass}`} data-node-id={node.id} data-lod="1" opacity={isGhost ? 0.25 : node.opacity} transform={`translate(${x},${y})`} data-display-type="alarm_indicator" data-point-id={node.binding.pointId}>
+          <g key={node.id} className={`io-alarm-indicator ${flashClass}`} data-node-id={node.id} data-lod="1" opacity={isGhost ? 0.25 : node.opacity} transform={`translate(${x},${y})`} data-display-type="alarm_indicator" data-point-id={pvKey}>
             {shapeEl}
             <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fontWeight={600} fill={color}>{label}</text>
           </g>
@@ -351,9 +543,9 @@ export function SceneRenderer({
         const textColor = isNormal ? '#A1A1AA' : '#F9FAFB'
         const w = Math.max(40, label.length * 7.5 + 12)
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="digital_status" data-point-id={node.binding.pointId}>
-            <rect x={0} y={0} width={w} height={18} rx={2} fill={fill} />
-            <text x={w/2} y={9} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fill={textColor}>{label}</text>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="digital_status" data-point-id={pvKey}>
+            <rect data-role="bg" x={0} y={0} width={w} height={22} rx={2} fill={fill} />
+            <text data-role="value" x={w/2} y={11} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fill={textColor}>{label}</text>
           </g>
         )
       }
@@ -371,24 +563,80 @@ export function SceneRenderer({
         const lH = thresholds?.l !== undefined && thresholds?.ll !== undefined ? ((thresholds.l - thresholds.ll) / range) * bh : bh * 0.18
         const normalH = bh - hhH - hH - llH - lH
         const pointerY = (1 - pct) * bh
+
+        // Determine which zone the current value falls in
+        const valueZone = (() => {
+          if (value === null) return null
+          const { hh, h, l, ll } = cfg.thresholds ?? {}
+          if (hh !== undefined && value >= hh) return 'hh'
+          if (h  !== undefined && value >= h)  return 'h'
+          if (ll !== undefined && value < ll)  return 'll'
+          if (l  !== undefined && value < l)   return 'l'
+          return 'normal'
+        })()
+
+        // Zone fill with alarm replacement — only the zone containing the current value
+        // and only when that zone has a configured alarm priority that matches an active alarm
+        const ZONE_FILLS = { hh: '#5C3A3A', h: '#5C4A32', normal: '#404048', l: '#32445C', ll: '#2E3A5C' }
+        const zoneFills = {
+          hh: (valueZone === 'hh' && alarmPriority && cfg.thresholds?.hhAlarmPriority)
+              ? ALARM_COLORS[cfg.thresholds.hhAlarmPriority] : ZONE_FILLS.hh,
+          h:  (valueZone === 'h'  && alarmPriority && cfg.thresholds?.hAlarmPriority)
+              ? ALARM_COLORS[cfg.thresholds.hAlarmPriority]  : ZONE_FILLS.h,
+          normal: ZONE_FILLS.normal,
+          l:  (valueZone === 'l'  && alarmPriority && cfg.thresholds?.lAlarmPriority)
+              ? ALARM_COLORS[cfg.thresholds.lAlarmPriority]  : ZONE_FILLS.l,
+          ll: (valueZone === 'll' && alarmPriority && cfg.thresholds?.llAlarmPriority)
+              ? ALARM_COLORS[cfg.thresholds.llAlarmPriority] : ZONE_FILLS.ll,
+        }
         const zones = [
-          { fill: '#5C3A3A', y: 0, h: hhH, label: 'HH' },
-          { fill: '#5C4A32', y: hhH, h: hH, label: 'H' },
-          { fill: '#404048', y: hhH + hH, h: normalH, label: '' },
-          { fill: '#32445C', y: hhH + hH + normalH, h: lH, label: 'L' },
-          { fill: '#2E3A5C', y: hhH + hH + normalH + lH, h: llH, label: 'LL' },
+          { fill: zoneFills.hh,     y: 0,                       h: hhH,    label: 'HH', role: 'zone-hh'     },
+          { fill: zoneFills.h,      y: hhH,                     h: hH,     label: 'H',  role: 'zone-h'      },
+          { fill: zoneFills.normal, y: hhH + hH,                h: normalH, label: '',  role: 'zone-normal'  },
+          { fill: zoneFills.l,      y: hhH + hH + normalH,      h: lH,     label: 'L',  role: 'zone-l'      },
+          { fill: zoneFills.ll,     y: hhH + hH + normalH + lH, h: llH,    label: 'LL', role: 'zone-ll'     },
         ]
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="analog_bar" data-point-id={node.binding.pointId}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="analog_bar" data-point-id={pvKey}>
             <rect x={0} y={0} width={bw} height={bh} fill="#27272A" stroke="#52525B" strokeWidth={0.5} />
-            {zones.map((z, i) => <rect key={i} x={1} y={z.y} width={bw-2} height={Math.max(0,z.h)} fill={z.fill} stroke="#52525B" strokeWidth={0.5} />)}
+            {zones.map((z, i) => <rect key={i} data-role={z.role} x={1} y={z.y} width={bw-2} height={Math.max(0,z.h)} fill={z.fill} stroke="#52525B" strokeWidth={0.5} />)}
             {cfg.showZoneLabels && zones.filter(z => z.label).map((z, i) => (
               <text key={i} x={-3} y={z.y + z.h/2} textAnchor="end" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={7} fill="#71717A">{z.label}</text>
             ))}
             {cfg.showPointer && value !== null && <>
-              <polygon points={`${bw},${pointerY-3} ${bw+6},${pointerY} ${bw},${pointerY+3}`} fill={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'} />
-              <line x1={1} y1={pointerY} x2={bw-1} y2={pointerY} stroke={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'} strokeWidth={1} />
+              <polygon data-role="pointer" points={`${bw},${pointerY-3} ${bw+6},${pointerY} ${bw},${pointerY+3}`} fill={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'} />
+              <line data-role="pointer-line" x1={1} y1={pointerY} x2={bw-1} y2={pointerY} stroke={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'} strokeWidth={1} />
             </>}
+            {cfg.showSetpoint && (() => {
+              const spKey = cfg.setpointBinding?.pointId ?? cfg.setpointBinding?.expressionId
+              const spPv = spKey ? pointValues.get(spKey) : undefined
+              const spVal = typeof spPv?.value === 'number' ? spPv.value : null
+              if (spVal === null) return null
+              const spPct = Math.max(0, Math.min(1, (spVal - cfg.rangeLo) / range))
+              const spY = (1 - spPct) * bh
+              // Diamond marker — 5px wide, 4px tall, teal stroke, no fill
+              return <polygon points={`${bw},${spY-4} ${bw+5},${spY} ${bw},${spY+4} ${bw-5},${spY}`} fill="none" stroke="#2DD4BF" strokeWidth={1} />
+            })()}
+            {cfg.showNumericReadout && value !== null && (
+              <text data-role="numeric" x={bw/2} y={bh+10} textAnchor="middle" fontFamily="JetBrains Mono" fontSize={11} fill={alarmPriority ? (ALARM_COLORS[alarmPriority] ?? '#A1A1AA') : '#A1A1AA'}>
+                {value.toFixed(1)}
+              </text>
+            )}
+            {cfg.showSignalLine && parentOffset && (() => {
+              // Dashed line from bar left-center back toward parent shape origin
+              // In display element local space, parent origin is at (-parentOffset.x, -parentOffset.y)
+              const ex = -parentOffset.x
+              const ey = -parentOffset.y
+              return (
+                <line
+                  x1={0} y1={bh / 2}
+                  x2={ex} y2={ey}
+                  stroke="#52525B"
+                  strokeWidth={0.75}
+                  strokeDasharray="3 2"
+                />
+              )
+            })()}
           </g>
         )
       }
@@ -414,7 +662,7 @@ export function SceneRenderer({
           }
         }
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="sparkline" data-point-id={node.binding.pointId}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="sparkline" data-point-id={pvKey}>
             <rect x={0} y={0} width={W} height={H} rx={1} fill="#27272A" />
             {polylinePoints ? (
               <polyline points={polylinePoints} fill="none" stroke={strokeColor} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
@@ -434,15 +682,36 @@ export function SceneRenderer({
         const bw = cfg.barWidth ?? 22
         const bh = cfg.barHeight ?? 90
         const fillColor = alarmPriority ? `${ALARM_COLORS[alarmPriority]}4D` : 'rgba(71,85,105,0.6)'
+        const fmtPct = `${(pct * 100).toFixed(0)}%`
+        const clipId = `fg-clip-${node.id.replace(/[^a-z0-9]/gi, '')}`
+
+        if (cfg.mode === 'vessel_overlay') {
+          // Vessel-interior mode: fill clips to vessel shape interior (approx rect)
+          const fillH = pct * bh
+          const fillY = bh - fillH
+          return (
+            <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={pvKey}>
+              <defs>
+                <clipPath id={clipId}>
+                  <rect x={0} y={0} width={bw} height={bh} />
+                </clipPath>
+              </defs>
+              <rect data-role="fill" x={0} y={fillY} width={bw} height={fillH} fill={fillColor} clipPath={`url(#${clipId})`} />
+              {cfg.showLevelLine && fillH > 0 && <line x1={0} y1={fillY} x2={bw} y2={fillY} stroke="#64748B" strokeWidth={1} strokeDasharray="5 3" />}
+              {cfg.showValue && fillH > 0 && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
+            </g>
+          )
+        }
+
+        // Standalone bar mode
         const fillH = pct * (bh - 2)
         const fillY = bh - 1 - fillH
-        const fmtPct = `${(pct * 100).toFixed(0)}%`
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={node.binding.pointId}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={pvKey}>
             <rect x={0} y={0} width={bw} height={bh} rx={2} fill="none" stroke="#52525B" strokeWidth={0.5} />
-            <rect x={1} y={fillY} width={bw-2} height={fillH} rx={1} fill={fillColor} />
+            <rect data-role="fill" x={1} y={fillY} width={bw-2} height={fillH} rx={1} fill={fillColor} />
             {cfg.showLevelLine && fillH > 0 && <line x1={1} y1={fillY} x2={bw-1} y2={fillY} stroke="#64748B" strokeWidth={1} strokeDasharray="5 3" />}
-            {cfg.showValue && <text x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
+            {cfg.showValue && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
           </g>
         )
       }
@@ -461,7 +730,8 @@ export function SceneRenderer({
 
     // Derive operational state CSS class from stateBinding point value
     let stateClass = ''
-    const statePv = node.stateBinding?.pointId ? pointValues.get(node.stateBinding.pointId) : undefined
+    const statePvKey = node.stateBinding?.pointId ?? node.stateBinding?.expressionId
+    const statePv = statePvKey ? pointValues.get(statePvKey) : undefined
     if (statePv) {
       const stateVal = statePv.value !== undefined ? String(statePv.value).toLowerCase() : ''
       if (stateVal === 'running' || stateVal === '1' || stateVal === 'true' || stateVal === 'on') {
@@ -483,6 +753,19 @@ export function SceneRenderer({
       const text = override?.staticText ?? statePv?.tag ?? ''
       if (!text && !designerMode) return null
       const displayText = text || (designerMode ? `[${zone.id}]` : '')
+
+      // Instrument designation zones (spec §Shape Library: Typography):
+      // Use Arial 12px weight 600 with textLength auto-fit when zone.width is defined.
+      const isDesignation = zone.id === 'designation'
+      const fontFamily = isDesignation ? 'Arial' : 'Inter'
+      const fontSize = override?.fontSize ?? zone.fontSize ?? (isDesignation ? 12 : 10)
+      const fontWeight = isDesignation ? 600 : undefined
+
+      // Apply textLength + lengthAdjust="spacingAndGlyphs" whenever zone.width is set
+      const autoFitProps = zone.width != null
+        ? { textLength: zone.width, lengthAdjust: 'spacingAndGlyphs' as const }
+        : {}
+
       return (
         <text
           key={`tz-${zone.id}`}
@@ -490,10 +773,12 @@ export function SceneRenderer({
           y={zone.y}
           textAnchor={(zone.anchor as 'start' | 'middle' | 'end') ?? 'middle'}
           dominantBaseline="auto"
-          fontFamily="Inter"
-          fontSize={override?.fontSize ?? zone.fontSize ?? 10}
+          fontFamily={fontFamily}
+          fontSize={fontSize}
+          fontWeight={fontWeight}
           fill="#71717A"
           data-lod="2"
+          {...autoFitProps}
         >
           {displayText}
         </text>
@@ -517,6 +802,9 @@ export function SceneRenderer({
         opacity={node.opacity}
         data-node-id={node.id}
         data-lod="0"
+        // stateBinding point drives operational state CSS class (io-running, io-fault, etc.)
+        // data-point-id enables DOM mutation when liveSubscribe is true
+        data-point-id={statePvKey || undefined}
         className={[stateClass, isSelected ? 'io-selected' : ''].filter(Boolean).join(' ')}
         onClick={(e) => handleNodeClick(node, e)}
         style={{ cursor: node.navigationLink || onNodeClick ? 'pointer' : undefined }}
@@ -526,7 +814,7 @@ export function SceneRenderer({
         )}
         {composablePartElements}
         {textZoneElements}
-        {node.children.map((child) => renderDisplayElement(child))}
+        {node.children.map((child) => renderDisplayElement(child, child.transform.position))}
       </g>
     )
   }
@@ -584,7 +872,7 @@ export function SceneRenderer({
       case 'embedded_svg': el = renderEmbeddedSvg(node as EmbeddedSvgNode); break
       case 'annotation': el = renderAnnotation(node as Annotation); break
       case 'group': el = renderGroup(node as Group); break
-      case 'stencil': return null // Stencil rendering TBD
+      case 'stencil': el = renderStencil(node as Stencil); break
       case 'widget': return null  // Widgets render in HTML overlay
       case 'graphic_document': return null
       default: return null
@@ -723,4 +1011,170 @@ function renderAlarmShape(priority: number, isGhost: boolean, color: string): Re
   if (priority === 3) return <polygon points="0,12 12,-8 -12,-8" fill="none" stroke={color} strokeWidth={1.8} />
   if (priority === 4) return <ellipse rx={14} ry={10} fill="none" stroke={color} strokeWidth={1.8} />
   return <polygon points="0,-12 12,0 0,12 -12,0" fill="none" stroke={color} strokeWidth={1.8} />
+}
+
+// ---- Direct DOM mutation (spec §5.1 Real-Time Update Pipeline) ----
+// Called from the rAF drain loop — no React involved.
+// Updates SVG child elements in-place using data-role attributes as anchors.
+
+function applyPointValue(
+  el: SVGGElement,
+  displayType: string,
+  config: unknown,
+  pv: WsPointValue,
+): void {
+  const value = pv.value
+  const quality = pv.quality
+  const isStale = pv.stale ?? false
+  const isCommFail = quality === 'comm_fail'
+  const isBad = quality === 'bad' && !isCommFail
+
+  switch (displayType) {
+    case 'text_readout': {
+      const cfg = config as TextReadoutConfig
+      const rawValueStr = isCommFail ? 'COMM' : isBad ? '????' : formatValue(value, cfg.valueFormat)
+      const valueColor = isCommFail ? '#71717A' : isBad ? '#EF4444' : '#A1A1AA'
+      const boxFill = isCommFail ? '#3F3F46' : '#27272A'
+      const boxStroke = isBad ? '#EF4444' : '#3F3F46'
+      const textEl = el.querySelector<SVGTextElement>('[data-role="value"]')
+      if (textEl) {
+        textEl.textContent = rawValueStr
+        textEl.setAttribute('fill', valueColor)
+      }
+      const rectEl = el.querySelector<SVGRectElement>('[data-role="box"]')
+      if (rectEl) {
+        rectEl.setAttribute('fill', boxFill)
+        rectEl.setAttribute('stroke', boxStroke)
+      }
+      el.style.opacity = isStale ? '0.6' : ''
+      break
+    }
+
+    case 'analog_bar': {
+      const cfg = config as AnalogBarConfig
+      const numValue = typeof value === 'number' ? value : null
+      const alarmPri = pv.alarmPriority as (1|2|3|4|5) | null | undefined
+      const { barWidth: bw, barHeight: bh } = cfg
+      const range = cfg.rangeHi - cfg.rangeLo || 1
+      const pct = numValue !== null ? Math.max(0, Math.min(1, (numValue - cfg.rangeLo) / range)) : 0
+      const pointerY = (1 - pct) * bh
+      const pointer = el.querySelector<SVGPolygonElement>('[data-role="pointer"]')
+      if (pointer) {
+        if (numValue !== null) {
+          pointer.setAttribute('points', `${bw},${pointerY - 3} ${bw + 6},${pointerY} ${bw},${pointerY + 3}`)
+          pointer.style.display = ''
+        } else {
+          pointer.style.display = 'none'
+        }
+      }
+      const pointerLine = el.querySelector<SVGLineElement>('[data-role="pointer-line"]')
+      if (pointerLine) {
+        if (numValue !== null) {
+          pointerLine.setAttribute('y1', String(pointerY))
+          pointerLine.setAttribute('y2', String(pointerY))
+          pointerLine.style.display = ''
+        } else {
+          pointerLine.style.display = 'none'
+        }
+      }
+      const numericText = el.querySelector<SVGTextElement>('[data-role="numeric"]')
+      if (numericText) {
+        if (numValue !== null) {
+          numericText.textContent = numValue.toFixed(1)
+          numericText.style.display = ''
+        } else {
+          numericText.style.display = 'none'
+        }
+      }
+
+      // Determine which zone the current value falls in
+      const { hh, h, l, ll } = cfg.thresholds ?? {}
+      const valueZone = (() => {
+        if (numValue === null) return null
+        if (hh !== undefined && numValue >= hh) return 'hh'
+        if (h  !== undefined && numValue >= h)  return 'h'
+        if (ll !== undefined && numValue < ll)  return 'll'
+        if (l  !== undefined && numValue < l)   return 'l'
+        return 'normal'
+      })()
+
+      // Update zone fill colors via DOM mutation
+      const ZONE_FILLS_DOM = { hh: '#5C3A3A', h: '#5C4A32', normal: '#404048', l: '#32445C', ll: '#2E3A5C' }
+      const zoneRoles: Array<{ role: string; key: keyof typeof ZONE_FILLS_DOM; priKey: 'hhAlarmPriority' | 'hAlarmPriority' | 'lAlarmPriority' | 'llAlarmPriority' | null }> = [
+        { role: 'zone-hh',     key: 'hh',     priKey: 'hhAlarmPriority' },
+        { role: 'zone-h',      key: 'h',      priKey: 'hAlarmPriority'  },
+        { role: 'zone-normal', key: 'normal', priKey: null               },
+        { role: 'zone-l',      key: 'l',      priKey: 'lAlarmPriority'  },
+        { role: 'zone-ll',     key: 'll',     priKey: 'llAlarmPriority' },
+      ]
+      for (const { role, key, priKey } of zoneRoles) {
+        const zoneEl = el.querySelector<SVGRectElement>(`[data-role="${role}"]`)
+        if (!zoneEl) continue
+        let fill = ZONE_FILLS_DOM[key]
+        if (priKey && valueZone === key && alarmPri && cfg.thresholds?.[priKey]) {
+          fill = ALARM_COLORS[cfg.thresholds[priKey]!] ?? fill
+        }
+        zoneEl.setAttribute('fill', fill)
+      }
+      break
+    }
+
+    case 'digital_status': {
+      const cfg = config as DigitalStatusConfig
+      const rawVal = value !== null ? String(value) : null
+      const label = rawVal !== null ? (cfg.stateLabels[rawVal] ?? rawVal) : '---'
+      const isNormal = rawVal === null || cfg.normalStates.includes(rawVal)
+      const fill = isNormal ? '#3F3F46' : (ALARM_COLORS[cfg.abnormalPriority] ?? '#EF4444')
+      const textColor = isNormal ? '#A1A1AA' : '#F9FAFB'
+      const bgRect = el.querySelector<SVGRectElement>('[data-role="bg"]')
+      if (bgRect) bgRect.setAttribute('fill', fill)
+      const textEl = el.querySelector<SVGTextElement>('[data-role="value"]')
+      if (textEl) {
+        textEl.textContent = label
+        textEl.setAttribute('fill', textColor)
+      }
+      break
+    }
+
+    case 'fill_gauge': {
+      const cfg = config as FillGaugeConfig
+      const numValue = typeof value === 'number' ? value : null
+      const range = cfg.rangeHi - cfg.rangeLo || 1
+      const pct = numValue !== null ? Math.max(0, Math.min(1, (numValue - cfg.rangeLo) / range)) : 0
+      const bh = cfg.barHeight ?? 90
+      if (cfg.mode === 'vessel_overlay') {
+        const fillH = pct * bh
+        const fillY = bh - fillH
+        const fillRect = el.querySelector<SVGRectElement>('[data-role="fill"]')
+        if (fillRect) {
+          fillRect.setAttribute('y', String(fillY))
+          fillRect.setAttribute('height', String(fillH))
+        }
+      } else {
+        const fillH = pct * (bh - 2)
+        const fillY = bh - 1 - fillH
+        const fillRect = el.querySelector<SVGRectElement>('[data-role="fill"]')
+        if (fillRect) {
+          fillRect.setAttribute('y', String(fillY))
+          fillRect.setAttribute('height', String(fillH))
+        }
+      }
+      const textEl = el.querySelector<SVGTextElement>('[data-role="value"]')
+      if (textEl) textEl.textContent = `${(pct * 100).toFixed(0)}%`
+      break
+    }
+
+    case 'symbol_state': {
+      // Update operational state CSS class on the symbol instance g element
+      const stateVal = String(value).toLowerCase()
+      let newClass = ''
+      if (['running', '1', 'true', 'on'].includes(stateVal)) newClass = 'io-running'
+      else if (['fault', 'error', 'fail'].includes(stateVal)) newClass = 'io-fault'
+      else if (['transitioning', 'starting', 'stopping'].includes(stateVal)) newClass = 'io-transitioning'
+      else if (['oos', 'maintenance'].includes(stateVal)) newClass = 'io-oos'
+      el.classList.remove('io-running', 'io-fault', 'io-transitioning', 'io-oos')
+      if (newClass) el.classList.add(newClass)
+      break
+    }
+  }
 }

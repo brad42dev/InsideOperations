@@ -161,10 +161,10 @@ export interface AnalogBarConfig {
   showNumericReadout: boolean
   showSignalLine: boolean
   thresholds?: {
-    hh?: number
-    h?: number
-    l?: number
-    ll?: number
+    hh?: number; hhAlarmPriority?: 1 | 2 | 3 | 4 | 5
+    h?: number;  hAlarmPriority?:  1 | 2 | 3 | 4 | 5
+    l?: number;  lAlarmPriority?:  1 | 2 | 3 | 4 | 5
+    ll?: number; llAlarmPriority?: 1 | 2 | 3 | 4 | 5
   }
 }
 
