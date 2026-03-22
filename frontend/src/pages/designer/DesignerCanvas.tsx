@@ -1662,6 +1662,10 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     currentName?: string
   } | null>(null)
 
+  // Group edit breadcrumb stack: each entry is { id, name } of a group in the path
+  // e.g. [{ id: 'g1', name: 'Outer' }, { id: 'g2', name: 'Inner' }]
+  const [groupBreadcrumb, setGroupBreadcrumb] = useState<Array<{ id: NodeId; name: string }>>([])
+
   // Track currently selected IDs in a ref for use inside event handlers
   // (avoids stale closures in mouse handlers)
   const docRef = useRef(doc)
@@ -1909,6 +1913,22 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
     }
 
     if (tool === 'select') {
+      // If inside group edit mode, check if click is outside the group bounding box → exit
+      const currentGroupId = useUiStore.getState().activeGroupId
+      if (currentGroupId) {
+        const groupNode = docRef.current?.children.find(n => n.id === currentGroupId)
+        if (groupNode) {
+          const b = getNodeBounds(groupNode)
+          if (cx < b.x || cx > b.x + b.w || cy < b.y || cy > b.y + b.h) {
+            setActiveGroup(null)
+            setGroupBreadcrumb([])
+            selectedIdsRef.current = new Set()
+            emitSelection([])
+            return
+          }
+        }
+      }
+
       const hitId = hitTest(cx, cy)
       if (hitId) {
         // Select node (Shift or Ctrl adds to selection)
@@ -2538,11 +2558,30 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         const cy = (e.clientY - rect.top  - vp.panY) / vp.zoom
         const hitId = hitTest(cx, cy)
         if (hitId) {
-          const node = d.children.find(n => n.id === hitId)
+          // Find the node — could be inside the current active group (nested group case)
+          const currentGroupId = useUiStore.getState().activeGroupId
+          let node: SceneNode | undefined
+          if (currentGroupId) {
+            // Search within the currently active group's children
+            const parentGroup = d.children.find(n => n.id === currentGroupId)
+            if (parentGroup && 'children' in parentGroup && Array.isArray(parentGroup.children)) {
+              node = (parentGroup.children as SceneNode[]).find(n => n.id === hitId)
+            }
+          } else {
+            node = d.children.find(n => n.id === hitId)
+          }
           if (node && node.type === 'group') {
             setActiveGroup(hitId)
+            setTool('select')
             selectedIdsRef.current = new Set()
             emitSelection([])
+            // Extend breadcrumb: append this group
+            setGroupBreadcrumb(prev => {
+              // If already in breadcrumb, truncate to that level (shouldn't happen but be safe)
+              const existingIdx = prev.findIndex(b => b.id === hitId)
+              if (existingIdx >= 0) return prev.slice(0, existingIdx + 1)
+              return [...prev, { id: hitId, name: node.name ?? 'Group' }]
+            })
             return
           }
         }
@@ -2791,6 +2830,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
       // If inside a group scope, exit it first; second Escape clears selection
       if (useUiStore.getState().activeGroupId !== null) {
         setActiveGroup(null)
+        setGroupBreadcrumb([])
         selectedIdsRef.current = new Set()
         emitSelection([])
         return
@@ -2962,6 +3002,46 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
   }, [setTool])
 
   // -------------------------------------------------------------------------
+  // Toolbar group / ungroup events (fired by DesignerToolbar buttons)
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    function onToolbarGroup() {
+      const d = docRef.current
+      if (!d) return
+      const ids = Array.from(selectedIdsRef.current)
+      if (ids.length < 2) return
+      const eligible = ids.filter(id => d.children.find(n => n.id === id)?.type !== 'pipe')
+      if (eligible.length >= 2) {
+        setGroupPrompt({ defaultName: nextGroupName(d), pendingIds: eligible })
+      }
+    }
+
+    function onToolbarUngroup() {
+      const d = docRef.current
+      if (!d) return
+      const ids = Array.from(selectedIdsRef.current)
+      const ungroupedChildIds: NodeId[] = []
+      for (const id of ids) {
+        const node = d.children.find(n => n.id === id)
+        if (node?.type === 'group') {
+          ungroupedChildIds.push(...((node as Group).children ?? []).map(c => c.id))
+          executeCmd(new UngroupCommand(id))
+        }
+      }
+      selectedIdsRef.current = new Set(ungroupedChildIds)
+      emitSelection(ungroupedChildIds)
+    }
+
+    document.addEventListener('io:toolbar-group', onToolbarGroup)
+    document.addEventListener('io:toolbar-ungroup', onToolbarUngroup)
+    return () => {
+      document.removeEventListener('io:toolbar-group', onToolbarGroup)
+      document.removeEventListener('io:toolbar-ungroup', onToolbarUngroup)
+    }
+  }, [])
+
+  // -------------------------------------------------------------------------
   // Right-click context menu
   // -------------------------------------------------------------------------
 
@@ -3008,7 +3088,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         children: [],
         propertyOverrides: {},
       }
-      executeCmd(new AddNodeCommand(si, null))
+      const dropParentId = useUiStore.getState().activeGroupId
+      executeCmd(new AddNodeCommand(si, dropParentId))
       selectedIdsRef.current = new Set([si.id])
       emitSelection([si.id])
 
@@ -3040,7 +3121,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         opacity: 1,
         stencilRef: { stencilId: ce.detail.stencilId },
       }
-      executeCmd(new AddNodeCommand(node, null))
+      const stencilParentId = useUiStore.getState().activeGroupId
+      executeCmd(new AddNodeCommand(node, stencilParentId))
       selectedIdsRef.current = new Set([node.id])
       emitSelection([node.id])
     }
@@ -3159,7 +3241,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         locked: false,
         opacity: 1,
       }
-      executeCmd(new AddNodeCommand(node, null))
+      const deParentId = useUiStore.getState().activeGroupId
+      executeCmd(new AddNodeCommand(node, deParentId))
       selectedIdsRef.current = new Set([node.id])
       emitSelection([node.id])
     }
@@ -3462,15 +3545,45 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         {/* Scene graph — transformed by viewport */}
         <g transform={`translate(${panX},${panY}) scale(${zoom})`}>
           <TestModeContext.Provider value={testModeValues}>
-            {doc?.children.map(node => (
-              <RenderNode
-                key={node.id}
-                node={node}
-                getShapeSvg={getShapeSvgMemo}
-                selectedIds={selectedIdsRef.current}
-              />
-            ))}
+            {doc?.children.map(node => {
+              // In group edit mode: dim nodes that are NOT the active group
+              const isDimmed = activeGroupId !== null && node.id !== activeGroupId
+              return (
+                <g
+                  key={node.id}
+                  opacity={isDimmed ? 0.3 : 1}
+                  style={isDimmed ? { pointerEvents: 'none' } : undefined}
+                >
+                  <RenderNode
+                    node={node}
+                    getShapeSvg={getShapeSvgMemo}
+                    selectedIds={selectedIdsRef.current}
+                  />
+                </g>
+              )
+            })}
           </TestModeContext.Provider>
+
+          {/* Group edit mode: teal dashed border around active group bounding box */}
+          {activeGroupId && doc && (() => {
+            const groupNode = doc.children.find(n => n.id === activeGroupId)
+            if (!groupNode) return null
+            const b = getNodeBounds(groupNode)
+            const pad = 4 / zoom
+            return (
+              <rect
+                x={b.x - pad}
+                y={b.y - pad}
+                width={b.w + pad * 2}
+                height={b.h + pad * 2}
+                fill="none"
+                stroke="var(--io-accent)"
+                strokeWidth={2 / zoom}
+                strokeDasharray={`${6 / zoom} ${4 / zoom}`}
+                style={{ pointerEvents: 'none' }}
+              />
+            )
+          })()}
 
           {/* Selection overlay */}
           {doc && (
@@ -3634,14 +3747,78 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
         </div>
       )}
 
-      {/* Group scope indicator */}
-      {activeGroupId && (
+      {/* Group edit mode breadcrumb */}
+      {activeGroupId && groupBreadcrumb.length > 0 && (
         <div style={{
-          position: 'absolute', top: RULER_SIZE + 4, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--io-accent)', color: '#fff', fontSize: 11, padding: '3px 10px',
-          borderRadius: 'var(--io-radius)', zIndex: 10, pointerEvents: 'none',
+          position: 'absolute',
+          top: RULER_SIZE + 6,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          padding: '3px 10px',
+          fontSize: 11,
+          zIndex: 10,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          whiteSpace: 'nowrap',
         }}>
-          Editing group — press Esc to exit
+          {/* Root graphic name — clicking exits group edit mode entirely */}
+          <button
+            onClick={() => {
+              setActiveGroup(null)
+              setGroupBreadcrumb([])
+              selectedIdsRef.current = new Set()
+              emitSelection([])
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              color: 'var(--io-text-secondary)',
+              fontSize: 11,
+              fontFamily: 'inherit',
+            }}
+          >
+            {doc?.name ?? 'Graphic'}
+          </button>
+
+          {/* Intermediate groups (all but last) — clicking goes back to that level */}
+          {groupBreadcrumb.slice(0, -1).map((crumb, idx) => (
+            <React.Fragment key={crumb.id}>
+              <span style={{ color: 'var(--io-text-muted)' }}>›</span>
+              <button
+                onClick={() => {
+                  // Go back to this breadcrumb level
+                  setActiveGroup(crumb.id)
+                  setGroupBreadcrumb(prev => prev.slice(0, idx + 1))
+                  selectedIdsRef.current = new Set()
+                  emitSelection([])
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: 'var(--io-text-secondary)',
+                  fontSize: 11,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {crumb.name}
+              </button>
+            </React.Fragment>
+          ))}
+
+          {/* Current (innermost) group — static, not clickable */}
+          <span style={{ color: 'var(--io-text-muted)' }}>›</span>
+          <span style={{ color: 'var(--io-text-primary)', fontWeight: 500 }}>
+            {groupBreadcrumb[groupBreadcrumb.length - 1]?.name ?? 'Group'}
+          </span>
         </div>
       )}
 

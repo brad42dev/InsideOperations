@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react'
 import { useSceneStore, useUiStore, useHistoryStore } from '../../store/designer'
 import type { DrawingTool } from '../../store/designer'
 import type { NodeId } from '../../shared/types/graphics'
+import type { SceneNode } from '../../shared/types/graphics'
 import {
   AlignNodesCommand,
   DistributeNodesCommand,
@@ -120,6 +121,28 @@ function IconPan() {
   )
 }
 
+function IconGroup() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="2" width="6" height="5" rx="0.7" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <rect x="8" y="9" width="6" height="5" rx="0.7" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <rect x="1" y="1" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.1" strokeDasharray="2.5 2" fill="none" opacity="0.7"/>
+    </svg>
+  )
+}
+
+function IconUngroup() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="1" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.1" strokeDasharray="2.5 2" fill="none" opacity="0.4"/>
+      <rect x="2" y="2" width="6" height="5" rx="0.7" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <rect x="8" y="9" width="6" height="5" rx="0.7" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+      <line x1="4" y1="9" x2="4" y2="11" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.5"/>
+      <line x1="12" y1="5" x2="12" y2="7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.5"/>
+    </svg>
+  )
+}
+
 function IconUndo() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -207,8 +230,8 @@ interface ToolDef {
   modes: Array<'graphic' | 'dashboard' | 'report'>
 }
 
-const TOOLS: ToolDef[] = [
-  { id: 'select',    label: 'Select',    shortcut: 'V', icon: <IconSelect />,  modes: ['graphic', 'dashboard', 'report'] },
+// Draw tools — select is rendered separately as the Selector button
+const DRAW_TOOLS: ToolDef[] = [
   { id: 'pen',       label: 'Pen',       shortcut: 'P',       icon: <IconPen />,      modes: ['graphic'] },
   { id: 'freehand',  label: 'Freehand',  shortcut: 'B',       icon: <IconFreehand />, modes: ['graphic'] },
   { id: 'rect',      label: 'Rectangle', shortcut: 'R',       icon: <IconRect />,     modes: ['graphic', 'dashboard', 'report'] },
@@ -331,7 +354,35 @@ export default function DesignerToolbar({ onSave, isSaving, onPublish, isPublish
     return () => document.removeEventListener('io:selection-change', onSel)
   }, [])
 
-  const visibleTools = TOOLS.filter(t => t.modes.includes(designMode))
+  // Compute Group / Ungroup button enabled state from selection + scene doc
+  // Group: ≥2 non-pipe nodes selected
+  const nonPipeSelectedCount = doc
+    ? selectedIds.filter(id => {
+        function findNode(nodes: SceneNode[]): SceneNode | null {
+          for (const n of nodes) {
+            if (n.id === id) return n
+            if ('children' in n && Array.isArray((n as { children?: unknown[] }).children)) {
+              const f = findNode((n as { children: SceneNode[] }).children)
+              if (f) return f
+            }
+          }
+          return null
+        }
+        const node = findNode(doc.children)
+        return node ? node.type !== 'pipe' : false
+      }).length
+    : 0
+  const canGroup = nonPipeSelectedCount >= 2
+
+  // Ungroup: exactly 1 node selected and it is a group
+  const canUngroup = selectedIds.length === 1 && doc
+    ? (() => {
+        const node = doc.children.find(n => n.id === selectedIds[0])
+        return node?.type === 'group'
+      })()
+    : false
+
+  const visibleDrawTools = DRAW_TOOLS.filter(t => t.modes.includes(designMode))
 
   const zoomPct = Math.round(viewport.zoom * 100)
 
@@ -398,14 +449,47 @@ export default function DesignerToolbar({ onSave, isSaving, onPublish, isPublish
 
       <Sep />
 
-      {/* Drawing tools — hidden in read-only mode */}
-      {visibleTools.map(tool => (
+      {/* Selector button */}
+      <IconBtn
+        onClick={() => setTool('select')}
+        active={activeTool === 'select'}
+        title="Select (V)"
+      >
+        <IconSelect />
+      </IconBtn>
+
+      {/* Group button — enabled when ≥2 non-pipe nodes selected */}
+      <IconBtn
+        onClick={() => {
+          if (canGroup) document.dispatchEvent(new CustomEvent('io:toolbar-group'))
+        }}
+        disabled={!canGroup || readOnly}
+        title="Group Selection (Ctrl+G)"
+      >
+        <IconGroup />
+      </IconBtn>
+
+      {/* Ungroup button — enabled when exactly 1 group node selected */}
+      <IconBtn
+        onClick={() => {
+          if (canUngroup) document.dispatchEvent(new CustomEvent('io:toolbar-ungroup'))
+        }}
+        disabled={!canUngroup || readOnly}
+        title="Ungroup (Ctrl+Shift+G)"
+      >
+        <IconUngroup />
+      </IconBtn>
+
+      <Sep />
+
+      {/* Draw tools — hidden in read-only mode */}
+      {visibleDrawTools.map(tool => (
         <IconBtn
           key={tool.id}
           onClick={() => !readOnly && setTool(tool.id)}
           active={activeTool === tool.id}
-          disabled={readOnly && tool.id !== 'select' && tool.id !== 'pan'}
-          title={readOnly && tool.id !== 'select' && tool.id !== 'pan' ? 'Read-only — designer:write required' : `${tool.label} (${tool.shortcut})`}
+          disabled={readOnly && tool.id !== 'pan'}
+          title={readOnly && tool.id !== 'pan' ? 'Read-only — designer:write required' : `${tool.label} (${tool.shortcut})`}
         >
           {tool.icon}
         </IconBtn>
