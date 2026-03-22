@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { roundsApi, type Checkpoint, type CheckpointValidation, type CheckpointBarcodeGate, type CheckpointGpsGate } from '../../api/rounds'
+import { roundsApi, type Checkpoint, type CheckpointValidation, type CheckpointBarcodeGate, type CheckpointGpsGate, type CheckpointCondition } from '../../api/rounds'
 import PointPicker from '../../shared/components/PointPicker'
 
 // ---------------------------------------------------------------------------
@@ -40,6 +40,11 @@ interface EditableCheckpoint {
   gps_lat: string
   gps_lng: string
   gps_radius: string
+  // Conditional visibility
+  condition_enabled: boolean
+  condition_depends_on: string  // index as string
+  condition_operator: string
+  condition_value: string
 }
 
 function emptyCheckpoint(index: number): EditableCheckpoint {
@@ -70,6 +75,10 @@ function emptyCheckpoint(index: number): EditableCheckpoint {
     gps_lat: '',
     gps_lng: '',
     gps_radius: '50',
+    condition_enabled: false,
+    condition_depends_on: '',
+    condition_operator: 'eq',
+    condition_value: '',
   }
 }
 
@@ -131,6 +140,15 @@ function checkpointToApi(cp: EditableCheckpoint): Checkpoint {
     base.gps_gate = gate
   }
 
+  if (cp.condition_enabled && cp.condition_depends_on !== '' && cp.condition_value !== '') {
+    const cond: CheckpointCondition = {
+      depends_on_index: parseInt(cp.condition_depends_on, 10),
+      operator: cp.condition_operator as CheckpointCondition['operator'],
+      value: cp.condition_value,
+    }
+    base.condition = cond
+  }
+
   return base
 }
 
@@ -163,6 +181,10 @@ function apiToEditable(cp: Checkpoint): EditableCheckpoint {
     gps_lat: cp.gps_gate ? String(cp.gps_gate.lat) : '',
     gps_lng: cp.gps_gate ? String(cp.gps_gate.lng) : '',
     gps_radius: cp.gps_gate ? String(cp.gps_gate.radius_metres) : '50',
+    condition_enabled: !!cp.condition,
+    condition_depends_on: cp.condition ? String(cp.condition.depends_on_index) : '',
+    condition_operator: cp.condition?.operator ?? 'eq',
+    condition_value: cp.condition?.value ?? '',
   }
 }
 
@@ -209,6 +231,7 @@ function CheckpointEditor({
   cp,
   index,
   total,
+  allCheckpoints,
   onChange,
   onRemove,
   onMoveUp,
@@ -217,6 +240,7 @@ function CheckpointEditor({
   cp: EditableCheckpoint
   index: number
   total: number
+  allCheckpoints: EditableCheckpoint[]
   onChange: (updated: EditableCheckpoint) => void
   onRemove: () => void
   onMoveUp: () => void
@@ -627,6 +651,63 @@ function CheckpointEditor({
               </div>
             )}
           </div>
+
+          {/* Conditional visibility — not available on the first checkpoint (index 0) */}
+          {index > 0 && (
+            <div style={{ borderTop: '1px solid var(--io-border)', paddingTop: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <input
+                  type="checkbox"
+                  id={`cond-${cp.index}`}
+                  checked={cp.condition_enabled}
+                  onChange={(e) => set('condition_enabled', e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <label htmlFor={`cond-${cp.index}`} style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-secondary)', cursor: 'pointer' }}>
+                  Conditional
+                </label>
+                <span style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
+                  — show this checkpoint only when a condition is met
+                </span>
+              </div>
+              {cp.condition_enabled && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--io-text-secondary)', whiteSpace: 'nowrap' }}>Show only if</span>
+                  <select
+                    value={cp.condition_depends_on}
+                    onChange={(e) => set('condition_depends_on', e.target.value)}
+                    style={{ ...inputStyle, width: 'auto', flex: 2, minWidth: '120px' }}
+                  >
+                    <option value="">Select checkpoint…</option>
+                    {allCheckpoints.slice(0, index).map((prev, pi) => (
+                      <option key={pi} value={String(pi)}>
+                        {pi + 1}. {prev.title || `Checkpoint ${pi + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={cp.condition_operator}
+                    onChange={(e) => set('condition_operator', e.target.value)}
+                    style={{ ...inputStyle, width: 'auto', flex: 1, minWidth: '90px' }}
+                  >
+                    <option value="eq">= (equals)</option>
+                    <option value="ne">≠ (not equals)</option>
+                    <option value="gt">&gt; (greater than)</option>
+                    <option value="lt">&lt; (less than)</option>
+                    <option value="gte">≥ (at least)</option>
+                    <option value="lte">≤ (at most)</option>
+                    <option value="contains">contains</option>
+                  </select>
+                  <input
+                    value={cp.condition_value}
+                    onChange={(e) => set('condition_value', e.target.value)}
+                    placeholder="Value…"
+                    style={{ ...inputStyle, flex: 2, minWidth: '80px' }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -846,6 +927,7 @@ export default function TemplateDesigner() {
                 cp={cp}
                 index={i}
                 total={checkpoints.length}
+                allCheckpoints={checkpoints}
                 onChange={(updated) => updateCheckpoint(i, updated)}
                 onRemove={() => removeCheckpoint(i)}
                 onMoveUp={() => moveCheckpoint(i, -1)}

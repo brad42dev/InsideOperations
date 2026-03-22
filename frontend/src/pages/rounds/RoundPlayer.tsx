@@ -1051,9 +1051,43 @@ export default function RoundPlayer() {
     return true
   }, [id, detailResult, values, comments, gps, isOnline, saveOfflineResponse, videoBlobs, audioBlobs])
 
+  // Helper: resolve the raw checkpoint index for a given visible-list position.
+  // Needed because saveCurrentResponse uses raw checkpoint index to look up
+  // values and checkpoints[]. Returns the raw index or the visible position as
+  // a fallback when template data is unavailable.
+  function getRawCheckpointIndex(visiblePos: number): number {
+    if (!detailResult?.success) return visiblePos
+    const cps: Checkpoint[] = Array.isArray(detailResult.data.template?.checkpoints)
+      ? detailResult.data.template!.checkpoints
+      : []
+    const indexes = cps
+      .map((cp, i) => ({ cp, i }))
+      .filter(({ cp }) => {
+        if (!cp.condition) return true
+        const { depends_on_index, operator, value: condValue } = cp.condition
+        const rawAnswer = values[depends_on_index] ?? ''
+        const numAnswer = parseFloat(rawAnswer)
+        const numCond = parseFloat(condValue)
+        const bothNumeric = !isNaN(numAnswer) && !isNaN(numCond)
+        switch (operator) {
+          case 'eq': return bothNumeric ? numAnswer === numCond : rawAnswer === condValue
+          case 'ne': return bothNumeric ? numAnswer !== numCond : rawAnswer !== condValue
+          case 'gt': return bothNumeric ? numAnswer > numCond : rawAnswer > condValue
+          case 'lt': return bothNumeric ? numAnswer < numCond : rawAnswer < condValue
+          case 'gte': return bothNumeric ? numAnswer >= numCond : rawAnswer >= condValue
+          case 'lte': return bothNumeric ? numAnswer <= numCond : rawAnswer <= condValue
+          case 'contains': return rawAnswer.includes(condValue)
+          default: return true
+        }
+      })
+      .map(({ i }) => i)
+    return indexes[visiblePos] ?? visiblePos
+  }
+
   // Gates are per-checkpoint — reset for the target index when navigating
   const handleNext = async () => {
-    const ok = await saveCurrentResponse(checkpointIdx)
+    const rawIdx = getRawCheckpointIndex(checkpointIdx)
+    const ok = await saveCurrentResponse(rawIdx)
     if (!ok) return
     setCheckpointIdx((i) => i + 1)
     setError(null)
@@ -1066,7 +1100,8 @@ export default function RoundPlayer() {
 
   const handleComplete = async () => {
     if (!id) return
-    const ok = await saveCurrentResponse(checkpointIdx)
+    const rawIdx = getRawCheckpointIndex(checkpointIdx)
+    const ok = await saveCurrentResponse(rawIdx)
     if (!ok) return
 
     setCompleting(true)
@@ -1185,10 +1220,44 @@ export default function RoundPlayer() {
     )
   }
 
-  const clampedIdx = Math.min(checkpointIdx, totalCheckpoints - 1)
+  // Evaluate a checkpoint's condition against current response values.
+  // Returns true if the checkpoint should be visible (no condition, or condition met).
+  function evaluateCondition(cp: Checkpoint): boolean {
+    if (!cp.condition) return true
+    const { depends_on_index, operator, value: condValue } = cp.condition
+    const rawAnswer = values[depends_on_index] ?? ''
+    // Attempt numeric comparison first; fall back to string comparison
+    const numAnswer = parseFloat(rawAnswer)
+    const numCond = parseFloat(condValue)
+    const bothNumeric = !isNaN(numAnswer) && !isNaN(numCond)
+    switch (operator) {
+      case 'eq': return bothNumeric ? numAnswer === numCond : rawAnswer === condValue
+      case 'ne': return bothNumeric ? numAnswer !== numCond : rawAnswer !== condValue
+      case 'gt': return bothNumeric ? numAnswer > numCond : rawAnswer > condValue
+      case 'lt': return bothNumeric ? numAnswer < numCond : rawAnswer < condValue
+      case 'gte': return bothNumeric ? numAnswer >= numCond : rawAnswer >= condValue
+      case 'lte': return bothNumeric ? numAnswer <= numCond : rawAnswer <= condValue
+      case 'contains': return rawAnswer.includes(condValue)
+      default: return true
+    }
+  }
+
+  // Build the list of visible checkpoint indexes (those with no condition or condition met).
+  // The raw checkpoint index is used as key in `values` so stored responses are preserved
+  // even if conditions change.
+  const visibleCheckpointIndexes: number[] = checkpoints
+    .map((cp, i) => ({ cp, i }))
+    .filter(({ cp }) => evaluateCondition(cp))
+    .map(({ i }) => i)
+
+  const totalVisible = visibleCheckpointIndexes.length
+
+  // Map checkpointIdx (position within visible list) to the raw checkpoint index
+  const visiblePosition = Math.min(checkpointIdx, Math.max(0, totalVisible - 1))
+  const clampedIdx = visibleCheckpointIndexes[visiblePosition] ?? 0
   const cp = checkpoints[clampedIdx]
-  const isLastCheckpoint = clampedIdx === totalCheckpoints - 1
-  const progressPct = ((clampedIdx + 1) / totalCheckpoints) * 100
+  const isLastCheckpoint = visiblePosition === totalVisible - 1
+  const progressPct = totalVisible > 0 ? ((visiblePosition + 1) / totalVisible) * 100 : 100
 
   return (
     <div
@@ -1312,7 +1381,7 @@ export default function RoundPlayer() {
               {template?.name ?? 'Round'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
-              Checkpoint {clampedIdx + 1} of {totalCheckpoints}
+              Checkpoint {visiblePosition + 1} of {totalVisible}
             </div>
           </div>
         </div>
@@ -1453,18 +1522,18 @@ export default function RoundPlayer() {
       >
         <button
           onClick={handlePrev}
-          disabled={clampedIdx === 0 || saving}
+          disabled={visiblePosition === 0 || saving}
           style={{
             flex: 1,
             padding: '12px',
             background: 'none',
             border: '1px solid var(--io-border)',
             borderRadius: '8px',
-            cursor: clampedIdx === 0 || saving ? 'not-allowed' : 'pointer',
+            cursor: visiblePosition === 0 || saving ? 'not-allowed' : 'pointer',
             color: 'var(--io-text-secondary)',
             fontSize: '14px',
             fontWeight: 600,
-            opacity: clampedIdx === 0 ? 0.4 : 1,
+            opacity: visiblePosition === 0 ? 0.4 : 1,
           }}
         >
           ← Previous

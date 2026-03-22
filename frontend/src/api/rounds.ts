@@ -33,6 +33,15 @@ export interface CheckpointGpsGate {
   radius_metres: number
 }
 
+export interface CheckpointCondition {
+  /** Index of the checkpoint whose answer controls this checkpoint's visibility */
+  depends_on_index: number
+  /** Comparison operator */
+  operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains'
+  /** Value to compare against (always string; RoundPlayer coerces to match data type) */
+  value: string
+}
+
 export interface Checkpoint {
   index: number
   title: string
@@ -50,6 +59,8 @@ export interface Checkpoint {
   barcode_gate?: CheckpointBarcodeGate
   /** GPS entry gate — must be within radius of configured location */
   gps_gate?: CheckpointGpsGate
+  /** Conditional visibility — checkpoint is hidden unless the condition evaluates to true */
+  condition?: CheckpointCondition
 }
 
 export interface RoundTemplate {
