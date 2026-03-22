@@ -43,6 +43,9 @@ async fn main() -> anyhow::Result<()> {
     // Background task: poll DCS supplemental connectors every 5 minutes
     tokio::spawn(run_supplemental_connectors(db.clone(), cfg.master_key));
 
+    // Background task: general import scheduler — polls import_schedules every 30 seconds
+    tokio::spawn(run_import_scheduler(db.clone()));
+
     let app_state = AppState {
         db,
         config: Arc::new(cfg),
@@ -207,6 +210,171 @@ async fn poll_supplemental_connectors(db: &sqlx::PgPool, master_key: &[u8; 32]) 
             Err(e) => warn!(conn_id = %conn_id, conn_type = %conn_type, "fetch_events error: {e}"),
         }
     }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// General import scheduler
+// ---------------------------------------------------------------------------
+
+/// Spawned at startup; polls `import_schedules` every 30 seconds and claims
+/// due schedules using `FOR UPDATE SKIP LOCKED` to prevent duplicate execution.
+async fn run_import_scheduler(db: sqlx::PgPool) {
+    let mut interval = tokio::time::interval(Duration::from_secs(30));
+    loop {
+        interval.tick().await;
+        if let Err(e) = poll_import_schedules(&db).await {
+            warn!("import scheduler error: {e}");
+        }
+    }
+}
+
+/// One poll cycle: claim all due schedules, execute ETL, advance next_run_at.
+///
+/// Each eligible schedule is claimed inside its own short transaction using
+/// `FOR UPDATE SKIP LOCKED` so that concurrent instances of the service cannot
+/// double-execute the same schedule. The transaction is committed immediately
+/// after marking the row `running = true` so the lock is released quickly;
+/// the ETL itself runs outside the claim transaction.
+async fn poll_import_schedules(db: &sqlx::PgPool) -> anyhow::Result<()> {
+    use sqlx::Row as _;
+    use std::str::FromStr as _;
+
+    loop {
+        // Claim one schedule per iteration; loop until none remain.
+        let mut tx = db.begin().await?;
+
+        let row_opt = sqlx::query(
+            "SELECT s.id, s.definition_id, s.schedule_type, \
+                    s.cron_expression, s.interval_seconds \
+             FROM import_schedules s \
+             WHERE s.enabled = true \
+               AND s.next_run_at <= NOW() \
+               AND (s.running = false \
+                    OR s.last_heartbeat_at < NOW() - INTERVAL '5 minutes') \
+             ORDER BY s.next_run_at \
+             FOR UPDATE SKIP LOCKED \
+             LIMIT 1",
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let row = match row_opt {
+            Some(r) => r,
+            None => {
+                // No eligible schedules — release the transaction and stop looping.
+                tx.commit().await?;
+                break;
+            }
+        };
+
+        let schedule_id: uuid::Uuid = row.try_get("id")?;
+        let definition_id: uuid::Uuid = row.try_get("definition_id")?;
+        let schedule_type: String = row.try_get("schedule_type")?;
+        let cron_expression: Option<String> = row.try_get("cron_expression").ok().flatten();
+        let interval_seconds: Option<i64> = row.try_get("interval_seconds").ok().flatten();
+
+        // Mark running before releasing the claim transaction.
+        sqlx::query(
+            "UPDATE import_schedules \
+             SET running = true, last_heartbeat_at = NOW() \
+             WHERE id = $1",
+        )
+        .bind(schedule_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        // --- ETL execution (outside the claim transaction) -------------------
+        //
+        // Create a new import_run record and execute the pipeline.
+        let run_id = uuid::Uuid::new_v4();
+
+        // Insert the run record (status: pending → pipeline::execute sets it to running).
+        let insert_result = sqlx::query(
+            "INSERT INTO import_runs \
+             (id, import_definition_id, status, trigger, created_at) \
+             VALUES ($1, $2, 'pending', 'scheduled', NOW())",
+        )
+        .bind(run_id)
+        .bind(definition_id)
+        .execute(db)
+        .await;
+
+        if let Err(e) = insert_result {
+            warn!(
+                schedule_id = %schedule_id,
+                definition_id = %definition_id,
+                "failed to create import_run for scheduled job: {e}"
+            );
+        } else {
+            // Spawn the ETL pipeline; heartbeat updates run inside the spawned task.
+            let db_clone = db.clone();
+            tokio::spawn(async move {
+                if let Err(e) = pipeline::execute(&db_clone, run_id, definition_id, false).await {
+                    warn!(
+                        run_id = %run_id,
+                        definition_id = %definition_id,
+                        "scheduled pipeline execution failed: {e}"
+                    );
+                }
+            });
+        }
+
+        // --- Advance next_run_at and clear running flag ----------------------
+        //
+        // Compute the next scheduled time based on schedule_type.
+        let next_run_at: Option<chrono::DateTime<chrono::Utc>> = match schedule_type.as_str() {
+            "cron" => {
+                cron_expression.as_deref().and_then(|expr| {
+                    match cron::Schedule::from_str(expr) {
+                        Ok(sched) => sched.upcoming(chrono::Utc).next(),
+                        Err(e) => {
+                            warn!(
+                                schedule_id = %schedule_id,
+                                expression = expr,
+                                "invalid cron expression: {e}"
+                            );
+                            None
+                        }
+                    }
+                })
+            }
+            "interval" => {
+                interval_seconds.map(|secs| chrono::Utc::now() + chrono::Duration::seconds(secs))
+            }
+            other => {
+                warn!(schedule_id = %schedule_id, schedule_type = other, "unknown schedule_type; skipping next_run_at update");
+                None
+            }
+        };
+
+        if let Some(next) = next_run_at {
+            let _ = sqlx::query(
+                "UPDATE import_schedules \
+                 SET running = false, last_heartbeat_at = NOW(), next_run_at = $2 \
+                 WHERE id = $1",
+            )
+            .bind(schedule_id)
+            .bind(next)
+            .execute(db)
+            .await
+            .map_err(|e| warn!(schedule_id = %schedule_id, "failed to advance next_run_at: {e}"));
+        } else {
+            // Could not compute next run — just clear the running flag.
+            let _ = sqlx::query(
+                "UPDATE import_schedules \
+                 SET running = false, last_heartbeat_at = NOW() \
+                 WHERE id = $1",
+            )
+            .bind(schedule_id)
+            .execute(db)
+            .await
+            .map_err(|e| warn!(schedule_id = %schedule_id, "failed to clear running flag: {e}"));
+        }
+    }
+
     Ok(())
 }
 

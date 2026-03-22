@@ -30,6 +30,7 @@ io-models = { path = "../../crates/io-models" }
 aes-gcm.workspace = true
 base64.workspace = true
 hex.workspace = true
+cron = "0.12"
 
 [dev-dependencies]
 tokio = { workspace = true }
