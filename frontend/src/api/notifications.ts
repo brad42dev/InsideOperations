@@ -239,4 +239,12 @@ export const notificationsApi = {
   getActive(): Promise<ApiResult<NotificationMessage[]>> {
     return api.get('/api/notifications/active')
   },
+
+  resolveMessage(id: string): Promise<ApiResult<void>> {
+    return api.post(`/api/notifications/messages/${id}/resolve`, {})
+  },
+
+  cancelMessage(id: string): Promise<ApiResult<void>> {
+    return api.post(`/api/notifications/messages/${id}/cancel`, {})
+  },
 }

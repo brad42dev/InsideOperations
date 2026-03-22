@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { usePermission } from '../../shared/hooks/usePermission'
 import {
   notificationsApi,
   type NotificationTemplate,
@@ -526,11 +527,29 @@ function SendAlertPanel() {
 
 function ActiveAlertsPanel() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const canSend = usePermission('alerts:send')
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
 
   const { data: activeResult, isLoading } = useQuery({
     queryKey: ['notification-active'],
     queryFn: () => notificationsApi.getActive(),
     refetchInterval: 30_000,
+  })
+
+  const resolveMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.resolveMessage(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notification-active'] })
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.cancelMessage(id),
+    onSuccess: () => {
+      setCancelConfirmId(null)
+      qc.invalidateQueries({ queryKey: ['notification-active'] })
+    },
   })
 
   const messages: NotificationMessage[] = (activeResult?.success && activeResult.data) ? activeResult.data : []
@@ -548,60 +567,166 @@ function ActiveAlertsPanel() {
     )
   }
 
+  const cancelTarget = cancelConfirmId ? messages.find((m) => m.id === cancelConfirmId) : null
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {messages.map((msg) => {
-        const c = SEVERITY_COLORS[msg.severity as NotificationSeverity] ?? SEVERITY_COLORS.info
-        return (
+    <>
+      {cancelConfirmId && cancelTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
           <div
-            key={msg.id}
             style={{
-              background: c.bg,
-              border: `1px solid ${c.border}`,
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
               borderRadius: 8,
-              padding: 16,
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: 16,
+              padding: 24,
+              width: 400,
+              maxWidth: '90vw',
             }}
           >
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <SeverityBadge severity={msg.severity as NotificationSeverity} />
-                <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
-                  {new Date(msg.sent_at).toLocaleString()} by {msg.sent_by_name ?? msg.sent_by}
-                </span>
-              </div>
-              <h4 style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--io-text)' }}>{msg.title}</h4>
-              <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--io-text-secondary)' }}>{msg.body}</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ChannelChips channels={msg.channels} />
-                <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
-                  {msg.recipient_count} recipient{msg.recipient_count !== 1 ? 's' : ''}
-                </span>
-              </div>
+            <h3 style={{ margin: '0 0 8px', color: '#ef4444', fontSize: 16 }}>Cancel Alert</h3>
+            <p style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--io-text)', fontWeight: 600 }}>{cancelTarget.title}</p>
+            <p style={{ margin: '0 0 20px', color: 'var(--io-text-secondary)', fontSize: 14 }}>
+              This will stop any escalation and remove the alert from the active list. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setCancelConfirmId(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: '1px solid var(--io-border)',
+                  background: 'transparent',
+                  color: 'var(--io-text)',
+                  cursor: 'pointer',
+                }}
+              >
+                Keep Active
+              </button>
+              <button
+                onClick={() => cancelMutation.mutate(cancelConfirmId)}
+                disabled={cancelMutation.isPending}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: '#ef4444',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: cancelMutation.isPending ? 'not-allowed' : 'pointer',
+                  opacity: cancelMutation.isPending ? 0.7 : 1,
+                }}
+              >
+                {cancelMutation.isPending ? 'Cancelling…' : 'Cancel Alert'}
+              </button>
             </div>
-            <button
-              onClick={() => navigate(`/alerts/muster/${msg.id}`)}
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {messages.map((msg) => {
+          const c = SEVERITY_COLORS[msg.severity as NotificationSeverity] ?? SEVERITY_COLORS.info
+          const isResolving = resolveMutation.isPending && resolveMutation.variables === msg.id
+          return (
+            <div
+              key={msg.id}
               style={{
-                padding: '6px 12px',
-                borderRadius: 6,
+                background: c.bg,
                 border: `1px solid ${c.border}`,
-                background: 'transparent',
-                color: c.text,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
+                borderRadius: 8,
+                padding: 16,
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 16,
               }}
             >
-              Muster
-            </button>
-          </div>
-        )
-      })}
-    </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <SeverityBadge severity={msg.severity as NotificationSeverity} />
+                  <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
+                    {new Date(msg.sent_at).toLocaleString()} by {msg.sent_by_name ?? msg.sent_by}
+                  </span>
+                </div>
+                <h4 style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--io-text)' }}>{msg.title}</h4>
+                <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--io-text-secondary)' }}>{msg.body}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ChannelChips channels={msg.channels} />
+                  <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
+                    {msg.recipient_count} recipient{msg.recipient_count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'flex-start' }}>
+                <button
+                  onClick={() => navigate(`/alerts/muster/${msg.id}`)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: `1px solid ${c.border}`,
+                    background: 'transparent',
+                    color: c.text,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Muster
+                </button>
+                {canSend && (
+                  <>
+                    <button
+                      onClick={() => resolveMutation.mutate(msg.id)}
+                      disabled={isResolving}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: '1px solid var(--io-border)',
+                        background: 'transparent',
+                        color: 'var(--io-text)',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: isResolving ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap',
+                        opacity: isResolving ? 0.6 : 1,
+                      }}
+                    >
+                      {isResolving ? 'Resolving…' : 'Mark Resolved'}
+                    </button>
+                    <button
+                      onClick={() => setCancelConfirmId(msg.id)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #ef4444',
+                        background: 'transparent',
+                        color: '#ef4444',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }
 

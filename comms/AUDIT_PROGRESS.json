@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T22:45:31.815625+00:00",
+  "last_updated": "2026-03-22T22:58:49.098904+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -3095,7 +3095,7 @@
       "wave": 3,
       "title": "Publish presence and muster WebSocket topics from API Gateway handlers",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-30-001"
       ],
@@ -3117,7 +3117,7 @@
       "wave": 3,
       "title": "Add Resolve and Cancel actions to active alert cards",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
