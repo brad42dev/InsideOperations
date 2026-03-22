@@ -12,6 +12,10 @@ pub struct Config {
     pub retention_5m_days: i64,
     /// 1-hour aggregate retention in days (default 1825 — 5 years).
     pub retention_1h_days: i64,
+    /// 15-minute aggregate retention in days (default 1095 — 3 years).
+    pub retention_15m_days: i64,
+    /// 1-day aggregate retention in days (default 2555 — 7 years).
+    pub retention_1d_days: i64,
     /// Compress chunks older than this many days (default 7).
     pub compression_after_days: i64,
     /// How often to run the maintenance job, in seconds (default 3600).
@@ -37,6 +41,12 @@ impl Config {
                 .parse()?,
             retention_1h_days: std::env::var("RETENTION_1H_DAYS")
                 .unwrap_or_else(|_| "1825".to_string())
+                .parse()?,
+            retention_15m_days: std::env::var("RETENTION_15M_DAYS")
+                .unwrap_or_else(|_| "1095".to_string())
+                .parse()?,
+            retention_1d_days: std::env::var("RETENTION_1D_DAYS")
+                .unwrap_or_else(|_| "2555".to_string())
                 .parse()?,
             compression_after_days: std::env::var("COMPRESSION_AFTER_DAYS")
                 .unwrap_or_else(|_| "7".to_string())

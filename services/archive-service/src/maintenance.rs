@@ -76,7 +76,9 @@ pub async fn run_maintenance(db: DbPool, config: Arc<Config>) {
         let agg_retentions = [
             ("points_history_1m", config.retention_1m_days),
             ("points_history_5m", config.retention_5m_days),
+            ("points_history_15m", config.retention_15m_days),
             ("points_history_1h", config.retention_1h_days),
+            ("points_history_1d", config.retention_1d_days),
         ];
         for (table, days) in &agg_retentions {
             let retention = format!("{days} days");
@@ -108,7 +110,13 @@ pub async fn run_maintenance(db: DbPool, config: Arc<Config>) {
         // 4. Refresh continuous aggregates.
         //    Refresh from the beginning of time up to 1 minute ago (to avoid
         //    refresh conflicts with real-time ingestion).
-        let aggregates = ["points_history_1m", "points_history_5m", "points_history_1h"];
+        let aggregates = [
+            "points_history_1m",
+            "points_history_5m",
+            "points_history_15m",
+            "points_history_1h",
+            "points_history_1d",
+        ];
         for agg in &aggregates {
             let refresh_result = sqlx::query(
                 "CALL refresh_continuous_aggregate($1, NULL, NOW() - INTERVAL '1 minute')",
