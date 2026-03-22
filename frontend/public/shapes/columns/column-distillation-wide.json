@@ -37,6 +37,7 @@
     { "nx": 1.2, "ny": 0.5, "preferredElement": "text_readout" }
   ],
   "alarmAnchor": { "nx": 1.1, "ny": -0.05 },
+  "vesselInteriorPath": "M10,10 A15,5 0 0,1 40,10 L40,110 A15,5 0 0,1 10,110 Z",
   "states": {
     "running": "io-running",
     "stopped": "io-stopped",

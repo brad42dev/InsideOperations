@@ -37,6 +37,7 @@
     { "nx": 0.5, "ny": 0.6, "preferredElement": "fill_gauge" }
   ],
   "alarmAnchor": { "nx": 1.1, "ny": -0.05 },
+  "vesselInteriorPath": "M10,10 L60,10 L60,60 L10,60 Z",
   "states": {
     "running": "io-running",
     "stopped": "io-stopped",

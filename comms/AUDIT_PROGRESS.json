@@ -73,7 +73,8 @@
     "DD-27-006": 1,
     "DD-28-003": 1,
     "DD-31-003": 1,
-    "DD-34-003": 1
+    "DD-34-003": 1,
+    "GFX-CORE-004": 1
   },
   "queue": [
     {
@@ -894,7 +895,7 @@
       "wave": 1,
       "title": "Render insulated pipes (double line + hatching) and dashPattern",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 3
     },
@@ -926,7 +927,7 @@
       "wave": 1,
       "title": "Fill gauge vessel-overlay mode must use vessel geometry clipPath, not a rect",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 1
     },

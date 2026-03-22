@@ -483,7 +483,8 @@ export function SceneRenderer({
 
   // parentOffset: displacement of this element from parent SymbolInstance origin (in parent space).
   // Used to draw the signal line back toward the parent shape.
-  function renderDisplayElement(node: DisplayElement, parentOffset?: { x: number; y: number }): React.ReactElement | null {
+  // vesselInteriorPath: SVG path string from parent SymbolInstance's sidecar, used for vessel_overlay fill_gauge clip.
+  function renderDisplayElement(node: DisplayElement, parentOffset?: { x: number; y: number }, vesselInteriorPath?: string): React.ReactElement | null {
     // Use pointId if bound; fall back to expressionId (broker publishes expression results as virtual points)
     const pvKey = node.binding.pointId ?? node.binding.expressionId
     const pv = pvKey ? pointValues.get(pvKey) : undefined
@@ -704,17 +705,19 @@ export function SceneRenderer({
         const clipId = `fg-clip-${node.id.replace(/[^a-z0-9]/gi, '')}`
 
         if (cfg.mode === 'vessel_overlay') {
-          // Vessel-interior mode: fill clips to vessel shape interior (approx rect)
+          // Vessel-interior mode: fill clips to vessel shape interior using sidecar vesselInteriorPath.
+          // Falls back to a rect path if no sidecar path is available.
           const fillH = pct * bh
           const fillY = bh - fillH
+          const clipPathData = vesselInteriorPath ?? `M0,0 H${bw} V${bh} H0 Z`
           return (
             <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={pvKey}>
               <defs>
                 <clipPath id={clipId}>
-                  <rect x={0} y={0} width={bw} height={bh} />
+                  <path d={clipPathData} />
                 </clipPath>
               </defs>
-              <rect data-role="fill" x={0} y={fillY} width={bw} height={fillH} fill={fillColor} clipPath={`url(#${clipId})`} />
+              <rect data-role="fill" x={0} y={fillY} width={bw} height={fillH + 20} fill={fillColor} clipPath={`url(#${clipId})`} />
               {cfg.showLevelLine && fillH > 0 && <line x1={0} y1={fillY} x2={bw} y2={fillY} stroke="#64748B" strokeWidth={1} strokeDasharray="5 3" />}
               {cfg.showValue && fillH > 0 && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill="#A1A1AA">{fmtPct}</text>}
             </g>
@@ -744,6 +747,7 @@ export function SceneRenderer({
     const svgContent = shapeData?.svg ?? ''
     const sidecar = shapeData?.sidecar as {
       textZones?: Array<{ id: string; x: number; y: number; width?: number; anchor?: string; fontSize?: number }>
+      vesselInteriorPath?: string
     } | undefined
 
     // Derive operational state CSS class from stateBinding point value
@@ -832,7 +836,7 @@ export function SceneRenderer({
         )}
         {composablePartElements}
         {textZoneElements}
-        {node.children.map((child) => renderDisplayElement(child, child.transform.position))}
+        {node.children.map((child) => renderDisplayElement(child, child.transform.position, sidecar?.vesselInteriorPath))}
       </g>
     )
   }

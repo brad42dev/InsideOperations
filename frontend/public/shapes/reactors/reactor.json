@@ -37,6 +37,7 @@
     { "nx": 1.2, "ny": 0.5,  "preferredElement": "analog_bar" }
   ],
   "alarmAnchor": { "nx": 1.15, "ny": -0.05 },
+  "vesselInteriorPath": "M10,12 A10,5 0 0,1 30,12 L30,68 L10,68 Z",
   "states": {
     "running": "io-running",
     "stopped": "io-stopped",
