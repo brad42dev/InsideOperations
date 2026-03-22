@@ -1745,3 +1745,724 @@ pub async fn analyze_iographic(
 
     Json(ApiResponse::ok(analysis)).into_response()
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/design-objects/import/iographic
+// Commit step: accept file + options payload, reconstruct tag-based bindings,
+// write design_objects + design_object_versions rows.
+// ---------------------------------------------------------------------------
+
+/// Tag mapping from the user's wizard decisions.
+#[derive(Debug, Deserialize)]
+struct TagMapping {
+    original_tag: String,
+    mapped_tag: Option<String>,
+    action: String, // "keep" | "remap" | "skip"
+}
+
+/// Shape action from the user's wizard decisions.
+#[derive(Debug, Deserialize)]
+struct ShapeAction {
+    shape_id: String,
+    action: String, // "import" | "use_existing" | "import_as_copy" | "skip"
+}
+
+/// Stencil action from the user's wizard decisions.
+#[derive(Debug, Deserialize)]
+struct StencilAction {
+    stencil_id: String,
+    action: String, // "import" | "use_existing" | "skip"
+}
+
+/// Full options payload sent by the frontend commit call.
+#[derive(Debug, Deserialize)]
+struct IographicImportOptions {
+    #[serde(default)]
+    tag_mappings: Vec<TagMapping>,
+    #[serde(default)]
+    shape_actions: Vec<ShapeAction>,
+    #[serde(default)]
+    stencil_actions: Vec<StencilAction>,
+    target_name: Option<String>,
+    #[serde(default = "default_import_as")]
+    import_as: String, // "draft" | "published"
+    #[serde(default)]
+    overwrite: bool,
+}
+
+fn default_import_as() -> String {
+    "draft".to_string()
+}
+
+/// Response shape — must match the TypeScript `IographicImportResult` interface.
+#[derive(Debug, Serialize)]
+struct IographicImportResult {
+    graphics_imported: usize,
+    shapes_imported: usize,
+    stencils_imported: usize,
+    bindings_resolved: usize,
+    bindings_unresolved: usize,
+    bindings_total: usize,
+    unresolved_tags: Vec<String>,
+    missing_shapes: Vec<String>,
+    graphic_ids: Vec<String>,
+}
+
+/// Recursively walks tag-based bindings JSON (as produced by DD-39-002 export),
+/// replacing `point_tag` fields with `point_id` (UUID) when resolved, or keeping
+/// `point_tag` + inserting `"unresolved": true` when the tag could not be resolved.
+///
+/// `resolved` maps tag → UUID string (resolved tags).
+/// `unresolved_kept` is the set of tags whose action is "keep" (not skip).
+/// Tags with action "skip" are stripped from their parent object entirely, but
+/// since we process object-by-object we handle skip at the binding level below.
+fn reconstruct_binding(
+    val: JsonValue,
+    resolved: &HashMap<String, String>,
+    unresolved_kept: &HashSet<String>,
+    bindings_resolved: &mut usize,
+    bindings_unresolved: &mut usize,
+) -> Option<JsonValue> {
+    match val {
+        JsonValue::Object(map) => {
+            // Check if this object has a point_tag — if so, it is a leaf binding reference
+            if let Some(JsonValue::String(ref tag)) = map.get("point_tag") {
+                let tag = tag.clone();
+                if let Some(uuid_str) = resolved.get(&tag) {
+                    // Resolved: emit point_id, drop point_tag
+                    let mut new_map = serde_json::Map::new();
+                    for (k, v) in &map {
+                        if k != "point_tag" && k != "source_hint" && k != "unresolved" {
+                            new_map.insert(k.clone(), v.clone());
+                        }
+                    }
+                    new_map.insert("point_id".to_string(), JsonValue::String(uuid_str.clone()));
+                    *bindings_resolved += 1;
+                    return Some(JsonValue::Object(new_map));
+                } else if unresolved_kept.contains(&tag) {
+                    // Unresolved keep: preserve point_tag, add unresolved: true
+                    let mut new_map = serde_json::Map::new();
+                    for (k, v) in &map {
+                        if k != "unresolved" {
+                            new_map.insert(k.clone(), v.clone());
+                        }
+                    }
+                    new_map.insert("unresolved".to_string(), JsonValue::Bool(true));
+                    *bindings_unresolved += 1;
+                    return Some(JsonValue::Object(new_map));
+                } else {
+                    // Action is "skip" (or not in any mapping) — auto-try resolve, else skip
+                    // For tags not in any mapping: treat as auto-resolve attempt
+                    if let Some(uuid_str) = resolved.get(&tag) {
+                        let mut new_map = serde_json::Map::new();
+                        for (k, v) in &map {
+                            if k != "point_tag" && k != "source_hint" && k != "unresolved" {
+                                new_map.insert(k.clone(), v.clone());
+                            }
+                        }
+                        new_map.insert("point_id".to_string(), JsonValue::String(uuid_str.clone()));
+                        *bindings_resolved += 1;
+                        return Some(JsonValue::Object(new_map));
+                    }
+                    // Not resolvable and not kept — strip this binding
+                    return None;
+                }
+            }
+
+            // Not a leaf binding reference — recurse into children
+            let mut new_map = serde_json::Map::new();
+            for (k, v) in map {
+                if let Some(reconstructed) = reconstruct_binding(
+                    v,
+                    resolved,
+                    unresolved_kept,
+                    bindings_resolved,
+                    bindings_unresolved,
+                ) {
+                    new_map.insert(k, reconstructed);
+                }
+            }
+            Some(JsonValue::Object(new_map))
+        }
+        JsonValue::Array(arr) => {
+            let items: Vec<JsonValue> = arr
+                .into_iter()
+                .filter_map(|item| {
+                    reconstruct_binding(
+                        item,
+                        resolved,
+                        unresolved_kept,
+                        bindings_resolved,
+                        bindings_unresolved,
+                    )
+                })
+                .collect();
+            Some(JsonValue::Array(items))
+        }
+        other => Some(other),
+    }
+}
+
+pub async fn commit_iographic(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:write") {
+        return IoError::Forbidden("designer:write permission required".into()).into_response();
+    }
+
+    // 1. Extract `file` bytes and `options` JSON string from multipart
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut options_str: Option<String> = None;
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        match field.name() {
+            Some("file") => {
+                match field.bytes().await {
+                    Ok(bytes) => { file_bytes = Some(bytes.to_vec()); }
+                    Err(e) => {
+                        tracing::error!(error = %e, "commit_iographic: failed to read file field");
+                        return IoError::BadRequest("Failed to read uploaded file".into()).into_response();
+                    }
+                }
+            }
+            Some("options") => {
+                match field.text().await {
+                    Ok(text) => { options_str = Some(text); }
+                    Err(e) => {
+                        tracing::error!(error = %e, "commit_iographic: failed to read options field");
+                        return IoError::BadRequest("Failed to read options field".into()).into_response();
+                    }
+                }
+            }
+            _ => {}
+        }
+        if file_bytes.is_some() && options_str.is_some() {
+            // Drain remaining fields (if any) without breaking
+            // — just continue the loop naturally; the while condition handles EOF
+        }
+    }
+
+    let bytes = match file_bytes {
+        Some(b) => b,
+        None => return IoError::BadRequest("No file field in multipart request".into()).into_response(),
+    };
+
+    let options: IographicImportOptions = match options_str.as_deref() {
+        Some(s) => match serde_json::from_str(s) {
+            Ok(o) => o,
+            Err(e) => {
+                return IoError::BadRequest(format!("Invalid options JSON: {}", e)).into_response();
+            }
+        },
+        // options field is optional — use defaults if not provided
+        None => IographicImportOptions {
+            tag_mappings: vec![],
+            shape_actions: vec![],
+            stencil_actions: vec![],
+            target_name: None,
+            import_as: "draft".to_string(),
+            overwrite: false,
+        },
+    };
+
+    // 2. Parse ZIP and read manifest.json
+    let cursor = std::io::Cursor::new(bytes);
+    let mut zip = match zip::ZipArchive::new(cursor) {
+        Ok(z) => z,
+        Err(e) => {
+            return IoError::BadRequest(
+                format!("Invalid .iographic file (not a valid ZIP archive): {}", e),
+            ).into_response();
+        }
+    };
+
+    let manifest: IographicManifest = {
+        use std::io::Read as _;
+        let mut f = match zip.by_name("manifest.json") {
+            Ok(f) => f,
+            Err(_) => {
+                return IoError::BadRequest(
+                    "manifest.json not found — not a valid .iographic package".into(),
+                ).into_response()
+            }
+        };
+        let mut content = String::new();
+        if f.read_to_string(&mut content).is_err() {
+            return IoError::BadRequest("Failed to read manifest.json".into()).into_response();
+        }
+        match serde_json::from_str::<IographicManifest>(&content) {
+            Ok(m) => m,
+            Err(e) => {
+                return IoError::BadRequest(format!("Invalid manifest.json: {}", e)).into_response();
+            }
+        }
+    };
+
+    if manifest.format != "iographic" {
+        return IoError::BadRequest(
+            format!("Unrecognised format '{}' — expected 'iographic'", manifest.format)
+        ).into_response();
+    }
+
+    // 3. Build tag resolution map from options.tag_mappings + auto-resolution.
+    //
+    // Pass 1: process explicit mappings.
+    //   action "keep"  → tag stays as-is (will be stored with unresolved: true if not in DB)
+    //   action "remap" → resolve mapped_tag to UUID via DB
+    //   action "skip"  → tag will be omitted from stored bindings
+    //
+    // Pass 2: auto-resolve any remaining tags from the manifest that have no explicit mapping.
+
+    // resolved: tag → UUID string (for both direct matches and remaps)
+    let mut resolved: HashMap<String, String> = HashMap::new();
+    // unresolved_kept: tags with action "keep" that cannot be auto-resolved
+    let mut unresolved_kept: HashSet<String> = HashSet::new();
+    // skipped: tags whose bindings should be dropped
+    let mut skipped: HashSet<String> = HashSet::new();
+    // explicitly_mapped: tags that have an explicit action (don't auto-resolve these differently)
+    let mut explicitly_mapped: HashSet<String> = HashSet::new();
+
+    for mapping in &options.tag_mappings {
+        explicitly_mapped.insert(mapping.original_tag.clone());
+        match mapping.action.as_str() {
+            "remap" => {
+                // Resolve mapped_tag to UUID
+                if let Some(ref mt) = mapping.mapped_tag {
+                    match sqlx::query(
+                        "SELECT id::text FROM points_metadata WHERE tagname = $1 LIMIT 1",
+                    )
+                    .bind(mt)
+                    .fetch_optional(&state.db)
+                    .await
+                    {
+                        Ok(Some(row)) => {
+                            let uuid_str: String = row.try_get("id").unwrap_or_default();
+                            resolved.insert(mapping.original_tag.clone(), uuid_str);
+                        }
+                        Ok(None) => {
+                            // mapped_tag doesn't exist in DB — treat as unresolved keep
+                            tracing::warn!(
+                                original_tag = %mapping.original_tag,
+                                mapped_tag = %mt,
+                                "commit_iographic: remap target not found, treating as unresolved"
+                            );
+                            unresolved_kept.insert(mapping.original_tag.clone());
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "commit_iographic: remap resolution query failed");
+                            unresolved_kept.insert(mapping.original_tag.clone());
+                        }
+                    }
+                } else {
+                    unresolved_kept.insert(mapping.original_tag.clone());
+                }
+            }
+            "keep" => {
+                // Will attempt auto-resolve; if not found, store with unresolved: true
+                // We handle this in Pass 2 below
+            }
+            "skip" => {
+                skipped.insert(mapping.original_tag.clone());
+            }
+            _ => {
+                // Unknown action — treat as keep
+            }
+        }
+    }
+
+    // Pass 2: auto-resolve all tags from the manifest that are not already handled
+    // For "keep" mappings and unmapped tags, try DB resolution.
+    let tags_to_auto_resolve: Vec<String> = manifest.point_tags.iter()
+        .filter(|tag| !resolved.contains_key(*tag) && !skipped.contains(*tag))
+        .cloned()
+        .collect();
+
+    for tag in &tags_to_auto_resolve {
+        match sqlx::query(
+            "SELECT id::text FROM points_metadata WHERE tagname = $1 LIMIT 1",
+        )
+        .bind(tag)
+        .fetch_optional(&state.db)
+        .await
+        {
+            Ok(Some(row)) => {
+                let uuid_str: String = row.try_get("id").unwrap_or_default();
+                resolved.insert(tag.clone(), uuid_str);
+            }
+            Ok(None) => {
+                // Not in DB — if explicitly mapped as "keep", mark as unresolved_kept;
+                // if not explicitly mapped, also mark as unresolved_kept (best-effort keep)
+                unresolved_kept.insert(tag.clone());
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, tag = %tag, "commit_iographic: auto-resolve query failed");
+                unresolved_kept.insert(tag.clone());
+            }
+        }
+    }
+
+    // 4. Resolve graphic entries
+    let entries: Vec<IographicGraphicEntry> = if !manifest.graphics.is_empty() {
+        manifest.graphics.clone()
+    } else if let Some(ref legacy) = manifest.graphic {
+        vec![IographicGraphicEntry {
+            directory: legacy.id.clone(),
+            name: legacy.name.clone(),
+            graphic_type: "graphic".to_string(),
+            path: None,
+        }]
+    } else {
+        return IoError::BadRequest("manifest.json contains no graphics entries".into()).into_response();
+    };
+
+    let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
+    let version_type = if options.import_as == "published" { "published" } else { "draft" };
+
+    let mut graphic_ids: Vec<String> = Vec::new();
+    let mut shapes_imported_total: usize = 0;
+    let mut stencils_imported_total: usize = 0;
+    let mut total_bindings_resolved: usize = 0;
+    let mut total_bindings_unresolved: usize = 0;
+    let mut total_bindings_total: usize = 0;
+    let mut unresolved_tags_out: Vec<String> = unresolved_kept.iter().cloned().collect();
+    unresolved_tags_out.sort();
+    let mut missing_shapes_out: Vec<String> = Vec::new();
+
+    // 5. Import each graphic entry
+    for entry in &entries {
+        let dir_owned: String = if !entry.directory.is_empty() {
+            entry.directory.clone()
+        } else if let Some(ref p) = entry.path {
+            p.trim_start_matches("graphics/")
+                .split('/')
+                .next()
+                .unwrap_or(p.as_str())
+                .to_string()
+        } else {
+            slugify(&entry.name)
+        };
+        let dir = &dir_owned;
+        let graphic_name = options.target_name.as_deref().unwrap_or(&entry.name);
+
+        // Read graphic.json (tag-based bindings format)
+        let graphic_json_str = read_zip_entry_string(
+            &mut zip,
+            &[
+                format!("graphics/{}/graphic.json", dir),
+                format!("graphics/{}-bindings.json", dir),
+            ],
+        );
+
+        // Read SVG
+        let svg_candidates = vec![
+            format!("graphics/{}/graphic.svg", dir),
+            format!("graphics/{}.svg", dir),
+            format!("{}/graphic.svg", dir),
+            format!("{}.svg", dir),
+        ];
+        let raw_svg = read_zip_entry_string(&mut zip, &svg_candidates);
+
+        // Decide final SVG: render from model if SVG is placeholder/missing
+        let svg_content: Option<String> = if raw_svg.as_deref().map(is_placeholder_svg).unwrap_or(true) {
+            if let Some(ref json_str) = graphic_json_str {
+                match serde_json::from_str::<GraphicModel>(json_str) {
+                    Ok(model) => Some(render_model_to_svg(&state.db, &model).await),
+                    Err(_) => raw_svg,
+                }
+            } else {
+                raw_svg
+            }
+        } else {
+            raw_svg
+        };
+
+        // 5a. Parse graphic.json bindings (post DD-39-002: tag-based)
+        let raw_bindings: JsonValue = graphic_json_str
+            .as_deref()
+            .and_then(|s| serde_json::from_str::<JsonValue>(s).ok())
+            .and_then(|v| {
+                // Extract inner bindings array/object from graphic.json envelope
+                if let JsonValue::Object(ref obj) = v {
+                    obj.get("bindings").cloned()
+                } else {
+                    Some(v)
+                }
+            })
+            .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+
+        // Count total bindings before reconstruction
+        let mut count_bindings_total: usize = 0;
+        fn count_point_tags(val: &JsonValue, count: &mut usize) {
+            match val {
+                JsonValue::Object(m) => {
+                    if m.contains_key("point_tag") {
+                        *count += 1;
+                    } else {
+                        for v in m.values() {
+                            count_point_tags(v, count);
+                        }
+                    }
+                }
+                JsonValue::Array(arr) => {
+                    for item in arr {
+                        count_point_tags(item, count);
+                    }
+                }
+                _ => {}
+            }
+        }
+        count_point_tags(&raw_bindings, &mut count_bindings_total);
+        total_bindings_total += count_bindings_total;
+
+        // 5b. Reconstruct bindings: resolve tags → UUIDs, keep unresolved with marker
+        let mut entry_resolved = 0usize;
+        let mut entry_unresolved = 0usize;
+        let reconstructed_bindings = reconstruct_binding(
+            raw_bindings,
+            &resolved,
+            &unresolved_kept,
+            &mut entry_resolved,
+            &mut entry_unresolved,
+        )
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+
+        total_bindings_resolved += entry_resolved;
+        total_bindings_unresolved += entry_unresolved;
+
+        // 5c. Determine graphic ID: check overwrite flag
+        let new_id: Uuid;
+
+        if options.overwrite {
+            // Check if a graphic with this name already exists
+            let existing = sqlx::query(
+                "SELECT id FROM design_objects WHERE name = $1 AND type = 'graphic' LIMIT 1",
+            )
+            .bind(graphic_name)
+            .fetch_optional(&state.db)
+            .await
+            .unwrap_or(None);
+
+            if let Some(row) = existing {
+                let existing_id: Uuid = row.try_get("id").unwrap_or_else(|_| Uuid::new_v4());
+                new_id = existing_id;
+                // UPDATE the existing row
+                match sqlx::query(
+                    "UPDATE design_objects SET svg_data = $1, bindings = $2, updated_at = now() \
+                     WHERE id = $3",
+                )
+                .bind(svg_content.as_deref().unwrap_or(""))
+                .bind(&reconstructed_bindings)
+                .bind(existing_id)
+                .execute(&state.db)
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::error!(error = %e, name = %graphic_name, "commit_iographic: DB update failed");
+                        return IoError::Database(e).into_response();
+                    }
+                }
+            } else {
+                new_id = Uuid::new_v4();
+                match sqlx::query(
+                    "INSERT INTO design_objects (id, name, type, svg_data, bindings, metadata, created_by) \
+                     VALUES ($1, $2, 'graphic', $3, $4, '{}'::jsonb, $5)",
+                )
+                .bind(new_id)
+                .bind(graphic_name)
+                .bind(svg_content.as_deref().unwrap_or(""))
+                .bind(&reconstructed_bindings)
+                .bind(created_by)
+                .execute(&state.db)
+                .await
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::error!(error = %e, name = %graphic_name, "commit_iographic: DB insert failed");
+                        return IoError::Database(e).into_response();
+                    }
+                }
+            }
+        } else {
+            new_id = Uuid::new_v4();
+            match sqlx::query(
+                "INSERT INTO design_objects (id, name, type, svg_data, bindings, metadata, created_by) \
+                 VALUES ($1, $2, 'graphic', $3, $4, '{}'::jsonb, $5)",
+            )
+            .bind(new_id)
+            .bind(graphic_name)
+            .bind(svg_content.as_deref().unwrap_or(""))
+            .bind(&reconstructed_bindings)
+            .bind(created_by)
+            .execute(&state.db)
+            .await
+            {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!(error = %e, name = %graphic_name, "commit_iographic: DB insert failed");
+                    return IoError::Database(e).into_response();
+                }
+            }
+        }
+
+        // 5d. Insert version row
+        let version_id = Uuid::new_v4();
+        if let Err(e) = sqlx::query(
+            "INSERT INTO design_object_versions (id, graphic_id, version, version_type, created_by) \
+             VALUES ($1, $2, 1, $3, $4)",
+        )
+        .bind(version_id)
+        .bind(new_id)
+        .bind(version_type)
+        .bind(created_by)
+        .execute(&state.db)
+        .await
+        {
+            tracing::warn!(
+                error = %e,
+                graphic_id = %new_id,
+                "commit_iographic: version row insert failed (non-fatal)"
+            );
+        }
+
+        graphic_ids.push(new_id.to_string());
+
+        // 5e. Import custom shapes per shape_actions
+        // Collect shape entries from the ZIP
+        let shape_dirs: Vec<String> = {
+            let mut dirs = Vec::new();
+            for i in 0..zip.len() {
+                if let Ok(entry) = zip.by_index(i) {
+                    let n = entry.name().to_string();
+                    if n.starts_with("shapes/") && n.ends_with("/shape.svg") {
+                        if let Some(d) = n
+                            .strip_prefix("shapes/")
+                            .and_then(|s| s.strip_suffix("/shape.svg"))
+                        {
+                            dirs.push(d.to_string());
+                        }
+                    }
+                }
+            }
+            dirs
+        };
+
+        for shape_dir in &shape_dirs {
+            // Determine action for this shape directory
+            // shape_dir may contain the shape_id encoded in it (e.g. "pump.custom.{uuid}")
+            let shape_action = options.shape_actions.iter()
+                .find(|sa| shape_dir.contains(&sa.shape_id))
+                .map(|sa| sa.action.as_str())
+                .unwrap_or("import"); // default: import
+
+            if shape_action == "skip" {
+                continue;
+            }
+            if shape_action == "use_existing" {
+                // Don't re-import; shape is already in DB
+                continue;
+            }
+
+            let shape_svg = read_zip_entry_string(
+                &mut zip,
+                &[
+                    format!("shapes/{}/shape.svg", shape_dir),
+                    format!("shapes/{}.svg", shape_dir),
+                ],
+            )
+            .unwrap_or_default();
+
+            // Extract a clean shape name from directory (remove uuid suffix if present)
+            let shape_name = shape_dir
+                .split('.')
+                .next()
+                .map(|s| s.replace('-', " "))
+                .unwrap_or_else(|| format!("Shape from {}", graphic_name));
+
+            let shape_id_new = Uuid::new_v4();
+            let parent_id = if shape_action == "import_as_copy" {
+                // Import as separate shape, not linked to this graphic
+                None::<Uuid>
+            } else {
+                Some(new_id)
+            };
+
+            match sqlx::query(
+                "INSERT INTO design_objects \
+                 (id, name, type, svg_data, bindings, metadata, parent_id, created_by) \
+                 VALUES ($1, $2, 'shape', $3, '{}'::jsonb, '{}'::jsonb, $4, $5)",
+            )
+            .bind(shape_id_new)
+            .bind(&shape_name)
+            .bind(&shape_svg)
+            .bind(parent_id)
+            .bind(created_by)
+            .execute(&state.db)
+            .await
+            {
+                Ok(_) => {
+                    shapes_imported_total += 1;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "commit_iographic: shape insert failed (non-fatal)");
+                    missing_shapes_out.push(shape_dir.clone());
+                }
+            }
+        }
+
+        // 5f. Import stencils per stencil_actions
+        for stencil in &manifest.stencils {
+            let action = options.stencil_actions.iter()
+                .find(|sa| sa.stencil_id == stencil.directory)
+                .map(|sa| sa.action.as_str())
+                .unwrap_or("import");
+
+            if action == "skip" || action == "use_existing" {
+                continue;
+            }
+
+            let stencil_svg = read_zip_entry_string(
+                &mut zip,
+                &[format!("stencils/{}/stencil.svg", stencil.directory)],
+            )
+            .unwrap_or_default();
+
+            let stencil_id_new = Uuid::new_v4();
+            match sqlx::query(
+                "INSERT INTO design_objects \
+                 (id, name, type, svg_data, bindings, metadata, created_by) \
+                 VALUES ($1, $2, 'stencil', $3, '{}'::jsonb, '{}'::jsonb, $4)",
+            )
+            .bind(stencil_id_new)
+            .bind(&stencil.name)
+            .bind(&stencil_svg)
+            .bind(created_by)
+            .execute(&state.db)
+            .await
+            {
+                Ok(_) => {
+                    stencils_imported_total += 1;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "commit_iographic: stencil insert failed (non-fatal)");
+                }
+            }
+        }
+    }
+
+    let result = IographicImportResult {
+        graphics_imported: graphic_ids.len(),
+        shapes_imported: shapes_imported_total,
+        stencils_imported: stencils_imported_total,
+        bindings_resolved: total_bindings_resolved,
+        bindings_unresolved: total_bindings_unresolved,
+        bindings_total: total_bindings_total,
+        unresolved_tags: unresolved_tags_out,
+        missing_shapes: missing_shapes_out,
+        graphic_ids,
+    };
+
+    Json(ApiResponse::ok(result)).into_response()
+}

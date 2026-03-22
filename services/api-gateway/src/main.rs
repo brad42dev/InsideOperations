@@ -276,10 +276,14 @@ async fn main() -> anyhow::Result<()> {
         // Batch shape / stencil loaders
         .route("/api/v1/shapes/batch", post(handlers::graphics::batch_shapes))
         .route("/api/v1/stencils/batch", post(handlers::graphics::batch_stencils))
-        // iographic analyze — static path MUST be before parameterised /:id routes
+        // iographic analyze + commit — static paths MUST be before parameterised /:id routes
         .route(
             "/api/v1/design-objects/import/iographic/analyze",
             post(handlers::iographic::analyze_iographic),
+        )
+        .route(
+            "/api/v1/design-objects/import/iographic",
+            post(handlers::iographic::commit_iographic),
         )
         // Design objects (shapes / stencils)
         // NOTE: routes registered under both /api/design-objects (legacy) and
