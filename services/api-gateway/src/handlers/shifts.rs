@@ -118,6 +118,14 @@ pub struct ShiftAssignmentRow {
 }
 
 #[derive(Debug, Serialize)]
+pub struct CurrentPersonnelRow {
+    pub user_id: Uuid,
+    pub display_name: Option<String>,
+    pub email: Option<String>,
+    pub role_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct PresenceStatusRow {
     pub user_id: Uuid,
     pub display_name: Option<String>,
@@ -1916,6 +1924,119 @@ pub async fn delete_badge_source(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/shifts/current — active shift(s) overlapping now()
+// ---------------------------------------------------------------------------
+
+pub async fn get_current_shifts(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "shifts:read") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
+            .into_response();
+    }
+
+    let rows = sqlx::query(
+        r#"
+        SELECT s.id, s.name, s.crew_id, sc.name AS crew_name, s.pattern_id,
+               s.start_time, s.end_time, s.handover_minutes, s.notes, s.status,
+               s.created_at, s.created_by
+        FROM shifts s
+        LEFT JOIN shift_crews sc ON sc.id = s.crew_id
+        WHERE s.start_time <= now()
+          AND (s.end_time + (s.handover_minutes || ' minutes')::interval) >= now()
+        ORDER BY s.start_time
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rows) => {
+            let data: Vec<ShiftRow> = rows
+                .iter()
+                .map(|r| ShiftRow {
+                    id: r.get("id"),
+                    name: r.get("name"),
+                    crew_id: r.get("crew_id"),
+                    crew_name: r.get("crew_name"),
+                    pattern_id: r.get("pattern_id"),
+                    start_time: r.get("start_time"),
+                    end_time: r.get("end_time"),
+                    handover_minutes: r.get("handover_minutes"),
+                    notes: r.get("notes"),
+                    status: r.get("status"),
+                    created_at: r.get("created_at"),
+                    created_by: r.get("created_by"),
+                })
+                .collect();
+            ok(data).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "get_current_shifts query failed");
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch current shifts",
+            )
+            .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/shifts/current/personnel — personnel on active shifts
+// ---------------------------------------------------------------------------
+
+pub async fn get_current_personnel(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "shifts:read") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
+            .into_response();
+    }
+
+    let rows = sqlx::query(
+        r#"
+        SELECT DISTINCT sa.user_id, u.display_name, u.email, sa.role_label
+        FROM shifts s
+        JOIN shift_assignments sa ON sa.shift_id = s.id
+        LEFT JOIN users u ON u.id = sa.user_id
+        WHERE s.start_time <= now()
+          AND (s.end_time + (s.handover_minutes || ' minutes')::interval) >= now()
+        ORDER BY u.display_name
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rows) => {
+            let data: Vec<CurrentPersonnelRow> = rows
+                .iter()
+                .map(|r| CurrentPersonnelRow {
+                    user_id: r.get("user_id"),
+                    display_name: r.get("display_name"),
+                    email: r.get("email"),
+                    role_label: r.get("role_label"),
+                })
+                .collect();
+            ok(data).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "get_current_personnel query failed");
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch current shift personnel",
+            )
+            .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Route builder (called from main.rs)
 // ---------------------------------------------------------------------------
 
@@ -1939,7 +2060,9 @@ pub fn shifts_routes() -> axum::Router<AppState> {
             "/api/shifts/crews/:id/members/:user_id",
             delete(remove_crew_member),
         )
-        // Shifts CRUD
+        // Shifts CRUD — current routes must come before /:id to avoid UUID matching
+        .route("/api/shifts/current", get(get_current_shifts))
+        .route("/api/shifts/current/personnel", get(get_current_personnel))
         .route("/api/shifts", get(list_shifts).post(create_shift))
         .route(
             "/api/shifts/:id",
