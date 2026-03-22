@@ -74,14 +74,16 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(uds::run_uds_server(sock, c, r, cx, p, db));
     }
 
-    // Spawn NOTIFY/LISTEN fallback.
+    // Spawn NOTIFY/LISTEN listener (point_updates fallback + export_complete).
     {
         let db2 = db.clone();
         let c = Arc::clone(&shadow_cache);
         let r = Arc::clone(&registry);
         let p = Arc::clone(&pending);
         let db_val = cfg.fanout_deadband;
-        tokio::spawn(notify::run_notify_listener(db2, c, r, p, db_val));
+        let cx = Arc::clone(&connections);
+        let uc = Arc::clone(&user_connections);
+        tokio::spawn(notify::run_notify_listener(db2, c, r, p, db_val, cx, uc));
     }
 
     // Spawn batched fanout flusher.

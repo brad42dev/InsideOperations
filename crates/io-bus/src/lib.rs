@@ -280,6 +280,9 @@ pub enum WsServerMessage {
     AlertAcknowledged {
         payload: serde_json::Value,
     },
+    ExportComplete {
+        job_id: Uuid,
+    },
     ExportNotification {
         payload: serde_json::Value,
     },

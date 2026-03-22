@@ -163,7 +163,8 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
       break
     }
     case 'export_complete': {
-      const job_id = msg.job_id as string | undefined
+      const payload = msg.payload as Record<string, unknown> | undefined
+      const job_id = (payload?.job_id ?? msg.job_id) as string | undefined
       if (!job_id) break
       // Dynamically import to avoid pulling in Toast at module load time
       import('../components/Toast').then(({ showToast }) => {
