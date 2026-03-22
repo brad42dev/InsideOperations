@@ -3863,7 +3863,7 @@
       "wave": 2,
       "title": "Build File \u2192 Properties dialog for canvas resize and background color",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-016"
       ],
@@ -3915,7 +3915,7 @@
       "wave": 2,
       "title": "Group management \u2014 create with name prompt, rename, ungroup, keyboard shortcuts",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"

@@ -28,6 +28,7 @@ export interface DesignerModeTabsProps {
   onPublish?: () => void
   onNew?: () => void
   onOpen?: () => void
+  onProperties?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +81,7 @@ export default function DesignerModeTabs({
   onPublish,
   onNew,
   onOpen,
+  onProperties,
 }: DesignerModeTabsProps) {
   const designMode    = useSceneStore(s => s.designMode)
   const setDesignMode = useSceneStore(s => s.setDesignMode)
@@ -104,6 +106,8 @@ export default function DesignerModeTabs({
     { label: 'New Graphic…',       action: () => { onNew?.(); setFileMenuOpen(false) } },
     { label: 'Open…',              action: () => { onOpen?.(); setFileMenuOpen(false) } },
     { label: 'Save',               shortcut: 'Ctrl+S', action: perms.canWrite ? () => { onSave?.(); setFileMenuOpen(false) } : undefined },
+    { divider: true },
+    { label: 'Properties…',        action: () => { onProperties?.(); setFileMenuOpen(false) } },
     { divider: true },
     { label: 'Import .iographic…', action: perms.canImport ? () => { onImport?.(); setFileMenuOpen(false) } : undefined },
     { label: 'Export .iographic',  action: perms.canExport ? () => { onExport?.(); setFileMenuOpen(false) } : undefined },

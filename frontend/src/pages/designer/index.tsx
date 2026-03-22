@@ -36,6 +36,7 @@ import VersionHistoryDialog from './components/VersionHistoryDialog'
 import ValidateBindingsDialog from './components/ValidateBindingsDialog'
 import IographicImportWizard from './components/IographicImportWizard'
 import IographicExportDialog from './components/IographicExportDialog'
+import CanvasPropertiesDialog from './components/CanvasPropertiesDialog'
 
 // ---------------------------------------------------------------------------
 // New Graphic dialog
@@ -587,6 +588,7 @@ export default function DesignerPage() {
   const [showValidateBindings, setShowValidateBindings] = useState(false)
   const [showImportWizard, setShowImportWizard] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showPropertiesDialog, setShowPropertiesDialog] = useState(false)
 
   // Validate bindings results
   const [bindingValidation, setBindingValidation] = useState<{
@@ -1220,6 +1222,11 @@ export default function DesignerPage() {
         />
       )}
 
+      {/* Canvas properties dialog */}
+      {showPropertiesDialog && (
+        <CanvasPropertiesDialog onClose={() => setShowPropertiesDialog(false)} />
+      )}
+
       {/* Mode tabs */}
       <DesignerModeTabs
         onSave={handleSave}
@@ -1229,6 +1236,7 @@ export default function DesignerPage() {
         onExport={() => setShowExportDialog(true)}
         onNew={() => setShowNewDialog(true)}
         onOpen={() => navigate('/designer/graphics')}
+        onProperties={() => setShowPropertiesDialog(true)}
       />
 
       {/* Toolbar */}
@@ -1282,7 +1290,7 @@ export default function DesignerPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 200 }}>
           {loading && <LoadingSkeleton />}
           {loadError && <ErrorState message={loadError} onRetry={loadDoc} />}
-          {!loading && !loadError && <DesignerCanvas style={{ flex: 1 }} />}
+          {!loading && !loadError && <DesignerCanvas style={{ flex: 1 }} onPropertiesOpen={() => setShowPropertiesDialog(true)} />}
         </div>
 
         {/* Right divider */}

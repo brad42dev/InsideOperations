@@ -87,6 +87,7 @@ import PointPickerModal from './components/PointPickerModal'
 export interface DesignerCanvasProps {
   className?: string
   style?: React.CSSProperties
+  onPropertiesOpen?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -1567,7 +1568,7 @@ function ConnectionPointsOverlay({
 // Main canvas component
 // ---------------------------------------------------------------------------
 
-export default function DesignerCanvas({ className, style }: DesignerCanvasProps) {
+export default function DesignerCanvas({ className, style, onPropertiesOpen }: DesignerCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Store subscriptions
@@ -3701,6 +3702,7 @@ export default function DesignerCanvas({ className, style }: DesignerCanvasProps
       containerRef={containerRef}
       fitToCanvas={fitToCanvas}
       setGroupPrompt={setGroupPrompt}
+      onPropertiesOpen={onPropertiesOpen}
     />
     </ContextMenuPrimitive.Root>
   )
@@ -3956,6 +3958,7 @@ interface DesignerContextMenuContentProps {
     renameNodeId?: NodeId
     currentName?: string
   } | null>>
+  onPropertiesOpen?: () => void
 }
 
 function DesignerContextMenuContent({
@@ -3974,6 +3977,7 @@ function DesignerContextMenuContent({
   containerRef,
   fitToCanvas,
   setGroupPrompt,
+  onPropertiesOpen,
 }: DesignerContextMenuContentProps) {
   const getShape = useLibraryStore(s => s.getShape)
 
@@ -4230,6 +4234,11 @@ function DesignerContextMenuContent({
         <ContextMenuPrimitive.Item style={itemStyle}
           onSelect={() => setGrid(!gridVisible)}>
           {gridVisible ? 'Hide Grid' : 'Show Grid'}
+        </ContextMenuPrimitive.Item>
+
+        <ContextMenuPrimitive.Item style={itemStyle}
+          onSelect={() => onPropertiesOpen?.()}>
+          Properties…
         </ContextMenuPrimitive.Item>
 
         <ContextMenuPrimitive.Separator style={sepStyle} />
