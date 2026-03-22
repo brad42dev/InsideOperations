@@ -19,6 +19,39 @@ import ResetPassword from './pages/ResetPassword'
 import EulaAcceptance from './pages/EulaAcceptance'
 import EulaGate from './pages/EulaGate'
 import OidcCallback from './pages/OidcCallback'
+import { detectDeviceType } from './shared/hooks/useWebSocket'
+
+// ---------------------------------------------------------------------------
+// Mobile guard — Designer, Forensics, and Settings are desktop-only modules.
+// spec: design-docs/20_MOBILE_ARCHITECTURE.md §Performance Budgets > Code Splitting
+// "Modules not available on a given device form factor are never loaded."
+// ---------------------------------------------------------------------------
+const isMobile = detectDeviceType() !== 'desktop'
+
+function MobileNotAvailable({ module: moduleName }: { module: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        minHeight: '200px',
+        padding: '24px',
+        textAlign: 'center',
+        color: 'var(--io-text-muted)',
+        fontSize: '14px',
+        gap: '8px',
+      }}
+    >
+      <div style={{ fontWeight: 600, fontSize: '16px', color: 'var(--io-text-primary)' }}>
+        {moduleName} is not available on mobile devices
+      </div>
+      <div>Please use a desktop browser to access this feature.</div>
+    </div>
+  )
+}
 
 // Register named ECharts themes at module load time (once, before any chart renders).
 // Names are prefixed 'io-' to avoid collision with ECharts built-in 'light' / 'dark'.
@@ -267,9 +300,11 @@ function AppRoutes() {
         />
 
         {/* Designer module — nested sub-routes */}
+        {/* Mobile guard: Designer is not available on phone/tablet (doc 20 §Code Splitting) */}
         <Route
           path="designer"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:read">
               <ErrorBoundary module="Designer">
                 <DesignerHome />
@@ -280,6 +315,7 @@ function AppRoutes() {
         <Route
           path="designer/graphics"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:read">
               <ErrorBoundary module="Designer">
                 <DesignerGraphicsList />
@@ -290,6 +326,7 @@ function AppRoutes() {
         <Route
           path="designer/graphics/new"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:write">
               <ErrorBoundary module="Designer">
                 <DesignerPage />
@@ -300,6 +337,7 @@ function AppRoutes() {
         <Route
           path="designer/graphics/:id"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:read">
               <ErrorBoundary module="Designer">
                 <DesignerPage />
@@ -310,6 +348,7 @@ function AppRoutes() {
         <Route
           path="designer/graphics/:id/edit"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:write">
               <ErrorBoundary module="Designer">
                 <DesignerPage />
@@ -320,6 +359,7 @@ function AppRoutes() {
         <Route
           path="designer/dashboards"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:read">
               <ErrorBoundary module="Designer">
                 <DesignerDashboardsList />
@@ -330,6 +370,7 @@ function AppRoutes() {
         <Route
           path="designer/dashboards/new"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="dashboards:write">
               <ErrorBoundary module="Designer">
                 <DashboardBuilder />
@@ -340,6 +381,7 @@ function AppRoutes() {
         <Route
           path="designer/dashboards/:id/edit"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="dashboards:write">
               <ErrorBoundary module="Designer">
                 <DashboardBuilder />
@@ -350,6 +392,7 @@ function AppRoutes() {
         <Route
           path="designer/reports"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:read">
               <ErrorBoundary module="Designer">
                 <DesignerReportsList />
@@ -360,6 +403,7 @@ function AppRoutes() {
         <Route
           path="designer/reports/new"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:write">
               <ErrorBoundary module="Designer">
                 <DesignerPage />
@@ -370,6 +414,7 @@ function AppRoutes() {
         <Route
           path="designer/reports/:id/edit"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:write">
               <ErrorBoundary module="Designer">
                 <DesignerPage />
@@ -381,6 +426,7 @@ function AppRoutes() {
         <Route
           path="designer/import"
           element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="designer:import">
               <ErrorBoundary module="Designer">
                 <DesignerImport />
@@ -514,9 +560,11 @@ function AppRoutes() {
         />
 
         {/* Forensics module — static paths before parameterised */}
+        {/* Mobile guard: Forensics is not available on phone/tablet (doc 20 §Code Splitting) */}
         <Route
           path="forensics"
           element={
+            isMobile ? <MobileNotAvailable module="Forensics" /> :
             <PermissionGuard permission="forensics:read">
               <ErrorBoundary module="Forensics">
                 <ForensicsPage />
@@ -527,6 +575,7 @@ function AppRoutes() {
         <Route
           path="forensics/new"
           element={
+            isMobile ? <MobileNotAvailable module="Forensics" /> :
             <PermissionGuard permission="forensics:write">
               <ErrorBoundary module="Forensics">
                 <ForensicsNew />
@@ -537,6 +586,7 @@ function AppRoutes() {
         <Route
           path="forensics/:id/edit"
           element={
+            isMobile ? <MobileNotAvailable module="Forensics" /> :
             <PermissionGuard permission="forensics:write">
               <ErrorBoundary module="Forensics">
                 <InvestigationEditor />
@@ -547,6 +597,7 @@ function AppRoutes() {
         <Route
           path="forensics/:id"
           element={
+            isMobile ? <MobileNotAvailable module="Forensics" /> :
             <PermissionGuard permission="forensics:read">
               <ErrorBoundary module="Forensics">
                 <InvestigationWorkspace />
@@ -854,7 +905,15 @@ function AppRoutes() {
         />
 
         {/* Settings */}
-        <Route path="settings" element={<ErrorBoundary module="Settings"><SettingsShell /></ErrorBoundary>}>
+        {/* Mobile guard: Settings is not available on phone/tablet (doc 20 §Code Splitting) */}
+        <Route
+          path="settings"
+          element={
+            isMobile
+              ? <MobileNotAvailable module="Settings" />
+              : <ErrorBoundary module="Settings"><SettingsShell /></ErrorBoundary>
+          }
+        >
           <Route index element={<Navigate to="users" replace />} />
           <Route
             path="users"
