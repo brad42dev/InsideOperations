@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T05:07:52.229018Z",
+  "last_updated": "2026-03-22T05:59:43.913996",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -57,7 +57,10 @@
     "DD-29-002": 1,
     "DD-32-002": 1,
     "DD-37-001": 1,
-    "DD-33-002": 1
+    "DD-33-002": 1,
+    "DD-36-001": 1,
+    "GFX-SHAPES-007": 1,
+    "MOD-DESIGNER-004": 1
   },
   "queue": [
     {
@@ -1252,7 +1255,7 @@
       "title": "Differentiate empty-canvas context menu (RC-DES-1) from node context menu",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 3
     },
     {
@@ -2634,7 +2637,7 @@
       "wave": 3,
       "title": "Rename inference route from /recognition/infer to /recognition/detect",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3403,7 +3406,7 @@
       "wave": 3,
       "title": "Register dependency health checks in all 11 services",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3649,7 +3652,7 @@
       "wave": 3,
       "title": "Implement commit import endpoint with options payload and tag-based binding reconstruction",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-39-003"
       ],
@@ -3771,7 +3774,7 @@
         "GFX-SHAPES-001",
         "GFX-SHAPES-002"
       ],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 3
     },
     {

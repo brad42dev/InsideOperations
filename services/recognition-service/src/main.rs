@@ -45,6 +45,8 @@ pub struct RecognitionResult {
     pub status: String,
     pub domain: String,
     pub detections: Vec<Detection>,
+    pub ocr_results: Vec<serde_json::Value>,
+    pub line_results: Option<Vec<serde_json::Value>>,
     pub processing_ms: u64,
 }
 
@@ -56,11 +58,10 @@ pub struct Detection {
     pub class_id: i32,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct RunInferenceBody {
-    pub graphic_id: Option<String>,
-    pub domain: String,  // "pid" or "dcs"
-    pub image_base64: Option<String>,  // base64-encoded PNG/JPEG
+#[derive(Debug, Deserialize, Default)]
+pub struct InferenceOptions {
+    pub confidence_threshold: Option<f32>,
+    pub domain: Option<String>,  // "pid" | "dcs" | "auto"
 }
 
 // ---------------------------------------------------------------------------
@@ -292,21 +293,55 @@ async fn delete_model(
     Json(ApiResponse::ok(serde_json::json!({"deleted": true}))).into_response()
 }
 
-// POST /recognition/infer — run inference on an image
+// POST /recognition/detect — run inference on an image (multipart/form-data)
+// Expected fields: image (File), options (optional JSON string)
 async fn run_inference(
     State(_state): State<AppState>,
-    Json(body): Json<RunInferenceBody>,
+    mut multipart: Multipart,
 ) -> impl IntoResponse {
+    let mut image_filename: Option<String> = None;
+    let mut options = InferenceOptions::default();
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "image" => {
+                image_filename = field.file_name().map(|s| s.to_string());
+                // Consume bytes (real implementation would process the image)
+                let _ = field.bytes().await;
+            }
+            "options" => {
+                if let Ok(raw) = field.bytes().await {
+                    if let Ok(parsed) = serde_json::from_slice::<InferenceOptions>(&raw) {
+                        options = parsed;
+                    }
+                }
+            }
+            _ => {
+                let _ = field.bytes().await;
+            }
+        }
+    }
+
+    if image_filename.is_none() {
+        return IoError::BadRequest("Missing required 'image' field in multipart form".to_string())
+            .into_response();
+    }
+
+    let domain = options.domain.unwrap_or_else(|| "auto".to_string());
+
     // Stub: return placeholder result.
     // In production: load model for domain, preprocess image, run ONNX session, NMS.
     let result = RecognitionResult {
         job_id: Uuid::new_v4().to_string(),
         status: "stub".to_string(),
-        domain: body.domain,
-        detections: vec![],  // real inference would populate this
+        domain,
+        detections: vec![],
+        ocr_results: vec![],
+        line_results: None,
         processing_ms: 0,
     };
-    tracing::info!(graphic_id = ?body.graphic_id, "Inference request (stub — ONNX deferred)");
+    tracing::info!(filename = ?image_filename, "Inference request (stub — ONNX deferred)");
     Json(ApiResponse::ok(result)).into_response()
 }
 
@@ -369,7 +404,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/recognition/status", get(get_status))
         .route("/recognition/models", get(list_models).post(upload_model))
         .route("/recognition/models/:id", get(get_model).delete(delete_model))
-        .route("/recognition/infer", post(run_inference))
+        .route("/recognition/detect", post(run_inference))
         .route("/recognition/gap-reports", post(import_gap_report))
         .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
         .with_state(state);

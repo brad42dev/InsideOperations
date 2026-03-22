@@ -24,6 +24,8 @@ export interface RecognitionResult {
   status: string
   domain: string
   detections: Detection[]
+  ocr_results: unknown[]
+  line_results?: unknown[]
   processing_ms: number
 }
 
@@ -42,10 +44,9 @@ export interface RecognitionStatus {
   onnx_available: boolean
 }
 
-export interface RunInferenceBody {
-  graphic_id?: string
-  domain: string
-  image_base64?: string
+export interface InferenceOptions {
+  confidence_threshold?: number
+  domain?: 'pid' | 'dcs' | 'auto'
 }
 
 // ---------------------------------------------------------------------------
@@ -69,8 +70,40 @@ export const recognitionApi = {
     return api.delete<{ deleted: boolean }>(`/api/recognition/models/${id}`)
   },
 
-  runInference(body: RunInferenceBody): Promise<ApiResult<RecognitionResult>> {
-    return api.post<RecognitionResult>('/api/recognition/infer', body)
+  /** Run inference on an image file via multipart/form-data */
+  async runInference(image: File, options?: InferenceOptions): Promise<ApiResult<RecognitionResult>> {
+    const token = localStorage.getItem(TOKEN_KEY)
+    const form = new FormData()
+    form.append('image', image, image.name)
+    if (options !== undefined) {
+      form.append('options', JSON.stringify(options))
+    }
+
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    try {
+      const res = await fetch(`${API_BASE}/api/recognition/detect`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: form,
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        return {
+          success: false,
+          error: (json as { error?: { code: string; message: string } }).error ?? {
+            code: 'SERVER_ERROR',
+            message: `Inference failed: ${res.status}`,
+          },
+        }
+      }
+      const envelope = json as { data?: RecognitionResult }
+      return { success: true, data: envelope.data as RecognitionResult }
+    } catch {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Network request failed' } }
+    }
   },
 
   /** Upload a .iomodel file via multipart form */
