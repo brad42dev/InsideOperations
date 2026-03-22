@@ -249,9 +249,9 @@ async fn run_source_once(
                         );
                         return None;
                     }
-                    // Policy is None — pick the lowest-security endpoint.
+                    // Policy is None — pick the highest-security endpoint available.
                     let mut candidates = server_endpoints.clone();
-                    candidates.sort_by_key(|e| e.security_level);
+                    candidates.sort_by_key(|e| std::cmp::Reverse(e.security_level));
                     candidates.into_iter().next().map(|mut ep| {
                         security_policy =
                             SecurityPolicy::from_uri(ep.security_policy_uri.as_ref());
@@ -259,7 +259,7 @@ async fn run_source_once(
                             endpoint_url = %endpoint_url,
                             server_policy = %ep.security_policy_uri,
                             mode = ?ep.security_mode,
-                            "Auto-selected lowest-security endpoint"
+                            "Auto-selected highest-security endpoint"
                         );
                         let rewritten = rewrite_hostname(ep.endpoint_url.as_ref(), &endpoint_url);
                         ep.endpoint_url = UAString::from(rewritten.as_str());
