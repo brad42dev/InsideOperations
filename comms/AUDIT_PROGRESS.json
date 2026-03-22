@@ -1,1 +1,4029 @@
-{"schema": "audit-progress/v2", "last_updated": "2026-03-22T14:50:29.791456+00:00", "checkpoint_count": 11, "next_checkpoint_at": 24, "current_unit": null, "task_attempts": {"GFX-SHAPES-001": 1, "GFX-SHAPES-002": 0, "MOD-DESIGNER-001": 1, "MOD-CONSOLE-001": 2, "MOD-CONSOLE-003": 1, "DD-27-001": 1, "DD-23-001": 1, "DD-24-001": 1, "DD-06-002": 1, "DD-15-001": 1, "DD-06-004": 1, "DD-10-001": 1, "DD-11-004": 1, "DD-12-005": 1, "DD-12-006": 1, "DD-13-001": 1, "DD-15-002": 1, "DD-18-001": 1, "DD-20-003": 1, "DD-20-004": 1, "DD-25-001": 1, "DD-25-003": 1, "DD-32-003": 1, "DD-26-005": 1, "DD-27-003": 1, "DD-29-004": 1, "DD-30-001": 1, "DD-33-005": 1, "DD-33-007": 1, "DD-36-004": 1, "DD-13-002": 1, "DD-20-007": 1, "DD-22-001": 1, "DD-22-003": 1, "DD-22-004": 1, "DD-23-002": 1, "DD-23-003": 1, "MOD-CONSOLE-006": 2, "MOD-CONSOLE-005": 1, "GFX-DISPLAY-003": 1, "MOD-PROCESS-004": 1, "MOD-DESIGNER-016": 1, "DD-06-011": 1, "MOD-DESIGNER-002": 1, "MOD-DESIGNER-023": 1, "OPC-BACKEND-002": 1, "DD-28-002": 1, "DD-28-006": 1, "DD-29-001": 1, "DD-29-002": 1, "DD-32-002": 1, "DD-37-001": 1, "DD-33-002": 1, "DD-36-001": 1, "GFX-SHAPES-007": 1, "MOD-DESIGNER-004": 1, "DD-34-001": 1, "MOD-DESIGNER-012": 1, "DD-16-003": 1, "DD-20-001": 1, "DD-23-007": 1, "DD-23-011": 1, "DD-26-003": 1, "GFX-CORE-002": 1, "DD-06-001": 1, "DD-27-006": 1, "DD-28-003": 1, "DD-31-003": 1, "DD-34-003": 1, "GFX-CORE-004": 1, "GFX-DISPLAY-004": 1, "GFX-SHAPES-003": 1, "DD-06-005": 1, "MOD-PROCESS-003": 1, "GFX-SHAPES-005": 1, "MOD-PROCESS-007": 1, "OPC-BACKEND-003": 1, "MOD-CONSOLE-007": 1, "MOD-DESIGNER-003": 1, "MOD-DESIGNER-018": 1, "DD-06-010": 1, "DD-10-002": 1, "DD-10-003": 1, "DD-10-004": 1, "DD-10-005": 1, "DD-10-006": 1, "DD-10-008": 1, "MOD-DESIGNER-025": 1, "DD-12-001": 1, "DD-12-002": 1, "DD-12-007": 1, "DD-12-008": 1, "DD-13-004": 1, "DD-13-007": 1}, "queue": [{"unit": "GFX-CORE", "wave": 1, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/GFX-CORE.md", "tasks_open": ["GFX-CORE-002", "GFX-CORE-003", "GFX-CORE-004"], "completed_at": "2026-03-21", "notes": "Re-audited round 3. 2 tasks closed (GFX-CORE-001, GFX-CORE-005). 3 tasks remain open.", "last_audit_round": 3, "verified_since_last_audit": 1}, {"unit": "GFX-DISPLAY", "wave": 1, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/GFX-DISPLAY.md", "tasks_open": ["GFX-DISPLAY-001", "GFX-DISPLAY-002", "GFX-DISPLAY-003", "GFX-DISPLAY-004", "GFX-DISPLAY-005", "GFX-DISPLAY-006"], "completed_at": "2026-03-21", "notes": "6 tasks generated.", "last_audit_round": 1, "verified_since_last_audit": 0}, {"unit": "GFX-SHAPES", "wave": 1, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/GFX-SHAPES.md", "tasks_open": ["GFX-SHAPES-001", "GFX-SHAPES-002", "GFX-SHAPES-003", "GFX-SHAPES-004", "GFX-SHAPES-005", "GFX-SHAPES-006", "GFX-SHAPES-007"], "completed_at": "2026-03-21", "notes": "Re-audited round 3. 7 gaps found. Previously verified tasks reset.", "last_audit_round": 3, "verified_since_last_audit": 1}, {"unit": "MOD-CONSOLE", "wave": 2, "status": "in_progress", "attempts": 4, "repair_attempts": 0, "catalog": "docs/catalogs/MOD-CONSOLE.md", "tasks_open": ["MOD-CONSOLE-001", "MOD-CONSOLE-002", "MOD-CONSOLE-003", "MOD-CONSOLE-005", "MOD-CONSOLE-006", "MOD-CONSOLE-007", "MOD-CONSOLE-008", "MOD-CONSOLE-009", "MOD-CONSOLE-010", "MOD-CONSOLE-011"], "completed_at": "2026-03-22T02:44:13.591467+00:00", "notes": "11 tasks generated, 10 open, wave0 findings yes", "last_audit_round": 8, "verified_since_last_audit": 5}, {"unit": "MOD-PROCESS", "wave": 2, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/MOD-PROCESS.md", "tasks_open": ["MOD-PROCESS-001", "MOD-PROCESS-002", "MOD-PROCESS-003", "MOD-PROCESS-004", "MOD-PROCESS-005", "MOD-PROCESS-006", "MOD-PROCESS-007", "MOD-PROCESS-008"], "completed_at": "2026-03-21", "notes": "8 tasks generated.", "last_audit_round": 1, "verified_since_last_audit": 0}, {"unit": "MOD-DESIGNER", "wave": 2, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/MOD-DESIGNER.md", "tasks_open": ["MOD-DESIGNER-001", "MOD-DESIGNER-002", "MOD-DESIGNER-003", "MOD-DESIGNER-004", "MOD-DESIGNER-005", "MOD-DESIGNER-006", "MOD-DESIGNER-007", "MOD-DESIGNER-008", "MOD-DESIGNER-009", "MOD-DESIGNER-010", "MOD-DESIGNER-011", "MOD-DESIGNER-012", "MOD-DESIGNER-013", "MOD-DESIGNER-014", "MOD-DESIGNER-015", "MOD-DESIGNER-016", "MOD-DESIGNER-017", "MOD-DESIGNER-018", "MOD-DESIGNER-019", "MOD-DESIGNER-020", "MOD-DESIGNER-021", "MOD-DESIGNER-022", "MOD-DESIGNER-023", "MOD-DESIGNER-024", "MOD-DESIGNER-025"], "completed_at": "2026-03-21", "notes": "Re-audited round 3. 10 gaps found. Wave 0 findings: CX-CANVAS-CONTEXT, CX-POINT-CONTEXT, CX-ERROR, CX-LOADING, CX-TOKENS. Round 6: 15 feature tasks added (resize completeness, canvas size controls, cross-mode palette parity, group management/tabs, promote group to shape).", "last_audit_round": 3, "verified_since_last_audit": 3}, {"unit": "OPC-BACKEND", "wave": 2, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/OPC-BACKEND.md", "tasks_open": ["OPC-BACKEND-001", "OPC-BACKEND-002", "OPC-BACKEND-003"], "completed_at": "2026-03-21", "notes": "3 tasks generated.", "last_audit_round": 1, "verified_since_last_audit": 0}, {"unit": "DD-06", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-06.md", "tasks_open": ["DD-06-001", "DD-06-002", "DD-06-003", "DD-06-004", "DD-06-005", "DD-06-006", "DD-06-007", "DD-06-008", "DD-06-009", "DD-06-010"], "completed_at": "2026-03-21", "notes": "10 tasks.", "last_audit_round": 2, "verified_since_last_audit": 1}, {"unit": "DD-10", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-10.md", "tasks_open": ["DD-10-001", "DD-10-002", "DD-10-003", "DD-10-004", "DD-10-005", "DD-10-006", "DD-10-007", "DD-10-008", "DD-10-009"], "completed_at": "2026-03-21", "notes": "9 tasks.", "last_audit_round": 2, "verified_since_last_audit": 1}, {"unit": "DD-11", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-11.md", "tasks_open": ["DD-11-001", "DD-11-002", "DD-11-003", "DD-11-004", "DD-11-005", "DD-11-006", "DD-11-007", "DD-11-008"], "completed_at": "2026-03-21", "notes": "8 tasks.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-12", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-12.md", "tasks_open": ["DD-12-001", "DD-12-002", "DD-12-003", "DD-12-004", "DD-12-005", "DD-12-006", "DD-12-007", "DD-12-008", "DD-12-009", "DD-12-010", "DD-12-011", "DD-12-012"], "completed_at": "2026-03-21", "notes": "12 tasks. Alarm search absent; annotation edits not persisted; PointContextMenu missing tagName/isAlarm props.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-13", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-13.md", "tasks_open": ["DD-13-001", "DD-13-002", "DD-13-003", "DD-13-004", "DD-13-005", "DD-13-006", "DD-13-007", "DD-13-008", "DD-13-009", "DD-13-010"], "completed_at": "2026-03-21", "notes": "10 tasks. Tiptap extensions missing; Underline button calls toggleStrike; attachment upload absent; schedule mgmt is static stub.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-14", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-14.md", "tasks_open": ["DD-14-001", "DD-14-002", "DD-14-003", "DD-14-004", "DD-14-005", "DD-14-006", "DD-14-007"], "completed_at": "2026-03-21", "notes": "7 tasks. Round transfer UI absent; video/audio capture missing; no export button (CX-EXPORT).", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-15", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-15.md", "tasks_open": ["DD-15-001", "DD-15-002", "DD-15-003", "DD-15-004", "DD-15-005", "DD-15-006", "DD-15-007", "DD-15-008", "DD-15-009"], "completed_at": "2026-03-21", "notes": "9 tasks. 9 routes unprotected; MFA/ApiKeys/SCIM routes unreachable; Groups page stub only.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-16", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-16.md", "tasks_open": ["DD-16-001", "DD-16-002", "DD-16-003", "DD-16-004", "DD-16-005", "DD-16-006"], "completed_at": "2026-03-21", "notes": "6 tasks. Update efficiency absent; point_fresh never emitted; per-window subscription map missing.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-18", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-18.md", "tasks_open": ["DD-18-001", "DD-18-002", "DD-18-003", "DD-18-004", "DD-18-005", "DD-18-006"], "completed_at": "2026-03-21", "notes": "6 tasks. Raw queries silently drop Bad/Uncertain; 15m/1d tiers absent from API; rolling average absent.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-20", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-20.md", "tasks_open": ["DD-20-001", "DD-20-002", "DD-20-003", "DD-20-004", "DD-20-005", "DD-20-006", "DD-20-007", "DD-20-008"], "completed_at": "2026-03-21", "notes": "8 tasks. Page Visibility backgrounding absent; sync queue no idempotency; IndexedDB schema incomplete.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-21", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-21.md", "tasks_open": ["DD-21-001", "DD-21-002", "DD-21-003", "DD-21-004"], "completed_at": "2026-03-21", "notes": "4 tasks. PagedResponse unused; rate limit headers missing; SCIM route path wrong.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-22", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-22.md", "tasks_open": ["DD-22-001", "DD-22-002", "DD-22-003", "DD-22-004", "DD-22-005", "DD-22-006", "DD-22-007"], "completed_at": "2026-03-21", "notes": "7 tasks. Alert service restart policy wrong; HSTS on by default; 9 services missing watchdog keepalive.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-23", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-23.md", "tasks_open": ["DD-23-001", "DD-23-002", "DD-23-003", "DD-23-004", "DD-23-005", "DD-23-006", "DD-23-007", "DD-23-008", "DD-23-009", "DD-23-010", "DD-23-011", "DD-23-012", "DD-23-013", "DD-23-014", "DD-23-015", "DD-23-016"], "completed_at": "2026-03-21", "notes": "16 tasks. AST format wrong; Rhai backend nonexistent; save-and-apply flow missing.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-24", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-24.md", "tasks_open": ["DD-24-001", "DD-24-002", "DD-24-003", "DD-24-004", "DD-24-005", "DD-24-006", "DD-24-007"], "completed_at": "2026-03-21", "notes": "7 tasks. ETL pipeline is stub; RBAC unenforced; credentials stored plaintext.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-25", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-25.md", "tasks_open": ["DD-25-001", "DD-25-002", "DD-25-003", "DD-25-004", "DD-25-005", "DD-25-006", "DD-25-007"], "completed_at": "2026-03-21", "notes": "7 tasks. Universal export backend absent; no ExportDialog; bulk update missing 4+ entity types.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-26", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-26.md", "tasks_open": ["DD-26-001", "DD-26-002", "DD-26-003", "DD-26-004", "DD-26-005", "DD-26-006", "DD-26-007"], "completed_at": "2026-03-21", "notes": "7 tasks. ORT/sha2 crates absent; import wizard absent; 9 of 15 API endpoints missing.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-27", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-27.md", "tasks_open": ["DD-27-001", "DD-27-002", "DD-27-003", "DD-27-004", "DD-27-005", "DD-27-006", "DD-27-007", "DD-27-008"], "completed_at": "2026-03-21", "notes": "8 tasks. Alert schema mismatch; WebSocket dispatch is stub; 5 channel adapters missing; no CancellationToken.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-28", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-28.md", "tasks_open": ["DD-28-001", "DD-28-002", "DD-28-003", "DD-28-004", "DD-28-005", "DD-28-006", "DD-28-007", "DD-28-008"], "completed_at": "2026-03-21", "notes": "8 tasks. Credentials stored plaintext; MiniJinja not used; 4 provider adapters missing.", "last_audit_round": 2, "verified_since_last_audit": 1}, {"unit": "DD-29", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-29.md", "tasks_open": ["DD-29-001", "DD-29-002", "DD-29-003", "DD-29-004", "DD-29-005", "DD-29-006", "DD-29-007", "DD-29-008"], "completed_at": "2026-03-21", "notes": "8 tasks. EULA gate absent; OIDC token not signature-validated; MFA policy enforcement absent.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-30", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-30.md", "tasks_open": ["DD-30-001", "DD-30-002", "DD-30-003", "DD-30-004", "DD-30-005", "DD-30-006", "DD-30-007"], "completed_at": "2026-03-21", "notes": "7 tasks. Badge polling engine absent; /current endpoints missing; wrong RBAC on badge endpoints.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-31", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-31.md", "tasks_open": ["DD-31-001", "DD-31-002", "DD-31-003", "DD-31-004", "DD-31-005", "DD-31-006", "DD-31-007", "DD-31-008", "DD-31-009", "DD-31-010", "DD-31-011", "DD-31-012"], "completed_at": "2026-03-21", "notes": "12 tasks. Emergency permission not enforced; template variables typed wrong; no resolve/cancel on active alerts.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-32", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-32.md", "tasks_open": ["DD-32-001", "DD-32-002", "DD-32-003", "DD-32-004", "DD-32-005", "DD-32-006", "DD-32-007", "DD-32-008", "DD-32-009"], "completed_at": "2026-03-21", "notes": "9 tasks. DataTable missing 7 must-have features; no ThemeProvider context; PointDetailPanel lacks Alarm Data/Graphics sections.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-33", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-33.md", "tasks_open": ["DD-33-001", "DD-33-002", "DD-33-003", "DD-33-004", "DD-33-005", "DD-33-006", "DD-33-007"], "completed_at": "2026-03-21", "notes": "7 tasks. 8 services have zero test coverage; E2E tests are stubs; no weekly CI; no axe-core.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-34", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-34.md", "tasks_open": ["DD-34-001", "DD-34-002", "DD-34-003", "DD-34-004", "DD-34-005", "DD-34-006"], "completed_at": "2026-03-21", "notes": "6 tasks. Import wizard is 'Coming Soon' stub; no per-platform parsers; stateful job API absent.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-36", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-36.md", "tasks_open": ["DD-36-001", "DD-36-002", "DD-36-003", "DD-36-004", "DD-36-005", "DD-36-006", "DD-36-007", "DD-36-008"], "completed_at": "2026-03-21", "notes": "8 tasks. Health checks not registered; metrics collector absent; System Health page incomplete.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-37", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-37.md", "tasks_open": ["DD-37-001", "DD-37-002", "DD-37-003", "DD-37-004", "DD-37-005", "DD-37-006"], "completed_at": "2026-03-21", "notes": "6 tasks. io-models missing all domain types; WsServerMessage::Update wrong format; 6 NOTIFY payload types absent.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-38", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-38.md", "tasks_open": ["DD-38-001", "DD-38-002", "DD-38-003", "DD-38-004", "DD-38-005", "DD-38-006", "DD-38-007"], "completed_at": "2026-03-21", "notes": "7 tasks. RouteConfig registry absent; /designer/symbols stub redirect; wrong permission guards on 5 routes.", "last_audit_round": 2, "verified_since_last_audit": 0}, {"unit": "DD-39", "wave": 3, "status": "completed", "attempts": 1, "repair_attempts": 0, "catalog": "docs/catalogs/DD-39.md", "tasks_open": ["DD-39-001", "DD-39-002", "DD-39-003", "DD-39-004", "DD-39-005", "DD-39-006", "DD-39-007", "DD-39-008"], "completed_at": "2026-03-21", "notes": "8 tasks. UUID\u2192tag conversion absent; analyze/commit import endpoints missing; manifest missing 5 required fields.", "last_audit_round": 2, "verified_since_last_audit": 0}], "escalated": [], "task_registry": [{"id": "GFX-CORE-001", "unit": "GFX-CORE", "wave": 1, "title": "Implement pointToElements map with direct DOM mutation for real-time updates", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-CORE-002", "unit": "GFX-CORE", "wave": 1, "title": "Add NavigationLink click handling to all 6 missing node types", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 3}, {"id": "GFX-CORE-003", "unit": "GFX-CORE", "wave": 1, "title": "Implement all 9 annotation types in renderAnnotation", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 3}, {"id": "GFX-CORE-004", "unit": "GFX-CORE", "wave": 1, "title": "Render insulated pipes (double line + hatching) and dashPattern", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 3}, {"id": "GFX-CORE-005", "unit": "GFX-CORE", "wave": 1, "title": "Fix analog bar setpoint binding to use expressionId fallback", "priority": "low", "status": "verified", "depends_on": ["GFX-CORE-001"], "audit_round": 1}, {"id": "GFX-DISPLAY-001", "unit": "GFX-DISPLAY", "wave": 1, "title": "Implement analog bar zone alarm replacement (ISA alarm priority colors per zone)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-DISPLAY-002", "unit": "GFX-DISPLAY", "wave": 1, "title": "Fill gauge vessel-overlay mode must use vessel geometry clipPath, not a rect", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-DISPLAY-003", "unit": "GFX-DISPLAY", "wave": 1, "title": "Complete quality state handling in DOM mutation path (applyPointValue)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-DISPLAY-004", "unit": "GFX-DISPLAY", "wave": 1, "title": "Add alarm flash text fill keyframes for P2-P5 alarm indicator priorities", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-DISPLAY-005", "unit": "GFX-DISPLAY", "wave": 1, "title": "Implement signal line for text_readout, fill_gauge, sparkline, and digital_status", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 1}, {"id": "GFX-DISPLAY-006", "unit": "GFX-DISPLAY", "wave": 1, "title": "Replace hardcoded hex colors with CSS custom property references in display elements", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-SHAPES-001", "unit": "GFX-SHAPES", "wave": 1, "title": "Complete JSON sidecar schema", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-SHAPES-002", "unit": "GFX-SHAPES", "wave": 1, "title": "Add .io-stateful class to body elements", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-SHAPES-003", "unit": "GFX-SHAPES", "title": "Add mandatory data-io-version and data-io-category attributes to all SVGs", "priority": "medium", "depends_on": ["GFX-SHAPES-002"], "status": "verified", "audit_round": 3}, {"id": "GFX-SHAPES-004", "unit": "GFX-SHAPES", "wave": 1, "title": "Fix batch shapes endpoint", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "GFX-SHAPES-005", "unit": "GFX-SHAPES", "title": "Add 6 missing column width-x-internal-type configuration variants", "priority": "medium", "depends_on": ["GFX-SHAPES-002"], "status": "verified", "audit_round": 3}, {"id": "GFX-SHAPES-006", "unit": "GFX-SHAPES", "title": "Add missing schema, version, alarmAnchor, and statusAnchor fields to sidecars", "priority": "medium", "depends_on": ["GFX-SHAPES-001"], "status": "verified", "audit_round": 3}, {"id": "MOD-CONSOLE-001", "unit": "MOD-CONSOLE", "wave": 2, "title": "Add favorites group, view-mode selector, and section-height resize to left nav panel", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 8}, {"id": "MOD-CONSOLE-002", "unit": "MOD-CONSOLE", "title": "Implement detached window support for Console panes", "priority": "high", "depends_on": [], "status": "verified", "audit_round": 8}, {"id": "MOD-CONSOLE-003", "unit": "MOD-CONSOLE", "wave": 2, "title": "Persist aspect ratio lock per-workspace in WorkspaceConfig.settings", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 8}, {"id": "MOD-CONSOLE-004", "unit": "MOD-CONSOLE", "title": "Fix Historical Playback Bar speed values, add alarm markers, and keyboard shortcuts", "priority": "medium", "depends_on": [], "status": "verified", "audit_round": 7}, {"id": "MOD-CONSOLE-005", "unit": "MOD-CONSOLE", "title": "Add nested error boundaries around individual panes to isolate crashes", "priority": "high", "depends_on": [], "status": "verified", "audit_round": 8}, {"id": "MOD-CONSOLE-006", "unit": "MOD-CONSOLE", "title": "Gate \"Create Workspace\" empty-state CTA on console:write permission", "priority": "low", "depends_on": [], "status": "verified", "audit_round": 8}, {"id": "MOD-CONSOLE-007", "unit": "MOD-CONSOLE", "title": "Make PointDetailPanel resizable, pinnable, minimizable, and session-position-persisted", "priority": "medium", "depends_on": [], "status": "verified", "audit_round": 8}, {"id": "MOD-CONSOLE-008", "unit": "MOD-CONSOLE", "title": "Fix playback bar speed options, add loop region, reverse transport, step interval dropdown, and keyboard shortcuts", "priority": "medium", "depends_on": [], "status": "verified", "audit_round": 8}, {"id": "MOD-CONSOLE-009", "unit": "MOD-CONSOLE", "title": "Fix ErrorBoundary button label to \"[Reload Module]\" and add nested per-pane boundaries", "priority": "medium", "depends_on": [], "status": "verified", "audit_round": 8}, {"id": "MOD-CONSOLE-010", "unit": "MOD-CONSOLE", "title": "Replace \"Loading workspaces\u2026\" text with module-shaped skeleton loading state", "priority": "low", "depends_on": [], "status": "pending", "audit_round": 8}, {"id": "MOD-CONSOLE-011", "unit": "MOD-CONSOLE", "title": "Fix kiosk URL parameter from ?mode=kiosk to ?kiosk=true; add corner dwell exit trigger", "priority": "low", "depends_on": [], "status": "pending", "audit_round": 8}, {"id": "MOD-CONSOLE-012", "unit": "MOD-CONSOLE", "wave": 2, "title": "Add nested error boundaries around individual panes", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-CONSOLE-013", "unit": "MOD-CONSOLE", "wave": 2, "title": "Replace hardcoded hex colors in Console with design token CSS variables", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-001", "unit": "MOD-PROCESS", "wave": 2, "title": "Auto zoom-to-fit on initial graphic load", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-002", "unit": "MOD-PROCESS", "wave": 2, "title": "Pre-build spatial binding index on graphic load", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-003", "unit": "MOD-PROCESS", "wave": 2, "title": "Fix zoom upper bound to 800% (not 1000%)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-004", "unit": "MOD-PROCESS", "wave": 2, "title": "Replace custom point right-click with shared PointContextMenu component", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-005", "unit": "MOD-PROCESS", "wave": 2, "title": "Add Export button and 6-format export to Process toolbar", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-006", "unit": "MOD-PROCESS", "wave": 2, "title": "Implement Navigation hierarchy tree in sidebar", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-007", "unit": "MOD-PROCESS", "wave": 2, "title": "Wire up kiosk mode (?kiosk=true) in Process module", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-PROCESS-008", "unit": "MOD-PROCESS", "wave": 2, "title": "Replace loading spinner with module-shaped skeleton state", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 1}, {"id": "MOD-DESIGNER-001", "unit": "MOD-DESIGNER", "wave": 2, "title": "Replace custom canvas context menu with Radix UI ContextMenu", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "MOD-DESIGNER-002", "unit": "MOD-DESIGNER", "title": "Implement 60fps visual drag ghost (DOM-ahead-of-store preview)", "priority": "high", "depends_on": [], "status": "verified", "audit_round": 3}, {"id": "MOD-DESIGNER-003", "unit": "MOD-DESIGNER", "title": "Move selection state from local useRef into uiStore", "priority": "medium", "depends_on": [], "status": "verified", "audit_round": 3}, {"id": "MOD-DESIGNER-004", "unit": "MOD-DESIGNER", "title": "Differentiate empty-canvas context menu (RC-DES-1) from node context menu", "priority": "medium", "depends_on": [], "status": "verified", "audit_round": 3}, {"id": "MOD-DESIGNER-005", "unit": "MOD-DESIGNER", "title": "Add missing RC-DES-2 base items to node context menu (Lock/Unlock, Nav Link, Properties)", "priority": "medium", "depends_on": ["MOD-DESIGNER-004"], "status": "verified", "audit_round": 3}, {"id": "MOD-DESIGNER-006", "unit": "MOD-DESIGNER", "title": "Add missing node-type-specific context menu items (RC-DES-2)", "priority": "medium", "depends_on": ["MOD-DESIGNER-004"], "status": "verified", "audit_round": 3}, {"id": "MOD-DESIGNER-007", "unit": "MOD-DESIGNER", "title": "Add right-click context menus to shape palette", "priority": "medium", "depends_on": [], "status": "verified", "audit_round": 3}, {"id": "MOD-DESIGNER-008", "unit": "MOD-DESIGNER", "title": "Add right-click context menus for layer panel", "priority": "low", "depends_on": [], "status": "pending", "audit_round": 3}, {"id": "OPC-BACKEND-001", "unit": "OPC-BACKEND", "wave": 2, "title": "Endpoint auto-selection fallback must select highest-security endpoint, not lowest", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "OPC-BACKEND-002", "unit": "OPC-BACKEND", "wave": 2, "title": "Implement A&C operator methods: Acknowledge, Enable, Disable, TimedShelve, OneShotShelve, Unshelve", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "OPC-BACKEND-003", "unit": "OPC-BACKEND", "wave": 2, "title": "Apply PercentDeadband 1% filter on AnalogItemType subscriptions", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 1}, {"id": "DD-06-001", "unit": "DD-06", "wave": 3, "title": "Implement correct sidebar keyboard shortcuts (Ctrl+\\, Ctrl+Shift+\\)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-06-002", "unit": "DD-06", "wave": 3, "title": "Wire kiosk mode to URL parameter and keyboard shortcut in AppShell", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-06-003", "unit": "DD-06", "wave": 3, "title": "Add visual hint overlay for G-key navigation", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-06-004", "unit": "DD-06", "wave": 3, "title": "Implement password-based visual lock overlay (not click-to-unlock)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-06-005", "unit": "DD-06", "wave": 3, "title": "Replace alert bell navigation with dropdown panel showing recent alerts", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-06-006", "unit": "DD-06", "wave": 3, "title": "Make breadcrumb segments clickable links (except the last)", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-06-007", "unit": "DD-06", "wave": 3, "title": "Add missing user menu items: Enter Kiosk Mode, My Exports, About, theme switcher", "priority": "medium", "status": "verified", "depends_on": ["DD-06-002"], "audit_round": 2}, {"id": "DD-06-008", "unit": "DD-06", "wave": 3, "title": "Fix ErrorBoundary button label and add nested boundaries for large modules", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-06-009", "unit": "DD-06", "wave": 3, "title": "Replace static About page with API-driven license browser and SBOM download", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-06-010", "unit": "DD-06", "wave": 3, "title": "Implement sidebar state persistence, BroadcastChannel sync, lazy module loading, and detached window routes", "priority": "medium", "status": "verified", "depends_on": ["DD-06-002"], "audit_round": 2}, {"id": "DD-10-001", "unit": "DD-10", "wave": 3, "title": "Propagate kiosk mode to AppShell via UI store", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-002", "unit": "DD-10", "wave": 3, "title": "Implement Export Data dialog for per-widget kebab menu", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-003", "unit": "DD-10", "wave": 3, "title": "Add export toolbar button to dashboard list page", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-004", "unit": "DD-10", "wave": 3, "title": "Gate publish checkbox on dashboards:publish permission", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-005", "unit": "DD-10", "wave": 3, "title": "Wire up shared PointContextMenu to all dashboard widget point values", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-006", "unit": "DD-10", "wave": 3, "title": "Implement aggregation type awareness in widget config panel", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-007", "unit": "DD-10", "wave": 3, "title": "Add UOM client-side conversion for real-time widget values", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-008", "unit": "DD-10", "wave": 3, "title": "Add Playback Bar in time-context mode to DashboardViewer", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-10-009", "unit": "DD-10", "wave": 3, "title": "Replace hardcoded hex colors with CSS design tokens across dashboards widgets", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-11-001", "unit": "DD-11", "wave": 3, "title": "Seed Phase 2 canned report templates (18 missing)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-11-002", "unit": "DD-11", "wave": 3, "title": "Wire typst-as-lib for real PDF generation (not HTML fallback)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-11-003", "unit": "DD-11", "wave": 3, "title": "Implement data-broker LISTEN on export_complete pg_notify channel", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-11-004", "unit": "DD-11", "wave": 3, "title": "Fix non-canonical RBAC permission names (reports:run, reports:generate, reports:schedule_manage)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-11-005", "unit": "DD-11", "wave": 3, "title": "Add \"Equipment & Maintenance\" to frontend template browser categories", "priority": "low", "status": "pending", "depends_on": ["DD-11-001"], "audit_round": 2}, {"id": "DD-11-006", "unit": "DD-11", "wave": 3, "title": "Add CX-EXPORT button to Report History and Report Schedules tables", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-11-007", "unit": "DD-11", "wave": 3, "title": "Fix ErrorBoundary button text from \"Try again\" to \"[Reload Module]\"", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-11-008", "unit": "DD-11", "wave": 3, "title": "Improve template browser empty state with illustration, explanation, and CTA", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-12-001", "unit": "DD-12", "wave": 3, "title": "Add alarm search entry point to Forensics landing page", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-002", "unit": "DD-12", "wave": 3, "title": "Implement threshold search trend view with threshold line and exceedance shading", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-003", "unit": "DD-12", "wave": 3, "title": "Add Export, Share, and Print actions to investigation toolbar", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-004", "unit": "DD-12", "wave": 3, "title": "Implement drag-to-reorder for investigation stages", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-12-005", "unit": "DD-12", "wave": 3, "title": "Persist annotation text edits to server via updateEvidence mutation", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-006", "unit": "DD-12", "wave": 3, "title": "Fix PointContextMenu to include tagName, isAlarm, isAlarmElement props per CX-POINT-CONTEXT spec", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-007", "unit": "DD-12", "wave": 3, "title": "Wire PointContextMenu onto point tag displays in Forensics module", "priority": "medium", "status": "verified", "depends_on": ["DD-12-006"], "audit_round": 2}, {"id": "DD-12-008", "unit": "DD-12", "wave": 3, "title": "Add right-click context menu to investigation list rows", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-009", "unit": "DD-12", "wave": 3, "title": "Implement point_detail evidence type using the floating PointDetailPanel scoped to stage time range", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-010", "unit": "DD-12", "wave": 3, "title": "Replace datetime-local input for graphic snapshot timestamp with Historical Playback Bar", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-12-011", "unit": "DD-12", "wave": 3, "title": "Add nested error boundaries inside InvestigationWorkspace panels", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-12-012", "unit": "DD-12", "wave": 3, "title": "Fix empty state CTA permission gate, hardcoded colors in heatmap, and loading skeleton", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-13-001", "unit": "DD-13", "wave": 3, "title": "Add missing Tiptap extensions (Underline, Image, Table, Color/TextStyle)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-13-002", "unit": "DD-13", "wave": 3, "title": "Fix Underline toolbar button wired to toggleStrike instead of toggleUnderline", "priority": "high", "status": "verified", "depends_on": ["DD-13-001"], "audit_round": 2}, {"id": "DD-13-003", "unit": "DD-13", "wave": 3, "title": "Fix auto-save to use 30-second periodic interval instead of 2s debounce", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-13-004", "unit": "DD-13", "wave": 3, "title": "Align instance status states with spec (draft/submitted/reviewed vs pending/completed)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-13-005", "unit": "DD-13", "wave": 3, "title": "Implement attachment upload UI (photo, video, audio, 10MB limit)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-13-006", "unit": "DD-13", "wave": 3, "title": "Add Export split button to log entry table toolbar (CX-EXPORT)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-13-007", "unit": "DD-13", "wave": 3, "title": "Add date, author, shift, and template filter controls to log search", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-13-008", "unit": "DD-13", "wave": 3, "title": "Implement log schedule management UI (currently a static stub)", "priority": "medium", "status": "implementing", "depends_on": [], "audit_round": 2}, {"id": "DD-13-009", "unit": "DD-13", "wave": 3, "title": "Replace hardcoded hex colors with design tokens (CX-TOKENS)", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-13-010", "unit": "DD-13", "wave": 3, "title": "Replace plain text \"Loading...\" with module-shaped skeleton states (CX-LOADING)", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-14-001", "unit": "DD-14", "wave": 3, "title": "Wire up zxing-js as iOS barcode scanning fallback in BarcodeGate", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-14-002", "unit": "DD-14", "wave": 3, "title": "Implement video and audio media capture in RoundPlayer checkpoint inputs", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-14-003", "unit": "DD-14", "wave": 3, "title": "Implement round transfer API endpoint and transfer request UI", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-14-004", "unit": "DD-14", "wave": 3, "title": "Implement printable round checklist (blank and current results modes)", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-14-005", "unit": "DD-14", "wave": 3, "title": "Implement conditional checkpoints in TemplateDesigner and RoundPlayer", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-14-006", "unit": "DD-14", "wave": 3, "title": "Add export button to rounds tables (CX-EXPORT gap)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-14-007", "unit": "DD-14", "wave": 3, "title": "Replace hardcoded hex colors with design tokens across the rounds module", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-15-001", "unit": "DD-15", "wave": 3, "title": "Add PermissionGuard to unprotected settings routes", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-15-002", "unit": "DD-15", "wave": 3, "title": "Wire MfaSettings, ApiKeys, ScimTokens, and SmsProviders into App.tsx routes", "priority": "high", "status": "verified", "depends_on": ["DD-15-001"], "audit_round": 2}, {"id": "DD-15-003", "unit": "DD-15", "wave": 3, "title": "Add client certificate dropdown, platform dropdown, and minimum publish interval to OPC source form", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-15-004", "unit": "DD-15", "wave": 3, "title": "Implement Group Management CRUD (create groups, assign roles, manage membership)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-15-005", "unit": "DD-15", "wave": 3, "title": "Add idle timeout and max concurrent sessions per-role settings to Role edit dialog", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-15-006", "unit": "DD-15", "wave": 3, "title": "Implement Point Configuration page (aggregation types, lifecycle, metadata version history)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-15-007", "unit": "DD-15", "wave": 3, "title": "Replace EULA textarea with split-pane markdown editor and add acceptance records summary cards and Export CSV", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-15-008", "unit": "DD-15", "wave": 3, "title": "Add ErrorBoundary wrapper, export buttons, entity right-click menus, and skeleton loading to Settings module", "priority": "medium", "status": "pending", "depends_on": ["DD-15-001"], "audit_round": 2}, {"id": "DD-15-009", "unit": "DD-15", "wave": 3, "title": "Add Data Category selection to source config and implement Point Detail Configuration admin UI", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-16-001", "unit": "DD-16", "wave": 3, "title": "Implement graceful shutdown with server_restarting broadcast and 5-second drain", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-16-002", "unit": "DD-16", "wave": 3, "title": "Implement adaptive throttling driven by client status_report messages", "priority": "medium", "status": "pending", "depends_on": ["DD-16-003"], "audit_round": 2}, {"id": "DD-16-003", "unit": "DD-16", "wave": 3, "title": "Implement update efficiency: change-only fanout, deadband, max-silence heartbeat, batching, and staggered fanout", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-16-004", "unit": "DD-16", "wave": 3, "title": "Emit point_fresh instead of regular update when a stale point receives a new value", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-16-005", "unit": "DD-16", "wave": 3, "title": "Add per-window subscription map, port-close auto-cleanup, and reconnect jitter to SharedWorker", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-16-006", "unit": "DD-16", "wave": 3, "title": "Mark source-associated points stale immediately on source_offline", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-18-001", "unit": "DD-18", "wave": 3, "title": "Remove quality filter from raw resolution queries", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-18-002", "unit": "DD-18", "wave": 3, "title": "Add 15m and 1d resolution tiers to archive REST API", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-18-003", "unit": "DD-18", "wave": 3, "title": "Add 15m and 1d aggregate retention and refresh to maintenance loop", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-18-004", "unit": "DD-18", "wave": 3, "title": "Change points_history_raw FK to ON DELETE CASCADE", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-18-005", "unit": "DD-18", "wave": 3, "title": "Implement rolling average endpoint for archive service", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-18-006", "unit": "DD-18", "wave": 3, "title": "Implement aggregation type validation in history API", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-20-001", "unit": "DD-20", "wave": 3, "title": "Fix bottom tab bar items to match spec (Monitor/Rounds/Log/Alerts/More)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-20-002", "unit": "DD-20", "wave": 3, "title": "Enforce 60px minimum touch targets on mobile tab bar links", "priority": "medium", "status": "pending", "depends_on": ["DD-20-001"], "audit_round": 2}, {"id": "DD-20-003", "unit": "DD-20", "wave": 3, "title": "Implement Page Visibility API backgrounding for WebSocket reconnect", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-20-004", "unit": "DD-20", "wave": 3, "title": "Add idempotency keys and exponential backoff to offline sync queue", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-20-005", "unit": "DD-20", "wave": 3, "title": "Wire zxing-js as BarcodeDetector fallback for iOS Safari", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-20-006", "unit": "DD-20", "wave": 3, "title": "Add react-zoom-pan-pinch for tablet graphics pinch-zoom", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-20-007", "unit": "DD-20", "wave": 3, "title": "Implement full IndexedDB schema (5 stores: sync-queue, rounds-data, media-blobs, point-cache, tile-cache)", "priority": "high", "status": "verified", "depends_on": ["DD-20-004"], "audit_round": 2}, {"id": "DD-20-008", "unit": "DD-20", "wave": 3, "title": "Implement code splitting to exclude Designer/Forensics/Settings from mobile initial bundle", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-21-001", "unit": "DD-21", "wave": 3, "title": "Implement pagination envelope on all list endpoints", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-21-002", "unit": "DD-21", "wave": 3, "title": "Emit X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset on every response", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-21-003", "unit": "DD-21", "wave": 3, "title": "Fix SCIM token admin route path from /scim-tokens to /scim/tokens", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-21-004", "unit": "DD-21", "wave": 3, "title": "Add validator crate for declarative input validation rules", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-22-001", "unit": "DD-22", "wave": 3, "title": "Fix Alert Service systemd restart policy to Restart=always with 3s delay", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-22-002", "unit": "DD-22", "wave": 3, "title": "Add Nice=10 to Import Service systemd unit for QoS tier 3", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-22-003", "unit": "DD-22", "wave": 3, "title": "Wire sd_notify watchdog keepalive into all 9 remaining services", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-22-004", "unit": "DD-22", "wave": 3, "title": "Disable HSTS in nginx config by default \u2014 enable only via Settings toggle", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-22-005", "unit": "DD-22", "wave": 3, "title": "Add ~20 missing spec-required environment variables to io.env.example", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-22-006", "unit": "DD-22", "wave": 3, "title": "Implement ACME cert renewal systemd timer and API Gateway renewal endpoint", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-22-007", "unit": "DD-22", "wave": 3, "title": "Implement io-ctl binary with generate-master-key subcommand", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-001", "unit": "DD-23", "wave": 3, "title": "Fix AST serialization format to match doc 37 tree structure", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-23-002", "unit": "DD-23", "wave": 3, "title": "Add field_ref tile type for rounds_checkpoint and log_segment contexts", "priority": "high", "status": "verified", "depends_on": ["DD-23-001"], "audit_round": 2}, {"id": "DD-23-003", "unit": "DD-23", "wave": 3, "title": "Enforce 5-level nesting depth limit with tooltip feedback", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-23-004", "unit": "DD-23", "wave": 3, "title": "Fix nesting level colors to match Okabe-Ito spec with theme variants", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-005", "unit": "DD-23", "wave": 3, "title": "Implement 10k-iteration performance benchmark in Web Worker for Test button", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-23-006", "unit": "DD-23", "wave": 3, "title": "Fix Share checkbox permission to use system:expression_manage", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-007", "unit": "DD-23", "wave": 3, "title": "Implement full save-and-apply OK flow with API save, performance test, and confirmation", "priority": "high", "status": "verified", "depends_on": ["DD-23-001", "DD-23-005"], "audit_round": 2}, {"id": "DD-23-008", "unit": "DD-23", "wave": 3, "title": "Add unsaved-changes confirmation prompt to Cancel button", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-009", "unit": "DD-23", "wave": 3, "title": "Implement Ctrl+C, Ctrl+X, Ctrl+V clipboard operations for tiles", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-010", "unit": "DD-23", "wave": 3, "title": "Add ARIA roles and live region for screen reader support", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-011", "unit": "DD-23", "wave": 3, "title": "Render blinking insertion cursor in workspace at current cursor position", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-23-012", "unit": "DD-23", "wave": 3, "title": "Implement drag-and-drop from palette to workspace (Method 2)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-013", "unit": "DD-23", "wave": 3, "title": "Add breadcrumb trail above workspace when cursor is inside a nested container", "priority": "low", "status": "pending", "depends_on": ["DD-23-011"], "audit_round": 2}, {"id": "DD-23-014", "unit": "DD-23", "wave": 3, "title": "Fix saveForFuture default to true (checked by default)", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-015", "unit": "DD-23", "wave": 3, "title": "Fix Round tile precision to use powers-of-10 increment values per spec", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-23-016", "unit": "DD-23", "wave": 3, "title": "Implement Rhai expression evaluation handler in API gateway", "priority": "high", "status": "verified", "depends_on": ["DD-23-001"], "audit_round": 2}, {"id": "DD-24-001", "unit": "DD-24", "wave": 3, "title": "Implement ETL pipeline execution in trigger_run", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-24-002", "unit": "DD-24", "wave": 3, "title": "Implement real connection test using connector dispatch", "priority": "high", "status": "verified", "depends_on": ["DD-24-001"], "audit_round": 2}, {"id": "DD-24-003", "unit": "DD-24", "wave": 3, "title": "Enforce RBAC permissions on /api/import/* routes", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-24-004", "unit": "DD-24", "wave": 3, "title": "Implement AES-256-GCM credential encryption for import connection auth_config", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-24-005", "unit": "DD-24", "wave": 3, "title": "Emit PostgreSQL NOTIFY events for import status changes", "priority": "medium", "status": "pending", "depends_on": ["DD-24-001"], "audit_round": 2}, {"id": "DD-24-006", "unit": "DD-24", "wave": 3, "title": "Implement PostgreSQL-based import scheduler with FOR UPDATE SKIP LOCKED", "priority": "medium", "status": "pending", "depends_on": ["DD-24-001"], "audit_round": 2}, {"id": "DD-24-007", "unit": "DD-24", "wave": 3, "title": "Add missing API endpoints and populate connector template_config", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-25-001", "unit": "DD-25", "wave": 3, "title": "Implement Universal Export backend \u2014 /api/exports endpoint with 6-format pipeline", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-25-002", "unit": "DD-25", "wave": 3, "title": "Implement shared ExportDialog component and wire to qualifying module tables", "priority": "high", "status": "verified", "depends_on": ["DD-25-001"], "audit_round": 2}, {"id": "DD-25-003", "unit": "DD-25", "wave": 3, "title": "Expand Bulk Update entity coverage to all 8+ spec-defined types including points_metadata", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-25-004", "unit": "DD-25", "wave": 3, "title": "Complete Bulk Update wizard \u2014 add Step 2 (Validate & Map) and full Step 4 Results", "priority": "medium", "status": "pending", "depends_on": ["DD-25-003"], "audit_round": 2}, {"id": "DD-25-005", "unit": "DD-25", "wave": 3, "title": "Add XLSX upload support and conflict detection to Bulk Update", "priority": "medium", "status": "pending", "depends_on": ["DD-25-003"], "audit_round": 2}, {"id": "DD-25-006", "unit": "DD-25", "wave": 3, "title": "Implement selective restore and field-level restore preview for Change Snapshots", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-25-007", "unit": "DD-25", "wave": 3, "title": "Fix snapshot schema mismatch, bulk-update permission, and My Exports page scope", "priority": "medium", "status": "pending", "depends_on": ["DD-25-001"], "audit_round": 2}, {"id": "DD-26-001", "unit": "DD-26", "wave": 3, "title": "Rename inference route from /recognition/infer to /recognition/detect", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-26-002", "unit": "DD-26", "wave": 3, "title": "Fix /recognition/status response to return per-domain shape", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-26-003", "unit": "DD-26", "wave": 3, "title": "Add missing recognition API endpoints (classes, generate, feedback, model history, gap-report CRUD)", "priority": "medium", "status": "verified", "depends_on": ["DD-26-001", "DD-26-002"], "audit_round": 2}, {"id": "DD-26-004", "unit": "DD-26", "wave": 3, "title": "Widen correction_type column from VARCHAR(20) to VARCHAR(30)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-26-005", "unit": "DD-26", "wave": 3, "title": "Add ort, sha2, zip, image crates and implement SHA-256 integrity check on .iomodel load", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-26-006", "unit": "DD-26", "wave": 3, "title": "Auto-detect model domain from manifest.json inside .iomodel ZIP (not from form field)", "priority": "medium", "status": "pending", "depends_on": ["DD-26-005"], "audit_round": 2}, {"id": "DD-26-007", "unit": "DD-26", "wave": 3, "title": "Implement recognition import wizard in Designer module", "priority": "high", "status": "verified", "depends_on": ["DD-26-001", "DD-26-002", "DD-26-003"], "audit_round": 2}, {"id": "DD-27-001", "unit": "DD-27", "wave": 3, "title": "Align alert-service schema with spec (alerts table, correct columns)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-27-002", "unit": "DD-27", "wave": 3, "title": "Implement WebSocket alert fanout via data-broker HTTP broadcast endpoint", "priority": "high", "status": "verified", "depends_on": ["DD-27-001"], "audit_round": 2}, {"id": "DD-27-003", "unit": "DD-27", "wave": 3, "title": "Use CancellationToken to cancel pending escalation timers on acknowledge/resolve/cancel", "priority": "high", "status": "verified", "depends_on": ["DD-27-001"], "audit_round": 2}, {"id": "DD-27-004", "unit": "DD-27", "wave": 3, "title": "Recover in-flight escalations on alert-service startup", "priority": "high", "status": "verified", "depends_on": ["DD-27-001", "DD-27-003"], "audit_round": 2}, {"id": "DD-27-005", "unit": "DD-27", "wave": 3, "title": "Implement alert templates with MiniJinja rendering and built-in seed templates", "priority": "medium", "status": "pending", "depends_on": ["DD-27-001"], "audit_round": 2}, {"id": "DD-27-006", "unit": "DD-27", "wave": 3, "title": "Implement recipient rosters with CRUD and shift-aware member resolution", "priority": "medium", "status": "verified", "depends_on": ["DD-27-001"], "audit_round": 2}, {"id": "DD-27-007", "unit": "DD-27", "wave": 3, "title": "Implement SMS, Voice, Radio, PA, and BrowserPush channel adapters", "priority": "medium", "status": "pending", "depends_on": ["DD-27-001", "DD-27-006"], "audit_round": 2}, {"id": "DD-27-008", "unit": "DD-27", "wave": 3, "title": "Add missing alert API routes (active, cancel, webhooks, stats, and correct POST /api/alerts path)", "priority": "medium", "status": "pending", "depends_on": ["DD-27-001"], "audit_round": 2}, {"id": "DD-28-001", "unit": "DD-28", "wave": 3, "title": "Fix queue worker poll interval (10s\u21921s) and batch size (3\u219210)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-28-002", "unit": "DD-28", "wave": 3, "title": "Replace hand-rolled template substitution with MiniJinja engine", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-28-003", "unit": "DD-28", "wave": 3, "title": "Implement MS Graph, Gmail, SES, and SMTP-XOAUTH2 provider adapters", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-28-004", "unit": "DD-28", "wave": 3, "title": "Implement email_suppressions table and pre-send suppression check", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-28-005", "unit": "DD-28", "wave": 3, "title": "Add nine missing API endpoints to email service router", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-28-006", "unit": "DD-28", "wave": 3, "title": "Implement AES-256-GCM credential encryption at rest for provider configs", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-28-007", "unit": "DD-28", "wave": 3, "title": "Fix status 'dead' vs 'failed', system template delete guard, fallback provider, NOTIFY listener, and cleanup task", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-28-008", "unit": "DD-28", "wave": 3, "title": "Implement real test_provider send and spec-compliant health endpoint", "priority": "medium", "status": "pending", "depends_on": ["DD-28-003"], "audit_round": 2}, {"id": "DD-29-001", "unit": "DD-29", "wave": 3, "title": "Implement EULA hard gate \u2014 block JWT issuance until acceptance", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-29-002", "unit": "DD-29", "wave": 3, "title": "Validate OIDC ID token signature against JWKS endpoint", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-29-003", "unit": "DD-29", "wave": 3, "title": "Verify SAML assertion XML signature using IdP certificate", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-29-004", "unit": "DD-29", "wave": 3, "title": "Implement MFA policy enforcement gate in all login flows", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-29-005", "unit": "DD-29", "wave": 3, "title": "Implement Duo Security MFA (Universal Prompt via OIDC Auth API)", "priority": "medium", "status": "pending", "depends_on": ["DD-29-004"], "audit_round": 2}, {"id": "DD-29-006", "unit": "DD-29", "wave": 3, "title": "Implement SCIM 2.0 Groups endpoints", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-29-007", "unit": "DD-29", "wave": 3, "title": "Fix IdP role mapping column name mismatch and add regex match type", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-29-008", "unit": "DD-29", "wave": 3, "title": "Add background cleanup tasks for expired auth flow state and in-memory tokens", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-30-001", "unit": "DD-30", "wave": 3, "title": "Implement badge polling engine with BadgeAdapter trait and background task", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-30-002", "unit": "DD-30", "wave": 3, "title": "Add GET /api/shifts/current and GET /api/shifts/current/personnel endpoints", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-30-003", "unit": "DD-30", "wave": 3, "title": "Add POST /api/presence/clear/:badge_id endpoint for manual stale-presence clear", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-30-004", "unit": "DD-30", "wave": 3, "title": "Fix badge-source endpoint permissions from shifts:write to badge_config:manage", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-30-005", "unit": "DD-30", "wave": 3, "title": "Add shift pattern CRUD and schedule generation endpoints", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-30-006", "unit": "DD-30", "wave": 3, "title": "Publish presence and muster WebSocket topics from API Gateway handlers", "priority": "medium", "status": "pending", "depends_on": ["DD-30-001"], "audit_round": 2}, {"id": "DD-30-007", "unit": "DD-30", "wave": 3, "title": "Add React error boundary to Shifts module", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-001", "unit": "DD-31", "wave": 3, "title": "Add Resolve and Cancel actions to active alert cards", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-002", "unit": "DD-31", "wave": 3, "title": "Enforce alerts:send_emergency permission for EMERGENCY-severity sends", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-003", "unit": "DD-31", "wave": 3, "title": "Change template variable definitions from string[] to structured {name, label, default_value, required} objects", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-31-004", "unit": "DD-31", "wave": 3, "title": "Filter emergency quick-send section by is_emergency flag, not by severity", "priority": "low", "status": "pending", "depends_on": ["DD-31-003"], "audit_round": 2}, {"id": "DD-31-005", "unit": "DD-31", "wave": 3, "title": "Load available channels from Alert Service config instead of hardcoding all channels", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-006", "unit": "DD-31", "wave": 3, "title": "Replace polling with WebSocket subscription for real-time delivery status updates", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-007", "unit": "DD-31", "wave": 3, "title": "Add Export Unaccounted List button to Muster Dashboard", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-008", "unit": "DD-31", "wave": 3, "title": "Add Export button to Alert History table (CX-EXPORT)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-009", "unit": "DD-31", "wave": 3, "title": "Add right-click context menus to template and group list rows (CX-ENTITY-CONTEXT)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-010", "unit": "DD-31", "wave": 3, "title": "Replace generic text loading states with module-shaped skeletons (CX-LOADING)", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-011", "unit": "DD-31", "wave": 3, "title": "Replace hardcoded hex colors with design tokens throughout Alerts module (CX-TOKENS)", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-31-012", "unit": "DD-31", "wave": 3, "title": "Hide muster dashboard and on-shift/on-site group types when no access control integration configured", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-32-001", "unit": "DD-32", "wave": 3, "title": "Implement DataTable must-have features (filtering, pinning, resizing, multi-sort, sparklines, conditional formatting, export)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-32-002", "unit": "DD-32", "wave": 3, "title": "Implement ECharts dynamic theme switching (register 3 named themes, react to theme changes)", "priority": "high", "status": "verified", "depends_on": ["DD-32-003"], "audit_round": 2}, {"id": "DD-32-003", "unit": "DD-32", "wave": 3, "title": "Create theme-colors.ts parallel JS color object and React ThemeProvider context", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-32-004", "unit": "DD-32", "wave": 3, "title": "Implement PointDetailPanel full section layout (Alarm Data, Graphics, action buttons, resize, pin, minimize, multi-instance)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-32-005", "unit": "DD-32", "wave": 3, "title": "Fix PointContextMenu actions to match spec (Trend Point, Investigate Point, Report on Point, RBAC, mobile long-press)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-32-006", "unit": "DD-32", "wave": 3, "title": "Add PointPicker Favorites tab, Recent points list, and hover preview with sparkline", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-32-007", "unit": "DD-32", "wave": 3, "title": "Fix Toast component \u2014 enforce 3-toast max with count badge, make error toasts persistent", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-32-008", "unit": "DD-32", "wave": 3, "title": "Implement density mode React context so shared components respond to global density setting", "priority": "medium", "status": "pending", "depends_on": ["DD-32-003"], "audit_round": 2}, {"id": "DD-32-009", "unit": "DD-32", "wave": 3, "title": "Fix ErrorBoundary button label to \"Reload Module\" per spec", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-33-001", "unit": "DD-33", "wave": 3, "title": "Add Prettier format check to CI commit stage", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-33-002", "unit": "DD-33", "wave": 3, "title": "Wire E2E critical paths and frontend integration tests to PR CI stage", "priority": "high", "status": "verified", "depends_on": ["DD-33-007"], "audit_round": 2}, {"id": "DD-33-003", "unit": "DD-33", "wave": 3, "title": "Add criterion benchmark job and Goose load test job to nightly CI", "priority": "medium", "status": "pending", "depends_on": ["DD-33-006"], "audit_round": 2}, {"id": "DD-33-004", "unit": "DD-33", "wave": 3, "title": "Create weekly CI workflow for license scan and extended dependency audit", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-33-005", "unit": "DD-33", "wave": 3, "title": "Add unit tests to 8 services and 5 shared crates that have zero test coverage", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-33-006", "unit": "DD-33", "wave": 3, "title": "Add service-level integration test suites and declare test crate dependencies in workspace", "priority": "high", "status": "verified", "depends_on": ["DD-33-005"], "audit_round": 2}, {"id": "DD-33-007", "unit": "DD-33", "wave": 3, "title": "Implement real E2E critical path tests and integrate axe-core accessibility audits", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-34-001", "unit": "DD-34", "wave": 3, "title": "Parse manifest.json, tags.json, and import_report.json from extraction kit ZIP", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-34-002", "unit": "DD-34", "wave": 3, "title": "Implement per-platform DCS parser modules for Phase 1 platforms", "priority": "medium", "status": "pending", "depends_on": ["DD-34-001"], "audit_round": 2}, {"id": "DD-34-003", "unit": "DD-34", "wave": 3, "title": "Implement 6-step DCS Import Wizard in Designer", "priority": "high", "status": "verified", "depends_on": ["DD-34-004"], "audit_round": 2}, {"id": "DD-34-004", "unit": "DD-34", "wave": 3, "title": "Implement stateful 6-endpoint DCS import job API", "priority": "medium", "status": "verified", "depends_on": ["DD-34-001"], "audit_round": 2}, {"id": "DD-34-005", "unit": "DD-34", "wave": 3, "title": "Enforce designer:import RBAC permission on DCS import endpoint", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-34-006", "unit": "DD-34", "wave": 3, "title": "Correct platform list \u2014 add missing platforms, remove non-spec platform", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-36-001", "unit": "DD-36", "wave": 3, "title": "Register dependency health checks in all 11 services", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-36-002", "unit": "DD-36", "wave": 3, "title": "Add path label (route template) to HTTP metrics in api-gateway middleware", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-36-003", "unit": "DD-36", "wave": 3, "title": "Implement missing standard metrics across all services", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-36-004", "unit": "DD-36", "wave": 3, "title": "Implement API Gateway metrics collector background task", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-36-005", "unit": "DD-36", "wave": 3, "title": "Wire optional OpenTelemetry distributed tracing in io-observability", "priority": "low", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-36-006", "unit": "DD-36", "wave": 3, "title": "Add io_metrics.samples compression policy and samples_5m refresh policy to migrations", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-36-007", "unit": "DD-36", "wave": 3, "title": "Implement missing service-specific metrics for OPC, Archive, Alert, Email, Auth, Recognition, Import, and Parser services", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-36-008", "unit": "DD-36", "wave": 3, "title": "Implement full 6-tab System Health page and shell status dot popover", "priority": "medium", "status": "pending", "depends_on": ["DD-36-004"], "audit_round": 2}, {"id": "DD-37-001", "unit": "DD-37", "wave": 3, "title": "Add shared domain types to io-models crate (\u00a78 PointValue, Event, Alert, User, Source, Permission)", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-37-002", "unit": "DD-37", "wave": 3, "title": "Fix WsServerMessage::Update to use WsBatchUpdate with abbreviated point fields", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-37-003", "unit": "DD-37", "wave": 3, "title": "Add PresenceUpdate variant to WsServerMessage and fix StatusReport field type", "priority": "medium", "status": "pending", "depends_on": ["DD-37-002"], "audit_round": 2}, {"id": "DD-37-004", "unit": "DD-37", "wave": 3, "title": "Add six missing NOTIFY payload types to io-bus (NotifyEvent, NotifyAlert, etc.)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-37-005", "unit": "DD-37", "wave": 3, "title": "Fix Pagination field names in io-models to match spec (per_page, total_items, total_pages)", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-37-006", "unit": "DD-37", "wave": 3, "title": "Implement API key (io_sk_ prefix) auth path in gateway JWT middleware", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-38-001", "unit": "DD-38", "wave": 3, "title": "Create RouteConfig registry at src/shared/routes/registry.ts", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-38-002", "unit": "DD-38", "wave": 3, "title": "Fix /designer/symbols route \u2014 render SymbolLibrary instead of redirecting", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-38-003", "unit": "DD-38", "wave": 3, "title": "Fix /settings/roles permission guard \u2014 use system:manage_roles not system:manage_users", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-38-004", "unit": "DD-38", "wave": 3, "title": "Fix /settings/email permission guard \u2014 use email:configure not settings:write", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-38-005", "unit": "DD-38", "wave": 3, "title": "Fix /settings/imports sub-route permission guards \u2014 use granular import permissions", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-38-006", "unit": "DD-38", "wave": 3, "title": "Fix /settings/recognition permission guard \u2014 use settings:admin not settings:write", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-38-007", "unit": "DD-38", "wave": 3, "title": "Fix default post-login redirect \u2014 use first visible module per user permissions", "priority": "medium", "status": "pending", "depends_on": ["DD-38-001"], "audit_round": 2}, {"id": "DD-39-001", "unit": "DD-39", "wave": 3, "title": "Add shapes, stencils, shape_dependencies, point_tags, checksum to manifest", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-39-002", "unit": "DD-39", "wave": 3, "title": "Convert point UUIDs to tag names in exported graphic.json bindings", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-39-003", "unit": "DD-39", "wave": 3, "title": "Implement analyze endpoint for iographic import wizard", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2}, {"id": "DD-39-004", "unit": "DD-39", "wave": 3, "title": "Implement commit import endpoint with options payload and tag-based binding reconstruction", "priority": "high", "status": "verified", "depends_on": ["DD-39-003"], "audit_round": 2}, {"id": "DD-39-005", "unit": "DD-39", "wave": 3, "title": "Compute SHA-256 checksum on export and verify on import", "priority": "medium", "status": "pending", "depends_on": ["DD-39-001"], "audit_round": 2}, {"id": "DD-39-006", "unit": "DD-39", "wave": 3, "title": "Export shape.json sidecar alongside shape.svg for custom shapes", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-39-007", "unit": "DD-39", "wave": 3, "title": "Serialize expression ASTs in graphic.json during export", "priority": "medium", "status": "pending", "depends_on": ["DD-39-002"], "audit_round": 2}, {"id": "DD-39-008", "unit": "DD-39", "wave": 3, "title": "Fix export route path, HTTP method, and MIME type", "priority": "medium", "status": "pending", "depends_on": [], "audit_round": 2}, {"id": "DD-29-009", "unit": "DD-29", "wave": 3, "title": "Add POST /api/auth/verify-password endpoint with two-tier rate limiting", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 2, "source": "feature"}, {"id": "DD-29-010", "unit": "DD-29", "wave": 3, "title": "Persist session lock state server-side and push WebSocket events on lock/unlock", "priority": "high", "status": "verified", "depends_on": ["DD-29-009"], "audit_round": 2, "source": "feature"}, {"id": "DD-29-011", "unit": "DD-29", "wave": 3, "title": "Add PIN set/delete/verify endpoints for lock screen unlock", "priority": "high", "status": "verified", "depends_on": ["DD-29-009"], "audit_round": 2, "source": "feature"}, {"id": "DD-06-011", "unit": "DD-06", "wave": 3, "title": "Rewrite LockOverlay \u2014 transparent passive state, server-sync, SSO popup, PIN support", "priority": "high", "status": "verified", "depends_on": ["DD-29-009", "DD-29-010", "DD-29-011"], "audit_round": 2, "source": "feature"}, {"id": "DD-06-012", "unit": "DD-06", "wave": 3, "title": "Add app-wide popup detection banner for blocked popups", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 2, "source": "feature"}, {"id": "GFX-SHAPES-007", "unit": "GFX-SHAPES", "title": "Fix seed_shapes.rs shape IDs to match canonical sidecar IDs", "priority": "high", "depends_on": ["GFX-SHAPES-001", "GFX-SHAPES-002"], "status": "verified", "audit_round": 3}, {"id": "MOD-DESIGNER-009", "unit": "MOD-DESIGNER", "title": "Wire PointContextMenu to point-bound display elements in designer", "priority": "medium", "depends_on": [], "status": "pending", "audit_round": 3}, {"id": "MOD-DESIGNER-010", "unit": "MOD-DESIGNER", "title": "Add nested error boundaries, fix Reload Module label, add loading skeleton", "priority": "medium", "depends_on": [], "status": "pending", "audit_round": 3}, {"id": "MOD-DESIGNER-011", "unit": "MOD-DESIGNER", "wave": 2, "title": "Fix resize mouseup dispatch for symbol_instance, text_block, and stencil", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-012", "unit": "MOD-DESIGNER", "wave": 2, "title": "Add bounding box resize for annotation nodes (subtype-aware)", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-013", "unit": "MOD-DESIGNER", "wave": 2, "title": "Add group proportional resize (Figma model \u2014 scale all children)", "priority": "medium", "status": "verified", "depends_on": ["MOD-DESIGNER-011"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-014", "unit": "MOD-DESIGNER", "wave": 2, "title": "Add resize handles and drag resize for standalone display elements", "priority": "medium", "status": "verified", "depends_on": ["MOD-DESIGNER-011"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-015", "unit": "MOD-DESIGNER", "wave": 2, "title": "Enable multi-node resize (CompoundCommand wrapping per-node resize commands)", "priority": "medium", "status": "verified", "depends_on": ["MOD-DESIGNER-011", "MOD-DESIGNER-012", "MOD-DESIGNER-013", "MOD-DESIGNER-014"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-016", "unit": "MOD-DESIGNER", "wave": 2, "title": "Add canvas size inputs and aspect preset buttons to New Graphic dialog", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-017", "unit": "MOD-DESIGNER", "wave": 2, "title": "Build File \u2192 Properties dialog for canvas resize and background color", "priority": "high", "status": "verified", "depends_on": ["MOD-DESIGNER-016"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-018", "unit": "MOD-DESIGNER", "wave": 2, "title": "Render canvas boundary visual and add out-of-bounds save warning toast", "priority": "medium", "status": "verified", "depends_on": [], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-019", "unit": "MOD-DESIGNER", "wave": 2, "title": "Palette parity \u2014 Widgets in Graphic mode, Stencils in Dashboard/Report mode", "priority": "medium", "status": "verified", "depends_on": ["MOD-DESIGNER-016"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-020", "unit": "MOD-DESIGNER", "wave": 2, "title": "Implement auto-height scrollable canvas for Report and Dashboard modes", "priority": "medium", "status": "verified", "depends_on": ["MOD-DESIGNER-016", "MOD-DESIGNER-017", "MOD-DESIGNER-019"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-021", "unit": "MOD-DESIGNER", "wave": 2, "title": "Group management \u2014 create with name prompt, rename, ungroup, keyboard shortcuts", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-022", "unit": "MOD-DESIGNER", "wave": 2, "title": "Group in-place editing (double-click enter/exit) and toolbar selector/group buttons", "priority": "high", "status": "verified", "depends_on": ["MOD-DESIGNER-021"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-023", "unit": "MOD-DESIGNER", "wave": 2, "title": "Designer file tabs \u2014 multiple open graphics simultaneously", "priority": "high", "status": "verified", "depends_on": [], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-024", "unit": "MOD-DESIGNER", "wave": 2, "title": "Group sub-tabs \u2014 open group content in a dedicated tab for deep editing", "priority": "medium", "status": "verified", "depends_on": ["MOD-DESIGNER-021", "MOD-DESIGNER-023"], "audit_round": 6, "source": "feature"}, {"id": "MOD-DESIGNER-025", "unit": "MOD-DESIGNER", "wave": 2, "title": "Extend Promote to Shape wizard to accept groups with display elements as value anchors", "priority": "medium", "status": "verified", "depends_on": ["MOD-DESIGNER-021"], "audit_round": 6, "source": "feature"}], "audit_round": 9, "units": []}
+{
+  "schema": "audit-progress/v2",
+  "last_updated": "2026-03-22T14:50:29.791456+00:00",
+  "checkpoint_count": 11,
+  "next_checkpoint_at": 24,
+  "current_unit": null,
+  "task_attempts": {
+    "GFX-SHAPES-001": 1,
+    "GFX-SHAPES-002": 0,
+    "MOD-DESIGNER-001": 1,
+    "MOD-CONSOLE-001": 2,
+    "MOD-CONSOLE-003": 1,
+    "DD-27-001": 1,
+    "DD-23-001": 1,
+    "DD-24-001": 1,
+    "DD-06-002": 1,
+    "DD-15-001": 1,
+    "DD-06-004": 1,
+    "DD-10-001": 1,
+    "DD-11-004": 1,
+    "DD-12-005": 1,
+    "DD-12-006": 1,
+    "DD-13-001": 1,
+    "DD-15-002": 1,
+    "DD-18-001": 1,
+    "DD-20-003": 1,
+    "DD-20-004": 1,
+    "DD-25-001": 1,
+    "DD-25-003": 1,
+    "DD-32-003": 1,
+    "DD-26-005": 1,
+    "DD-27-003": 1,
+    "DD-29-004": 1,
+    "DD-30-001": 1,
+    "DD-33-005": 1,
+    "DD-33-007": 1,
+    "DD-36-004": 1,
+    "DD-13-002": 1,
+    "DD-20-007": 1,
+    "DD-22-001": 1,
+    "DD-22-003": 1,
+    "DD-22-004": 1,
+    "DD-23-002": 1,
+    "DD-23-003": 1,
+    "MOD-CONSOLE-006": 2,
+    "MOD-CONSOLE-005": 1,
+    "GFX-DISPLAY-003": 1,
+    "MOD-PROCESS-004": 1,
+    "MOD-DESIGNER-016": 1,
+    "DD-06-011": 1,
+    "MOD-DESIGNER-002": 1,
+    "MOD-DESIGNER-023": 1,
+    "OPC-BACKEND-002": 1,
+    "DD-28-002": 1,
+    "DD-28-006": 1,
+    "DD-29-001": 1,
+    "DD-29-002": 1,
+    "DD-32-002": 1,
+    "DD-37-001": 1,
+    "DD-33-002": 1,
+    "DD-36-001": 1,
+    "GFX-SHAPES-007": 1,
+    "MOD-DESIGNER-004": 1,
+    "DD-34-001": 1,
+    "MOD-DESIGNER-012": 1,
+    "DD-16-003": 1,
+    "DD-20-001": 1,
+    "DD-23-007": 1,
+    "DD-23-011": 1,
+    "DD-26-003": 1,
+    "GFX-CORE-002": 1,
+    "DD-06-001": 1,
+    "DD-27-006": 1,
+    "DD-28-003": 1,
+    "DD-31-003": 1,
+    "DD-34-003": 1,
+    "GFX-CORE-004": 1,
+    "GFX-DISPLAY-004": 1,
+    "GFX-SHAPES-003": 1,
+    "DD-06-005": 1,
+    "MOD-PROCESS-003": 1,
+    "GFX-SHAPES-005": 1,
+    "MOD-PROCESS-007": 1,
+    "OPC-BACKEND-003": 1,
+    "MOD-CONSOLE-007": 1,
+    "MOD-DESIGNER-003": 1,
+    "MOD-DESIGNER-018": 1,
+    "DD-06-010": 1,
+    "DD-10-002": 1,
+    "DD-10-003": 1,
+    "DD-10-004": 1,
+    "DD-10-005": 1,
+    "DD-10-006": 1,
+    "DD-10-008": 1,
+    "MOD-DESIGNER-025": 1,
+    "DD-12-001": 1,
+    "DD-12-002": 1,
+    "DD-12-007": 1,
+    "DD-12-008": 1,
+    "DD-13-004": 1,
+    "DD-13-007": 1,
+    "DD-14-001": 1
+  },
+  "queue": [
+    {
+      "unit": "GFX-CORE",
+      "wave": 1,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/GFX-CORE.md",
+      "tasks_open": [
+        "GFX-CORE-002",
+        "GFX-CORE-003",
+        "GFX-CORE-004"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "Re-audited round 3. 2 tasks closed (GFX-CORE-001, GFX-CORE-005). 3 tasks remain open.",
+      "last_audit_round": 3,
+      "verified_since_last_audit": 1
+    },
+    {
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/GFX-DISPLAY.md",
+      "tasks_open": [
+        "GFX-DISPLAY-001",
+        "GFX-DISPLAY-002",
+        "GFX-DISPLAY-003",
+        "GFX-DISPLAY-004",
+        "GFX-DISPLAY-005",
+        "GFX-DISPLAY-006"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "6 tasks generated.",
+      "last_audit_round": 1,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "GFX-SHAPES",
+      "wave": 1,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/GFX-SHAPES.md",
+      "tasks_open": [
+        "GFX-SHAPES-001",
+        "GFX-SHAPES-002",
+        "GFX-SHAPES-003",
+        "GFX-SHAPES-004",
+        "GFX-SHAPES-005",
+        "GFX-SHAPES-006",
+        "GFX-SHAPES-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "Re-audited round 3. 7 gaps found. Previously verified tasks reset.",
+      "last_audit_round": 3,
+      "verified_since_last_audit": 1
+    },
+    {
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "status": "in_progress",
+      "attempts": 4,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/MOD-CONSOLE.md",
+      "tasks_open": [
+        "MOD-CONSOLE-001",
+        "MOD-CONSOLE-002",
+        "MOD-CONSOLE-003",
+        "MOD-CONSOLE-005",
+        "MOD-CONSOLE-006",
+        "MOD-CONSOLE-007",
+        "MOD-CONSOLE-008",
+        "MOD-CONSOLE-009",
+        "MOD-CONSOLE-010",
+        "MOD-CONSOLE-011"
+      ],
+      "completed_at": "2026-03-22T02:44:13.591467+00:00",
+      "notes": "11 tasks generated, 10 open, wave0 findings yes",
+      "last_audit_round": 8,
+      "verified_since_last_audit": 5
+    },
+    {
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/MOD-PROCESS.md",
+      "tasks_open": [
+        "MOD-PROCESS-001",
+        "MOD-PROCESS-002",
+        "MOD-PROCESS-003",
+        "MOD-PROCESS-004",
+        "MOD-PROCESS-005",
+        "MOD-PROCESS-006",
+        "MOD-PROCESS-007",
+        "MOD-PROCESS-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks generated.",
+      "last_audit_round": 1,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/MOD-DESIGNER.md",
+      "tasks_open": [
+        "MOD-DESIGNER-001",
+        "MOD-DESIGNER-002",
+        "MOD-DESIGNER-003",
+        "MOD-DESIGNER-004",
+        "MOD-DESIGNER-005",
+        "MOD-DESIGNER-006",
+        "MOD-DESIGNER-007",
+        "MOD-DESIGNER-008",
+        "MOD-DESIGNER-009",
+        "MOD-DESIGNER-010",
+        "MOD-DESIGNER-011",
+        "MOD-DESIGNER-012",
+        "MOD-DESIGNER-013",
+        "MOD-DESIGNER-014",
+        "MOD-DESIGNER-015",
+        "MOD-DESIGNER-016",
+        "MOD-DESIGNER-017",
+        "MOD-DESIGNER-018",
+        "MOD-DESIGNER-019",
+        "MOD-DESIGNER-020",
+        "MOD-DESIGNER-021",
+        "MOD-DESIGNER-022",
+        "MOD-DESIGNER-023",
+        "MOD-DESIGNER-024",
+        "MOD-DESIGNER-025"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "Re-audited round 3. 10 gaps found. Wave 0 findings: CX-CANVAS-CONTEXT, CX-POINT-CONTEXT, CX-ERROR, CX-LOADING, CX-TOKENS. Round 6: 15 feature tasks added (resize completeness, canvas size controls, cross-mode palette parity, group management/tabs, promote group to shape).",
+      "last_audit_round": 3,
+      "verified_since_last_audit": 3
+    },
+    {
+      "unit": "OPC-BACKEND",
+      "wave": 2,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/OPC-BACKEND.md",
+      "tasks_open": [
+        "OPC-BACKEND-001",
+        "OPC-BACKEND-002",
+        "OPC-BACKEND-003"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "3 tasks generated.",
+      "last_audit_round": 1,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-06",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-06.md",
+      "tasks_open": [
+        "DD-06-001",
+        "DD-06-002",
+        "DD-06-003",
+        "DD-06-004",
+        "DD-06-005",
+        "DD-06-006",
+        "DD-06-007",
+        "DD-06-008",
+        "DD-06-009",
+        "DD-06-010"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "10 tasks.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 1
+    },
+    {
+      "unit": "DD-10",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-10.md",
+      "tasks_open": [
+        "DD-10-001",
+        "DD-10-002",
+        "DD-10-003",
+        "DD-10-004",
+        "DD-10-005",
+        "DD-10-006",
+        "DD-10-007",
+        "DD-10-008",
+        "DD-10-009"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "9 tasks.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 1
+    },
+    {
+      "unit": "DD-11",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-11.md",
+      "tasks_open": [
+        "DD-11-001",
+        "DD-11-002",
+        "DD-11-003",
+        "DD-11-004",
+        "DD-11-005",
+        "DD-11-006",
+        "DD-11-007",
+        "DD-11-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-12",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-12.md",
+      "tasks_open": [
+        "DD-12-001",
+        "DD-12-002",
+        "DD-12-003",
+        "DD-12-004",
+        "DD-12-005",
+        "DD-12-006",
+        "DD-12-007",
+        "DD-12-008",
+        "DD-12-009",
+        "DD-12-010",
+        "DD-12-011",
+        "DD-12-012"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "12 tasks. Alarm search absent; annotation edits not persisted; PointContextMenu missing tagName/isAlarm props.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-13",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-13.md",
+      "tasks_open": [
+        "DD-13-001",
+        "DD-13-002",
+        "DD-13-003",
+        "DD-13-004",
+        "DD-13-005",
+        "DD-13-006",
+        "DD-13-007",
+        "DD-13-008",
+        "DD-13-009",
+        "DD-13-010"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "10 tasks. Tiptap extensions missing; Underline button calls toggleStrike; attachment upload absent; schedule mgmt is static stub.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-14",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-14.md",
+      "tasks_open": [
+        "DD-14-001",
+        "DD-14-002",
+        "DD-14-003",
+        "DD-14-004",
+        "DD-14-005",
+        "DD-14-006",
+        "DD-14-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. Round transfer UI absent; video/audio capture missing; no export button (CX-EXPORT).",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-15",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-15.md",
+      "tasks_open": [
+        "DD-15-001",
+        "DD-15-002",
+        "DD-15-003",
+        "DD-15-004",
+        "DD-15-005",
+        "DD-15-006",
+        "DD-15-007",
+        "DD-15-008",
+        "DD-15-009"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "9 tasks. 9 routes unprotected; MFA/ApiKeys/SCIM routes unreachable; Groups page stub only.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-16",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-16.md",
+      "tasks_open": [
+        "DD-16-001",
+        "DD-16-002",
+        "DD-16-003",
+        "DD-16-004",
+        "DD-16-005",
+        "DD-16-006"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "6 tasks. Update efficiency absent; point_fresh never emitted; per-window subscription map missing.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-18",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-18.md",
+      "tasks_open": [
+        "DD-18-001",
+        "DD-18-002",
+        "DD-18-003",
+        "DD-18-004",
+        "DD-18-005",
+        "DD-18-006"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "6 tasks. Raw queries silently drop Bad/Uncertain; 15m/1d tiers absent from API; rolling average absent.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-20",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-20.md",
+      "tasks_open": [
+        "DD-20-001",
+        "DD-20-002",
+        "DD-20-003",
+        "DD-20-004",
+        "DD-20-005",
+        "DD-20-006",
+        "DD-20-007",
+        "DD-20-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks. Page Visibility backgrounding absent; sync queue no idempotency; IndexedDB schema incomplete.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-21",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-21.md",
+      "tasks_open": [
+        "DD-21-001",
+        "DD-21-002",
+        "DD-21-003",
+        "DD-21-004"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "4 tasks. PagedResponse unused; rate limit headers missing; SCIM route path wrong.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-22",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-22.md",
+      "tasks_open": [
+        "DD-22-001",
+        "DD-22-002",
+        "DD-22-003",
+        "DD-22-004",
+        "DD-22-005",
+        "DD-22-006",
+        "DD-22-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. Alert service restart policy wrong; HSTS on by default; 9 services missing watchdog keepalive.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-23",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-23.md",
+      "tasks_open": [
+        "DD-23-001",
+        "DD-23-002",
+        "DD-23-003",
+        "DD-23-004",
+        "DD-23-005",
+        "DD-23-006",
+        "DD-23-007",
+        "DD-23-008",
+        "DD-23-009",
+        "DD-23-010",
+        "DD-23-011",
+        "DD-23-012",
+        "DD-23-013",
+        "DD-23-014",
+        "DD-23-015",
+        "DD-23-016"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "16 tasks. AST format wrong; Rhai backend nonexistent; save-and-apply flow missing.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-24",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-24.md",
+      "tasks_open": [
+        "DD-24-001",
+        "DD-24-002",
+        "DD-24-003",
+        "DD-24-004",
+        "DD-24-005",
+        "DD-24-006",
+        "DD-24-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. ETL pipeline is stub; RBAC unenforced; credentials stored plaintext.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-25",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-25.md",
+      "tasks_open": [
+        "DD-25-001",
+        "DD-25-002",
+        "DD-25-003",
+        "DD-25-004",
+        "DD-25-005",
+        "DD-25-006",
+        "DD-25-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. Universal export backend absent; no ExportDialog; bulk update missing 4+ entity types.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-26",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-26.md",
+      "tasks_open": [
+        "DD-26-001",
+        "DD-26-002",
+        "DD-26-003",
+        "DD-26-004",
+        "DD-26-005",
+        "DD-26-006",
+        "DD-26-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. ORT/sha2 crates absent; import wizard absent; 9 of 15 API endpoints missing.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-27",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-27.md",
+      "tasks_open": [
+        "DD-27-001",
+        "DD-27-002",
+        "DD-27-003",
+        "DD-27-004",
+        "DD-27-005",
+        "DD-27-006",
+        "DD-27-007",
+        "DD-27-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks. Alert schema mismatch; WebSocket dispatch is stub; 5 channel adapters missing; no CancellationToken.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-28",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-28.md",
+      "tasks_open": [
+        "DD-28-001",
+        "DD-28-002",
+        "DD-28-003",
+        "DD-28-004",
+        "DD-28-005",
+        "DD-28-006",
+        "DD-28-007",
+        "DD-28-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks. Credentials stored plaintext; MiniJinja not used; 4 provider adapters missing.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 1
+    },
+    {
+      "unit": "DD-29",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-29.md",
+      "tasks_open": [
+        "DD-29-001",
+        "DD-29-002",
+        "DD-29-003",
+        "DD-29-004",
+        "DD-29-005",
+        "DD-29-006",
+        "DD-29-007",
+        "DD-29-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks. EULA gate absent; OIDC token not signature-validated; MFA policy enforcement absent.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-30",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-30.md",
+      "tasks_open": [
+        "DD-30-001",
+        "DD-30-002",
+        "DD-30-003",
+        "DD-30-004",
+        "DD-30-005",
+        "DD-30-006",
+        "DD-30-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. Badge polling engine absent; /current endpoints missing; wrong RBAC on badge endpoints.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-31",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-31.md",
+      "tasks_open": [
+        "DD-31-001",
+        "DD-31-002",
+        "DD-31-003",
+        "DD-31-004",
+        "DD-31-005",
+        "DD-31-006",
+        "DD-31-007",
+        "DD-31-008",
+        "DD-31-009",
+        "DD-31-010",
+        "DD-31-011",
+        "DD-31-012"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "12 tasks. Emergency permission not enforced; template variables typed wrong; no resolve/cancel on active alerts.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-32",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-32.md",
+      "tasks_open": [
+        "DD-32-001",
+        "DD-32-002",
+        "DD-32-003",
+        "DD-32-004",
+        "DD-32-005",
+        "DD-32-006",
+        "DD-32-007",
+        "DD-32-008",
+        "DD-32-009"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "9 tasks. DataTable missing 7 must-have features; no ThemeProvider context; PointDetailPanel lacks Alarm Data/Graphics sections.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-33",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-33.md",
+      "tasks_open": [
+        "DD-33-001",
+        "DD-33-002",
+        "DD-33-003",
+        "DD-33-004",
+        "DD-33-005",
+        "DD-33-006",
+        "DD-33-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. 8 services have zero test coverage; E2E tests are stubs; no weekly CI; no axe-core.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-34",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-34.md",
+      "tasks_open": [
+        "DD-34-001",
+        "DD-34-002",
+        "DD-34-003",
+        "DD-34-004",
+        "DD-34-005",
+        "DD-34-006"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "6 tasks. Import wizard is 'Coming Soon' stub; no per-platform parsers; stateful job API absent.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-36",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-36.md",
+      "tasks_open": [
+        "DD-36-001",
+        "DD-36-002",
+        "DD-36-003",
+        "DD-36-004",
+        "DD-36-005",
+        "DD-36-006",
+        "DD-36-007",
+        "DD-36-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks. Health checks not registered; metrics collector absent; System Health page incomplete.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-37",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-37.md",
+      "tasks_open": [
+        "DD-37-001",
+        "DD-37-002",
+        "DD-37-003",
+        "DD-37-004",
+        "DD-37-005",
+        "DD-37-006"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "6 tasks. io-models missing all domain types; WsServerMessage::Update wrong format; 6 NOTIFY payload types absent.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-38",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-38.md",
+      "tasks_open": [
+        "DD-38-001",
+        "DD-38-002",
+        "DD-38-003",
+        "DD-38-004",
+        "DD-38-005",
+        "DD-38-006",
+        "DD-38-007"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "7 tasks. RouteConfig registry absent; /designer/symbols stub redirect; wrong permission guards on 5 routes.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    },
+    {
+      "unit": "DD-39",
+      "wave": 3,
+      "status": "completed",
+      "attempts": 1,
+      "repair_attempts": 0,
+      "catalog": "docs/catalogs/DD-39.md",
+      "tasks_open": [
+        "DD-39-001",
+        "DD-39-002",
+        "DD-39-003",
+        "DD-39-004",
+        "DD-39-005",
+        "DD-39-006",
+        "DD-39-007",
+        "DD-39-008"
+      ],
+      "completed_at": "2026-03-21",
+      "notes": "8 tasks. UUID\u2192tag conversion absent; analyze/commit import endpoints missing; manifest missing 5 required fields.",
+      "last_audit_round": 2,
+      "verified_since_last_audit": 0
+    }
+  ],
+  "escalated": [],
+  "task_registry": [
+    {
+      "id": "GFX-CORE-001",
+      "unit": "GFX-CORE",
+      "wave": 1,
+      "title": "Implement pointToElements map with direct DOM mutation for real-time updates",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-CORE-002",
+      "unit": "GFX-CORE",
+      "wave": 1,
+      "title": "Add NavigationLink click handling to all 6 missing node types",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 3
+    },
+    {
+      "id": "GFX-CORE-003",
+      "unit": "GFX-CORE",
+      "wave": 1,
+      "title": "Implement all 9 annotation types in renderAnnotation",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 3
+    },
+    {
+      "id": "GFX-CORE-004",
+      "unit": "GFX-CORE",
+      "wave": 1,
+      "title": "Render insulated pipes (double line + hatching) and dashPattern",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 3
+    },
+    {
+      "id": "GFX-CORE-005",
+      "unit": "GFX-CORE",
+      "wave": 1,
+      "title": "Fix analog bar setpoint binding to use expressionId fallback",
+      "priority": "low",
+      "status": "verified",
+      "depends_on": [
+        "GFX-CORE-001"
+      ],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-DISPLAY-001",
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "title": "Implement analog bar zone alarm replacement (ISA alarm priority colors per zone)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-DISPLAY-002",
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "title": "Fill gauge vessel-overlay mode must use vessel geometry clipPath, not a rect",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-DISPLAY-003",
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "title": "Complete quality state handling in DOM mutation path (applyPointValue)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-DISPLAY-004",
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "title": "Add alarm flash text fill keyframes for P2-P5 alarm indicator priorities",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-DISPLAY-005",
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "title": "Implement signal line for text_readout, fill_gauge, sparkline, and digital_status",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-DISPLAY-006",
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "title": "Replace hardcoded hex colors with CSS custom property references in display elements",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-SHAPES-001",
+      "unit": "GFX-SHAPES",
+      "wave": 1,
+      "title": "Complete JSON sidecar schema",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-SHAPES-002",
+      "unit": "GFX-SHAPES",
+      "wave": 1,
+      "title": "Add .io-stateful class to body elements",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-SHAPES-003",
+      "unit": "GFX-SHAPES",
+      "title": "Add mandatory data-io-version and data-io-category attributes to all SVGs",
+      "priority": "medium",
+      "depends_on": [
+        "GFX-SHAPES-002"
+      ],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "GFX-SHAPES-004",
+      "unit": "GFX-SHAPES",
+      "wave": 1,
+      "title": "Fix batch shapes endpoint",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "GFX-SHAPES-005",
+      "unit": "GFX-SHAPES",
+      "title": "Add 6 missing column width-x-internal-type configuration variants",
+      "priority": "medium",
+      "depends_on": [
+        "GFX-SHAPES-002"
+      ],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "GFX-SHAPES-006",
+      "unit": "GFX-SHAPES",
+      "title": "Add missing schema, version, alarmAnchor, and statusAnchor fields to sidecars",
+      "priority": "medium",
+      "depends_on": [
+        "GFX-SHAPES-001"
+      ],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-CONSOLE-001",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Add favorites group, view-mode selector, and section-height resize to left nav panel",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-002",
+      "unit": "MOD-CONSOLE",
+      "title": "Implement detached window support for Console panes",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-003",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Persist aspect ratio lock per-workspace in WorkspaceConfig.settings",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-004",
+      "unit": "MOD-CONSOLE",
+      "title": "Fix Historical Playback Bar speed values, add alarm markers, and keyboard shortcuts",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 7
+    },
+    {
+      "id": "MOD-CONSOLE-005",
+      "unit": "MOD-CONSOLE",
+      "title": "Add nested error boundaries around individual panes to isolate crashes",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-006",
+      "unit": "MOD-CONSOLE",
+      "title": "Gate \"Create Workspace\" empty-state CTA on console:write permission",
+      "priority": "low",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-007",
+      "unit": "MOD-CONSOLE",
+      "title": "Make PointDetailPanel resizable, pinnable, minimizable, and session-position-persisted",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-008",
+      "unit": "MOD-CONSOLE",
+      "title": "Fix playback bar speed options, add loop region, reverse transport, step interval dropdown, and keyboard shortcuts",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-009",
+      "unit": "MOD-CONSOLE",
+      "title": "Fix ErrorBoundary button label to \"[Reload Module]\" and add nested per-pane boundaries",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-010",
+      "unit": "MOD-CONSOLE",
+      "title": "Replace \"Loading workspaces\u2026\" text with module-shaped skeleton loading state",
+      "priority": "low",
+      "depends_on": [],
+      "status": "pending",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-011",
+      "unit": "MOD-CONSOLE",
+      "title": "Fix kiosk URL parameter from ?mode=kiosk to ?kiosk=true; add corner dwell exit trigger",
+      "priority": "low",
+      "depends_on": [],
+      "status": "pending",
+      "audit_round": 8
+    },
+    {
+      "id": "MOD-CONSOLE-012",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Add nested error boundaries around individual panes",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-CONSOLE-013",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Replace hardcoded hex colors in Console with design token CSS variables",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-001",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Auto zoom-to-fit on initial graphic load",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-002",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Pre-build spatial binding index on graphic load",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-003",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Fix zoom upper bound to 800% (not 1000%)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-004",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Replace custom point right-click with shared PointContextMenu component",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-005",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Add Export button and 6-format export to Process toolbar",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-006",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Implement Navigation hierarchy tree in sidebar",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-007",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Wire up kiosk mode (?kiosk=true) in Process module",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-PROCESS-008",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Replace loading spinner with module-shaped skeleton state",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-DESIGNER-001",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Replace custom canvas context menu with Radix UI ContextMenu",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "MOD-DESIGNER-002",
+      "unit": "MOD-DESIGNER",
+      "title": "Implement 60fps visual drag ghost (DOM-ahead-of-store preview)",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-003",
+      "unit": "MOD-DESIGNER",
+      "title": "Move selection state from local useRef into uiStore",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-004",
+      "unit": "MOD-DESIGNER",
+      "title": "Differentiate empty-canvas context menu (RC-DES-1) from node context menu",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-005",
+      "unit": "MOD-DESIGNER",
+      "title": "Add missing RC-DES-2 base items to node context menu (Lock/Unlock, Nav Link, Properties)",
+      "priority": "medium",
+      "depends_on": [
+        "MOD-DESIGNER-004"
+      ],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-006",
+      "unit": "MOD-DESIGNER",
+      "title": "Add missing node-type-specific context menu items (RC-DES-2)",
+      "priority": "medium",
+      "depends_on": [
+        "MOD-DESIGNER-004"
+      ],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-007",
+      "unit": "MOD-DESIGNER",
+      "title": "Add right-click context menus to shape palette",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-008",
+      "unit": "MOD-DESIGNER",
+      "title": "Add right-click context menus for layer panel",
+      "priority": "low",
+      "depends_on": [],
+      "status": "pending",
+      "audit_round": 3
+    },
+    {
+      "id": "OPC-BACKEND-001",
+      "unit": "OPC-BACKEND",
+      "wave": 2,
+      "title": "Endpoint auto-selection fallback must select highest-security endpoint, not lowest",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "OPC-BACKEND-002",
+      "unit": "OPC-BACKEND",
+      "wave": 2,
+      "title": "Implement A&C operator methods: Acknowledge, Enable, Disable, TimedShelve, OneShotShelve, Unshelve",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "OPC-BACKEND-003",
+      "unit": "OPC-BACKEND",
+      "wave": 2,
+      "title": "Apply PercentDeadband 1% filter on AnalogItemType subscriptions",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 1
+    },
+    {
+      "id": "DD-06-001",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Implement correct sidebar keyboard shortcuts (Ctrl+\\, Ctrl+Shift+\\)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-002",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Wire kiosk mode to URL parameter and keyboard shortcut in AppShell",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-003",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Add visual hint overlay for G-key navigation",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-004",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Implement password-based visual lock overlay (not click-to-unlock)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-005",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Replace alert bell navigation with dropdown panel showing recent alerts",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-006",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Make breadcrumb segments clickable links (except the last)",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-007",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Add missing user menu items: Enter Kiosk Mode, My Exports, About, theme switcher",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "DD-06-002"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-008",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Fix ErrorBoundary button label and add nested boundaries for large modules",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-009",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Replace static About page with API-driven license browser and SBOM download",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-06-010",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Implement sidebar state persistence, BroadcastChannel sync, lazy module loading, and detached window routes",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "DD-06-002"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-001",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Propagate kiosk mode to AppShell via UI store",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-002",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Implement Export Data dialog for per-widget kebab menu",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-003",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Add export toolbar button to dashboard list page",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-004",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Gate publish checkbox on dashboards:publish permission",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-005",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Wire up shared PointContextMenu to all dashboard widget point values",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-006",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Implement aggregation type awareness in widget config panel",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-007",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Add UOM client-side conversion for real-time widget values",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-008",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Add Playback Bar in time-context mode to DashboardViewer",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-10-009",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Replace hardcoded hex colors with CSS design tokens across dashboards widgets",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-001",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Seed Phase 2 canned report templates (18 missing)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-002",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Wire typst-as-lib for real PDF generation (not HTML fallback)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-003",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Implement data-broker LISTEN on export_complete pg_notify channel",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-004",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Fix non-canonical RBAC permission names (reports:run, reports:generate, reports:schedule_manage)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-005",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Add \"Equipment & Maintenance\" to frontend template browser categories",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [
+        "DD-11-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-006",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Add CX-EXPORT button to Report History and Report Schedules tables",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-007",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Fix ErrorBoundary button text from \"Try again\" to \"[Reload Module]\"",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-11-008",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Improve template browser empty state with illustration, explanation, and CTA",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-001",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Add alarm search entry point to Forensics landing page",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-002",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Implement threshold search trend view with threshold line and exceedance shading",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-003",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Add Export, Share, and Print actions to investigation toolbar",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-004",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Implement drag-to-reorder for investigation stages",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-005",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Persist annotation text edits to server via updateEvidence mutation",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-006",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Fix PointContextMenu to include tagName, isAlarm, isAlarmElement props per CX-POINT-CONTEXT spec",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-007",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Wire PointContextMenu onto point tag displays in Forensics module",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "DD-12-006"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-008",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Add right-click context menu to investigation list rows",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-009",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Implement point_detail evidence type using the floating PointDetailPanel scoped to stage time range",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-010",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Replace datetime-local input for graphic snapshot timestamp with Historical Playback Bar",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-011",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Add nested error boundaries inside InvestigationWorkspace panels",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-12-012",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Fix empty state CTA permission gate, hardcoded colors in heatmap, and loading skeleton",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-001",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Add missing Tiptap extensions (Underline, Image, Table, Color/TextStyle)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-002",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Fix Underline toolbar button wired to toggleStrike instead of toggleUnderline",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-13-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-003",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Fix auto-save to use 30-second periodic interval instead of 2s debounce",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-004",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Align instance status states with spec (draft/submitted/reviewed vs pending/completed)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-005",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Implement attachment upload UI (photo, video, audio, 10MB limit)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-006",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Add Export split button to log entry table toolbar (CX-EXPORT)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-007",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Add date, author, shift, and template filter controls to log search",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-008",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Implement log schedule management UI (currently a static stub)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-009",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Replace hardcoded hex colors with design tokens (CX-TOKENS)",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-13-010",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Replace plain text \"Loading...\" with module-shaped skeleton states (CX-LOADING)",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-14-001",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Wire up zxing-js as iOS barcode scanning fallback in BarcodeGate",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-14-002",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Implement video and audio media capture in RoundPlayer checkpoint inputs",
+      "priority": "medium",
+      "status": "implementing",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-14-003",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Implement round transfer API endpoint and transfer request UI",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-14-004",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Implement printable round checklist (blank and current results modes)",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-14-005",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Implement conditional checkpoints in TemplateDesigner and RoundPlayer",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-14-006",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Add export button to rounds tables (CX-EXPORT gap)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-14-007",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Replace hardcoded hex colors with design tokens across the rounds module",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-001",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Add PermissionGuard to unprotected settings routes",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-002",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Wire MfaSettings, ApiKeys, ScimTokens, and SmsProviders into App.tsx routes",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-15-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-003",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Add client certificate dropdown, platform dropdown, and minimum publish interval to OPC source form",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-004",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Implement Group Management CRUD (create groups, assign roles, manage membership)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-005",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Add idle timeout and max concurrent sessions per-role settings to Role edit dialog",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-006",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Implement Point Configuration page (aggregation types, lifecycle, metadata version history)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-007",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Replace EULA textarea with split-pane markdown editor and add acceptance records summary cards and Export CSV",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-008",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Add ErrorBoundary wrapper, export buttons, entity right-click menus, and skeleton loading to Settings module",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-15-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-15-009",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Add Data Category selection to source config and implement Point Detail Configuration admin UI",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-16-001",
+      "unit": "DD-16",
+      "wave": 3,
+      "title": "Implement graceful shutdown with server_restarting broadcast and 5-second drain",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-16-002",
+      "unit": "DD-16",
+      "wave": 3,
+      "title": "Implement adaptive throttling driven by client status_report messages",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-16-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-16-003",
+      "unit": "DD-16",
+      "wave": 3,
+      "title": "Implement update efficiency: change-only fanout, deadband, max-silence heartbeat, batching, and staggered fanout",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-16-004",
+      "unit": "DD-16",
+      "wave": 3,
+      "title": "Emit point_fresh instead of regular update when a stale point receives a new value",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-16-005",
+      "unit": "DD-16",
+      "wave": 3,
+      "title": "Add per-window subscription map, port-close auto-cleanup, and reconnect jitter to SharedWorker",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-16-006",
+      "unit": "DD-16",
+      "wave": 3,
+      "title": "Mark source-associated points stale immediately on source_offline",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-18-001",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "Remove quality filter from raw resolution queries",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-18-002",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "Add 15m and 1d resolution tiers to archive REST API",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-18-003",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "Add 15m and 1d aggregate retention and refresh to maintenance loop",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-18-004",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "Change points_history_raw FK to ON DELETE CASCADE",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-18-005",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "Implement rolling average endpoint for archive service",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-18-006",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "Implement aggregation type validation in history API",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-001",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Fix bottom tab bar items to match spec (Monitor/Rounds/Log/Alerts/More)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-002",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Enforce 60px minimum touch targets on mobile tab bar links",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-20-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-003",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Implement Page Visibility API backgrounding for WebSocket reconnect",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-004",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Add idempotency keys and exponential backoff to offline sync queue",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-005",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Wire zxing-js as BarcodeDetector fallback for iOS Safari",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-006",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Add react-zoom-pan-pinch for tablet graphics pinch-zoom",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-007",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Implement full IndexedDB schema (5 stores: sync-queue, rounds-data, media-blobs, point-cache, tile-cache)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-20-004"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-20-008",
+      "unit": "DD-20",
+      "wave": 3,
+      "title": "Implement code splitting to exclude Designer/Forensics/Settings from mobile initial bundle",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-21-001",
+      "unit": "DD-21",
+      "wave": 3,
+      "title": "Implement pagination envelope on all list endpoints",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-21-002",
+      "unit": "DD-21",
+      "wave": 3,
+      "title": "Emit X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset on every response",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-21-003",
+      "unit": "DD-21",
+      "wave": 3,
+      "title": "Fix SCIM token admin route path from /scim-tokens to /scim/tokens",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-21-004",
+      "unit": "DD-21",
+      "wave": 3,
+      "title": "Add validator crate for declarative input validation rules",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-22-001",
+      "unit": "DD-22",
+      "wave": 3,
+      "title": "Fix Alert Service systemd restart policy to Restart=always with 3s delay",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-22-002",
+      "unit": "DD-22",
+      "wave": 3,
+      "title": "Add Nice=10 to Import Service systemd unit for QoS tier 3",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-22-003",
+      "unit": "DD-22",
+      "wave": 3,
+      "title": "Wire sd_notify watchdog keepalive into all 9 remaining services",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-22-004",
+      "unit": "DD-22",
+      "wave": 3,
+      "title": "Disable HSTS in nginx config by default \u2014 enable only via Settings toggle",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-22-005",
+      "unit": "DD-22",
+      "wave": 3,
+      "title": "Add ~20 missing spec-required environment variables to io.env.example",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-22-006",
+      "unit": "DD-22",
+      "wave": 3,
+      "title": "Implement ACME cert renewal systemd timer and API Gateway renewal endpoint",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-22-007",
+      "unit": "DD-22",
+      "wave": 3,
+      "title": "Implement io-ctl binary with generate-master-key subcommand",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-001",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Fix AST serialization format to match doc 37 tree structure",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-002",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Add field_ref tile type for rounds_checkpoint and log_segment contexts",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-23-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-003",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Enforce 5-level nesting depth limit with tooltip feedback",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-004",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Fix nesting level colors to match Okabe-Ito spec with theme variants",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-005",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Implement 10k-iteration performance benchmark in Web Worker for Test button",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-006",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Fix Share checkbox permission to use system:expression_manage",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-007",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Implement full save-and-apply OK flow with API save, performance test, and confirmation",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-23-001",
+        "DD-23-005"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-008",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Add unsaved-changes confirmation prompt to Cancel button",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-009",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Implement Ctrl+C, Ctrl+X, Ctrl+V clipboard operations for tiles",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-010",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Add ARIA roles and live region for screen reader support",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-011",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Render blinking insertion cursor in workspace at current cursor position",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-012",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Implement drag-and-drop from palette to workspace (Method 2)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-013",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Add breadcrumb trail above workspace when cursor is inside a nested container",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [
+        "DD-23-011"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-014",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Fix saveForFuture default to true (checked by default)",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-015",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Fix Round tile precision to use powers-of-10 increment values per spec",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-23-016",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Implement Rhai expression evaluation handler in API gateway",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-23-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-24-001",
+      "unit": "DD-24",
+      "wave": 3,
+      "title": "Implement ETL pipeline execution in trigger_run",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-24-002",
+      "unit": "DD-24",
+      "wave": 3,
+      "title": "Implement real connection test using connector dispatch",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-24-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-24-003",
+      "unit": "DD-24",
+      "wave": 3,
+      "title": "Enforce RBAC permissions on /api/import/* routes",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-24-004",
+      "unit": "DD-24",
+      "wave": 3,
+      "title": "Implement AES-256-GCM credential encryption for import connection auth_config",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-24-005",
+      "unit": "DD-24",
+      "wave": 3,
+      "title": "Emit PostgreSQL NOTIFY events for import status changes",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-24-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-24-006",
+      "unit": "DD-24",
+      "wave": 3,
+      "title": "Implement PostgreSQL-based import scheduler with FOR UPDATE SKIP LOCKED",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-24-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-24-007",
+      "unit": "DD-24",
+      "wave": 3,
+      "title": "Add missing API endpoints and populate connector template_config",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-25-001",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Implement Universal Export backend \u2014 /api/exports endpoint with 6-format pipeline",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-25-002",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Implement shared ExportDialog component and wire to qualifying module tables",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-25-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-25-003",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Expand Bulk Update entity coverage to all 8+ spec-defined types including points_metadata",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-25-004",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Complete Bulk Update wizard \u2014 add Step 2 (Validate & Map) and full Step 4 Results",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-25-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-25-005",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Add XLSX upload support and conflict detection to Bulk Update",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-25-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-25-006",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Implement selective restore and field-level restore preview for Change Snapshots",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-25-007",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Fix snapshot schema mismatch, bulk-update permission, and My Exports page scope",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-25-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-26-001",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Rename inference route from /recognition/infer to /recognition/detect",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-26-002",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Fix /recognition/status response to return per-domain shape",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-26-003",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Add missing recognition API endpoints (classes, generate, feedback, model history, gap-report CRUD)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "DD-26-001",
+        "DD-26-002"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-26-004",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Widen correction_type column from VARCHAR(20) to VARCHAR(30)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-26-005",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Add ort, sha2, zip, image crates and implement SHA-256 integrity check on .iomodel load",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-26-006",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Auto-detect model domain from manifest.json inside .iomodel ZIP (not from form field)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-26-005"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-26-007",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Implement recognition import wizard in Designer module",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-26-001",
+        "DD-26-002",
+        "DD-26-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-001",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Align alert-service schema with spec (alerts table, correct columns)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-002",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Implement WebSocket alert fanout via data-broker HTTP broadcast endpoint",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-27-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-003",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Use CancellationToken to cancel pending escalation timers on acknowledge/resolve/cancel",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-27-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-004",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Recover in-flight escalations on alert-service startup",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-27-001",
+        "DD-27-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-005",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Implement alert templates with MiniJinja rendering and built-in seed templates",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-27-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-006",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Implement recipient rosters with CRUD and shift-aware member resolution",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "DD-27-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-007",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Implement SMS, Voice, Radio, PA, and BrowserPush channel adapters",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-27-001",
+        "DD-27-006"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-27-008",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Add missing alert API routes (active, cancel, webhooks, stats, and correct POST /api/alerts path)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-27-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-001",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Fix queue worker poll interval (10s\u21921s) and batch size (3\u219210)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-002",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Replace hand-rolled template substitution with MiniJinja engine",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-003",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Implement MS Graph, Gmail, SES, and SMTP-XOAUTH2 provider adapters",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-004",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Implement email_suppressions table and pre-send suppression check",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-005",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Add nine missing API endpoints to email service router",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-006",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Implement AES-256-GCM credential encryption at rest for provider configs",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-007",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Fix status 'dead' vs 'failed', system template delete guard, fallback provider, NOTIFY listener, and cleanup task",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-28-008",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Implement real test_provider send and spec-compliant health endpoint",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-28-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-001",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Implement EULA hard gate \u2014 block JWT issuance until acceptance",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-002",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Validate OIDC ID token signature against JWKS endpoint",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-003",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Verify SAML assertion XML signature using IdP certificate",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-004",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Implement MFA policy enforcement gate in all login flows",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-005",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Implement Duo Security MFA (Universal Prompt via OIDC Auth API)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-29-004"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-006",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Implement SCIM 2.0 Groups endpoints",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-007",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Fix IdP role mapping column name mismatch and add regex match type",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-008",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Add background cleanup tasks for expired auth flow state and in-memory tokens",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-30-001",
+      "unit": "DD-30",
+      "wave": 3,
+      "title": "Implement badge polling engine with BadgeAdapter trait and background task",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-30-002",
+      "unit": "DD-30",
+      "wave": 3,
+      "title": "Add GET /api/shifts/current and GET /api/shifts/current/personnel endpoints",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-30-003",
+      "unit": "DD-30",
+      "wave": 3,
+      "title": "Add POST /api/presence/clear/:badge_id endpoint for manual stale-presence clear",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-30-004",
+      "unit": "DD-30",
+      "wave": 3,
+      "title": "Fix badge-source endpoint permissions from shifts:write to badge_config:manage",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-30-005",
+      "unit": "DD-30",
+      "wave": 3,
+      "title": "Add shift pattern CRUD and schedule generation endpoints",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-30-006",
+      "unit": "DD-30",
+      "wave": 3,
+      "title": "Publish presence and muster WebSocket topics from API Gateway handlers",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-30-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-30-007",
+      "unit": "DD-30",
+      "wave": 3,
+      "title": "Add React error boundary to Shifts module",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-001",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Add Resolve and Cancel actions to active alert cards",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-002",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Enforce alerts:send_emergency permission for EMERGENCY-severity sends",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-003",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Change template variable definitions from string[] to structured {name, label, default_value, required} objects",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-004",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Filter emergency quick-send section by is_emergency flag, not by severity",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [
+        "DD-31-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-005",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Load available channels from Alert Service config instead of hardcoding all channels",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-006",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Replace polling with WebSocket subscription for real-time delivery status updates",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-007",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Add Export Unaccounted List button to Muster Dashboard",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-008",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Add Export button to Alert History table (CX-EXPORT)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-009",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Add right-click context menus to template and group list rows (CX-ENTITY-CONTEXT)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-010",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Replace generic text loading states with module-shaped skeletons (CX-LOADING)",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-011",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Replace hardcoded hex colors with design tokens throughout Alerts module (CX-TOKENS)",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-31-012",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Hide muster dashboard and on-shift/on-site group types when no access control integration configured",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-001",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Implement DataTable must-have features (filtering, pinning, resizing, multi-sort, sparklines, conditional formatting, export)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-002",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Implement ECharts dynamic theme switching (register 3 named themes, react to theme changes)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-32-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-003",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Create theme-colors.ts parallel JS color object and React ThemeProvider context",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-004",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Implement PointDetailPanel full section layout (Alarm Data, Graphics, action buttons, resize, pin, minimize, multi-instance)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-005",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Fix PointContextMenu actions to match spec (Trend Point, Investigate Point, Report on Point, RBAC, mobile long-press)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-006",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Add PointPicker Favorites tab, Recent points list, and hover preview with sparkline",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-007",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Fix Toast component \u2014 enforce 3-toast max with count badge, make error toasts persistent",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-008",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Implement density mode React context so shared components respond to global density setting",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-32-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-32-009",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Fix ErrorBoundary button label to \"Reload Module\" per spec",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-33-001",
+      "unit": "DD-33",
+      "wave": 3,
+      "title": "Add Prettier format check to CI commit stage",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-33-002",
+      "unit": "DD-33",
+      "wave": 3,
+      "title": "Wire E2E critical paths and frontend integration tests to PR CI stage",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-33-007"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-33-003",
+      "unit": "DD-33",
+      "wave": 3,
+      "title": "Add criterion benchmark job and Goose load test job to nightly CI",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-33-006"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-33-004",
+      "unit": "DD-33",
+      "wave": 3,
+      "title": "Create weekly CI workflow for license scan and extended dependency audit",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-33-005",
+      "unit": "DD-33",
+      "wave": 3,
+      "title": "Add unit tests to 8 services and 5 shared crates that have zero test coverage",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-33-006",
+      "unit": "DD-33",
+      "wave": 3,
+      "title": "Add service-level integration test suites and declare test crate dependencies in workspace",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-33-005"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-33-007",
+      "unit": "DD-33",
+      "wave": 3,
+      "title": "Implement real E2E critical path tests and integrate axe-core accessibility audits",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-34-001",
+      "unit": "DD-34",
+      "wave": 3,
+      "title": "Parse manifest.json, tags.json, and import_report.json from extraction kit ZIP",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-34-002",
+      "unit": "DD-34",
+      "wave": 3,
+      "title": "Implement per-platform DCS parser modules for Phase 1 platforms",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-34-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-34-003",
+      "unit": "DD-34",
+      "wave": 3,
+      "title": "Implement 6-step DCS Import Wizard in Designer",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-34-004"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-34-004",
+      "unit": "DD-34",
+      "wave": 3,
+      "title": "Implement stateful 6-endpoint DCS import job API",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "DD-34-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-34-005",
+      "unit": "DD-34",
+      "wave": 3,
+      "title": "Enforce designer:import RBAC permission on DCS import endpoint",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-34-006",
+      "unit": "DD-34",
+      "wave": 3,
+      "title": "Correct platform list \u2014 add missing platforms, remove non-spec platform",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-001",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Register dependency health checks in all 11 services",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-002",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Add path label (route template) to HTTP metrics in api-gateway middleware",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-003",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Implement missing standard metrics across all services",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-004",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Implement API Gateway metrics collector background task",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-005",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Wire optional OpenTelemetry distributed tracing in io-observability",
+      "priority": "low",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-006",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Add io_metrics.samples compression policy and samples_5m refresh policy to migrations",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-007",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Implement missing service-specific metrics for OPC, Archive, Alert, Email, Auth, Recognition, Import, and Parser services",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-36-008",
+      "unit": "DD-36",
+      "wave": 3,
+      "title": "Implement full 6-tab System Health page and shell status dot popover",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-36-004"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-37-001",
+      "unit": "DD-37",
+      "wave": 3,
+      "title": "Add shared domain types to io-models crate (\u00a78 PointValue, Event, Alert, User, Source, Permission)",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-37-002",
+      "unit": "DD-37",
+      "wave": 3,
+      "title": "Fix WsServerMessage::Update to use WsBatchUpdate with abbreviated point fields",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-37-003",
+      "unit": "DD-37",
+      "wave": 3,
+      "title": "Add PresenceUpdate variant to WsServerMessage and fix StatusReport field type",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-37-002"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-37-004",
+      "unit": "DD-37",
+      "wave": 3,
+      "title": "Add six missing NOTIFY payload types to io-bus (NotifyEvent, NotifyAlert, etc.)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-37-005",
+      "unit": "DD-37",
+      "wave": 3,
+      "title": "Fix Pagination field names in io-models to match spec (per_page, total_items, total_pages)",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-37-006",
+      "unit": "DD-37",
+      "wave": 3,
+      "title": "Implement API key (io_sk_ prefix) auth path in gateway JWT middleware",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-38-001",
+      "unit": "DD-38",
+      "wave": 3,
+      "title": "Create RouteConfig registry at src/shared/routes/registry.ts",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-38-002",
+      "unit": "DD-38",
+      "wave": 3,
+      "title": "Fix /designer/symbols route \u2014 render SymbolLibrary instead of redirecting",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-38-003",
+      "unit": "DD-38",
+      "wave": 3,
+      "title": "Fix /settings/roles permission guard \u2014 use system:manage_roles not system:manage_users",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-38-004",
+      "unit": "DD-38",
+      "wave": 3,
+      "title": "Fix /settings/email permission guard \u2014 use email:configure not settings:write",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-38-005",
+      "unit": "DD-38",
+      "wave": 3,
+      "title": "Fix /settings/imports sub-route permission guards \u2014 use granular import permissions",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-38-006",
+      "unit": "DD-38",
+      "wave": 3,
+      "title": "Fix /settings/recognition permission guard \u2014 use settings:admin not settings:write",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-38-007",
+      "unit": "DD-38",
+      "wave": 3,
+      "title": "Fix default post-login redirect \u2014 use first visible module per user permissions",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-38-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-001",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Add shapes, stencils, shape_dependencies, point_tags, checksum to manifest",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-002",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Convert point UUIDs to tag names in exported graphic.json bindings",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-003",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Implement analyze endpoint for iographic import wizard",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-004",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Implement commit import endpoint with options payload and tag-based binding reconstruction",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-39-003"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-005",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Compute SHA-256 checksum on export and verify on import",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-39-001"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-006",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Export shape.json sidecar alongside shape.svg for custom shapes",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-007",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Serialize expression ASTs in graphic.json during export",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [
+        "DD-39-002"
+      ],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-39-008",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "Fix export route path, HTTP method, and MIME type",
+      "priority": "medium",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 2
+    },
+    {
+      "id": "DD-29-009",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Add POST /api/auth/verify-password endpoint with two-tier rate limiting",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2,
+      "source": "feature"
+    },
+    {
+      "id": "DD-29-010",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Persist session lock state server-side and push WebSocket events on lock/unlock",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-29-009"
+      ],
+      "audit_round": 2,
+      "source": "feature"
+    },
+    {
+      "id": "DD-29-011",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Add PIN set/delete/verify endpoints for lock screen unlock",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-29-009"
+      ],
+      "audit_round": 2,
+      "source": "feature"
+    },
+    {
+      "id": "DD-06-011",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Rewrite LockOverlay \u2014 transparent passive state, server-sync, SSO popup, PIN support",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "DD-29-009",
+        "DD-29-010",
+        "DD-29-011"
+      ],
+      "audit_round": 2,
+      "source": "feature"
+    },
+    {
+      "id": "DD-06-012",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Add app-wide popup detection banner for blocked popups",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 2,
+      "source": "feature"
+    },
+    {
+      "id": "GFX-SHAPES-007",
+      "unit": "GFX-SHAPES",
+      "title": "Fix seed_shapes.rs shape IDs to match canonical sidecar IDs",
+      "priority": "high",
+      "depends_on": [
+        "GFX-SHAPES-001",
+        "GFX-SHAPES-002"
+      ],
+      "status": "verified",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-009",
+      "unit": "MOD-DESIGNER",
+      "title": "Wire PointContextMenu to point-bound display elements in designer",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "pending",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-010",
+      "unit": "MOD-DESIGNER",
+      "title": "Add nested error boundaries, fix Reload Module label, add loading skeleton",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "pending",
+      "audit_round": 3
+    },
+    {
+      "id": "MOD-DESIGNER-011",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Fix resize mouseup dispatch for symbol_instance, text_block, and stencil",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-012",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add bounding box resize for annotation nodes (subtype-aware)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-013",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add group proportional resize (Figma model \u2014 scale all children)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-011"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-014",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add resize handles and drag resize for standalone display elements",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-011"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-015",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Enable multi-node resize (CompoundCommand wrapping per-node resize commands)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-011",
+        "MOD-DESIGNER-012",
+        "MOD-DESIGNER-013",
+        "MOD-DESIGNER-014"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-016",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Add canvas size inputs and aspect preset buttons to New Graphic dialog",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-017",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Build File \u2192 Properties dialog for canvas resize and background color",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-016"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-018",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Render canvas boundary visual and add out-of-bounds save warning toast",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-019",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Palette parity \u2014 Widgets in Graphic mode, Stencils in Dashboard/Report mode",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-016"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-020",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Implement auto-height scrollable canvas for Report and Dashboard modes",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-016",
+        "MOD-DESIGNER-017",
+        "MOD-DESIGNER-019"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-021",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group management \u2014 create with name prompt, rename, ungroup, keyboard shortcuts",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-022",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group in-place editing (double-click enter/exit) and toolbar selector/group buttons",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-021"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-023",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Designer file tabs \u2014 multiple open graphics simultaneously",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-024",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group sub-tabs \u2014 open group content in a dedicated tab for deep editing",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-021",
+        "MOD-DESIGNER-023"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    },
+    {
+      "id": "MOD-DESIGNER-025",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Extend Promote to Shape wizard to accept groups with display elements as value anchors",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [
+        "MOD-DESIGNER-021"
+      ],
+      "audit_round": 6,
+      "source": "feature"
+    }
+  ],
+  "audit_round": 9,
+  "units": []
+}

@@ -16,6 +16,8 @@ export interface CheckpointValidation {
 
 export interface CheckpointMediaRequirements {
   photo?: 'optional' | 'required' | 'required_on_alarm'
+  video?: 'optional' | 'required' | 'required_on_alarm'
+  audio?: 'optional' | 'required' | 'required_on_alarm'
   comments?: 'optional' | 'required' | 'required_on_alarm'
 }
 
@@ -122,6 +124,10 @@ export interface ResponseItem {
   barcode_scanned?: string
   /** Set to true if operator is not currently badged on-site (doc 14.3) */
   flagged_not_badged?: boolean
+  /** Base64-encoded video attachment (MP4/WebM) captured during this checkpoint */
+  video_attachment?: string
+  /** Base64-encoded audio attachment (WebM/OGG) captured during this checkpoint */
+  audio_attachment?: string
 }
 
 // ---------------------------------------------------------------------------

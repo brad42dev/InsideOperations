@@ -283,13 +283,98 @@ function CheckpointInput({
   onChange,
   comment,
   onCommentChange,
+  onVideoCapture,
+  onAudioCapture,
+  videoCaptured,
+  audioCaptured,
 }: {
   checkpoint: Checkpoint
   value: string
   onChange: (v: string) => void
   comment: string
   onCommentChange: (v: string) => void
+  onVideoCapture: (blob: Blob | null) => void
+  onAudioCapture: (blob: Blob | null) => void
+  videoCaptured: boolean
+  audioCaptured: boolean
 }) {
+  const [videoRecording, setVideoRecording] = useState(false)
+  const [audioRecording, setAudioRecording] = useState(false)
+  const [videoError, setVideoError] = useState<string | null>(null)
+  const [audioError, setAudioError] = useState<string | null>(null)
+  const videoRecorderRef = useRef<MediaRecorder | null>(null)
+  const videoStreamRef = useRef<MediaStream | null>(null)
+  const audioRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioStreamRef = useRef<MediaStream | null>(null)
+
+  const startVideoRecording = async () => {
+    setVideoError(null)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setVideoError('Camera access is not supported on this device.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      videoStreamRef.current = stream
+      const chunks: BlobPart[] = []
+      const recorder = new MediaRecorder(stream)
+      videoRecorderRef.current = recorder
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' })
+        onVideoCapture(blob)
+        stream.getTracks().forEach((t) => t.stop())
+        videoStreamRef.current = null
+        videoRecorderRef.current = null
+        setVideoRecording(false)
+      }
+      recorder.start()
+      setVideoRecording(true)
+    } catch {
+      setVideoError('Could not access camera. Check browser permissions.')
+    }
+  }
+
+  const stopVideoRecording = () => {
+    if (videoRecorderRef.current && videoRecording) {
+      videoRecorderRef.current.stop()
+    }
+  }
+
+  const startAudioRecording = async () => {
+    setAudioError(null)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setAudioError('Microphone access is not supported on this device.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioStreamRef.current = stream
+      const chunks: BlobPart[] = []
+      const recorder = new MediaRecorder(stream)
+      audioRecorderRef.current = recorder
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' })
+        onAudioCapture(blob)
+        stream.getTracks().forEach((t) => t.stop())
+        audioStreamRef.current = null
+        audioRecorderRef.current = null
+        setAudioRecording(false)
+      }
+      recorder.start()
+      setAudioRecording(true)
+    } catch {
+      setAudioError('Could not access microphone. Check browser permissions.')
+    }
+  }
+
+  const stopAudioRecording = () => {
+    if (audioRecorderRef.current && audioRecording) {
+      audioRecorderRef.current.stop()
+    }
+  }
+
   const inputStyle = {
     width: '100%',
     padding: '10px 12px',
@@ -410,6 +495,90 @@ function CheckpointInput({
         </div>
       )}
 
+      {/* Video capture */}
+      {checkpoint.media_requirements?.video && (
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--io-text-secondary)', display: 'block', marginBottom: '4px' }}>
+            Video Recording
+            {checkpoint.media_requirements.video === 'required' && (
+              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            )}
+          </label>
+          {videoError && (
+            <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px' }}>{videoError}</div>
+          )}
+          {videoCaptured ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', color: '#22c55e' }}>Video recorded</span>
+              <button
+                onClick={() => { onVideoCapture(null); setVideoError(null) }}
+                style={{ fontSize: '12px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', color: 'var(--io-text-secondary)' }}
+              >
+                Re-record
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={videoRecording ? stopVideoRecording : startVideoRecording}
+              style={{
+                padding: '10px 16px',
+                background: videoRecording ? '#ef4444' : 'var(--io-surface-secondary)',
+                border: `1px solid ${videoRecording ? '#ef4444' : 'var(--io-border)'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: videoRecording ? '#fff' : 'var(--io-text-primary)',
+                fontSize: '13px',
+                fontWeight: 600,
+              }}
+            >
+              {videoRecording ? 'Stop Recording' : 'Record Video'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Audio capture */}
+      {checkpoint.media_requirements?.audio && (
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--io-text-secondary)', display: 'block', marginBottom: '4px' }}>
+            Audio Note
+            {checkpoint.media_requirements.audio === 'required' && (
+              <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
+            )}
+          </label>
+          {audioError && (
+            <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px' }}>{audioError}</div>
+          )}
+          {audioCaptured ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '13px', color: '#22c55e' }}>Audio recorded</span>
+              <button
+                onClick={() => { onAudioCapture(null); setAudioError(null) }}
+                style={{ fontSize: '12px', background: 'none', border: '1px solid var(--io-border)', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', color: 'var(--io-text-secondary)' }}
+              >
+                Re-record
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={audioRecording ? stopAudioRecording : startAudioRecording}
+              style={{
+                padding: '10px 16px',
+                background: audioRecording ? '#ef4444' : 'var(--io-surface-secondary)',
+                border: `1px solid ${audioRecording ? '#ef4444' : 'var(--io-border)'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: audioRecording ? '#fff' : 'var(--io-text-primary)',
+                fontSize: '13px',
+                fontWeight: 600,
+              }}
+            >
+              {audioRecording ? 'Stop Recording' : 'Record Audio'}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Comment field */}
       <div>
         <label style={{ fontSize: '12px', color: 'var(--io-text-secondary)', display: 'block', marginBottom: '4px' }}>
@@ -450,6 +619,8 @@ export default function RoundPlayer() {
   // Gate unlock state: tracks which checkpoint indexes have their barcode/GPS gates cleared
   const [barcodeUnlocked, setBarcodeUnlocked] = useState<Record<number, boolean>>({})
   const [gpsUnlocked, setGpsUnlocked] = useState<Record<number, boolean>>({})
+  const [videoBlobs, setVideoBlobs] = useState<Record<number, Blob | null>>({})
+  const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob | null>>({})
 
   const { isOnline, pendingCount, saveOfflineResponse, getPendingResponses, clearSynced, syncPending } = useOfflineRounds()
 
@@ -553,6 +724,18 @@ export default function RoundPlayer() {
     const cp = checkpoints[cpIndex]
     if (!cp) return true
 
+    // Block advancement if required video not captured
+    if (cp.media_requirements?.video === 'required' && !videoBlobs[cpIndex]) {
+      setError('Video capture is required for this checkpoint.')
+      return false
+    }
+
+    // Block advancement if required audio not captured
+    if (cp.media_requirements?.audio === 'required' && !audioBlobs[cpIndex]) {
+      setError('Audio recording is required for this checkpoint.')
+      return false
+    }
+
     const rawValue = values[cpIndex]
     if (rawValue === undefined || rawValue === '') return true // skip empty optional
 
@@ -584,6 +767,24 @@ export default function RoundPlayer() {
       return true
     }
 
+    // Convert media blobs to base64 for attachment in payload
+    const blobToBase64 = (blob: Blob): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve((reader.result as string).split(',')[1] ?? '')
+        reader.onerror = () => reject(new Error('Failed to read media blob'))
+        reader.readAsDataURL(blob)
+      })
+
+    let videoAttachment: string | undefined
+    let audioAttachment: string | undefined
+    if (videoBlobs[cpIndex]) {
+      videoAttachment = await blobToBase64(videoBlobs[cpIndex]!)
+    }
+    if (audioBlobs[cpIndex]) {
+      audioAttachment = await blobToBase64(audioBlobs[cpIndex]!)
+    }
+
     const item: ResponseItem = {
       checkpoint_index: cpIndex,
       response_type: cp.data_type,
@@ -591,6 +792,8 @@ export default function RoundPlayer() {
       gps_latitude: gps?.lat,
       gps_longitude: gps?.lng,
       flagged_not_badged: operatorNotBadged || undefined,
+      video_attachment: videoAttachment,
+      audio_attachment: audioAttachment,
     }
 
     const result = await roundsApi.saveResponses(id, [item])
@@ -601,7 +804,7 @@ export default function RoundPlayer() {
       return false
     }
     return true
-  }, [id, detailResult, values, comments, gps, isOnline, saveOfflineResponse])
+  }, [id, detailResult, values, comments, gps, isOnline, saveOfflineResponse, videoBlobs, audioBlobs])
 
   // Gates are per-checkpoint — reset for the target index when navigating
   const handleNext = async () => {
@@ -872,6 +1075,10 @@ export default function RoundPlayer() {
               onChange={(v) => setValues((prev) => ({ ...prev, [clampedIdx]: v }))}
               comment={comments[clampedIdx] ?? ''}
               onCommentChange={(v) => setComments((prev) => ({ ...prev, [clampedIdx]: v }))}
+              onVideoCapture={(blob) => setVideoBlobs((prev) => ({ ...prev, [clampedIdx]: blob }))}
+              onAudioCapture={(blob) => setAudioBlobs((prev) => ({ ...prev, [clampedIdx]: blob }))}
+              videoCaptured={!!videoBlobs[clampedIdx]}
+              audioCaptured={!!audioBlobs[clampedIdx]}
             />
           )}
         </div>

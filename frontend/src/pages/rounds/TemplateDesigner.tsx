@@ -29,6 +29,8 @@ interface EditableCheckpoint {
   options: string[]
   fields: Array<{ name: string; type: string }>
   photo: string
+  video: string
+  audio: string
   comments: string
   // Barcode gate
   barcode_gate_enabled: boolean
@@ -59,6 +61,8 @@ function emptyCheckpoint(index: number): EditableCheckpoint {
     options: [''],
     fields: [{ name: '', type: 'text' }],
     photo: 'none',
+    video: 'none',
+    audio: 'none',
     comments: 'optional',
     barcode_gate_enabled: false,
     barcode_expected: '',
@@ -100,10 +104,14 @@ function checkpointToApi(cp: EditableCheckpoint): Checkpoint {
   }
 
   const mediaPhoto = cp.photo as 'optional' | 'required' | 'required_on_alarm' | 'none'
+  const mediaVideo = cp.video as 'optional' | 'required' | 'required_on_alarm' | 'none'
+  const mediaAudio = cp.audio as 'optional' | 'required' | 'required_on_alarm' | 'none'
   const mediaComments = cp.comments as 'optional' | 'required' | 'required_on_alarm' | 'none'
-  if (mediaPhoto !== 'none' || mediaComments !== 'none') {
+  if (mediaPhoto !== 'none' || mediaVideo !== 'none' || mediaAudio !== 'none' || mediaComments !== 'none') {
     base.media_requirements = {
       photo: mediaPhoto !== 'none' ? mediaPhoto : undefined,
+      video: mediaVideo !== 'none' ? mediaVideo : undefined,
+      audio: mediaAudio !== 'none' ? mediaAudio : undefined,
       comments: mediaComments !== 'none' ? mediaComments : undefined,
     }
   }
@@ -146,6 +154,8 @@ function apiToEditable(cp: Checkpoint): EditableCheckpoint {
     options: cp.options?.length ? cp.options : [''],
     fields: cp.fields?.length ? cp.fields : [{ name: '', type: 'text' }],
     photo: cp.media_requirements?.photo ?? 'none',
+    video: cp.media_requirements?.video ?? 'none',
+    audio: cp.media_requirements?.audio ?? 'none',
     comments: cp.media_requirements?.comments ?? 'optional',
     barcode_gate_enabled: !!cp.barcode_gate,
     barcode_expected: cp.barcode_gate?.expected_value ?? '',
@@ -504,6 +514,22 @@ function CheckpointEditor({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Field label="Photo requirement">
               <select value={cp.photo} onChange={(e) => set('photo', e.target.value)} style={inputStyle}>
+                <option value="none">None</option>
+                <option value="optional">Optional</option>
+                <option value="required">Required</option>
+                <option value="required_on_alarm">Required on alarm</option>
+              </select>
+            </Field>
+            <Field label="Video requirement">
+              <select value={cp.video} onChange={(e) => set('video', e.target.value)} style={inputStyle}>
+                <option value="none">None</option>
+                <option value="optional">Optional</option>
+                <option value="required">Required</option>
+                <option value="required_on_alarm">Required on alarm</option>
+              </select>
+            </Field>
+            <Field label="Audio requirement">
+              <select value={cp.audio} onChange={(e) => set('audio', e.target.value)} style={inputStyle}>
                 <option value="none">None</option>
                 <option value="optional">Optional</option>
                 <option value="required">Required</option>
