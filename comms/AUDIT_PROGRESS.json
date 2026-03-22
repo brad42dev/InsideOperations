@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T20:43:35.520345+00:00",
+  "last_updated": "2026-03-22T20:57:09.136082Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -119,7 +119,8 @@
     "DD-23-008": 1,
     "DD-24-007": 1,
     "DD-25-004": 1,
-    "DD-25-006": 1
+    "DD-25-006": 1,
+    "DD-25-007": 1
   },
   "queue": [
     {
@@ -2684,7 +2685,7 @@
       "wave": 3,
       "title": "Fix snapshot schema mismatch, bulk-update permission, and My Exports page scope",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-25-001"
       ],
@@ -2729,7 +2730,7 @@
       "wave": 3,
       "title": "Widen correction_type column from VARCHAR(20) to VARCHAR(30)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2749,7 +2750,7 @@
       "wave": 3,
       "title": "Auto-detect model domain from manifest.json inside .iomodel ZIP (not from form field)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-26-005"
       ],

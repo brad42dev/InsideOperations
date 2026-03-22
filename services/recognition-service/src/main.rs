@@ -194,7 +194,29 @@ async fn upload_model(
         }
     };
 
-    let domain = manifest.model_domain.unwrap_or_else(|| "pid".to_string());
+    let domain = match manifest.model_domain.as_deref() {
+        Some("pid") | Some("dcs") => manifest.model_domain.unwrap(),
+        Some(other) => {
+            tracing::error!(
+                "manifest.json model_domain '{}' is not 'pid' or 'dcs' in '{}'",
+                other,
+                filename
+            );
+            return IoError::BadRequest(format!(
+                "Invalid model_domain '{}' in manifest.json — must be 'pid' or 'dcs'",
+                other
+            ))
+            .into_response();
+        }
+        None => {
+            tracing::error!("manifest.json missing model_domain field in '{}'", filename);
+            return IoError::BadRequest(
+                "manifest.json is missing required model_domain field — must be 'pid' or 'dcs'"
+                    .to_string(),
+            )
+            .into_response();
+        }
+    };
     let version = manifest.version.unwrap_or_else(|| "1.0.0".to_string());
     let class_count = manifest.class_count.unwrap_or(0);
 

@@ -134,7 +134,6 @@ function StatItem({ label, value, subtext }: { label: string; value: string; sub
 function ModelsSection() {
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploadDomain, setUploadDomain] = useState<'pid' | 'dcs'>('pid')
   const [uploading, setUploading] = useState(false)
 
   const { data: models, isLoading } = useQuery({
@@ -164,11 +163,12 @@ function ModelsSection() {
     if (!file) return
     setUploading(true)
     try {
-      const result = await recognitionApi.uploadModel(file, uploadDomain)
+      const result = await recognitionApi.uploadModel(file)
       if (result.success) {
         qc.invalidateQueries({ queryKey: ['recognition', 'models'] })
         qc.invalidateQueries({ queryKey: ['recognition', 'status'] })
-        showToast({ title: `Model "${file.name}" uploaded`, variant: 'success' })
+        const uploadedDomain = result.data?.domain?.toUpperCase() ?? 'model'
+        showToast({ title: `Uploaded ${uploadedDomain} model v${result.data?.version ?? '?'} (${file.name})`, variant: 'success' })
       } else {
         showToast({ title: result.error.message, variant: 'error' })
       }
@@ -182,21 +182,6 @@ function ModelsSection() {
     <SectionCard title="Loaded Models">
       {/* Upload controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-        <select
-          value={uploadDomain}
-          onChange={(e) => setUploadDomain(e.target.value as 'pid' | 'dcs')}
-          style={{
-            padding: '6px 10px',
-            borderRadius: 'var(--io-radius)',
-            border: '1px solid var(--io-border)',
-            background: 'var(--io-surface-secondary)',
-            color: 'var(--io-text-primary)',
-            fontSize: '13px',
-          }}
-        >
-          <option value="pid">P&ID</option>
-          <option value="dcs">DCS</option>
-        </select>
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
@@ -222,7 +207,7 @@ function ModelsSection() {
           style={{ display: 'none' }}
         />
         <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
-          Select domain, then upload a .iomodel package from SymBA
+          Upload a .iomodel package from SymBA — domain is auto-detected from the manifest
         </span>
       </div>
 

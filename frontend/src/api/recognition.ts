@@ -164,11 +164,10 @@ export const recognitionApi = {
     }
   },
 
-  /** Upload a .iomodel file via multipart form */
-  async uploadModel(file: File, domain: string): Promise<ApiResult<ModelInfo>> {
+  /** Upload a .iomodel file via multipart form. Domain is auto-detected from manifest.json. */
+  async uploadModel(file: File): Promise<ApiResult<ModelInfo>> {
     const token = localStorage.getItem(TOKEN_KEY)
     const form = new FormData()
-    form.append('domain', domain)
     form.append('file', file, file.name)
 
     const headers: Record<string, string> = {}
