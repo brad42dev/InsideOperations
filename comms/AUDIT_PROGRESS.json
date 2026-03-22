@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T16:06:52.270898+00:00",
+  "last_updated": "2026-03-22T17:10:24.325285Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -104,7 +104,8 @@
     "DD-14-003": 1,
     "DD-14-006": 1,
     "DD-14-007": 1,
-    "DD-15-003": 1
+    "DD-15-003": 1,
+    "DD-15-006": 1
   },
   "queue": [
     {
@@ -1990,7 +1991,7 @@
       "wave": 3,
       "title": "Add idle timeout and max concurrent sessions per-role settings to Role edit dialog",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2000,7 +2001,7 @@
       "wave": 3,
       "title": "Implement Point Configuration page (aggregation types, lifecycle, metadata version history)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2010,7 +2011,7 @@
       "wave": 3,
       "title": "Replace EULA textarea with split-pane markdown editor and add acceptance records summary cards and Export CSV",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2020,7 +2021,7 @@
       "wave": 3,
       "title": "Add ErrorBoundary wrapper, export buttons, entity right-click menus, and skeleton loading to Settings module",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-15-001"
       ],
@@ -2032,7 +2033,7 @@
       "wave": 3,
       "title": "Add Data Category selection to source config and implement Point Detail Configuration admin UI",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2042,7 +2043,7 @@
       "wave": 3,
       "title": "Implement graceful shutdown with server_restarting broadcast and 5-second drain",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2052,7 +2053,7 @@
       "wave": 3,
       "title": "Implement adaptive throttling driven by client status_report messages",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-16-003"
       ],
@@ -3827,7 +3828,7 @@
       "title": "Wire PointContextMenu to point-bound display elements in designer",
       "priority": "medium",
       "depends_on": [],
-      "status": "implementing",
+      "status": "verified",
       "audit_round": 3
     },
     {
@@ -3836,7 +3837,7 @@
       "title": "Add nested error boundaries, fix Reload Module label, add loading skeleton",
       "priority": "medium",
       "depends_on": [],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 3
     },
     {

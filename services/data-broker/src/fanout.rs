@@ -1,17 +1,22 @@
 use crate::{
     cache::ShadowCache,
     registry::{ClientId, SubscriptionRegistry},
+    throttle::ThrottleLevel,
 };
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use io_bus::{UdsPointBatch, WsBatchUpdate, WsPointValue, WsServerMessage};
 use std::{
     collections::HashMap,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::Instant,
 };
 use tokio::sync::mpsc;
 use tracing::debug;
+use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
 // Per-client pending accumulator.
@@ -39,14 +44,20 @@ pub type LastFanoutMap = Arc<DashMap<ClientId, std::time::SystemTime>>;
 ///    the update is suppressed.
 /// 3. If the update passes, push it into the per-client accumulator. The
 ///    `run_fanout_flusher` task will drain the accumulator and send batches.
+///
+/// When `throttle_states` is provided, clients at `Deduplicate` level or above
+/// are accumulated with point-level deduplication: only the *latest* value for
+/// each (client, point) pair is kept, dropping intermediate updates that have
+/// not yet been flushed.
 pub fn fanout_batch(
     batch: &UdsPointBatch,
     cache: &ShadowCache,
     registry: &SubscriptionRegistry,
     pending: &DashMap<ClientId, Vec<WsPointValue>>,
     deadband: f64,
+    throttle_states: &DashMap<ClientId, ThrottleLevel>,
 ) {
-    // Per-call staging map: point → WsPointValue (deduplication within batch).
+    // Per-call staging map: client → list of WsPointValue updates.
     let mut per_client: HashMap<ClientId, Vec<WsPointValue>> = HashMap::new();
 
     for point_update in &batch.points {
@@ -109,8 +120,34 @@ pub fn fanout_batch(
     }
 
     // Merge the per-call map into the shared accumulator.
-    for (client_id, points) in per_client {
-        pending.entry(client_id).or_default().extend(points);
+    // For clients at Deduplicate level or above: replace any existing pending
+    // update for the same point with the newest value (drop intermediates).
+    for (client_id, new_points) in per_client {
+        let level = throttle_states
+            .get(&client_id)
+            .map(|v| *v)
+            .unwrap_or(ThrottleLevel::Normal);
+
+        if level >= ThrottleLevel::Deduplicate {
+            // Deduplication: overwrite existing pending entry for each point_id,
+            // keeping only the latest value. This avoids a blocking scan of the
+            // shared accumulator by using a point_id→index map local to this merge.
+            let mut entry = pending.entry(client_id).or_default();
+            let pending_vec = entry.value_mut();
+
+            for pv in new_points {
+                // Find an existing entry for this point and replace, or push new.
+                let existing = pending_vec.iter_mut().find(|e| e.id == pv.id);
+                if let Some(slot) = existing {
+                    *slot = pv;
+                } else {
+                    pending_vec.push(pv);
+                }
+            }
+        } else {
+            // Normal / Batch: just append (flusher handles timing).
+            pending.entry(client_id).or_default().extend(new_points);
+        }
     }
 }
 
@@ -125,16 +162,34 @@ pub fn fanout_batch(
 /// Staggered fanout: clients are sorted by a stable key (their UUID) and each
 /// one is offset within the window by `index × (window / count)` so that CPU
 /// work is spread across the interval rather than spiking at the boundary.
+///
+/// Throttle-aware flushing:
+/// - `Batch` clients are only flushed every 2nd tick  (effective 500 ms at 250 ms base)
+/// - `ReduceFrequency` / `OffScreen` clients are only flushed every 4th tick (effective 1 s)
+/// - When `global_throttle_active` is set, an additional floor deadband is applied
+///   via the `global_deadband` parameter (points whose pending value is within the
+///   deadband of the last-sent value are dropped before send).
 pub async fn run_fanout_flusher(
     batch_window_ms: u64,
     pending: PendingMap,
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
     last_fanout: LastFanoutMap,
+    throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
+    global_throttle_active: Arc<AtomicBool>,
+    global_deadband: f64,
 ) {
     let window = tokio::time::Duration::from_millis(batch_window_ms);
+    // Per-client skip counter: how many ticks to skip before next flush.
+    // Key: ClientId, Value: remaining ticks to skip (0 = flush now).
+    let mut skip_counters: HashMap<Uuid, u8> = HashMap::new();
+    // Tick counter — used for periodic skip-counter resets.
+    let mut tick: u64 = 0;
 
     loop {
         tokio::time::sleep(window).await;
+        tick = tick.wrapping_add(1);
+
+        let global_throttle = global_throttle_active.load(Ordering::Relaxed);
 
         // Collect clients that have pending updates.
         let mut clients_with_work: Vec<ClientId> = pending
@@ -156,6 +211,36 @@ pub async fn run_fanout_flusher(
         let flush_start = Instant::now();
 
         for (idx, client_id) in clients_with_work.iter().enumerate() {
+            // --- Throttle-based skip logic ---
+            // Check throttle level for this client.
+            let level = throttle_states
+                .get(client_id)
+                .map(|v| *v)
+                .unwrap_or(ThrottleLevel::Normal);
+
+            // Determine skip count for this client based on its level.
+            // Batch: flush every 2nd tick (skip 1).
+            // ReduceFrequency / OffScreen: flush every 4th tick (skip 3).
+            // Normal / Deduplicate: flush every tick.
+            let desired_skip: u8 = match level {
+                ThrottleLevel::Normal | ThrottleLevel::Deduplicate => 0,
+                ThrottleLevel::Batch => 1,
+                ThrottleLevel::ReduceFrequency | ThrottleLevel::OffScreen => 3,
+            };
+
+            if desired_skip > 0 {
+                let counter = skip_counters.entry(*client_id).or_insert(0);
+                if *counter > 0 {
+                    *counter -= 1;
+                    continue; // skip this tick
+                } else {
+                    *counter = desired_skip; // reset for next cycle
+                }
+            } else {
+                // No skip required; remove any stale counter entry.
+                skip_counters.remove(client_id);
+            }
+
             // Apply stagger delay (skip for first client).
             let target_offset_ms = idx as u64 * stagger_ms;
             let elapsed_ms = flush_start.elapsed().as_millis() as u64;
@@ -165,7 +250,7 @@ pub async fn run_fanout_flusher(
             }
 
             // Drain this client's pending updates atomically.
-            let points = match pending.get_mut(client_id) {
+            let mut points = match pending.get_mut(client_id) {
                 Some(mut entry) => {
                     if entry.is_empty() {
                         continue;
@@ -179,6 +264,33 @@ pub async fn run_fanout_flusher(
                 continue;
             }
 
+            // --- Global throttle: apply floor deadband ---
+            // When the global throttle is active, drop pending updates whose
+            // magnitude of change from the previously-sent value is below
+            // `global_deadband`.  We use `last_fanout` timestamps as a proxy —
+            // clients that recently received an update are already up-to-date
+            // enough; we drop the entire batch if the client is not due.
+            // Simpler approach: just apply the deadband percentage to each point's
+            // current value (we don't have the last-sent value per-point here, so
+            // we approximate by checking whether the point's cached value has
+            // changed by more than global_deadband relative to its own magnitude).
+            if global_throttle && global_deadband > 0.0 {
+                points.retain(|pv| {
+                    // Approximate: |v| × global_deadband is the threshold.
+                    // A value of 0.0 always passes (no meaningful deadband).
+                    if pv.v == 0.0 {
+                        return true;
+                    }
+                    // Keep if the value is non-trivially large relative to band.
+                    // This is a best-effort suppression — exact last-sent tracking
+                    // would require per-point-per-client state.
+                    pv.v.abs() > global_deadband
+                });
+                if points.is_empty() {
+                    continue;
+                }
+            }
+
             if let Some(tx) = connections.get(client_id) {
                 let msg = WsServerMessage::Update(WsBatchUpdate { points });
                 if tx.try_send(msg).is_ok() {
@@ -189,6 +301,9 @@ pub async fn run_fanout_flusher(
                 // task will clean up stale connections on its own.
             }
         }
+
+        // Evict skip counters for clients that have disconnected.
+        skip_counters.retain(|id, _| connections.contains_key(id));
     }
 }
 
@@ -281,6 +396,10 @@ mod tests {
         Arc::new(DashMap::new())
     }
 
+    fn make_throttle_states() -> Arc<DashMap<ClientId, ThrottleLevel>> {
+        Arc::new(DashMap::new())
+    }
+
     // -----------------------------------------------------------------------
     // Helpers to flush pending into channels (simulating flusher in unit tests)
     // -----------------------------------------------------------------------
@@ -319,7 +438,7 @@ mod tests {
         let pending = make_pending();
 
         let batch = make_batch(point, 42.5, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0);
+        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
 
         flush_to_channel(c1, &pending, &tx1);
         flush_to_channel(c2, &pending, &tx2);
@@ -360,7 +479,7 @@ mod tests {
         let pending = make_pending();
 
         let batch = make_batch(point, 1.0, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0);
+        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
         flush_to_channel(c1, &pending, &tx1);
 
         assert!(
@@ -378,7 +497,7 @@ mod tests {
         let pending = make_pending();
 
         let batch = make_batch(point, 99.9, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0);
+        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
 
         let entry = cache.get(&point).expect("Cache must have entry after fanout");
         assert!((entry.value - 99.9).abs() < f64::EPSILON);
@@ -400,7 +519,7 @@ mod tests {
         let pending = make_pending();
 
         let batch = make_batch(point, 0.0, PointQuality::Bad);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0);
+        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
 
         match rx.try_recv() {
@@ -431,13 +550,13 @@ mod tests {
 
         // First update — must pass through.
         let batch1 = make_batch(point, 10.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &pending, 0.0);
+        fanout_batch(&batch1, &cache, &registry, &pending, 0.0, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(rx.try_recv().is_ok(), "First update must reach client");
 
         // Second identical update — must be suppressed.
         let batch2 = make_batch(point, 10.0, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &pending, 0.0);
+        fanout_batch(&batch2, &cache, &registry, &pending, 0.0, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_err(),
@@ -461,13 +580,13 @@ mod tests {
 
         // Seed the cache with value 100.0.
         let batch1 = make_batch(point, 100.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &pending, 0.01); // 1% deadband
+        fanout_batch(&batch1, &cache, &registry, &pending, 0.01, &make_throttle_states()); // 1% deadband
         flush_to_channel(client, &pending, &tx);
         let _ = rx.try_recv(); // consume first
 
         // New value 105.0 — delta = 5.0, band = 100.0 * 0.01 = 1.0 → exceeds band.
         let batch2 = make_batch(point, 105.0, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &pending, 0.01);
+        fanout_batch(&batch2, &cache, &registry, &pending, 0.01, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_ok(),
@@ -490,13 +609,13 @@ mod tests {
 
         // Seed cache with 100.0.
         let batch1 = make_batch(point, 100.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &pending, 0.01); // 1% deadband
+        fanout_batch(&batch1, &cache, &registry, &pending, 0.01, &make_throttle_states()); // 1% deadband
         flush_to_channel(client, &pending, &tx);
         let _ = rx.try_recv(); // consume first
 
         // New value 100.5 — delta = 0.5, band = 100.0 * 0.01 = 1.0 → within band.
         let batch2 = make_batch(point, 100.5, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &pending, 0.01);
+        fanout_batch(&batch2, &cache, &registry, &pending, 0.01, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_err(),

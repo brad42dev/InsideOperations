@@ -1,6 +1,7 @@
 use crate::{
     registry::ClientId,
     state::AppState,
+    throttle::{compute_throttle, ThrottleLevel},
 };
 use axum::{
     extract::{
@@ -12,6 +13,7 @@ use axum::{
 };
 use io_bus::{WsBatchUpdate, WsClientMessage, WsPointValue, WsServerMessage};
 use serde::Deserialize;
+use std::sync::atomic::Ordering;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -175,6 +177,76 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
                                     last_batch_process_ms,
                                     "Client status report"
                                 );
+
+                                // --- Adaptive throttle: compute new level ---
+                                let current = state
+                                    .throttle_states
+                                    .get(&client_id)
+                                    .map(|v| *v)
+                                    .unwrap_or_default();
+
+                                let cfg = &state.config;
+                                let new_level = compute_throttle(
+                                    current,
+                                    render_fps,
+                                    pending_updates,
+                                    cfg.throttle_fps_low,
+                                    cfg.throttle_fps_high,
+                                    cfg.throttle_pending_low,
+                                    cfg.throttle_pending_high,
+                                );
+
+                                if new_level != current {
+                                    tracing::info!(
+                                        client_id = %client_id,
+                                        ?current,
+                                        ?new_level,
+                                        render_fps,
+                                        pending_updates,
+                                        "Client throttle level changed"
+                                    );
+                                }
+
+                                state.throttle_states.insert(client_id, new_level);
+
+                                // --- Server-wide aggregate check ---
+                                // Count how many tracked clients are above Normal.
+                                // We only count clients present in throttle_states;
+                                // clients at Normal (or not yet reported) are treated
+                                // as unthrottled.
+                                let total = state.connections.len();
+                                if total > 0 {
+                                    let throttled: usize = state
+                                        .throttle_states
+                                        .iter()
+                                        .filter(|e| *e.value() != ThrottleLevel::Normal)
+                                        .count();
+                                    let ratio = throttled as f64 / total as f64;
+                                    let was_active = state.is_global_throttle_active();
+                                    let now_active = ratio > cfg.throttle_global_ratio;
+                                    if now_active != was_active {
+                                        state
+                                            .global_throttle_active
+                                            .store(now_active, Ordering::Relaxed);
+                                        if now_active {
+                                            tracing::warn!(
+                                                throttled,
+                                                total,
+                                                ratio,
+                                                "Global throttle ACTIVATED \
+                                                 (>{:.0}% of clients throttled)",
+                                                cfg.throttle_global_ratio * 100.0,
+                                            );
+                                        } else {
+                                            tracing::info!(
+                                                throttled,
+                                                total,
+                                                ratio,
+                                                "Global throttle CLEARED"
+                                            );
+                                        }
+                                    }
+                                }
                             }
                             Ok(WsClientMessage::AcknowledgeAlert { alert_id }) => {
                                 tracing::debug!(
@@ -205,6 +277,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
     // Clean up on disconnect.
     state.registry.remove_client(client_id);
     state.connections.remove(&client_id);
+    state.throttle_states.remove(&client_id);
 
     // Remove client from user_connections reverse map.
     if let Some(mut client_set) = state.user_connections.get_mut(&user_id) {

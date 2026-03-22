@@ -2,6 +2,7 @@ use crate::{
     cache::ShadowCache,
     fanout::{fanout_batch, PendingMap},
     registry::{ClientId, SubscriptionRegistry},
+    throttle::ThrottleLevel,
 };
 use chrono::Utc;
 use dashmap::DashMap;
@@ -23,6 +24,7 @@ pub async fn run_uds_server(
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
     pending: PendingMap,
     deadband: f64,
+    throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
 ) {
     // Ensure parent directory exists.
     if let Some(parent) = std::path::Path::new(&sock_path).parent() {
@@ -53,8 +55,9 @@ pub async fn run_uds_server(
                 let registry = Arc::clone(&registry);
                 let connections = Arc::clone(&connections);
                 let pending = Arc::clone(&pending);
+                let ts = Arc::clone(&throttle_states);
                 tokio::spawn(handle_uds_connection(
-                    stream, cache, registry, connections, pending, deadband,
+                    stream, cache, registry, connections, pending, deadband, ts,
                 ));
             }
             Err(e) => {
@@ -71,6 +74,7 @@ async fn handle_uds_connection(
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
     pending: PendingMap,
     deadband: f64,
+    throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
 ) {
     let mut buf: Vec<u8> = Vec::with_capacity(65_536);
     let mut read_buf = [0u8; 16_384];
@@ -94,8 +98,16 @@ async fn handle_uds_connection(
         loop {
             match decode_frame(&buf) {
                 Ok(Some((frame, consumed))) => {
-                    dispatch_frame(frame, &cache, &registry, &connections, &pending, deadband)
-                        .await;
+                    dispatch_frame(
+                        frame,
+                        &cache,
+                        &registry,
+                        &connections,
+                        &pending,
+                        deadband,
+                        &throttle_states,
+                    )
+                    .await;
                     buf.drain(..consumed);
                 }
                 Ok(None) => break, // Need more data.
@@ -116,10 +128,11 @@ async fn dispatch_frame(
     connections: &DashMap<ClientId, mpsc::Sender<WsServerMessage>>,
     pending: &PendingMap,
     deadband: f64,
+    throttle_states: &DashMap<ClientId, ThrottleLevel>,
 ) {
     match frame {
         UdsFrame::Data(batch) => {
-            fanout_batch(&batch, cache, registry, pending, deadband);
+            fanout_batch(&batch, cache, registry, pending, deadband, throttle_states);
         }
         UdsFrame::Status(status) => {
             let now = Utc::now().to_rfc3339();

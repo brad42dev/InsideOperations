@@ -21,6 +21,45 @@ pub struct Config {
     /// An update is suppressed if |new − old| ≤ |old| × deadband.
     /// Default: 0.0 (all changes are fanned out).
     pub fanout_deadband: f64,
+
+    // -----------------------------------------------------------------------
+    // Adaptive throttling thresholds
+    // -----------------------------------------------------------------------
+
+    /// FPS below which the broker escalates a client's throttle level.
+    /// Default: 30.0 (spec: "FPS dropping")
+    pub throttle_fps_low: f64,
+
+    /// FPS above which the broker considers a client recovered (used for
+    /// de-escalation together with `throttle_pending_low`).
+    /// Default: 55.0
+    pub throttle_fps_high: f64,
+
+    /// Pending-update count below which (combined with high FPS) a client is
+    /// considered recovered.  Default: 5
+    pub throttle_pending_low: u32,
+
+    /// Pending-update count above which the broker escalates throttle level.
+    /// Default: 50 (spec: "pending updates climbing")
+    pub throttle_pending_high: u32,
+
+    /// Fraction of clients that must be above Normal throttle to trigger
+    /// server-wide measures (wider batch window + force deadband).
+    /// Default: 0.30 (spec: ">30%")
+    pub throttle_global_ratio: f64,
+
+    /// Batch window (ms) used when the global throttle flag is active.
+    /// Default: 1000 ms (spec: "increase global batch interval")
+    ///
+    /// Currently used as a reference value; the flusher applies per-client
+    /// skip-counting to achieve the equivalent effective window.
+    #[allow(dead_code)]
+    pub throttle_global_batch_window_ms: u64,
+
+    /// Deadband applied globally when the global throttle flag is active
+    /// (clients without per-point deadband config get this as a floor).
+    /// Default: 0.005 (0.5%)
+    pub throttle_global_deadband: f64,
 }
 
 impl Config {
@@ -66,6 +105,34 @@ impl Config {
                 .unwrap_or_else(|_| "0.0".to_string())
                 .parse()
                 .context("FANOUT_DEADBAND must be a valid float")?,
+            throttle_fps_low: std::env::var("THROTTLE_FPS_LOW")
+                .unwrap_or_else(|_| "30.0".to_string())
+                .parse()
+                .context("THROTTLE_FPS_LOW must be a valid float")?,
+            throttle_fps_high: std::env::var("THROTTLE_FPS_HIGH")
+                .unwrap_or_else(|_| "55.0".to_string())
+                .parse()
+                .context("THROTTLE_FPS_HIGH must be a valid float")?,
+            throttle_pending_low: std::env::var("THROTTLE_PENDING_LOW")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()
+                .context("THROTTLE_PENDING_LOW must be a valid integer")?,
+            throttle_pending_high: std::env::var("THROTTLE_PENDING_HIGH")
+                .unwrap_or_else(|_| "50".to_string())
+                .parse()
+                .context("THROTTLE_PENDING_HIGH must be a valid integer")?,
+            throttle_global_ratio: std::env::var("THROTTLE_GLOBAL_RATIO")
+                .unwrap_or_else(|_| "0.30".to_string())
+                .parse()
+                .context("THROTTLE_GLOBAL_RATIO must be a valid float")?,
+            throttle_global_batch_window_ms: std::env::var("THROTTLE_GLOBAL_BATCH_WINDOW_MS")
+                .unwrap_or_else(|_| "1000".to_string())
+                .parse()
+                .context("THROTTLE_GLOBAL_BATCH_WINDOW_MS must be a valid integer")?,
+            throttle_global_deadband: std::env::var("THROTTLE_GLOBAL_DEADBAND")
+                .unwrap_or_else(|_| "0.005".to_string())
+                .parse()
+                .context("THROTTLE_GLOBAL_DEADBAND must be a valid float")?,
         })
     }
 }

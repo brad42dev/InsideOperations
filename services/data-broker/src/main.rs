@@ -4,7 +4,11 @@ use dashmap::DashMap;
 use fanout::{LastFanoutMap, PendingMap};
 use registry::SubscriptionRegistry;
 use state::AppState;
-use std::{collections::HashSet, net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashSet,
+    net::SocketAddr,
+    sync::{atomic::AtomicBool, Arc},
+};
 use tower_http::catch_panic::CatchPanicLayer;
 use tracing::info;
 
@@ -17,6 +21,7 @@ mod publish;
 mod registry;
 mod staleness;
 mod state;
+mod throttle;
 mod uds;
 mod ws;
 
@@ -54,6 +59,11 @@ async fn main() -> anyhow::Result<()> {
     // Per-client last-fanout timestamps (updated by flusher, read by heartbeat).
     let last_fanout: LastFanoutMap = Arc::new(DashMap::new());
 
+    // Per-client throttle level map (filled by StatusReport handler in ws.rs).
+    let throttle_states: Arc<DashMap<_, _>> = Arc::new(DashMap::new());
+    // Global throttle flag — set when >30% of clients are above Normal level.
+    let global_throttle_active = Arc::new(AtomicBool::new(false));
+
     let state = AppState {
         config: Arc::clone(&cfg),
         cache: Arc::clone(&shadow_cache),
@@ -61,6 +71,8 @@ async fn main() -> anyhow::Result<()> {
         connections: Arc::clone(&connections),
         user_connections: Arc::clone(&user_connections),
         http_client: reqwest::Client::new(),
+        throttle_states: Arc::clone(&throttle_states),
+        global_throttle_active: Arc::clone(&global_throttle_active),
     };
 
     // Spawn UDS server.
@@ -71,7 +83,8 @@ async fn main() -> anyhow::Result<()> {
         let cx = Arc::clone(&connections);
         let p = Arc::clone(&pending);
         let db = cfg.fanout_deadband;
-        tokio::spawn(uds::run_uds_server(sock, c, r, cx, p, db));
+        let ts = Arc::clone(&throttle_states);
+        tokio::spawn(uds::run_uds_server(sock, c, r, cx, p, db, ts));
     }
 
     // Spawn NOTIFY/LISTEN listener (point_updates fallback + export_complete).
@@ -83,7 +96,8 @@ async fn main() -> anyhow::Result<()> {
         let db_val = cfg.fanout_deadband;
         let cx = Arc::clone(&connections);
         let uc = Arc::clone(&user_connections);
-        tokio::spawn(notify::run_notify_listener(db2, c, r, p, db_val, cx, uc));
+        let ts = Arc::clone(&throttle_states);
+        tokio::spawn(notify::run_notify_listener(db2, c, r, p, db_val, cx, uc, ts));
     }
 
     // Spawn batched fanout flusher.
@@ -92,7 +106,10 @@ async fn main() -> anyhow::Result<()> {
         let cx = Arc::clone(&connections);
         let lf = Arc::clone(&last_fanout);
         let bw = cfg.batch_window_ms;
-        tokio::spawn(fanout::run_fanout_flusher(bw, p, cx, lf));
+        let ts = Arc::clone(&throttle_states);
+        let gta = Arc::clone(&global_throttle_active);
+        let gdb = cfg.throttle_global_deadband;
+        tokio::spawn(fanout::run_fanout_flusher(bw, p, cx, lf, ts, gta, gdb));
     }
 
     // Spawn max-silence heartbeat task.

@@ -20,3 +20,5 @@ MOD-DESIGNER-005 | Add missing RC-DES-2 base items to node context menu (Lock/Un
 MOD-DESIGNER-006 | Add missing node-type-specific context menu items (RC-DES-6/7/8/10/11) | verified 2026-03-22 | commit f5a00f8 | npx tsc --noEmit | PASS
 MOD-DESIGNER-007 | Add right-click context menus to shape palette (RC-DES-13/14/15) | verified 2026-03-22 | commit 3f30a43 | npx tsc --noEmit | PASS
 MOD-DESIGNER-025 | Extend PromoteToShapeWizard to accept groups with display elements as value anchors | verified 2026-03-22 | commit 295798f | npx tsc --noEmit | PASS
+MOD-DESIGNER-009 | Wire PointContextMenu to point-bound display elements in Designer test mode | verified 2026-03-22 | commit 1707990 | npx tsc --noEmit | PASS
+MOD-DESIGNER-010 | Add nested error boundaries, fix Reload Module label, module-shaped loading skeleton, and hardcoded colors | verified 2026-03-22 | commit b98def8 | npx tsc --noEmit | PASS

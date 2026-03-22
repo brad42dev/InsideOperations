@@ -2,6 +2,7 @@ use crate::{
     cache::ShadowCache,
     fanout::{fanout_batch, PendingMap},
     registry::{ClientId, SubscriptionRegistry},
+    throttle::ThrottleLevel,
 };
 use chrono::DateTime;
 use dashmap::DashMap;
@@ -30,6 +31,7 @@ pub async fn run_notify_listener(
     deadband: f64,
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
     user_connections: Arc<DashMap<Uuid, HashSet<ClientId>>>,
+    throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
 ) {
     let mut listener: sqlx::postgres::PgListener = match sqlx::postgres::PgListener::connect_with(&db).await {
         Ok(l) => l,
@@ -62,7 +64,14 @@ pub async fn run_notify_listener(
                         match serde_json::from_str::<NotifyPointUpdates>(payload) {
                             Ok(notify) => {
                                 let batch = notify_to_batch(notify);
-                                fanout_batch(&batch, &cache, &registry, &pending, deadband);
+                                fanout_batch(
+                                    &batch,
+                                    &cache,
+                                    &registry,
+                                    &pending,
+                                    deadband,
+                                    &throttle_states,
+                                );
                             }
                             Err(e) => {
                                 warn!(error = %e, payload = %payload, "Failed to deserialize point_updates NOTIFY payload");
