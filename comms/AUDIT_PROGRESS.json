@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T06:05:44.146608+00:00",
+  "last_updated": "2026-03-22T00:00:00Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -60,7 +60,9 @@
     "DD-33-002": 1,
     "DD-36-001": 1,
     "GFX-SHAPES-007": 1,
-    "MOD-DESIGNER-004": 1
+    "MOD-DESIGNER-004": 1,
+    "DD-34-001": 1,
+    "MOD-DESIGNER-012": 1
   },
   "queue": [
     {
@@ -1528,7 +1530,7 @@
       "wave": 3,
       "title": "Seed Phase 2 canned report templates (18 missing)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2647,7 +2649,7 @@
       "wave": 3,
       "title": "Fix /recognition/status response to return per-domain shape",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3340,7 +3342,7 @@
       "wave": 3,
       "title": "Parse manifest.json, tags.json, and import_report.json from extraction kit ZIP",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3550,7 +3552,7 @@
       "wave": 3,
       "title": "Create RouteConfig registry at src/shared/routes/registry.ts",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3812,7 +3814,7 @@
       "wave": 2,
       "title": "Add bounding box resize for annotation nodes (subtype-aware)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"

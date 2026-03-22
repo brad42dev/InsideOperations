@@ -4,16 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Monitor,
   Layers,
-  PenTool,
   LayoutDashboard,
-  FileText,
-  Search,
-  BookOpen,
-  CheckSquare,
   Bell,
-  Users,
   Settings as SettingsIcon,
-  type LucideIcon,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
@@ -24,61 +17,15 @@ import CommandPalette from '../components/CommandPalette'
 import { SystemHealthDot, SystemHealthDotRow } from '../components/SystemHealthDot'
 import { authApi } from '../../api/auth'
 import { wsManager } from '../hooks/useWebSocket'
+import { ROUTE_REGISTRY, getSidebarGroups, type NavGroup } from '../routes/registry'
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes per spec
 
-interface NavItem {
-  path: string
-  label: string
-  icon: LucideIcon
-  permission: string
-}
-
-interface NavGroup {
-  label: string
-  items: NavItem[]
-}
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Monitoring',
-    items: [
-      { path: '/console', label: 'Console', icon: Monitor, permission: 'console:read' },
-      { path: '/process', label: 'Process', icon: Layers, permission: 'process:read' },
-    ],
-  },
-  {
-    label: 'Analysis',
-    items: [
-      { path: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, permission: 'dashboards:read' },
-      { path: '/reports', label: 'Reports', icon: FileText, permission: 'reports:read' },
-      { path: '/forensics', label: 'Forensics', icon: Search, permission: 'forensics:read' },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { path: '/log', label: 'Log', icon: BookOpen, permission: 'log:read' },
-      { path: '/rounds', label: 'Rounds', icon: CheckSquare, permission: 'rounds:read' },
-      { path: '/alerts', label: 'Alerts', icon: Bell, permission: 'alerts:read' },
-    ],
-  },
-  {
-    label: 'Management',
-    items: [
-      { path: '/shifts', label: 'Shifts', icon: Users, permission: 'shifts:read' },
-      { path: '/settings', label: 'Settings', icon: SettingsIcon, permission: 'settings:read' },
-      { path: '/designer', label: 'Designer', icon: PenTool, permission: 'designer:read' },
-    ],
-  },
-]
-
-// Flat list derived from groups for compatibility
-const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
-
 function getPageTitle(pathname: string): string {
-  const item = NAV_ITEMS.find((n) => pathname === n.path || pathname.startsWith(n.path + '/'))
-  if (item) return item.label
+  const route = ROUTE_REGISTRY.find(
+    (r) => pathname === r.path || pathname.startsWith(r.path + '/'),
+  )
+  if (route) return route.sidebar_label
   if (pathname === '/') return 'Inside/Operations'
   return 'Inside/Operations'
 }
@@ -214,6 +161,9 @@ function AlertBell() {
 export default function AppShell() {
   const { user, logout } = useAuthStore()
   const { isKiosk, isLocked, lock, unlock, setLockMeta, setKiosk } = useUiStore()
+
+  // Derive sidebar groups from the central route registry, filtered by user permissions
+  const navGroups: NavGroup[] = getSidebarGroups(user?.permissions ?? [])
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -425,20 +375,12 @@ export default function AppShell() {
 
   // Global keyboard shortcuts
   useEffect(() => {
-    // G-key navigation map: G then <key> → path
-    const G_KEY_MAP: Record<string, string> = {
-      c: '/console',
-      p: '/process',
-      b: '/dashboards',
-      r: '/reports',
-      f: '/forensics',
-      l: '/log',
-      o: '/rounds',
-      a: '/alerts',
-      h: '/shifts',
-      s: '/settings',
-      d: '/designer',
-    }
+    // G-key navigation map derived from ROUTE_REGISTRY: G then <letter> → path
+    // g_key format is "G X" where X is the trigger letter (e.g. "G C" → key "c")
+    const G_KEY_MAP: Record<string, string> = Object.fromEntries(
+      ROUTE_REGISTRY.filter((r) => r.g_key)
+        .map((r) => [r.g_key.split(' ')[1].toLowerCase(), r.path]),
+    )
 
     function handleKeyDown(e: KeyboardEvent) {
       // Skip if inside an input, textarea, or editable element
@@ -737,10 +679,9 @@ export default function AppShell() {
             aria-label="Main navigation"
             style={{ flex: 1, overflowY: 'auto', padding: sidebarShowFull ? '8px 6px' : '8px 4px' }}
           >
-            {NAV_GROUPS.map((group, groupIdx) => {
-              const visibleGroupItems = group.items.filter(
-                (item) => !item.permission || user?.permissions.includes(item.permission),
-              )
+            {navGroups.map((group, groupIdx) => {
+              // navGroups is already filtered by user permissions via getSidebarGroups
+              const visibleGroupItems = group.items
               if (visibleGroupItems.length === 0) return null
               return (
                 <div key={group.label}>

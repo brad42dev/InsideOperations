@@ -7,3 +7,4 @@ MOD-DESIGNER-002 | Implement 60fps visual drag ghost (DOM-ahead-of-store) | veri
 MOD-DESIGNER-023 | Designer file tabs — multiple open graphics simultaneously | verified 2026-03-22 | commit ce82b8e | npx tsc --noEmit | PASS
 MOD-DESIGNER-022 | Group in-place editing (double-click enter/exit) and toolbar selector/group buttons | verified 2026-03-22 | commit 21512b7 | npx tsc --noEmit | PASS
 MOD-DESIGNER-004 | Differentiate empty-canvas context menu (RC-DES-1) from node context menu | verified 2026-03-22 | commit 90a37a8 | npx tsc --noEmit | PASS
+MOD-DESIGNER-012 | Add bounding box resize for annotation nodes (subtype-aware) | verified 2026-03-22 | commit b81125e | npx tsc --noEmit | PASS
