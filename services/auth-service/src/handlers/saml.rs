@@ -183,17 +183,7 @@ pub async fn saml_acs(
         }
     };
 
-    // Parse the SAML Response using samael
-    use samael::schema::Response as SamlResponse;
-    let response: SamlResponse = match saml_xml.parse() {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to parse SAMLResponse");
-            return IoError::BadRequest("Invalid SAMLResponse XML".into()).into_response();
-        }
-    };
-
-    // Find the relay state → look up request
+    // Find the relay state → look up request and consume it (DELETE is atomic replay prevention)
     let relay_state = form.relay_state.as_deref().unwrap_or("");
     let request_row = sqlx::query(
         "DELETE FROM saml_request_store WHERE relay_state = $1 AND expires_at > now()
@@ -211,13 +201,9 @@ pub async fn saml_acs(
         ),
         None => {
             tracing::warn!(relay_state = %relay_state, "SAML RelayState not found or expired");
-            return IoError::Unauthorized
-                .into_response();
+            return IoError::Unauthorized.into_response();
         }
     };
-
-    // Suppress unused variable warning — request_id is stored for audit purposes
-    let _ = &request_id;
 
     // Load provider config to get IdP certificate for signature validation
     let config_row = match sqlx::query(
@@ -236,8 +222,109 @@ pub async fn saml_acs(
     let config: serde_json::Value = config_row.try_get("config").unwrap_or_default();
     let jit_provisioning: bool = config_row.try_get("jit_provisioning").unwrap_or(false);
 
-    // Extract NameID (email) and attributes from the assertion
-    let (name_id, email, display_name, groups) = extract_saml_claims(&response, &config);
+    // Extract the IdP certificate from config — stored as a PEM string or raw base64 DER.
+    // Strip PEM headers/footers and whitespace to get raw base64 for samael's KeyDescriptor.
+    let idp_cert_b64 = match config["idp_certificate"].as_str() {
+        Some(pem) if !pem.is_empty() => {
+            pem.lines()
+                .filter(|l| !l.starts_with("-----"))
+                .collect::<Vec<_>>()
+                .join("")
+        }
+        _ => {
+            tracing::warn!(config_id = %config_id, "SAML provider config missing idp_certificate");
+            return IoError::BadRequest(
+                "SAML provider not configured: missing idp_certificate".into(),
+            )
+            .into_response();
+        }
+    };
+
+    // Build the samael ServiceProvider to perform full SAML response validation:
+    // - XML signature verification against IdP certificate
+    // - InResponseTo matching against the stored request_id (replay prevention)
+    // - Response and assertion timestamp validation (±2 min clock skew)
+    // - Audience restriction validation against SP entity ID
+    use samael::key_info::{KeyInfo, X509Data};
+    use samael::metadata::{EntityDescriptor, IdpSsoDescriptor, KeyDescriptor};
+    use samael::service_provider::ServiceProviderBuilder;
+
+    let sp_entity_id = std::env::var("SAML_SP_ENTITY_ID")
+        .unwrap_or_else(|_| "https://io.example.com/saml/metadata".to_string());
+    let acs_url = std::env::var("SAML_ACS_URL")
+        .unwrap_or_else(|_| "https://io.example.com/api/auth/saml/acs".to_string());
+    let idp_entity_id = config["idp_entity_id"].as_str().map(|s| s.to_string());
+
+    let idp_key_descriptor = KeyDescriptor {
+        key_use: Some("signing".to_string()),
+        key_info: KeyInfo {
+            id: None,
+            x509_data: Some(X509Data {
+                certificates: vec![idp_cert_b64],
+            }),
+        },
+        encryption_methods: None,
+    };
+
+    let idp_sso_descriptor = IdpSsoDescriptor {
+        id: None,
+        valid_until: None,
+        cache_duration: None,
+        protocol_support_enumeration: Some("urn:oasis:names:tc:SAML:2.0:protocol".to_string()),
+        error_url: None,
+        signature: None,
+        key_descriptors: vec![idp_key_descriptor],
+        organization: None,
+        contact_people: vec![],
+        artifact_resolution_service: vec![],
+        single_logout_services: vec![],
+        manage_name_id_services: vec![],
+        name_id_formats: vec![],
+        want_authn_requests_signed: None,
+        single_sign_on_services: vec![],
+        name_id_mapping_services: vec![],
+        assertion_id_request_services: vec![],
+        attribute_profiles: vec![],
+        attributes: vec![],
+    };
+
+    let idp_metadata = EntityDescriptor {
+        entity_id: idp_entity_id,
+        idp_sso_descriptors: Some(vec![idp_sso_descriptor]),
+        ..EntityDescriptor::default()
+    };
+
+    let sp = match ServiceProviderBuilder::default()
+        .entity_id(sp_entity_id)
+        .acs_url(acs_url)
+        .idp_metadata(idp_metadata)
+        .max_clock_skew(chrono::Duration::seconds(120))
+        .allow_idp_initiated(false)
+        .build()
+    {
+        Ok(sp) => sp,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to build SAML ServiceProvider");
+            return IoError::Internal("SAML configuration error".into()).into_response();
+        }
+    };
+
+    // Validate the full SAML response: signature, InResponseTo, timestamps, audience.
+    // This MUST complete before any claims are read from the assertion.
+    let assertion = match sp.parse_xml_response(&saml_xml, Some(&[request_id.as_str()])) {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                relay_state = %relay_state,
+                "SAML response validation failed"
+            );
+            return IoError::Unauthorized.into_response();
+        }
+    };
+
+    // Extract claims from the cryptographically validated assertion
+    let (name_id, email, display_name, groups) = extract_saml_claims_from_assertion(&assertion, &config);
 
     let email_str = email.as_deref().unwrap_or(name_id.as_str());
     if email_str.is_empty() {
@@ -312,16 +399,11 @@ pub async fn saml_acs(
     issue_saml_jwt(&state, user_id).await
 }
 
-fn extract_saml_claims(
-    response: &samael::schema::Response,
+fn extract_saml_claims_from_assertion(
+    assertion: &samael::schema::Assertion,
     config: &serde_json::Value,
 ) -> (String, Option<String>, Option<String>, Vec<String>) {
     let claims_mapping = config.get("claims_mapping");
-
-    let assertion = match response.assertion.as_ref() {
-        Some(a) => a,
-        None => return (String::new(), None, None, vec![]),
-    };
 
     let name_id = assertion
         .subject
