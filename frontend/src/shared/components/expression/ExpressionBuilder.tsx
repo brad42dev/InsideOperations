@@ -727,6 +727,9 @@ function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds, cursor
       onKeyDown={handleKeyDown}
       {...attributes}
       {...listeners}
+      role={isContainer || isControlFlow ? 'group' : 'option'}
+      aria-label={getTileAriaLabel(tile, depth)}
+      aria-selected={selected}
       tabIndex={0}
     >
       {/* Tile label or editable content */}
@@ -788,6 +791,51 @@ function getTileLabel(tile: ExpressionTile): string {
     case 'field_ref': return tile.fieldName ? tile.fieldName : 'field?'
     case 'constant':  return String(tile.value ?? 0)
     default: return tile.type
+  }
+}
+
+function getTileAriaLabel(tile: ExpressionTile, depth: number): string {
+  const isContainer = ['group', 'square', 'cube', 'round', 'negate', 'abs'].includes(tile.type)
+  const isControlFlow = tile.type === 'if_then_else'
+  if (isContainer || isControlFlow) {
+    switch (tile.type) {
+      case 'group':        return `Group, level ${depth + 1}`
+      case 'square':       return `Square container, level ${depth + 1}`
+      case 'cube':         return `Cube container, level ${depth + 1}`
+      case 'round':        return `Round container, precision ${tile.precision ?? 2}, level ${depth + 1}`
+      case 'negate':       return `Negate container, level ${depth + 1}`
+      case 'abs':          return `Absolute value container, level ${depth + 1}`
+      case 'if_then_else': return `If-then-else container, level ${depth + 1}`
+      default:             return `Container, level ${depth + 1}`
+    }
+  }
+  switch (tile.type) {
+    case 'add':            return 'Plus operator'
+    case 'subtract':       return 'Minus operator'
+    case 'multiply':       return 'Multiply operator'
+    case 'divide':         return 'Divide operator'
+    case 'modulus':        return 'Modulus operator'
+    case 'power':          return 'Power operator'
+    case 'gt':             return 'Greater than operator'
+    case 'lt':             return 'Less than operator'
+    case 'gte':            return 'Greater than or equal operator'
+    case 'lte':            return 'Less than or equal operator'
+    case 'and':            return 'AND operator'
+    case 'or':             return 'OR operator'
+    case 'not':            return 'NOT operator'
+    case 'time_now':       return 'Current time function'
+    case 'elapsed_since':  return 'Elapsed since function'
+    case 'duration_above': return 'Duration above function'
+    case 'duration_below': return 'Duration below function'
+    case 'agg_avg':        return 'Average aggregate function'
+    case 'agg_sum':        return 'Sum aggregate function'
+    case 'agg_min':        return 'Minimum aggregate function'
+    case 'agg_max':        return 'Maximum aggregate function'
+    case 'agg_count':      return 'Count aggregate function'
+    case 'point_ref':      return `Point Reference: ${tile.pointLabel ?? tile.pointId ?? 'current point'}`
+    case 'field_ref':      return `Field Reference: ${tile.fieldName ?? 'field'}`
+    case 'constant':       return `Value: ${tile.value ?? 0}`
+    default:               return tile.type
   }
 }
 
@@ -1816,6 +1864,7 @@ export function ExpressionBuilder({
         height: '100%',
         minHeight: 0,
         gap: '16px',
+        position: 'relative',
       }}
     >
       {/* Header: Name, Description, checkboxes */}
@@ -1956,6 +2005,8 @@ export function ExpressionBuilder({
         onDragEnd={handleDragEnd}
       >
         <div
+          role="application"
+          aria-label="Equation workspace"
           style={{
             flex: 1,
             minHeight: '100px',
@@ -2168,6 +2219,8 @@ export function ExpressionBuilder({
         </button>
         {showPreview && (
           <div
+            role="math"
+            aria-label={previewStr ? previewStr : 'empty expression'}
             style={{
               padding: '8px 12px 12px',
               fontFamily: 'monospace',
@@ -2180,6 +2233,25 @@ export function ExpressionBuilder({
             {previewStr ? `= ${previewStr}` : 'No tiles yet — add tiles from the palette above.'}
           </div>
         )}
+      </div>
+
+      {/* Visually-hidden live region: announces expression changes to screen readers */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        style={{
+          position: 'absolute',
+          width: '1px',
+          height: '1px',
+          padding: 0,
+          margin: '-1px',
+          overflow: 'hidden',
+          clip: 'rect(0,0,0,0)',
+          whiteSpace: 'nowrap',
+          border: 0,
+        }}
+      >
+        {previewStr || 'empty expression'}
       </div>
 
       {/* Validation errors */}

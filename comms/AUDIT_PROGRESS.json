@@ -2455,7 +2455,7 @@
       "wave": 3,
       "title": "Implement Ctrl+C, Ctrl+X, Ctrl+V clipboard operations for tiles",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2465,7 +2465,7 @@
       "wave": 3,
       "title": "Add ARIA roles and live region for screen reader support",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
