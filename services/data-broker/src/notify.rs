@@ -68,6 +68,7 @@ pub async fn run_notify_listener(
                                     &batch,
                                     &cache,
                                     &registry,
+                                    &connections,
                                     &pending,
                                     deadband,
                                     &throttle_states,

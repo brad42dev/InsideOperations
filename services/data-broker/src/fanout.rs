@@ -41,9 +41,15 @@ pub type LastFanoutMap = Arc<DashMap<ClientId, std::time::SystemTime>>;
 /// For each point:
 /// 1. Compare against the cached value (shadow cache comparison).
 /// 2. Apply deadband filtering: if the absolute change is ≤ `|prev| × deadband`
-///    the update is suppressed.
-/// 3. If the update passes, push it into the per-client accumulator. The
-///    `run_fanout_flusher` task will drain the accumulator and send batches.
+///    the update is suppressed (unless the point was stale — stale recovery
+///    always passes regardless of deadband).
+/// 3. If the update passes:
+///    - If the point was previously stale (stale → fresh transition): send a
+///      `WsServerMessage::PointFresh` directly to each subscribed client's
+///      channel (bypassing the accumulator). This notifies clients to clear
+///      stale indicators immediately.
+///    - Otherwise: push it into the per-client accumulator. The
+///      `run_fanout_flusher` task will drain the accumulator and send batches.
 ///
 /// When `throttle_states` is provided, clients at `Deduplicate` level or above
 /// are accumulated with point-level deduplication: only the *latest* value for
@@ -53,6 +59,7 @@ pub fn fanout_batch(
     batch: &UdsPointBatch,
     cache: &ShadowCache,
     registry: &SubscriptionRegistry,
+    connections: &DashMap<ClientId, mpsc::Sender<WsServerMessage>>,
     pending: &DashMap<ClientId, Vec<WsPointValue>>,
     deadband: f64,
     throttle_states: &DashMap<ClientId, ThrottleLevel>,
@@ -70,12 +77,41 @@ pub fn fanout_batch(
         let new_value = point_update.value;
 
         // Update shadow cache; returns the previous CachedValue if present.
+        // The update unconditionally resets stale = false, so we capture the
+        // prior stale state before it is overwritten.
         let prev = cache.update(
             point_update.point_id,
             new_value,
             quality_str.clone(),
             timestamp,
         );
+
+        let was_stale = prev.as_ref().map(|p| p.stale).unwrap_or(false);
+
+        // --- Stale-recovery path ---
+        // When a point transitions from stale to fresh, bypass the deadband /
+        // change-only filter and the accumulator. Send `PointFresh` directly
+        // to each subscribed client so they can clear stale indicators
+        // immediately (not deferred to the next flusher tick).
+        if was_stale {
+            let msg = WsServerMessage::PointFresh {
+                point_id: point_update.point_id,
+                value: new_value,
+                timestamp: timestamp.to_rfc3339(),
+            };
+            let client_ids = registry.get_clients_for_point(&point_update.point_id);
+            for client_id in client_ids {
+                if let Some(tx) = connections.get(&client_id) {
+                    let _ = tx.try_send(msg.clone());
+                }
+            }
+            debug!(
+                point_id = %point_update.point_id,
+                value = new_value,
+                "Sent PointFresh on stale-recovery transition"
+            );
+            continue;
+        }
 
         // --- Change-only / deadband gate ---
         if let Some(ref prev) = prev {
@@ -400,6 +436,10 @@ mod tests {
         Arc::new(DashMap::new())
     }
 
+    fn make_connections() -> Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>> {
+        Arc::new(DashMap::new())
+    }
+
     // -----------------------------------------------------------------------
     // Helpers to flush pending into channels (simulating flusher in unit tests)
     // -----------------------------------------------------------------------
@@ -436,9 +476,10 @@ mod tests {
         let (tx2, mut rx2) = mpsc::channel::<WsServerMessage>(4);
 
         let pending = make_pending();
+        let connections = make_connections();
 
         let batch = make_batch(point, 42.5, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
+        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
 
         flush_to_channel(c1, &pending, &tx1);
         flush_to_channel(c2, &pending, &tx2);
@@ -477,9 +518,10 @@ mod tests {
 
         let (tx1, mut rx1) = mpsc::channel::<WsServerMessage>(4);
         let pending = make_pending();
+        let connections = make_connections();
 
         let batch = make_batch(point, 1.0, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
+        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
         flush_to_channel(c1, &pending, &tx1);
 
         assert!(
@@ -495,9 +537,10 @@ mod tests {
         let cache = ShadowCache::new();
         let registry = SubscriptionRegistry::new();
         let pending = make_pending();
+        let connections = make_connections();
 
         let batch = make_batch(point, 99.9, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
+        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
 
         let entry = cache.get(&point).expect("Cache must have entry after fanout");
         assert!((entry.value - 99.9).abs() < f64::EPSILON);
@@ -517,9 +560,10 @@ mod tests {
 
         let (tx, mut rx) = mpsc::channel::<WsServerMessage>(4);
         let pending = make_pending();
+        let connections = make_connections();
 
         let batch = make_batch(point, 0.0, PointQuality::Bad);
-        fanout_batch(&batch, &cache, &registry, &pending, 0.0, &make_throttle_states());
+        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
 
         match rx.try_recv() {
@@ -547,16 +591,17 @@ mod tests {
 
         let (tx, mut rx) = mpsc::channel::<WsServerMessage>(4);
         let pending = make_pending();
+        let connections = make_connections();
 
         // First update — must pass through.
         let batch1 = make_batch(point, 10.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &pending, 0.0, &make_throttle_states());
+        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(rx.try_recv().is_ok(), "First update must reach client");
 
         // Second identical update — must be suppressed.
         let batch2 = make_batch(point, 10.0, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &pending, 0.0, &make_throttle_states());
+        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_err(),
@@ -577,16 +622,17 @@ mod tests {
 
         let (tx, mut rx) = mpsc::channel::<WsServerMessage>(4);
         let pending = make_pending();
+        let connections = make_connections();
 
         // Seed the cache with value 100.0.
         let batch1 = make_batch(point, 100.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &pending, 0.01, &make_throttle_states()); // 1% deadband
+        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states()); // 1% deadband
         flush_to_channel(client, &pending, &tx);
         let _ = rx.try_recv(); // consume first
 
         // New value 105.0 — delta = 5.0, band = 100.0 * 0.01 = 1.0 → exceeds band.
         let batch2 = make_batch(point, 105.0, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &pending, 0.01, &make_throttle_states());
+        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_ok(),
@@ -606,20 +652,121 @@ mod tests {
 
         let (tx, mut rx) = mpsc::channel::<WsServerMessage>(4);
         let pending = make_pending();
+        let connections = make_connections();
 
         // Seed cache with 100.0.
         let batch1 = make_batch(point, 100.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &pending, 0.01, &make_throttle_states()); // 1% deadband
+        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states()); // 1% deadband
         flush_to_channel(client, &pending, &tx);
         let _ = rx.try_recv(); // consume first
 
         // New value 100.5 — delta = 0.5, band = 100.0 * 0.01 = 1.0 → within band.
         let batch2 = make_batch(point, 100.5, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &pending, 0.01, &make_throttle_states());
+        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states());
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_err(),
             "Update within deadband must be suppressed"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Stale-recovery / PointFresh tests
+    // -----------------------------------------------------------------------
+
+    /// When a stale point receives a new value, subscribed clients must receive
+    /// a `PointFresh` message directly (not via the accumulator).
+    #[tokio::test]
+    async fn fanout_sends_point_fresh_on_stale_recovery() {
+        let point = Uuid::new_v4();
+        let cache = ShadowCache::new();
+        let registry = SubscriptionRegistry::new();
+
+        let client = Uuid::new_v4();
+        registry.subscribe(client, &[point], 1000);
+
+        let (tx, mut rx) = mpsc::channel::<WsServerMessage>(4);
+        let pending = make_pending();
+
+        // Register the client's channel in the connections map.
+        let connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>> =
+            Arc::new(DashMap::new());
+        connections.insert(client, tx);
+
+        // Seed cache with a stale entry (stale = true).
+        cache.inner_insert_for_test(
+            point,
+            crate::cache::CachedValue {
+                value: 10.0,
+                quality: "good".to_string(),
+                timestamp: chrono::Utc::now(),
+                stale: true,
+            },
+        );
+
+        // Fanout a new value for the stale point.
+        let batch = make_batch(point, 20.0, PointQuality::Good);
+        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+
+        // Must receive a PointFresh directly (not via accumulator flush).
+        match rx.try_recv().expect("client must receive PointFresh") {
+            WsServerMessage::PointFresh { point_id, value, .. } => {
+                assert_eq!(point_id, point);
+                assert!((value - 20.0).abs() < f64::EPSILON);
+            }
+            other => panic!("Expected PointFresh, got: {:?}", other),
+        }
+
+        // The accumulator must NOT have an Update pending for this point.
+        let has_pending = pending
+            .get(&client)
+            .map(|e| !e.is_empty())
+            .unwrap_or(false);
+        assert!(!has_pending, "No Update should be queued for a stale-recovery point");
+
+        // Cache stale flag must be cleared.
+        let entry = cache.get(&point).expect("cache entry must exist");
+        assert!(!entry.stale, "Stale flag must be cleared after recovery");
+    }
+
+    /// After a stale recovery, subsequent identical values must go through the
+    /// normal change-only / deadband filter (not treated as stale again).
+    #[tokio::test]
+    async fn fanout_no_point_fresh_on_normal_update_after_recovery() {
+        let point = Uuid::new_v4();
+        let cache = ShadowCache::new();
+        let registry = SubscriptionRegistry::new();
+
+        let client = Uuid::new_v4();
+        registry.subscribe(client, &[point], 1000);
+
+        let (tx, mut rx) = mpsc::channel::<WsServerMessage>(4);
+        let pending = make_pending();
+        let connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>> =
+            Arc::new(DashMap::new());
+        connections.insert(client, tx);
+
+        // Seed stale entry.
+        cache.inner_insert_for_test(
+            point,
+            crate::cache::CachedValue {
+                value: 5.0,
+                quality: "good".to_string(),
+                timestamp: chrono::Utc::now(),
+                stale: true,
+            },
+        );
+
+        // First batch — stale recovery: should produce PointFresh.
+        let batch1 = make_batch(point, 15.0, PointQuality::Good);
+        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        let msg = rx.try_recv().expect("must receive PointFresh");
+        assert!(matches!(msg, WsServerMessage::PointFresh { .. }), "First update after stale must be PointFresh");
+
+        // Second batch with the same value — should be suppressed by change-only filter.
+        let batch2 = make_batch(point, 15.0, PointQuality::Good);
+        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        // Neither a PointFresh (point is no longer stale) nor an Update (value unchanged).
+        assert!(rx.try_recv().is_err(), "Identical follow-up must be suppressed");
     }
 }

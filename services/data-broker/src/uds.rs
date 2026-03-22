@@ -132,7 +132,7 @@ async fn dispatch_frame(
 ) {
     match frame {
         UdsFrame::Data(batch) => {
-            fanout_batch(&batch, cache, registry, pending, deadband, throttle_states);
+            fanout_batch(&batch, cache, registry, connections, pending, deadband, throttle_states);
         }
         UdsFrame::Status(status) => {
             let now = Utc::now().to_rfc3339();

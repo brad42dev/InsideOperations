@@ -103,6 +103,13 @@ impl ShadowCache {
             self.inner.insert(point_id, value);
         }
     }
+
+    /// Test-only helper: insert a `CachedValue` directly, bypassing normal
+    /// `update` semantics (preserves the `stale` flag as supplied).
+    #[cfg(test)]
+    pub fn inner_insert_for_test(&self, point_id: Uuid, value: CachedValue) {
+        self.inner.insert(point_id, value);
+    }
 }
 
 #[cfg(test)]
