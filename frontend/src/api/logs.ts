@@ -129,12 +129,14 @@ export const logsApi = {
   submitInstance: (id: string): Promise<ApiResult<LogInstance>> =>
     api.post<LogInstance>(`/api/logs/instances/${id}/submit`, {}),
 
+  // NOTE: template_id filter requires backend support on GET /api/logs/search
   search: (params: {
     q?: string
     shift_id?: string
     status?: string
     from?: string
     to?: string
+    template_id?: string
   }): Promise<ApiResult<SearchResult[]>> =>
     api.get<SearchResult[]>(`/api/logs/search${queryString(params)}`),
 

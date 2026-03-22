@@ -433,6 +433,10 @@ export default function LogPage() {
   const [tab, setTab] = useState<Tab>('active')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchSubmitted, setSearchSubmitted] = useState(false)
+  const [filterFrom, setFilterFrom] = useState('')
+  const [filterTo, setFilterTo] = useState('')
+  const [filterTemplateId, setFilterTemplateId] = useState('')
+  const [filterShiftId, setFilterShiftId] = useState('')
 
   const { data: activeData, isLoading: activeLoading } = useQuery({
     queryKey: ['log-instances', 'active'],
@@ -465,17 +469,25 @@ export default function LogPage() {
       if (!res.success) throw new Error(res.error.message)
       return res.data
     },
-    enabled: tab === 'templates',
+    // Load always so templates are available for the search filter dropdown
   })
 
+  const hasActiveFilters = filterFrom !== '' || filterTo !== '' || filterTemplateId !== '' || filterShiftId !== ''
+
   const { data: searchData, isLoading: searchLoading } = useQuery({
-    queryKey: ['log-search', searchQuery],
+    queryKey: ['log-search', searchQuery, filterFrom, filterTo, filterTemplateId, filterShiftId],
     queryFn: async () => {
-      const res = await logsApi.search({ q: searchQuery })
+      const res = await logsApi.search({
+        q: searchQuery || undefined,
+        from: filterFrom || undefined,
+        to: filterTo || undefined,
+        template_id: filterTemplateId || undefined,
+        shift_id: filterShiftId || undefined,
+      })
       if (!res.success) throw new Error(res.error.message)
       return res.data
     },
-    enabled: searchSubmitted && searchQuery.trim().length > 0,
+    enabled: searchSubmitted && (searchQuery.trim().length > 0 || hasActiveFilters),
   })
 
   const deleteMutation = useMutation({
@@ -487,7 +499,7 @@ export default function LogPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (searchQuery.trim()) setSearchSubmitted(true)
+    if (searchQuery.trim() || hasActiveFilters) setSearchSubmitted(true)
   }
 
   const tabs: { key: Tab; label: string }[] = [
@@ -534,13 +546,14 @@ export default function LogPage() {
             Log
           </h1>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
+            <form onSubmit={handleSearch} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+              {/* Text search */}
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value)
-                  if (!e.target.value.trim()) setSearchSubmitted(false)
+                  if (!e.target.value.trim() && !hasActiveFilters) setSearchSubmitted(false)
                 }}
                 placeholder="Search log entries..."
                 style={{
@@ -550,7 +563,71 @@ export default function LogPage() {
                   padding: '7px 12px',
                   fontSize: '14px',
                   color: 'var(--io-text-primary)',
-                  width: '240px',
+                  width: '200px',
+                }}
+              />
+              {/* Date range: from */}
+              <input
+                type="date"
+                value={filterFrom}
+                onChange={(e) => setFilterFrom(e.target.value)}
+                title="From date"
+                style={{
+                  background: 'var(--io-bg)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '6px',
+                  padding: '7px 8px',
+                  fontSize: '13px',
+                  color: 'var(--io-text-primary)',
+                }}
+              />
+              {/* Date range: to */}
+              <input
+                type="date"
+                value={filterTo}
+                onChange={(e) => setFilterTo(e.target.value)}
+                title="To date"
+                style={{
+                  background: 'var(--io-bg)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '6px',
+                  padding: '7px 8px',
+                  fontSize: '13px',
+                  color: 'var(--io-text-primary)',
+                }}
+              />
+              {/* Template filter */}
+              <select
+                value={filterTemplateId}
+                onChange={(e) => setFilterTemplateId(e.target.value)}
+                style={{
+                  background: 'var(--io-bg)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '6px',
+                  padding: '7px 8px',
+                  fontSize: '13px',
+                  color: filterTemplateId ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                }}
+              >
+                <option value="">All templates</option>
+                {(templatesData ?? []).map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              {/* Shift filter */}
+              <input
+                type="text"
+                value={filterShiftId}
+                onChange={(e) => setFilterShiftId(e.target.value)}
+                placeholder="Shift ID"
+                style={{
+                  background: 'var(--io-bg)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '6px',
+                  padding: '7px 10px',
+                  fontSize: '13px',
+                  color: 'var(--io-text-primary)',
+                  width: '100px',
                 }}
               />
               <button
@@ -598,7 +675,7 @@ export default function LogPage() {
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
         {/* Search results overlay */}
-        {searchSubmitted && searchQuery.trim() && (
+        {searchSubmitted && (searchQuery.trim() || hasActiveFilters) && (
           <div style={{ marginBottom: '24px' }}>
             <div
               style={{
@@ -609,11 +686,17 @@ export default function LogPage() {
               }}
             >
               <span style={{ fontSize: '14px', color: 'var(--io-text-secondary)' }}>
-                Search results for "{searchQuery}"
+                {searchQuery.trim()
+                  ? `Search results for "${searchQuery}"${hasActiveFilters ? ' (filtered)' : ''}`
+                  : 'Filtered results'}
               </span>
               <button
                 onClick={() => {
                   setSearchQuery('')
+                  setFilterFrom('')
+                  setFilterTo('')
+                  setFilterTemplateId('')
+                  setFilterShiftId('')
                   setSearchSubmitted(false)
                 }}
                 style={{
