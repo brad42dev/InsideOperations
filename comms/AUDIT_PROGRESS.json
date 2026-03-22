@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T05:03:09.875632+00:00",
+  "last_updated": "2026-03-22T05:07:52.229018Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -2980,7 +2980,7 @@
       "wave": 3,
       "title": "Add GET /api/shifts/current and GET /api/shifts/current/personnel endpoints",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3164,7 +3164,7 @@
       "wave": 3,
       "title": "Implement DataTable must-have features (filtering, pinning, resizing, multi-sort, sparklines, conditional formatting, export)",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
