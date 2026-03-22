@@ -14,6 +14,46 @@ import { showToast } from '../../shared/components/Toast'
 import { usePermission } from '../../shared/hooks/usePermission'
 
 // ---------------------------------------------------------------------------
+// Data categories (shared with OPC Sources)
+// ---------------------------------------------------------------------------
+
+const PREDEFINED_CATEGORIES = [
+  { id: 'process',        label: 'Process' },
+  { id: 'event',          label: 'Event' },
+  { id: 'access_control', label: 'Access Control' },
+  { id: 'personnel',      label: 'Personnel' },
+  { id: 'financial',      label: 'Financial' },
+  { id: 'maintenance',    label: 'Maintenance' },
+  { id: 'ticketing',      label: 'Ticketing' },
+  { id: 'environmental',  label: 'Environmental' },
+  { id: 'general',        label: 'General' },
+]
+
+interface DataCategory {
+  id: string
+  label: string
+  predefined: boolean
+}
+
+function useDataCategories() {
+  return useQuery<DataCategory[]>({
+    queryKey: ['data-categories'],
+    queryFn: async () => {
+      try {
+        const res = await fetch('/api/data-categories')
+        if (!res.ok) throw new Error('API unavailable')
+        const json = await res.json()
+        return json.data ?? json
+      } catch {
+        return PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true }))
+      }
+    },
+    staleTime: 60_000,
+    initialData: PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true })),
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -375,7 +415,10 @@ function SetupConnectionDrawerContent({
   const [configJson, setConfigJson] = useState('{}')
   const [authType, setAuthType] = useState('none')
   const [authConfigJson, setAuthConfigJson] = useState('{}')
+  const [dataCategoryId, setDataCategoryId] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
+  const catQuery = useDataCategories()
+  const categories = catQuery.data ?? []
 
   const mutation = useMutation({
     mutationFn: (body: CreateConnectionBody) => importApi.createConnection(body),
@@ -406,7 +449,8 @@ function SetupConnectionDrawerContent({
       config,
       auth_type: authType,
       auth_config: authConfig,
-    })
+      data_category_id: dataCategoryId || undefined,
+    } as CreateConnectionBody)
   }
 
   return (
@@ -437,6 +481,21 @@ function SetupConnectionDrawerContent({
           onChange={(e) => setName(e.target.value)}
           style={inputStyle}
         />
+      </Field>
+
+      <Field label="Data Category">
+        <select
+          value={dataCategoryId}
+          onChange={(e) => setDataCategoryId(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="">(none)</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.label}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <Field label="Auth Type">
@@ -678,9 +737,12 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
   const [authType, setAuthType] = useState('none')
   const [configJson, setConfigJson] = useState('{}')
   const [authConfigJson, setAuthConfigJson] = useState('{}')
+  const [dataCategoryId, setDataCategoryId] = useState<string>('')
   const [testResult, setTestResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [savedId, setSavedId] = useState<string | null>(null)
+  const catQuery = useDataCategories()
+  const categories = catQuery.data ?? []
 
   const { data } = useQuery({
     queryKey: ['connector-templates'],
@@ -735,7 +797,8 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
       config,
       auth_type: authType,
       auth_config: authConfig,
-    })
+      data_category_id: dataCategoryId || undefined,
+    } as CreateConnectionBody)
   }
 
   return (
@@ -832,6 +895,21 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
               onChange={(e) => setName(e.target.value)}
               style={inputStyle}
             />
+          </Field>
+
+          <Field label="Data Category">
+            <select
+              value={dataCategoryId}
+              onChange={(e) => setDataCategoryId(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">(none)</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
           </Field>
 
           <Field label="Auth Type">
@@ -1991,23 +2069,568 @@ function DefinitionsTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Point Detail Configuration Tab
+// ---------------------------------------------------------------------------
+
+interface PointDetailSection {
+  id: string
+  name: string
+  enabled: boolean
+  source_dataset_id: string | null
+  source_dataset_label: string | null
+  display_columns: string[]
+  sort_column: string | null
+  sort_direction: 'asc' | 'desc'
+  row_limit: number
+  sort_order: number
+  equipment_class_overrides: PointDetailOverride[]
+}
+
+interface PointDetailOverride {
+  equipment_class_id: string
+  equipment_class_label: string
+  enabled: boolean
+  display_columns: string[]
+  sort_column: string | null
+  sort_direction: 'asc' | 'desc'
+  row_limit: number
+}
+
+interface PointDetailConfig {
+  sections: PointDetailSection[]
+}
+
+const DEFAULT_SECTIONS: PointDetailSection[] = [
+  { id: 'alarms',     name: 'Active Alarms',        enabled: true,  source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 10, sort_order: 0, equipment_class_overrides: [] },
+  { id: 'trend',      name: 'Trend',                enabled: true,  source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 100, sort_order: 1, equipment_class_overrides: [] },
+  { id: 'work_orders',name: 'Work Orders (CMMS)',    enabled: false, source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 10, sort_order: 2, equipment_class_overrides: [] },
+  { id: 'inventory',  name: 'Inventory (ERP)',       enabled: false, source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'asc',  row_limit: 20, sort_order: 3, equipment_class_overrides: [] },
+  { id: 'tickets',    name: 'Tickets',              enabled: false, source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 10, sort_order: 4, equipment_class_overrides: [] },
+]
+
+function usePointDetailConfig() {
+  const qc = useQueryClient()
+  const query = useQuery<PointDetailConfig>({
+    queryKey: ['point-detail-config'],
+    queryFn: async () => {
+      try {
+        const res = await fetch('/api/settings/point-detail-config')
+        if (!res.ok) throw new Error('API unavailable')
+        const json = await res.json()
+        return json.data ?? json
+      } catch {
+        return { sections: DEFAULT_SECTIONS }
+      }
+    },
+    staleTime: 30_000,
+    initialData: { sections: DEFAULT_SECTIONS },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: async (config: PointDetailConfig) => {
+      const res = await fetch('/api/settings/point-detail-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['point-detail-config'] })
+    },
+  })
+
+  return { query, saveMutation }
+}
+
+function SectionEditModal({
+  section,
+  definitions,
+  onSave,
+  onClose,
+}: {
+  section: PointDetailSection
+  definitions: ImportDefinition[]
+  onSave: (updated: PointDetailSection) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState<PointDetailSection>({ ...section })
+
+  const set = <K extends keyof PointDetailSection>(key: K, value: PointDetailSection[K]) =>
+    setForm((f) => ({ ...f, [key]: value }))
+
+  const modalOverlay: React.CSSProperties = {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 200,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(0,0,0,0.5)',
+  }
+
+  const inputSt: React.CSSProperties = {
+    width: '100%',
+    padding: '7px 10px',
+    background: 'var(--io-surface-secondary)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    color: 'var(--io-text)',
+    fontSize: '13px',
+    boxSizing: 'border-box',
+  }
+
+  const selectedDataset = definitions.find((d) => d.id === form.source_dataset_id)
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'relative',
+          width: '520px',
+          maxWidth: '95vw',
+          maxHeight: '85vh',
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: '10px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '18px 20px',
+            borderBottom: '1px solid var(--io-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: '15px' }}>Edit Section: {section.name}</div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '18px', lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Enabled toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.enabled}
+              onChange={(e) => set('enabled', e.target.checked)}
+              style={{ accentColor: 'var(--io-accent)' }}
+            />
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--io-text-primary)' }}>
+              Enabled in Point Detail panel
+            </span>
+          </label>
+
+          {/* Source dataset */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Source Dataset
+            </label>
+            <select
+              style={inputSt}
+              value={form.source_dataset_id ?? ''}
+              onChange={(e) => set('source_dataset_id', e.target.value || null)}
+            >
+              <option value="">(none — use system data)</option>
+              {definitions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            {selectedDataset && (
+              <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '3px' }}>
+                Target table: {selectedDataset.target_table}
+              </div>
+            )}
+          </div>
+
+          {/* Display columns */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Display Columns (comma-separated)
+            </label>
+            <input
+              type="text"
+              style={inputSt}
+              value={form.display_columns.join(', ')}
+              onChange={(e) =>
+                set(
+                  'display_columns',
+                  e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                )
+              }
+              placeholder="column1, column2, ..."
+            />
+          </div>
+
+          {/* Sort column + direction */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Sort Column
+              </label>
+              <input
+                type="text"
+                style={inputSt}
+                value={form.sort_column ?? ''}
+                onChange={(e) => set('sort_column', e.target.value || null)}
+                placeholder="column name"
+              />
+            </div>
+            <div style={{ width: '120px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Direction
+              </label>
+              <select
+                style={inputSt}
+                value={form.sort_direction}
+                onChange={(e) => set('sort_direction', e.target.value as 'asc' | 'desc')}
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Row limit */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Row Limit
+            </label>
+            <input
+              type="number"
+              style={inputSt}
+              value={form.row_limit}
+              min={1}
+              max={500}
+              onChange={(e) => set('row_limit', Math.max(1, parseInt(e.target.value, 10) || 10))}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: '14px 20px',
+            borderTop: '1px solid var(--io-border)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '8px',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              padding: '7px 14px',
+              background: 'transparent',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              color: 'var(--io-text-secondary)',
+              fontSize: '13px',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { onSave(form); onClose() }}
+            style={{
+              padding: '7px 14px',
+              background: 'var(--io-accent)',
+              border: 'none',
+              borderRadius: 'var(--io-radius)',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Save Section
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PointDetailTab() {
+  const canManage = usePermission('system:point_detail_config')
+  const { query, saveMutation } = usePointDetailConfig()
+  const [sections, setSections] = useState<PointDetailSection[]>([])
+  const [editingSection, setEditingSection] = useState<PointDetailSection | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+
+  // Sync from query
+  useEffect(() => {
+    if (query.data) {
+      setSections([...query.data.sections].sort((a, b) => a.sort_order - b.sort_order))
+    }
+  }, [query.data])
+
+  const { data: defsResult } = useQuery({
+    queryKey: ['import-definitions'],
+    queryFn: () => importApi.listDefinitions(),
+  })
+  const definitions = defsResult?.success ? defsResult.data : []
+
+  async function handleSave(updated: PointDetailSection[]) {
+    const config: PointDetailConfig = {
+      sections: updated.map((s, i) => ({ ...s, sort_order: i })),
+    }
+    try {
+      await saveMutation.mutateAsync(config)
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 2000)
+    } catch {
+      setSaveStatus('error')
+    }
+  }
+
+  function moveUp(index: number) {
+    if (index === 0) return
+    const next = [...sections]
+    ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+    setSections(next)
+    handleSave(next)
+  }
+
+  function moveDown(index: number) {
+    if (index === sections.length - 1) return
+    const next = [...sections]
+    ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
+    setSections(next)
+    handleSave(next)
+  }
+
+  function toggleEnabled(index: number) {
+    const next = sections.map((s, i) => i === index ? { ...s, enabled: !s.enabled } : s)
+    setSections(next)
+    handleSave(next)
+  }
+
+  function handleSectionSave(updated: PointDetailSection) {
+    const next = sections.map((s) => s.id === updated.id ? updated : s)
+    setSections(next)
+    handleSave(next)
+  }
+
+  if (!canManage) {
+    return (
+      <div
+        style={{
+          textAlign: 'center',
+          padding: '48px',
+          color: 'var(--io-text-muted)',
+          background: 'var(--io-surface-secondary)',
+          borderRadius: 'var(--io-radius)',
+          border: '1px solid var(--io-border)',
+        }}
+      >
+        You do not have permission to configure Point Detail sections.
+        <br />
+        <span style={{ fontSize: '12px', opacity: 0.7 }}>
+          Required permission: <code>system:point_detail_config</code>
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--io-text-primary)', marginBottom: '2px' }}>
+            Point Detail Panel Sections
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+            Configure which data sections appear in the floating Point Detail panel and in what order.
+          </div>
+        </div>
+        {saveStatus === 'saved' && (
+          <span style={{ fontSize: '12px', color: 'var(--io-success)' }}>Saved</span>
+        )}
+        {saveStatus === 'error' && (
+          <span style={{ fontSize: '12px', color: 'var(--io-danger)' }}>Save failed</span>
+        )}
+      </div>
+
+      {/* Section list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {sections.map((section, index) => (
+          <div
+            key={section.id}
+            style={{
+              background: 'var(--io-surface-secondary)',
+              border: `1px solid ${section.enabled ? 'var(--io-border)' : 'var(--io-border-subtle)'}`,
+              borderRadius: 'var(--io-radius)',
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              opacity: section.enabled ? 1 : 0.6,
+            }}
+          >
+            {/* Order controls */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <button
+                onClick={() => moveUp(index)}
+                disabled={index === 0}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '3px',
+                  width: '20px',
+                  height: '18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: index === 0 ? 'not-allowed' : 'pointer',
+                  color: index === 0 ? 'var(--io-text-muted)' : 'var(--io-text-secondary)',
+                  fontSize: '10px',
+                  opacity: index === 0 ? 0.3 : 1,
+                }}
+                title="Move up"
+              >
+                ▲
+              </button>
+              <button
+                onClick={() => moveDown(index)}
+                disabled={index === sections.length - 1}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '3px',
+                  width: '20px',
+                  height: '18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: index === sections.length - 1 ? 'not-allowed' : 'pointer',
+                  color: index === sections.length - 1 ? 'var(--io-text-muted)' : 'var(--io-text-secondary)',
+                  fontSize: '10px',
+                  opacity: index === sections.length - 1 ? 0.3 : 1,
+                }}
+                title="Move down"
+              >
+                ▼
+              </button>
+            </div>
+
+            {/* Enabled toggle */}
+            <input
+              type="checkbox"
+              checked={section.enabled}
+              onChange={() => toggleEnabled(index)}
+              style={{ accentColor: 'var(--io-accent)', flexShrink: 0 }}
+              title={section.enabled ? 'Disable section' : 'Enable section'}
+            />
+
+            {/* Section info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--io-text-primary)', marginBottom: '2px' }}>
+                {section.name}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                {section.source_dataset_label ? (
+                  <span>Dataset: {section.source_dataset_label}</span>
+                ) : section.source_dataset_id ? (
+                  <span>Dataset: {section.source_dataset_id}</span>
+                ) : (
+                  <span>Dataset: system</span>
+                )}
+                <span>Limit: {section.row_limit} rows</span>
+                {section.display_columns.length > 0 && (
+                  <span>Columns: {section.display_columns.join(', ')}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Edit button */}
+            <button
+              onClick={() => setEditingSection(section)}
+              style={{
+                padding: '5px 12px',
+                background: 'transparent',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                color: 'var(--io-text-secondary)',
+                fontSize: '12px',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              Edit
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {sections.length === 0 && (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '48px',
+            color: 'var(--io-text-muted)',
+            background: 'var(--io-surface-secondary)',
+            borderRadius: 'var(--io-radius)',
+            border: '1px solid var(--io-border)',
+          }}
+        >
+          No Point Detail sections configured. Loading default sections...
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editingSection && (
+        <SectionEditModal
+          section={editingSection}
+          definitions={definitions}
+          onSave={handleSectionSave}
+          onClose={() => setEditingSection(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
-type Tab = 'connectors' | 'connections' | 'definitions' | 'runs'
+type Tab = 'connectors' | 'connections' | 'definitions' | 'runs' | 'point_detail'
 
 export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab }) {
   const canManageConnections = usePermission('system:import_connections')
   const canManageDefinitions = usePermission('system:import_definitions')
   const canViewHistory = usePermission('system:import_history')
+  const canManagePointDetail = usePermission('system:point_detail_config')
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab ?? 'connectors')
 
   const tabs: { id: Tab; label: string; visible: boolean }[] = [
-    { id: 'connectors', label: 'Connectors', visible: canManageConnections },
-    { id: 'connections', label: 'Connections', visible: canManageConnections },
-    { id: 'definitions', label: 'Definitions', visible: canManageDefinitions },
-    { id: 'runs', label: 'Run History', visible: canViewHistory },
+    { id: 'connectors',   label: 'Connectors',    visible: canManageConnections },
+    { id: 'connections',  label: 'Connections',   visible: canManageConnections },
+    { id: 'definitions',  label: 'Definitions',   visible: canManageDefinitions },
+    { id: 'runs',         label: 'Run History',   visible: canViewHistory },
+    { id: 'point_detail', label: 'Point Detail',  visible: canManagePointDetail },
   ]
 
   const visibleTabs = tabs.filter((t) => t.visible)
@@ -2064,6 +2687,7 @@ export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab })
       {activeTab === 'connections' && <ConnectionsTab />}
       {activeTab === 'definitions' && <DefinitionsTab />}
       {activeTab === 'runs' && <RunsTab />}
+      {activeTab === 'point_detail' && <PointDetailTab />}
     </div>
   )
 }

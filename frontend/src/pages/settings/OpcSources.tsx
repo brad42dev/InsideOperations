@@ -534,6 +534,330 @@ interface SourceFormState {
   client_certificate_id: string | null
   platform: string | null
   publish_interval_ms: number | null
+  data_category_id: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Data categories
+// ---------------------------------------------------------------------------
+
+const PREDEFINED_CATEGORIES = [
+  { id: 'process',        label: 'Process' },
+  { id: 'event',          label: 'Event' },
+  { id: 'access_control', label: 'Access Control' },
+  { id: 'personnel',      label: 'Personnel' },
+  { id: 'financial',      label: 'Financial' },
+  { id: 'maintenance',    label: 'Maintenance' },
+  { id: 'ticketing',      label: 'Ticketing' },
+  { id: 'environmental',  label: 'Environmental' },
+  { id: 'general',        label: 'General' },
+]
+
+interface DataCategory {
+  id: string
+  label: string
+  predefined: boolean
+}
+
+// Simple in-memory custom categories store (backed by API in production)
+function useDataCategories() {
+  const query = useQuery<DataCategory[]>({
+    queryKey: ['data-categories'],
+    queryFn: async () => {
+      try {
+        const res = await fetch('/api/data-categories')
+        if (!res.ok) throw new Error('API unavailable')
+        const json = await res.json()
+        return json.data ?? json
+      } catch {
+        // Fall back to predefined only
+        return PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true }))
+      }
+    },
+    staleTime: 60_000,
+    initialData: PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true })),
+  })
+  return query
+}
+
+// ---------------------------------------------------------------------------
+// Manage Categories modal
+// ---------------------------------------------------------------------------
+
+function ManageCategoriesModal({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const catQuery = useDataCategories()
+  const categories = catQuery.data ?? []
+
+  const [newName, setNewName] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleCreate() {
+    const trimmed = newName.trim()
+    if (!trimmed) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/data-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: trimmed }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      qc.invalidateQueries({ queryKey: ['data-categories'] })
+      setNewName('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create category')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRename(id: string) {
+    const trimmed = editName.trim()
+    if (!trimmed) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/data-categories/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: trimmed }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      qc.invalidateQueries({ queryKey: ['data-categories'] })
+      setEditId(null)
+      setEditName('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rename category')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this custom category?')) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/data-categories/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      qc.invalidateQueries({ queryKey: ['data-categories'] })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete category')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) return null
+
+  const modalOverlay: React.CSSProperties = {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 200,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(0,0,0,0.5)',
+  }
+
+  const modalBox: React.CSSProperties = {
+    position: 'relative',
+    width: '500px',
+    maxWidth: '95vw',
+    maxHeight: '80vh',
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+  }
+
+  const catInputStyle: React.CSSProperties = {
+    flex: 1,
+    padding: '6px 10px',
+    background: 'var(--io-surface-secondary)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    color: 'var(--io-text)',
+    fontSize: '13px',
+  }
+
+  const smBtn = (variant: 'primary' | 'ghost' | 'danger'): React.CSSProperties => ({
+    padding: '5px 10px',
+    fontSize: '12px',
+    border: variant === 'danger' ? '1px solid var(--io-danger)' : variant === 'ghost' ? '1px solid var(--io-border)' : 'none',
+    borderRadius: 'var(--io-radius)',
+    background: variant === 'primary' ? 'var(--io-accent)' : 'transparent',
+    color: variant === 'primary' ? '#fff' : variant === 'danger' ? 'var(--io-danger)' : 'var(--io-text-secondary)',
+    cursor: saving ? 'not-allowed' : 'pointer',
+    opacity: saving ? 0.6 : 1,
+  })
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div style={modalBox} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div
+          style={{
+            padding: '18px 20px',
+            borderBottom: '1px solid var(--io-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: '15px' }}>Manage Data Categories</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '18px', lineHeight: 1 }}>
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--io-text-muted)',
+              marginBottom: '16px',
+              lineHeight: 1.5,
+            }}
+          >
+            Predefined categories cannot be deleted. Custom categories can be renamed or deleted.
+          </div>
+
+          {error && (
+            <div
+              style={{
+                padding: '8px 12px',
+                background: 'var(--io-danger-subtle)',
+                color: 'var(--io-danger)',
+                borderRadius: 'var(--io-radius)',
+                fontSize: '12px',
+                marginBottom: '12px',
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* Category list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '20px' }}>
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 10px',
+                  background: 'var(--io-surface-secondary)',
+                  border: '1px solid var(--io-border-subtle)',
+                  borderRadius: 'var(--io-radius)',
+                }}
+              >
+                {editId === cat.id ? (
+                  <>
+                    <input
+                      style={catInputStyle}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleRename(cat.id) }}
+                      autoFocus
+                    />
+                    <button style={smBtn('primary')} onClick={() => handleRename(cat.id)} disabled={saving}>
+                      Save
+                    </button>
+                    <button style={smBtn('ghost')} onClick={() => { setEditId(null); setEditName('') }}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ flex: 1, fontSize: '13px', color: 'var(--io-text-primary)' }}>
+                      {cat.label}
+                    </span>
+                    {cat.predefined ? (
+                      <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+                        predefined
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          style={smBtn('ghost')}
+                          onClick={() => { setEditId(cat.id); setEditName(cat.label) }}
+                          disabled={saving}
+                        >
+                          Rename
+                        </button>
+                        <button style={smBtn('danger')} onClick={() => handleDelete(cat.id)} disabled={saving}>
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Add new */}
+          <div
+            style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              color: 'var(--io-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: '8px',
+            }}
+          >
+            Add Custom Category
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              style={catInputStyle}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Category name"
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
+            />
+            <button style={smBtn('primary')} onClick={handleCreate} disabled={saving || !newName.trim()}>
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: '14px 20px',
+            borderTop: '1px solid var(--io-border)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            flexShrink: 0,
+          }}
+        >
+          <button onClick={onClose} style={smBtn('ghost')}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const SECURITY_POLICIES = ['None', 'Basic256Sha256', 'Aes128Sha256RsaOaep', 'Aes256Sha256RsaPss']
@@ -564,6 +888,9 @@ function SourceFormFields({
   showEnabled?: boolean
   clientCerts?: ClientCertificate[]
 }) {
+  const [manageCatsOpen, setManageCatsOpen] = useState(false)
+  const catQuery = useDataCategories()
+  const categories = catQuery.data ?? []
   const field = (
     label: string,
     key: keyof SourceFormState,
@@ -658,6 +985,42 @@ function SourceFormFields({
         </select>
       </div>
 
+      {/* Data Category dropdown */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+          <label style={labelStyle}>Data Category</label>
+          <button
+            type="button"
+            onClick={() => setManageCatsOpen(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--io-accent)',
+              fontSize: '11px',
+              cursor: 'pointer',
+              padding: '0',
+              textDecoration: 'underline',
+            }}
+          >
+            Manage Categories
+          </button>
+        </div>
+        <select
+          style={{ ...inputStyle, cursor: 'pointer' }}
+          value={form.data_category_id ?? ''}
+          onChange={(e) => onChange({ data_category_id: e.target.value || null })}
+        >
+          <option value="">(none)</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <ManageCategoriesModal open={manageCatsOpen} onClose={() => setManageCatsOpen(false)} />
+
       {field('Username', 'username', 'text', 'Optional')}
       {field('Password', 'password', 'password', 'Optional')}
 
@@ -700,6 +1063,7 @@ const EMPTY_FORM: SourceFormState = {
   client_certificate_id: null,
   platform: null,
   publish_interval_ms: null,
+  data_category_id: null,
 }
 
 function CreateSourceDialog({
@@ -820,6 +1184,7 @@ function EditSourceDialog({
     client_certificate_id: null,
     platform: null,
     publish_interval_ms: null,
+    data_category_id: null,
   })
   const [error, setError] = useState<string | null>(null)
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
@@ -848,6 +1213,7 @@ function EditSourceDialog({
         client_certificate_id: null,
         platform: null,
         publish_interval_ms: null,
+        data_category_id: null,
       })
       setTestStatus('idle')
       setTestMessage('')
