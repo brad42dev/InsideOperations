@@ -22,12 +22,39 @@ function BarcodeGate({
   const [scanError, setScanError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const codeReaderRef = useRef<any>(null)
 
   // BarcodeDetector API scan
   const startScan = async () => {
     setScanError(null)
     if (!('BarcodeDetector' in window)) {
-      setScanError('Camera scan not supported in this browser. Use manual entry below.')
+      // iOS/Safari: fall back to zxing-js (dynamic import — only loaded when needed)
+      const { BrowserMultiFormatReader, NotFoundException } = await import('@zxing/library')
+      const codeReader = new BrowserMultiFormatReader()
+      codeReaderRef.current = codeReader
+      try {
+        await codeReader.decodeFromVideoDevice(null, videoRef.current!, (result: any, err: any) => {
+          if (result) {
+            codeReader.reset()
+            codeReaderRef.current = null
+            stopScan()
+            const raw = result.getText()
+            if (expectedValue && raw !== expectedValue) {
+              setScanError(`Wrong barcode. Expected: ${expectedValue}`)
+              return
+            }
+            onUnlock(raw)
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            // transient decode errors during scanning are normal — ignore them
+          }
+        })
+        setScanning(true)
+      } catch {
+        codeReaderRef.current = null
+        setScanError('Camera access denied.')
+      }
       return
     }
     try {
@@ -67,6 +94,10 @@ function BarcodeGate({
   }
 
   const stopScan = () => {
+    if (codeReaderRef.current) {
+      codeReaderRef.current.reset()
+      codeReaderRef.current = null
+    }
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     setScanning(false)
