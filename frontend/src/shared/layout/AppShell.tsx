@@ -1532,7 +1532,7 @@ export default function AppShell() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: '56px',
+            height: '64px',
             background: 'var(--io-surface-secondary)',
             borderTop: '1px solid var(--io-border)',
             zIndex: 60,
@@ -1554,6 +1554,7 @@ export default function AppShell() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  minHeight: '60px',
                   gap: '3px',
                   textDecoration: 'none',
                   color: monitorActive ? 'var(--io-accent)' : 'var(--io-text-muted)',
@@ -1583,6 +1584,7 @@ export default function AppShell() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  minHeight: '60px',
                   gap: '3px',
                   textDecoration: 'none',
                   color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
@@ -1612,6 +1614,7 @@ export default function AppShell() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  minHeight: '60px',
                   gap: '3px',
                   textDecoration: 'none',
                   color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
@@ -1641,6 +1644,7 @@ export default function AppShell() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  minHeight: '60px',
                   gap: '3px',
                   textDecoration: 'none',
                   color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
@@ -1671,6 +1675,7 @@ export default function AppShell() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  minHeight: '60px',
                   gap: '3px',
                   background: 'none',
                   border: 'none',
@@ -1766,7 +1771,7 @@ export default function AppShell() {
           .hamburger { display: flex !important; }
           .mobile-overlay { display: block !important; }
           .mobile-bottom-bar { display: flex !important; }
-          .main-content { padding-bottom: 56px; }
+          .main-content { padding-bottom: 64px; }
         }
       `}</style>
     </div>
