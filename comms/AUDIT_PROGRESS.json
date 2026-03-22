@@ -94,7 +94,9 @@
     "DD-10-008": 1,
     "MOD-DESIGNER-025": 1,
     "DD-12-001": 1,
-    "DD-12-002": 1
+    "DD-12-002": 1,
+    "DD-12-007": 1,
+    "DD-12-008": 1
   },
   "queue": [
     {
@@ -1664,7 +1666,7 @@
       "wave": 3,
       "title": "Add Export, Share, and Print actions to investigation toolbar",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1704,7 +1706,7 @@
       "wave": 3,
       "title": "Wire PointContextMenu onto point tag displays in Forensics module",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-12-006"
       ],
@@ -1716,7 +1718,7 @@
       "wave": 3,
       "title": "Add right-click context menu to investigation list rows",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1726,7 +1728,7 @@
       "wave": 3,
       "title": "Implement point_detail evidence type using the floating PointDetailPanel scoped to stage time range",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1746,7 +1748,7 @@
       "wave": 3,
       "title": "Add nested error boundaries inside InvestigationWorkspace panels",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

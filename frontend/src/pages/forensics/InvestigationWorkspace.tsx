@@ -1683,7 +1683,7 @@ export default function InvestigationWorkspace() {
       {/* Body: left panel + main canvas */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         {/* Left panel */}
-        <ErrorBoundary module="Forensics Points Panel">
+        <ErrorBoundary module="Forensics — Points Panel">
           <div style={{ width: '260px', flexShrink: 0, borderRight: '1px solid var(--io-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--io-surface-secondary)' }}>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <PointsPanel
@@ -1699,7 +1699,6 @@ export default function InvestigationWorkspace() {
         {/* Main canvas + results */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           {/* Scrollable stages */}
-          <ErrorBoundary module="Forensics Investigation Stages">
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {stages.length === 0 && (
               <div
@@ -1722,15 +1721,16 @@ export default function InvestigationWorkspace() {
             )}
 
             {stages.map((stage) => (
-              <StageCard
-                key={stage.id}
-                stage={stage}
-                investigationId={investigation.id}
-                readOnly={isReadOnly}
-                onRefresh={() =>
-                  void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
-                }
-              />
+              <ErrorBoundary key={stage.id} module={`Forensics — Stage: ${stage.name}`}>
+                <StageCard
+                  stage={stage}
+                  investigationId={investigation.id}
+                  readOnly={isReadOnly}
+                  onRefresh={() =>
+                    void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+                  }
+                />
+              </ErrorBoundary>
             ))}
 
             {!isReadOnly && (
@@ -1752,10 +1752,9 @@ export default function InvestigationWorkspace() {
               </button>
             )}
           </div>
-          </ErrorBoundary>
 
           {/* Results panel — collapsible */}
-          <ErrorBoundary module="Forensics Analysis Results">
+          <ErrorBoundary module="Forensics — Analysis Results">
           <div
             style={{
               borderTop: '1px solid var(--io-border)',
