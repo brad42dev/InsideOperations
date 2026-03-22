@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -644,7 +644,8 @@ export default function LogEditor() {
   const [pendingContent, setPendingContent] = useState<
     Record<string, Record<string, unknown>>
   >({})
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasPendingRef = useRef(false)
+  const pendingContentRef = useRef<Record<string, Record<string, unknown>>>({})
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -710,27 +711,27 @@ export default function LogEditor() {
     },
   })
 
-  // Debounced auto-save
-  const scheduleAutoSave = useCallback(
-    (newPending: Record<string, Record<string, unknown>>) => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
-      autoSaveTimerRef.current = setTimeout(() => {
-        const updates = Object.entries(newPending).map(([segment_id, content]) => ({
-          segment_id,
-          content,
-        }))
-        if (updates.length === 0) return
-        setSaving(true)
-        updateMutation.mutate({ content_updates: updates })
-      }, 2000)
-    },
-    [updateMutation],
-  )
+  // Periodic auto-save every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!hasPendingRef.current) return
+      const updates = Object.entries(pendingContentRef.current).map(([segment_id, content]) => ({
+        segment_id,
+        content,
+      }))
+      if (updates.length === 0) return
+      hasPendingRef.current = false
+      setSaving(true)
+      updateMutation.mutate({ content_updates: updates })
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [updateMutation])
 
   const handleContentChange = (segmentId: string, content: Record<string, unknown>) => {
     const next = { ...pendingContent, [segmentId]: content }
     setPendingContent(next)
-    scheduleAutoSave(next)
+    pendingContentRef.current = next
+    hasPendingRef.current = true
   }
 
   // Build a map of segment_id -> entry content from fetched data
