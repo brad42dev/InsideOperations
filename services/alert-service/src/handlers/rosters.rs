@@ -10,7 +10,7 @@ use io_models::ApiResponse;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::state::AppState;
+use crate::{channels::ChannelRecipient, state::AppState};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,15 +29,6 @@ pub struct AlertRoster {
     pub updated_at: DateTime<Utc>,
     pub created_by: Option<Uuid>,
     pub updated_by: Option<Uuid>,
-}
-
-/// A resolved channel recipient — the email address, phone number, or other
-/// contact detail needed to deliver a notification to a specific user.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChannelRecipient {
-    pub user_id: Option<Uuid>,
-    pub name: Option<String>,
-    pub email: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -349,6 +340,7 @@ async fn resolve_role_group(state: &AppState, roster: &AlertRoster) -> Vec<Chann
                         user_id: Some(r.get("id")),
                         name: r.try_get("display_name").unwrap_or(None),
                         email: Some(r.get("email")),
+                        ..Default::default()
                     }
                 })
                 .collect(),
@@ -380,6 +372,7 @@ async fn resolve_role_group(state: &AppState, roster: &AlertRoster) -> Vec<Chann
                         user_id: Some(r.get("id")),
                         name: r.try_get("display_name").unwrap_or(None),
                         email: Some(r.get("email")),
+                        ..Default::default()
                     }
                 })
                 .collect(),
@@ -417,6 +410,7 @@ async fn resolve_all_users(state: &AppState) -> Vec<ChannelRecipient> {
                     user_id: Some(r.get("id")),
                     name: r.try_get("display_name").unwrap_or(None),
                     email: Some(r.get("email")),
+                    ..Default::default()
                 }
             })
             .collect(),

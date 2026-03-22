@@ -170,7 +170,7 @@ pub async fn trigger_alert(
                         if !map.contains_key(required_var.as_str()) {
                             return IoError::field(
                                 "template_variables",
-                                &format!(
+                                format!(
                                     "Missing required template variable: {}",
                                     required_var
                                 ),
@@ -187,7 +187,7 @@ pub async fn trigger_alert(
                 Err(e) => {
                     return IoError::field(
                         "title_template",
-                        &format!("Template render error: {}", e),
+                        format!("Template render error: {}", e),
                     )
                     .into_response();
                 }
@@ -199,7 +199,7 @@ pub async fn trigger_alert(
                 Err(e) => {
                     return IoError::field(
                         "message_template",
-                        &format!("Template render error: {}", e),
+                        format!("Template render error: {}", e),
                     )
                     .into_response();
                 }

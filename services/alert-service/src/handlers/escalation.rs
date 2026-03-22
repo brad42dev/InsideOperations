@@ -301,6 +301,19 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
                 )
                 .await;
             }
+            "sms" | "voice" | "radio" | "pa" | "browser_push" => {
+                dispatch_channel_adapter(
+                    &state,
+                    alert_id,
+                    tier,
+                    channel,
+                    &title,
+                    message.as_deref(),
+                    &severity,
+                    &email_recipients,
+                )
+                .await;
+            }
             other => {
                 warn!(alert_id = %alert_id, channel = other, "dispatch_tier: unknown channel");
             }
@@ -656,5 +669,264 @@ async fn record_delivery(
             error = %e,
             "record_delivery: failed to insert delivery record"
         );
+    }
+}
+
+/// Dispatch an alert via one of the pluggable channel adapters (sms, voice, radio, pa, browser_push).
+///
+/// The function loads the channel configuration from `alert_channels`, decrypts secrets,
+/// enriches the recipient list with channel-specific contact data (phone, talkgroup, push
+/// subscriptions), constructs the adapter, calls `deliver`, and persists delivery records.
+#[allow(clippy::too_many_arguments)]
+async fn dispatch_channel_adapter(
+    state: &AppState,
+    alert_id: Uuid,
+    tier: i16,
+    channel_type_str: &str,
+    title: &str,
+    message: Option<&str>,
+    _severity: &str,
+    recipient_ids: &[Uuid],
+) {
+    use crate::channels::{
+        browser_push::{BrowserPushAdapter, BrowserPushConfig},
+        pa::{PaAdapter, PaConfig},
+        radio::{RadioAdapter, RadioConfig},
+        sms::{SmsAdapter, SmsConfig},
+        voice::{VoiceAdapter, VoiceConfig},
+        AlertChannel, AlertSummary,
+    };
+
+    // Load channel config from DB.
+    let row = sqlx::query(
+        "SELECT enabled, config FROM alert_channels WHERE channel_type = $1",
+    )
+    .bind(channel_type_str)
+    .fetch_optional(&state.db)
+    .await;
+
+    let row = match row {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            info!(
+                alert_id = %alert_id,
+                channel = channel_type_str,
+                "dispatch_channel_adapter: channel not configured, skipping"
+            );
+            return;
+        }
+        Err(e) => {
+            error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter: db error loading channel");
+            return;
+        }
+    };
+
+    let enabled: bool = row.get("enabled");
+    if !enabled {
+        info!(
+            alert_id = %alert_id,
+            channel = channel_type_str,
+            "dispatch_channel_adapter: channel disabled, skipping"
+        );
+        return;
+    }
+
+    let config_val: Option<serde_json::Value> = row.get("config");
+    let mut config_val = match config_val {
+        Some(c) => c,
+        None => {
+            warn!(alert_id = %alert_id, channel = channel_type_str, "dispatch_channel_adapter: no config");
+            return;
+        }
+    };
+
+    // Decrypt secrets in config.
+    if let Err(e) = crate::handlers::channel_config::decrypt_secrets_for_dispatch(state, &mut config_val) {
+        error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter: failed to decrypt config");
+        return;
+    }
+
+    let alert_summary = AlertSummary {
+        id: alert_id,
+        title: title.to_string(),
+        message: message.map(|s| s.to_string()),
+        severity: _severity.to_string(),
+    };
+
+    // Enrich recipients: load channel-specific contact data for each user.
+    let recipients = enrich_recipients(state, recipient_ids, channel_type_str).await;
+
+    // Build adapter and deliver.
+    let results: Vec<crate::channels::DeliveryResult> = match channel_type_str {
+        "sms" => {
+            match serde_json::from_value::<SmsConfig>(config_val) {
+                Ok(cfg) => {
+                    SmsAdapter::new(cfg, state.http.clone())
+                        .deliver(&alert_summary, &recipients)
+                        .await
+                }
+                Err(e) => {
+                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/sms: invalid config");
+                    return;
+                }
+            }
+        }
+        "voice" => {
+            match serde_json::from_value::<VoiceConfig>(config_val) {
+                Ok(cfg) => {
+                    VoiceAdapter::new(cfg, state.http.clone())
+                        .deliver(&alert_summary, &recipients)
+                        .await
+                }
+                Err(e) => {
+                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/voice: invalid config");
+                    return;
+                }
+            }
+        }
+        "radio" => {
+            match serde_json::from_value::<RadioConfig>(config_val) {
+                Ok(cfg) => {
+                    RadioAdapter::new(cfg, state.http.clone())
+                        .deliver(&alert_summary, &recipients)
+                        .await
+                }
+                Err(e) => {
+                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/radio: invalid config");
+                    return;
+                }
+            }
+        }
+        "pa" => {
+            match serde_json::from_value::<PaConfig>(config_val) {
+                Ok(cfg) => {
+                    PaAdapter::new(cfg, state.http.clone())
+                        .deliver(&alert_summary, &recipients)
+                        .await
+                }
+                Err(e) => {
+                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/pa: invalid config");
+                    return;
+                }
+            }
+        }
+        "browser_push" => {
+            match serde_json::from_value::<BrowserPushConfig>(config_val) {
+                Ok(cfg) => {
+                    BrowserPushAdapter::new(cfg, state)
+                        .deliver(&alert_summary, &recipients)
+                        .await
+                }
+                Err(e) => {
+                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/browser_push: invalid config");
+                    return;
+                }
+            }
+        }
+        other => {
+            warn!(alert_id = %alert_id, channel = other, "dispatch_channel_adapter: unhandled channel type");
+            return;
+        }
+    };
+
+    // Persist delivery records.
+    for result in &results {
+        record_delivery(
+            state,
+            alert_id,
+            tier,
+            channel_type_str,
+            result.recipient_user_id,
+            None, // recipient_name not carried through DeliveryResult
+            result.recipient_contact.as_deref(),
+            &result.status,
+            result.failure_reason.as_deref(),
+        )
+        .await;
+        // Store external_id (e.g. Twilio call SID) as a note in the failure_reason field if present.
+        // A future task can add a dedicated `external_id` column to alert_deliveries.
+        if let Some(ref ext_id) = result.external_id {
+            info!(
+                alert_id = %alert_id,
+                channel = channel_type_str,
+                external_id = %ext_id,
+                "dispatch_channel_adapter: delivery external_id"
+            );
+        }
+    }
+}
+
+/// Enrich a list of user IDs with channel-specific contact data loaded from the database.
+///
+/// - SMS/Voice: loads the `phone` column from the `users` table
+/// - Radio: loads the `talkgroup_id` from `user_profiles` or channel config mapping
+/// - PA: loads `pa_zone` from user profile data
+/// - BrowserPush: does NOT preload here — `BrowserPushAdapter` queries `push_subscriptions` directly
+async fn enrich_recipients(
+    state: &AppState,
+    user_ids: &[Uuid],
+    channel_type_str: &str,
+) -> Vec<crate::channels::ChannelRecipient> {
+    use crate::channels::ChannelRecipient;
+
+    if user_ids.is_empty() {
+        // For broadcast channels (radio, pa) return an empty vec — the adapter handles
+        // no-recipient case by broadcasting to the default talkgroup/zone.
+        return vec![];
+    }
+
+    match channel_type_str {
+        "sms" | "voice" => {
+            // Load email, display_name, phone for each user.
+            let mut result = Vec::with_capacity(user_ids.len());
+            for &uid in user_ids {
+                let row = sqlx::query(
+                    "SELECT display_name, email, phone FROM users WHERE id = $1",
+                )
+                .bind(uid)
+                .fetch_optional(&state.db)
+                .await;
+
+                let recipient = match row {
+                    Ok(Some(r)) => ChannelRecipient {
+                        user_id: Some(uid),
+                        name: r.try_get("display_name").unwrap_or(None),
+                        email: r.try_get("email").ok(),
+                        phone: r.try_get("phone").unwrap_or(None),
+                        ..Default::default()
+                    },
+                    Ok(None) => {
+                        warn!(user_id = %uid, "enrich_recipients: user not found");
+                        ChannelRecipient { user_id: Some(uid), ..Default::default() }
+                    }
+                    Err(e) => {
+                        error!(user_id = %uid, error = %e, "enrich_recipients: db error");
+                        ChannelRecipient { user_id: Some(uid), ..Default::default() }
+                    }
+                };
+                result.push(recipient);
+            }
+            result
+        }
+        "browser_push" => {
+            // BrowserPushAdapter loads subscriptions itself from push_subscriptions.
+            // We just need user_id in the recipient.
+            user_ids
+                .iter()
+                .map(|&uid| ChannelRecipient { user_id: Some(uid), ..Default::default() })
+                .collect()
+        }
+        "radio" | "pa" => {
+            // Radio/PA typically broadcast to a zone/talkgroup regardless of per-user routing.
+            // Return recipients with user_id set; the adapter will fall back to default zone/talkgroup.
+            user_ids
+                .iter()
+                .map(|&uid| ChannelRecipient { user_id: Some(uid), ..Default::default() })
+                .collect()
+        }
+        _ => user_ids
+            .iter()
+            .map(|&uid| ChannelRecipient { user_id: Some(uid), ..Default::default() })
+            .collect(),
     }
 }

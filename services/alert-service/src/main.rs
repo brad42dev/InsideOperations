@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 use tower_http::catch_panic::CatchPanicLayer;
 use tracing::info;
 
+mod channels;
 mod config;
 mod handlers;
 mod state;
@@ -82,6 +83,23 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/alerts/policies/:id/tiers/:tier_id",
             put(handlers::policies::update_tier).delete(handlers::policies::delete_tier),
+        )
+        // Channel config endpoints (static /channels before /:type)
+        .route(
+            "/alerts/channels",
+            get(handlers::channel_config::list_channels),
+        )
+        .route(
+            "/alerts/channels/:type",
+            put(handlers::channel_config::update_channel),
+        )
+        .route(
+            "/alerts/channels/:type/enabled",
+            put(handlers::channel_config::enable_channel),
+        )
+        .route(
+            "/alerts/channels/:type/test",
+            post(handlers::channel_config::test_channel),
         )
         // Roster endpoints (static /rosters before /:id)
         .route(

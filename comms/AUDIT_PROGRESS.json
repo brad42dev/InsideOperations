@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T21:03:19.823809+00:00",
+  "last_updated": "2026-03-22T21:09:55.735508+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -120,7 +120,8 @@
     "DD-24-007": 1,
     "DD-25-004": 1,
     "DD-25-006": 1,
-    "DD-25-007": 1
+    "DD-25-007": 1,
+    "DD-27-005": 1
   },
   "queue": [
     {
@@ -2823,7 +2824,7 @@
       "wave": 3,
       "title": "Implement alert templates with MiniJinja rendering and built-in seed templates",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-27-001"
       ],
@@ -2847,7 +2848,7 @@
       "wave": 3,
       "title": "Implement SMS, Voice, Radio, PA, and BrowserPush channel adapters",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-27-001",
         "DD-27-006"
