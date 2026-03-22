@@ -13,3 +13,4 @@ MOD-CONSOLE-003 | Persist aspect ratio lock per-workspace in WorkspaceConfig.set
 MOD-CONSOLE-004 | Fix Historical Playback Bar speed values, add alarm markers, and keyboard shortcuts | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
 MOD-CONSOLE-005 | Add nested error boundaries around individual panes to isolate crashes | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
 MOD-CONSOLE-006 | Gate Create Workspace empty-state CTA on console:write permission | verified 2026-03-22 | commit 4dc822f | npx tsc --noEmit | PASS
+MOD-CONSOLE-012 | Add nested error boundaries around individual panes | verified 2026-03-22 | commit 908fb71 | npx tsc --noEmit | PASS

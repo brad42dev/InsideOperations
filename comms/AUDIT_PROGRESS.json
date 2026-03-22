@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T00:00:00Z",
+  "last_updated": "2026-03-22T09:31:14.825305Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -76,7 +76,9 @@
     "DD-34-003": 1,
     "GFX-CORE-004": 1,
     "GFX-DISPLAY-004": 1,
-    "GFX-SHAPES-003": 1
+    "GFX-SHAPES-003": 1,
+    "DD-06-005": 1,
+    "MOD-PROCESS-003": 1
   },
   "queue": [
     {
@@ -1022,7 +1024,7 @@
       "depends_on": [
         "GFX-SHAPES-002"
       ],
-      "status": "pending",
+      "status": "implementing",
       "audit_round": 3
     },
     {
@@ -1143,7 +1145,7 @@
       "wave": 2,
       "title": "Add nested error boundaries around individual panes",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1183,7 +1185,7 @@
       "wave": 2,
       "title": "Fix zoom upper bound to 800% (not 1000%)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1390,7 +1392,7 @@
       "wave": 3,
       "title": "Replace alert bell navigation with dropdown panel showing recent alerts",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },

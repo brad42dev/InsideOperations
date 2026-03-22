@@ -10,12 +10,18 @@
   "variants": {
     "options": {},
     "configurations": [
-      { "file": "column-distillation.svg", "label": "Standard Plain" },
-      { "file": "column-distillation-trayed.svg", "label": "Trayed-6" },
-      { "file": "column-distillation-trayed-10.svg", "label": "Trayed-10" },
-      { "file": "column-distillation-packed.svg", "label": "Packed" },
-      { "file": "column-distillation-narrow.svg", "label": "Narrow Plain" },
-      { "file": "column-distillation-wide.svg", "label": "Wide Plain" }
+      { "name": "standard-plain",     "file": "column-distillation.svg",                 "label": "Standard Plain",    "width": "standard", "internals": "plain" },
+      { "name": "standard-trayed",    "file": "column-distillation-trayed.svg",           "label": "Standard Trayed-6", "width": "standard", "internals": "trayed-6" },
+      { "name": "standard-trayed-10", "file": "column-distillation-trayed-10.svg",        "label": "Standard Trayed-10","width": "standard", "internals": "trayed-10" },
+      { "name": "standard-packed",    "file": "column-distillation-packed.svg",           "label": "Standard Packed",   "width": "standard", "internals": "packed" },
+      { "name": "narrow-plain",       "file": "column-distillation-narrow.svg",           "label": "Narrow Plain",      "width": "narrow",   "internals": "plain" },
+      { "name": "narrow-trayed",      "file": "column-distillation-narrow-trayed.svg",    "label": "Narrow Trayed-6",   "width": "narrow",   "internals": "trayed-6" },
+      { "name": "narrow-trayed-10",   "file": "column-distillation-narrow-trayed-10.svg", "label": "Narrow Trayed-10",  "width": "narrow",   "internals": "trayed-10" },
+      { "name": "narrow-packed",      "file": "column-distillation-narrow-packed.svg",    "label": "Narrow Packed",     "width": "narrow",   "internals": "packed" },
+      { "name": "wide-plain",         "file": "column-distillation-wide.svg",             "label": "Wide Plain",        "width": "wide",     "internals": "plain" },
+      { "name": "wide-trayed",        "file": "column-distillation-wide-trayed.svg",      "label": "Wide Trayed-6",     "width": "wide",     "internals": "trayed-6" },
+      { "name": "wide-trayed-10",     "file": "column-distillation-wide-trayed-10.svg",   "label": "Wide Trayed-10",    "width": "wide",     "internals": "trayed-10" },
+      { "name": "wide-packed",        "file": "column-distillation-wide-packed.svg",      "label": "Wide Packed",       "width": "wide",     "internals": "packed" }
     ]
   },
   "alarmBinding": {
