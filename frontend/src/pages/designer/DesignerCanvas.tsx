@@ -5097,6 +5097,59 @@ function DesignerContextMenuContent({
 
             <ContextMenuPrimitive.Separator style={sepStyle} />
 
+            {/* Lock/Unlock — RC-DES-2 base item */}
+            <ContextMenuPrimitive.Item
+              style={itemStyle}
+              disabled={!nodeId || !targetNode}
+              onSelect={() => {
+                if (!nodeId || !targetNode) return
+                executeCmd(new ChangePropertyCommand(nodeId, 'locked', !targetNode.locked, targetNode.locked))
+              }}
+            >
+              {targetNode?.locked ? 'Unlock' : 'Lock'}
+            </ContextMenuPrimitive.Item>
+
+            {/* Navigation Link submenu — RC-DES-2 base item */}
+            <ContextMenuPrimitive.Sub>
+              <ContextMenuPrimitive.SubTrigger style={itemStyle}>
+                Navigation Link
+              </ContextMenuPrimitive.SubTrigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!nodeId}
+                    onSelect={() => {
+                      /* TODO: open Navigation Link dialog — set targetGraphicId or targetUrl */
+                    }}
+                  >
+                    Set Link…
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!targetNode?.navigationLink}
+                    onSelect={() => {
+                      if (!nodeId || !targetNode?.navigationLink) return
+                      executeCmd(new ChangePropertyCommand(nodeId, 'navigationLink', undefined, targetNode.navigationLink))
+                    }}
+                  >
+                    Remove Link
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={itemStyle}
+                    disabled={!targetNode?.navigationLink}
+                    onSelect={() => {
+                      /* TODO: preview navigation to linked graphic */
+                    }}
+                  >
+                    Navigate
+                  </ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.SubContent>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Sub>
+
+            <ContextMenuPrimitive.Separator style={sepStyle} />
+
             {/* View */}
             <ContextMenuPrimitive.Item style={itemStyle} onSelect={() => {
               const d = docRef.current; const el = containerRef.current
@@ -5108,8 +5161,16 @@ function DesignerContextMenuContent({
               {gridVisible ? 'Hide Grid' : 'Show Grid'}
             </ContextMenuPrimitive.Item>
 
-            <ContextMenuPrimitive.Item style={itemStyle}
-              onSelect={() => onPropertiesOpen?.()}>
+            {/* Properties — RC-DES-2 base item: selects node and focuses right panel */}
+            <ContextMenuPrimitive.Item
+              style={itemStyle}
+              disabled={!nodeId}
+              onSelect={() => {
+                if (!nodeId) return
+                selectedIdsRef.current = new Set([nodeId])
+                useUiStore.getState().setSelectedNodes([nodeId])
+              }}
+            >
               Properties…
             </ContextMenuPrimitive.Item>
 

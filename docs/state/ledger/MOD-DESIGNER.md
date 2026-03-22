@@ -15,3 +15,4 @@ MOD-DESIGNER-003 | Move selection state from local useRef into uiStore | verifie
 MOD-DESIGNER-015 | Enable multi-node resize (CompoundCommand wrapping per-node resize commands) | verified 2026-03-22 | commit c5bd2c1 | npx tsc --noEmit | PASS
 MOD-DESIGNER-018 | Render canvas boundary visual and add out-of-bounds save warning toast | verified 2026-03-22 | commit a6e5f6d | npx tsc --noEmit | PASS
 MOD-DESIGNER-020 | Implement auto-height scrollable canvas for Report and Dashboard modes | verified 2026-03-22 | commit e6b609d | npx tsc --noEmit | PASS
+MOD-DESIGNER-024 | Group sub-tabs — open group content in a dedicated tab for deep editing | verified 2026-03-22 | commit a51c6db | npx tsc --noEmit | PASS
