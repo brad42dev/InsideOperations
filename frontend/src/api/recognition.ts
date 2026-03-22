@@ -54,6 +54,59 @@ export interface InferenceOptions {
   domain?: 'pid' | 'dcs' | 'auto'
 }
 
+export interface RecognitionClass {
+  id: number
+  name: string
+  display_name: string
+  domain: string
+  template_available: boolean
+}
+
+export interface ClassesResult {
+  classes: RecognitionClass[]
+  domain: string
+}
+
+export interface GenerateGraphicBody {
+  detections: Detection[]
+  domain: 'pid' | 'dcs'
+  source_image_hash: string
+}
+
+export interface GenerateGraphicResult {
+  graphic_id: string
+  unmapped_count: number
+}
+
+export interface FeedbackStats {
+  total_inferences: number
+  total_corrections: number
+  correction_rate: number
+  top_confused: unknown[]
+}
+
+export interface ModelHistoryEntry {
+  version: string
+  domain: string
+  loaded_at: string
+  replaced_at: string | null
+}
+
+export interface ModelHistory {
+  models: ModelHistoryEntry[]
+}
+
+export interface GapReport {
+  id: string
+  filename: string
+  imported_at: string
+  [key: string]: unknown
+}
+
+export interface GapReportList {
+  reports: GapReport[]
+}
+
 // ---------------------------------------------------------------------------
 // API functions
 // ---------------------------------------------------------------------------
@@ -143,6 +196,58 @@ export const recognitionApi = {
     } catch {
       return { success: false, error: { code: 'NETWORK_ERROR', message: 'Network request failed' } }
     }
+  },
+
+  /** Get the list of recognition classes, optionally filtered by domain */
+  getClasses(domain?: 'pid' | 'dcs'): Promise<ApiResult<ClassesResult>> {
+    const query = domain ? `?domain=${domain}` : ''
+    return api.get<ClassesResult>(`/api/recognition/classes${query}`)
+  },
+
+  /** Generate a graphic from a set of detections */
+  generateGraphic(body: GenerateGraphicBody): Promise<ApiResult<GenerateGraphicResult>> {
+    return api.post<GenerateGraphicResult>('/api/recognition/generate', body)
+  },
+
+  /** Get feedback statistics */
+  getStats(): Promise<ApiResult<FeedbackStats>> {
+    return api.get<FeedbackStats>('/api/recognition/feedback/stats')
+  },
+
+  /** Export feedback as .iofeedback package */
+  exportFeedback(): Promise<ApiResult<{ exported: boolean }>> {
+    return api.post<{ exported: boolean }>('/api/recognition/feedback/export', {})
+  },
+
+  /** Submit manual corrections for feedback */
+  submitCorrections(corrections: unknown): Promise<ApiResult<{ correction_id: string }>> {
+    return api.post<{ correction_id: string }>('/api/recognition/feedback/corrections', corrections)
+  },
+
+  /** Clear all accumulated feedback */
+  clearFeedback(): Promise<ApiResult<{ cleared_count: number }>> {
+    return api.delete<{ cleared_count: number }>('/api/recognition/feedback')
+  },
+
+  /** Get model load history, optionally filtered by domain */
+  getModelHistory(domain?: 'pid' | 'dcs'): Promise<ApiResult<ModelHistory>> {
+    const query = domain ? `?domain=${domain}` : ''
+    return api.get<ModelHistory>(`/api/recognition/model/history${query}`)
+  },
+
+  /** List all imported gap reports */
+  getGapReports(): Promise<ApiResult<GapReportList>> {
+    return api.get<GapReportList>('/api/recognition/gap-reports')
+  },
+
+  /** Get a specific gap report by ID */
+  getGapReport(id: string): Promise<ApiResult<GapReport>> {
+    return api.get<GapReport>(`/api/recognition/gap-reports/${id}`)
+  },
+
+  /** Delete a specific gap report by ID */
+  deleteGapReport(id: string): Promise<ApiResult<{ deleted: boolean }>> {
+    return api.delete<{ deleted: boolean }>(`/api/recognition/gap-reports/${id}`)
   },
 
   /** Upload a .iogap gap report via multipart form */

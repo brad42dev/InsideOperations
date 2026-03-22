@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T06:55:50.200641Z",
+  "last_updated": "2026-03-22T07:32:18.464059+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -64,7 +64,9 @@
     "DD-34-001": 1,
     "MOD-DESIGNER-012": 1,
     "DD-16-003": 1,
-    "DD-20-001": 1
+    "DD-20-001": 1,
+    "DD-23-007": 1,
+    "DD-23-011": 1
   },
   "queue": [
     {
@@ -2380,7 +2382,7 @@
       "wave": 3,
       "title": "Implement full save-and-apply OK flow with API save, performance test, and confirmation",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-23-001",
         "DD-23-005"
@@ -2423,7 +2425,7 @@
       "wave": 3,
       "title": "Render blinking insertion cursor in workspace at current cursor position",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2661,7 +2663,7 @@
       "wave": 3,
       "title": "Add missing recognition API endpoints (classes, generate, feedback, model history, gap-report CRUD)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-26-001",
         "DD-26-002"

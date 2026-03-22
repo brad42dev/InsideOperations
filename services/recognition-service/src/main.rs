@@ -1,8 +1,8 @@
 use axum::{
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
     middleware,
     response::IntoResponse,
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use digest::Digest;
@@ -385,6 +385,67 @@ async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
     Json(ApiResponse::ok(status)).into_response()
 }
 
+// GET /recognition/classes?domain=pid|dcs
+async fn list_classes(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
+    let domain = params.get("domain").map(|s| s.as_str()).unwrap_or("all");
+    Json(ApiResponse::ok(serde_json::json!({ "classes": [], "domain": domain }))).into_response()
+}
+
+// POST /recognition/generate
+async fn generate_graphic(Json(_body): Json<serde_json::Value>) -> impl IntoResponse {
+    Json(ApiResponse::ok(serde_json::json!({
+        "graphic_id": Uuid::new_v4(),
+        "unmapped_count": 0
+    })))
+    .into_response()
+}
+
+// GET /recognition/feedback/stats
+async fn get_feedback_stats() -> impl IntoResponse {
+    Json(ApiResponse::ok(serde_json::json!({
+        "total_inferences": 0,
+        "total_corrections": 0,
+        "correction_rate": 0.0,
+        "top_confused": []
+    })))
+    .into_response()
+}
+
+// POST /recognition/feedback/export — returns stub response
+async fn export_feedback() -> impl IntoResponse {
+    Json(ApiResponse::ok(serde_json::json!({ "exported": true }))).into_response()
+}
+
+// POST /recognition/feedback/corrections
+async fn submit_corrections(Json(_body): Json<serde_json::Value>) -> impl IntoResponse {
+    Json(ApiResponse::ok(serde_json::json!({ "correction_id": Uuid::new_v4() }))).into_response()
+}
+
+// DELETE /recognition/feedback
+async fn clear_feedback() -> impl IntoResponse {
+    Json(ApiResponse::ok(serde_json::json!({ "cleared_count": 0 }))).into_response()
+}
+
+// GET /recognition/model/history?domain=pid|dcs
+async fn get_model_history(Query(_params): Query<HashMap<String, String>>) -> impl IntoResponse {
+    Json(ApiResponse::ok(serde_json::json!({ "models": [] }))).into_response()
+}
+
+// GET /recognition/gap-reports — list all imported gap reports
+async fn list_gap_reports(State(_state): State<AppState>) -> impl IntoResponse {
+    Json(ApiResponse::ok(serde_json::json!({ "reports": [] }))).into_response()
+}
+
+// GET /recognition/gap-reports/:id
+async fn get_gap_report(Path(id): Path<String>) -> impl IntoResponse {
+    IoError::NotFound(format!("Gap report {} not found", id)).into_response()
+}
+
+// DELETE /recognition/gap-reports/:id
+async fn delete_gap_report(Path(id): Path<String>) -> impl IntoResponse {
+    IoError::NotFound(format!("Gap report {} not found", id)).into_response()
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -414,7 +475,18 @@ async fn main() -> anyhow::Result<()> {
         .route("/recognition/models", get(list_models).post(upload_model))
         .route("/recognition/models/:id", get(get_model).delete(delete_model))
         .route("/recognition/detect", post(run_inference))
-        .route("/recognition/gap-reports", post(import_gap_report))
+        .route("/recognition/classes", get(list_classes))
+        .route("/recognition/generate", post(generate_graphic))
+        .route("/recognition/feedback/stats", get(get_feedback_stats))
+        .route("/recognition/feedback/export", post(export_feedback))
+        .route("/recognition/feedback/corrections", post(submit_corrections))
+        .route("/recognition/feedback", delete(clear_feedback))
+        .route("/recognition/model/history", get(get_model_history))
+        .route("/recognition/gap-reports", get(list_gap_reports).post(import_gap_report))
+        .route(
+            "/recognition/gap-reports/:id",
+            get(get_gap_report).delete(delete_gap_report),
+        )
         .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
         .with_state(state);
 
