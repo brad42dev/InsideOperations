@@ -30,6 +30,7 @@ use uuid::Uuid;
 use crate::config::Config;
 use crate::db::{self, AnalogMetadata, PointSource, PointUpdate};
 use crate::ipc::UdsSender;
+use crate::state::SessionRegistry;
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -45,6 +46,7 @@ pub async fn run_source(
     uds: Arc<UdsSender>,
     config: Arc<Config>,
     reconnect_notify: Arc<tokio::sync::Notify>,
+    sessions: SessionRegistry,
 ) {
     let mut attempt: u32 = 0;
     let mut backoff_secs: u64 = 5;
@@ -89,7 +91,7 @@ pub async fn run_source(
             warn!(source = %source.name, error = %e, "Failed to set source status to connecting");
         }
 
-        match run_source_once(&source, &db, &uds, &config).await {
+        match run_source_once(&source, &db, &uds, &config, &sessions).await {
             Ok(()) => {
                 info!(source = %source.name, "OPC UA driver exited cleanly");
                 last_error = None;
@@ -152,6 +154,7 @@ async fn run_source_once(
     db: &DbPool,
     uds: &Arc<UdsSender>,
     config: &Arc<Config>,
+    sessions: &SessionRegistry,
 ) -> anyhow::Result<()> {
     // Build OPC UA client and connect on a blocking thread to avoid blocking
     // the Tokio runtime (opcua 0.12 is synchronous).
@@ -301,6 +304,12 @@ async fn run_source_once(
 
     info!(source = %source.name, "Connected to OPC UA server");
 
+    // Register the live session so HTTP alarm-method handlers can reach it.
+    sessions
+        .lock()
+        .unwrap()
+        .insert(source.id, session.clone());
+
     // Register the server certificate in the DB (non-fatal if it fails).
     register_server_cert(source, db, config).await;
 
@@ -430,6 +439,10 @@ async fn run_source_once(
         handle.abort();
     }
 
+    // Deregister from the session registry before closing — HTTP handlers will now
+    // get 404 for this source rather than trying to use a dead session.
+    sessions.lock().unwrap().remove(&source.id);
+
     // Send OPC UA CloseSession so the server can immediately release all
     // server-side session state (subscriptions, monitored items, locks).
     // Without this, "zombie" sessions accumulate on the server across restarts
@@ -445,6 +458,36 @@ async fn run_source_once(
     .ok(); // join error is non-fatal
 
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// A&C operator method call helper
+// ---------------------------------------------------------------------------
+
+/// Call an OPC UA A&C method (Acknowledge, Enable, Disable, TimedShelve, etc.)
+/// on a live session.
+///
+/// The condition object NodeId is `ns=1;s="<condition_node_id>"`.
+/// The method NodeId is `ns=1;s="alarm-method:<method_name>"`.
+///
+/// This function is **synchronous** and must be called from a blocking thread
+/// (e.g. inside `tokio::task::spawn_blocking`).
+///
+/// Returns the OPC `StatusCode` from the method result; callers treat `Good` as
+/// success and any bad status as a protocol-level failure.
+pub fn call_alarm_method(
+    session: &Session,
+    condition_node_id: &str,
+    method_name: &str,
+    args: Option<Vec<Variant>>,
+) -> StatusCode {
+    let obj_id = NodeId::new(1u16, UAString::from(condition_node_id));
+    let method_id = NodeId::new(1u16, UAString::from(format!("alarm-method:{}", method_name)));
+
+    match session.call((obj_id, method_id, args)) {
+        Ok(result) => result.status_code,
+        Err(sc) => sc,
+    }
 }
 
 // ---------------------------------------------------------------------------

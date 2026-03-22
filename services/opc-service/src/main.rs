@@ -2,8 +2,11 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Router,
+    Json, Router,
 };
+use opcua::client::prelude::{ByteString, LocalizedText, Session, StatusCode as OpcStatusCode, Variant};
+use opcua::sync::RwLock;
+use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -56,6 +59,10 @@ async fn main() -> anyhow::Result<()> {
     let reconnect_signals: Arc<std::sync::Mutex<HashMap<Uuid, Arc<Notify>>>> =
         Arc::new(std::sync::Mutex::new(HashMap::new()));
 
+    // --- Session registry (live OPC UA sessions for alarm-method HTTP handlers) ---
+    let sessions: state::SessionRegistry =
+        Arc::new(std::sync::Mutex::new(HashMap::new()));
+
     // --- Health + metrics HTTP ---
     let health = io_health::HealthRegistry::new("opc-service", env!("CARGO_PKG_VERSION"));
     health.mark_startup_complete();
@@ -64,10 +71,15 @@ async fn main() -> anyhow::Result<()> {
         db: db.clone(),
         config: config.clone(),
         reconnect_signals: reconnect_signals.clone(),
+        sessions: sessions.clone(),
     };
 
     let internal_router = Router::new()
         .route("/internal/reconnect/:source_id", axum::routing::post(reconnect_source))
+        .route("/internal/alarm/:source_id/acknowledge", axum::routing::post(alarm_acknowledge))
+        .route("/internal/alarm/:source_id/enable", axum::routing::post(alarm_enable))
+        .route("/internal/alarm/:source_id/disable", axum::routing::post(alarm_disable))
+        .route("/internal/alarm/:source_id/shelve", axum::routing::post(alarm_shelve))
         .with_state(app_state);
 
     let app = Router::new()
@@ -122,10 +134,11 @@ async fn main() -> anyhow::Result<()> {
                         let uds_clone = uds.clone();
                         let cfg_clone = config.clone();
                         let signals_clone = reconnect_signals.clone();
+                        let sessions_clone = sessions.clone();
                         let source_id = source.id;
 
                         tokio::spawn(async move {
-                            driver::run_source(source, db_clone, uds_clone, cfg_clone, notify).await;
+                            driver::run_source(source, db_clone, uds_clone, cfg_clone, notify, sessions_clone).await;
                             // Remove the notifier when the driver exits (shouldn't happen
                             // in normal operation, but keeps the map clean).
                             signals_clone.lock().unwrap().remove(&source_id);
@@ -175,6 +188,196 @@ async fn reconnect_source(
     } else {
         // Source not currently managed (may not be enabled yet or unknown ID).
         StatusCode::NOT_FOUND
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Internal alarm method endpoints
+// ---------------------------------------------------------------------------
+//
+// All four endpoints share the same pattern:
+//   1. Clone the Arc<RwLock<Session>> from the registry under the Mutex (then release the lock).
+//   2. Dispatch to driver::call_alarm_method on a spawn_blocking thread.
+//   3. Map Good → 204, bad OPC status → 422 with JSON body.
+
+/// Look up a live session by source_id, returning None if not connected.
+/// The Arc is cloned under the Mutex so we never hold the lock while doing I/O.
+fn get_session(state: &AppState, source_id: Uuid) -> Option<Arc<RwLock<Session>>> {
+    state.sessions.lock().unwrap().get(&source_id).cloned()
+}
+
+/// Map an OPC UA StatusCode to an HTTP response.
+/// `Good` → 204 No Content.  Any non-Good status → 422 with JSON body.
+fn opc_status_to_response(sc: OpcStatusCode) -> axum::response::Response {
+    if sc.is_good() {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        let body = serde_json::json!({ "opc_status": format!("{:?}", sc) });
+        (StatusCode::UNPROCESSABLE_ENTITY, Json(body)).into_response()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /internal/alarm/:source_id/acknowledge
+// Body: { "condition_node_id": "...", "event_id": "<hex>", "comment": "..." }
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct AcknowledgeBody {
+    condition_node_id: String,
+    event_id: String,
+    #[serde(default)]
+    comment: String,
+}
+
+async fn alarm_acknowledge(
+    State(state): State<AppState>,
+    Path(source_id): Path<Uuid>,
+    Json(body): Json<AcknowledgeBody>,
+) -> axum::response::Response {
+    let Some(session_arc) = get_session(&state, source_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let condition_node_id = body.condition_node_id;
+    let event_id_hex = body.event_id;
+    let comment = body.comment;
+
+    let sc = tokio::task::spawn_blocking(move || {
+        // Decode hex event_id into bytes for ByteString.
+        let bytes = hex::decode(&event_id_hex).unwrap_or_default();
+        let event_id_variant = Variant::ByteString(ByteString::from(bytes));
+        let comment_variant = Variant::from(LocalizedText::new("en", &comment));
+        let args = Some(vec![event_id_variant, comment_variant]);
+
+        let session_guard = session_arc.read();
+        driver::call_alarm_method(&session_guard, &condition_node_id, "Acknowledge", args)
+    })
+    .await;
+
+    match sc {
+        Ok(status_code) => opc_status_to_response(status_code),
+        Err(e) => {
+            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_acknowledge");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /internal/alarm/:source_id/enable
+// Body: { "condition_node_id": "..." }
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct ConditionBody {
+    condition_node_id: String,
+}
+
+async fn alarm_enable(
+    State(state): State<AppState>,
+    Path(source_id): Path<Uuid>,
+    Json(body): Json<ConditionBody>,
+) -> axum::response::Response {
+    let Some(session_arc) = get_session(&state, source_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let condition_node_id = body.condition_node_id;
+
+    let sc = tokio::task::spawn_blocking(move || {
+        let session_guard = session_arc.read();
+        driver::call_alarm_method(&session_guard, &condition_node_id, "Enable", None)
+    })
+    .await;
+
+    match sc {
+        Ok(status_code) => opc_status_to_response(status_code),
+        Err(e) => {
+            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_enable");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /internal/alarm/:source_id/disable
+// Body: { "condition_node_id": "..." }
+// ---------------------------------------------------------------------------
+
+async fn alarm_disable(
+    State(state): State<AppState>,
+    Path(source_id): Path<Uuid>,
+    Json(body): Json<ConditionBody>,
+) -> axum::response::Response {
+    let Some(session_arc) = get_session(&state, source_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let condition_node_id = body.condition_node_id;
+
+    let sc = tokio::task::spawn_blocking(move || {
+        let session_guard = session_arc.read();
+        driver::call_alarm_method(&session_guard, &condition_node_id, "Disable", None)
+    })
+    .await;
+
+    match sc {
+        Ok(status_code) => opc_status_to_response(status_code),
+        Err(e) => {
+            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_disable");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /internal/alarm/:source_id/shelve
+// Body: { "condition_node_id": "...", "type": "timed|oneshot|unshelve", "shelving_time_ms": 3600000 }
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct ShelveBody {
+    condition_node_id: String,
+    #[serde(rename = "type")]
+    shelve_type: String,
+    shelving_time_ms: Option<f64>,
+}
+
+async fn alarm_shelve(
+    State(state): State<AppState>,
+    Path(source_id): Path<Uuid>,
+    Json(body): Json<ShelveBody>,
+) -> axum::response::Response {
+    let Some(session_arc) = get_session(&state, source_id) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let condition_node_id = body.condition_node_id;
+    let shelve_type = body.shelve_type;
+    let shelving_time_ms = body.shelving_time_ms;
+
+    let sc = tokio::task::spawn_blocking(move || {
+        let (method_name, args) = match shelve_type.as_str() {
+            "timed" => {
+                let ms = shelving_time_ms.unwrap_or(3_600_000.0);
+                ("TimedShelve", Some(vec![Variant::Double(ms)]))
+            }
+            "oneshot" => ("OneShotShelve", None),
+            "unshelve" | _ => ("Unshelve", None),
+        };
+
+        let session_guard = session_arc.read();
+        driver::call_alarm_method(&session_guard, &condition_node_id, method_name, args)
+    })
+    .await;
+
+    match sc {
+        Ok(status_code) => opc_status_to_response(status_code),
+        Err(e) => {
+            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_shelve");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 

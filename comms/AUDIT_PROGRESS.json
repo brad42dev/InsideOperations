@@ -48,7 +48,8 @@
     "MOD-PROCESS-004": 1,
     "MOD-DESIGNER-016": 1,
     "DD-06-011": 1,
-    "MOD-DESIGNER-002": 1
+    "MOD-DESIGNER-002": 1,
+    "MOD-DESIGNER-023": 1
   },
   "queue": [
     {
@@ -1302,7 +1303,7 @@
       "wave": 2,
       "title": "Implement A&C operator methods: Acknowledge, Enable, Disable, TimedShelve, OneShotShelve, Unshelve",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 1
     },
@@ -3940,7 +3941,7 @@
       "wave": 2,
       "title": "Designer file tabs \u2014 multiple open graphics simultaneously",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 6,
       "source": "feature"
