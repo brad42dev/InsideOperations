@@ -1,6 +1,6 @@
 use crate::{
     cache::ShadowCache,
-    fanout::fanout_batch,
+    fanout::{fanout_batch, PendingMap},
     registry::{ClientId, SubscriptionRegistry},
 };
 use chrono::Utc;
@@ -21,6 +21,8 @@ pub async fn run_uds_server(
     cache: Arc<ShadowCache>,
     registry: Arc<SubscriptionRegistry>,
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
+    pending: PendingMap,
+    deadband: f64,
 ) {
     // Ensure parent directory exists.
     if let Some(parent) = std::path::Path::new(&sock_path).parent() {
@@ -50,7 +52,10 @@ pub async fn run_uds_server(
                 let cache = Arc::clone(&cache);
                 let registry = Arc::clone(&registry);
                 let connections = Arc::clone(&connections);
-                tokio::spawn(handle_uds_connection(stream, cache, registry, connections));
+                let pending = Arc::clone(&pending);
+                tokio::spawn(handle_uds_connection(
+                    stream, cache, registry, connections, pending, deadband,
+                ));
             }
             Err(e) => {
                 error!(error = %e, "UDS accept error");
@@ -64,6 +69,8 @@ async fn handle_uds_connection(
     cache: Arc<ShadowCache>,
     registry: Arc<SubscriptionRegistry>,
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
+    pending: PendingMap,
+    deadband: f64,
 ) {
     let mut buf: Vec<u8> = Vec::with_capacity(65_536);
     let mut read_buf = [0u8; 16_384];
@@ -87,7 +94,8 @@ async fn handle_uds_connection(
         loop {
             match decode_frame(&buf) {
                 Ok(Some((frame, consumed))) => {
-                    dispatch_frame(frame, &cache, &registry, &connections).await;
+                    dispatch_frame(frame, &cache, &registry, &connections, &pending, deadband)
+                        .await;
                     buf.drain(..consumed);
                 }
                 Ok(None) => break, // Need more data.
@@ -106,10 +114,12 @@ async fn dispatch_frame(
     cache: &ShadowCache,
     registry: &SubscriptionRegistry,
     connections: &DashMap<ClientId, mpsc::Sender<WsServerMessage>>,
+    pending: &PendingMap,
+    deadband: f64,
 ) {
     match frame {
         UdsFrame::Data(batch) => {
-            fanout_batch(&batch, cache, registry, connections).await;
+            fanout_batch(&batch, cache, registry, pending, deadband);
         }
         UdsFrame::Status(status) => {
             let now = Utc::now().to_rfc3339();

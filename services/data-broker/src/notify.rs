@@ -1,16 +1,14 @@
 use crate::{
     cache::ShadowCache,
-    fanout::fanout_batch,
-    registry::{ClientId, SubscriptionRegistry},
+    fanout::{fanout_batch, PendingMap},
+    registry::SubscriptionRegistry,
 };
 use chrono::DateTime;
-use dashmap::DashMap;
 use io_bus::{
-    NotifyPointUpdates, PointQuality, UdsPointBatch, UdsPointUpdate, WsServerMessage,
+    NotifyPointUpdates, PointQuality, UdsPointBatch, UdsPointUpdate,
 };
 use io_db::DbPool;
 use std::sync::Arc;
-use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 /// Listen on the PostgreSQL `point_updates` NOTIFY channel and fan out updates
@@ -20,7 +18,8 @@ pub async fn run_notify_listener(
     db: DbPool,
     cache: Arc<ShadowCache>,
     registry: Arc<SubscriptionRegistry>,
-    connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
+    pending: PendingMap,
+    deadband: f64,
 ) {
     let mut listener: sqlx::postgres::PgListener = match sqlx::postgres::PgListener::connect_with(&db).await {
         Ok(l) => l,
@@ -44,7 +43,7 @@ pub async fn run_notify_listener(
                 match serde_json::from_str::<NotifyPointUpdates>(payload) {
                     Ok(notify) => {
                         let batch = notify_to_batch(notify);
-                        fanout_batch(&batch, &cache, &registry, &connections).await;
+                        fanout_batch(&batch, &cache, &registry, &pending, deadband);
                     }
                     Err(e) => {
                         warn!(error = %e, payload = %payload, "Failed to deserialize point_updates NOTIFY payload");

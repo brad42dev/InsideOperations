@@ -21,13 +21,16 @@ impl ShadowCache {
         }
     }
 
+    /// Update the cached value for `point_id`. Returns the **previous**
+    /// `CachedValue` if one existed, so callers can perform change-only
+    /// detection and deadband filtering before deciding to fan out.
     pub fn update(
         &self,
         point_id: Uuid,
         value: f64,
         quality: String,
         timestamp: DateTime<Utc>,
-    ) {
+    ) -> Option<CachedValue> {
         self.inner.insert(
             point_id,
             CachedValue {
@@ -36,7 +39,7 @@ impl ShadowCache {
                 timestamp,
                 stale: false,
             },
-        );
+        )
     }
 
     pub fn get(&self, point_id: &Uuid) -> Option<CachedValue> {
@@ -60,6 +63,23 @@ impl ShadowCache {
         if let Some(mut entry) = self.inner.get_mut(point_id) {
             entry.stale = false;
         }
+    }
+
+    /// Returns all `(point_id, CachedValue)` pairs for points whose last
+    /// update timestamp is before `threshold`. Unlike `find_stale` this
+    /// does not filter already-stale points, because the heartbeat should
+    /// resend even stale values so clients know the connection is alive.
+    pub fn find_silent(&self, threshold: DateTime<Utc>) -> Vec<(Uuid, CachedValue)> {
+        self.inner
+            .iter()
+            .filter_map(|entry| {
+                if entry.timestamp < threshold {
+                    Some((*entry.key(), entry.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     /// Returns all (point_id, last_timestamp) pairs where the last update was

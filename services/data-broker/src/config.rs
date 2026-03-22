@@ -10,6 +10,17 @@ pub struct Config {
     pub staleness_sweep_secs: u64,
     pub max_subscriptions_per_client: usize,
     pub ping_interval_secs: u64,
+    /// How long (in milliseconds) to accumulate point updates before flushing
+    /// a batch to each client. Default: 250 ms.
+    pub batch_window_ms: u64,
+    /// How long (in seconds) a point may go without a fanout before a
+    /// heartbeat is re-sent so clients know the value is still valid.
+    /// Default: 60 s.
+    pub max_silence_secs: u64,
+    /// Per-point deadband as a fraction of the absolute value (0.0 = disabled).
+    /// An update is suppressed if |new − old| ≤ |old| × deadband.
+    /// Default: 0.0 (all changes are fanned out).
+    pub fanout_deadband: f64,
 }
 
 impl Config {
@@ -43,6 +54,18 @@ impl Config {
                 .unwrap_or_else(|_| "30".to_string())
                 .parse()
                 .context("PING_INTERVAL_SECS must be a valid integer")?,
+            batch_window_ms: std::env::var("BATCH_WINDOW_MS")
+                .unwrap_or_else(|_| "250".to_string())
+                .parse()
+                .context("BATCH_WINDOW_MS must be a valid integer")?,
+            max_silence_secs: std::env::var("MAX_SILENCE_SECS")
+                .unwrap_or_else(|_| "60".to_string())
+                .parse()
+                .context("MAX_SILENCE_SECS must be a valid integer")?,
+            fanout_deadband: std::env::var("FANOUT_DEADBAND")
+                .unwrap_or_else(|_| "0.0".to_string())
+                .parse()
+                .context("FANOUT_DEADBAND must be a valid float")?,
         })
     }
 }

@@ -2022,7 +2022,7 @@
       "wave": 3,
       "title": "Implement update efficiency: change-only fanout, deadband, max-silence heartbeat, batching, and staggered fanout",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

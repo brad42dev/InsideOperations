@@ -1,6 +1,7 @@
 use axum::{routing::{get, post}, Router};
 use cache::ShadowCache;
 use dashmap::DashMap;
+use fanout::{LastFanoutMap, PendingMap};
 use registry::SubscriptionRegistry;
 use state::AppState;
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
@@ -48,6 +49,11 @@ async fn main() -> anyhow::Result<()> {
     let connections: Arc<DashMap<_, _>> = Arc::new(DashMap::new());
     let user_connections: Arc<DashMap<uuid::Uuid, HashSet<uuid::Uuid>>> = Arc::new(DashMap::new());
 
+    // Shared per-client update accumulator (filled by fanout_batch, drained by flusher).
+    let pending: PendingMap = Arc::new(DashMap::new());
+    // Per-client last-fanout timestamps (updated by flusher, read by heartbeat).
+    let last_fanout: LastFanoutMap = Arc::new(DashMap::new());
+
     let state = AppState {
         config: Arc::clone(&cfg),
         cache: Arc::clone(&shadow_cache),
@@ -63,7 +69,9 @@ async fn main() -> anyhow::Result<()> {
         let c = Arc::clone(&shadow_cache);
         let r = Arc::clone(&registry);
         let cx = Arc::clone(&connections);
-        tokio::spawn(uds::run_uds_server(sock, c, r, cx));
+        let p = Arc::clone(&pending);
+        let db = cfg.fanout_deadband;
+        tokio::spawn(uds::run_uds_server(sock, c, r, cx, p, db));
     }
 
     // Spawn NOTIFY/LISTEN fallback.
@@ -71,8 +79,27 @@ async fn main() -> anyhow::Result<()> {
         let db2 = db.clone();
         let c = Arc::clone(&shadow_cache);
         let r = Arc::clone(&registry);
+        let p = Arc::clone(&pending);
+        let db_val = cfg.fanout_deadband;
+        tokio::spawn(notify::run_notify_listener(db2, c, r, p, db_val));
+    }
+
+    // Spawn batched fanout flusher.
+    {
+        let p = Arc::clone(&pending);
         let cx = Arc::clone(&connections);
-        tokio::spawn(notify::run_notify_listener(db2, c, r, cx));
+        let lf = Arc::clone(&last_fanout);
+        let bw = cfg.batch_window_ms;
+        tokio::spawn(fanout::run_fanout_flusher(bw, p, cx, lf));
+    }
+
+    // Spawn max-silence heartbeat task.
+    {
+        let c = Arc::clone(&shadow_cache);
+        let r = Arc::clone(&registry);
+        let p = Arc::clone(&pending);
+        let ms = cfg.max_silence_secs;
+        tokio::spawn(fanout::run_heartbeat_task(ms, c, r, p));
     }
 
     // Spawn staleness sweeper.
