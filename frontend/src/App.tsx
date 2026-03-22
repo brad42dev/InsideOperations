@@ -1,5 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import * as echarts from 'echarts'
+import { ioLightTheme, ioDarkTheme, ioHighContrastTheme } from './shared/theme/echarts-themes'
 import { ThemeProvider } from './shared/theme/ThemeContext'
+
+// Register named ECharts themes at module load time (once, before any chart renders).
+// Names are prefixed 'io-' to avoid collision with ECharts built-in 'light' / 'dark'.
+echarts.registerTheme('io-light', ioLightTheme)
+echarts.registerTheme('io-dark', ioDarkTheme)
+echarts.registerTheme('io-high-contrast', ioHighContrastTheme)
 import AppShell from './shared/layout/AppShell'
 import PermissionGuard from './shared/components/PermissionGuard'
 import DesignerPage from './pages/designer/index'

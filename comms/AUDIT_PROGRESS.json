@@ -3164,7 +3164,7 @@
       "wave": 3,
       "title": "Implement DataTable must-have features (filtering, pinning, resizing, multi-sort, sparklines, conditional formatting, export)",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3174,7 +3174,7 @@
       "wave": 3,
       "title": "Implement ECharts dynamic theme switching (register 3 named themes, react to theme changes)",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-32-003"
       ],

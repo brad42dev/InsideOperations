@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import * as echarts from 'echarts'
+import { useThemeName, themeToColorKey } from '../../theme/ThemeContext'
+import type { Theme } from '../../theme/tokens'
 
 export interface EChartProps {
   option: echarts.EChartsOption
@@ -11,6 +13,16 @@ export interface EChartProps {
 }
 
 const DEFAULT_HEIGHT = 300
+
+/**
+ * Map a Theme value ('light' | 'dark' | 'hphmi') to the registered ECharts
+ * theme name ('io-light' | 'io-dark' | 'io-high-contrast').
+ * These names were registered at app startup in App.tsx.
+ */
+function toEChartsTheme(theme: Theme): string {
+  const key = themeToColorKey(theme) // 'light' | 'dark' | 'high-contrast'
+  return `io-${key}`
+}
 
 export default function EChart({
   option,
@@ -26,6 +38,10 @@ export default function EChart({
   const [containerWidth, setContainerWidth] = useState<number>(width ?? 0)
 
   const isAutoWidth = width === undefined
+
+  // Subscribe to the active theme from ThemeContext so changes re-render this component
+  const theme = useThemeName()
+  const echartsThemeName = toEChartsTheme(theme)
 
   // Measure container width via ResizeObserver when width not provided
   useEffect(() => {
@@ -45,12 +61,22 @@ export default function EChart({
     if (!isAutoWidth && width !== undefined) setContainerWidth(width)
   }, [isAutoWidth, width])
 
-  // Create / destroy ECharts instance
+  // Create / destroy ECharts instance.
+  // echartsThemeName is in the dependency array so that a theme change
+  // causes dispose + reinit with the new named theme (ECharts does not
+  // support hot-swapping the theme via setOption — init time only).
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
 
-    const chart = echarts.init(el, 'dark')
+    // Dispose any existing instance before creating a new one
+    if (chartRef.current) {
+      chartRef.current.dispose()
+      chartRef.current = null
+      prevOptionJson.current = ''
+    }
+
+    const chart = echarts.init(el, echartsThemeName)
     chartRef.current = chart
 
     return () => {
@@ -58,7 +84,8 @@ export default function EChart({
       chartRef.current = null
       prevOptionJson.current = ''
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [echartsThemeName])
 
   // Update option when it changes (JSON-equality guard to avoid infinite loops)
   useEffect(() => {
