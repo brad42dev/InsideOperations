@@ -9,6 +9,13 @@ export type NotificationChannel = 'websocket' | 'email' | 'sms' | 'pa' | 'radio'
 export type MusterStatus = 'unaccounted' | 'accounted' | 'off_site'
 export type GroupType = 'static' | 'role_based' | 'on_shift' | 'on_site' | 'all_users'
 
+export interface TemplateVariable {
+  name: string
+  label: string
+  default_value?: string
+  required: boolean
+}
+
 export interface NotificationTemplate {
   id: string
   name: string
@@ -17,7 +24,7 @@ export interface NotificationTemplate {
   title_template: string
   body_template: string
   channels: NotificationChannel[]
-  variables: string[]
+  variables: TemplateVariable[]
   is_system: boolean
   enabled: boolean
   created_at: string
@@ -110,7 +117,7 @@ export interface CreateTemplatePayload {
   title_template: string
   body_template: string
   channels?: NotificationChannel[]
-  variables?: string[]
+  variables?: TemplateVariable[]
 }
 
 export interface UpdateTemplatePayload {
@@ -120,7 +127,7 @@ export interface UpdateTemplatePayload {
   title_template?: string
   body_template?: string
   channels?: NotificationChannel[]
-  variables?: string[]
+  variables?: TemplateVariable[]
   enabled?: boolean
 }
 

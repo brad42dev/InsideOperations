@@ -84,8 +84,8 @@ export default function AlertComposer() {
     const tpl = templates?.find(t => t.id === id)
     if (tpl) {
       setSeverity(tpl.severity)
-      setTitle(tpl.title_template)
-      setBody(tpl.body_template)
+      // Do not overwrite title/body with raw template strings — the preview
+      // will show the substituted result via the template selection.
     }
   }
 

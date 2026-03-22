@@ -11,6 +11,7 @@ import {
   type SendNotificationPayload,
   type CreateTemplatePayload,
   type CreateGroupPayload,
+  type TemplateVariable,
 } from '../../api/notifications'
 
 // ---------------------------------------------------------------------------
@@ -221,8 +222,13 @@ function SendAlertPanel() {
     }
   }
 
+  const hasUnfilledRequired = selectedTemplate
+    ? selectedTemplate.variables.some((v: TemplateVariable) => v.required && !variableValues[v.name]?.trim())
+    : false
+
   const doSend = () => {
     setShowConfirm(false)
+    if (hasUnfilledRequired) return
     const payload: SendNotificationPayload = {
       template_id: selectedTemplateId || undefined,
       severity,
@@ -248,7 +254,7 @@ function SendAlertPanel() {
       setSeverity(tpl.severity)
       setChannels(tpl.channels)
       const initVars: Record<string, string> = {}
-      tpl.variables.forEach((v) => { initVars[v] = '' })
+      tpl.variables.forEach((v) => { initVars[v.name] = v.default_value ?? '' })
       setVariableValues(initVars)
     } else {
       setVariableValues({})
@@ -368,18 +374,18 @@ function SendAlertPanel() {
           <div>
             <label style={labelStyle}>Template Variables</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {selectedTemplate.variables.map((v) => (
-                <div key={v}>
+              {selectedTemplate.variables.map((v: TemplateVariable) => (
+                <div key={v.name}>
                   <label style={{ ...labelStyle, textTransform: 'none', fontSize: 11 }}>
-                    {'{{'}{v}{'}}'}
+                    {v.label}{v.required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}
                   </label>
                   <input
                     type="text"
-                    value={variableValues[v] ?? ''}
+                    value={variableValues[v.name] ?? ''}
                     onChange={(e) =>
-                      setVariableValues((prev) => ({ ...prev, [v]: e.target.value }))
+                      setVariableValues((prev) => ({ ...prev, [v.name]: e.target.value }))
                     }
-                    placeholder={`Enter value for ${v}`}
+                    placeholder={`Enter value for ${v.label}`}
                     style={inputStyle}
                   />
                 </div>
@@ -457,7 +463,7 @@ function SendAlertPanel() {
         {/* Send button */}
         <button
           onClick={handleSend}
-          disabled={sendMutation.isPending || channels.length === 0}
+          disabled={sendMutation.isPending || channels.length === 0 || hasUnfilledRequired}
           style={{
             padding: '10px 20px',
             borderRadius: 6,
@@ -767,6 +773,7 @@ function TemplatesPanel() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<Partial<CreateTemplatePayload>>({})
+  const [varDefs, setVarDefs] = useState<TemplateVariable[]>([])
 
   const { data: result, isLoading } = useQuery({
     queryKey: ['notification-templates'],
@@ -782,6 +789,7 @@ function TemplatesPanel() {
         qc.invalidateQueries({ queryKey: ['notification-templates'] })
         setShowCreate(false)
         setCreateForm({})
+        setVarDefs([])
       }
     },
   })
@@ -871,11 +879,62 @@ function TemplatesPanel() {
               style={{ ...inputStyle, gridColumn: '1 / -1', resize: 'vertical' }}
             />
           </div>
+            {/* Variable definitions */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              Variables
+            </div>
+            {varDefs.map((vd, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                <input
+                  placeholder="name (e.g. location)"
+                  value={vd.name}
+                  onChange={(e) => setVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                  style={inputStyle}
+                />
+                <input
+                  placeholder="label (e.g. Location)"
+                  value={vd.label}
+                  onChange={(e) => setVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                  style={inputStyle}
+                />
+                <input
+                  placeholder="default"
+                  value={vd.default_value ?? ''}
+                  onChange={(e) => setVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, default_value: e.target.value || undefined } : x))}
+                  style={{ ...inputStyle, width: 90 }}
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--io-text)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={vd.required}
+                    onChange={(e) => setVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, required: e.target.checked } : x))}
+                  />
+                  Required
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setVarDefs((prev) => prev.filter((_, i) => i !== idx))}
+                  style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--io-border)', background: 'transparent', color: '#ef4444', fontSize: 12, cursor: 'pointer' }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setVarDefs((prev) => [...prev, { name: '', label: '', required: false }])}
+              style={{ padding: '4px 10px', borderRadius: 4, border: '1px dashed var(--io-border)', background: 'transparent', color: 'var(--io-text-muted)', fontSize: 12, cursor: 'pointer' }}
+            >
+              + Add Variable
+            </button>
+          </div>
+
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => {
                 if (createForm.name && createForm.title_template && createForm.body_template) {
-                  createMutation.mutate(createForm as CreateTemplatePayload)
+                  createMutation.mutate({ ...(createForm as CreateTemplatePayload), variables: varDefs.filter(v => v.name.trim()) })
                 }
               }}
               disabled={createMutation.isPending}
@@ -893,7 +952,7 @@ function TemplatesPanel() {
               {createMutation.isPending ? 'Creating…' : 'Create'}
             </button>
             <button
-              onClick={() => { setShowCreate(false); setCreateForm({}) }}
+              onClick={() => { setShowCreate(false); setCreateForm({}); setVarDefs([]) }}
               style={{
                 padding: '6px 14px',
                 borderRadius: 6,
