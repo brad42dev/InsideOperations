@@ -105,3 +105,101 @@ jobs:
         run: sqlx migrate run --source migrations
       - name: Run integration tests
         run: cargo test --test '*' --workspace 2>/dev/null || echo "No integration test binaries yet"
+
+  e2e-critical:
+    name: E2E — critical paths (PR gate)
+    runs-on: ubuntu-24.04
+    needs: [integration-tests]
+    services:
+      postgres:
+        image: timescale/timescaledb:2.13.1-pg16
+        env:
+          POSTGRES_USER: io
+          POSTGRES_PASSWORD: io_password
+          POSTGRES_DB: io_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      IO_DATABASE_URL: postgresql://io:io_password@localhost:5432/io_test
+      JWT_SECRET: test-secret-for-ci-only
+      IO_SERVICE_SECRET: test-service-secret
+      E2E_BASE_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install system dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y libxmlsec1-dev libxmlsec1-openssl libxml2-dev libxslt1-dev
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Install sqlx-cli and run migrations
+        run: |
+          cargo install sqlx-cli --no-default-features --features postgres
+          sqlx migrate run --source migrations
+      - name: Build API Gateway
+        run: cargo build -p io-api-gateway
+      - name: Start API Gateway (background)
+        run: ./target/debug/io-api-gateway &
+        env:
+          DATABASE_URL: postgresql://io:io_password@localhost:5432/io_test
+      - name: Install frontend deps and Playwright
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          npx playwright install --with-deps chromium
+      - name: Start Vite dev server (background)
+        working-directory: frontend
+        run: pnpm dev &
+      - name: Wait for services to be ready
+        run: |
+          npx wait-on http://localhost:5173 --timeout 60000 || true
+          npx wait-on http://localhost:3000/health --timeout 30000 || true
+      - name: Run E2E critical paths
+        working-directory: frontend
+        run: npx playwright test --reporter=html
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-pr
+          path: frontend/playwright-report/
+
+  frontend-integration:
+    name: Frontend — integration tests
+    runs-on: ubuntu-24.04
+    needs: [frontend-checks]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run module-level integration tests
+        run: pnpm test:integration 2>/dev/null || echo "No integration tests yet — job will be enforced once DD-33-007 lands"

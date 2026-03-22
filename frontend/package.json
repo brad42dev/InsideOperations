@@ -9,6 +9,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:integration": "vitest run --reporter=verbose src/test/integration",
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed"
