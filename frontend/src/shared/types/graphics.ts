@@ -330,7 +330,7 @@ export interface Group extends SceneNodeBase {
 
 // ---- Annotation ----
 
-export type AnnotationType = 'callout' | 'dimension_line' | 'north_arrow' | 'legend' | 'border' | 'section_break' | 'page_break' | 'header' | 'footer'
+export type AnnotationType = 'callout' | 'dimension_line' | 'north_arrow' | 'legend' | 'border' | 'title_block' | 'section_break' | 'page_break' | 'header' | 'footer'
 
 export interface CalloutConfig {
   annotationType: 'callout'
@@ -419,12 +419,25 @@ export interface FooterConfig {
   textAlign: 'left' | 'center' | 'right'
 }
 
+export interface TitleBlockConfig {
+  annotationType: 'title_block'
+  title: string
+  drawingNumber?: string
+  revision?: string
+  drawnBy?: string
+  date?: string
+  fontSize: number
+  backgroundColor: Color
+  borderColor: Color
+}
+
 export type AnnotationConfig =
   | CalloutConfig
   | DimensionLineConfig
   | NorthArrowConfig
   | LegendConfig
   | BorderConfig
+  | TitleBlockConfig
   | SectionBreakConfig
   | PageBreakConfig
   | HeaderConfig
@@ -433,6 +446,8 @@ export type AnnotationConfig =
 export interface Annotation extends SceneNodeBase {
   type: 'annotation'
   annotationType: AnnotationType
+  width: number
+  height: number
   config: AnnotationConfig
 }
 

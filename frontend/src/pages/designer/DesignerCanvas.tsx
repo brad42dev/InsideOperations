@@ -40,6 +40,7 @@ import type {
   Group,
   EmbeddedSvgNode,
   Stencil,
+  Annotation,
   Transform,
   WidgetNode,
   WidgetType,
@@ -328,10 +329,7 @@ function getNodeBounds(node: SceneNode): { x: number; y: number; w: number; h: n
   }
   if (node.type === 'annotation') {
     const an = node as import('../../shared/types/graphics').Annotation
-    const cfg = an.config as unknown as Record<string, number>
-    const w = cfg.width ?? 200
-    const h = cfg.height ?? (an.annotationType === 'section_break' || an.annotationType === 'page_break' ? 20 : 40)
-    return { x, y, w, h }
+    return { x, y, w: an.width, h: an.height }
   }
   // Default generous bbox for stencils, etc.
   return { x, y, w: 64, h: 64 }
@@ -1158,6 +1156,10 @@ function SelectionOverlay({
         const node = findNode(doc.children)
         if (!node) return null
 
+        // dimension_line annotations have no bounding box resize handles
+        const isDimensionLine = node.type === 'annotation' && (node as Annotation).annotationType === 'dimension_line'
+        const nodeShowResizeHandles = showResizeHandles && !isDimensionLine
+
         const bounds = getNodeBounds(node)
         const { x, y, w, h } = bounds
         const cx = x + w / 2
@@ -1217,7 +1219,7 @@ function SelectionOverlay({
             )}
 
             {/* Resize handles — 8 squares at corners and edge midpoints (single selection) */}
-            {showResizeHandles && RESIZE_HANDLES.map(rh => {
+            {nodeShowResizeHandles && RESIZE_HANDLES.map(rh => {
               const rhx = (x - pad) + (w + pad * 2) * rh.cx
               const rhy = (y - pad) + (h + pad * 2) * rh.cy
               const sz = 6 / zoom
@@ -2370,6 +2372,45 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
             newT, { width: nw, height: nh },
             prevT, { width: esn.width, height: esn.height },
           ))
+        } else if (target?.type === 'annotation') {
+          const ann = target as Annotation
+          if (ann.annotationType === 'dimension_line') {
+            inter.type = 'none'
+            return
+          }
+          let finalW = nw
+          let finalH = nh
+          if (ann.annotationType === 'north_arrow') {
+            const side = Math.max(20, Math.min(nw, nh))
+            finalW = side
+            finalH = side
+          } else if (ann.annotationType === 'header' || ann.annotationType === 'footer') {
+            finalW = Math.max(40, nw)
+            finalH = ann.height
+            ny = inter.resizeOrigTransform.position.y
+          } else if (ann.annotationType === 'section_break' || ann.annotationType === 'page_break') {
+            finalW = Math.max(20, nw)
+            finalH = 4
+            ny = inter.resizeOrigTransform.position.y
+          } else {
+            // callout, legend, border, title_block
+            const MINS: Record<string, [number, number]> = {
+              callout: [40, 20],
+              legend: [60, 30],
+              border: [100, 40],
+              title_block: [100, 40],
+            }
+            const [mw, mh] = MINS[ann.annotationType] ?? [20, 20]
+            finalW = Math.max(mw, nw)
+            finalH = Math.max(mh, nh)
+          }
+          const prevT = inter.resizeOrigTransform
+          const newT: Transform = { ...prevT, position: { x: nx, y: ny } }
+          executeCmd(new ResizeNodeWithDimsCommand(
+            inter.resizeNodeId,
+            newT, { width: finalW, height: finalH },
+            prevT, { width: ann.width, height: ann.height },
+          ))
         } else if (target?.type === 'symbol_instance') {
           const si = target as SymbolInstance
           const prevT = inter.resizeOrigTransform
@@ -3297,11 +3338,15 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen }: D
                       : rat === 'header'        ? { annotationType: rat, width: cfgWidth, height: 40 } as const
                       :                           { annotationType: rat, width: cfgWidth, height: 40 } as const
 
+        const annNodeW = cfgWidth
+        const annNodeH = (rat === 'section_break' || rat === 'page_break') ? 4 : 40
         const annotationNode = {
           id: crypto.randomUUID(),
           type: 'annotation' as const,
           name: et.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
           annotationType: rat,
+          width: annNodeW,
+          height: annNodeH,
           transform: { position: { x: cx, y: cy }, rotation: 0, scale: { x: 1, y: 1 }, mirror: 'none' },
           visible: true,
           locked: false,
