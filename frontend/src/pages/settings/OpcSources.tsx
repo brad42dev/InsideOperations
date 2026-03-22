@@ -12,7 +12,31 @@ import {
   UpdatePointSourceRequest,
 } from '../../api/points'
 import { opcCertsApi, OpcServerCert } from '../../api/opcCerts'
+import { settingsApi } from '../../api/settings'
 import SupplementalConnectorsTab from './SupplementalConnectorsTab'
+
+// ---------------------------------------------------------------------------
+// Client certificate API (GET /api/certificates?type=client)
+// ---------------------------------------------------------------------------
+
+export interface ClientCertificate {
+  id: string
+  name: string
+  subject: string | null
+  not_after: string | null
+  expired: boolean
+}
+
+const clientCertsApi = {
+  list: () =>
+    fetch('/api/certificates?type=client', {
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    }).then(async (r) => {
+      const json = await r.json()
+      return json as { success: boolean; data: ClientCertificate[]; error?: { message: string } }
+    }),
+}
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -337,19 +361,38 @@ interface SourceFormState {
   username: string
   password: string
   enabled: boolean
+  client_certificate_id: string | null
+  platform: string | null
+  publish_interval_ms: number | null
 }
 
 const SECURITY_POLICIES = ['None', 'Basic256Sha256', 'Aes128Sha256RsaOaep', 'Aes256Sha256RsaPss']
 const SECURITY_MODES = ['None', 'Sign', 'SignAndEncrypt']
 
+// DCS platform options from doc 17 §Connection Profiles
+const DCS_PLATFORMS = [
+  { value: '', label: 'Unknown / Generic' },
+  { value: 'siemens_s7_1500', label: 'Siemens S7-1500 (TIA Portal)' },
+  { value: 'siemens_s7_1200', label: 'Siemens S7-1200 (TIA Portal)' },
+  { value: 'siemens_wincc_oa', label: 'Siemens WinCC OA' },
+  { value: 'siemens_wincc_v7', label: 'Siemens WinCC V7 / RT Pro' },
+  { value: 'honeywell_experion', label: 'Honeywell Experion PKS' },
+  { value: 'abb_800xa', label: 'ABB 800xA' },
+  { value: 'emerson_deltav_pk', label: 'Emerson DeltaV PK Controller' },
+  { value: 'emerson_deltav_app', label: 'Emerson DeltaV Application Station' },
+  { value: 'yokogawa_exaopc', label: 'Yokogawa Exaopc' },
+]
+
 function SourceFormFields({
   form,
   onChange,
   showEnabled,
+  clientCerts,
 }: {
   form: SourceFormState
   onChange: (patch: Partial<SourceFormState>) => void
   showEnabled?: boolean
+  clientCerts?: ClientCertificate[]
 }) {
   const field = (
     label: string,
@@ -411,6 +454,40 @@ function SourceFormFields({
         </div>
       </div>
 
+      {/* Client Certificate dropdown */}
+      <div>
+        <label style={labelStyle}>Client Certificate</label>
+        <select
+          style={{ ...inputStyle, cursor: 'pointer' }}
+          value={form.client_certificate_id ?? ''}
+          onChange={(e) => onChange({ client_certificate_id: e.target.value || null })}
+        >
+          <option value="">(none)</option>
+          {(clientCerts ?? []).map((cert) => (
+            <option key={cert.id} value={cert.id}>
+              {cert.name}
+              {cert.expired ? ' [EXPIRED]' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Platform dropdown */}
+      <div>
+        <label style={labelStyle}>Platform</label>
+        <select
+          style={{ ...inputStyle, cursor: 'pointer' }}
+          value={form.platform ?? ''}
+          onChange={(e) => onChange({ platform: e.target.value || null })}
+        >
+          {DCS_PLATFORMS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {field('Username', 'username', 'text', 'Optional')}
       {field('Password', 'password', 'password', 'Optional')}
 
@@ -442,6 +519,19 @@ function SourceFormFields({
 // Create dialog
 // ---------------------------------------------------------------------------
 
+const EMPTY_FORM: SourceFormState = {
+  name: '',
+  endpoint_url: '',
+  security_policy: 'None',
+  security_mode: 'None',
+  username: '',
+  password: '',
+  enabled: true,
+  client_certificate_id: null,
+  platform: null,
+  publish_interval_ms: null,
+}
+
 function CreateSourceDialog({
   open,
   onOpenChange,
@@ -450,16 +540,18 @@ function CreateSourceDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState<SourceFormState>({
-    name: '',
-    endpoint_url: '',
-    security_policy: 'None',
-    security_mode: 'None',
-    username: '',
-    password: '',
-    enabled: true,
-  })
+  const [form, setForm] = useState<SourceFormState>(EMPTY_FORM)
   const [error, setError] = useState<string | null>(null)
+
+  const certsQuery = useQuery({
+    queryKey: ['client-certificates'],
+    queryFn: async () => {
+      const result = await clientCertsApi.list()
+      if (!result.success) return [] as ClientCertificate[]
+      return result.data
+    },
+    staleTime: 60_000,
+  })
 
   const mutation = useMutation({
     mutationFn: (req: CreatePointSourceRequest) => pointSourcesApi.create(req),
@@ -470,15 +562,7 @@ function CreateSourceDialog({
       }
       qc.invalidateQueries({ queryKey: ['point-sources'] })
       onOpenChange(false)
-      setForm({
-        name: '',
-        endpoint_url: '',
-        security_policy: 'None',
-        security_mode: 'None',
-        username: '',
-        password: '',
-        enabled: true,
-      })
+      setForm(EMPTY_FORM)
       setError(null)
     },
   })
@@ -494,6 +578,9 @@ function CreateSourceDialog({
       security_mode: form.security_mode || undefined,
       username: form.username || undefined,
       password: form.password || undefined,
+      client_certificate_id: form.client_certificate_id,
+      platform: form.platform,
+      publish_interval_ms: form.publish_interval_ms,
     }
     mutation.mutate(req)
   }
@@ -517,7 +604,11 @@ function CreateSourceDialog({
           </div>
         )}
         <form onSubmit={handleSubmit}>
-          <SourceFormFields form={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} />
+          <SourceFormFields
+            form={form}
+            onChange={(p) => setForm((f) => ({ ...f, ...p }))}
+            clientCerts={certsQuery.data}
+          />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
             <Dialog.Close asChild>
               <button type="button" style={btnSecondary}>
@@ -556,8 +647,23 @@ function EditSourceDialog({
     username: source?.username ?? '',
     password: '',
     enabled: source?.enabled ?? true,
+    client_certificate_id: null,
+    platform: null,
+    publish_interval_ms: null,
   })
   const [error, setError] = useState<string | null>(null)
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
+  const [testMessage, setTestMessage] = useState<string>('')
+
+  const certsQuery = useQuery({
+    queryKey: ['client-certificates'],
+    queryFn: async () => {
+      const result = await clientCertsApi.list()
+      if (!result.success) return [] as ClientCertificate[]
+      return result.data
+    },
+    staleTime: 60_000,
+  })
 
   React.useEffect(() => {
     if (source) {
@@ -569,7 +675,12 @@ function EditSourceDialog({
         username: source.username ?? '',
         password: '',
         enabled: source.enabled,
+        client_certificate_id: null,
+        platform: null,
+        publish_interval_ms: null,
       })
+      setTestStatus('idle')
+      setTestMessage('')
     }
   }, [source])
 
@@ -586,6 +697,31 @@ function EditSourceDialog({
     },
   })
 
+  const testMutation = useMutation({
+    mutationFn: () => pointSourcesApi.testConnection(source!.id),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setTestStatus('fail')
+        setTestMessage(result.error.message)
+        return
+      }
+      if (result.data.success) {
+        setTestStatus('ok')
+        setTestMessage(
+          result.data.message +
+            (result.data.latency_ms != null ? ` (${result.data.latency_ms}ms)` : ''),
+        )
+      } else {
+        setTestStatus('fail')
+        setTestMessage(result.data.message)
+      }
+    },
+    onError: (e: Error) => {
+      setTestStatus('fail')
+      setTestMessage(e.message)
+    },
+  })
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -597,6 +733,9 @@ function EditSourceDialog({
       username: form.username || undefined,
       password: form.password || undefined,
       enabled: form.enabled,
+      client_certificate_id: form.client_certificate_id,
+      platform: form.platform,
+      publish_interval_ms: form.publish_interval_ms,
     }
     mutation.mutate(req)
   }
@@ -626,7 +765,33 @@ function EditSourceDialog({
             form={form}
             onChange={(p) => setForm((f) => ({ ...f, ...p }))}
             showEnabled
+            clientCerts={certsQuery.data}
           />
+          {/* Test connection */}
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              style={btnSecondary}
+              disabled={testMutation.isPending}
+              onClick={() => {
+                setTestStatus('testing')
+                setTestMessage('')
+                testMutation.mutate()
+              }}
+            >
+              {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+            </button>
+            {testStatus === 'ok' && (
+              <span style={{ fontSize: '12px', color: 'var(--io-success)' }}>
+                Connected — {testMessage}
+              </span>
+            )}
+            {testStatus === 'fail' && (
+              <span style={{ fontSize: '12px', color: 'var(--io-danger)' }}>
+                Failed — {testMessage}
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
             <Dialog.Close asChild>
               <button type="button" style={btnSecondary}>
@@ -1444,6 +1609,127 @@ function DetailRow({
 }
 
 // ---------------------------------------------------------------------------
+// Global minimum publish interval control
+// ---------------------------------------------------------------------------
+
+const MIN_INTERVAL_FLOOR = 100
+const MIN_INTERVAL_KEY = 'opc.minimum_publish_interval_ms'
+const MIN_INTERVAL_DEFAULT = 1000
+
+function MinPublishIntervalControl() {
+  const qc = useQueryClient()
+  const [localValue, setLocalValue] = useState<string>('')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+  const [saveError, setSaveError] = useState<string>('')
+
+  const settingQuery = useQuery({
+    queryKey: ['setting', MIN_INTERVAL_KEY],
+    queryFn: async () => {
+      const result = await settingsApi.list()
+      if (!result.success) return MIN_INTERVAL_DEFAULT
+      const setting = (result.data as import('../../api/settings').Setting[]).find(
+        (s) => s.key === MIN_INTERVAL_KEY,
+      )
+      return setting ? (setting.value as number) : MIN_INTERVAL_DEFAULT
+    },
+    staleTime: 30_000,
+  })
+
+  React.useEffect(() => {
+    if (settingQuery.data != null) {
+      setLocalValue(String(settingQuery.data))
+    }
+  }, [settingQuery.data])
+
+  const saveMutation = useMutation({
+    mutationFn: (val: number) => settingsApi.update(MIN_INTERVAL_KEY, val),
+    onSuccess: (result) => {
+      if (!result.success) {
+        setSaveStatus('error')
+        setSaveError(result.error.message)
+        return
+      }
+      setSaveStatus('saved')
+      setSaveError('')
+      qc.invalidateQueries({ queryKey: ['setting', MIN_INTERVAL_KEY] })
+      setTimeout(() => setSaveStatus('idle'), 3000)
+    },
+    onError: (e: Error) => {
+      setSaveStatus('error')
+      setSaveError(e.message)
+    },
+  })
+
+  function handleSave() {
+    const parsed = parseInt(localValue, 10)
+    if (isNaN(parsed) || parsed < MIN_INTERVAL_FLOOR) {
+      setSaveStatus('error')
+      setSaveError(`Minimum allowed value is ${MIN_INTERVAL_FLOOR}ms`)
+      return
+    }
+    setSaveStatus('idle')
+    setSaveError('')
+    saveMutation.mutate(parsed)
+  }
+
+  return (
+    <div
+      style={{
+        background: 'var(--io-surface-secondary)',
+        border: '1px solid var(--io-border)',
+        borderRadius: '8px',
+        padding: '16px 20px',
+        marginBottom: '20px',
+      }}
+    >
+      <div
+        style={{
+          fontSize: '13px',
+          fontWeight: 600,
+          color: 'var(--io-text-primary)',
+          marginBottom: '4px',
+        }}
+      >
+        Global Minimum Publish Interval
+      </div>
+      <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', marginBottom: '12px' }}>
+        No OPC source can be configured below this floor. Protects DCS/historian systems from
+        aggressive polling. Default: {MIN_INTERVAL_DEFAULT}ms. Minimum allowed: {MIN_INTERVAL_FLOOR}ms.
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <input
+          type="number"
+          min={MIN_INTERVAL_FLOOR}
+          step={100}
+          style={{ ...inputStyle, width: '140px' }}
+          value={localValue}
+          onChange={(e) => {
+            setLocalValue(e.target.value)
+            setSaveStatus('idle')
+          }}
+          placeholder={String(MIN_INTERVAL_DEFAULT)}
+        />
+        <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>ms</span>
+        <button
+          style={btnPrimary}
+          type="button"
+          onClick={handleSave}
+          disabled={saveMutation.isPending}
+        >
+          {saveMutation.isPending ? 'Saving…' : 'Save'}
+        </button>
+        {saveStatus === 'saved' && (
+          <span style={{ fontSize: '12px', color: 'var(--io-success)' }}>Saved</span>
+        )}
+        {saveStatus === 'error' && (
+          <span style={{ fontSize: '12px', color: 'var(--io-danger)' }}>{saveError}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -1526,6 +1812,8 @@ export default function OpcSourcesPage() {
           + Add Source
         </button>
       </div>
+
+      <MinPublishIntervalControl />
 
       <div
         style={{

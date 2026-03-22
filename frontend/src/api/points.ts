@@ -24,6 +24,9 @@ export interface CreatePointSourceRequest {
   security_mode?: string
   username?: string
   password?: string
+  client_certificate_id?: string | null
+  platform?: string | null
+  publish_interval_ms?: number | null
 }
 
 export interface UpdatePointSourceRequest {
@@ -34,6 +37,9 @@ export interface UpdatePointSourceRequest {
   security_mode?: string
   username?: string
   password?: string
+  client_certificate_id?: string | null
+  platform?: string | null
+  publish_interval_ms?: number | null
 }
 
 /** Existing PointMeta shape used by the OPC sources listing */
@@ -118,6 +124,12 @@ export interface HistoryEntry {
 // Existing API objects
 // ---------------------------------------------------------------------------
 
+export interface ConnectionTestResult {
+  success: boolean
+  message: string
+  latency_ms?: number | null
+}
+
 export const pointSourcesApi = {
   list: () => api.get<PointSource[]>('/api/points/sources'),
   get: (id: string) => api.get<PointSource>(`/api/points/sources/${id}`),
@@ -126,6 +138,8 @@ export const pointSourcesApi = {
     api.put<PointSource>(`/api/points/sources/${id}`, req),
   delete: (id: string) => api.delete(`/api/points/sources/${id}`),
   reconnect: (id: string) => api.post<void>(`/api/opc/sources/${id}/reconnect`, {}),
+  testConnection: (id: string) =>
+    api.post<ConnectionTestResult>(`/api/opc/sources/${id}/test`, {}),
 }
 
 export const pointsApi = {

@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22",
+  "last_updated": "2026-03-22T15:50:56.350252+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -100,7 +100,10 @@
     "DD-13-004": 1,
     "DD-13-007": 1,
     "DD-14-001": 1,
-    "DD-14-002": 1
+    "DD-14-002": 1,
+    "DD-14-003": 1,
+    "DD-14-006": 1,
+    "DD-14-007": 1
   },
   "queue": [
     {
@@ -1894,7 +1897,7 @@
       "wave": 3,
       "title": "Implement round transfer API endpoint and transfer request UI",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1914,7 +1917,7 @@
       "wave": 3,
       "title": "Implement conditional checkpoints in TemplateDesigner and RoundPlayer",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1924,7 +1927,7 @@
       "wave": 3,
       "title": "Add export button to rounds tables (CX-EXPORT gap)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1934,7 +1937,7 @@
       "wave": 3,
       "title": "Replace hardcoded hex colors with design tokens across the rounds module",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1966,7 +1969,7 @@
       "wave": 3,
       "title": "Add client certificate dropdown, platform dropdown, and minimum publish interval to OPC source form",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
