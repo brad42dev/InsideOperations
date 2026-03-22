@@ -3,6 +3,7 @@ pub mod api_keys;
 pub mod auth;
 pub mod pin;
 pub mod auth_providers;
+pub mod duo;
 pub mod email_mfa;
 pub mod eula;
 pub mod expressions;

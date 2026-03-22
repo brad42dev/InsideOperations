@@ -262,6 +262,16 @@ pub async fn verify_id_token(
 /// Find a JWK that matches the `kid` from the JWT header (exact match) or,
 /// when `kid` is absent, the first signing key whose declared algorithm
 /// matches.
+/// Public alias used by `handlers::duo` for Duo-specific ID token verification.
+pub fn find_matching_key_pub<'a>(jwks: &'a Jwks, kid: Option<&str>, alg: Algorithm) -> Option<&'a Jwk> {
+    find_matching_key(jwks, kid, alg)
+}
+
+/// Public alias used by `handlers::duo` for Duo-specific ID token verification.
+pub fn jwk_to_decoding_key_pub(jwk: &Jwk) -> IoResult<jsonwebtoken::DecodingKey> {
+    jwk_to_decoding_key(jwk)
+}
+
 fn find_matching_key<'a>(jwks: &'a Jwks, kid: Option<&str>, alg: Algorithm) -> Option<&'a Jwk> {
     if let Some(kid) = kid {
         // Exact kid match — preferred path.

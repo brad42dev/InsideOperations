@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T22:01:36.705100+00:00",
+  "last_updated": "2026-03-22T22:06:45.168343+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -125,7 +125,8 @@
     "DD-27-007": 1,
     "DD-27-008": 1,
     "DD-28-001": 1,
-    "DD-28-007": 1
+    "DD-28-007": 1,
+    "DD-28-008": 1
   },
   "queue": [
     {
@@ -2947,7 +2948,7 @@
       "wave": 3,
       "title": "Implement real test_provider send and spec-compliant health endpoint",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-28-003"
       ],
@@ -2999,7 +3000,7 @@
       "wave": 3,
       "title": "Implement Duo Security MFA (Universal Prompt via OIDC Auth API)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-29-004"
       ],

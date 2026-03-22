@@ -27,6 +27,34 @@ pub struct MfaPendingEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Duo Security MFA state store
+// ---------------------------------------------------------------------------
+
+/// An in-memory entry representing a Duo Universal Prompt authorization
+/// in-flight.  Stored in `AppState::duo_state_tokens` for up to 10 minutes.
+#[derive(Clone)]
+pub struct DuoStateEntry {
+    /// The I/O MFA pending token that started this Duo flow.
+    pub mfa_pending_token: String,
+    /// The `auth_provider_configs` row ID for this Duo provider.
+    #[allow(dead_code)]
+    pub config_id: uuid::Uuid,
+    /// Duo API hostname (e.g. `api-XXXXXXXX.duosecurity.com`).
+    pub api_hostname: String,
+    /// Duo OAuth2 client_id.
+    pub duo_client_id: String,
+    /// Duo OAuth2 client_secret.
+    pub duo_client_secret: String,
+    /// The redirect_uri registered with Duo.
+    pub redirect_uri: String,
+    /// OIDC nonce — must match the value in the Duo ID token.
+    pub nonce: String,
+    /// Username submitted to Duo; validated against `preferred_username` in the ID token.
+    pub expected_username: String,
+    pub expires_at: chrono::DateTime<Utc>,
+}
+
+// ---------------------------------------------------------------------------
 // EULA pending-token store
 // ---------------------------------------------------------------------------
 
@@ -60,6 +88,9 @@ pub struct AppState {
     /// JWKS cache for OIDC signature verification.
     /// Key: issuer URL.  Value: cached JWKS document with 1-hour TTL.
     pub jwks_cache: JwksCache,
+    /// In-flight Duo Universal Prompt state tokens (CSRF protection).
+    /// Key: random 32-byte hex state token.  Value: Duo flow state with 10-min TTL.
+    pub duo_state_tokens: Arc<DashMap<String, DuoStateEntry>>,
 }
 
 impl AppState {
@@ -71,6 +102,7 @@ impl AppState {
             mfa_pending_tokens: Arc::new(DashMap::new()),
             eula_pending_tokens: Arc::new(DashMap::new()),
             jwks_cache: Arc::new(DashMap::<String, CachedJwks>::new()),
+            duo_state_tokens: Arc::new(DashMap::new()),
         }
     }
 }

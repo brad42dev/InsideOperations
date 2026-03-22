@@ -193,6 +193,11 @@ async fn main() -> anyhow::Result<()> {
         // MFA login-flow verify — completes login after primary auth when MFA is required.
         // Public: caller presents mfa_token (short-lived) + code, receives JWT on success.
         .route("/auth/mfa/login-verify", post(handlers::mfa::mfa_verify_login))
+        // Duo Security MFA — Universal Prompt via OIDC Auth API
+        // NOTE: static /auth/mfa/duo/callback must be before parameterised /:config_id/login
+        // to avoid routing ambiguity.
+        .route("/auth/mfa/duo/callback", get(handlers::duo::duo_callback))
+        .route("/auth/mfa/duo/:config_id/login", get(handlers::duo::duo_login))
         // API key management
         .route("/api-keys", get(handlers::api_keys::list_api_keys).post(handlers::api_keys::create_api_key))
         .route("/api-keys/:id", delete(handlers::api_keys::delete_api_key))
