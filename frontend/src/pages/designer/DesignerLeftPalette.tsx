@@ -2,9 +2,9 @@
  * DesignerLeftPalette.tsx
  *
  * Left sidebar palette. Content is mode-dependent:
- *  - Graphic mode: Equipment, Stencils, Display Elements, Points
- *  - Dashboard mode: Widgets, Equipment, Display Elements
- *  - Report mode: Widgets, Report Elements, Equipment, Display Elements
+ *  - Graphic mode: Equipment, Stencils, Display Elements, Widgets, Points
+ *  - Dashboard mode: Widgets, Equipment, Stencils, Display Elements
+ *  - Report mode: Widgets, Report Elements, Equipment, Stencils, Display Elements
  *
  * Layers belong in the right panel only (spec §15).
  */
@@ -1203,6 +1203,8 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
                 <DisplayElementTile key={t.type} {...t} collapsed />
               ))}
             </div>
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <WidgetsSection collapsed />
           </>
         ) : (
           <>
@@ -1215,6 +1217,8 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
             )}
             <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
             <EquipmentSection collapsed />
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <StencilsSection collapsed />
             <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 4 }}>
               {DISPLAY_ELEMENT_TYPES.map(t => (
@@ -1253,6 +1257,10 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
             </div>
           )}
 
+          {/* Widgets section — available in graphic mode (rendered in HTML overlay layer) */}
+          <SectionHeader label="Widgets" open={widgetsOpen} onToggle={() => setWidgetsOpen(v => !v)} />
+          {widgetsOpen && <WidgetsSection collapsed={false} />}
+
           {/* Point Browser section — drag points onto shapes for Quick Bind */}
           <SectionHeader label="Points" open={pointsOpen} onToggle={() => setPointsOpen(v => !v)} />
           {pointsOpen && <PointBrowserSection collapsed={false} />}
@@ -1271,13 +1279,18 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
             </>
           )}
 
-          {/* Shapes + Display Elements — available in dashboard/report per spec §4.3/§4.4 */}
+          {/* Shapes + Stencils + Display Elements — available in dashboard/report per spec §4.3/§4.4 */}
           <SectionHeader label="Equipment" open={equipOpen} onToggle={() => setEquipOpen(v => !v)} />
           {equipOpen && (
             <div style={{ flex: '0 0 auto', maxHeight: 200, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <EquipmentSection collapsed={false} />
             </div>
           )}
+
+          {/* Stencils section — available in dashboard/report modes */}
+          <SectionHeader label="Stencils" open={stencilsOpen} onToggle={() => setStencilsOpen(v => !v)} />
+          {stencilsOpen && <StencilsSection collapsed={false} />}
+
           <SectionHeader label="Display Elements" open={elemOpen} onToggle={() => setElemOpen(v => !v)} />
           {elemOpen && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, flexShrink: 0 }}>

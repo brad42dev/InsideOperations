@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T06:39:23.726616+00:00",
+  "last_updated": "2026-03-22T06:55:50.200641Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": "MOD-CONSOLE",
@@ -3839,7 +3839,7 @@
       "wave": 2,
       "title": "Add resize handles and drag resize for standalone display elements",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "MOD-DESIGNER-011"
       ],
@@ -3903,7 +3903,7 @@
       "wave": 2,
       "title": "Palette parity \u2014 Widgets in Graphic mode, Stencils in Dashboard/Report mode",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "MOD-DESIGNER-016"
       ],
