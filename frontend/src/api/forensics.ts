@@ -239,4 +239,18 @@ export const forensicsApi = {
 
   removeLink: (id: string, linkId: string): Promise<ApiResult<void>> =>
     api.delete<void>(`/api/forensics/investigations/${id}/links/${linkId}`),
+
+  // ---- Export / Share -------------------------------------------------------
+
+  exportInvestigation: (
+    id: string,
+    format: 'csv' | 'xlsx' | 'json' | 'pdf' | 'html',
+  ): Promise<ApiResult<{ url: string }>> =>
+    api.post<{ url: string }>(`/api/forensics/investigations/${id}/export`, { format }),
+
+  shareInvestigation: (
+    id: string,
+    data: { user_ids?: string[]; role_ids?: string[] },
+  ): Promise<ApiResult<void>> =>
+    api.post<void>(`/api/forensics/investigations/${id}/share`, data),
 }

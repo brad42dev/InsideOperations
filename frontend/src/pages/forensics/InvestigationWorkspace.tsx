@@ -17,6 +17,7 @@ import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
 import EChart from '../../shared/components/charts/EChart'
 import EvidenceRenderer from './EvidenceRenderer'
 import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
+import { useAuthStore } from '../../store/auth'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -1315,6 +1316,16 @@ export default function InvestigationWorkspace() {
   const [nameInput, setNameInput] = useState('')
   const [resultsCollapsed, setResultsCollapsed] = useState(false)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [showExportPicker, setShowExportPicker] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [shareUserIds, setShareUserIds] = useState('')
+  const [shareRoleIds, setShareRoleIds] = useState('')
+  const [shareStatus, setShareStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+
+  const { user } = useAuthStore()
+  const canExport = user?.permissions.includes('forensics:export') ?? false
+  const canShare = user?.permissions.includes('forensics:share') ?? false
 
   const query = useQuery({
     queryKey: ['investigation', id],
@@ -1545,6 +1556,59 @@ export default function InvestigationWorkspace() {
 
         <div style={{ flex: 1 }} />
 
+        {/* Export / Share / Print buttons */}
+        {canExport && (
+          <button
+            onClick={() => setShowExportPicker(true)}
+            style={{
+              padding: '5px 12px',
+              background: 'none',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              color: 'var(--io-text-secondary)',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+            title="Export investigation"
+          >
+            Export
+          </button>
+        )}
+
+        {canShare && (
+          <button
+            onClick={() => setShowShareDialog(true)}
+            style={{
+              padding: '5px 12px',
+              background: 'none',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              color: 'var(--io-text-secondary)',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+            title="Share investigation"
+          >
+            Share
+          </button>
+        )}
+
+        <button
+          onClick={() => window.print()}
+          style={{
+            padding: '5px 12px',
+            background: 'none',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            color: 'var(--io-text-secondary)',
+            cursor: 'pointer',
+            fontSize: '12px',
+          }}
+          title="Print investigation"
+        >
+          Print
+        </button>
+
         {/* Action buttons */}
         {!isReadOnly && (
           <>
@@ -1723,6 +1787,235 @@ export default function InvestigationWorkspace() {
           </ErrorBoundary>
         </div>
       </div>
+
+      {/* Export format picker */}
+      {showExportPicker && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+          onClick={() => { if (exportStatus !== 'loading') { setShowExportPicker(false); setExportStatus('idle') } }}
+        >
+          <div
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '8px',
+              padding: '24px',
+              width: '340px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
+              Export Investigation
+            </h3>
+            {exportStatus === 'done' ? (
+              <p style={{ margin: 0, fontSize: '13px', color: '#22c55e' }}>
+                Export started. You will be notified when it is ready.
+              </p>
+            ) : exportStatus === 'error' ? (
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-danger, #ef4444)' }}>
+                Export failed. Please try again.
+              </p>
+            ) : (
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-secondary)' }}>
+                Choose a format to export this investigation.
+              </p>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {(['csv', 'xlsx', 'json', 'pdf', 'html'] as const).map((fmt) => (
+                <button
+                  key={fmt}
+                  disabled={exportStatus === 'loading'}
+                  onClick={async () => {
+                    if (!id) return
+                    setExportStatus('loading')
+                    try {
+                      const result = await forensicsApi.exportInvestigation(id, fmt)
+                      if (!result.success) throw new Error(result.error.message)
+                      setExportStatus('done')
+                    } catch {
+                      setExportStatus('error')
+                    }
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    background: 'var(--io-surface-elevated)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    cursor: exportStatus === 'loading' ? 'not-allowed' : 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--io-text-primary)',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {fmt}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setShowExportPicker(false); setExportStatus('idle') }}
+                style={{
+                  padding: '6px 14px',
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: 'var(--io-text-secondary)',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share dialog */}
+      {showShareDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+          }}
+          onClick={() => { if (shareStatus !== 'loading') { setShowShareDialog(false); setShareStatus('idle') } }}
+        >
+          <div
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '8px',
+              padding: '24px',
+              width: '380px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
+              Share Investigation
+            </h3>
+            {shareStatus === 'done' ? (
+              <p style={{ margin: 0, fontSize: '13px', color: '#22c55e' }}>
+                Investigation shared successfully.
+              </p>
+            ) : shareStatus === 'error' ? (
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-danger, #ef4444)' }}>
+                Share failed. Please try again.
+              </p>
+            ) : null}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-secondary)' }}>
+                User IDs (comma-separated)
+                <input
+                  value={shareUserIds}
+                  onChange={(e) => setShareUserIds(e.target.value)}
+                  placeholder="e.g. user-uuid-1, user-uuid-2"
+                  style={{
+                    display: 'block',
+                    marginTop: '4px',
+                    width: '100%',
+                    padding: '6px 8px',
+                    background: 'var(--io-surface-elevated)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    color: 'var(--io-text-primary)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-secondary)' }}>
+                Role IDs (comma-separated)
+                <input
+                  value={shareRoleIds}
+                  onChange={(e) => setShareRoleIds(e.target.value)}
+                  placeholder="e.g. role-uuid-1"
+                  style={{
+                    display: 'block',
+                    marginTop: '4px',
+                    width: '100%',
+                    padding: '6px 8px',
+                    background: 'var(--io-surface-elevated)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    color: 'var(--io-text-primary)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={() => { setShowShareDialog(false); setShareStatus('idle'); setShareUserIds(''); setShareRoleIds('') }}
+                style={{
+                  padding: '6px 14px',
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: 'var(--io-text-secondary)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={shareStatus === 'loading' || (shareUserIds.trim() === '' && shareRoleIds.trim() === '')}
+                onClick={async () => {
+                  if (!id) return
+                  setShareStatus('loading')
+                  const userIds = shareUserIds.split(',').map((s) => s.trim()).filter(Boolean)
+                  const roleIds = shareRoleIds.split(',').map((s) => s.trim()).filter(Boolean)
+                  try {
+                    const result = await forensicsApi.shareInvestigation(id, {
+                      user_ids: userIds.length > 0 ? userIds : undefined,
+                      role_ids: roleIds.length > 0 ? roleIds : undefined,
+                    })
+                    if (!result.success) throw new Error(result.error.message)
+                    setShareStatus('done')
+                  } catch {
+                    setShareStatus('error')
+                  }
+                }}
+                style={{
+                  padding: '6px 14px',
+                  background: 'var(--io-accent)',
+                  border: 'none',
+                  borderRadius: 'var(--io-radius)',
+                  cursor: shareStatus === 'loading' ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#fff',
+                }}
+              >
+                {shareStatus === 'loading' ? 'Sharing...' : 'Share'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Close confirmation */}
       {showCloseConfirm && (
