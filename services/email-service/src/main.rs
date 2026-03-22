@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Router,
 };
 use std::net::SocketAddr;
@@ -79,6 +79,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/queue", post(handlers::email::enqueue_email).get(handlers::email::list_queue))
         // Delivery log
         .route("/delivery-log", get(handlers::email::list_delivery_log))
+        // Suppression list
+        .route("/suppressions", get(handlers::email::list_suppressions))
+        .route("/suppressions/:id", delete(handlers::email::delete_suppression))
         // Internal
         .route("/internal/send", post(handlers::email::internal_send))
         .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))

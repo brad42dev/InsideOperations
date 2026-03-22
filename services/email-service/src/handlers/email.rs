@@ -878,6 +878,83 @@ pub async fn list_delivery_log(
 }
 
 // ---------------------------------------------------------------------------
+// Suppression list
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct SuppressionRow {
+    pub id: Uuid,
+    pub email_address: String,
+    pub reason: String,
+    pub suppressed_at: DateTime<Utc>,
+    pub created_by_delivery_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListSuppressionsParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+pub async fn list_suppressions(
+    State(state): State<AppState>,
+    Query(params): Query<ListSuppressionsParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0).max(0);
+
+    let rows = sqlx::query(
+        r#"SELECT id, email_address, reason, suppressed_at, created_by_delivery_id
+           FROM email_suppressions
+           ORDER BY suppressed_at DESC
+           LIMIT $1 OFFSET $2"#,
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Err(e) => server_err(e).into_response(),
+        Ok(rows) => {
+            let items: Vec<SuppressionRow> = rows
+                .iter()
+                .map(|r| SuppressionRow {
+                    id: r.get("id"),
+                    email_address: r.get("email_address"),
+                    reason: r.get("reason"),
+                    suppressed_at: r.get("suppressed_at"),
+                    created_by_delivery_id: r.get("created_by_delivery_id"),
+                })
+                .collect();
+            ok(items).into_response()
+        }
+    }
+}
+
+pub async fn delete_suppression(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let result = sqlx::query(
+        "DELETE FROM email_suppressions WHERE id = $1 RETURNING id",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    match result {
+        Err(e) => server_err(e).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Suppression entry not found" } })),
+        )
+            .into_response(),
+        Ok(Some(_)) => ok(json!({ "deleted": true })).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Internal send endpoint
 // ---------------------------------------------------------------------------
 

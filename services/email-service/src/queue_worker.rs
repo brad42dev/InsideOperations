@@ -76,11 +76,64 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
 
     let new_attempts = attempts + 1;
 
+    // ── Pre-send suppression check ─────────────────────────────────────────
+    // Query the suppression list for each recipient. If ALL recipients are
+    // suppressed we log each as 'suppressed' and mark the queue item 'sent'
+    // (not retried). Suppressed deliveries do NOT increment attempts.
+    let suppressed_rows = sqlx::query(
+        "SELECT email_address FROM email_suppressions WHERE email_address = ANY($1)",
+    )
+    .bind(&to_addresses)
+    .fetch_all(&state.db)
+    .await?;
+
+    let suppressed_addresses: std::collections::HashSet<String> = suppressed_rows
+        .iter()
+        .map(|r| r.get::<String, _>("email_address"))
+        .collect();
+
+    // Log each suppressed recipient in the delivery log (no attempt increment).
+    for addr in &suppressed_addresses {
+        tracing::info!(queue_id = %queue_id, address = %addr, "Skipping suppressed recipient");
+        if let Some(pid) = provider_id {
+            let _ = sqlx::query(
+                r#"INSERT INTO email_delivery_log
+                       (id, queue_id, provider_id, attempt_number, status, error_details)
+                   VALUES (gen_random_uuid(), $1, $2, $3, 'suppressed', $4)"#,
+            )
+            .bind(queue_id)
+            .bind(pid)
+            .bind(attempts) // do NOT increment
+            .bind(format!("Recipient {} is on the suppression list", addr))
+            .execute(&state.db)
+            .await;
+        }
+    }
+
+    // Build the list of addresses that are not suppressed.
+    let deliverable: Vec<String> = to_addresses
+        .iter()
+        .filter(|a| !suppressed_addresses.contains(*a))
+        .cloned()
+        .collect();
+
+    if deliverable.is_empty() {
+        // All recipients suppressed — mark queue item done without incrementing attempts.
+        sqlx::query(
+            "UPDATE email_queue SET status = 'sent', sent_at = now() WHERE id = $1",
+        )
+        .bind(queue_id)
+        .execute(&state.db)
+        .await?;
+        tracing::info!(queue_id = %queue_id, "All recipients suppressed — marking sent");
+        return Ok(true);
+    }
+
     // Attempt delivery
     let delivery_result = attempt_delivery(
         state,
         provider_id,
-        &to_addresses,
+        &deliverable,
         &subject,
         &body_html,
         body_text.as_deref(),
@@ -119,51 +172,114 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
         }
         Err(e) => {
             let error_str = e.to_string();
-            let next_status = if new_attempts >= max_attempts {
-                "failed"
-            } else {
-                "retry"
-            };
 
-            // Exponential backoff: 2^attempts minutes, capped at 60 minutes
-            let backoff_secs = (2_i64.pow(new_attempts as u32) * 60).min(3600);
+            // ── Hard bounce detection ─────────────────────────────────────
+            // A hard bounce (5xx SMTP, permanent Graph/SES error) adds every
+            // deliverable recipient to the suppression list. Soft bounces (4xx)
+            // do NOT trigger suppression.
+            let is_hard_bounce = is_hard_bounce_error(&error_str);
 
-            sqlx::query(
-                r#"UPDATE email_queue SET
-                       status = $2, attempts = $3, last_error = $4,
-                       next_attempt = now() + ($5 || ' seconds')::interval
-                   WHERE id = $1"#,
-            )
-            .bind(queue_id)
-            .bind(next_status)
-            .bind(new_attempts)
-            .bind(&error_str)
-            .bind(backoff_secs.to_string())
-            .execute(&state.db)
-            .await?;
+            if is_hard_bounce {
+                for addr in &deliverable {
+                    // INSERT ... ON CONFLICT DO NOTHING — idempotent
+                    let log_id: Option<Uuid> = if let Some(pid) = provider_id {
+                        // Insert delivery log entry first so we can reference it
+                        let log_row = sqlx::query(
+                            r#"INSERT INTO email_delivery_log
+                                   (id, queue_id, provider_id, attempt_number, status, error_details)
+                               VALUES (gen_random_uuid(), $1, $2, $3, 'failed', $4)
+                               RETURNING id"#,
+                        )
+                        .bind(queue_id)
+                        .bind(pid)
+                        .bind(new_attempts)
+                        .bind(&error_str)
+                        .fetch_one(&state.db)
+                        .await
+                        .ok();
+                        log_row.map(|r| r.get::<Uuid, _>("id"))
+                    } else {
+                        None
+                    };
 
-            if let Some(pid) = provider_id {
+                    let _ = sqlx::query(
+                        r#"INSERT INTO email_suppressions
+                               (email_address, reason, created_by_delivery_id)
+                           VALUES ($1, $2, $3)
+                           ON CONFLICT (email_address) DO NOTHING"#,
+                    )
+                    .bind(addr)
+                    .bind(format!("Hard bounce: {}", error_str))
+                    .bind(log_id)
+                    .execute(&state.db)
+                    .await;
+
+                    tracing::warn!(
+                        queue_id = %queue_id,
+                        address = %addr,
+                        "Hard bounce — address added to suppression list"
+                    );
+                }
+
+                // Mark as failed (hard bounce exhausts retries immediately)
                 sqlx::query(
-                    r#"INSERT INTO email_delivery_log
-                           (id, queue_id, provider_id, attempt_number, status, error_details)
-                       VALUES (gen_random_uuid(), $1, $2, $3, 'failed', $4)"#,
+                    r#"UPDATE email_queue SET
+                           status = 'failed', attempts = $2, last_error = $3
+                       WHERE id = $1"#,
                 )
                 .bind(queue_id)
-                .bind(pid)
                 .bind(new_attempts)
                 .bind(&error_str)
                 .execute(&state.db)
                 .await?;
-            }
+            } else {
+                // Soft bounce — normal retry/failed logic
+                let next_status = if new_attempts >= max_attempts {
+                    "dead"
+                } else {
+                    "retry"
+                };
 
-            tracing::warn!(
-                queue_id = %queue_id,
-                attempt = new_attempts,
-                max_attempts,
-                status = next_status,
-                error = %error_str,
-                "Email delivery failed"
-            );
+                // Exponential backoff: 2^attempts minutes, capped at 60 minutes
+                let backoff_secs = (2_i64.pow(new_attempts as u32) * 60).min(3600);
+
+                sqlx::query(
+                    r#"UPDATE email_queue SET
+                           status = $2, attempts = $3, last_error = $4,
+                           next_attempt = now() + ($5 || ' seconds')::interval
+                       WHERE id = $1"#,
+                )
+                .bind(queue_id)
+                .bind(next_status)
+                .bind(new_attempts)
+                .bind(&error_str)
+                .bind(backoff_secs.to_string())
+                .execute(&state.db)
+                .await?;
+
+                if let Some(pid) = provider_id {
+                    sqlx::query(
+                        r#"INSERT INTO email_delivery_log
+                               (id, queue_id, provider_id, attempt_number, status, error_details)
+                           VALUES (gen_random_uuid(), $1, $2, $3, 'failed', $4)"#,
+                    )
+                    .bind(queue_id)
+                    .bind(pid)
+                    .bind(new_attempts)
+                    .bind(&error_str)
+                    .execute(&state.db)
+                    .await?;
+                }
+
+                tracing::warn!(
+                    queue_id = %queue_id,
+                    attempt = new_attempts,
+                    max_attempts,
+                    status = next_status,
+                    error = %error_str,
+                    "Email delivery failed (soft bounce)"
+                );
+            }
         }
     }
 
@@ -220,6 +336,71 @@ async fn attempt_delivery(
             Err(anyhow::anyhow!("No provider configured for this queue item. Delivery aborted."))
         }
     }
+}
+
+// ─── Hard bounce detection ───────────────────────────────────────────────────
+
+/// Returns true if the error string indicates a hard (permanent) bounce.
+///
+/// Hard bounces:
+/// - SMTP 5xx response codes (permanent failure)
+/// - MS Graph API HTTP 4xx/5xx errors for permanent rejection
+/// - SES permanent bounce indicators
+///
+/// Soft bounces (4xx SMTP, temporary Graph/SES errors) return false.
+fn is_hard_bounce_error(error: &str) -> bool {
+    // SMTP: lettre surfaces the numeric code in the error message
+    // Permanent failures start with 5 (5xx)
+    // Temporary failures start with 4 (4xx)
+    let lower = error.to_lowercase();
+
+    // SMTP 5xx pattern: "smtp error, code: 5" or "permanent" in error
+    if lower.contains("smtp") {
+        // Check for explicit 5xx codes
+        for code in ["500", "501", "502", "503", "504", "505",
+                     "510", "511", "512", "513", "514", "515",
+                     "521", "522", "523", "524", "525", "530",
+                     "531", "532", "533", "534", "535", "538",
+                     "541", "550", "551", "552", "553", "554", "555"] {
+            if lower.contains(code) {
+                return true;
+            }
+        }
+        // Explicit 4xx means soft bounce (temporary)
+        for code in ["421", "450", "451", "452"] {
+            if lower.contains(code) {
+                return false;
+            }
+        }
+    }
+
+    // MS Graph: HTTP 4xx/5xx with "permanent" or specific codes
+    if lower.contains("ms graph") || lower.contains("sendmail failed") {
+        if lower.contains("permanent") || lower.contains("550") || lower.contains("551")
+            || lower.contains("552") || lower.contains("553") || lower.contains("554")
+        {
+            return true;
+        }
+    }
+
+    // SES: permanent bounce keywords
+    if lower.contains("ses") || lower.contains("amazon") {
+        if lower.contains("permanent") || lower.contains("bounce")
+            || lower.contains("address does not exist")
+            || lower.contains("user unknown")
+        {
+            return true;
+        }
+    }
+
+    // Generic permanent failure indicators
+    lower.contains("permanent") && (lower.contains("fail") || lower.contains("bounce"))
+        || lower.contains("user unknown")
+        || lower.contains("no such user")
+        || lower.contains("address rejected")
+        || lower.contains("invalid address")
+        || lower.contains("mailbox not found")
+        || lower.contains("does not exist")
 }
 
 // ─── SMTP / SMTP+XOAUTH2 ────────────────────────────────────────────────────
