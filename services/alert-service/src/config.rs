@@ -5,6 +5,14 @@ pub struct Config {
     pub database_url: String,
     pub email_service_url: String,
     pub data_broker_url: String,
+    /// Public-facing URL Twilio posts delivery status callbacks to.
+    /// Used for HMAC-SHA1 signature validation.
+    /// Example: "https://example.com/api/alerts/webhooks/twilio/status"
+    /// Leave empty (default) to skip signature validation in dev mode.
+    pub twilio_status_callback_url: Option<String>,
+    /// Public-facing URL Twilio posts voice keypress callbacks to.
+    /// Used for HMAC-SHA1 signature validation.
+    pub twilio_voice_callback_url: Option<String>,
 }
 
 impl Config {
@@ -20,6 +28,8 @@ impl Config {
                 .unwrap_or_else(|_| "http://127.0.0.1:3008".to_string()),
             data_broker_url: std::env::var("DATA_BROKER_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:3001".to_string()),
+            twilio_status_callback_url: std::env::var("TWILIO_STATUS_CALLBACK_URL").ok(),
+            twilio_voice_callback_url: std::env::var("TWILIO_VOICE_CALLBACK_URL").ok(),
         })
     }
 }

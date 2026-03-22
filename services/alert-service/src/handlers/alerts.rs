@@ -637,6 +637,238 @@ pub async fn cancel_alert(
     }
 }
 
+/// GET /alerts/active — list only active (unacknowledged) alerts
+pub async fn list_active_alerts(
+    State(state): State<AppState>,
+    Query(params): Query<AlertsQuery>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(50).clamp(1, 200);
+    let offset = params.offset.unwrap_or(0).max(0);
+
+    let alerts = sqlx::query_as::<_, AlertInstance>(
+        &format!(
+            "SELECT {ALERT_COLUMNS}
+             FROM alerts
+             WHERE status = 'active'::alert_status
+             ORDER BY severity ASC, triggered_at DESC
+             LIMIT $1 OFFSET $2"
+        ),
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await;
+
+    match alerts {
+        Ok(data) => (StatusCode::OK, Json(ApiResponse::ok(data))).into_response(),
+        Err(e) => IoError::Database(e).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stats types
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct AlertStats {
+    pub counts_by_severity: SeverityCounts,
+    pub average_response_time_seconds: Option<f64>,
+    pub channel_reliability: Vec<ChannelReliability>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SeverityCounts {
+    pub emergency: i64,
+    pub critical: i64,
+    pub warning: i64,
+    pub info: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChannelReliability {
+    pub channel_type: String,
+    pub sent: i64,
+    pub total: i64,
+    pub reliability_ratio: f64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct SeverityCountRow {
+    severity: String,
+    count: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ChannelReliabilityRow {
+    channel_type: String,
+    sent_count: i64,
+    total_count: i64,
+}
+
+/// GET /alerts/stats — counts by severity, average response time, channel reliability
+pub async fn get_stats(State(state): State<AppState>) -> impl IntoResponse {
+    // Counts by severity
+    let severity_rows = sqlx::query_as::<_, SeverityCountRow>(
+        "SELECT severity::text AS severity, COUNT(*) AS count
+         FROM alerts
+         GROUP BY severity",
+    )
+    .fetch_all(&state.db)
+    .await;
+
+    let severity_rows = match severity_rows {
+        Ok(r) => r,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let mut counts = SeverityCounts {
+        emergency: 0,
+        critical: 0,
+        warning: 0,
+        info: 0,
+    };
+    for row in &severity_rows {
+        match row.severity.as_str() {
+            "emergency" => counts.emergency = row.count,
+            "critical" => counts.critical = row.count,
+            "warning" => counts.warning = row.count,
+            "info" => counts.info = row.count,
+            _ => {}
+        }
+    }
+
+    // Average response time (triggered_at -> acknowledged_at) for acknowledged alerts
+    let avg_response: Option<f64> = sqlx::query_scalar(
+        "SELECT AVG(EXTRACT(EPOCH FROM (acknowledged_at - triggered_at)))
+         FROM alerts
+         WHERE acknowledged_at IS NOT NULL AND triggered_at IS NOT NULL",
+    )
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(None);
+
+    // Channel reliability: ratio of sent deliveries to total per channel type
+    let channel_rows = sqlx::query_as::<_, ChannelReliabilityRow>(
+        "SELECT channel_type,
+                COUNT(*) FILTER (WHERE status = 'sent' OR status = 'delivered') AS sent_count,
+                COUNT(*) AS total_count
+         FROM alert_deliveries
+         GROUP BY channel_type",
+    )
+    .fetch_all(&state.db)
+    .await;
+
+    let channel_rows = match channel_rows {
+        Ok(r) => r,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let channel_reliability: Vec<ChannelReliability> = channel_rows
+        .into_iter()
+        .map(|r| {
+            let ratio = if r.total_count > 0 {
+                r.sent_count as f64 / r.total_count as f64
+            } else {
+                0.0
+            };
+            ChannelReliability {
+                channel_type: r.channel_type,
+                sent: r.sent_count,
+                total: r.total_count,
+                reliability_ratio: ratio,
+            }
+        })
+        .collect();
+
+    let stats = AlertStats {
+        counts_by_severity: counts,
+        average_response_time_seconds: avg_response,
+        channel_reliability,
+    };
+
+    (StatusCode::OK, Json(ApiResponse::ok(stats))).into_response()
+}
+
+/// GET /alerts/:id/deliveries — list all delivery rows for an alert
+pub async fn list_deliveries(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    // Verify alert exists
+    let exists: Option<bool> = sqlx::query_scalar("SELECT TRUE FROM alerts WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
+
+    if exists.is_none() {
+        return IoError::NotFound(format!("Alert {} not found", id)).into_response();
+    }
+
+    let deliveries = sqlx::query_as::<_, AlertDelivery>(
+        "SELECT id, alert_id, channel_type, recipient_user_id, recipient_name,
+                recipient_contact, status, sent_at, delivered_at, acknowledged_at,
+                failure_reason, external_id, escalation_level
+         FROM alert_deliveries
+         WHERE alert_id = $1
+         ORDER BY sent_at ASC NULLS LAST",
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await;
+
+    match deliveries {
+        Ok(data) => (StatusCode::OK, Json(ApiResponse::ok(data))).into_response(),
+        Err(e) => IoError::Database(e).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Escalation history type
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AlertEscalation {
+    pub id: Uuid,
+    pub alert_id: Uuid,
+    pub from_level: i16,
+    pub to_level: i16,
+    pub reason: String,
+    pub escalated_at: DateTime<Utc>,
+}
+
+/// GET /alerts/:id/escalations — list all escalation history rows for an alert
+pub async fn list_escalations(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    // Verify alert exists
+    let exists: Option<bool> = sqlx::query_scalar("SELECT TRUE FROM alerts WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
+
+    if exists.is_none() {
+        return IoError::NotFound(format!("Alert {} not found", id)).into_response();
+    }
+
+    let escalations = sqlx::query_as::<_, AlertEscalation>(
+        "SELECT id, alert_id, from_level, to_level, reason, escalated_at
+         FROM alert_escalations
+         WHERE alert_id = $1
+         ORDER BY escalated_at ASC",
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await;
+
+    match escalations {
+        Ok(data) => (StatusCode::OK, Json(ApiResponse::ok(data))).into_response(),
+        Err(e) => IoError::Database(e).into_response(),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

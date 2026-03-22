@@ -48,12 +48,20 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Alert routes
-    // NOTE: static routes (/trigger, /policies, /templates) must be registered
-    // before parameterised routes (/:id) to avoid routing conflicts.
+    // NOTE: static routes (/trigger, /active, /stats, /policies, /templates,
+    // /webhooks) must be registered before parameterised routes (/:id) to
+    // avoid routing conflicts.
     let api = Router::new()
         // Alert instance endpoints (static before parameterised)
+        // POST /alerts — canonical trigger path per spec
+        // POST /alerts/trigger — kept as alias for backward compatibility
+        .route(
+            "/alerts",
+            get(handlers::alerts::list_alerts).post(handlers::alerts::trigger_alert),
+        )
         .route("/alerts/trigger", post(handlers::alerts::trigger_alert))
-        .route("/alerts", get(handlers::alerts::list_alerts))
+        .route("/alerts/active", get(handlers::alerts::list_active_alerts))
+        .route("/alerts/stats", get(handlers::alerts::get_stats))
         // Template endpoints (static /templates before /:id)
         .route(
             "/alerts/templates",
@@ -126,10 +134,32 @@ async fn main() -> anyhow::Result<()> {
             "/alerts/:id/cancel",
             post(handlers::alerts::cancel_alert),
         )
+        .route(
+            "/alerts/:id/deliveries",
+            get(handlers::alerts::list_deliveries),
+        )
+        .route(
+            "/alerts/:id/escalations",
+            get(handlers::alerts::list_escalations),
+        )
         .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
+        .with_state(state.clone());
+
+    // Twilio webhook routes are NOT behind the internal service-secret middleware
+    // because Twilio is an external caller. They validate the Twilio signature instead.
+    let webhook_routes = Router::new()
+        .route(
+            "/alerts/webhooks/twilio/status",
+            post(handlers::webhooks::twilio_status),
+        )
+        .route(
+            "/alerts/webhooks/twilio/voice",
+            post(handlers::webhooks::twilio_voice),
+        )
         .with_state(state);
 
     let app = api
+        .merge(webhook_routes)
         .merge(health.into_router())
         .merge(obs.metrics_router())
         .layer(CatchPanicLayer::new());

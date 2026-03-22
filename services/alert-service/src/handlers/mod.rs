@@ -4,3 +4,4 @@ pub mod escalation;
 pub mod policies;
 pub mod rosters;
 pub mod templates;
+pub mod webhooks;
