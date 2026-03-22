@@ -19,6 +19,8 @@ export interface Role {
 
 export interface RoleDetail extends Role {
   permissions: Permission[]
+  idle_timeout_minutes: number | null
+  max_concurrent_sessions: number
 }
 
 export interface CreateRoleRequest {
@@ -26,12 +28,16 @@ export interface CreateRoleRequest {
   display_name: string
   description?: string
   permissions?: string[]
+  idle_timeout_minutes?: number | null  // null = inherit system default
+  max_concurrent_sessions?: number      // 0 = unlimited
 }
 
 export interface UpdateRoleRequest {
   display_name?: string
   description?: string
   permissions?: string[]
+  idle_timeout_minutes?: number | null  // null = inherit system default
+  max_concurrent_sessions?: number      // 0 = unlimited
 }
 
 export const rolesApi = {

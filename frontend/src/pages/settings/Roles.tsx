@@ -308,6 +308,8 @@ function CreateRoleDialog({
     display_name: '',
     description: '',
     permissions: [],
+    idle_timeout_minutes: null,
+    max_concurrent_sessions: 0,
   })
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -320,7 +322,7 @@ function CreateRoleDialog({
       }
       queryClient.invalidateQueries({ queryKey: ['roles'] })
       onOpenChange(false)
-      setForm({ name: '', display_name: '', description: '', permissions: [] })
+      setForm({ name: '', display_name: '', description: '', permissions: [], idle_timeout_minutes: null, max_concurrent_sessions: 0 })
       setFormError(null)
     },
   })
@@ -366,6 +368,37 @@ function CreateRoleDialog({
                 value={form.description ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={labelStyle}>Idle Timeout (minutes)</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={form.idle_timeout_minutes ?? ''}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      idle_timeout_minutes: e.target.value ? Number(e.target.value) : null,
+                    }))
+                  }
+                  placeholder="System default"
+                  min={1}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Max Concurrent Sessions</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={form.max_concurrent_sessions ?? 0}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, max_concurrent_sessions: Number(e.target.value) }))
+                  }
+                  placeholder="0 = unlimited"
+                  min={0}
+                />
+              </div>
             </div>
             <div>
               <label style={labelStyle}>Permissions</label>
@@ -416,6 +449,8 @@ function EditRoleDialog({
         display_name: role.display_name,
         description: role.description ?? '',
         permissions: role.permissions.map((p) => p.name),
+        idle_timeout_minutes: role.idle_timeout_minutes ?? null,
+        max_concurrent_sessions: role.max_concurrent_sessions ?? 0,
       })
     }
   }, [role])
@@ -486,6 +521,37 @@ function EditRoleDialog({
                 value={form.description ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={labelStyle}>Idle Timeout (minutes)</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={form.idle_timeout_minutes ?? ''}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      idle_timeout_minutes: e.target.value ? Number(e.target.value) : null,
+                    }))
+                  }
+                  placeholder="System default"
+                  min={1}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Max Concurrent Sessions</label>
+                <input
+                  type="number"
+                  style={inputStyle}
+                  value={form.max_concurrent_sessions ?? 0}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, max_concurrent_sessions: Number(e.target.value) }))
+                  }
+                  placeholder="0 = unlimited"
+                  min={0}
+                />
+              </div>
             </div>
             <div>
               <label style={labelStyle}>Permissions</label>
