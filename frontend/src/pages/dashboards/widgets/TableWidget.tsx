@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-table'
 import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
+import PointContextMenu from '../../../shared/components/PointContextMenu'
 
 interface ColumnSpec {
   key: string
@@ -167,35 +168,56 @@ export default function TableWidget({ config }: Props) {
               </tr>
             )}
             {!query.isLoading &&
-              tableRows.map((row) => (
-                <tr
-                  key={row.id}
-                  style={{ borderBottom: '1px solid var(--io-border)' }}
-                  onMouseEnter={(e) => {
-                    ;(e.currentTarget as HTMLTableRowElement).style.background =
-                      'var(--io-surface-secondary)'
-                  }}
-                  onMouseLeave={(e) => {
-                    ;(e.currentTarget as HTMLTableRowElement).style.background = 'transparent'
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      style={{
-                        padding: '6px 10px',
-                        color: 'var(--io-text-primary)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        maxWidth: '200px',
-                      }}
+              tableRows.map((row) => {
+                const rowPointId = isDynamic ? String(row.original.point_id ?? '') : ''
+                const tr = (
+                  <tr
+                    key={row.id}
+                    style={{ borderBottom: '1px solid var(--io-border)' }}
+                    onMouseEnter={(e) => {
+                      ;(e.currentTarget as HTMLTableRowElement).style.background =
+                        'var(--io-surface-secondary)'
+                    }}
+                    onMouseLeave={(e) => {
+                      ;(e.currentTarget as HTMLTableRowElement).style.background = 'transparent'
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        style={{
+                          padding: '6px 10px',
+                          color: 'var(--io-text-primary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '200px',
+                        }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                )
+
+                // Only dynamic rows have a known pointId — wrap each with PointContextMenu.
+                // Static rows have no point binding, so no context menu.
+                // Mobile long-press (500ms) is a future enhancement — TODO.
+                if (isDynamic && rowPointId) {
+                  return (
+                    <PointContextMenu
+                      key={row.id}
+                      pointId={rowPointId}
+                      tagName={rowPointId}
+                      isAlarm={false}
+                      isAlarmElement={false}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+                      {tr}
+                    </PointContextMenu>
+                  )
+                }
+                return tr
+              })}
           </tbody>
         </table>
       </div>

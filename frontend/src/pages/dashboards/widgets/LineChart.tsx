@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import TimeSeriesChart from '../../../shared/components/charts/TimeSeriesChart'
 import type { WidgetConfig } from '../../../api/dashboards'
 import { usePointValues } from '../../../shared/hooks/usePointValues'
+import PointContextMenu from '../../../shared/components/PointContextMenu'
 
 interface LineChartConfig {
   title: string
@@ -42,6 +44,12 @@ export default function LineChart({ config }: Props) {
   const timeRange = cfg.timeRange ?? '1h'
   const aggregation = cfg.aggregation ?? '5m'
   const points = cfg.points ?? []
+
+  // Track context menu state for the chart container.
+  // For multi-series charts, right-clicking the container opens the menu for the first point.
+  // Per-series context menu would require uPlot cursor hook integration — left as a future enhancement.
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
+  const contextPointId = points[0] ?? ''
 
   const query = useQuery({
     queryKey: ['archive-history', points, timeRange, aggregation],
@@ -136,11 +144,31 @@ export default function LineChart({ config }: Props) {
   }
 
   return (
-    <div style={{ height: '100%', minHeight: 0 }}>
-      <TimeSeriesChart
-        timestamps={timestamps}
-        series={seriesData}
-      />
-    </div>
+    // Right-click (desktop) or long-press (mobile — TODO) opens PointContextMenu.
+    // For multi-series charts, the menu targets the first series point; per-series targeting
+    // would require uPlot cursor hook integration — future enhancement.
+    <PointContextMenu
+      pointId={contextPointId}
+      tagName={contextPointId}
+      isAlarm={false}
+      isAlarmElement={false}
+      open={contextMenuOpen}
+      onOpenChange={setContextMenuOpen}
+    >
+      <div
+        style={{ height: '100%', minHeight: 0 }}
+        onContextMenu={(e) => {
+          if (contextPointId) {
+            e.preventDefault()
+            setContextMenuOpen(true)
+          }
+        }}
+      >
+        <TimeSeriesChart
+          timestamps={timestamps}
+          series={seriesData}
+        />
+      </div>
+    </PointContextMenu>
   )
 }

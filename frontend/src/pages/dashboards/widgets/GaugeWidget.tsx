@@ -4,6 +4,7 @@ import type { EChartsOption } from 'echarts'
 import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
 import { usePointValues } from '../../../shared/hooks/usePointValues'
+import PointContextMenu from '../../../shared/components/PointContextMenu'
 
 interface GaugeConfig {
   title: string
@@ -150,40 +151,43 @@ export default function GaugeWidget({ config }: Props) {
   }
 
   return (
-    <div style={{ height: '100%', minHeight: 0, position: 'relative' }}>
-      <EChart option={option} />
-      {isStale && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 6,
-            right: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '3px',
-          }}
-        >
-          <span
+    // Right-click (desktop) or long-press (mobile — TODO) opens PointContextMenu
+    <PointContextMenu pointId={pointId ?? ''} tagName={pointId ?? ''} isAlarm={false} isAlarmElement={false}>
+      <div style={{ height: '100%', minHeight: 0, position: 'relative' }}>
+        <EChart option={option} />
+        {isStale && (
+          <div
             style={{
-              display: 'inline-block',
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: quality === 'bad' ? 'var(--io-danger, #ef4444)' : 'var(--io-warning, #f59e0b)',
-              flexShrink: 0,
-            }}
-          />
-          <span
-            style={{
-              fontSize: '9px',
-              color: 'var(--io-text-muted)',
-              letterSpacing: '0.05em',
+              position: 'absolute',
+              top: 6,
+              right: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
             }}
           >
-            {quality === 'bad' ? 'BAD' : 'STALE'}
-          </span>
-        </div>
-      )}
-    </div>
+            <span
+              style={{
+                display: 'inline-block',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: quality === 'bad' ? 'var(--io-danger, #ef4444)' : 'var(--io-warning, #f59e0b)',
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: '9px',
+                color: 'var(--io-text-muted)',
+                letterSpacing: '0.05em',
+              }}
+            >
+              {quality === 'bad' ? 'BAD' : 'STALE'}
+            </span>
+          </div>
+        )}
+      </div>
+    </PointContextMenu>
   )
 }

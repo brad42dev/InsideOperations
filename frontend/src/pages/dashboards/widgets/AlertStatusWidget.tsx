@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
+import PointContextMenu from '../../../shared/components/PointContextMenu'
 
 interface AlertStatusConfig {
   title: string
@@ -129,8 +130,16 @@ export default function AlertStatusWidget({ config }: Props) {
             const isAcknowledged = !!alarm.acknowledged_at
 
             return (
-              <div
+              // Right-click (desktop) or long-press (mobile — TODO) opens PointContextMenu.
+              // alarm.source is the point reference for this alarm row.
+              <PointContextMenu
                 key={alarm.id}
+                pointId={alarm.source}
+                tagName={alarm.source}
+                isAlarm={true}
+                isAlarmElement={true}
+              >
+              <div
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -251,6 +260,7 @@ export default function AlertStatusWidget({ config }: Props) {
                   </span>
                 )}
               </div>
+              </PointContextMenu>
             )
           })}
         </div>

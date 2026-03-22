@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
 import { usePointValues } from '../../../shared/hooks/usePointValues'
+import PointContextMenu from '../../../shared/components/PointContextMenu'
 
 interface KpiConfig {
   title: string
@@ -85,30 +86,34 @@ export default function KpiCard({ config }: Props) {
 
       {!query.isLoading && (
         <>
-          <div
-            style={{
-              fontSize: '36px',
-              fontWeight: 700,
-              color,
-              lineHeight: 1,
-              fontVariantNumeric: 'tabular-nums',
-              opacity: isStale ? 0.6 : 1,
-            }}
-          >
-            {displayValue}
-            {cfg.unit && (
-              <span
-                style={{
-                  fontSize: '16px',
-                  fontWeight: 400,
-                  color: 'var(--io-text-muted)',
-                  marginLeft: '4px',
-                }}
-              >
-                {cfg.unit}
-              </span>
-            )}
-          </div>
+          {/* Right-click (desktop) or long-press (mobile — TODO) opens PointContextMenu */}
+          <PointContextMenu pointId={pointId ?? ''} tagName={pointId ?? ''} isAlarm={false} isAlarmElement={false}>
+            <div
+              style={{
+                fontSize: '36px',
+                fontWeight: 700,
+                color,
+                lineHeight: 1,
+                fontVariantNumeric: 'tabular-nums',
+                opacity: isStale ? 0.6 : 1,
+                cursor: pointId ? 'context-menu' : undefined,
+              }}
+            >
+              {displayValue}
+              {cfg.unit && (
+                <span
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: 400,
+                    color: 'var(--io-text-muted)',
+                    marginLeft: '4px',
+                  }}
+                >
+                  {cfg.unit}
+                </span>
+              )}
+            </div>
+          </PointContextMenu>
 
           {(isStale || quality === 'bad') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
