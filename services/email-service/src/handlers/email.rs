@@ -12,6 +12,7 @@ use serde_json::{json, Value as JsonValue};
 use sqlx::Row;
 use uuid::Uuid;
 
+use crate::crypto;
 use crate::state::AppState;
 use crate::template_engine;
 
@@ -142,21 +143,26 @@ pub async fn list_providers(State(state): State<AppState>) -> impl IntoResponse 
         Ok(rows) => {
             let providers: Vec<ProviderRow> = rows
                 .iter()
-                .map(|r| ProviderRow {
-                    id: r.get("id"),
-                    name: r.get("name"),
-                    provider_type: r.get("provider_type"),
-                    config: r.get("config"),
-                    is_default: r.get("is_default"),
-                    is_fallback: r.get("is_fallback"),
-                    enabled: r.get("enabled"),
-                    from_address: r.get("from_address"),
-                    from_name: r.get("from_name"),
-                    last_tested_at: r.get("last_tested_at"),
-                    last_test_ok: r.get("last_test_ok"),
-                    last_test_error: r.get("last_test_error"),
-                    created_at: r.get("created_at"),
-                    updated_at: r.get("updated_at"),
+                .map(|r| {
+                    let provider_type: String = r.get("provider_type");
+                    let mut config: JsonValue = r.get("config");
+                    crypto::mask_provider_secrets(&mut config, &provider_type);
+                    ProviderRow {
+                        id: r.get("id"),
+                        name: r.get("name"),
+                        provider_type,
+                        config,
+                        is_default: r.get("is_default"),
+                        is_fallback: r.get("is_fallback"),
+                        enabled: r.get("enabled"),
+                        from_address: r.get("from_address"),
+                        from_name: r.get("from_name"),
+                        last_tested_at: r.get("last_tested_at"),
+                        last_test_ok: r.get("last_test_ok"),
+                        last_test_error: r.get("last_test_error"),
+                        created_at: r.get("created_at"),
+                        updated_at: r.get("updated_at"),
+                    }
                 })
                 .collect();
             ok(providers).into_response()
@@ -185,6 +191,12 @@ pub async fn create_provider(
     let is_fallback = body.is_fallback.unwrap_or(false);
     let enabled = body.enabled.unwrap_or(true);
 
+    // Encrypt secret fields before storing in the database.
+    let mut config = body.config.clone();
+    if let Err(e) = crypto::encrypt_provider_secrets(&mut config, &body.provider_type, &state.config.master_key) {
+        return server_err(format!("Failed to encrypt provider secrets: {e}")).into_response();
+    }
+
     let result = sqlx::query(
         r#"INSERT INTO email_providers
                (id, name, provider_type, config, is_default, is_fallback, enabled, from_address, from_name)
@@ -196,7 +208,7 @@ pub async fn create_provider(
     .bind(id)
     .bind(&body.name)
     .bind(&body.provider_type)
-    .bind(&body.config)
+    .bind(&config)
     .bind(is_default)
     .bind(is_fallback)
     .bind(enabled)
@@ -208,11 +220,14 @@ pub async fn create_provider(
     match result {
         Err(e) => server_err(e).into_response(),
         Ok(r) => {
+            let provider_type: String = r.get("provider_type");
+            let mut cfg: JsonValue = r.get("config");
+            crypto::mask_provider_secrets(&mut cfg, &provider_type);
             let provider = ProviderRow {
                 id: r.get("id"),
                 name: r.get("name"),
-                provider_type: r.get("provider_type"),
-                config: r.get("config"),
+                provider_type,
+                config: cfg,
                 is_default: r.get("is_default"),
                 is_fallback: r.get("is_fallback"),
                 enabled: r.get("enabled"),
@@ -246,6 +261,35 @@ pub async fn update_provider(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateProviderBody>,
 ) -> impl IntoResponse {
+    // If a new config is provided, we need to know the effective provider_type
+    // (the new one from body, or the existing one from the DB) so we can encrypt
+    // the right secret fields before storing.
+    let config_to_store: Option<JsonValue> = if let Some(mut new_cfg) = body.config.clone() {
+        // Determine provider_type: prefer body value, fall back to current DB value.
+        let effective_type = if let Some(pt) = body.provider_type.as_deref() {
+            pt.to_string()
+        } else {
+            // Fetch existing provider_type from DB.
+            let existing = sqlx::query("SELECT provider_type FROM email_providers WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&state.db)
+                .await;
+            match existing {
+                Err(e) => return server_err(e).into_response(),
+                Ok(None) => {
+                    return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } }))).into_response();
+                }
+                Ok(Some(r)) => r.get::<String, _>("provider_type"),
+            }
+        };
+        if let Err(e) = crypto::encrypt_provider_secrets(&mut new_cfg, &effective_type, &state.config.master_key) {
+            return server_err(format!("Failed to encrypt provider secrets: {e}")).into_response();
+        }
+        Some(new_cfg)
+    } else {
+        None
+    };
+
     let result = sqlx::query(
         r#"UPDATE email_providers SET
                name          = COALESCE($2, name),
@@ -264,7 +308,7 @@ pub async fn update_provider(
     .bind(id)
     .bind(&body.name)
     .bind(&body.provider_type)
-    .bind(&body.config)
+    .bind(&config_to_store)
     .bind(body.is_default)
     .bind(body.is_fallback)
     .bind(body.enabled)
@@ -277,11 +321,14 @@ pub async fn update_provider(
         Err(e) => server_err(e).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Provider not found" } }))).into_response(),
         Ok(Some(r)) => {
+            let provider_type: String = r.get("provider_type");
+            let mut cfg: JsonValue = r.get("config");
+            crypto::mask_provider_secrets(&mut cfg, &provider_type);
             let provider = ProviderRow {
                 id: r.get("id"),
                 name: r.get("name"),
-                provider_type: r.get("provider_type"),
-                config: r.get("config"),
+                provider_type,
+                config: cfg,
                 is_default: r.get("is_default"),
                 is_fallback: r.get("is_fallback"),
                 enabled: r.get("enabled"),

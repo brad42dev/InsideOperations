@@ -55,8 +55,20 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
     let max_attempts: i16 = row.get("max_attempts");
     let provider_id: Option<Uuid> = row.get("provider_id");
     let provider_type: Option<String> = row.get("provider_type");
-    let provider_config: Option<serde_json::Value> = row.get("provider_config");
+    let raw_provider_config: Option<serde_json::Value> = row.get("provider_config");
     let from_address: Option<String> = row.get("from_address");
+
+    // Decrypt provider secrets in-memory before passing to the delivery adapters.
+    let provider_config: Option<serde_json::Value> = match (provider_type.as_deref(), raw_provider_config) {
+        (Some(pt), Some(mut cfg)) => {
+            if let Err(e) = crate::crypto::decrypt_provider_secrets(&mut cfg, pt, &state.config.master_key) {
+                tracing::warn!(queue_id = %queue_id, error = %e, "Failed to decrypt provider secrets — aborting delivery");
+                return Ok(false);
+            }
+            Some(cfg)
+        }
+        (_, cfg) => cfg,
+    };
 
     let new_attempts = attempts + 1;
 

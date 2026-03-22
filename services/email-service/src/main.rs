@@ -11,6 +11,7 @@ use tower_http::catch_panic::CatchPanicLayer;
 use tracing::info;
 
 mod config;
+mod crypto;
 mod handlers;
 mod queue_worker;
 mod seed_templates;
