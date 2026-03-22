@@ -3,6 +3,7 @@ import { reportsApi, type ReportJob } from '../../api/reports'
 import DataTable from '../../shared/components/DataTable'
 import type { ColumnDef } from '../../shared/components/DataTable'
 import { useNavigate } from 'react-router-dom'
+import { ExportButton } from '../../shared/components/ExportDialog'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -221,6 +222,20 @@ export default function ReportHistory() {
             Recent report generation jobs
           </p>
         </div>
+        <ExportButton
+          module="reports"
+          entity="Report History"
+          filteredRowCount={jobs.length}
+          totalRowCount={jobs.length}
+          availableColumns={[
+            { id: 'template_name', label: 'Report Name' },
+            { id: 'format', label: 'Format' },
+            { id: 'status', label: 'Status' },
+            { id: 'completed_at', label: 'Generated' },
+            { id: 'file_size_bytes', label: 'Size (bytes)' },
+          ]}
+          visibleColumns={['template_name', 'format', 'status', 'completed_at', 'file_size_bytes']}
+        />
       </div>
 
       {query.isError && (

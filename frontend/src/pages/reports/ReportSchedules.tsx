@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/auth'
 import DataTable from '../../shared/components/DataTable'
 import type { ColumnDef } from '../../shared/components/DataTable'
 import { showToast } from '../../shared/components/Toast'
+import { ExportButton } from '../../shared/components/ExportDialog'
 
 // ---------------------------------------------------------------------------
 // Cron helpers
@@ -632,26 +633,44 @@ export default function ReportSchedules() {
             Automatically generate and deliver reports on a schedule
           </p>
         </div>
-        {canManage && (
-          <button
-            onClick={() => setAddOpen(true)}
-            style={{
-              padding: '7px 16px',
-              background: 'var(--io-accent)',
-              border: 'none',
-              borderRadius: 'var(--io-radius)',
-              color: '#fff',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            + Add Schedule
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ExportButton
+            module="reports"
+            entity="Report Schedules"
+            filteredRowCount={schedules.length}
+            totalRowCount={schedules.length}
+            availableColumns={[
+              { id: 'name', label: 'Name' },
+              { id: 'template_name', label: 'Template' },
+              { id: 'cron_expression', label: 'Schedule' },
+              { id: 'format', label: 'Format' },
+              { id: 'recipient_emails', label: 'Recipients' },
+              { id: 'next_run_at', label: 'Next Run' },
+              { id: 'enabled', label: 'Enabled' },
+            ]}
+            visibleColumns={['name', 'template_name', 'cron_expression', 'format', 'recipient_emails', 'next_run_at', 'enabled']}
+          />
+          {canManage && (
+            <button
+              onClick={() => setAddOpen(true)}
+              style={{
+                padding: '7px 16px',
+                background: 'var(--io-accent)',
+                border: 'none',
+                borderRadius: 'var(--io-radius)',
+                color: '#fff',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              + Add Schedule
+            </button>
+          )}
+        </div>
       </div>
 
       {!canManage && (
