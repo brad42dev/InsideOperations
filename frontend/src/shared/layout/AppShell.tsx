@@ -110,54 +110,276 @@ function useActiveRoundsCount(): number {
   return 0
 }
 
+// Severity sort order for alert dropdown panel
+const SEVERITY_ORDER: Record<string, number> = {
+  EMERGENCY: 0,
+  CRITICAL: 1,
+  WARNING: 2,
+  INFO: 3,
+}
+
+interface AlertRow {
+  id: string
+  severity: string
+  title: string
+  created_at?: string
+  timestamp?: string
+  acknowledged?: boolean
+}
+
+const SEVERITY_ICONS: Record<string, string> = {
+  EMERGENCY: '🔴',
+  CRITICAL: '🟠',
+  WARNING: '🟡',
+  INFO: '🔵',
+}
+
+function formatRelative(ts?: string): string {
+  if (!ts) return ''
+  const ms = Date.now() - new Date(ts).getTime()
+  if (ms < 60_000) return 'just now'
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`
+  return `${Math.floor(ms / 86_400_000)}d ago`
+}
+
 function AlertBell() {
+  const { user } = useAuthStore()
   const navigate = useNavigate()
+  const [panelOpen, setPanelOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [panelPos, setPanelPos] = useState({ top: 0, right: 0 })
   const count = useUnacknowledgedAlertCount()
+  const canAcknowledge = user?.permissions.includes('alerts:acknowledge') ?? false
+
+  // Fetch recent alerts when panel opens
+  const { data: recentAlertsRaw } = useQuery<AlertRow[]>({
+    queryKey: ['alerts-recent-panel'],
+    queryFn: () =>
+      fetch('/api/alarms/active?limit=20', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
+      }).then((r) => r.json()).then((json) => {
+        if (Array.isArray(json)) return json as AlertRow[]
+        if (Array.isArray(json?.data)) return json.data as AlertRow[]
+        return []
+      }),
+    enabled: panelOpen,
+  })
+
+  const recentAlerts = (recentAlertsRaw ?? [])
+    .slice()
+    .sort((a, b) => {
+      const sa = SEVERITY_ORDER[a.severity?.toUpperCase() ?? ''] ?? 99
+      const sb = SEVERITY_ORDER[b.severity?.toUpperCase() ?? ''] ?? 99
+      return sa - sb
+    })
+
+  function handleOpen() {
+    if (!panelOpen && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
+    }
+    setPanelOpen((v) => !v)
+  }
+
+  function handleAcknowledge(alertId: string) {
+    const token = localStorage.getItem('io_access_token') ?? ''
+    fetch(`/api/alarms/${alertId}/acknowledge`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }).catch(() => {/* best-effort */})
+  }
 
   return (
-    <button
-      onClick={() => navigate('/alerts')}
-      title="Alerts"
-      style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'none',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        color: 'var(--io-text-muted)',
-        cursor: 'pointer',
-        padding: '6px',
-        width: '34px',
-        height: '34px',
-      }}
-    >
-      <Bell size={16} />
-      {count > 0 && (
-        <span
-          style={{
-            position: 'absolute',
-            top: '2px',
-            right: '2px',
-            minWidth: '14px',
-            height: '14px',
-            background: '#ef4444',
-            color: '#fff',
-            borderRadius: '7px',
-            fontSize: '9px',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 2px',
-            lineHeight: 1,
-          }}
-        >
-          {count > 99 ? '99+' : count}
-        </span>
+    <>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        title="Alerts"
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'none',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          color: 'var(--io-text-muted)',
+          cursor: 'pointer',
+          padding: '6px',
+          width: '34px',
+          height: '34px',
+        }}
+      >
+        <Bell size={16} />
+        {count > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '2px',
+              right: '2px',
+              minWidth: '14px',
+              height: '14px',
+              background: '#ef4444',
+              color: '#fff',
+              borderRadius: '7px',
+              fontSize: '9px',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 2px',
+              lineHeight: 1,
+            }}
+          >
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </button>
+      {panelOpen && (
+        <>
+          {/* Click-away backdrop */}
+          <div
+            onClick={() => setPanelOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 199 }}
+          />
+          {/* Dropdown panel */}
+          <div
+            style={{
+              position: 'fixed',
+              top: panelPos.top,
+              right: panelPos.right,
+              width: '360px',
+              maxHeight: '480px',
+              overflowY: 'auto',
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              boxShadow: 'var(--io-shadow-lg)',
+              zIndex: 200,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Panel header */}
+            <div
+              style={{
+                padding: '10px 14px',
+                borderBottom: '1px solid var(--io-border)',
+                fontWeight: 600,
+                fontSize: '13px',
+                color: 'var(--io-text-primary)',
+                flexShrink: 0,
+              }}
+            >
+              Recent Alerts
+            </div>
+
+            {/* Alert rows */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {recentAlerts.length === 0 ? (
+                <div
+                  style={{
+                    padding: '24px 14px',
+                    textAlign: 'center',
+                    color: 'var(--io-text-muted)',
+                    fontSize: '13px',
+                  }}
+                >
+                  No unacknowledged alerts
+                </div>
+              ) : (
+                recentAlerts.map((alert) => {
+                  const sev = alert.severity?.toUpperCase() ?? 'INFO'
+                  const icon = SEVERITY_ICONS[sev] ?? '⚪'
+                  const ts = alert.created_at ?? alert.timestamp
+                  return (
+                    <div
+                      key={alert.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 14px',
+                        borderBottom: '1px solid var(--io-border)',
+                        fontSize: '13px',
+                      }}
+                    >
+                      {/* Severity icon */}
+                      <span style={{ flexShrink: 0, fontSize: '14px' }} title={sev}>
+                        {icon}
+                      </span>
+
+                      {/* Title + timestamp */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            color: 'var(--io-text-primary)',
+                            fontWeight: 500,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {alert.title}
+                        </div>
+                        <div style={{ color: 'var(--io-text-muted)', fontSize: '11px', marginTop: '2px' }}>
+                          {formatRelative(ts)}
+                        </div>
+                      </div>
+
+                      {/* Acknowledge button — hidden when user lacks permission */}
+                      {canAcknowledge && (
+                        <button
+                          onClick={() => handleAcknowledge(alert.id)}
+                          style={{
+                            flexShrink: 0,
+                            fontSize: '11px',
+                            padding: '3px 8px',
+                            background: 'none',
+                            border: '1px solid var(--io-border)',
+                            borderRadius: 'var(--io-radius)',
+                            color: 'var(--io-text-muted)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Ack
+                        </button>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Footer: View all alerts */}
+            <div
+              style={{
+                padding: '10px 14px',
+                borderTop: '1px solid var(--io-border)',
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={() => { setPanelOpen(false); navigate('/alerts') }}
+                style={{
+                  width: '100%',
+                  textAlign: 'center',
+                  fontSize: '12px',
+                  color: 'var(--io-accent)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                }}
+              >
+                View all alerts
+              </button>
+            </div>
+          </div>
+        </>
       )}
-    </button>
+    </>
   )
 }
 
