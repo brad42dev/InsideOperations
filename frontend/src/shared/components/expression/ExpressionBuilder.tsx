@@ -15,7 +15,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { ExpressionAst, ExpressionContext, ExpressionTile, TileType } from '../../types/expression'
-import { evaluateExpression } from './evaluator'
 import { expressionToString } from './preview'
 import { tilesToAst } from './ast'
 import { useAuthStore } from '../../../store/auth'
@@ -1187,6 +1186,11 @@ export function ExpressionBuilder({
   const [testValues, setTestValues] = useState<Record<string, string>>({})
   const [showPreview, setShowPreview] = useState(true)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [benchmarkRunning, setBenchmarkRunning] = useState(false)
+  const [benchmarkAvgMs, setBenchmarkAvgMs] = useState<number | null>(null)
+  const [benchmarkResult, setBenchmarkResult] = useState<number | null | 'timeout'>(null)
+  const [benchmarkWarnings, setBenchmarkWarnings] = useState<string[]>([])
+  const benchmarkWorkerRef = useRef<Worker | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -1200,7 +1204,6 @@ export function ExpressionBuilder({
     const v = parseFloat(testValues[ref.id] ?? '0')
     testNumericValues[ref.id] = isNaN(v) ? 0 : v
   }
-  const testResult = evaluateExpression(state.tiles, testNumericValues, undefined)
 
   const validation = validateExpression(state)
 
@@ -1286,6 +1289,90 @@ export function ExpressionBuilder({
         toIndex: toLoc.index,
       })
     }
+  }
+
+  function runBenchmark() {
+    if (!validation.valid) return
+
+    // Static analysis before launching worker
+    const warnings: string[] = []
+
+    function scanTiles(tiles: ExpressionTile[]) {
+      for (let i = 0; i < tiles.length; i++) {
+        const tile = tiles[i]
+        // Warn on nested exponentiation: a power tile immediately adjacent to another power tile
+        if (tile.type === 'power' && i > 0 && tiles[i - 1]?.type === 'power') {
+          warnings.push('Nested exponentiation detected — this may produce unexpectedly large values.')
+        }
+        // Warn on division by literal zero
+        if (tile.type === 'divide' && i + 1 < tiles.length && tiles[i + 1]?.type === 'constant' && tiles[i + 1].value === 0) {
+          warnings.push('Potential divide-by-zero: division followed by a constant 0.')
+        }
+        if (tile.children) scanTiles(tile.children)
+        if (tile.condition) scanTiles(tile.condition)
+        if (tile.thenBranch) scanTiles(tile.thenBranch)
+        if (tile.elseBranch) scanTiles(tile.elseBranch)
+      }
+    }
+
+    scanTiles(state.tiles)
+
+    function countTiles(tiles: ExpressionTile[]): number {
+      let n = tiles.length
+      for (const tile of tiles) {
+        if (tile.children) n += countTiles(tile.children)
+        if (tile.condition) n += countTiles(tile.condition)
+        if (tile.thenBranch) n += countTiles(tile.thenBranch)
+        if (tile.elseBranch) n += countTiles(tile.elseBranch)
+      }
+      return n
+    }
+
+    if (countTiles(state.tiles) > 100) {
+      warnings.push('Expression has more than 100 tiles — evaluation may be slow.')
+    }
+
+    setBenchmarkWarnings(warnings)
+    setBenchmarkRunning(true)
+    setBenchmarkAvgMs(null)
+    setBenchmarkResult(null)
+
+    // Terminate any prior worker
+    if (benchmarkWorkerRef.current) {
+      benchmarkWorkerRef.current.terminate()
+    }
+
+    const worker = new Worker(
+      new URL('../../../workers/expressionBenchmark.worker.ts', import.meta.url),
+      { type: 'module' },
+    )
+    benchmarkWorkerRef.current = worker
+
+    const timeout = setTimeout(() => {
+      worker.terminate()
+      benchmarkWorkerRef.current = null
+      setBenchmarkRunning(false)
+      setBenchmarkResult('timeout')
+    }, 5000)
+
+    worker.onmessage = (e: MessageEvent<{ avgMs: number; result: number | null }>) => {
+      clearTimeout(timeout)
+      worker.terminate()
+      benchmarkWorkerRef.current = null
+      setBenchmarkRunning(false)
+      setBenchmarkAvgMs(e.data.avgMs)
+      setBenchmarkResult(e.data.result)
+    }
+
+    worker.onerror = () => {
+      clearTimeout(timeout)
+      worker.terminate()
+      benchmarkWorkerRef.current = null
+      setBenchmarkRunning(false)
+      setBenchmarkResult('timeout')
+    }
+
+    worker.postMessage({ tiles: state.tiles, testValues: testNumericValues })
   }
 
   function handleApply() {
@@ -1589,12 +1676,78 @@ export function ExpressionBuilder({
               </div>
             ))}
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
-            Result:{' '}
-            <span style={{ color: testResult === null ? 'var(--io-danger)' : 'var(--io-accent)' }}>
-              {testResult === null ? 'Error (incomplete expression or division by zero)' : String(testResult)}
-            </span>
+
+          {/* Run benchmark button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+            <button
+              style={{
+                ...btnSecondary,
+                padding: '5px 14px',
+                fontSize: '12px',
+                opacity: validation.valid && !benchmarkRunning ? 1 : 0.5,
+              }}
+              disabled={!validation.valid || benchmarkRunning}
+              onClick={runBenchmark}
+              title={!validation.valid ? 'Fix validation errors before running benchmark' : 'Run 10,000-iteration benchmark in background thread'}
+            >
+              {benchmarkRunning ? 'Running...' : 'Run Benchmark (10k)'}
+            </button>
+            {!validation.valid && (
+              <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+                Fix validation errors to enable benchmark.
+              </span>
+            )}
           </div>
+
+          {/* Static analysis warnings */}
+          {benchmarkWarnings.length > 0 && (
+            <div style={{ marginBottom: '10px' }}>
+              {benchmarkWarnings.map((w, i) => (
+                <div key={i} style={{ fontSize: '12px', color: 'var(--io-warning, #d4a017)', marginBottom: '4px' }}>
+                  Warning: {w}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Benchmark result */}
+          {benchmarkResult === 'timeout' && (
+            <div style={{ fontSize: '13px', color: 'var(--io-danger)', fontWeight: 600 }}>
+              Benchmark timed out (exceeded 5 seconds). Expression may be too expensive to evaluate in real-time.
+            </div>
+          )}
+          {benchmarkResult !== 'timeout' && benchmarkAvgMs !== null && (
+            <div style={{ fontSize: '13px', fontWeight: 600 }}>
+              <span style={{ color: 'var(--io-text-secondary)' }}>
+                Result:{' '}
+                <span style={{ color: 'var(--io-text-primary)' }}>
+                  {benchmarkResult === null ? 'Error (division by zero or incomplete expression)' : String(benchmarkResult)}
+                </span>
+              </span>
+              {'  '}
+              <span
+                style={{
+                  color:
+                    benchmarkAvgMs < 0.1
+                      ? '#22c55e'
+                      : benchmarkAvgMs < 1
+                        ? '#eab308'
+                        : benchmarkAvgMs < 10
+                          ? '#f97316'
+                          : '#ef4444',
+                  marginLeft: '12px',
+                }}
+              >
+                {benchmarkAvgMs < 0.1
+                  ? `Fast — ${benchmarkAvgMs.toFixed(4)} ms/eval`
+                  : benchmarkAvgMs < 1
+                    ? `Acceptable — ${benchmarkAvgMs.toFixed(4)} ms/eval`
+                    : benchmarkAvgMs < 10
+                      ? `Slow — ${benchmarkAvgMs.toFixed(4)} ms/eval (consider simplifying)`
+                      : `Too Slow — ${benchmarkAvgMs.toFixed(4)} ms/eval (not recommended for real-time use)`}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

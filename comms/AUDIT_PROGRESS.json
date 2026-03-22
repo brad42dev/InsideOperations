@@ -63,7 +63,8 @@
     "MOD-DESIGNER-004": 1,
     "DD-34-001": 1,
     "MOD-DESIGNER-012": 1,
-    "DD-16-003": 1
+    "DD-16-003": 1,
+    "DD-20-001": 1
   },
   "queue": [
     {
@@ -2123,7 +2124,7 @@
       "wave": 3,
       "title": "Fix bottom tab bar items to match spec (Monitor/Rounds/Log/Alerts/More)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -2359,7 +2360,7 @@
       "wave": 3,
       "title": "Implement 10k-iteration performance benchmark in Web Worker for Test button",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
