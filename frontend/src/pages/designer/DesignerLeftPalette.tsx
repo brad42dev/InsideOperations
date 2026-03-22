@@ -10,6 +10,8 @@
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import * as ContextMenuPrimitive from '@radix-ui/react-context-menu'
+import * as Dialog from '@radix-ui/react-dialog'
 import { useLibraryStore, useSceneStore } from '../../store/designer'
 import type { ShapeIndexItem } from '../../store/designer'
 import type { DisplayElementType, WidgetType } from '../../shared/types/graphics'
@@ -135,6 +137,138 @@ function SvgThumbnail({ svgText, size }: { svgText: string; size: number }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Shared context menu styles (matches DesignerCanvas context menu tokens)
+// ---------------------------------------------------------------------------
+
+const cmContentStyle: React.CSSProperties = {
+  background: 'var(--io-surface)',
+  border: '1px solid var(--io-border)',
+  borderRadius: 'var(--io-radius)',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+  minWidth: 160,
+  overflow: 'hidden',
+  fontSize: 12,
+  zIndex: 1000,
+}
+
+const cmItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  padding: '6px 14px',
+  fontSize: 12,
+  cursor: 'pointer',
+  userSelect: 'none',
+  outline: 'none',
+  color: 'var(--io-text-primary)',
+  background: 'transparent',
+  border: 'none',
+  width: '100%',
+  textAlign: 'left',
+}
+
+const cmItemDestructiveStyle: React.CSSProperties = {
+  ...cmItemStyle,
+  color: 'var(--io-danger, #ef4444)',
+}
+
+const cmSepStyle: React.CSSProperties = {
+  height: 1,
+  background: 'var(--io-border)',
+  margin: '2px 0',
+}
+
+// ---------------------------------------------------------------------------
+// Delete confirmation dialog (Radix Dialog, no window.confirm)
+// ---------------------------------------------------------------------------
+
+function DeleteConfirmDialog({
+  open,
+  onOpenChange,
+  label,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  label: string
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            zIndex: 9998,
+          }}
+        />
+        <Dialog.Content
+          style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'var(--io-surface)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            padding: '20px 24px',
+            width: 360,
+            zIndex: 9999,
+            fontSize: 13,
+            color: 'var(--io-text-primary)',
+          }}
+        >
+          <Dialog.Title style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+            Delete &ldquo;{label}&rdquo;?
+          </Dialog.Title>
+          <Dialog.Description style={{ fontSize: 12, color: 'var(--io-text-muted)', marginBottom: 20 }}>
+            This action cannot be undone.
+          </Dialog.Description>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Dialog.Close asChild>
+              <button
+                style={{
+                  padding: '6px 14px',
+                  background: 'var(--io-surface-elevated)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  color: 'var(--io-text-primary)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </Dialog.Close>
+            <button
+              onClick={() => { onConfirm(); onOpenChange(false) }}
+              style={{
+                padding: '6px 14px',
+                background: 'var(--io-danger, #ef4444)',
+                border: 'none',
+                borderRadius: 'var(--io-radius)',
+                color: '#fff',
+                fontSize: 12,
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Shape tile
+// ---------------------------------------------------------------------------
+
 function ShapeTile({
   item,
   collapsed,
@@ -144,7 +278,11 @@ function ShapeTile({
 }) {
   const shape = useLibraryStore(s => s.cache.get(item.id) ?? null)
   const loadShape = useLibraryStore(s => s.loadShape)
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
+  // Determine tile type from source field
+  const isLibrary = item.source === 'library' || item.source === undefined
+  const isCustom = item.source === 'user'
 
   useEffect(() => {
     if (!shape) {
@@ -201,160 +339,190 @@ function ShapeTile({
     document.addEventListener('mouseup', onUp)
   }, [item.id, item.label])
 
+  function handleExportSvg() {
+    graphicsApi.exportShapeSvg(item.id).then(svgContent => {
+      const blob = new Blob([svgContent], { type: 'image/svg+xml' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${item.id}.svg`
+      a.click()
+      URL.revokeObjectURL(url)
+    }).catch(err => {
+      console.error('[ShapeTile] SVG export failed:', err)
+    })
+  }
+
+  function handleCopyToMyShapes() {
+    // TODO: implement copy-to-my-shapes API call when endpoint is available
+    console.warn('[ShapeTile] Copy to My Shapes: API not yet implemented for shape', item.id)
+  }
+
+  function handleEditShape() {
+    // TODO: open shape editor dialog when implemented
+    console.warn('[ShapeTile] Edit Shape: shape editor not yet implemented for shape', item.id)
+  }
+
+  function handleReplaceSvg() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.svg,image/svg+xml'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const text = await file.text()
+      const result = await graphicsApi.reimportShapeSvg(item.id, text).catch(() => null)
+      if (result?.success && result.data.data.viewBoxChanged) {
+        console.warn('[ShapeTile] Shape dimensions changed significantly. Connection points and value anchors may need repositioning.')
+      }
+    }
+    input.click()
+  }
+
+  function handleDeleteConfirmed() {
+    // TODO: call delete API when endpoint is available
+    console.warn('[ShapeTile] Delete shape: API not yet implemented for shape', item.id)
+  }
+
+  const tileDivCollapsed = (
+    <div
+      onMouseDown={handleMouseDown}
+      title={item.label}
+      style={{
+        width: 32,
+        height: 32,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--io-surface-elevated)',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        overflow: 'hidden',
+        userSelect: 'none',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+    >
+      {shape?.svg
+        ? <SvgThumbnail svgText={shape.svg} size={26} />
+        : <span style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{item.label.slice(0, 2).toUpperCase()}</span>
+      }
+    </div>
+  )
+
+  const tileDivExpanded = (
+    <div
+      onMouseDown={handleMouseDown}
+      title={item.label}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        width: 64,
+        height: 64,
+        background: 'var(--io-surface-elevated)',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        overflow: 'hidden',
+        userSelect: 'none',
+        padding: 4,
+        textAlign: 'center',
+        flexShrink: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+    >
+      {shape?.svg
+        ? <SvgThumbnail svgText={shape.svg} size={36} />
+        : <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.25 }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect x="2" y="5" width="16" height="10" rx="1" stroke="#808080" strokeWidth="1.5" fill="none"/>
+            </svg>
+          </div>
+      }
+      <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
+        {item.label.length > 12 ? item.label.slice(0, 11) + '…' : item.label}
+      </div>
+    </div>
+  )
+
+  const contextMenuContent = (
+    <ContextMenuPrimitive.Portal>
+      <ContextMenuPrimitive.Content style={cmContentStyle}>
+        {isLibrary && (
+          <>
+            <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleCopyToMyShapes}>
+              Copy to My Shapes
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleExportSvg}>
+              Export SVG
+            </ContextMenuPrimitive.Item>
+          </>
+        )}
+        {isCustom && (
+          <>
+            <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleEditShape}>
+              Edit Shape
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleExportSvg}>
+              Export SVG
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleReplaceSvg}>
+              Replace SVG…
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Separator style={cmSepStyle} />
+            <ContextMenuPrimitive.Item
+              style={cmItemDestructiveStyle}
+              onSelect={() => setDeleteOpen(true)}
+            >
+              Delete
+            </ContextMenuPrimitive.Item>
+          </>
+        )}
+      </ContextMenuPrimitive.Content>
+    </ContextMenuPrimitive.Portal>
+  )
+
   if (collapsed) {
     return (
-      <div
-        onMouseDown={handleMouseDown}
-        title={item.label}
-        style={{
-          width: 32,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          cursor: 'grab',
-          overflow: 'hidden',
-          userSelect: 'none',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-      >
-        {shape?.svg
-          ? <SvgThumbnail svgText={shape.svg} size={26} />
-          : <span style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{item.label.slice(0, 2).toUpperCase()}</span>
-        }
-      </div>
+      <>
+        <ContextMenuPrimitive.Root>
+          <ContextMenuPrimitive.Trigger asChild>
+            {tileDivCollapsed}
+          </ContextMenuPrimitive.Trigger>
+          {contextMenuContent}
+        </ContextMenuPrimitive.Root>
+        {isCustom && (
+          <DeleteConfirmDialog
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            label={item.label}
+            onConfirm={handleDeleteConfirmed}
+          />
+        )}
+      </>
     )
   }
 
   return (
     <>
-      <div
-        onMouseDown={handleMouseDown}
-        onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }) }}
-        title={item.label}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 3,
-          width: 64,
-          height: 64,
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          cursor: 'grab',
-          overflow: 'hidden',
-          userSelect: 'none',
-          padding: 4,
-          textAlign: 'center',
-          flexShrink: 0,
-        }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-      >
-        {shape?.svg
-          ? <SvgThumbnail svgText={shape.svg} size={36} />
-          : <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.25 }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <rect x="2" y="5" width="16" height="10" rx="1" stroke="#808080" strokeWidth="1.5" fill="none"/>
-              </svg>
-            </div>
-        }
-        <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
-          {item.label.length > 12 ? item.label.slice(0, 11) + '…' : item.label}
-        </div>
-      </div>
-
-      {/* Shape context menu */}
-      {ctxMenu && (
-        <div
-          style={{
-            position: 'fixed',
-            left: ctxMenu.x,
-            top: ctxMenu.y,
-            zIndex: 9999,
-            background: 'var(--io-surface-elevated)',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-            minWidth: 140,
-            padding: '4px 0',
-          }}
-          onMouseLeave={() => setCtxMenu(null)}
-        >
-          <button
-            onClick={async () => {
-              setCtxMenu(null)
-              try {
-                const svgContent = await graphicsApi.exportShapeSvg(item.id)
-                const blob = new Blob([svgContent], { type: 'image/svg+xml' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `${item.id}.svg`
-                a.click()
-                URL.revokeObjectURL(url)
-              } catch (err) {
-                console.error('SVG export failed:', err)
-              }
-            }}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '6px 12px',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--io-text-primary)',
-              fontSize: 12,
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--io-surface)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-          >
-            Export SVG
-          </button>
-          {item.source !== 'library' && (
-            <button
-              onClick={() => {
-                setCtxMenu(null)
-                const input = document.createElement('input')
-                input.type = 'file'
-                input.accept = '.svg,image/svg+xml'
-                input.onchange = async () => {
-                  const file = input.files?.[0]
-                  if (!file) return
-                  const text = await file.text()
-                  const result = await graphicsApi.reimportShapeSvg(item.id, text).catch(() => null)
-                  if (result?.success && result.data.data.viewBoxChanged) {
-                    alert('Shape dimensions changed significantly. Connection points and value anchors may need repositioning.')
-                  }
-                }
-                input.click()
-              }}
-              style={{
-                display: 'block',
-                width: '100%',
-                padding: '6px 12px',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--io-text-primary)',
-                fontSize: 12,
-                textAlign: 'left',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--io-surface)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-            >
-              Replace SVG…
-            </button>
-          )}
-        </div>
+      <ContextMenuPrimitive.Root>
+        <ContextMenuPrimitive.Trigger asChild>
+          {tileDivExpanded}
+        </ContextMenuPrimitive.Trigger>
+        {contextMenuContent}
+      </ContextMenuPrimitive.Root>
+      {isCustom && (
+        <DeleteConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          label={item.label}
+          onConfirm={handleDeleteConfirmed}
+        />
       )}
     </>
   )
@@ -692,6 +860,8 @@ interface StencilItem {
 }
 
 function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolean }) {
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     const ghost = document.createElement('div')
@@ -719,47 +889,117 @@ function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolea
     document.addEventListener('mouseup', onUp)
   }, [item.id, item.name])
 
+  function handleExportSvg() {
+    graphicsApi.exportShapeSvg(item.id).then(svgContent => {
+      const blob = new Blob([svgContent], { type: 'image/svg+xml' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${item.name}.svg`
+      a.click()
+      URL.revokeObjectURL(url)
+    }).catch(err => {
+      console.error('[StencilTile] SVG export failed:', err)
+    })
+  }
+
+  function handleEdit() {
+    // TODO: open stencil editor when implemented
+    console.warn('[StencilTile] Edit stencil: stencil editor not yet implemented for stencil', item.id)
+  }
+
+  function handleDeleteConfirmed() {
+    // TODO: call delete API when endpoint is available
+    console.warn('[StencilTile] Delete stencil: API not yet implemented for stencil', item.id)
+  }
+
+  const stencilContextMenuContent = (
+    <ContextMenuPrimitive.Portal>
+      <ContextMenuPrimitive.Content style={cmContentStyle}>
+        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleEdit}>
+          Edit
+        </ContextMenuPrimitive.Item>
+        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleExportSvg}>
+          Export SVG
+        </ContextMenuPrimitive.Item>
+        <ContextMenuPrimitive.Separator style={cmSepStyle} />
+        <ContextMenuPrimitive.Item
+          style={cmItemDestructiveStyle}
+          onSelect={() => setDeleteOpen(true)}
+        >
+          Delete
+        </ContextMenuPrimitive.Item>
+      </ContextMenuPrimitive.Content>
+    </ContextMenuPrimitive.Portal>
+  )
+
   if (collapsed) {
     return (
-      <div
-        onMouseDown={handleMouseDown}
-        title={item.name}
-        style={{
-          width: 28, height: 28,
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 9, color: 'var(--io-text-muted)', cursor: 'grab',
-          userSelect: 'none',
-        }}
-      >
-        {item.name.slice(0, 2).toUpperCase()}
-      </div>
+      <>
+        <ContextMenuPrimitive.Root>
+          <ContextMenuPrimitive.Trigger asChild>
+            <div
+              onMouseDown={handleMouseDown}
+              title={item.name}
+              style={{
+                width: 28, height: 28,
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, color: 'var(--io-text-muted)', cursor: 'grab',
+                userSelect: 'none',
+              }}
+            >
+              {item.name.slice(0, 2).toUpperCase()}
+            </div>
+          </ContextMenuPrimitive.Trigger>
+          {stencilContextMenuContent}
+        </ContextMenuPrimitive.Root>
+        <DeleteConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          label={item.name}
+          onConfirm={handleDeleteConfirmed}
+        />
+      </>
     )
   }
 
   return (
-    <div
-      onMouseDown={handleMouseDown}
-      title={item.name}
-      style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 3, width: 64, height: 48,
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab', fontSize: 9, color: 'var(--io-text-muted)',
-        userSelect: 'none', padding: 4, textAlign: 'center',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-    >
-      <div style={{ fontSize: 16 }}>⬜</div>
-      <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%' }}>
-        {item.name.length > 10 ? item.name.slice(0, 9) + '…' : item.name}
-      </div>
-    </div>
+    <>
+      <ContextMenuPrimitive.Root>
+        <ContextMenuPrimitive.Trigger asChild>
+          <div
+            onMouseDown={handleMouseDown}
+            title={item.name}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 3, width: 64, height: 48,
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              cursor: 'grab', fontSize: 9, color: 'var(--io-text-muted)',
+              userSelect: 'none', padding: 4, textAlign: 'center',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+          >
+            <div style={{ fontSize: 16 }}>⬜</div>
+            <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%' }}>
+              {item.name.length > 10 ? item.name.slice(0, 9) + '…' : item.name}
+            </div>
+          </div>
+        </ContextMenuPrimitive.Trigger>
+        {stencilContextMenuContent}
+      </ContextMenuPrimitive.Root>
+      <DeleteConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        label={item.name}
+        onConfirm={handleDeleteConfirmed}
+      />
+    </>
   )
 }
 
