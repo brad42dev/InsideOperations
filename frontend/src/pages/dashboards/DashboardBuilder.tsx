@@ -64,7 +64,7 @@ const WIDGET_LIBRARY: WidgetLibraryItem[] = [
     label: 'KPI Card',
     icon: '🔢',
     category: 'KPIs',
-    defaultConfig: { title: 'KPI', metric: '', unit: '', staticValue: 0 },
+    defaultConfig: { title: 'KPI', metric: '', unit: '', staticValue: 0, aggregationType: 'last' },
     defaultSize: { w: 3, h: 2 },
   },
   {
@@ -150,6 +150,7 @@ function DroppableGrid({ children }: { children: React.ReactNode }) {
 const AGG_AVG   = 0x01
 const AGG_SUM   = 0x02
 // AGG_MIN (0x04), AGG_MAX (0x08), AGG_COUNT (0x10) are always available per spec
+// AGG_LAST (0x40) — most-recent value, always available
 
 // ---------------------------------------------------------------------------
 // Widget config editor panel
@@ -197,11 +198,13 @@ function WidgetConfigPanel({
   const aggTypes: number = pointMetaQuery.data?.aggregation_types ?? 0xff
 
   // Filtered aggregation options — unavailable options are removed entirely
+  // 'last' is always available (most-recent value, no time aggregation required)
   const aggOptions = [
+    { value: 'last',  label: 'Last',    enabled: true },
     { value: 'avg',   label: 'Average', enabled: (aggTypes & AGG_AVG) !== 0 },
-    { value: 'sum',   label: 'Sum',     enabled: (aggTypes & AGG_SUM) !== 0 },
     { value: 'min',   label: 'Min',     enabled: true },
     { value: 'max',   label: 'Max',     enabled: true },
+    { value: 'sum',   label: 'Sum',     enabled: (aggTypes & AGG_SUM) !== 0 },
     { value: 'count', label: 'Count',   enabled: true },
   ].filter((o) => o.enabled)
 
@@ -364,8 +367,8 @@ function WidgetConfigPanel({
           </label>
         )}
 
-        {/* Aggregation type for line chart — options filtered by point's aggregation_types bitmask */}
-        {widget.type === 'line-chart' && (
+        {/* Aggregation type for KPI cards and line charts — options filtered by point's aggregation_types bitmask */}
+        {(widget.type === 'kpi-card' || widget.type === 'line-chart') && (
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Aggregation
