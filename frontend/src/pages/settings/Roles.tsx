@@ -434,11 +434,13 @@ function EditRoleDialog({
   open,
   onOpenChange,
   permissions,
+  isLoading,
 }: {
   role: RoleDetail | null
   open: boolean
   onOpenChange: (v: boolean) => void
   permissions: Permission[]
+  isLoading?: boolean
 }) {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<UpdateRoleRequest>({})
@@ -449,7 +451,9 @@ function EditRoleDialog({
       setForm({
         display_name: role.display_name,
         description: role.description ?? '',
-        permissions: role.permissions.map((p) => p.name),
+        // role.permissions is only present on RoleDetail (not Role); guard against undefined
+        // while the detail query is still loading
+        permissions: (role.permissions ?? []).map((p) => p.name),
         idle_timeout_minutes: role.idle_timeout_minutes ?? null,
         max_concurrent_sessions: role.max_concurrent_sessions ?? 0,
       })
@@ -481,7 +485,19 @@ function EditRoleDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <ModalContent title={`Edit Role: ${role.display_name}`}>
         {formError && <ErrorBanner message={formError} />}
-        <form onSubmit={handleSubmit}>
+        {isLoading && (
+          <div
+            style={{
+              padding: '24px',
+              textAlign: 'center',
+              color: 'var(--io-text-muted)',
+              fontSize: '13px',
+            }}
+          >
+            Loading role details…
+          </div>
+        )}
+        <form onSubmit={handleSubmit} style={{ display: isLoading ? 'none' : undefined }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {role.is_predefined && (
               <div
@@ -1041,6 +1057,7 @@ export default function RolesPage() {
         open={editOpen}
         onOpenChange={setEditOpen}
         permissions={permissions}
+        isLoading={roleDetailQuery.isLoading}
       />
 
       {contextMenu && (
