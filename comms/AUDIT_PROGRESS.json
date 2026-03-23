@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T00:57:50.529434Z",
+  "last_updated": "2026-03-23T01:25:13.842754+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -138,7 +138,8 @@
     "DD-32-008": 1,
     "DD-33-001": 1,
     "DD-33-004": 1,
-    "DD-37-003": 1
+    "DD-37-003": 1,
+    "DD-37-004": 1
   },
   "queue": [
     {
@@ -3544,7 +3545,7 @@
       "wave": 3,
       "title": "Implement missing service-specific metrics for OPC, Archive, Alert, Email, Auth, Recognition, Import, and Parser services",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3554,7 +3555,7 @@
       "wave": 3,
       "title": "Implement full 6-tab System Health page and shell status dot popover",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-36-004"
       ],
@@ -3598,7 +3599,7 @@
       "wave": 3,
       "title": "Add six missing NOTIFY payload types to io-bus (NotifyEvent, NotifyAlert, etc.)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3608,7 +3609,7 @@
       "wave": 3,
       "title": "Fix Pagination field names in io-models to match spec (per_page, total_items, total_pages)",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

@@ -54,12 +54,12 @@ pub struct PagedResponse<T: Serialize> {
 }
 
 impl<T: Serialize> PagedResponse<T> {
-    pub fn new(data: Vec<T>, page: u32, limit: u32, total: u64) -> Self {
-        let pages = if limit == 0 { 1 } else { (total as u32).div_ceil(limit) }.max(1);
+    pub fn new(data: Vec<T>, page: u32, per_page: u32, total_items: u64) -> Self {
+        let total_pages = if per_page == 0 { 1 } else { (total_items as u32).div_ceil(per_page) }.max(1);
         Self {
             success: true,
             data,
-            pagination: Pagination { page, limit, total, pages },
+            pagination: Pagination { page, per_page, total_items, total_pages },
         }
     }
 }
@@ -68,9 +68,9 @@ impl<T: Serialize> PagedResponse<T> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pagination {
     pub page: u32,
-    pub limit: u32,
-    pub total: u64,
-    pub pages: u32,
+    pub per_page: u32,
+    pub total_items: u64,
+    pub total_pages: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ pub struct Pagination {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageParams {
     pub page: Option<u32>,
-    pub limit: Option<u32>,
+    pub per_page: Option<u32>,
     pub sort: Option<String>,
     pub order: Option<SortOrder>,
 }
@@ -91,12 +91,12 @@ impl PageParams {
         self.page.unwrap_or(1).max(1)
     }
 
-    pub fn limit(&self) -> u32 {
-        self.limit.unwrap_or(50).clamp(1, 100)
+    pub fn per_page(&self) -> u32 {
+        self.per_page.unwrap_or(50).clamp(1, 100)
     }
 
     pub fn offset(&self) -> i64 {
-        ((self.page() - 1) * self.limit()) as i64
+        ((self.page() - 1) * self.per_page()) as i64
     }
 }
 
@@ -157,37 +157,37 @@ mod tests {
 
     #[test]
     fn page_params_defaults_page_to_1() {
-        let p = PageParams { page: None, limit: None, sort: None, order: None };
+        let p = PageParams { page: None, per_page: None, sort: None, order: None };
         assert_eq!(p.page(), 1);
     }
 
     #[test]
-    fn page_params_defaults_limit_to_50() {
-        let p = PageParams { page: None, limit: None, sort: None, order: None };
-        assert_eq!(p.limit(), 50);
+    fn page_params_defaults_per_page_to_50() {
+        let p = PageParams { page: None, per_page: None, sort: None, order: None };
+        assert_eq!(p.per_page(), 50);
     }
 
     #[test]
     fn page_params_page_0_is_clamped_to_1() {
-        let p = PageParams { page: Some(0), limit: Some(10), sort: None, order: None };
+        let p = PageParams { page: Some(0), per_page: Some(10), sort: None, order: None };
         assert_eq!(p.page(), 1);
     }
 
     #[test]
-    fn page_params_limit_over_100_is_clamped_to_100() {
-        let p = PageParams { page: Some(1), limit: Some(200), sort: None, order: None };
-        assert_eq!(p.limit(), 100);
+    fn page_params_per_page_over_100_is_clamped_to_100() {
+        let p = PageParams { page: Some(1), per_page: Some(200), sort: None, order: None };
+        assert_eq!(p.per_page(), 100);
     }
 
     #[test]
-    fn page_params_offset_page_3_limit_10_is_20() {
-        let p = PageParams { page: Some(3), limit: Some(10), sort: None, order: None };
+    fn page_params_offset_page_3_per_page_10_is_20() {
+        let p = PageParams { page: Some(3), per_page: Some(10), sort: None, order: None };
         assert_eq!(p.offset(), 20);
     }
 
     #[test]
     fn page_params_offset_page_1_is_0() {
-        let p = PageParams { page: Some(1), limit: Some(25), sort: None, order: None };
+        let p = PageParams { page: Some(1), per_page: Some(25), sort: None, order: None };
         assert_eq!(p.offset(), 0);
     }
 
@@ -202,16 +202,16 @@ mod tests {
     }
 
     #[test]
-    fn paged_response_computes_pages_correctly() {
-        // 25 items with a limit of 10 → 3 pages
+    fn paged_response_computes_total_pages_correctly() {
+        // 25 items with per_page of 10 → 3 pages
         let r: PagedResponse<u32> = PagedResponse::new(vec![], 1, 10, 25);
-        assert_eq!(r.pagination.pages, 3);
+        assert_eq!(r.pagination.total_pages, 3);
     }
 
     #[test]
     fn paged_response_single_page_when_total_fits() {
         let r: PagedResponse<u32> = PagedResponse::new(vec![1], 1, 50, 1);
-        assert_eq!(r.pagination.pages, 1);
+        assert_eq!(r.pagination.total_pages, 1);
     }
 
     // ------------------------------------------------------------------

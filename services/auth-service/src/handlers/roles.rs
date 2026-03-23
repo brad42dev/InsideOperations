@@ -73,7 +73,7 @@ pub async fn list_roles(
     Query(page): Query<PageParams>,
 ) -> IoResult<impl IntoResponse> {
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = sqlx::query_scalar(

@@ -517,7 +517,7 @@ pub async fn list_report_schedules(
     }
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = sqlx::query(

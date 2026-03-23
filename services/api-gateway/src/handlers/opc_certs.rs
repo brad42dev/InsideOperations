@@ -91,7 +91,7 @@ pub async fn list_server_certs(
     }
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM opc_server_certs")

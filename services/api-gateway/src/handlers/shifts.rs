@@ -373,7 +373,7 @@ pub async fn list_patterns(
     }
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM shift_patterns")
@@ -797,7 +797,7 @@ pub async fn list_crews(
     }
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM shift_crews")
@@ -1710,7 +1710,7 @@ pub async fn list_muster_points(
     }
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM muster_points")
@@ -2441,7 +2441,7 @@ pub async fn list_badge_sources(
     }
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM access_control_sources")

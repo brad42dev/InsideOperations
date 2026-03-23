@@ -412,7 +412,7 @@ pub async fn list_report_history(
     let is_admin = claims.permissions.iter().any(|p| p == "*" || p == "system:admin");
 
     let page = filter.page.page();
-    let limit = filter.page.limit();
+    let limit = filter.page.per_page();
     let offset = filter.page.offset();
 
     let total_row = sqlx::query(
@@ -496,7 +496,7 @@ pub async fn list_my_exports(
     };
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = match sqlx::query(

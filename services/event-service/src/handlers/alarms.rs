@@ -379,7 +379,7 @@ pub async fn get_alarm_history(
     }
 
     let page = filter.page.page();
-    let limit = filter.page.limit();
+    let limit = filter.page.per_page();
     let offset = filter.page.offset();
 
     let from = filter.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));

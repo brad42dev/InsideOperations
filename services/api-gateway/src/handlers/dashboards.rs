@@ -203,12 +203,12 @@ pub async fn list_dashboards(
 
     let page_params = PageParams {
         page: params.page,
-        limit: params.limit,
+        per_page: params.limit,
         sort: None,
         order: None,
     };
     let pg = page_params.page();
-    let limit = page_params.limit();
+    let limit = page_params.per_page();
     let offset = page_params.offset();
 
     let total: i64 = match sqlx::query_scalar(
@@ -625,7 +625,7 @@ pub async fn list_playlists(
     }
 
     let pg = page.page();
-    let limit = page.limit();
+    let limit = page.per_page();
     let offset = page.offset();
 
     let total: i64 = match sqlx::query_scalar(

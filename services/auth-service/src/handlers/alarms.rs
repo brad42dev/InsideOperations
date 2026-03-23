@@ -139,7 +139,7 @@ pub async fn list_alarm_definitions(
         .ok_or_else(|| IoError::Unauthorized)?;
 
     let page = filter.page.page();
-    let limit = filter.page.limit();
+    let limit = filter.page.per_page();
     let offset = filter.page.offset();
 
     let total: i64 = sqlx::query(

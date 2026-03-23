@@ -1482,7 +1482,7 @@ pub async fn list_snapshots(
     }
 
     let page = params.page();
-    let limit = params.limit();
+    let limit = params.per_page();
     let offset = params.offset();
 
     let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM change_snapshots")
