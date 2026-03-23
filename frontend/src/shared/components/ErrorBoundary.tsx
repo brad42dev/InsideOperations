@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<Props, State> {
               color: 'var(--io-text-primary)', cursor: 'pointer', fontSize: '13px',
             }}
           >
-            [Reload Module]
+            Reload Module
           </button>
         </div>
       )
