@@ -230,6 +230,19 @@ pub struct NotifyPointMetadataChanged {
 // WebSocket outbound message types (broker → client, doc 16)
 // ---------------------------------------------------------------------------
 
+/// Empty payload for Ping and ServerRestarting variants (doc 37 §13).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WsEmpty {}
+
+/// Presence update payload — published after each badge swipe (doc 37 §17).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsPresenceUpdate {
+    pub user_id: Uuid,
+    pub presence_state: String,        // "on_site", "off_site"
+    pub badge_event_type: Option<String>,
+    pub timestamp: String,             // RFC 3339
+}
+
 /// Batch of point value updates sent from broker to client.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WsBatchUpdate {
@@ -251,7 +264,7 @@ pub struct WsPointValue {
 #[serde(rename_all = "snake_case")]
 pub enum WsServerMessage {
     Update(WsBatchUpdate),
-    Ping,
+    Ping(WsEmpty),
     Error {
         message: String,
     },
@@ -289,6 +302,7 @@ pub enum WsServerMessage {
     ExportProgress {
         payload: serde_json::Value,
     },
+    PresenceUpdate(WsPresenceUpdate),
     /// Server-side session was locked (idle timer fired or manual lock).
     /// Frontend should enter locked state on the next user interaction.
     SessionLocked {
@@ -298,7 +312,7 @@ pub enum WsServerMessage {
     SessionUnlocked {
         session_id: Uuid,
     },
-    ServerRestarting,
+    ServerRestarting(WsEmpty),
     /// Presence headcount update — published after every badge swipe.
     PresenceHeadcount {
         on_site: i64,
@@ -346,9 +360,9 @@ pub enum WsClientMessage {
         alert_id: Uuid,
     },
     StatusReport {
-        render_fps: f64,
+        render_fps: f32,
         pending_updates: u32,
-        last_batch_process_ms: u64,
+        last_batch_process_ms: u32,
     },
 }
 

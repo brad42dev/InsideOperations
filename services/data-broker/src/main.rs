@@ -148,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
                 for entry in cx.iter() {
                     if entry
                         .value()
-                        .try_send(io_bus::WsServerMessage::Ping)
+                        .try_send(io_bus::WsServerMessage::Ping(io_bus::WsEmpty::default()))
                         .is_err()
                     {
                         dead.push(*entry.key());
@@ -217,7 +217,7 @@ async fn graceful_shutdown(
 
     // Broadcast to all connected clients.
     for entry in connections.iter() {
-        let _ = entry.value().try_send(io_bus::WsServerMessage::ServerRestarting);
+        let _ = entry.value().try_send(io_bus::WsServerMessage::ServerRestarting(io_bus::WsEmpty::default()));
     }
 
     // Give clients up to 5 seconds to receive and act on the message.

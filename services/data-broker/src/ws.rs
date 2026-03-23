@@ -188,7 +188,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
                                 let cfg = &state.config;
                                 let new_level = compute_throttle(
                                     current,
-                                    render_fps,
+                                    render_fps as f64,
                                     pending_updates,
                                     cfg.throttle_fps_low,
                                     cfg.throttle_fps_high,
