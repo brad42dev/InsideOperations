@@ -57,10 +57,10 @@ function ConsoleStatusBar({
             borderRadius: '50%',
             background:
               connectionStatus === 'connected'
-                ? '#22C55E'
+                ? 'var(--io-success)'
                 : connectionStatus === 'connecting'
-                ? '#F59E0B'
-                : '#EF4444',
+                ? 'var(--io-warning)'
+                : 'var(--io-danger)',
             display: 'inline-block',
           }}
         />
@@ -100,7 +100,7 @@ function ConsoleStatusBar({
             width: 6,
             height: 6,
             borderRadius: '50%',
-            background: isHistorical ? '#F59E0B' : '#22C55E',
+            background: isHistorical ? 'var(--io-warning)' : 'var(--io-success)',
             display: 'inline-block',
           }}
         />
@@ -1055,7 +1055,7 @@ export default function ConsolePage() {
                     padding: '4px 10px',
                     cursor: 'pointer',
                     fontSize: 12,
-                    color: '#EF4444',
+                    color: 'var(--io-danger)',
                   }}
                 >
                   Delete
@@ -1271,8 +1271,8 @@ export default function ConsolePage() {
             <div style={{
               flexShrink: 0,
               padding: '6px 14px',
-              background: '#92400E',
-              color: '#FEF3C7',
+              background: 'var(--io-warning)',
+              color: 'var(--io-text-inverse)',
               fontSize: 12,
               display: 'flex',
               alignItems: 'center',
@@ -1284,7 +1284,7 @@ export default function ConsolePage() {
               Click another pane to swap positions — press Escape to cancel
               <button
                 onClick={() => setSwapModeSourceId(null)}
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#FEF3C7', cursor: 'pointer', fontSize: 11 }}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--io-text-inverse)', cursor: 'pointer', fontSize: 11 }}
               >
                 Cancel
               </button>

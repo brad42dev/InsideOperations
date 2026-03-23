@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T01:54:49.673140Z",
+  "last_updated": "2026-03-23T02:26:25.161792+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -1027,7 +1027,7 @@
       "wave": 1,
       "title": "Implement signal line for text_readout, fill_gauge, sparkline, and digital_status",
       "priority": "low",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1221,7 +1221,7 @@
       "wave": 2,
       "title": "Replace hardcoded hex colors in Console with design token CSS variables",
       "priority": "low",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 1
     },
@@ -3760,7 +3760,7 @@
       "wave": 3,
       "title": "Export shape.json sidecar alongside shape.svg for custom shapes",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3770,7 +3770,7 @@
       "wave": 3,
       "title": "Serialize expression ASTs in graphic.json during export",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-39-002"
       ],
@@ -3782,7 +3782,7 @@
       "wave": 3,
       "title": "Fix export route path, HTTP method, and MIME type",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },

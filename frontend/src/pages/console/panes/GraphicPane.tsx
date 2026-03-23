@@ -463,7 +463,7 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
 
   if (isLoading) {
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090B', color: '#71717A', fontSize: 13 }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--io-surface-primary)', color: 'var(--io-text-muted)', fontSize: 13 }}>
         Loading…
       </div>
     )
@@ -471,7 +471,7 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
 
   if (isError || !data) {
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#09090B', color: '#71717A', fontSize: 13 }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--io-surface-primary)', color: 'var(--io-text-muted)', fontSize: 13 }}>
         Failed to load graphic
       </div>
     )
@@ -635,7 +635,7 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
           <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10, color: 'var(--io-text-muted)' }}>
             <span
               style={{
-                color: tooltip.quality === 'good' ? '#22C55E' : tooltip.quality === 'bad' ? '#EF4444' : '#F59E0B',
+                color: tooltip.quality === 'good' ? 'var(--io-success)' : tooltip.quality === 'bad' ? 'var(--io-danger)' : 'var(--io-warning)',
               }}
             >
               {tooltip.quality}
