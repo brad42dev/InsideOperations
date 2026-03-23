@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T00:54:31.058491Z",
+  "last_updated": "2026-03-23T00:57:50.529434Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -137,7 +137,8 @@
     "DD-32-005": 1,
     "DD-32-008": 1,
     "DD-33-001": 1,
-    "DD-33-004": 1
+    "DD-33-004": 1,
+    "DD-37-003": 1
   },
   "queue": [
     {
@@ -3543,7 +3544,7 @@
       "wave": 3,
       "title": "Implement missing service-specific metrics for OPC, Archive, Alert, Email, Auth, Recognition, Import, and Parser services",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3585,7 +3586,7 @@
       "wave": 3,
       "title": "Add PresenceUpdate variant to WsServerMessage and fix StatusReport field type",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-37-002"
       ],

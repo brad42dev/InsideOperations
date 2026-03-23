@@ -40,6 +40,7 @@ hex.workspace = true
 sha1.workspace = true
 hmac.workspace = true
 urlencoding.workspace = true
+metrics.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

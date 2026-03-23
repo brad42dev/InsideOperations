@@ -282,6 +282,7 @@ pub async fn trigger_alert(
                     super::escalation::dispatch_tier(state_clone, alert_id, 1).await;
                 });
             }
+            metrics::counter!("io_alert_dispatched_total").increment(1);
             (StatusCode::CREATED, Json(ApiResponse::ok(alert))).into_response()
         }
         Err(e) => IoError::Database(e).into_response(),
@@ -465,6 +466,8 @@ pub async fn acknowledge_alert(
 
     match updated {
         Ok(a) => {
+            metrics::counter!("io_alert_acknowledged_total").increment(1);
+
             // Cancel any pending escalation timer for this alert
             if let Some((_, token)) = state.escalation_tokens.remove(&id) {
                 token.cancel();

@@ -56,6 +56,11 @@ pub async fn run_source(
     loop {
         attempt += 1;
 
+        // Count every attempt beyond the first as a reconnection.
+        if attempt > 1 {
+            metrics::counter!("io_opc_reconnections_total").increment(1);
+        }
+
         // After 10 failed attempts in a row, slow down and stay in "error".
         if attempt > 10 {
             let msg = last_error
@@ -306,10 +311,11 @@ async fn run_source_once(
     info!(source = %source.name, "Connected to OPC UA server");
 
     // Register the live session so HTTP alarm-method handlers can reach it.
-    sessions
-        .lock()
-        .unwrap()
-        .insert(source.id, session.clone());
+    {
+        let mut guard = sessions.lock().unwrap();
+        guard.insert(source.id, session.clone());
+        metrics::gauge!("io_opc_sources_connected").set(guard.len() as f64);
+    }
 
     // Register the server certificate in the DB (non-fatal if it fails).
     register_server_cert(source, db, config).await;
@@ -414,6 +420,9 @@ async fn run_source_once(
 
     let good_items = create_subscriptions(source, &session, &node_map, &eu_ranges, update_tx, config)?;
 
+    // Record how many points are currently subscribed after subscription creation.
+    metrics::gauge!("io_opc_points_subscribed").set(good_items as f64);
+
     // --- OPC UA Part 9 A&C event subscription (non-fatal) ---
     // Store the handle so we can abort the drain task when this session ends,
     // preventing stale tasks from accumulating across reconnect cycles.
@@ -442,9 +451,16 @@ async fn run_source_once(
         handle.abort();
     }
 
+    // Points for this source are no longer subscribed — set to 0 so the gauge reflects reality.
+    metrics::gauge!("io_opc_points_subscribed").set(0.0);
+
     // Deregister from the session registry before closing — HTTP handlers will now
     // get 404 for this source rather than trying to use a dead session.
-    sessions.lock().unwrap().remove(&source.id);
+    {
+        let mut guard = sessions.lock().unwrap();
+        guard.remove(&source.id);
+        metrics::gauge!("io_opc_sources_connected").set(guard.len() as f64);
+    }
 
     // Send OPC UA CloseSession so the server can immediately release all
     // server-side session state (subscriptions, monitored items, locks).
@@ -2045,6 +2061,7 @@ async fn flush_loop(
                 match maybe {
                     Some(update) => {
                         total_updates += 1;
+                        metrics::counter!("io_opc_updates_received_total").increment(1);
                         if total_updates == 1 {
                             info!(source = %source.name, "First DataChange callback received!");
                         }

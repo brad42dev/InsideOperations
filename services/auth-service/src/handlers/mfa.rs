@@ -367,6 +367,7 @@ pub async fn mfa_verify_login(
     .execute(&state.db)
     .await?;
 
+    metrics::counter!("io_tokens_issued_total", "type" => "access").increment(1);
     tracing::info!(user_id = %user_id, "MFA verification successful — login complete");
 
     let body_resp = ApiResponse::ok(serde_json::json!({

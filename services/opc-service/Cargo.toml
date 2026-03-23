@@ -33,6 +33,7 @@ opcua.workspace = true
 x509-parser.workspace = true
 sha2.workspace = true
 hex.workspace = true
+metrics.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

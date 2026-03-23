@@ -225,6 +225,8 @@ pub async fn write_history_batch(db: &DbPool, updates: &[PointUpdate]) -> anyhow
     let qualities: Vec<String> = updates.iter().map(|u| u.quality.clone()).collect();
     let timestamps: Vec<DateTime<Utc>> = updates.iter().map(|u| u.timestamp).collect();
 
+    let row_count = updates.len() as u64;
+
     sqlx::query(
         r#"
         INSERT INTO points_history_raw (point_id, value, quality, timestamp)
@@ -243,6 +245,8 @@ pub async fn write_history_batch(db: &DbPool, updates: &[PointUpdate]) -> anyhow
     .execute(db)
     .await
     .context("write_history_batch: query failed")?;
+
+    metrics::counter!("io_timeseries_inserts_total").increment(row_count);
 
     Ok(())
 }

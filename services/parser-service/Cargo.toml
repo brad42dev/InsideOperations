@@ -26,6 +26,7 @@ io-error = { path = "../../crates/io-error" }
 io-health = { path = "../../crates/io-health" }
 io-observability = { path = "../../crates/io-observability" }
 io-models = { path = "../../crates/io-models" }
+metrics.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

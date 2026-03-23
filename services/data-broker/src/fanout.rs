@@ -333,6 +333,9 @@ pub async fn run_fanout_flusher(
                 if tx.try_send(msg).is_ok() {
                     // Record last successful fanout timestamp.
                     last_fanout.insert(*client_id, std::time::SystemTime::now());
+                } else {
+                    // Channel is full (backpressure drop) or closed.
+                    metrics::counter!("io_ws_backpressure_drops_total").increment(1);
                 }
                 // If try_send fails, the channel is full or closed; the ws
                 // task will clean up stale connections on its own.

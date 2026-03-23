@@ -244,6 +244,7 @@ pub async fn login(
                     expires_at: Utc::now() + chrono::Duration::minutes(5),
                 },
             );
+            metrics::counter!("io_mfa_challenges_total").increment(1);
             return Ok((
                 StatusCode::OK,
                 Json(ApiResponse::ok(serde_json::json!({
@@ -377,6 +378,7 @@ pub async fn login(
         "method" => "local",
     )
     .increment(1);
+    metrics::counter!("io_tokens_issued_total", "type" => "access").increment(1);
 
     info!(user_id = %user_id, username = %db_username, "User logged in");
 
@@ -509,6 +511,8 @@ pub async fn refresh(
     .await?;
 
     tx.commit().await?;
+
+    metrics::counter!("io_tokens_issued_total", "type" => "access").increment(1);
 
     let body = ApiResponse::ok(serde_json::json!({
         "access_token": access_token,

@@ -550,6 +550,9 @@ pub async fn execute(
     def_id: Uuid,
     dry_run: bool,
 ) -> Result<()> {
+    // Count this import run being started.
+    metrics::counter!("io_import_runs_total").increment(1);
+
     // ── Mark run as `running` ─────────────────────────────────────────────────
     sqlx::query(
         "UPDATE import_runs SET status = 'running', started_at = COALESCE(started_at, NOW()) \
@@ -775,6 +778,16 @@ pub async fn execute(
         total_ms = stats.total_duration_ms,
         "import run complete"
     );
+
+    // Emit import metrics.
+    if stats.rows_loaded > 0 {
+        metrics::counter!("io_import_rows_processed_total")
+            .increment(stats.rows_loaded as u64);
+    }
+    if stats.rows_errored > 0 {
+        metrics::counter!("io_import_errors_total")
+            .increment(stats.rows_errored as u64);
+    }
 
     // NOTIFY import_status — completed / partial
     // Skip NOTIFY in dry-run mode: no real commit happened so there is nothing to announce.

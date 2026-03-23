@@ -29,6 +29,7 @@ hex = "0.4"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
 ort = { version = "2.0.0-rc.12", features = ["load-dynamic"] }
 digest = "0.10"
+metrics.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }

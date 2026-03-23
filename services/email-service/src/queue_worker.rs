@@ -12,6 +12,17 @@ pub async fn run_queue_worker(state: AppState) {
     let poll_interval = tokio::time::Duration::from_millis(state.config.queue_poll_interval_ms);
     loop {
         tokio::time::sleep(poll_interval).await;
+
+        // Update queue depth gauge each poll cycle.
+        if let Ok(depth) = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM email_queue WHERE status IN ('pending', 'retry')",
+        )
+        .fetch_one(&state.db)
+        .await
+        {
+            metrics::gauge!("io_email_queue_depth").set(depth as f64);
+        }
+
         if let Err(e) = process_batch(&state).await {
             tracing::error!(error = %e, "queue worker error");
         }
@@ -168,6 +179,7 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
                 .await?;
             }
 
+            metrics::counter!("io_email_sent_total").increment(1);
             tracing::info!(queue_id = %queue_id, "Email sent successfully");
         }
         Err(primary_err) => {
@@ -250,6 +262,7 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
                         .execute(&state.db)
                         .await?;
 
+                        metrics::counter!("io_email_sent_total").increment(1);
                         tracing::info!(queue_id = %queue_id, "Email sent via fallback provider");
                         return Ok(true);
                     }
@@ -265,6 +278,9 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
             }
 
             let error_str = primary_error_str;
+
+            // Count this as a delivery failure.
+            metrics::counter!("io_email_failures_total").increment(1);
 
             // ── Hard bounce detection ─────────────────────────────────────
             // A hard bounce (5xx SMTP, permanent Graph/SES error) adds every

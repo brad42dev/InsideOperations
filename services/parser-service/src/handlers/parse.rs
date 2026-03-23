@@ -177,6 +177,8 @@ pub async fn parse_svg(
         return Err(IoError::BadRequest("content is required".to_string()));
     }
 
+    let parse_start = std::time::Instant::now();
+
     let doc = roxmltree::Document::parse(&body.content)
         .map_err(|e| IoError::BadRequest(format!("Invalid SVG XML: {}", e)))?;
 
@@ -194,6 +196,10 @@ pub async fn parse_svg(
         .collect();
 
     let element_count = count_elements(&elements);
+
+    let elapsed = parse_start.elapsed().as_secs_f64();
+    metrics::counter!("io_imports_parsed_total", "format" => "svg").increment(1);
+    metrics::histogram!("io_parse_duration_seconds", "format" => "svg").record(elapsed);
 
     Ok(Json(ApiResponse::ok(SvgParseResult {
         element_count,
@@ -220,6 +226,8 @@ pub async fn parse_json(
     if body.content.trim().is_empty() {
         return Err(IoError::BadRequest("content is required".to_string()));
     }
+
+    let parse_start = std::time::Instant::now();
 
     let parsed: Value = serde_json::from_str(&body.content)
         .map_err(|e| IoError::BadRequest(format!("Invalid JSON: {}", e)))?;
@@ -257,6 +265,10 @@ pub async fn parse_json(
         _ => json!({}),
     };
 
+    let elapsed = parse_start.elapsed().as_secs_f64();
+    metrics::counter!("io_imports_parsed_total", "format" => "json").increment(1);
+    metrics::histogram!("io_parse_duration_seconds", "format" => "json").record(elapsed);
+
     Ok(Json(ApiResponse::ok(JsonParseResult {
         format,
         element_count,
@@ -292,8 +304,13 @@ pub async fn parse_dxf(
         }
     };
 
+    let parse_start = std::time::Instant::now();
     let (layers, entities) = parse_dxf_content(&content);
     let entity_count = entities.len();
+
+    let elapsed = parse_start.elapsed().as_secs_f64();
+    metrics::counter!("io_imports_parsed_total", "format" => "dxf").increment(1);
+    metrics::histogram!("io_parse_duration_seconds", "format" => "dxf").record(elapsed);
 
     let result = DxfParseResult {
         layers,

@@ -307,6 +307,8 @@ async fn persist_transition(
     .execute(db)
     .await?;
 
+    metrics::counter!("io_events_ingested_total").increment(1);
+
     // Insert alarm_states row linking to the event.
     let state_db = alarm_state_to_db_str(new_state);
     let prev_state_db = alarm_state_to_db_str(previous);
@@ -332,6 +334,28 @@ async fn persist_transition(
         .bind(&payload)
         .execute(db)
         .await?;
+
+    // Update io_alarms_active gauge: count alarms in unacknowledged or return-to-normal states.
+    // These are "active" alarms that require operator attention.
+    if let Ok(active_count) = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(DISTINCT ad.id)
+         FROM alarm_definitions ad
+         INNER JOIN LATERAL (
+             SELECT state FROM alarm_states ast
+             INNER JOIN events e ON e.id = ast.event_id
+             WHERE e.point_id = ad.point_id
+             ORDER BY ast.transitioned_at DESC
+             LIMIT 1
+         ) latest_state ON true
+         WHERE ad.enabled = true
+           AND ad.deleted_at IS NULL
+           AND latest_state.state IN ('unacknowledged', 'acknowledged', 'return_to_normal')",
+    )
+    .fetch_one(db)
+    .await
+    {
+        metrics::gauge!("io_alarms_active").set(active_count as f64);
+    }
 
     // Emit domain metrics for notable state transitions.
     match new_state {

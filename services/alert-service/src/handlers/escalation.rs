@@ -387,6 +387,7 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
                         let exists: bool = row.get("exists");
                         if exists {
                             info!(alert_id = %alert_id, next_tier, "Escalating alert to next tier");
+                            metrics::counter!("io_alert_escalated_total").increment(1);
                             dispatch_tier(state_for_task, alert_id, next_tier).await;
                         } else {
                             info!(alert_id = %alert_id, "No further tiers — escalation chain complete");

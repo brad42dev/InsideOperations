@@ -352,6 +352,8 @@ async fn run_inference(
 
     let domain = options.domain.unwrap_or_else(|| "auto".to_string());
 
+    let inference_start = std::time::Instant::now();
+
     // Stub: return placeholder result.
     // In production: load model for domain, preprocess image, run ONNX session, NMS.
     let result = RecognitionResult {
@@ -363,6 +365,11 @@ async fn run_inference(
         line_results: None,
         processing_ms: 0,
     };
+
+    let elapsed = inference_start.elapsed().as_secs_f64();
+    metrics::counter!("io_recognition_inferences_total").increment(1);
+    metrics::histogram!("io_recognition_duration_seconds").record(elapsed);
+
     tracing::info!(filename = ?image_filename, "Inference request (stub — ONNX deferred)");
     Json(ApiResponse::ok(result)).into_response()
 }
