@@ -792,14 +792,20 @@ fn transform_expression_ast_uuids_to_tags(
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/graphics/:id/export
+// POST /api/v1/design-objects/:id/export/iographic
 // Returns a .iographic ZIP file as a download (doc 39 format)
 // ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ExportIographicBody {
+    pub description: Option<String>,
+}
 
 pub async fn export_graphic(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    Json(body): Json<ExportIographicBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "designer:export") && !check_permission(&claims, "designer:read") {
         return IoError::Forbidden("designer:read permission required".into()).into_response();
@@ -1194,7 +1200,7 @@ pub async fn export_graphic(
         }),
         exported_at: Utc::now().to_rfc3339(),
         exported_by: Some(claims.sub.clone()),
-        description: None,
+        description: body.description.clone(),
         graphics: vec![IographicGraphicEntry {
             directory: dir.clone(),
             name: name.clone(),
@@ -1267,7 +1273,7 @@ pub async fn export_graphic(
     *response.status_mut() = StatusCode::OK;
     response.headers_mut().insert(
         header::CONTENT_TYPE,
-        HeaderValue::from_static("application/zip"),
+        HeaderValue::from_static("application/vnd.insideops.iographic+zip"),
     );
     if let Ok(val) = HeaderValue::from_str(&content_disposition) {
         response.headers_mut().insert(header::CONTENT_DISPOSITION, val);

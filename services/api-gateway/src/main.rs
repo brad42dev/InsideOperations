@@ -286,8 +286,8 @@ async fn main() -> anyhow::Result<()> {
                 .delete(handlers::graphics::delete_graphic),
         )
         .route(
-            "/api/graphics/:id/export",
-            get(handlers::iographic::export_graphic),
+            "/api/v1/design-objects/:id/export/iographic",
+            post(handlers::iographic::export_graphic),
         )
         .route(
             "/api/graphics/:id/tile-info",
