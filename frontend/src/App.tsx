@@ -1074,7 +1074,7 @@ function AppRoutes() {
           <Route
             path="email"
             element={
-              <PermissionGuard permission="settings:write">
+              <PermissionGuard permission="email:configure">
                 <EmailSettingsPage />
               </PermissionGuard>
             }

@@ -139,7 +139,10 @@
     "DD-33-001": 1,
     "DD-33-004": 1,
     "DD-37-003": 1,
-    "DD-37-004": 1
+    "DD-37-004": 1,
+    "DD-37-006": 1,
+    "DD-38-002": 1,
+    "DD-38-003": 1
   },
   "queue": [
     {
@@ -3619,7 +3622,7 @@
       "wave": 3,
       "title": "Implement API key (io_sk_ prefix) auth path in gateway JWT middleware",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3639,7 +3642,7 @@
       "wave": 3,
       "title": "Fix /designer/symbols route \u2014 render SymbolLibrary instead of redirecting",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3649,7 +3652,7 @@
       "wave": 3,
       "title": "Fix /settings/roles permission guard \u2014 use system:manage_roles not system:manage_users",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3659,7 +3662,7 @@
       "wave": 3,
       "title": "Fix /settings/email permission guard \u2014 use email:configure not settings:write",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

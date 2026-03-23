@@ -1,15 +1,19 @@
 ---
 task_id: DD-38-003
 unit: DD-38
-status: pending
-attempt: 0
-claimed_at: null
-last_heartbeat: null
+status: completed
+attempt: 1
+claimed_at: 2026-03-23T00:00:00Z
+last_heartbeat: 2026-03-23T00:00:00Z
 ---
 
 ## Prior Attempt Fingerprints
 
-(none yet)
+(none)
 
 ## Exit Checklist
-(not started)
+- [x] App.tsx roles route uses permission="system:manage_roles"
+- [x] system:manage_roles verified present in permissions.ts
+- [x] TypeScript build passes (npx tsc --noEmit)
+- [x] Committed: 37e9abc
+- [x] Ledger entry written
