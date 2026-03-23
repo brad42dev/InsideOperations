@@ -4752,7 +4752,7 @@
       "wave": 3,
       "title": "PIN setup option missing from user profile",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
