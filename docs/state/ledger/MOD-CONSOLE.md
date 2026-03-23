@@ -17,3 +17,5 @@ MOD-CONSOLE-012 | Add nested error boundaries around individual panes | verified
 MOD-CONSOLE-007 | Make PointDetailPanel resizable, pinnable, minimizable, and session-position-persisted | verified 2026-03-22 | commit 2f102cd | cd frontend && npx tsc --noEmit | PASS
 MOD-CONSOLE-008 | Fix playback bar speed options, add loop region, reverse transport, step interval dropdown, and keyboard shortcuts | verified 2026-03-22 | commit 6d6e6f6 | npx tsc --noEmit | PASS
 MOD-CONSOLE-009 | Fix ErrorBoundary button label to "[Reload Module]" and add nested per-pane boundaries | verified 2026-03-22 | commit 4d1a619 | cd /home/io/io-dev/io/frontend && npx tsc --noEmit | PASS
+MOD-CONSOLE-013 | Replace hardcoded hex colors in Console with design token CSS variables | verified 2026-03-23 | commit 4af80f3 | npx tsc --noEmit | PASS
+MOD-CONSOLE-010 | Replace text loading state with Console-shaped skeleton | verified 2026-03-23 | commit 3e74cb4 | cd frontend && npx tsc --noEmit | PASS

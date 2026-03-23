@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T02:26:25.161792+00:00",
+  "last_updated": "2026-03-23T02:35:44.310175+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -1193,7 +1193,7 @@
       "title": "Replace \"Loading workspaces\u2026\" text with module-shaped skeleton loading state",
       "priority": "low",
       "depends_on": [],
-      "status": "pending",
+      "status": "verified",
       "audit_round": 8
     },
     {
@@ -1202,7 +1202,7 @@
       "title": "Fix kiosk URL parameter from ?mode=kiosk to ?kiosk=true; add corner dwell exit trigger",
       "priority": "low",
       "depends_on": [],
-      "status": "pending",
+      "status": "implementing",
       "audit_round": 8
     },
     {
@@ -1221,7 +1221,7 @@
       "wave": 2,
       "title": "Replace hardcoded hex colors in Console with design token CSS variables",
       "priority": "low",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },
@@ -1301,7 +1301,7 @@
       "wave": 2,
       "title": "Replace loading spinner with module-shaped skeleton state",
       "priority": "low",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 1
     },

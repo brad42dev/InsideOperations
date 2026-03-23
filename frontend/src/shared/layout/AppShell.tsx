@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -389,6 +389,70 @@ function AlertBell() {
   )
 }
 
+// CornerTrigger — fixed 32×32px transparent hit area in each screen corner.
+// Dwelling for 1500ms reveals a semi-transparent "Exit Kiosk" button.
+// Only rendered when isKiosk is true.
+type CornerPosition = 'tl' | 'tr' | 'bl' | 'br'
+
+interface CornerTriggerProps {
+  corner: CornerPosition
+  onDwellComplete: () => void
+}
+
+function CornerTrigger({ corner, onDwellComplete }: CornerTriggerProps) {
+  const [showButton, setShowButton] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cornerStyle: CSSProperties = {
+    position: 'fixed',
+    width: 32,
+    height: 32,
+    zIndex: 9999,
+    ...(corner === 'tl' ? { top: 0, left: 0 } : {}),
+    ...(corner === 'tr' ? { top: 0, right: 0 } : {}),
+    ...(corner === 'bl' ? { bottom: 0, left: 0 } : {}),
+    ...(corner === 'br' ? { bottom: 0, right: 0 } : {}),
+  }
+
+  const buttonStyle: CSSProperties = {
+    position: 'absolute',
+    background: 'rgba(0,0,0,0.55)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 4,
+    padding: '4px 8px',
+    fontSize: 11,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    ...(corner === 'tl' ? { top: 36, left: 0 } : {}),
+    ...(corner === 'tr' ? { top: 36, right: 0 } : {}),
+    ...(corner === 'bl' ? { bottom: 36, left: 0 } : {}),
+    ...(corner === 'br' ? { bottom: 36, right: 0 } : {}),
+  }
+
+  function handleMouseEnter() {
+    timerRef.current = setTimeout(() => setShowButton(true), 1500)
+  }
+
+  function handleMouseLeave() {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    setShowButton(false)
+  }
+
+  return (
+    <div style={cornerStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      {showButton && (
+        <button style={buttonStyle} onClick={onDwellComplete}>
+          Exit Kiosk
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function AppShell() {
   const { user, logout } = useAuthStore()
   const { isKiosk, isLocked, lock, unlock, setLockMeta, setKiosk, theme, setTheme } = useUiStore()
@@ -462,7 +526,7 @@ export default function AppShell() {
     setTopbarHidden(true)
     sessionStorage.setItem('io_kiosk', '1')
     const params = new URLSearchParams(searchParams)
-    params.set('mode', 'kiosk')
+    params.set('kiosk', 'true')
     setSearchParams(params, { replace: true })
     showToast({ title: 'Kiosk mode active. Press Escape to exit.', variant: 'info', duration: 2000 })
   }
@@ -473,7 +537,7 @@ export default function AppShell() {
     setTopbarHidden(preKioskTopbarRef.current)
     sessionStorage.removeItem('io_kiosk')
     const params = new URLSearchParams(searchParams)
-    params.delete('mode')
+    params.delete('kiosk')
     setSearchParams(params, { replace: true })
   }
 
@@ -486,7 +550,7 @@ export default function AppShell() {
   // Activate kiosk on mount if URL param or sessionStorage says so
   useEffect(() => {
     const isKioskParam =
-      searchParams.get('mode') === 'kiosk' || sessionStorage.getItem('io_kiosk') === '1'
+      searchParams.get('kiosk') === 'true' || sessionStorage.getItem('io_kiosk') === '1'
     if (isKioskParam) {
       setKiosk(true)
       setSidebarState('hidden')
@@ -1763,6 +1827,15 @@ export default function AppShell() {
       <LockOverlay />
       <EmergencyAlert />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+
+      {/* Corner dwell triggers — only in kiosk mode */}
+      {isKiosk && (['tl', 'tr', 'bl', 'br'] as CornerPosition[]).map((corner) => (
+        <CornerTrigger
+          key={corner}
+          corner={corner}
+          onDwellComplete={exitKioskRef.current}
+        />
+      ))}
 
       <style>{`
         @media (max-width: 768px) {
