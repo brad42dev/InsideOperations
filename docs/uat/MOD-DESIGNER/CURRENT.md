@@ -2,42 +2,42 @@
 unit: MOD-DESIGNER
 date: 2026-03-23
 uat_mode: auto
-verdict: partial
-scenarios_tested: 4
-scenarios_passed: 3
-scenarios_failed: 0
+verdict: fail
+scenarios_tested: 3
+scenarios_passed: 1
+scenarios_failed: 2
 scenarios_skipped: 12
 ---
 
 ## Module Route Check
 
-pass: Designer loads with dashboard editor; graphic editor canvas not reached
+❌ fail: Navigating to /designer/graphics triggers error boundary — "Designer failed to load / Cannot read properties of undefined (reading 'slice')"
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Designer | Designer canvas renders | ✅ pass | Designer landing loads; dashboard editor opens |
-| 2 | Designer | Right-click empty canvas | skipped | Graphic editor mode not opened |
-| 3 | Designer | Empty vs node context menu | skipped | Graphic editor not opened |
-| 4 | Designer | Node Lock/Unlock in context menu | skipped | Graphic editor not opened |
-| 5 | Designer | Shape palette right-click | skipped | Palette in graphic editor not tested |
-| 6 | Designer | Layer panel right-click | skipped | Layer panel not opened |
-| 7 | Designer | ErrorBoundary label | skipped | No crash triggered in designer |
-| 8 | Designer | Resize handles on selection | skipped | Graphic editor not opened |
-| 9 | Designer | New Graphic dialog canvas inputs | skipped | New graphic not created |
-| 10 | Designer | File Properties dialog | skipped | Not tested |
-| 11 | Designer | Canvas boundary visual | skipped | Graphic editor not opened |
-| 12 | Designer | Palette mode parity | skipped | Only dashboard mode tested |
-| 13 | Designer | Group management | skipped | No shapes to group |
-| 14 | Designer | File tabs | skipped | Only one file opened |
-| 15 | Designer | Widget Export Data in dashboard | ✅ pass | Widget kebab menu shows Export Data in dashboard editor |
-| 16 | Designer | Promote to Shape wizard | skipped | No shapes to promote |
+| 1 | Designer Core | [MOD-DESIGNER-010] Designer module loads | ❌ fail | Graphics list crashes with "Cannot read properties of undefined (reading 'slice')" |
+| 2 | Designer Core | [MOD-DESIGNER-010] ErrorBoundary label | ❌ fail | Button reads "Reload Designer" not "Reload Module" |
+| 3 | Designer Core | [MOD-DESIGNER-016] New Graphic dialog canvas size | skipped | Graphics section crashes before dialog can be opened |
+| 4 | Context Menus | [MOD-DESIGNER-001] Canvas context menu is Radix UI | skipped | Canvas inaccessible due to crash |
+| 5 | Context Menus | [MOD-DESIGNER-004] Empty vs node context menus | skipped | Canvas inaccessible |
+| 6 | Context Menus | [MOD-DESIGNER-005] Node menu Lock/Unlock | skipped | Canvas inaccessible |
+| 7 | Context Menus | [MOD-DESIGNER-007] Shape palette right-click | skipped | Canvas inaccessible |
+| 8 | Context Menus | [MOD-DESIGNER-008] Layer panel right-click | skipped | Canvas inaccessible |
+| 9 | Canvas Ops | [MOD-DESIGNER-011] Resize handles on selection | skipped | Canvas inaccessible |
+| 10 | Canvas Ops | [MOD-DESIGNER-014] Display element resize | skipped | Canvas inaccessible |
+| 11 | Canvas Ops | [MOD-DESIGNER-017] File Properties dialog | skipped | Canvas inaccessible |
+| 12 | Canvas Ops | [MOD-DESIGNER-018] Canvas boundary visual | skipped | Canvas inaccessible |
+| 13 | Canvas Ops | [MOD-DESIGNER-019] Palette mode by mode | ✅ pass | Dashboard editor /designer/dashboards/new shows "Widgets" palette — dashboard mode confirmed working |
+| 14 | Canvas Ops | [MOD-DESIGNER-021] Group management | skipped | Canvas inaccessible |
+| 15 | Canvas Ops | [MOD-DESIGNER-023] File tabs visible | skipped | Canvas inaccessible |
 
 ## New Bug Tasks Created
 
-None
+MOD-DESIGNER-026 — Designer graphics list crashes with TypeError reading 'slice' on load
 
 ## Screenshot Notes
 
-Only dashboard editor mode tested. Graphic editor canvas (needed for context menus, resize handles, etc.) not reached. All MOD-DESIGNER tasks require graphic editor mode.
+Screenshot: docs/uat/MOD-DESIGNER/designer-graphics-error.png
+The Designer Graphics section (/designer/graphics) crashes with "Cannot read properties of undefined (reading 'slice')". Dashboard editor at /designer/dashboards/new works fine with widget palette. The Graphics section is the failing part. Error boundary button reads "Reload Designer" not "Reload Module".

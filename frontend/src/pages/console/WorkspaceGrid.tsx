@@ -213,12 +213,15 @@ export default function WorkspaceGrid({
     return () => ro.disconnect()
   }, [])
 
+  const safePanes: PaneConfig[] = workspace.panes ?? []
+
   const gridItems: GridItem[] = workspace.gridItems?.length
     ? workspace.gridItems
-    : presetToGridItems(workspace.layout, workspace.panes)
+    : presetToGridItems(workspace.layout, safePanes)
 
   const paneById = useMemo(
-    () => new Map<string, PaneConfig>(workspace.panes.map((p) => [p.id, p])),
+    () => new Map<string, PaneConfig>(safePanes.map((p) => [p.id, p])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspace.panes],
   )
 

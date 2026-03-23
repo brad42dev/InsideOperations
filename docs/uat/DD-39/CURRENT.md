@@ -4,23 +4,22 @@ date: 2026-03-23
 uat_mode: auto
 verdict: partial
 scenarios_tested: 2
-scenarios_passed: 2
-scenarios_failed: 0
-scenarios_skipped: 2
+scenarios_passed: 0
+scenarios_failed: 2
+scenarios_skipped: 1
 ---
 
 ## Module Route Check
 
-pass: Designer loads; iographic export format tasks are backend-only
+✅ pass: Designer landing accessible
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | iographic | Designer page renders | ✅ pass | Designer landing page loads |
-| 2 | iographic | Export graphic from designer | ✅ pass | Dashboard editor accessible; file export flow exists |
-| 3 | iographic | Tag binding in export | skipped | Backend format change, not visible in browser |
-| 4 | iographic | Shape sidecar data | skipped | Backend format, not visible in browser |
+| 1 | iographic | [DD-39-003] Import .iographic wizard in Designer | ❌ fail | Cannot access — Designer graphics section crashes; no .iographic import option found on landing page |
+| 2 | iographic | [DD-39-004] Commit import with options | skipped | Cannot access wizard |
+| 3 | iographic | [DD-39-008] Export .iographic option | ❌ fail | Designer graphics section crashes; File > Export cannot be tested |
 
 ## New Bug Tasks Created
 
@@ -28,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-DD-39 tasks are backend iographic format fixes. Designer loads correctly.
+The .iographic format (DD-39) requires the Designer graphics editor to function. Since /designer/graphics crashes, all iographic-related features are inaccessible.

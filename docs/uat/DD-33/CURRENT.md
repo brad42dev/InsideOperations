@@ -3,23 +3,23 @@ unit: DD-33
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 3
-scenarios_passed: 3
-scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_tested: 2
+scenarios_passed: 1
+scenarios_failed: 1
+scenarios_skipped: 1
 ---
 
 ## Module Route Check
 
-pass: App loads and runs (indicates build passes)
+✅ pass: App builds and loads
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Testing/CI | App builds and runs | ✅ pass | Frontend dev server running and app loads |
-| 2 | Testing/CI | No test utility runtime errors | ✅ pass | No missing test utility errors visible in app |
-| 3 | Testing/CI | Accessibility baseline | ✅ pass | Navigation links have labels; buttons have accessible names |
+| 1 | CI | [DD-33-001] App builds cleanly | ❌ fail | Console module crashes with TypeError at runtime — suggests a build/data issue |
+| 2 | Testing | [DD-33-005] Core pages load | ✅ pass | Process, Dashboards, Reports, Forensics, Log, Alerts, Shifts, Settings all load without error |
+| 3 | Accessibility | [DD-33-007] Login page ARIA | skipped | Login page has proper textbox roles and labels |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-DD-33 tasks are all CI pipeline additions. Not verifiable in browser. App stability confirms build passes.
+Testing infrastructure unit — mostly CI/backend, not browser-testable. Core pages load successfully except Console and Designer Graphics which crash with TypeErrors.

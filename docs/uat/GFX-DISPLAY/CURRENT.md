@@ -2,27 +2,27 @@
 unit: GFX-DISPLAY
 date: 2026-03-23
 uat_mode: auto
-verdict: partial
-scenarios_tested: 2
-scenarios_passed: 2
-scenarios_failed: 0
-scenarios_skipped: 4
+verdict: fail
+scenarios_tested: 1
+scenarios_passed: 0
+scenarios_failed: 1
+scenarios_skipped: 5
 ---
 
 ## Module Route Check
 
-pass: Designer loads; display element canvas tests not reached
+❌ fail: /designer/graphics crashes — display elements cannot be accessed
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Display Elements | Designer renders | ✅ pass | Designer loads without error boundary |
-| 2 | Display Elements | Dashboard editor opens | ✅ pass | Dashboard editor with KPI widgets opens |
-| 3 | Display Elements | Fill gauge renders | skipped | Graphic editor not opened |
-| 4 | Display Elements | Quality state handling | skipped | Graphic editor not opened |
-| 5 | Display Elements | Signal line indicator | skipped | Graphic editor not opened |
-| 6 | Display Elements | Theme color update | skipped | Theme not toggled in this session |
+| 1 | Display Elements | [GFX-DISPLAY-001] Display elements palette | ❌ fail | Designer crashes — cannot access palette |
+| 2 | Display Elements | [GFX-DISPLAY-002] Fill gauge renders | skipped | Canvas inaccessible |
+| 3 | Display Elements | [GFX-DISPLAY-003] Quality state visible | skipped | Canvas inaccessible |
+| 4 | Display Elements | [GFX-DISPLAY-004] Alarm indicator animation | skipped | Canvas inaccessible |
+| 5 | Display Elements | [GFX-DISPLAY-005] Signal line visible | skipped | Canvas inaccessible |
+| 6 | Display Elements | [GFX-DISPLAY-006] CSS variables used | skipped | Canvas inaccessible |
 
 ## New Bug Tasks Created
 
@@ -30,4 +30,4 @@ None
 
 ## Screenshot Notes
 
-GFX-DISPLAY tasks require process graphics in canvas. Dashboard editor opened but display elements (fill_gauge, sparkline etc) not tested.
+GFX-DISPLAY display elements are only accessible via the Designer canvas which crashes.

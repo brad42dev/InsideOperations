@@ -4,22 +4,22 @@ date: 2026-03-23
 uat_mode: auto
 verdict: partial
 scenarios_tested: 2
-scenarios_passed: 2
-scenarios_failed: 0
+scenarios_passed: 1
+scenarios_failed: 1
 scenarios_skipped: 1
 ---
 
 ## Module Route Check
 
-pass: Email settings page loads with Providers/Templates/Queue tabs
+✅ pass: App loads without email service error banners
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Email | Email settings page renders | ✅ pass | Email settings page loads with Providers/Templates/Queue tabs |
-| 2 | Email | Email queue visible | ✅ pass | Queue tab accessible |
-| 3 | Email | Test email send button | skipped | No providers configured to test against |
+| 1 | Email Service | [DD-28-001] No email service error banners | ✅ pass | No email-related error banners in app shell |
+| 2 | Email Settings | [DD-28-005] Email settings accessible | ❌ fail | /settings/email link visible in sidebar but not tested in depth; email provider config UI not verified |
+| 3 | Email Settings | [DD-28-008] Test email provider button | skipped | Email settings page not opened in this session |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-DD-28-001 to 28-004, 28-006, 28-007 are backend-only. Settings page renders correctly. No providers to test send.
+Email service is a backend unit. /settings/email accessible via sidebar.

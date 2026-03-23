@@ -3,28 +3,29 @@ unit: DD-10
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 7
-scenarios_passed: 5
-scenarios_failed: 0
-scenarios_skipped: 1
+scenarios_tested: 4
+scenarios_passed: 3
+scenarios_failed: 1
+scenarios_skipped: 5
 ---
 
 ## Module Route Check
 
-pass: Dashboards page loads with category filters and export button
+✅ pass: Navigating to /dashboards loads dashboard list with multiple dashboard cards
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Dashboards | Dashboards page renders | ✅ pass | Dashboard list visible with categories and search |
-| 2 | Dashboards | Widget export dialog | ✅ pass | Kebab menu on widget shows Edit / Export Data / Remove |
-| 3 | Dashboards | Export toolbar button | ✅ pass | Export ▾ button present in dashboard list toolbar |
-| 4 | Dashboards | Publish permission gate | ✅ pass | Published checkbox visible for admin user |
-| 5 | Dashboards | Point context menu on widgets | skipped | No live point data to right-click |
-| 6 | Dashboards | Aggregation type in widget config | ✅ pass | Widget config panel opens; Title/Metric/Unit/Width/Height visible |
-| 7 | Dashboards | Playback bar in time-context | skipped | No time-context data to test with |
-| 8 | Dashboards | No fatal errors | ✅ pass | No error boundary triggered |
+| 1 | Dashboard List | [DD-10-001] Dashboard list renders | ✅ pass | Page loads with 9 dashboard cards, category filters, search input |
+| 2 | Dashboard List | [DD-10-003] Export button in toolbar | ✅ pass | "Export ▾" button visible in dashboard list toolbar |
+| 3 | Dashboard List | [DD-10-004] Publish checkbox visible | ✅ pass | Dashboard cards show "Published" badge; publish checkbox visible in card details |
+| 4 | Dashboard Viewer | [DD-10-002] Widget kebab menu export | ❌ fail | Could not open a dashboard to test widget kebab menu — API returns 404 for existing dashboards |
+| 5 | Dashboard Viewer | [DD-10-005] Point context menu on values | skipped | Cannot access dashboard viewer |
+| 6 | Dashboard Viewer | [DD-10-006] Widget config aggregation type | skipped | Cannot access dashboard viewer |
+| 7 | Dashboard Viewer | [DD-10-007] UOM conversion in values | skipped | Cannot access dashboard viewer |
+| 8 | Dashboard Viewer | [DD-10-008] Playback bar in time-context | skipped | Cannot access dashboard viewer |
+| 9 | Theme | [DD-10-009] No hardcoded hex colors | skipped | Cannot verify from list page alone |
 
 ## New Bug Tasks Created
 
@@ -32,4 +33,4 @@ None
 
 ## Screenshot Notes
 
-Dashboard editor opens correctly with widget palette and config panel. react-zoom-pan-pinch.js fails to load (404) — related to DD-20-006.
+Dashboard list page works. Cards show: title, description, category tags, Published badge, kebab (⋯) menu button. Playlist section visible at bottom. Dashboard viewer not testable due to 404 API responses.

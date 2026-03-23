@@ -1,12 +1,13 @@
 # UAT Scenarios — DD-13
 
-## Log Module
+## Log Editor
+Scenario 1: [DD-13-001] Log page renders — navigate to /log → page loads without error
+Scenario 2: [DD-13-001] Tiptap editor has underline button — open log entry editor → underline (U) button in toolbar
+Scenario 3: [DD-13-002] Underline button toggles underline — click underline button → text becomes underlined (not struck through)
+Scenario 4: [DD-13-005] Attachment upload UI — log editor has attachment button (photo, video, audio)
 
-Scenario 1: [DD-13-001] Log page renders — navigate to /log → page loads, no error boundary
-Scenario 2: [DD-13-001] Tiptap editor has underline button — open/create log entry → underline (U) button visible in toolbar
-Scenario 3: [DD-13-002] Underline button works — click underline button in editor → text gets underline formatting (not strikethrough)
-Scenario 4: [DD-13-004] Log entry status values — check log entry status dropdown → shows "draft", "submitted", "reviewed" (not "pending"/"completed")
-Scenario 5: [DD-13-005] Attachment upload UI — open log entry editor → attach file/photo button visible
-Scenario 6: [DD-13-006] Export button in log table toolbar — check log list toolbar → export/download button present
-Scenario 7: [DD-13-007] Filter controls on log search — check log list page → date, author, shift, template filter controls visible
-Scenario 8: [DD-13-008] Log schedule management — navigate to log schedules section → schedule management UI visible (not static stub)
+## Log List
+Scenario 5: [DD-13-008] Schedule management UI — look for log schedule section in log module (not static stub)
+Scenario 6: [DD-13-011] Export button in log list toolbar — log list page toolbar has export button
+Scenario 7: [DD-13-012] Author filter in log search — log search UI has author filter field
+Scenario 8: [DD-13-009] Design tokens used — page uses CSS variable colors, no visible hardcoded hex in contrast issues

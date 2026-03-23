@@ -1213,12 +1213,12 @@ export default function ConsolePage() {
                 onClose={() => setExportDialogOpen(false)}
                 module="console"
                 entity="workspace"
-                filteredRowCount={activeWorkspace.panes.reduce((n, p) => {
+                filteredRowCount={(activeWorkspace.panes ?? []).reduce((n, p) => {
                   if (p.trendPointIds?.length) return n + p.trendPointIds.length
                   if (p.tablePointIds?.length) return n + p.tablePointIds.length
                   return n
                 }, 0)}
-                totalRowCount={activeWorkspace.panes.reduce((n, p) => {
+                totalRowCount={(activeWorkspace.panes ?? []).reduce((n, p) => {
                   if (p.trendPointIds?.length) return n + p.trendPointIds.length
                   if (p.tablePointIds?.length) return n + p.tablePointIds.length
                   return n

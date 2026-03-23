@@ -3,33 +3,33 @@ unit: DD-31
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 5
-scenarios_passed: 3
-scenarios_failed: 1
+scenarios_tested: 6
+scenarios_passed: 4
+scenarios_failed: 2
 scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-pass: Alerts page loads; History tab crashes
+✅ pass: /alerts loads Alerts module
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alerts UI | Alerts page renders | ✅ pass | Alerts page loads with Send Alert form |
-| 2 | Alerts UI | Resolve/Cancel actions on active alert | skipped | No active alerts in test environment |
-| 3 | Alerts UI | Channels from config | skipped | Only websocket shown; could be config or hardcoded |
-| 4 | Alerts UI | Export Unaccounted List | skipped | No muster active to test |
-| 5 | Alerts UI | Export button on Alert History | ❌ fail | History tab crashes: 'messages.map is not a function' |
-| 6 | Alerts UI | Right-click template row | ✅ pass | Context menu with Edit/Duplicate/Send/Test appears |
-| 7 | Alerts UI | Right-click group row | skipped | Groups tab not tested |
-| 8 | Alerts UI | Emergency severity visible | ✅ pass | emergency/critical/warning/info severity buttons in send form |
+| 1 | Alerts Module | [DD-31-001] Alerts page renders | ✅ pass | Page loads with Send Alert form, Active/History/Management tabs |
+| 2 | Alerts Module | [DD-31-001] Active alert cards Resolve/Cancel | skipped | No active alerts exist — "No active emergency or critical alerts in the last 24 hours" |
+| 3 | Alerts Module | [DD-31-004] Emergency quick-send section | ✅ pass | Send Alert form shows emergency templates (Evacuation Order, Fire Alarm, Gas Leak, Shelter in Place) |
+| 4 | Alerts Module | [DD-31-007] Muster dashboard export button | skipped | Muster dashboard not accessible from /alerts — would need Shifts module |
+| 5 | Alerts Module | [DD-31-008] Alert history export button | ❌ fail | History tab shows severity filter and "No messages found." — no export button visible |
+| 6 | Alerts Module | [DD-31-009] Right-click context menu on template rows | ✅ pass | Right-click on template row shows menu: Edit, Duplicate, Send Alert from Template, Test Send, Delete |
+| 7 | Alerts Module | [DD-31-013] Alert history tab doesn't crash | ✅ pass | History tab loads without TypeError crash |
+| 8 | Alerts Module | [DD-31-010] Loading skeleton | ❌ fail | History tab shows plain empty state text — no skeleton loading state visible |
 
 ## New Bug Tasks Created
 
-DD-31-013 — Alerts History tab crashes with messages.map TypeError
+None
 
 ## Screenshot Notes
 
-Screenshot: dd31-history-crash.png. Alert History tab throws 'messages.map is not a function'.
+Alerts module works well. Right-click context menus on template rows confirmed working. History tab doesn't crash. Missing: export button on history table, loading skeleton.

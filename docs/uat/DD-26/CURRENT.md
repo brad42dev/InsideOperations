@@ -4,22 +4,22 @@ date: 2026-03-23
 uat_mode: auto
 verdict: partial
 scenarios_tested: 3
-scenarios_passed: 3
-scenarios_failed: 0
+scenarios_passed: 2
+scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Designer loads with Recognize Image and DCS import buttons
+✅ pass: Recognition settings accessible at /settings/recognition
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Recognition | Recognition import wizard | ✅ pass | 'Recognize Image' button visible on designer landing page |
-| 2 | Recognition | Recognition settings page | ✅ pass | Recognition link present in settings sidebar; /settings/recognition accessible |
-| 3 | Recognition | Recognition routes accessible | ✅ pass | Settings/recognition route loads without 404 |
+| 1 | Recognition | [DD-26-007] Recognition import wizard in Designer | ❌ fail | Designer landing shows "⬆ Import DCS Graphics" button but Designer graphics section crashes preventing full wizard access |
+| 2 | Recognition | [DD-26-003] Recognition settings accessible | ✅ pass | /settings/recognition link in settings sidebar |
+| 3 | Recognition | [DD-26-001] No recognition 500 errors | ✅ pass | App loads normally; recognition status API 404 shows in console but not a 500 error |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-DD-26-001 to 26-006 are backend service fixes. DD-26-007 frontend wizard button is accessible. Full wizard not tested in this session.
+Recognition service returns 404 for /api/recognition/status (service not responding). Settings Recognition link present. Designer has "Import DCS Graphics" button on landing page.

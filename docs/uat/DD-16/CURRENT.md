@@ -5,22 +5,21 @@ uat_mode: auto
 verdict: partial
 scenarios_tested: 2
 scenarios_passed: 1
-scenarios_failed: 0
-scenarios_skipped: 2
+scenarios_failed: 1
+scenarios_skipped: 1
 ---
 
 ## Module Route Check
 
-fail: Console module fails to load; WS offline indicator visible in sidebar
+✅ pass: App shell loads and shows WS status indicator
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | WebSocket | Console page with live data | skipped | Console module fails (dynamic import error) |
-| 2 | WebSocket | SharedWorker reconnects | skipped | Console module fails |
-| 3 | WebSocket | Source offline indication | ✅ pass | 'Critical: service offline or WS disconnected' button visible in sidebar |
-| 4 | WebSocket | Live data updates | skipped | Console module fails |
+| 1 | WebSocket | [DD-16-001] App loads with live data indicator | ✅ pass | Service health status button visible in sidebar footer; shows service state |
+| 2 | WebSocket | [DD-16-003] Live data updates | ❌ fail | Console module crashes before any live data can be displayed |
+| 3 | WebSocket | [DD-16-006] Stale indicator on disconnect | skipped | Cannot test without working module |
 
 ## New Bug Tasks Created
 
@@ -28,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-Backend WebSocket tasks are not browser-verifiable. Offline indicator is correctly visible in sidebar. Console module must be fixed first.
+App shell shows service health popover in sidebar footer. All 11 services show "unknown" status initially (backend connection issue). The WebSocket layer itself cannot be fully tested as the Console module crashes.
