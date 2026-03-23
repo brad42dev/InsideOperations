@@ -19,4 +19,5 @@ pub mod reports;
 pub mod rounds;
 pub mod search;
 pub mod shifts;
+pub mod system;
 pub mod user_preferences;

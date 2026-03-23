@@ -714,6 +714,11 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::user_preferences::get_preferences)
                 .patch(handlers::user_preferences::patch_preferences),
         )
+        // System info (About page data, licenses, SBOM — any authenticated user)
+        .route("/api/system/about", get(handlers::system::get_about))
+        .route("/api/system/licenses/backend", get(handlers::system::get_licenses_backend))
+        .route("/api/system/licenses/frontend", get(handlers::system::get_licenses_frontend))
+        .route("/api/system/sbom", get(handlers::system::download_sbom))
         // System health aggregation
         .route("/api/health/services", get(service_health_handler))
         // Middleware — tower layers are applied outermost-last, so the last

@@ -1,211 +1,740 @@
-const BUILD_INFO = {
-  version: '0.4.0-dev',
-  phase: 'Phase 4 — Frontend Shell & Settings Core',
-  buildDate: '2026-03-15',
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { systemApi, type LicenseEntry } from '../../api/system'
+import DataTable from '../../shared/components/DataTable'
+import type { ColumnDef } from '../../shared/components/DataTable'
+
+// ---------------------------------------------------------------------------
+// Tab type
+// ---------------------------------------------------------------------------
+
+type LicenseTab = 'backend' | 'frontend'
+type ViewMode = 'package' | 'license'
+
+// ---------------------------------------------------------------------------
+// License text expander (inline expandable row outside the DataTable)
+// ---------------------------------------------------------------------------
+
+function LicenseTextRow({ text }: { text: string }) {
+  if (!text) {
+    return (
+      <div style={{ padding: '8px 16px', color: 'var(--io-text-muted)', fontSize: '12px' }}>
+        No license text available.
+      </div>
+    )
+  }
+  return (
+    <pre
+      style={{
+        margin: 0,
+        padding: '12px 16px',
+        fontSize: '11px',
+        fontFamily: 'var(--io-font-mono)',
+        color: 'var(--io-text-secondary)',
+        background: 'var(--io-surface-sunken, var(--io-surface-primary))',
+        borderTop: '1px solid var(--io-border)',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        maxHeight: '300px',
+        overflowY: 'auto',
+      }}
+    >
+      {text}
+    </pre>
+  )
 }
 
-interface StackEntry {
-  category: string
-  items: string[]
+// ---------------------------------------------------------------------------
+// By-Package view — uses DataTable with expandable rows
+// ---------------------------------------------------------------------------
+
+function PackageTable({ data, loading }: { data: LicenseEntry[]; loading: boolean }) {
+  const [expandedRow, setExpandedRow] = useState<string | null>(null)
+
+  const columns: ColumnDef<LicenseEntry>[] = [
+    {
+      id: 'name',
+      header: 'Package',
+      accessorKey: 'name',
+      sortable: true,
+      filterType: 'text',
+      width: 220,
+      minWidth: 120,
+    },
+    {
+      id: 'version',
+      header: 'Version',
+      accessorKey: 'version',
+      sortable: true,
+      width: 110,
+      minWidth: 80,
+    },
+    {
+      id: 'license',
+      header: 'License',
+      accessorKey: 'license',
+      sortable: true,
+      filterType: 'text',
+      width: 160,
+      minWidth: 100,
+      cell: (value) => (
+        <span
+          style={{
+            padding: '1px 6px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 600,
+            background: 'var(--io-surface-sunken)',
+            color: 'var(--io-text-muted)',
+            border: '1px solid var(--io-border)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {String(value ?? '')}
+        </span>
+      ),
+    },
+    {
+      id: 'copyright',
+      header: 'Copyright',
+      accessorKey: 'copyright',
+      sortable: false,
+      width: 280,
+      minWidth: 120,
+    },
+    {
+      id: 'expand',
+      header: '',
+      width: 48,
+      minWidth: 48,
+      cell: (_value, row) => {
+        const key = `${row.name}@${row.version}`
+        const isOpen = expandedRow === key
+        return (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setExpandedRow(isOpen ? null : key)
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--io-text-muted)',
+              fontSize: '12px',
+              padding: '0 4px',
+            }}
+            title={isOpen ? 'Collapse license text' : 'Expand license text'}
+          >
+            {isOpen ? '▲' : '▼'}
+          </button>
+        )
+      },
+    },
+  ]
+
+  return (
+    <div>
+      <DataTable<LicenseEntry>
+        data={data}
+        columns={columns}
+        height={420}
+        loading={loading}
+        emptyMessage="No license data available"
+        showExport={false}
+        onRowClick={(row) => {
+          const key = `${row.name}@${row.version}`
+          setExpandedRow(expandedRow === key ? null : key)
+        }}
+      />
+      {expandedRow && (() => {
+        const entry = data.find((d) => `${d.name}@${d.version}` === expandedRow)
+        if (!entry) return null
+        return (
+          <div
+            style={{
+              border: '1px solid var(--io-border)',
+              borderTop: 'none',
+              borderRadius: '0 0 6px 6px',
+            }}
+          >
+            <div
+              style={{
+                padding: '6px 16px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: 'var(--io-text-muted)',
+                background: 'var(--io-surface-secondary)',
+                borderTop: '1px solid var(--io-border)',
+              }}
+            >
+              {entry.name} {entry.version} — {entry.license}
+            </div>
+            <LicenseTextRow text={entry.text} />
+          </div>
+        )
+      })()}
+    </div>
+  )
 }
 
-const TECH_STACK: StackEntry[] = [
-  { category: 'Frontend', items: ['React 18', 'TypeScript 5', 'Vite 5', 'Zustand 4', 'TanStack Query 5', 'TanStack Table 8'] },
-  { category: 'UI', items: ['Radix UI Primitives', 'Tailwind CSS', 'CSS Custom Properties'] },
-  { category: 'Charting', items: ['uPlot (time-series)', 'Apache ECharts (non-time-series)'] },
-  { category: 'Editor', items: ['SVG.js (graphics designer)', 'Tiptap (operational log)', 'CodeMirror 6 (expression builder)'] },
-  { category: 'Backend', items: ['Rust (stable)', 'Axum', 'Tokio', 'SQLx', 'tokio-tungstenite'] },
-  { category: 'Auth', items: ['jsonwebtoken', 'Argon2', 'instant-acme (ACME/TLS)'] },
-  { category: 'PDF / Export', items: ['Typst (typst-as-lib)', 'YARA-X (file scanning)'] },
-  { category: 'Database', items: ['PostgreSQL 16', 'TimescaleDB 2.13'] },
-  { category: 'Infrastructure', items: ['nginx (TLS termination)', 'systemd (process management)', 'Docker Compose (dev DB)'] },
-]
+// ---------------------------------------------------------------------------
+// By-License view — grouped list
+// ---------------------------------------------------------------------------
 
-interface OssEntry {
-  name: string
-  version: string
-  license: string
-  url: string
-  use: string
+function ByLicenseView({ data }: { data: LicenseEntry[] }) {
+  const [expandedLicense, setExpandedLicense] = useState<string | null>(null)
+  const [expandedText, setExpandedText] = useState<string | null>(null)
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, LicenseEntry[]>()
+    for (const entry of data) {
+      const key = entry.license || 'Unknown'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(entry)
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [data])
+
+  if (data.length === 0) {
+    return (
+      <div
+        style={{
+          padding: '40px',
+          textAlign: 'center',
+          color: 'var(--io-text-muted)',
+          fontSize: '13px',
+        }}
+      >
+        No license data available
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {grouped.map(([licenseName, entries]) => {
+        const isOpen = expandedLicense === licenseName
+        return (
+          <div
+            key={licenseName}
+            style={{
+              border: '1px solid var(--io-border)',
+              borderRadius: '6px',
+              overflow: 'hidden',
+            }}
+          >
+            {/* License group header */}
+            <div
+              onClick={() => setExpandedLicense(isOpen ? null : licenseName)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                cursor: 'pointer',
+                background: 'var(--io-surface-secondary)',
+                userSelect: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span
+                  style={{
+                    padding: '1px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    background: 'var(--io-surface-sunken)',
+                    color: 'var(--io-text-muted)',
+                    border: '1px solid var(--io-border)',
+                  }}
+                >
+                  {licenseName}
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+                  {entries.length} {entries.length === 1 ? 'package' : 'packages'}
+                </span>
+              </div>
+              <span style={{ fontSize: '10px', color: 'var(--io-text-muted)' }}>
+                {isOpen ? '▲' : '▼'}
+              </span>
+            </div>
+
+            {/* Package list */}
+            {isOpen && (
+              <div>
+                {entries.map((entry) => {
+                  const key = `${licenseName}::${entry.name}@${entry.version}`
+                  const textOpen = expandedText === key
+                  return (
+                    <div
+                      key={key}
+                      style={{ borderTop: '1px solid var(--io-border-subtle, var(--io-border))' }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '7px 14px',
+                          background: 'var(--io-surface-primary)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'baseline' }}>
+                          <span
+                            style={{
+                              fontSize: '13px',
+                              fontWeight: 500,
+                              color: 'var(--io-text-primary)',
+                            }}
+                          >
+                            {entry.name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontFamily: 'var(--io-font-mono)',
+                              color: 'var(--io-text-muted)',
+                            }}
+                          >
+                            {entry.version}
+                          </span>
+                          {entry.copyright && (
+                            <span
+                              style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}
+                            >
+                              {entry.copyright}
+                            </span>
+                          )}
+                        </div>
+                        {entry.text && (
+                          <button
+                            onClick={() => setExpandedText(textOpen ? null : key)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: 'var(--io-text-muted)',
+                              fontSize: '11px',
+                              padding: '0 4px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {textOpen ? 'Hide text' : 'View text'}
+                          </button>
+                        )}
+                      </div>
+                      {textOpen && <LicenseTextRow text={entry.text} />}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
-// Representative sample — not exhaustive; full SBOM available on request
-const OSS_DEPS: OssEntry[] = [
-  { name: 'React', version: '18.x', license: 'MIT', url: 'https://github.com/facebook/react', use: 'UI framework' },
-  { name: 'Vite', version: '5.x', license: 'MIT', url: 'https://github.com/vitejs/vite', use: 'Build tool' },
-  { name: 'Zustand', version: '4.x', license: 'MIT', url: 'https://github.com/pmndrs/zustand', use: 'Client state management' },
-  { name: 'TanStack Query', version: '5.x', license: 'MIT', url: 'https://github.com/TanStack/query', use: 'Server state management' },
-  { name: 'TanStack Table', version: '8.x', license: 'MIT', url: 'https://github.com/TanStack/table', use: 'Virtual table component' },
-  { name: 'Radix UI', version: '1.x', license: 'MIT', url: 'https://github.com/radix-ui/primitives', use: 'Accessible UI primitives' },
-  { name: 'Tailwind CSS', version: '3.x', license: 'MIT', url: 'https://github.com/tailwindlabs/tailwindcss', use: 'Utility CSS framework' },
-  { name: 'uPlot', version: '1.x', license: 'MIT', url: 'https://github.com/leeoniya/uPlot', use: 'Time-series charts' },
-  { name: 'Apache ECharts', version: '5.x', license: 'Apache 2.0', url: 'https://github.com/apache/echarts', use: 'Non-time-series charts' },
-  { name: 'SVG.js', version: '3.x', license: 'MIT', url: 'https://github.com/svgdotjs/svg.js', use: 'Graphics designer' },
-  { name: 'Tiptap', version: '2.x', license: 'MIT', url: 'https://github.com/ueberdosis/tiptap', use: 'Rich-text log editor' },
-  { name: 'date-fns', version: '3.x', license: 'MIT', url: 'https://github.com/date-fns/date-fns', use: 'Date formatting' },
-  { name: 'Axum', version: '0.7.x', license: 'MIT', url: 'https://github.com/tokio-rs/axum', use: 'Rust HTTP framework' },
-  { name: 'Tokio', version: '1.x', license: 'MIT', url: 'https://github.com/tokio-rs/tokio', use: 'Async runtime' },
-  { name: 'SQLx', version: '0.7.x', license: 'MIT / Apache 2.0', url: 'https://github.com/launchbadge/sqlx', use: 'Async PostgreSQL driver' },
-  { name: 'jsonwebtoken', version: '9.x', license: 'MIT', url: 'https://github.com/Keats/jsonwebtoken', use: 'JWT auth tokens' },
-  { name: 'argon2', version: '0.5.x', license: 'MIT / Apache 2.0', url: 'https://github.com/RustCrypto/password-hashes', use: 'Password hashing' },
-  { name: 'serde', version: '1.x', license: 'MIT / Apache 2.0', url: 'https://github.com/serde-rs/serde', use: 'Serialization' },
-  { name: 'tracing', version: '0.1.x', license: 'MIT', url: 'https://github.com/tokio-rs/tracing', use: 'Structured logging' },
-  { name: 'typst-as-lib', version: '0.x', license: 'MIT', url: 'https://github.com/tfachmann/typst-as-lib', use: 'PDF generation' },
-  { name: 'instant-acme', version: '0.x', license: 'Apache 2.0', url: 'https://github.com/instant-labs/instant-acme', use: 'Automatic TLS (ACME)' },
-  { name: 'yara-x', version: '0.x', license: 'BSD-3-Clause', url: 'https://github.com/VirusTotal/yara-x', use: 'File content scanning' },
-  { name: 'prometheus', version: '0.x', license: 'Apache 2.0', url: 'https://github.com/tikv/rust-prometheus', use: 'Metrics export' },
-]
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export default function AboutPage() {
+  const [activeTab, setActiveTab] = useState<LicenseTab>('backend')
+  const [viewMode, setViewMode] = useState<ViewMode>('package')
+  const [searchFilter, setSearchFilter] = useState('')
+
+  // Fetch about info
+  const aboutQuery = useQuery({
+    queryKey: ['system', 'about'],
+    queryFn: async () => {
+      const result = await systemApi.about()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    retry: 1,
+    staleTime: 60_000,
+  })
+
+  // Fetch backend licenses
+  const backendQuery = useQuery({
+    queryKey: ['system', 'licenses', 'backend'],
+    queryFn: async () => {
+      const result = await systemApi.licensesBackend()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    staleTime: 300_000,
+  })
+
+  // Fetch frontend licenses
+  const frontendQuery = useQuery({
+    queryKey: ['system', 'licenses', 'frontend'],
+    queryFn: async () => {
+      const result = await systemApi.licensesFrontend()
+      if (!result.success) throw new Error(result.error.message)
+      return result.data
+    },
+    staleTime: 300_000,
+  })
+
+  // SBOM download
+  const [sbomDownloading, setSbomDownloading] = useState(false)
+
+  async function handleSbomDownload() {
+    setSbomDownloading(true)
+    try {
+      const res = await systemApi.downloadSbom()
+      if (!res.ok) {
+        throw new Error(`SBOM download failed: ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'io-sbom.json'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('SBOM download error:', err)
+    } finally {
+      setSbomDownloading(false)
+    }
+  }
+
+  // Active license data filtered by search
+  const rawLicenses =
+    activeTab === 'backend' ? (backendQuery.data ?? []) : (frontendQuery.data ?? [])
+  const isLicensesLoading =
+    activeTab === 'backend' ? backendQuery.isLoading : frontendQuery.isLoading
+
+  const filteredLicenses = useMemo(() => {
+    if (!searchFilter.trim()) return rawLicenses
+    const q = searchFilter.toLowerCase()
+    return rawLicenses.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.license.toLowerCase().includes(q) ||
+        e.copyright.toLowerCase().includes(q),
+    )
+  }, [rawLicenses, searchFilter])
+
+  const about = aboutQuery.data
+
   return (
-    <div style={{ maxWidth: '760px' }}>
-      {/* Logo and title */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '32px',
-        padding: '24px', background: 'var(--io-surface-secondary)',
-        borderRadius: '12px', border: '1px solid var(--io-border)',
-      }}>
-        <div style={{
-          width: '56px', height: '56px', borderRadius: '12px',
-          background: 'var(--io-accent-subtle)', border: '1px solid var(--io-accent)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <span style={{ color: 'var(--io-accent)', fontSize: '18px', fontWeight: 700, letterSpacing: '-0.5px' }}>
+    <div style={{ maxWidth: '820px' }}>
+      {/* Logo / title row */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          marginBottom: '24px',
+          padding: '24px',
+          background: 'var(--io-surface-secondary)',
+          borderRadius: '12px',
+          border: '1px solid var(--io-border)',
+        }}
+      >
+        <div
+          style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '12px',
+            background: 'var(--io-accent-subtle)',
+            border: '1px solid var(--io-accent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              color: 'var(--io-accent)',
+              fontSize: '18px',
+              fontWeight: 700,
+              letterSpacing: '-0.5px',
+            }}
+          >
             I/O
           </span>
         </div>
-        <div>
-          <h1 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
+        <div style={{ flex: 1 }}>
+          <h1
+            style={{
+              margin: '0 0 4px',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: 'var(--io-text-primary)',
+            }}
+          >
             Inside/Operations
           </h1>
           <div style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
             Industrial Process Monitoring Platform
           </div>
         </div>
+        {/* SBOM download */}
+        <button
+          onClick={handleSbomDownload}
+          disabled={sbomDownloading}
+          style={{
+            padding: '8px 14px',
+            fontSize: '13px',
+            fontWeight: 500,
+            border: '1px solid var(--io-border)',
+            borderRadius: '6px',
+            background: 'var(--io-surface-primary)',
+            color: 'var(--io-text-primary)',
+            cursor: sbomDownloading ? 'not-allowed' : 'pointer',
+            opacity: sbomDownloading ? 0.6 : 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {sbomDownloading ? 'Downloading…' : 'Download SBOM'}
+        </button>
       </div>
 
-      {/* Build info */}
-      <div style={{
-        marginBottom: '28px', display: 'grid', gridTemplateColumns: '1fr 1fr',
-        gap: '1px', background: 'var(--io-border)', borderRadius: '8px',
-        overflow: 'hidden', border: '1px solid var(--io-border)',
-      }}>
-        {[
-          { label: 'Version', value: BUILD_INFO.version },
-          { label: 'Build Date', value: BUILD_INFO.buildDate },
-          { label: 'Phase', value: BUILD_INFO.phase },
-          { label: 'License', value: 'Proprietary — Inside Operations LLC' },
-        ].map((row) => (
-          <div key={row.label} style={{ padding: '12px 16px', background: 'var(--io-surface-secondary)' }}>
-            <div style={{
-              fontSize: '11px', fontWeight: 600, color: 'var(--io-text-muted)',
-              textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px',
-            }}>
-              {row.label}
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--io-text-primary)', fontWeight: 500 }}>
-              {row.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Tech stack */}
-      <h3 style={{
-        margin: '0 0 12px', fontSize: '14px', fontWeight: 600,
-        color: 'var(--io-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em',
-      }}>
-        Technology Stack
-      </h3>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '32px' }}>
-        {TECH_STACK.map((entry) => (
-          <div key={entry.category} style={{
-            display: 'flex', gap: '12px', padding: '12px 16px',
-            background: 'var(--io-surface-secondary)', borderRadius: '8px',
-            border: '1px solid var(--io-border)', alignItems: 'flex-start',
-          }}>
-            <div style={{
-              fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)',
-              width: '90px', flexShrink: 0, paddingTop: '1px',
-            }}>
-              {entry.category}
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--io-text-secondary)', lineHeight: 1.6 }}>
-              {entry.items.join(', ')}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* OSS Licenses */}
-      <h3 style={{
-        margin: '0 0 8px', fontSize: '14px', fontWeight: 600,
-        color: 'var(--io-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em',
-      }}>
-        Open Source Components
-      </h3>
-      <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.6 }}>
-        Inside/Operations uses open-source components. All are licensed under MIT, Apache 2.0,
-        BSD, or ISC permitting royalty-free commercial use. No GPL or AGPL components are included.
-        A full software bill of materials (SBOM) is available on request.
-      </p>
-
-      <div style={{
-        border: '1px solid var(--io-border)', borderRadius: '8px', overflow: 'hidden',
-        marginBottom: '24px',
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-          <thead>
-            <tr style={{ background: 'var(--io-surface-secondary)', borderBottom: '1px solid var(--io-border)' }}>
-              {['Component', 'Version', 'License', 'Use'].map((h) => (
-                <th key={h} style={{
-                  padding: '8px 12px', textAlign: 'left', fontWeight: 600,
-                  color: 'var(--io-text-muted)', fontSize: '11px',
-                  textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
-                }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {OSS_DEPS.map((dep, i) => (
-              <tr key={dep.name} style={{
-                borderBottom: i < OSS_DEPS.length - 1 ? '1px solid var(--io-border-subtle, var(--io-border))' : 'none',
-                background: i % 2 === 0 ? 'var(--io-surface-secondary)' : 'var(--io-surface-primary)',
-              }}>
-                <td style={{ padding: '7px 12px', color: 'var(--io-text-primary)', fontWeight: 500 }}>
-                  {dep.name}
-                </td>
-                <td style={{ padding: '7px 12px', color: 'var(--io-text-muted)', fontFamily: 'var(--io-font-mono)', fontSize: '11px' }}>
-                  {dep.version}
-                </td>
-                <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
-                  <span style={{
-                    padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
-                    background: 'var(--io-surface-sunken)', color: 'var(--io-text-muted)',
-                    border: '1px solid var(--io-border)',
-                  }}>
-                    {dep.license}
-                  </span>
-                </td>
-                <td style={{ padding: '7px 12px', color: 'var(--io-text-secondary)' }}>
-                  {dep.use}
-                </td>
-              </tr>
+      {/* Application info grid */}
+      <div
+        style={{
+          marginBottom: '28px',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '1px',
+          background: 'var(--io-border)',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          border: '1px solid var(--io-border)',
+        }}
+      >
+        {aboutQuery.isLoading
+          ? [
+              { label: 'Version', value: '—' },
+              { label: 'Build', value: '—' },
+              { label: 'Server', value: '—' },
+              { label: 'EULA Version', value: '—' },
+            ].map((row) => (
+              <div
+                key={row.label}
+                style={{ padding: '12px 16px', background: 'var(--io-surface-secondary)' }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--io-text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: '4px',
+                  }}
+                >
+                  {row.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    color: 'var(--io-text-muted)',
+                    fontWeight: 500,
+                    animation: 'io-skeleton-pulse 1.5s ease-in-out infinite',
+                  }}
+                >
+                  Loading…
+                </div>
+              </div>
+            ))
+          : [
+              { label: 'Version', value: about?.version ?? 'N/A' },
+              { label: 'Build', value: about?.build ?? 'N/A' },
+              { label: 'Server', value: about?.serverHostname ?? 'N/A' },
+              { label: 'EULA Version', value: about?.eulaVersion ?? 'N/A' },
+            ].map((row) => (
+              <div
+                key={row.label}
+                style={{ padding: '12px 16px', background: 'var(--io-surface-secondary)' }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--io-text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    marginBottom: '4px',
+                  }}
+                >
+                  {row.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    color: 'var(--io-text-primary)',
+                    fontWeight: 500,
+                    fontFamily: row.label === 'Build' ? 'var(--io-font-mono)' : undefined,
+                  }}
+                >
+                  {row.value}
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
       </div>
 
-      <p style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.6 }}>
-        The full Inside/Operations Software License Agreement governing your organization's rights
-        is provided at installation time and is accessible to administrators under{' '}
-        <span style={{ color: 'var(--io-text-secondary)' }}>Settings → EULA</span>.
-        Contact <a href="mailto:legal@in-ops.com" style={{ color: 'var(--io-accent)' }}>legal@in-ops.com</a>{' '}
+      {/* Licenses section */}
+      <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '14px',
+            fontWeight: 600,
+            color: 'var(--io-text-secondary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            flex: 1,
+          }}
+        >
+          Open Source Licenses
+        </h3>
+
+        {/* View toggle */}
+        <div
+          style={{
+            display: 'flex',
+            border: '1px solid var(--io-border)',
+            borderRadius: '6px',
+            overflow: 'hidden',
+          }}
+        >
+          {(['package', 'license'] as ViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              style={{
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: 500,
+                border: 'none',
+                cursor: 'pointer',
+                background:
+                  viewMode === mode
+                    ? 'var(--io-accent-subtle)'
+                    : 'var(--io-surface-secondary)',
+                color:
+                  viewMode === mode
+                    ? 'var(--io-accent)'
+                    : 'var(--io-text-secondary)',
+                transition: 'background 0.1s',
+              }}
+            >
+              {mode === 'package' ? 'By Package' : 'By License'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab bar: Backend / Frontend */}
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--io-border)',
+          marginBottom: '12px',
+          gap: '0',
+        }}
+      >
+        {(['backend', 'frontend'] as LicenseTab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '8px 18px',
+              fontSize: '13px',
+              fontWeight: 500,
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color:
+                activeTab === tab
+                  ? 'var(--io-accent)'
+                  : 'var(--io-text-secondary)',
+              borderBottom: activeTab === tab
+                ? '2px solid var(--io-accent)'
+                : '2px solid transparent',
+              transition: 'color 0.1s',
+            }}
+          >
+            {tab === 'backend' ? 'Backend' : 'Frontend'}
+            <span
+              style={{
+                marginLeft: '6px',
+                fontSize: '11px',
+                color: 'var(--io-text-muted)',
+                fontWeight: 400,
+              }}
+            >
+              {tab === 'backend'
+                ? (backendQuery.data?.length ?? 0)
+                : (frontendQuery.data?.length ?? 0)}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search filter */}
+      <div style={{ marginBottom: '12px' }}>
+        <input
+          type="text"
+          placeholder="Search packages, licenses…"
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '7px 12px',
+            fontSize: '13px',
+            border: '1px solid var(--io-border)',
+            borderRadius: '6px',
+            background: 'var(--io-surface-primary)',
+            color: 'var(--io-text-primary)',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+
+      {/* License table / grouped view */}
+      {viewMode === 'package' ? (
+        <PackageTable data={filteredLicenses} loading={isLicensesLoading} />
+      ) : (
+        <ByLicenseView data={filteredLicenses} />
+      )}
+
+      {/* Footer note */}
+      <p
+        style={{
+          marginTop: '20px',
+          marginBottom: '8px',
+          fontSize: '12px',
+          color: 'var(--io-text-muted)',
+          lineHeight: 1.6,
+        }}
+      >
+        The full Inside/Operations Software License Agreement governing your
+        organization&rsquo;s rights is provided at installation time and is accessible to
+        administrators under{' '}
+        <span style={{ color: 'var(--io-text-secondary)' }}>Settings &rarr; EULA</span>.
+        Contact{' '}
+        <a href="mailto:legal@in-ops.com" style={{ color: 'var(--io-accent)' }}>
+          legal@in-ops.com
+        </a>{' '}
         for a copy.
       </p>
+
+      <style>{`
+        @keyframes io-skeleton-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </div>
   )
 }
