@@ -211,7 +211,7 @@ function NewSegmentForm({
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
-                      color: '#f87171',
+                      color: 'var(--io-danger)',
                       fontSize: '16px',
                       lineHeight: 1,
                     }}
@@ -316,7 +316,7 @@ function NewSegmentForm({
             cursor: !name.trim() || loading ? 'not-allowed' : 'pointer',
             fontSize: '13px',
             fontWeight: 600,
-            color: '#fff',
+            color: 'var(--io-accent-foreground)',
             opacity: !name.trim() || loading ? 0.6 : 1,
           }}
         >
@@ -521,7 +521,7 @@ export default function TemplateEditor() {
           disabled={!name.trim() || saveMutation.isPending}
           style={{
             background: 'var(--io-accent)',
-            color: '#fff',
+            color: 'var(--io-accent-foreground)',
             border: 'none',
             borderRadius: '6px',
             padding: '8px 20px',
@@ -802,7 +802,7 @@ export default function TemplateEditor() {
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
-                          color: '#f87171',
+                          color: 'var(--io-danger)',
                           fontSize: '18px',
                           lineHeight: 1,
                           padding: '0 4px',

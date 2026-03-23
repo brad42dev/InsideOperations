@@ -20,14 +20,14 @@ import { useWebSocket } from '../../shared/hooks/useWebSocket'
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
-    draft: { bg: 'rgba(251,191,36,0.15)', text: '#fbbf24', label: 'Draft' },
+    draft: { bg: 'var(--io-warning-subtle)', text: 'var(--io-warning)', label: 'Draft' },
     in_progress: {
       bg: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
       text: 'var(--io-accent, #4A9EFF)',
       label: 'In Progress',
     },
-    submitted: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e', label: 'Submitted' },
-    reviewed: { bg: 'rgba(74,158,255,0.12)', text: 'var(--io-accent)', label: 'Reviewed' },
+    submitted: { bg: 'var(--io-success-subtle)', text: 'var(--io-success)', label: 'Submitted' },
+    reviewed: { bg: 'var(--io-accent-subtle)', text: 'var(--io-accent)', label: 'Reviewed' },
   }
   const c = map[status] ?? { bg: 'var(--io-surface-secondary)', text: 'var(--io-text-muted)', label: status }
   return (
@@ -612,14 +612,14 @@ function SubmitDialog({
             onClick={onConfirm}
             disabled={loading}
             style={{
-              background: '#22c55e',
+              background: 'var(--io-success)',
               border: 'none',
               borderRadius: '6px',
               padding: '8px 20px',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '14px',
               fontWeight: 600,
-              color: '#fff',
+              color: 'var(--io-status-fg)',
               opacity: loading ? 0.7 : 1,
             }}
           >
@@ -720,7 +720,7 @@ function AttachmentPanel({
               cursor: uploadMutation.isPending ? 'not-allowed' : 'pointer',
               fontSize: '12px',
               fontWeight: 600,
-              color: '#fff',
+              color: 'var(--io-accent-foreground)',
               opacity: uploadMutation.isPending ? 0.7 : 1,
               textTransform: 'none',
               letterSpacing: 0,
@@ -745,10 +745,10 @@ function AttachmentPanel({
         <div
           style={{
             padding: '8px 16px',
-            background: 'rgba(239,68,68,0.08)',
+            background: 'var(--io-danger-subtle)',
             borderBottom: '1px solid var(--io-border)',
             fontSize: '13px',
-            color: '#ef4444',
+            color: 'var(--io-danger)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -763,7 +763,7 @@ function AttachmentPanel({
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: '#ef4444',
+              color: 'var(--io-danger)',
               fontSize: '16px',
               lineHeight: 1,
               padding: '0 2px',
@@ -781,10 +781,10 @@ function AttachmentPanel({
         <div
           style={{
             padding: '8px 16px',
-            background: 'rgba(239,68,68,0.08)',
+            background: 'var(--io-danger-subtle)',
             borderBottom: '1px solid var(--io-border)',
             fontSize: '13px',
-            color: '#ef4444',
+            color: 'var(--io-danger)',
           }}
         >
           Upload failed. Please try again.
@@ -1084,7 +1084,7 @@ export default function LogEditor() {
             {instanceData.team_name && <span>Team: {instanceData.team_name}</span>}
             <span>{new Date(instanceData.created_at).toLocaleString()}</span>
             {lastSaved && (
-              <span style={{ color: '#22c55e' }}>
+              <span style={{ color: 'var(--io-success)' }}>
                 Saved {lastSaved.toLocaleTimeString()}
               </span>
             )}
@@ -1098,7 +1098,7 @@ export default function LogEditor() {
               disabled={startMutation.isPending}
               style={{
                 background: 'var(--io-accent)',
-                color: '#fff',
+                color: 'var(--io-accent-foreground)',
                 border: 'none',
                 borderRadius: '6px',
                 padding: '8px 16px',
@@ -1115,8 +1115,8 @@ export default function LogEditor() {
             <button
               onClick={() => setShowSubmitDialog(true)}
               style={{
-                background: '#22c55e',
-                color: '#fff',
+                background: 'var(--io-success)',
+                color: 'var(--io-status-fg)',
                 border: 'none',
                 borderRadius: '6px',
                 padding: '8px 16px',

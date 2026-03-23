@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T14:52:50.706685+00:00",
+  "last_updated": "2026-03-23T15:08:37.787835Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -154,7 +154,8 @@
     "DD-06-014": 1,
     "DD-13-011": 1,
     "MOD-PROCESS-009": 1,
-    "DD-11-007": 1
+    "DD-11-007": 1,
+    "DD-12-012": 1
   },
   "queue": [
     {
@@ -1903,7 +1904,7 @@
       "wave": 3,
       "title": "Fix empty state CTA permission gate, hardcoded colors in heatmap, and loading skeleton",
       "priority": "low",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null
@@ -2004,7 +2005,7 @@
       "wave": 3,
       "title": "Replace hardcoded hex colors with design tokens (CX-TOKENS)",
       "priority": "low",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null

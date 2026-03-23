@@ -12,15 +12,15 @@ import { ExportButton } from '../../shared/components/ExportDialog'
 function StatusBadge({ status }: { status: LogInstance['status'] }) {
   const colors: Record<LogInstance['status'], { bg: string; text: string }> = {
     draft: {
-      bg: 'rgba(251,191,36,0.15)',
-      text: '#fbbf24',
+      bg: 'var(--io-warning-subtle)',
+      text: 'var(--io-warning)',
     },
     in_progress: {
       bg: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
       text: 'var(--io-accent, #4A9EFF)',
     },
-    submitted: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e' },
-    reviewed: { bg: 'rgba(74,158,255,0.12)', text: 'var(--io-accent)' },
+    submitted: { bg: 'var(--io-success-subtle)', text: 'var(--io-success)' },
+    reviewed: { bg: 'var(--io-accent-subtle)', text: 'var(--io-accent)' },
   }
   const labels: Record<LogInstance['status'], string> = {
     draft: 'Draft',
@@ -117,7 +117,7 @@ function TemplatesList({
           onClick={onNewTemplate}
           style={{
             background: 'var(--io-accent)',
-            color: '#fff',
+            color: 'var(--io-accent-foreground)',
             border: 'none',
             borderRadius: '6px',
             padding: '8px 16px',
@@ -204,7 +204,7 @@ function TemplatesList({
                     padding: '4px 12px',
                     cursor: 'pointer',
                     fontSize: '13px',
-                    color: '#f87171',
+                    color: 'var(--io-danger)',
                   }}
                 >
                   Delete
