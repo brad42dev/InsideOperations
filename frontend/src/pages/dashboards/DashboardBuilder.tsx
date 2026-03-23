@@ -21,6 +21,7 @@ import {
 } from '../../api/dashboards'
 import { api } from '../../api/client'
 import WidgetContainer from './widgets/WidgetContainer'
+import { PointPickerModal } from '../../shared/components/PointPickerModal'
 
 // ---------------------------------------------------------------------------
 // Widget library definitions
@@ -167,8 +168,8 @@ function WidgetConfigPanel({
   onClose: () => void
 }) {
   const [localConfig, setLocalConfig] = useState<Record<string, unknown>>(widget.config)
-  const [pointSearch, setPointSearch] = useState('')
-  // committedPointId is only updated on blur to avoid fetching on every keystroke
+  const [pointPickerOpen, setPointPickerOpen] = useState(false)
+  // committedPointId is updated when a point is selected via the picker
   const [committedPointId, setCommittedPointId] = useState<string>(() => {
     const c = widget.config
     if (widget.type === 'gauge') return String(c.pointId ?? '')
@@ -277,23 +278,60 @@ function WidgetConfigPanel({
 
         {/* Point ID (for KPI, Gauge) */}
         {(widget.type === 'kpi-card' || widget.type === 'gauge') && (
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '11px', color: 'var(--io-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               {widget.type === 'gauge' ? 'Point ID' : 'Metric'}
             </span>
-            <input
-              type="text"
-              placeholder="Search points..."
-              value={pointSearch || String(cfg.metric ?? cfg.pointId ?? '')}
-              onChange={(e) => {
-                setPointSearch(e.target.value)
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <span
+                style={{
+                  flex: 1,
+                  padding: '6px 8px',
+                  background: 'var(--io-surface-elevated)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  color: committedPointId ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                  fontSize: '13px',
+                  fontFamily: committedPointId ? 'monospace' : 'inherit',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                }}
+              >
+                {committedPointId || 'No point selected'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPointPickerOpen(true)}
+                style={{
+                  flexShrink: 0,
+                  padding: '6px 10px',
+                  background: 'var(--io-accent)',
+                  border: 'none',
+                  borderRadius: 'var(--io-radius)',
+                  color: '#09090b',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Browse...
+              </button>
+            </div>
+            <PointPickerModal
+              open={pointPickerOpen}
+              onClose={() => setPointPickerOpen(false)}
+              currentPointId={committedPointId || undefined}
+              title={widget.type === 'gauge' ? 'Select Point' : 'Select Metric'}
+              onSelect={(pointId) => {
                 const key = widget.type === 'gauge' ? 'pointId' : 'metric'
-                setField(key, e.target.value)
+                setField(key, pointId)
+                setCommittedPointId(pointId)
               }}
-              onBlur={(e) => setCommittedPointId(e.target.value)}
-              style={{ padding: '6px 8px', background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', color: 'var(--io-text-primary)', fontSize: '13px', outline: 'none' }}
             />
-          </label>
+          </div>
         )}
 
         {/* Unit */}
