@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T21:34:07.242491Z",
+  "last_updated": "2026-03-23T21:51:22.541069Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -163,7 +163,8 @@
     "DD-10-012": 1,
     "DD-29-012": 1,
     "DD-10-013": 1,
-    "DD-27-010": 1
+    "DD-27-010": 1,
+    "DD-32-012": 1
   },
   "queue": [
     {
@@ -817,7 +818,7 @@
       "completed_at": "2026-03-21",
       "notes": "9 tasks. DataTable missing 7 must-have features; no ThemeProvider context; PointDetailPanel lacks Alarm Data/Graphics sections.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     },
     {
       "unit": "DD-33",
@@ -4764,7 +4765,7 @@
       "wave": 3,
       "title": "Notification channels API endpoint 404 \u2014 alert compose only shows WebSocket channel",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4776,7 +4777,7 @@
       "wave": 3,
       "title": "No toast notification shown on dashboard save \u2014 silent success/failure",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4788,7 +4789,7 @@
       "wave": 3,
       "title": "PointPicker is plain text input \u2014 missing Browse/Search/Favorites tab interface",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4800,7 +4801,7 @@
       "wave": 3,
       "title": "No DCS import job history list \u2014 import wizard shows no history of past imports",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4812,7 +4813,7 @@
       "wave": 3,
       "title": "No .iographic file export option in Designer \u2014 Save persists to DB only",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

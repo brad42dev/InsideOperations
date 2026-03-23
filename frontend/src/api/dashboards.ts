@@ -120,4 +120,19 @@ export const dashboardsApi = {
 
   deletePlaylist: (id: string): Promise<ApiResult<void>> =>
     api.delete<void>(`/api/dashboards/playlists/${id}`),
+
+  /** Export a dashboard as a .iographic ZIP (returns Blob) */
+  exportIographic: async (id: string, description?: string): Promise<Blob> => {
+    const token = localStorage.getItem('io_access_token')
+    const headers: HeadersInit = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const resp = await fetch(`/api/dashboards/${id}/export/iographic`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ description: description ?? '' }),
+      credentials: 'include',
+    })
+    if (!resp.ok) throw new Error(`Export failed: ${resp.statusText}`)
+    return resp.blob()
+  },
 }

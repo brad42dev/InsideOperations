@@ -76,6 +76,8 @@ function ToastItem({ toast }: { toast: ToastItem }) {
 
   useEffect(() => {
     const duration = toast.duration ?? 5000
+    // duration === 0 means "persist until manually dismissed" — no auto-dismiss timer
+    if (duration === 0) return
     const timer = setTimeout(() => dismiss(toast.id), duration)
     return () => clearTimeout(timer)
   }, [toast.id, toast.duration, dismiss])

@@ -1,7 +1,8 @@
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
+    http::{header, HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
@@ -10,8 +11,13 @@ use io_error::IoError;
 use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 use sqlx::Row;
+use std::collections::BTreeMap;
+use std::io::Write;
 use uuid::Uuid;
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
 
 use crate::state::AppState;
 
@@ -954,4 +960,187 @@ pub async fn delete_playlist(
     }
 
     (StatusCode::NO_CONTENT, ()).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/dashboards/:id/export/iographic
+// Returns a .iographic ZIP file containing the dashboard definition (doc 39).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ExportDashboardIographicBody {
+    pub description: Option<String>,
+}
+
+pub async fn export_dashboard_iographic(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ExportDashboardIographicBody>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "dashboards:read") {
+        return IoError::Forbidden("dashboards:read permission required".into()).into_response();
+    }
+
+    // 1. Load the dashboard
+    let row = match sqlx::query(
+        r#"
+        SELECT id, name, description, category, layout, widgets, variables,
+               published, is_system, user_id, thumbnail, created_at, updated_at
+        FROM dashboards
+        WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => return IoError::NotFound(format!("Dashboard {} not found", id)).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "export_dashboard_iographic: failed to load dashboard");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let dashboard = match row_to_dashboard(&row) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::error!(error = %e, "export_dashboard_iographic: row mapping failed");
+            return IoError::Internal("Failed to map dashboard".into()).into_response();
+        }
+    };
+
+    // 2. Build the dashboard.json content (portable representation)
+    let dir = dashboard
+        .name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string();
+    let dir = if dir.is_empty() { "dashboard".to_string() } else { dir };
+
+    let dashboard_json = serde_json::json!({
+        "id": dashboard.id,
+        "name": dashboard.name,
+        "description": dashboard.description,
+        "category": dashboard.category,
+        "type": "dashboard",
+        "widgets": dashboard.widgets,
+        "variables": dashboard.variables,
+        "layout": dashboard.layout,
+        "published": dashboard.published,
+        "exported_at": Utc::now().to_rfc3339(),
+    });
+
+    let dashboard_json_str = match serde_json::to_string_pretty(&dashboard_json) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!(error = %e, "export_dashboard_iographic: dashboard.json serialization failed");
+            return IoError::Internal("Failed to serialize dashboard".into()).into_response();
+        }
+    };
+
+    // 3. Compute SHA-256 checksum over the dashboard.json content
+    let mut hasher = Sha256::new();
+    hasher.update(dashboard_json_str.as_bytes());
+    let hash_bytes = hasher.finalize();
+    let checksum = format!(
+        "sha256:{}",
+        hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+    );
+
+    // 4. Build manifest
+    let manifest = serde_json::json!({
+        "format": "iographic",
+        "format_version": "1.0",
+        "generator": {
+            "application": "Inside/Operations",
+            "version": env!("CARGO_PKG_VERSION"),
+        },
+        "exported_at": Utc::now().to_rfc3339(),
+        "exported_by": claims.sub,
+        "description": body.description,
+        "graphics": [{
+            "directory": dir,
+            "name": dashboard.name,
+            "type": "dashboard",
+        }],
+        "shapes": [],
+        "stencils": [],
+        "shape_dependencies": [],
+        "point_tags": [],
+        "checksum": checksum,
+    });
+
+    let manifest_str = match serde_json::to_string_pretty(&manifest) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!(error = %e, "export_dashboard_iographic: manifest serialization failed");
+            return IoError::Internal("Failed to serialize manifest".into()).into_response();
+        }
+    };
+
+    // 5. Build ZIP with manifest.json + dashboards/{dir}/dashboard.json
+    let mut file_map: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+    file_map.insert(
+        format!("dashboards/{}/dashboard.json", dir),
+        dashboard_json_str.into_bytes(),
+    );
+
+    let mut zip_bytes: Vec<u8> = Vec::new();
+    let cursor = std::io::Cursor::new(&mut zip_bytes);
+    let mut zip = ZipWriter::new(cursor);
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    macro_rules! zip_write {
+        ($path:expr, $bytes:expr) => {
+            if let Err(e) = zip.start_file($path, options) {
+                tracing::error!(error = %e, path = $path, "export_dashboard_iographic: zip start_file failed");
+                return IoError::Internal("Failed to build ZIP".into()).into_response();
+            }
+            if let Err(e) = zip.write_all($bytes) {
+                tracing::error!(error = %e, path = $path, "export_dashboard_iographic: zip write_all failed");
+                return IoError::Internal("Failed to write ZIP entry".into()).into_response();
+            }
+        };
+    }
+
+    zip_write!("manifest.json", manifest_str.as_bytes());
+
+    for (path, content) in &file_map {
+        zip_write!(path.as_str(), content.as_slice());
+    }
+
+    let cursor = match zip.finish() {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!(error = %e, "export_dashboard_iographic: zip finalize failed");
+            return IoError::Internal("Failed to finalize ZIP".into()).into_response();
+        }
+    };
+    let _ = cursor;
+
+    // 6. Build response
+    let safe_name: String = dashboard
+        .name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    let filename = format!("{}.iographic", safe_name);
+    let content_disposition = format!("attachment; filename=\"{}\"", filename);
+
+    let mut response = Response::new(Body::from(zip_bytes));
+    *response.status_mut() = StatusCode::OK;
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/vnd.insideops.iographic+zip"),
+    );
+    if let Ok(val) = HeaderValue::from_str(&content_disposition) {
+        response.headers_mut().insert(header::CONTENT_DISPOSITION, val);
+    }
+    response
 }

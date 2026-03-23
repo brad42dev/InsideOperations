@@ -413,6 +413,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/dashboards/:id/duplicate",
             post(handlers::dashboards::duplicate_dashboard),
         )
+        .route(
+            "/api/dashboards/:id/export/iographic",
+            post(handlers::dashboards::export_dashboard_iographic),
+        )
         // MFA (proxied to auth-service)
         .route("/api/auth/mfa/enroll", post(proxy_auth))
         .route("/api/auth/mfa/verify", post(proxy_auth))

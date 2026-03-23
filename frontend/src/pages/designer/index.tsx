@@ -737,6 +737,11 @@ export default function DesignerPage() {
         })
         if (!result.success) {
           console.error('[DesignerPage] Update failed:', result.error.message)
+          showToast({
+            title: 'Save failed',
+            description: result.error.message || 'Could not save the document. Please try again.',
+            variant: 'error',
+          })
           return
         }
       } else {
@@ -747,6 +752,11 @@ export default function DesignerPage() {
         })
         if (!resp.success) {
           console.error('[DesignerPage] Create failed:', resp.error.message)
+          showToast({
+            title: 'Save failed',
+            description: resp.error.message || 'Could not create the document. Please try again.',
+            variant: 'error',
+          })
           return
         }
         // Update graphicId in store via loadGraphic (sets graphicId in scene state)
@@ -754,6 +764,17 @@ export default function DesignerPage() {
       }
       markClean()
       historyMarkClean()
+
+      // Success toast — only for explicit saves (Ctrl+S / toolbar Save), not auto-save
+      if (explicit) {
+        const mode = useSceneStore.getState().designMode
+        const modeLabel = mode === 'dashboard' ? 'Dashboard' : mode === 'report' ? 'Report' : 'Graphic'
+        showToast({
+          title: `${modeLabel} saved`,
+          variant: 'success',
+          duration: 3000,
+        })
+      }
       // Re-acquire lock after save to confirm we still hold it (release + re-acquire cycle)
       const gid = useSceneStore.getState().graphicId
       if (gid && lockHeldRef.current) {
@@ -792,6 +813,11 @@ export default function DesignerPage() {
       }
     } catch (err) {
       console.error('[DesignerPage] Save failed:', err)
+      showToast({
+        title: 'Save failed',
+        description: err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.',
+        variant: 'error',
+      })
     } finally {
       setIsSaving(false)
     }
