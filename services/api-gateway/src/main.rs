@@ -715,17 +715,20 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/health/services", get(service_health_handler))
         // Middleware — tower layers are applied outermost-last, so the last
         // layer listed here is the FIRST to see each request.
-        // Order: inject_secrets → rate_limit → jwt_auth → handler
+        // Order: inject_secrets → rate_limit → jwt_auth → metrics → handler
+        // metrics_middleware is placed here (inside the router, before with_state)
+        // so that Axum's routing pass has already populated MatchedPath in
+        // request extensions, allowing route-template labels without cardinality
+        // explosion. Do NOT move it outside the router or MatchedPath will be absent.
         .layer(middleware::from_fn_with_state(state.clone(), mw::jwt_auth))
         .layer(middleware::from_fn(mw::rate_limit))
         .layer(middleware::from_fn_with_state(state.clone(), inject_secrets))
+        .layer(middleware::from_fn(mw::metrics_middleware))
         .with_state(state);
 
     let app = api
         .merge(health.into_router())
         .merge(obs.metrics_router())
-        // metrics_middleware is outermost so it captures every request/response
-        .layer(middleware::from_fn(mw::metrics_middleware))
         .layer(cors)
         .layer(TimeoutLayer::new(std::time::Duration::from_secs(30)))
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024)) // 10 MB default; upload routes override

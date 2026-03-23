@@ -1,5 +1,5 @@
 use axum::{
-    extract::{ConnectInfo, Request, State},
+    extract::{ConnectInfo, MatchedPath, Request, State},
     http::{header, HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -290,11 +290,22 @@ fn client_ip(headers: &axum::http::HeaderMap) -> String {
 // HTTP metrics middleware
 //
 // Records per-request counters and latency histograms after every response.
-// Wire this as the outermost axum middleware layer so it wraps all handlers.
+// This middleware must be applied inside the router (before `.with_state()`),
+// so that Axum's routing pass has already run and `MatchedPath` is available
+// in request extensions. Using route templates (e.g. `/api/points/:id`)
+// instead of raw URI paths prevents label cardinality explosion in Prometheus.
 // ---------------------------------------------------------------------------
 
 pub async fn metrics_middleware(req: Request, next: Next) -> Response {
     let method = req.method().to_string();
+    // Extract the route template from Axum's MatchedPath extension.
+    // This is only populated after the router has resolved the route, so this
+    // middleware must run inside the router (not as an outermost app layer).
+    let path = req
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|mp| mp.as_str().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
     let start = Instant::now();
 
     let response = next.run(req).await;
@@ -306,6 +317,7 @@ pub async fn metrics_middleware(req: Request, next: Next) -> Response {
         "io_http_requests_total",
         "service" => "api-gateway",
         "method" => method.clone(),
+        "path"   => path.clone(),
         "status" => status_str,
     )
     .increment(1);
@@ -313,7 +325,8 @@ pub async fn metrics_middleware(req: Request, next: Next) -> Response {
     metrics::histogram!(
         "io_http_request_duration_seconds",
         "service" => "api-gateway",
-        "method" => method,
+        "method"  => method,
+        "path"    => path,
     )
     .record(duration_secs);
 
