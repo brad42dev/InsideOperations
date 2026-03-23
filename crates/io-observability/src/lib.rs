@@ -90,13 +90,27 @@ pub fn init(config: ObservabilityConfig) -> Result<ObservabilityHandle, anyhow::
             .install_recorder()
             .map_err(|e| anyhow::anyhow!("failed to install prometheus recorder: {e}"))?;
 
-        // Record basic service info as a gauge label.
+        // Record basic service info as a gauge label (with build_hash).
+        let build_hash = std::env::var("IO_BUILD_HASH").unwrap_or_else(|_| "unknown".to_string());
         metrics::gauge!(
             "io_service_info",
             "service" => config.service_name,
             "version" => config.service_version,
+            "build_hash" => build_hash,
         )
         .set(1.0);
+
+        // Spawn a task that updates io_service_uptime_seconds every 15 seconds.
+        let start = std::time::Instant::now();
+        let svc = config.service_name;
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(15));
+            loop {
+                interval.tick().await;
+                metrics::gauge!("io_service_uptime_seconds", "service" => svc)
+                    .set(start.elapsed().as_secs_f64());
+            }
+        });
 
         Some(handle)
     } else {

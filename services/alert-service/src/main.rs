@@ -35,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = config::Config::from_env()?;
     let port = cfg.port;
     let state = AppState::new(cfg).await?;
+    io_db::spawn_pool_metrics(state.db.clone(), "alert-service");
 
     let mut health = io_health::HealthRegistry::new("alert-service", env!("CARGO_PKG_VERSION"));
     health.register(io_health::PgDatabaseCheck::new(state.db.clone()));

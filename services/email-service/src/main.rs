@@ -38,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = config::Config::from_env()?;
     let port = cfg.port;
     let db = io_db::create_pool(&cfg.database_url).await?;
+    io_db::spawn_pool_metrics(db.clone(), "email-service");
 
     // Seed built-in system email templates if not already present.
     if let Err(e) = seed_templates::seed_builtin_templates(&db).await {

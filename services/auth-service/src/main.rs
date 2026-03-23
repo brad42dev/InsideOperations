@@ -34,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!(service = "auth-service", "Connecting to database");
     let db = io_db::create_pool(&cfg.database_url).await?;
+    io_db::spawn_pool_metrics(db.clone(), "auth-service");
 
     // Seed Phase 1 system report templates (idempotent — skips existing)
     handlers::reports::seed_report_templates(&db).await;

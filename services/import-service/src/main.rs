@@ -36,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
     let port = cfg.port;
 
     let db = io_db::create_pool(&cfg.database_url).await?;
+    io_db::spawn_pool_metrics(db.clone(), "import-service");
 
     // Seed connector templates
     seed_connector_templates(&db).await;

@@ -50,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
     // --- Database ---
     let db = io_db::create_pool(&config.database_url).await?;
     info!(service = "opc-service", "Database pool connected");
+    io_db::spawn_pool_metrics(db.clone(), "opc-service");
 
     // --- UDS sender ---
     let uds = Arc::new(UdsSender::new(config.opc_broker_sock.clone()));

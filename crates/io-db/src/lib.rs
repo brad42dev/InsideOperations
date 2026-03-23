@@ -27,3 +27,43 @@ pub async fn create_pool(database_url: &str) -> Result<DbPool, sqlx::Error> {
 pub async fn run_migrations(pool: &DbPool) -> Result<(), sqlx::migrate::MigrateError> {
     sqlx::migrate!("../../migrations").run(pool).await
 }
+
+/// Spawn a background task that polls the pool state every 15 seconds and
+/// emits `io_db_pool_size`, `io_db_pool_idle`, and `io_db_pool_active` gauges.
+///
+/// Call once per service after pool creation:
+/// ```rust,ignore
+/// io_db::spawn_pool_metrics(db.clone(), "api-gateway");
+/// ```
+pub fn spawn_pool_metrics(pool: DbPool, service_name: &'static str) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(15));
+        loop {
+            interval.tick().await;
+            let total = pool.size() as f64;
+            let idle = pool.num_idle() as f64;
+            metrics::gauge!("io_db_pool_size",   "service" => service_name).set(total);
+            metrics::gauge!("io_db_pool_idle",   "service" => service_name).set(idle);
+            metrics::gauge!("io_db_pool_active", "service" => service_name).set(total - idle);
+        }
+    });
+}
+
+/// Execute a `SELECT 1` health check query, record latency under
+/// `io_db_query_duration_seconds` with `query_type = "health"`, and
+/// return `true` if the database is reachable.
+pub async fn health_check(pool: &DbPool, service_name: &'static str) -> bool {
+    let start = std::time::Instant::now();
+    let ok = sqlx::query("SELECT 1")
+        .execute(pool)
+        .await
+        .is_ok();
+    let elapsed = start.elapsed().as_secs_f64();
+    metrics::histogram!(
+        "io_db_query_duration_seconds",
+        "service"    => service_name,
+        "query_type" => "health",
+    )
+    .record(elapsed);
+    ok
+}

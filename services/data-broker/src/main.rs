@@ -45,6 +45,7 @@ async fn main() -> anyhow::Result<()> {
     // Connect to the database.
     let db = io_db::create_pool(&cfg.database_url).await?;
     info!("Database pool established");
+    io_db::spawn_pool_metrics(db.clone(), "data-broker");
 
     // Build shadow cache and warm from points_current.
     let shadow_cache = Arc::new(ShadowCache::new());

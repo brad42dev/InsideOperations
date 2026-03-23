@@ -308,7 +308,9 @@ pub async fn metrics_middleware(req: Request, next: Next) -> Response {
         .unwrap_or_else(|| "unknown".to_string());
     let start = Instant::now();
 
+    metrics::gauge!("io_http_requests_in_flight", "service" => "api-gateway").increment(1.0);
     let response = next.run(req).await;
+    metrics::gauge!("io_http_requests_in_flight", "service" => "api-gateway").decrement(1.0);
 
     let duration_secs = start.elapsed().as_secs_f64();
     let status_str = response.status().as_u16().to_string();

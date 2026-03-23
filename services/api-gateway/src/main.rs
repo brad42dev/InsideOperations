@@ -76,6 +76,9 @@ async fn main() -> anyhow::Result<()> {
     // Initialise database pool for direct gateway queries (e.g. global search)
     let db = io_db::create_pool(&cfg.database_url).await?;
 
+    // Emit DB pool metrics every 15s.
+    io_db::spawn_pool_metrics(db.clone(), "api-gateway");
+
     // Seed built-in shape library (idempotent — skips existing entries)
     seed_shapes::seed_shape_library(&db).await;
 
