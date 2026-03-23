@@ -152,7 +152,8 @@
     "DD-06-013": 1,
     "MOD-CONSOLE-014": 1,
     "DD-06-014": 1,
-    "DD-13-011": 1
+    "DD-13-011": 1,
+    "MOD-PROCESS-009": 1
   },
   "queue": [
     {
@@ -4465,7 +4466,7 @@
       "wave": 3,
       "title": "Group Management CRUD is missing from settings sidebar",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4501,7 +4502,7 @@
       "wave": 2,
       "title": "Process module fails to load due to dynamic import error",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

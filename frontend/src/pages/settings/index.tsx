@@ -8,6 +8,7 @@ interface SubNavItem {
 const SUB_NAV: SubNavItem[] = [
   { path: '/settings/users', label: 'Users' },
   { path: '/settings/roles', label: 'Roles' },
+  { path: '/settings/groups', label: 'Groups' },
   { path: '/settings/sessions', label: 'Sessions' },
   { path: '/settings/opc-sources', label: 'OPC Sources' },
   { path: '/settings/expressions', label: 'Expression Library' },
