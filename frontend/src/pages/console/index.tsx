@@ -18,6 +18,7 @@ import { useSelectionStore } from '../../store/selectionStore'
 import { useRealtimeStore } from '../../store/realtimeStore'
 import { ExportDialog } from '../../shared/components/ExportDialog'
 import { exportsApi, type ExportFormat } from '../../api/exports'
+import { showToast } from '../../shared/components/Toast'
 
 // ---------------------------------------------------------------------------
 // ConsoleStatusBar
@@ -265,8 +266,12 @@ export default function ConsolePage() {
     onError: (_err, ws) => {
       saveFailCountRef.current += 1
       const next = saveFailCountRef.current
+      if (next === 1) {
+        showToast({ title: 'Failed to save workspace. Retrying\u2026', variant: 'error' })
+      }
       if (next >= 3) {
         setShowSaveBanner(true)
+        showToast({ title: 'Workspace save failed after multiple attempts.', variant: 'error' })
       } else {
         // Exponential backoff: 1s after first failure, 2s after second
         const delay = Math.pow(2, next - 1) * 1000
