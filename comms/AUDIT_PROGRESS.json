@@ -1881,7 +1881,7 @@
       "wave": 3,
       "title": "Replace datetime-local input for graphic snapshot timestamp with Historical Playback Bar",
       "priority": "low",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null
@@ -1903,7 +1903,7 @@
       "wave": 3,
       "title": "Fix empty state CTA permission gate, hardcoded colors in heatmap, and loading skeleton",
       "priority": "low",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null

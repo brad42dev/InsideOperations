@@ -1042,6 +1042,14 @@ function PointsPanel({
 // ---------------------------------------------------------------------------
 
 function CorrelationHeatmap({ correlations }: { correlations: CorrelationResult[] }) {
+  // Read CSS design tokens at render time — ECharts cannot consume CSS custom properties
+  // directly from series/axis configs, so we resolve them here from the computed style.
+  const textMuted = getComputedStyle(document.documentElement).getPropertyValue('--io-text-muted').trim() || '#a1a1aa'
+  const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--io-border').trim() || '#3f3f46'
+  // Heatmap gradient colors are visualization-semantic (blue = positive correlation,
+  // neutral dark = zero, teal = negative correlation) and are NOT general UI chrome.
+  // Per task DD-12-012, these are acceptable exceptions to the CX-TOKENS rule.
+
   // Build unique ordered point list
   const pointIds = Array.from(
     new Set(correlations.flatMap((c) => [c.point_id_a, c.point_id_b])),
@@ -1083,15 +1091,15 @@ function CorrelationHeatmap({ correlations }: { correlations: CorrelationResult[
     xAxis: {
       type: 'category',
       data: shortLabels,
-      axisLabel: { rotate: 45, fontSize: 10, color: '#a1a1aa' },
-      axisLine: { lineStyle: { color: '#3f3f46' } },
+      axisLabel: { rotate: 45, fontSize: 10, color: textMuted },
+      axisLine: { lineStyle: { color: borderColor } },
       splitArea: { show: true },
     },
     yAxis: {
       type: 'category',
       data: shortLabels,
-      axisLabel: { fontSize: 10, color: '#a1a1aa' },
-      axisLine: { lineStyle: { color: '#3f3f46' } },
+      axisLabel: { fontSize: 10, color: textMuted },
+      axisLine: { lineStyle: { color: borderColor } },
       splitArea: { show: true },
     },
     visualMap: {
@@ -1101,8 +1109,10 @@ function CorrelationHeatmap({ correlations }: { correlations: CorrelationResult[
       orient: 'horizontal',
       left: 'center',
       bottom: 0,
-      textStyle: { color: '#a1a1aa', fontSize: 10 },
+      textStyle: { color: textMuted, fontSize: 10 },
       inRange: {
+        // Visualization-semantic colors: blue = positive, dark neutral = zero, teal = negative.
+        // ECharts series colors cannot consume CSS vars at runtime — kept as explicit values.
         color: ['#2563eb', '#27272a', '#2dd4bf'],
       },
     },
@@ -1487,17 +1497,19 @@ export default function InvestigationWorkspace() {
 
   if (query.isLoading) {
     return (
-      <div
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--io-text-muted)',
-          fontSize: '14px',
-        }}
-      >
-        Loading investigation...
+      <div style={{ height: '100%', display: 'flex' }}>
+        {/* Left panel skeleton */}
+        <div style={{ width: '260px', borderRight: '1px solid var(--io-border)', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[80, 60, 100, 60, 80].map((h, i) => (
+            <div key={i} style={{ height: `${h}px`, background: 'var(--io-surface-secondary)', borderRadius: '6px', animation: 'io-skeleton-pulse 1.5s ease-in-out infinite' }} />
+          ))}
+        </div>
+        {/* Stage list skeleton */}
+        <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {[200, 160, 220].map((h, i) => (
+            <div key={i} style={{ height: `${h}px`, background: 'var(--io-surface-secondary)', borderRadius: '8px', animation: 'io-skeleton-pulse 1.5s ease-in-out infinite' }} />
+          ))}
+        </div>
       </div>
     )
   }

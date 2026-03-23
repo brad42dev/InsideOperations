@@ -388,6 +388,7 @@ function InvestigationCard({
 // ---------------------------------------------------------------------------
 
 function EmptyState({ onNew }: { onNew: () => void }) {
+  const canWrite = usePermission('forensics:write')
   return (
     <div
       style={{
@@ -409,21 +410,23 @@ function EmptyState({ onNew }: { onNew: () => void }) {
           Create an investigation to start correlating process data and analyzing events.
         </p>
       </div>
-      <button
-        onClick={onNew}
-        style={{
-          padding: '8px 18px',
-          background: 'var(--io-accent)',
-          border: 'none',
-          borderRadius: 'var(--io-radius)',
-          color: '#fff',
-          cursor: 'pointer',
-          fontSize: '13px',
-          fontWeight: 600,
-        }}
-      >
-        New Investigation
-      </button>
+      {canWrite && (
+        <button
+          onClick={onNew}
+          style={{
+            padding: '8px 18px',
+            background: 'var(--io-accent)',
+            border: 'none',
+            borderRadius: 'var(--io-radius)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          New Investigation
+        </button>
+      )}
     </div>
   )
 }
