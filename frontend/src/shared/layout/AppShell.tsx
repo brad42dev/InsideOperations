@@ -30,6 +30,13 @@ import { ROUTE_REGISTRY, getSidebarGroups, type NavGroup } from '../routes/regis
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes per spec
 
+// G-key navigation map: single letter → route path (e.g. 'c' → '/console').
+// Derived from ROUTE_REGISTRY at module level so it can be used for rendering.
+const G_KEY_MAP: Record<string, string> = Object.fromEntries(
+  ROUTE_REGISTRY.filter((r) => r.g_key)
+    .map((r) => [r.g_key.split(' ')[1].toLowerCase(), r.path]),
+)
+
 function getPageTitle(pathname: string): string {
   const route = ROUTE_REGISTRY.find(
     (r) => pathname === r.path || pathname.startsWith(r.path + '/'),
@@ -694,16 +701,10 @@ export default function AppShell() {
   // G-key navigation state (tracks whether 'g' was pressed first)
   const gKeyPending = useRef(false)
   const gKeyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [gKeyHintVisible, setGKeyHintVisible] = useState(false)
 
   // Global keyboard shortcuts
   useEffect(() => {
-    // G-key navigation map derived from ROUTE_REGISTRY: G then <letter> → path
-    // g_key format is "G X" where X is the trigger letter (e.g. "G C" → key "c")
-    const G_KEY_MAP: Record<string, string> = Object.fromEntries(
-      ROUTE_REGISTRY.filter((r) => r.g_key)
-        .map((r) => [r.g_key.split(' ')[1].toLowerCase(), r.path]),
-    )
-
     function handleKeyDown(e: KeyboardEvent) {
       // Skip if inside an input, textarea, or editable element
       const target = e.target as HTMLElement
@@ -715,14 +716,22 @@ export default function AppShell() {
         return
       }
 
-      // Escape — exit kiosk if active.
+      // Escape — dismiss G-key hint if visible, then exit kiosk if active.
       // IMPORTANT: When the lock overlay is visible it handles Escape in capture
       // phase (dismiss overlay only, no unlock). We must not also exit kiosk here.
       // Check isLocked so AppShell's handler is a no-op while the overlay is up.
-      if (e.key === 'Escape' && isKioskRef.current && !isLockedRef.current) {
-        e.preventDefault()
-        exitKioskRef.current()
-        return
+      if (e.key === 'Escape') {
+        if (gKeyPending.current) {
+          gKeyPending.current = false
+          if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
+          setGKeyHintVisible(false)
+          return
+        }
+        if (isKioskRef.current && !isLockedRef.current) {
+          e.preventDefault()
+          exitKioskRef.current()
+          return
+        }
       }
 
       // Ctrl+K / Cmd+K — command palette
@@ -766,14 +775,16 @@ export default function AppShell() {
         return
       }
 
-      // G-key sequence: press G, then a letter within 1500ms
+      // G-key sequence: press G, then a letter within 2000ms (spec §G-Key Navigation)
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'g') {
         e.preventDefault()
         gKeyPending.current = true
+        setGKeyHintVisible(true)
         if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
         gKeyTimerRef.current = setTimeout(() => {
           gKeyPending.current = false
-        }, 1500)
+          setGKeyHintVisible(false)
+        }, 2000)
         return
       }
 
@@ -783,6 +794,7 @@ export default function AppShell() {
           e.preventDefault()
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
+          setGKeyHintVisible(false)
           navigate(path)
         }
         return
@@ -1847,6 +1859,38 @@ export default function AppShell() {
           .main-content { padding-bottom: 64px; }
         }
       `}</style>
+
+      {/* G-key hint overlay — shows available module shortcuts after G is pressed */}
+      {gKeyHintVisible && (
+        <div style={{
+          position: 'fixed',
+          bottom: '80px',
+          left: isKiosk ? '12px' : (sidebarHidden ? '12px' : sidebarCollapsed ? 'calc(48px + 8px)' : 'calc(240px + 8px)'),
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          boxShadow: 'var(--io-shadow-lg)',
+          padding: '8px 12px',
+          zIndex: 'var(--io-z-dropdown)' as React.CSSProperties['zIndex'],
+          fontSize: '12px',
+          color: 'var(--io-text-secondary)',
+          minWidth: '160px',
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--io-text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Go to…</div>
+          {Object.entries(G_KEY_MAP).map(([key, path]) => {
+            const label = ROUTE_REGISTRY.find((r) => r.path === path)?.sidebar_label ?? path
+            return (
+              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', padding: '2px 0' }}>
+                <span>{label}</span>
+                <kbd style={{ background: 'var(--io-surface-sunken)', border: '1px solid var(--io-border)', borderRadius: '3px', padding: '0 4px', fontFamily: 'inherit' }}>
+                  {key.toUpperCase()}
+                </kbd>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
