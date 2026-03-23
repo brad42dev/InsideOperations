@@ -34,6 +34,7 @@ import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
 import { useAuthStore } from '../../store/auth'
 import PointContextMenu from '../../shared/components/PointContextMenu'
 import ForensicsPlaybackBar from '../../shared/components/ForensicsPlaybackBar'
+import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -1794,6 +1795,9 @@ export default function InvestigationWorkspace() {
           </span>
         )}
       </div>
+
+      {/* Historical Playback Bar — global time-context control for the investigation */}
+      <HistoricalPlaybackBar />
 
       {/* Body: left panel + main canvas */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
