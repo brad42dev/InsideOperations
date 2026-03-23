@@ -90,10 +90,15 @@ function segmentLabel(seg: string): string {
   return seg.charAt(0).toUpperCase() + seg.slice(1)
 }
 
-function buildBreadcrumbs(pathname: string): string[] {
-  if (pathname === '/' || pathname === '') return ['Inside/Operations']
+interface Crumb { label: string; path: string }
+
+function buildBreadcrumbs(pathname: string): Crumb[] {
+  if (pathname === '/' || pathname === '') return [{ label: 'Inside/Operations', path: '/' }]
   const parts = pathname.split('/').filter(Boolean)
-  return parts.map(segmentLabel)
+  return parts.map((seg, idx) => ({
+    label: segmentLabel(seg),
+    path: '/' + parts.slice(0, idx + 1).join('/'),
+  }))
 }
 
 /** Fetch unacknowledged alert count for sidebar badge */
@@ -1288,7 +1293,16 @@ export default function AppShell() {
                   {breadcrumbs.map((crumb, idx) => (
                     <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {idx > 0 && <span style={{ opacity: 0.5 }}>›</span>}
-                      <span>{crumb}</span>
+                      {idx < breadcrumbs.length - 1 ? (
+                        <NavLink
+                          to={crumb.path}
+                          style={{ color: 'var(--io-text-muted)', textDecoration: 'none' }}
+                        >
+                          {crumb.label}
+                        </NavLink>
+                      ) : (
+                        <span style={{ color: 'var(--io-text-muted)' }}>{crumb.label}</span>
+                      )}
                     </span>
                   ))}
                 </div>
