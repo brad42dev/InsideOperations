@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T01:30:08.044972+00:00",
+  "last_updated": "2026-03-23T01:49:37.514787Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -142,7 +142,8 @@
     "DD-37-004": 1,
     "DD-37-006": 1,
     "DD-38-002": 1,
-    "DD-38-003": 1
+    "DD-38-003": 1,
+    "DD-38-006": 1
   },
   "queue": [
     {
@@ -3662,7 +3663,7 @@
       "wave": 3,
       "title": "Fix /settings/email permission guard \u2014 use email:configure not settings:write",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3672,7 +3673,7 @@
       "wave": 3,
       "title": "Fix /settings/imports sub-route permission guards \u2014 use granular import permissions",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3682,7 +3683,7 @@
       "wave": 3,
       "title": "Fix /settings/recognition permission guard \u2014 use settings:admin not settings:write",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3692,7 +3693,7 @@
       "wave": 3,
       "title": "Fix default post-login redirect \u2014 use first visible module per user permissions",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-38-001"
       ],

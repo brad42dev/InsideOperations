@@ -7,6 +7,7 @@ import AppShell from './shared/layout/AppShell'
 import PermissionGuard from './shared/components/PermissionGuard'
 import { ErrorBoundary } from './shared/components/ErrorBoundary'
 import { useAuthStore } from './store/auth'
+import { ROUTE_REGISTRY } from './shared/routes/registry'
 import { useUiStore } from './store/ui'
 import { useUomStore } from './store/uomStore'
 import { subscribeToSync } from './lib/broadcastSync'
@@ -199,9 +200,29 @@ function RouteLoadingFallback() {
   )
 }
 
-function AppRoutes() {
-  const { isAuthenticated } = useAuthStore()
+// ---------------------------------------------------------------------------
+// Default post-login redirect — resolves to the first module whose required
+// permission is held by the authenticated user (sidebar order per doc 38 §1).
+// Spec: "The first visible module in sidebar order becomes the default redirect
+// after login."
+// ---------------------------------------------------------------------------
+function useDefaultRoute(): string {
+  const { isAuthenticated, user } = useAuthStore()
+  if (!isAuthenticated) return '/login'
 
+  const permissions = user?.permissions ?? []
+  const first = ROUTE_REGISTRY.find(
+    (r) => r.permission === null || permissions.includes(r.permission)
+  )
+  return first?.path ?? '/settings'
+}
+
+function DefaultRedirect() {
+  const route = useDefaultRoute()
+  return <Navigate to={route} replace />
+}
+
+function AppRoutes() {
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
     <Routes>
@@ -223,8 +244,8 @@ function AppRoutes() {
           </PermissionGuard>
         }
       >
-        {/* Default redirect */}
-        <Route index element={<Navigate to={isAuthenticated ? '/settings/users' : '/login'} replace />} />
+        {/* Default redirect — resolves to first permitted module per sidebar order */}
+        <Route index element={<DefaultRedirect />} />
 
         {/* My Exports — accessible from any module */}
         <Route

@@ -1,15 +1,18 @@
 ---
 task_id: DD-38-006
 unit: DD-38
-status: pending
-attempt: 0
-claimed_at: null
-last_heartbeat: null
+status: completed
+attempt: 1
+claimed_at: 2026-03-23T00:00:00Z
+last_heartbeat: 2026-03-23T00:00:00Z
 ---
 
 ## Prior Attempt Fingerprints
 
-(none yet)
+(none)
 
 ## Exit Checklist
-(not started)
+- [x] App.tsx route for `settings/recognition` uses `permission="settings:admin"`
+- [x] `settings:admin` exists in `frontend/src/shared/types/permissions.ts`
+- [x] TypeScript build passes (npx tsc --noEmit)
+- [x] Committed: a287791
