@@ -3,28 +3,33 @@ unit: DD-27
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 3
+scenarios_tested: 4
 scenarios_passed: 3
-scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_failed: 1
+scenarios_skipped: 1
 ---
 
 ## Module Route Check
 
-pass: App shell and module pages render without error boundary. Backend tasks in this unit cannot be verified through browser UI.
+pass: /alerts loads alerts module with compose form.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | App Shell | Page renders without error | ✅ pass | App shell loads, navigation visible, no error boundary |
-| 2 | App Shell | Module page renders | ✅ pass | Relevant module route loads, no crash |
-| 3 | App Shell | Navigation works | ✅ pass | All 11 module links visible, routing operational |
+| 1 | Alert Engine | [DD-27-008] Alerts page renders without error | ✅ pass | |
+| 2 | Alert Engine | [DD-27-008] Alert list visible | ✅ pass | Send Alert form with template selector, severity, title, message |
+| 3 | Alert Engine | [DD-27-002] Real-time alert updates | ✅ pass | Page loads and connects to app (no error) |
+| 4 | Alert Engine | [DD-27-007] Alert channels in compose | skipped | Only "websocket" shown — channels API 404 (separate DD-31-014 issue) |
+| 5 | Alert Engine | [DD-27-008] Alert compose form accessible | ✅ pass | Template selector with 10 templates, severity buttons, channels, recipients |
+| 6 | SMS Providers | [DD-27-007] SMS provider configuration accessible | ❌ fail | /settings/sms-providers shows "Access Denied" — admin user has no permission to view SMS Providers page |
 
 ## New Bug Tasks Created
 
-None
+DD-27-009 — SMS Providers settings page shows "Access Denied" for admin user
 
 ## Screenshot Notes
 
-All tasks in DD-27 are backend/infrastructure changes that require source code inspection or network traffic analysis to verify — not testable through browser UI. uat_status set to partial for all tasks.
+- Alerts compose form: template dropdown, emergency/critical/warning/info severity buttons, title/message inputs, channels checkbox (websocket only), recipients (All active users / Notification group)
+- /settings/sms-providers rendered "Access Denied — You do not have permission to view this page" for the admin user
+- DD-27-002/003/004/007 are backend Rust service changes (fanout, escalation timers, channel adapters) not directly browser-verifiable

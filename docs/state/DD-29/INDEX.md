@@ -11,3 +11,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-29-006 | Implement SCIM 2.0 Groups endpoints | pending | 0 |
 | DD-29-007 | Fix IdP role mapping column name mismatch and add regex… | pending | 0 |
 | DD-29-008 | Add background cleanup tasks for expired auth flow stat… | pending | 0 |
+| DD-29-012 | Duo Security MFA option missing from MFA settings page | pending | 0 |

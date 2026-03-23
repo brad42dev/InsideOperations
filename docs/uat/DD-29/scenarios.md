@@ -1,8 +1,10 @@
 # UAT Scenarios — DD-29
 
-## Authentication
-Scenario 1: [DD-29-009] Login page renders without error — navigate to /login → login form visible, no error boundary
-Scenario 2: [DD-29-009] Login with valid credentials works — submit admin/changeme → redirects to /console
-Scenario 3: [DD-29-008] Login with invalid credentials shows error — submit admin/wrongpass → "Invalid username or password" error message visible
-Scenario 4: [DD-29-011] No PIN lock screen visible on normal login — navigate to /console → no PIN lock screen shown (PIN lock is optional feature)
-Scenario 5: [DD-29-005] No unexpected MFA screen on admin login — submit admin/changeme → redirected to console without MFA prompt (admin has no MFA configured)
+## Login / Auth
+Scenario 1: [DD-29-002] Login page renders without error — navigate to /login → login form visible, no error boundary
+Scenario 2: [DD-29-002] Login form accepts credentials — navigate to /login, enter admin/admin → login succeeds, redirected to app
+Scenario 3: [DD-29-007] Login shows error on wrong credentials — navigate to /login, enter wrong password → error message shown
+Scenario 4: [DD-29-005] MFA option visible in settings — navigate to /settings → MFA/two-factor authentication section visible
+Scenario 5: [DD-29-006] SCIM/user management accessible — navigate to /settings → user/group management section visible
+Scenario 6: [DD-29-008] Auth session works after login — log in, navigate around app → session maintained without re-login prompts
+Scenario 7: [DD-29-011] PIN/lock screen option accessible — navigate to /settings or profile → PIN set/unlock option visible

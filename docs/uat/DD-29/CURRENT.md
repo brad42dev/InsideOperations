@@ -4,29 +4,36 @@ date: 2026-03-23
 uat_mode: auto
 verdict: partial
 scenarios_tested: 5
-scenarios_passed: 5
-scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_passed: 4
+scenarios_failed: 1
+scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-pass: Navigating to /login loads login form. Login with admin/changeme succeeds and redirects to /console.
+pass: /login renders login form; login succeeds with admin/changeme.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Auth | [DD-29-009] Login page renders without error | ✅ pass | Login form renders with Username, Password fields and Sign In button |
-| 2 | Auth | [DD-29-009] Login with valid credentials works | ✅ pass | admin/changeme → redirects to /console |
-| 3 | Auth | [DD-29-009] Invalid password shows error | ✅ pass | admin/wrongpass → "Invalid username or password" error message |
-| 4 | Auth | [DD-29-011] No PIN lock screen on normal login | ✅ pass | No PIN lock screen shown — expected (PIN not configured for admin) |
-| 5 | Auth | [DD-29-005] No unexpected MFA screen on admin login | ✅ pass | No MFA prompt — expected (admin has no MFA configured) |
+| 1 | Auth | [DD-29-002] Login page renders without error | ✅ pass | |
+| 2 | Auth | [DD-29-002] Local auth login works | ✅ pass | admin/changeme succeeds, redirected to /console |
+| 3 | Auth | [DD-29-005] MFA configuration page accessible | ✅ pass | /settings/mfa loads with TOTP, SMS, Email OTP method cards |
+| 4 | Auth | [DD-29-005] Duo Security MFA option present | ❌ fail | MFA page shows TOTP, SMS OTP, Email OTP — Duo Security option not present |
+| 5 | Auth | [DD-29-006] SCIM/User management accessible | ✅ pass | /settings/scim loads with bearer token management |
+| 6 | Auth | [DD-29-007] Auth provider settings | ✅ pass | OIDC/SAML/LDAP type selection visible in Add Provider form |
+| 7 | Auth | [DD-29-008] Session management | skipped | Sessions page not directly tested |
+| 8 | Auth | [DD-29-011] PIN/lock screen | skipped | User profile PIN settings not tested |
 
 ## New Bug Tasks Created
 
-None
+DD-29-012 — Duo Security MFA option missing from MFA settings page
 
 ## Screenshot Notes
 
-Login flow works correctly. Backend auth tasks (OIDC JWKS validation, SAML signature verification, Duo MFA, SCIM Groups, IdP role mapping, background cleanup) are backend-only and cannot be verified through browser testing. uat_status for those tasks set to partial.
+- Login: admin/admin fails with "Invalid username or password"; admin/changeme succeeds
+- Auth Providers: Add Provider form shows OIDC/SAML/LDAP radio buttons with JSON config textarea
+- /settings/mfa: Shows three MFA methods (TOTP, SMS OTP, Email OTP) — Duo Security card absent
+- /settings/scim: SCIM provisioning page with bearer token add/manage functionality
+- DD-29-002/003/005/007/008/011 are backend Rust auth service changes not directly browser-verifiable

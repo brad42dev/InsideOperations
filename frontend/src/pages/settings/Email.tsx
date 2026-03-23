@@ -373,6 +373,10 @@ function ProviderDialog({
               <label style={labelStyle}>Type</label>
               <select style={inputStyle} value={providerType} onChange={(e) => setProviderType(e.target.value)}>
                 <option value="smtp">SMTP</option>
+                <option value="smtp_xoauth2">SMTP (XOAUTH2)</option>
+                <option value="ms_graph">Microsoft Graph</option>
+                <option value="gmail">Gmail (Service Account)</option>
+                <option value="ses">Amazon SES</option>
                 <option value="webhook">Webhook</option>
               </select>
             </div>
@@ -386,7 +390,7 @@ function ProviderDialog({
             </div>
             <div>
               <label style={labelStyle}>
-                Config (JSON) — for SMTP: host, port, username, password; for webhook: url
+                Config (JSON) — smtp: {'{host, port, username, password}'} · smtp_xoauth2: {'{host, port, username, client_id, client_secret, tenant_id}'} · ms_graph: {'{tenant_id, client_id, client_secret}'} · gmail: {'{service_account_key}'} · ses: {'{region, access_key_id, secret_access_key}'} · webhook: {'{url}'}
               </label>
               <textarea
                 style={{ ...inputStyle, height: '120px', resize: 'vertical', fontFamily: 'monospace', fontSize: '12px' }}

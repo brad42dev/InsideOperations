@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T17:19:50.746794+00:00",
+  "last_updated": "2026-03-23T00:00:00Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -157,7 +157,8 @@
     "DD-11-007": 1,
     "DD-12-012": 1,
     "DD-13-009": 1,
-    "DD-10-011": 1
+    "DD-10-011": 1,
+    "DD-31-014": 1
   },
   "queue": [
     {
@@ -1472,7 +1473,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-001",
@@ -1819,7 +1820,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-005",
@@ -1830,7 +1831,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-006",
@@ -1841,7 +1842,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-007",
@@ -1854,7 +1855,7 @@
         "DD-12-006"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-008",
@@ -1876,7 +1877,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-010",
@@ -2166,7 +2167,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-15-007",
@@ -2912,7 +2913,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-26-002",
@@ -2923,7 +2924,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-26-003",
@@ -2948,7 +2949,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-26-005",
@@ -2959,7 +2960,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-26-006",
@@ -2972,7 +2973,7 @@
         "DD-26-005"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-26-007",
@@ -3091,7 +3092,7 @@
         "DD-27-001"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-28-001",
@@ -3124,7 +3125,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-28-004",
@@ -3418,7 +3419,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-007",
@@ -3598,7 +3599,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-33-002",
@@ -3611,7 +3612,7 @@
         "DD-33-007"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-33-003",
@@ -3624,7 +3625,7 @@
         "DD-33-006"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-33-004",
@@ -3635,7 +3636,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-33-005",
@@ -3659,7 +3660,7 @@
         "DD-33-005"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-33-007",
@@ -3670,7 +3671,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-34-001",
@@ -4546,7 +4547,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-011",
@@ -4558,7 +4559,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-013",
@@ -4566,17 +4567,41 @@
       "wave": 3,
       "title": "Historical Playback Bar missing from forensics investigation workspace for graphic snapshot control",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-017",
       "unit": "DD-23",
       "wave": 3,
       "title": "Expression Library page returns 'Access Denied' for admin user \u2014 blocks all expression builder UAT",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": "pass"
+    },
+    {
+      "id": "DD-31-014",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Alert compose form shows only 'websocket' channel \u2014 /notifications/channels/enabled API returns 404",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": "fail"
+    },
+    {
+      "id": "DD-28-009",
+      "unit": "DD-28",
+      "wave": 3,
+      "title": "Email provider type selector missing MS Graph, Gmail, SES, SMTP-XOAUTH2 options",
       "priority": "high",
       "status": "implementing",
       "depends_on": [],
@@ -4585,10 +4610,70 @@
       "uat_status": null
     },
     {
-      "id": "DD-31-014",
+      "id": "DD-31-015",
       "unit": "DD-31",
       "wave": 3,
-      "title": "Alert compose form shows only 'websocket' channel \u2014 /notifications/channels/enabled API returns 404",
+      "title": "/api/notifications/channels/enabled still returns 404 \u2014 alert compose shows only websocket",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-10-012",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "\"Unknown widget type\" error on non-alarm dashboards",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-25-008",
+      "unit": "DD-25",
+      "wave": 3,
+      "title": "Bulk update wizard and change snapshots UI not implemented",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-27-009",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "SMS Providers settings page shows Access Denied for admin user",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-29-012",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Duo Security MFA option missing from MFA settings page",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-010",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Toast notification not shown on workspace creation failure",
       "priority": "high",
       "status": "pending",
       "depends_on": [],

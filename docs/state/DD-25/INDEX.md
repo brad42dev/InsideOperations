@@ -10,3 +10,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-25-005 | Add XLSX upload support and conflict detection to Bulk … | pending | 0 |
 | DD-25-006 | Implement selective restore and field-level restore pre… | pending | 0 |
 | DD-25-007 | Fix snapshot schema mismatch, bulk-update permission, a… | pending | 0 |
+| DD-25-008 | Bulk update wizard and change snapshots UI not implemented | pending | 0 |

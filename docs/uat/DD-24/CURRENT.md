@@ -3,23 +3,24 @@ unit: DD-24
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 3
-scenarios_passed: 3
+scenarios_tested: 1
+scenarios_passed: 1
 scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_skipped: 3
 ---
 
 ## Module Route Check
 
-pass: App shell and module pages render without error boundary. Backend tasks in this unit cannot be verified through browser UI.
+pass: /settings/import loads Universal Import page with all connector templates.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | App Shell | Page renders without error | ✅ pass | App shell loads, navigation visible, no error boundary |
-| 2 | App Shell | Module page renders | ✅ pass | Relevant module route loads, no crash |
-| 3 | App Shell | Navigation works | ✅ pass | All 11 module links visible, routing operational |
+| 1 | Import | [DD-24-002] Import page renders without error | ✅ pass | Full connector gallery visible (40 connectors in equipment/lims/ticketing/environmental/regulatory/access control/erp/maintenance categories) |
+| 2 | Import | [DD-24-002] Connection test button visible | skipped | Connector tiles present but test button not visible without opening a connector config |
+| 3 | Import | [DD-24-005] Import status updates | skipped | No imports running |
+| 4 | Import | [DD-24-006] Import scheduler options | skipped | Would require configuring a connection |
 
 ## New Bug Tasks Created
 
@@ -27,4 +28,6 @@ None
 
 ## Screenshot Notes
 
-All tasks in DD-24 are backend/infrastructure changes that require source code inspection or network traffic analysis to verify — not testable through browser UI. uat_status set to partial for all tasks.
+- Import page shows Connectors/Connections/Definitions/Run History/Point Detail tabs
+- Connector gallery has 40+ connectors across 8 categories
+- DD-24 backend tasks (credential encryption, NOTIFY events, scheduler) not directly browser-visible

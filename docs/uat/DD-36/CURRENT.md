@@ -3,23 +3,23 @@ unit: DD-36
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 3
-scenarios_passed: 3
+scenarios_tested: 1
+scenarios_passed: 1
 scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-pass: App shell and module pages render without error boundary. Backend tasks in this unit cannot be verified through browser UI.
+pass: App loads successfully — backend responding to health checks.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | App Shell | Page renders without error | ✅ pass | App shell loads, navigation visible, no error boundary |
-| 2 | App Shell | Module page renders | ✅ pass | Relevant module route loads, no crash |
-| 3 | App Shell | Navigation works | ✅ pass | All 11 module links visible, routing operational |
+| 1 | Observability | [DD-36-002] App loads without errors | ✅ pass | All modules load, health endpoint returns alive |
+| 2 | Observability | [DD-36-003] Health endpoint responds | skipped | /settings/health page not tested |
+| 3 | Observability | [DD-36-005] Tracing not breaking UI | skipped | No tracing errors observed in browser |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,6 @@ None
 
 ## Screenshot Notes
 
-All tasks in DD-36 are backend/infrastructure changes that require source code inspection or network traffic analysis to verify — not testable through browser UI. uat_status set to partial for all tasks.
+- curl /health/live returns {"status":"alive"} — backend alive
+- DD-36 tasks are backend Rust observability changes (path labels in metrics, OpenTelemetry, missing service metrics, migrations) — not browser-visible
+- Service health status in sidebar shows "unknown" for all 11 services (health polling not connecting)

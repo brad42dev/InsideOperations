@@ -1,7 +1,10 @@
 # UAT Scenarios — DD-16
 
-## WebSocket Infrastructure
-Scenario 1: [DD-16-002] Console page renders without error — navigate to /console → page loads, no error boundary, WebSocket data indicators visible
-Scenario 2: [DD-16-004] Point data indicators present — navigate to /console → service status or live data indicators visible in sidebar
-Scenario 3: [DD-16-005] App shell loads with no JS error — navigate to /console → no "Something went wrong" boundary visible
-Scenario 4: [DD-16-006] Source offline state — navigate to /console → page renders; service status panel shows services (stale state detection is internal)
+## Page Load
+Scenario 1: [DD-16-002] Console page renders without error — navigate to /console → page loads, no error boundary
+
+## WebSocket / Live Data
+Scenario 2: [DD-16-005] Console shows live data indicators — navigate to /console → real-time data or connection status indicators visible
+Scenario 3: [DD-16-006] Console loads real UI — navigate to /console → workspace list or graphics pane visible, not a stub
+Scenario 4: [DD-16-004] No stale point indicators on initial load — navigate to /console → no stale/disconnected indicators visible on fresh load (or indicators clear within 5s)
+Scenario 5: [DD-16-002] WebSocket connection indicator present — navigate to /console → connection status indicator (online/offline icon) visible in header or sidebar

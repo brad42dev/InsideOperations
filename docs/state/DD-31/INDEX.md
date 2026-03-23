@@ -17,3 +17,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-31-012 | Hide muster dashboard and on-shift/on-site group types … | pending | 0 |
 | DD-31-013 | Alerts History tab crashes with messages.map TypeError | pending | 0 |
 | DD-31-014 | Alert compose form shows only 'websocket' channel — /notifications/channels/enabled API returns 404 | pending | 0 |
+| DD-31-015 | /api/notifications/channels/enabled still returns 404 — alert compose shows only websocket | pending | 0 |

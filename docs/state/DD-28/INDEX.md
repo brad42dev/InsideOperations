@@ -11,3 +11,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-28-006 | Implement AES-256-GCM credential encryption at rest for… | pending | 0 |
 | DD-28-007 | Fix status 'dead' vs 'failed', system template delete g… | pending | 0 |
 | DD-28-008 | Implement real test_provider send and spec-compliant he… | pending | 0 |
+| DD-28-009 | Email provider type selector missing MS Graph, Gmail, SES, SMTP-XOAUTH2 options | pending | 0 |
