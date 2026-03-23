@@ -8,7 +8,7 @@ type AdminTab = 'methods' | 'policies' | 'my-mfa'
 // ── Stub types for admin-level MFA configuration ──────────────────────────────
 
 interface MfaMethod {
-  id: 'totp' | 'sms' | 'email'
+  id: 'totp' | 'sms' | 'email' | 'duo'
   label: string
   description: string
   enabled: boolean
@@ -19,7 +19,7 @@ interface RoleMfaPolicy {
   role_id: string
   role_name: string
   require_mfa: boolean
-  allowed_methods: ('totp' | 'sms' | 'email')[]
+  allowed_methods: ('totp' | 'sms' | 'email' | 'duo')[]
   grace_period_hours: number
 }
 
@@ -46,6 +46,13 @@ function MfaMethodsTab() {
       description: 'One-time codes sent to the user\'s verified email address.',
       enabled: false,
       warning: 'Email-based MFA is susceptible to email compromise. Use only as a fallback method.',
+    },
+    {
+      id: 'duo',
+      label: 'Duo Security',
+      description: 'Push notifications and passcodes via Duo Security. Requires Duo API credentials configured under Security > Duo Integration.',
+      enabled: false,
+      warning: 'Duo Security requires a Duo hostname, integration key, and secret key configured in Security settings before enabling.',
     },
   ])
   const [saving, setSaving] = useState<string | null>(null)
@@ -157,7 +164,7 @@ const STUB_POLICIES: RoleMfaPolicy[] = [
   { role_id: 'admin', role_name: 'Admin', require_mfa: true, allowed_methods: ['totp'], grace_period_hours: 0 },
 ]
 
-const METHOD_LABELS: Record<string, string> = { totp: 'TOTP', sms: 'SMS', email: 'Email' }
+const METHOD_LABELS: Record<string, string> = { totp: 'TOTP', sms: 'SMS', email: 'Email', duo: 'Duo' }
 
 function MfaPoliciesTab() {
   const [policies, setPolicies] = useState<RoleMfaPolicy[]>(STUB_POLICIES)
