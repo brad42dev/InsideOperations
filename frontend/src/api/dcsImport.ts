@@ -151,6 +151,71 @@ export const PLATFORMS: PlatformInfo[] = [
 // API calls
 // ---------------------------------------------------------------------------
 
+export interface DcsImportJobSummary {
+  id: string
+  platform: string
+  display_name: string
+  element_count: number
+  created_at: string
+  /** 'preview' | 'partial' | 'ready' */
+  status: string
+}
+
+// ---------------------------------------------------------------------------
+// API calls
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all DCS import jobs for the current user, ordered newest-first.
+ */
+export async function listImportJobs(): Promise<ApiResult<DcsImportJobSummary[]>> {
+  const token = localStorage.getItem(TOKEN_KEY) ?? ''
+
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/api/designer/import/dcs`, {
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
+    })
+  } catch {
+    return {
+      success: false,
+      error: { code: 'NETWORK_ERROR', message: 'Network request failed' },
+    }
+  }
+
+  let json: unknown
+  try {
+    json = await res.json()
+  } catch {
+    return {
+      success: false,
+      error: { code: 'PARSE_ERROR', message: 'Failed to parse server response' },
+    }
+  }
+
+  if (!res.ok) {
+    const errJson = json as { error?: { code: string; message: string }; message?: string }
+    return {
+      success: false,
+      error: errJson.error ?? {
+        code: 'SERVER_ERROR',
+        message: errJson.message ?? `Server error: ${res.status}`,
+      },
+    }
+  }
+
+  const envelope = json as { success?: boolean; data?: { jobs?: DcsImportJobSummary[] } }
+  if (envelope.data?.jobs !== undefined) {
+    return { success: true, data: envelope.data.jobs }
+  }
+
+  return {
+    success: false,
+    error: { code: 'MISSING_DATA', message: 'No job list returned' },
+  }
+}
+
 /**
  * Upload a ZIP file to the DCS import endpoint.
  * Returns the parsed intermediate representation.

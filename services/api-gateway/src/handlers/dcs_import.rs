@@ -524,6 +524,59 @@ pub async fn generate_graphic(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/designer/import/dcs
+// ---------------------------------------------------------------------------
+//
+// Returns a summary list of all DCS import jobs belonging to the requesting
+// user, ordered by creation time descending.  Each entry includes just enough
+// information to populate the job history panel (id, platform, display_name,
+// created_at, status, element_count).
+
+pub async fn list_import_jobs(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl IntoResponse {
+    if let Err(e) = require_import_permission(&claims) {
+        return e.into_response();
+    }
+
+    let user_id = Uuid::parse_str(&claims.sub).unwrap_or_else(|_| Uuid::nil());
+
+    let mut jobs: Vec<Value> = state
+        .dcs_import_jobs
+        .iter()
+        .filter(|entry| entry.value().user_id == user_id)
+        .map(|entry| {
+            let job = entry.value();
+            let status = if job.tag_mappings.is_some() && job.symbol_mappings.is_some() {
+                "ready"
+            } else if job.tag_mappings.is_some() || job.symbol_mappings.is_some() {
+                "partial"
+            } else {
+                "preview"
+            };
+            json!({
+                "id": job.id,
+                "platform": job.platform,
+                "display_name": job.parse_result.display_name,
+                "element_count": job.parse_result.element_count,
+                "created_at": job.created_at,
+                "status": status,
+            })
+        })
+        .collect();
+
+    // Most recent first.
+    jobs.sort_by(|a, b| {
+        let ta = a["created_at"].as_str().unwrap_or("");
+        let tb = b["created_at"].as_str().unwrap_or("");
+        tb.cmp(ta)
+    });
+
+    Json(ApiResponse::ok(json!({ "jobs": jobs }))).into_response()
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/designer/import/dcs/:id/report
 // ---------------------------------------------------------------------------
 

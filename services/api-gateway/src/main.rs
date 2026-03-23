@@ -614,7 +614,8 @@ async fn main() -> anyhow::Result<()> {
         // IMPORTANT: static sub-paths (/tags, /symbols, /generate, /report) must be before parameterised /:id
         .route(
             "/api/designer/import/dcs",
-            post(handlers::dcs_import::create_import_job),
+            get(handlers::dcs_import::list_import_jobs)
+                .post(handlers::dcs_import::create_import_job),
         )
         .route(
             "/api/designer/import/dcs/:id/tags",

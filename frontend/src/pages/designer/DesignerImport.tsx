@@ -19,9 +19,11 @@ import {
   PLATFORMS,
   uploadDcsImport,
   createGraphicFromDcsResult,
+  listImportJobs,
   type DcsPlatform,
   type DcsImportResult,
   type DcsElement,
+  type DcsImportJobSummary,
 } from '../../api/dcsImport'
 
 // ---------------------------------------------------------------------------
@@ -1205,11 +1207,248 @@ function Step6Refine({ report }: { report: ImportReport }) {
 }
 
 // ---------------------------------------------------------------------------
+// Import Job History panel
+// ---------------------------------------------------------------------------
+
+const STATUS_LABEL: Record<string, string> = {
+  preview: 'In Progress',
+  partial: 'In Progress',
+  ready: 'Ready',
+  completed: 'Completed',
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  preview: 'var(--io-text-muted)',
+  partial: 'var(--io-warning, #f59e0b)',
+  ready: 'var(--io-success, #22c55e)',
+  completed: 'var(--io-success, #22c55e)',
+}
+
+function ImportJobHistory() {
+  const [jobs, setJobs] = useState<DcsImportJobSummary[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    listImportJobs().then((result) => {
+      if (cancelled) return
+      setLoading(false)
+      if (result.success) {
+        setJobs(result.data)
+      } else {
+        setError(result.error.message)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: 200,
+          color: 'var(--io-text-muted)',
+          fontSize: 14,
+        }}
+      >
+        Loading import history...
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: 200,
+          gap: 8,
+          color: 'var(--io-danger, #ef4444)',
+          fontSize: 14,
+        }}
+      >
+        <span>Failed to load import history</span>
+        <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>{error}</span>
+      </div>
+    )
+  }
+
+  if (!jobs || jobs.length === 0) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '60px 24px',
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            background: 'var(--io-surface-secondary, #e2e8f0)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 22,
+            color: 'var(--io-text-muted)',
+          }}
+        >
+          &#8635;
+        </div>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--io-text-primary)',
+          }}
+        >
+          No import history
+        </p>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 13,
+            color: 'var(--io-text-muted)',
+            textAlign: 'center',
+            maxWidth: 320,
+          }}
+        >
+          Past DCS graphics imports will appear here once you run your first import.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '20px 24px', maxWidth: 800 }}>
+      <table
+        style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          fontSize: 13,
+        }}
+      >
+        <thead>
+          <tr>
+            {['Display Name', 'Platform', 'Elements', 'Status', 'Created'].map((h) => (
+              <th
+                key={h}
+                style={{
+                  textAlign: 'left',
+                  padding: '6px 12px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--io-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  borderBottom: '1px solid var(--io-border)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map((job) => (
+            <tr
+              key={job.id}
+              style={{
+                borderBottom: '1px solid var(--io-border)',
+              }}
+            >
+              <td
+                style={{
+                  padding: '10px 12px',
+                  color: 'var(--io-text-primary)',
+                  fontWeight: 500,
+                  maxWidth: 220,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {job.display_name || '(unnamed)'}
+              </td>
+              <td style={{ padding: '10px 12px', color: 'var(--io-text-secondary, #475569)' }}>
+                {job.platform}
+              </td>
+              <td
+                style={{
+                  padding: '10px 12px',
+                  color: 'var(--io-text-secondary, #475569)',
+                  textAlign: 'right',
+                }}
+              >
+                {job.element_count}
+              </td>
+              <td style={{ padding: '10px 12px' }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: STATUS_COLOR[job.status] ?? 'var(--io-text-muted)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      background: STATUS_COLOR[job.status] ?? 'var(--io-text-muted)',
+                      flexShrink: 0,
+                    }}
+                  />
+                  {STATUS_LABEL[job.status] ?? job.status}
+                </span>
+              </td>
+              <td
+                style={{
+                  padding: '10px 12px',
+                  color: 'var(--io-text-muted)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {new Date(job.created_at).toLocaleString()}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
+type PageTab = 'wizard' | 'history'
+
 export default function DesignerImport() {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<PageTab>('wizard')
   const [step, setStep] = useState(0)
   const [importResult, setImportResult] = useState<DcsImportResult | null>(null)
   const [tagMap, setTagMap] = useState<Map<string, string>>(new Map())
@@ -1274,47 +1513,96 @@ export default function DesignerImport() {
         </span>
       </div>
 
-      {/* Step indicator */}
-      <StepIndicator current={step} />
-
-      {/* Step content — scrollable */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {step === 0 && <Step1Upload onUploadSuccess={handleUploadSuccess} />}
-        {step === 1 && importResult && (
-          <Step2Preview
-            result={importResult}
-            onBack={() => setStep(0)}
-            onNext={() => setStep(2)}
-          />
-        )}
-        {step === 2 && importResult && (
-          <Step3TagMapping
-            result={importResult}
-            tagMap={tagMap}
-            setTagMap={setTagMap}
-            onBack={() => setStep(1)}
-            onNext={() => setStep(3)}
-          />
-        )}
-        {step === 3 && importResult && (
-          <Step4SymbolMapping
-            result={importResult}
-            symbolMap={symbolMap}
-            setSymbolMap={setSymbolMap}
-            onBack={() => setStep(2)}
-            onNext={() => setStep(4)}
-          />
-        )}
-        {step === 4 && importResult && (
-          <Step5Generate
-            result={importResult}
-            tagMap={tagMap}
-            onBack={() => setStep(3)}
-            onGenerated={handleGenerated}
-          />
-        )}
-        {step === 5 && importReport && <Step6Refine report={importReport} />}
+      {/* Tab bar */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 0,
+          padding: '0 20px',
+          borderBottom: '1px solid var(--io-border)',
+          background: 'var(--io-surface)',
+          flexShrink: 0,
+        }}
+      >
+        {(['wizard', 'history'] as PageTab[]).map((tab) => {
+          const label = tab === 'wizard' ? 'New Import' : 'Import History'
+          const active = activeTab === tab
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                background: 'none',
+                border: 'none',
+                borderBottom: active
+                  ? '2px solid var(--io-accent, #3b82f6)'
+                  : '2px solid transparent',
+                color: active ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: active ? 600 : 400,
+                padding: '10px 14px',
+                marginBottom: -1,
+                whiteSpace: 'nowrap',
+                transition: 'color 0.15s',
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
       </div>
+
+      {/* Tab content */}
+      {activeTab === 'wizard' ? (
+        <>
+          {/* Step indicator */}
+          <StepIndicator current={step} />
+
+          {/* Step content — scrollable */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {step === 0 && <Step1Upload onUploadSuccess={handleUploadSuccess} />}
+            {step === 1 && importResult && (
+              <Step2Preview
+                result={importResult}
+                onBack={() => setStep(0)}
+                onNext={() => setStep(2)}
+              />
+            )}
+            {step === 2 && importResult && (
+              <Step3TagMapping
+                result={importResult}
+                tagMap={tagMap}
+                setTagMap={setTagMap}
+                onBack={() => setStep(1)}
+                onNext={() => setStep(3)}
+              />
+            )}
+            {step === 3 && importResult && (
+              <Step4SymbolMapping
+                result={importResult}
+                symbolMap={symbolMap}
+                setSymbolMap={setSymbolMap}
+                onBack={() => setStep(2)}
+                onNext={() => setStep(4)}
+              />
+            )}
+            {step === 4 && importResult && (
+              <Step5Generate
+                result={importResult}
+                tagMap={tagMap}
+                onBack={() => setStep(3)}
+                onGenerated={handleGenerated}
+              />
+            )}
+            {step === 5 && importReport && <Step6Refine report={importReport} />}
+          </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <ImportJobHistory />
+        </div>
+      )}
     </div>
   )
 }
