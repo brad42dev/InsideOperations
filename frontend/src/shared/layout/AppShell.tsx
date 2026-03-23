@@ -19,6 +19,7 @@ import { showToast } from '../components/Toast'
 import LockOverlay from '../components/LockOverlay'
 import EmergencyAlert from '../components/EmergencyAlert'
 import CommandPalette from '../components/CommandPalette'
+import KeyboardHelpOverlay from '../components/KeyboardHelpOverlay'
 import PopupBlockedBanner, {
   PopupBlockedIndicator,
   usePopupBlockedState,
@@ -504,6 +505,7 @@ export default function AppShell() {
   const userMenuBtnRef = useRef<HTMLButtonElement>(null)
   const [userMenuPos, setUserMenuPos] = useState({ top: 0, right: 0 })
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
 
   // Popup detection — runs at app init (post-auth). Not shown in kiosk mode.
@@ -777,6 +779,13 @@ export default function AppShell() {
         e.preventDefault()
         setTopbarHidden(v => !v)
         setTopbarPeek(false)
+        return
+      }
+
+      // ? — open keyboard shortcut help overlay
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '?') {
+        e.preventDefault()
+        setHelpOpen((v) => !v)
         return
       }
 
@@ -1853,6 +1862,7 @@ export default function AppShell() {
       <LockOverlay />
       <EmergencyAlert />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <KeyboardHelpOverlay open={helpOpen} onOpenChange={setHelpOpen} />
 
       {/* Corner dwell triggers — only in kiosk mode */}
       {isKiosk && (['tl', 'tr', 'bl', 'br'] as CornerPosition[]).map((corner) => (
