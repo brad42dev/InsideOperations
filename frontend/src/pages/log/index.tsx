@@ -4,6 +4,117 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi, type LogInstance, type LogTemplate, type SearchResult } from '../../api/logs'
 import { useAuthStore } from '../../store/auth'
 import { ExportButton } from '../../shared/components/ExportDialog'
+import { SkeletonBlock } from '../../shared/components/Skeleton'
+
+// ---------------------------------------------------------------------------
+// Skeleton loading states (CX-LOADING)
+// ---------------------------------------------------------------------------
+
+function LogInstanceCardSkeleton() {
+  return (
+    <div
+      style={{
+        background: 'var(--io-surface)',
+        border: '1px solid var(--io-border)',
+        borderRadius: '8px',
+        padding: '16px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <SkeletonBlock height="18px" width="55%" />
+          <SkeletonBlock height="13px" width="28%" />
+        </div>
+        <SkeletonBlock height="22px" width="64px" borderRadius="99px" />
+      </div>
+    </div>
+  )
+}
+
+function LogListSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {[1, 2, 3, 4].map((i) => (
+        <LogInstanceCardSkeleton key={i} />
+      ))}
+    </div>
+  )
+}
+
+function CompletedTableSkeleton() {
+  return (
+    <div
+      style={{
+        background: 'var(--io-surface)',
+        border: '1px solid var(--io-border)',
+        borderRadius: '8px',
+        overflow: 'hidden',
+      }}
+    >
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--io-border)' }}>
+            {['Template', 'Date', 'Team', 'Completed At', 'Actions'].map((h) => (
+              <th
+                key={h}
+                style={{
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  color: 'var(--io-text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {[1, 2, 3, 4].map((i) => (
+            <tr key={i} style={{ borderBottom: '1px solid var(--io-border)' }}>
+              {[60, 35, 40, 45, 20].map((w, ci) => (
+                <td key={ci} style={{ padding: '12px 16px' }}>
+                  <SkeletonBlock height="14px" width={`${w}%`} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function TemplatesListSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          style={{
+            background: 'var(--io-surface)',
+            border: '1px solid var(--io-border)',
+            borderRadius: '8px',
+            padding: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <SkeletonBlock height="16px" width="40%" />
+            <SkeletonBlock height="13px" width="65%" />
+          </div>
+          <SkeletonBlock height="30px" width="72px" borderRadius="6px" />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -737,7 +848,7 @@ export default function LogPage() {
         {tab === 'active' && !searchSubmitted && (
           <>
             {activeLoading ? (
-              <div style={{ color: 'var(--io-text-muted)', fontSize: '14px' }}>Loading...</div>
+              <LogListSkeleton />
             ) : !activeData || activeData.length === 0 ? (
               <div
                 style={{
@@ -772,7 +883,7 @@ export default function LogPage() {
         {tab === 'completed' && !searchSubmitted && (
           <>
             {completedLoading ? (
-              <div style={{ color: 'var(--io-text-muted)', fontSize: '14px' }}>Loading...</div>
+              <CompletedTableSkeleton />
             ) : (
               <CompletedTable instances={completedData ?? []} />
             )}
@@ -783,7 +894,7 @@ export default function LogPage() {
         {tab === 'templates' && !searchSubmitted && (
           <>
             {templatesLoading ? (
-              <div style={{ color: 'var(--io-text-muted)', fontSize: '14px' }}>Loading...</div>
+              <TemplatesListSkeleton />
             ) : (
               <TemplatesList
                 templates={templatesData ?? []}

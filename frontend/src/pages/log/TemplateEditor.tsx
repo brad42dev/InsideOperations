@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi, type LogSegment, type LogTemplate } from '../../api/logs'
 import PointPicker from '../../shared/components/PointPicker'
+import { SkeletonBlock } from '../../shared/components/Skeleton'
 
 // ---------------------------------------------------------------------------
 // Field definition (for field_table / field_list segments)
@@ -328,6 +329,64 @@ function NewSegmentForm({
 }
 
 // ---------------------------------------------------------------------------
+// Skeleton loading state (CX-LOADING)
+// ---------------------------------------------------------------------------
+
+function TemplateEditorSkeleton() {
+  return (
+    <div style={{ flex: 1, overflow: 'auto', padding: '28px 24px', maxWidth: '800px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Basic info card skeleton */}
+      <div
+        style={{
+          background: 'var(--io-surface)',
+          border: '1px solid var(--io-border)',
+          borderRadius: '8px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+        }}
+      >
+        <SkeletonBlock height="16px" width="30%" />
+        <SkeletonBlock height="36px" width="100%" borderRadius="6px" />
+        <SkeletonBlock height="16px" width="25%" />
+        <SkeletonBlock height="72px" width="100%" borderRadius="6px" />
+      </div>
+      {/* Segments card skeleton */}
+      <div
+        style={{
+          background: 'var(--io-surface)',
+          border: '1px solid var(--io-border)',
+          borderRadius: '8px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <SkeletonBlock height="16px" width="20%" />
+        {[1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              border: '1px solid var(--io-border)',
+              borderRadius: '6px',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            <SkeletonBlock height="14px" width="40%" />
+            <SkeletonBlock height="13px" width="60%" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main template editor
 // ---------------------------------------------------------------------------
 
@@ -538,7 +597,7 @@ export default function TemplateEditor() {
       {/* Body */}
       <div style={{ flex: 1, overflow: 'auto', padding: '28px 24px', maxWidth: '800px', width: '100%', margin: '0 auto' }}>
         {loading && !isNew ? (
-          <div style={{ color: 'var(--io-text-muted)', fontSize: '14px' }}>Loading...</div>
+          <TemplateEditorSkeleton />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {/* Basic info */}

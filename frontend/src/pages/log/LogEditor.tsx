@@ -13,6 +13,7 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import { logsApi, type LogAttachment, type LogSegment, type LogTemplate } from '../../api/logs'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
+import { SkeletonBlock } from '../../shared/components/Skeleton'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -881,6 +882,54 @@ function AttachmentPanel({
 }
 
 // ---------------------------------------------------------------------------
+// Skeleton loading state (CX-LOADING)
+// ---------------------------------------------------------------------------
+
+function LogEditorSkeleton() {
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--io-bg)', overflow: 'hidden' }}>
+      {/* Header bar skeleton */}
+      <div
+        style={{
+          borderBottom: '1px solid var(--io-border)',
+          padding: '12px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          flexShrink: 0,
+          height: '60px',
+        }}
+      >
+        <SkeletonBlock height="20px" width="200px" />
+        <div style={{ flex: 1 }} />
+        <SkeletonBlock height="30px" width="80px" borderRadius="6px" />
+        <SkeletonBlock height="30px" width="80px" borderRadius="6px" />
+      </div>
+      {/* Segment cards skeleton */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '800px', width: '100%', margin: '0 auto' }}>
+        {[120, 140].map((h, i) => (
+          <div
+            key={i}
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '8px',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <SkeletonBlock height="16px" width="35%" />
+            <SkeletonBlock height={`${h - 36}px`} width="100%" borderRadius="6px" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main editor
 // ---------------------------------------------------------------------------
 
@@ -1004,7 +1053,11 @@ export default function LogEditor() {
 
   const readOnly = instanceData?.status === 'submitted' || instanceData?.status === 'reviewed'
 
-  if (isLoading || !instanceData) {
+  if (isLoading) {
+    return <LogEditorSkeleton />
+  }
+
+  if (!instanceData) {
     return (
       <div
         style={{
@@ -1016,7 +1069,7 @@ export default function LogEditor() {
           fontSize: '14px',
         }}
       >
-        {isLoading ? 'Loading...' : 'Instance not found.'}
+        Instance not found.
       </div>
     )
   }
