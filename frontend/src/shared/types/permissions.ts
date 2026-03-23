@@ -136,13 +136,15 @@ export type ShiftsPermission =
   | 'alert_groups:read'
   | 'alert_groups:write'
 
-// System (27)
+// System (29)
 export type SystemPermission =
   | 'system:manage_users'
   | 'system:manage_groups'
   | 'system:manage_roles'
   | 'system:view_logs'
   | 'system:system_settings'
+  | 'system:configure'
+  | 'system:certificates'
   | 'system:opc_config'
   | 'system:source_config'
   | 'system:event_config'
@@ -232,9 +234,10 @@ const ALL_PERMISSIONS = new Set<string>([
   // Shifts (8)
   'shifts:read', 'shifts:write', 'presence:read', 'presence:manage',
   'muster:manage', 'badge_config:manage', 'alert_groups:read', 'alert_groups:write',
-  // System (27)
+  // System (29)
   'system:manage_users', 'system:manage_groups', 'system:manage_roles',
-  'system:view_logs', 'system:system_settings', 'system:opc_config',
+  'system:view_logs', 'system:system_settings', 'system:configure', 'system:certificates',
+  'system:opc_config',
   'system:source_config', 'system:event_config', 'system:point_config',
   'system:point_deactivate', 'system:expression_manage',
   'system:import_connections', 'system:import_definitions',
