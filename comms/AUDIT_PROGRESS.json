@@ -1,9 +1,9 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T23:44:57.983860Z",
+  "last_updated": "2026-03-22T23:58:45.523454+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
-  "current_unit": null,
+  "current_unit": "DD-32",
   "task_attempts": {
     "GFX-SHAPES-001": 1,
     "GFX-SHAPES-002": 0,
@@ -133,7 +133,8 @@
     "DD-31-001": 1,
     "DD-31-007": 1,
     "DD-31-008": 1,
-    "DD-31-009": 1
+    "DD-31-009": 1,
+    "DD-32-005": 1
   },
   "queue": [
     {
@@ -3275,7 +3276,7 @@
       "wave": 3,
       "title": "Implement PointDetailPanel full section layout (Alarm Data, Graphics, action buttons, resize, pin, minimize, multi-instance)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3285,7 +3286,7 @@
       "wave": 3,
       "title": "Fix PointContextMenu actions to match spec (Trend Point, Investigate Point, Report on Point, RBAC, mobile long-press)",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3295,7 +3296,7 @@
       "wave": 3,
       "title": "Add PointPicker Favorites tab, Recent points list, and hover preview with sparkline",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
