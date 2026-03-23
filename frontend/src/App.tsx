@@ -81,6 +81,7 @@ const DesignerGraphicsList = lazy(() => import('./pages/designer/DesignerGraphic
 const DesignerReportsList = lazy(() => import('./pages/designer/DesignerReportsList'))
 const DesignerImport = lazy(() => import('./pages/designer/DesignerImport'))
 const DesignerDashboardsList = lazy(() => import('./pages/designer/DesignerDashboardsList'))
+const SymbolLibrary = lazy(() => import('./pages/designer/SymbolLibrary'))
 
 // Dashboards module
 const DashboardsPage = lazy(() => import('./pages/dashboards/index'))
@@ -422,7 +423,17 @@ function AppRoutes() {
             </PermissionGuard>
           }
         />
-        <Route path="designer/symbols" element={<Navigate to="/designer" replace />} />
+        <Route
+          path="designer/symbols"
+          element={
+            isMobile ? <MobileNotAvailable module="Designer" /> :
+            <PermissionGuard permission="designer:read">
+              <ErrorBoundary module="Designer">
+                <SymbolLibrary />
+              </ErrorBoundary>
+            </PermissionGuard>
+          }
+        />
         <Route
           path="designer/import"
           element={
