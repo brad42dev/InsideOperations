@@ -661,6 +661,9 @@ export default function AppShell() {
           hasPin: session.has_pin,
         })
 
+        // Persist auth provider so the profile page can read it without props
+        sessionStorage.setItem('io_auth_provider', session.auth_provider)
+
         if (session.is_locked) {
           // Lock immediately — overlay will NOT show until next interaction
           lock({
@@ -1518,6 +1521,22 @@ export default function AppShell() {
                       </div>
 
                       {/* Navigation items */}
+                      <NavLink
+                        to="/profile"
+                        onClick={() => setUserMenuOpen(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 14px',
+                          textDecoration: 'none',
+                          color: 'var(--io-text-secondary)',
+                          fontSize: '13px',
+                        }}
+                      >
+                        <SettingsIcon size={14} /> Profile &amp; PIN Setup
+                      </NavLink>
+
                       <NavLink
                         to="/my-exports"
                         onClick={() => setUserMenuOpen(false)}

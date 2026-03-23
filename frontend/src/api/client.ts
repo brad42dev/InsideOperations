@@ -236,8 +236,8 @@ export const api = {
   patch<T>(path: string, body: unknown): Promise<ApiResult<T>> {
     return request<T>('PATCH', path, body)
   },
-  delete<T = void>(path: string): Promise<ApiResult<T>> {
-    return request<T>('DELETE', path)
+  delete<T = void>(path: string, body?: unknown): Promise<ApiResult<T>> {
+    return request<T>('DELETE', path, body)
   },
   postForm<T>(path: string, form: FormData): Promise<ApiResult<T>> {
     return requestForm<T>('POST', path, form)

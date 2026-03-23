@@ -98,6 +98,7 @@ const ReportGenerator = lazy(() => import('./pages/reports/ReportGenerator'))
 const ReportHistory = lazy(() => import('./pages/reports/ReportHistory'))
 const ReportSchedules = lazy(() => import('./pages/reports/ReportSchedules'))
 const MyExports = lazy(() => import('./pages/reports/MyExports'))
+const UserProfile = lazy(() => import('./pages/profile/UserProfile'))
 
 // Forensics module
 const ForensicsPage = lazy(() => import('./pages/forensics/index'))
@@ -253,6 +254,16 @@ function AppRoutes() {
           element={
             <PermissionGuard permission={null}>
               <MyExports />
+            </PermissionGuard>
+          }
+        />
+
+        {/* User profile — accessible from any module via the user menu */}
+        <Route
+          path="profile"
+          element={
+            <PermissionGuard permission={null}>
+              <UserProfile />
             </PermissionGuard>
           }
         />

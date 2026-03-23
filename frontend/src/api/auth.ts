@@ -158,6 +158,22 @@ export const authApi = {
    */
   sessionCheck: () => api.get<SessionCheckResponse>('/api/auth/me'),
 
+  /**
+   * Set or update the user's 6-digit numeric PIN for lock screen unlock.
+   * Backend: POST /api/auth/pin  { pin, current_password }
+   * SSO-only accounts pass current_password as empty string.
+   */
+  setPin: (pin: string, currentPassword: string) =>
+    api.post<void>('/api/auth/pin', { pin, current_password: currentPassword }),
+
+  /**
+   * Remove the user's PIN.
+   * Backend: DELETE /api/auth/pin  { current_password }
+   * SSO-only accounts pass current_password as empty string.
+   */
+  deletePin: (currentPassword: string) =>
+    api.delete<void>('/api/auth/pin', { current_password: currentPassword }),
+
   /** @deprecated use eulaGetPending instead */
   eulaStatus: () => api.get<EulaStatus>('/api/auth/eula/status'),
 }

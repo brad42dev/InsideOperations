@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T21:13:23.565725+00:00",
+  "last_updated": "2026-03-23T21:21:59.601981Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -162,7 +162,8 @@
     "DD-28-009": 1,
     "DD-10-012": 1,
     "DD-29-012": 1,
-    "DD-10-013": 1
+    "DD-10-013": 1,
+    "DD-27-010": 1
   },
   "queue": [
     {
@@ -4739,7 +4740,7 @@
       "wave": 3,
       "title": "SMS Providers settings page returns Access Denied for admin user",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4751,7 +4752,7 @@
       "wave": 3,
       "title": "PIN setup option missing from user profile",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
