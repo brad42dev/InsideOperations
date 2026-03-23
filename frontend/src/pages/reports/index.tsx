@@ -16,6 +16,7 @@ const CATEGORIES = [
   'Process Data',
   'Operational Logs',
   'Rounds & Inspections',
+  'Equipment & Maintenance',
   'Environmental & Compliance',
   'Security & Access',
   'Executive & Management',
