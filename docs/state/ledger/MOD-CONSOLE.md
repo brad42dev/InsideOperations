@@ -21,3 +21,4 @@ MOD-CONSOLE-013 | Replace hardcoded hex colors in Console with design token CSS 
 MOD-CONSOLE-010 | Replace text loading state with Console-shaped skeleton | verified 2026-03-23 | commit 3e74cb4 | cd frontend && npx tsc --noEmit | PASS
 MOD-CONSOLE-011 | Fix kiosk URL parameter from ?mode=kiosk to ?kiosk=true; add corner dwell exit trigger | verified 2026-03-23 | commit a685822 | npx tsc --noEmit | PASS
 MOD-CONSOLE-014 | Fix dynamic import error — incorrect SharedWorker path in useWsWorker.ts | verified 2026-03-23 | commit f1d002c | npx tsc --noEmit | PASS
+MOD-CONSOLE-015 | fix TypeError reading 'reduce' on workspaces selector | verified 2026-03-23 | commit c0a215f | npx tsc --noEmit | PASS

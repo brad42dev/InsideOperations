@@ -530,8 +530,16 @@ export default function DesignerGraphicsList() {
     staleTime: 30_000,
   })
 
+  // Guard against both paginated ({ data: [...] }) and flat (array) API shapes.
+  // The client unwraps the envelope differently depending on whether the server
+  // includes a `pagination` key, so data.data may be the array itself or an
+  // object with a nested `data` property.
   const allGraphics: GraphicSummary[] =
-    data?.success === true ? data.data.data : []
+    data?.success === true
+      ? (Array.isArray(data.data)
+          ? data.data
+          : ((data.data as { data?: GraphicSummary[] })?.data ?? []))
+      : []
 
   // Client-side filtering
   const filtered = useMemo(() => {
