@@ -25,6 +25,8 @@ const SUB_NAV: SubNavItem[] = [
   { path: '/settings/api-keys', label: 'API Keys' },
   { path: '/settings/scim', label: 'SCIM' },
   { path: '/settings/sms-providers', label: 'SMS Providers' },
+  { path: '/settings/bulk-update', label: 'Bulk Update' },
+  { path: '/settings/snapshots', label: 'Change Snapshots' },
   { path: '/settings/import', label: 'Import' },
   { path: '/settings/recognition', label: 'Recognition' },
   { path: '/settings/eula', label: 'EULA' },
