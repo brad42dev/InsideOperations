@@ -226,6 +226,90 @@ pub struct NotifyPointMetadataChanged {
     pub source_id: Uuid,
 }
 
+/// Sent on channel `events` by Event Service; consumed by Data Broker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyEvent {
+    #[serde(rename = "type")]
+    pub msg_type: String,       // always "event"
+    pub event_id: Uuid,
+    pub event_type: String,     // "alarm", "system", "user_action", etc.
+    pub severity: String,       // "emergency", "critical", "warning", "info"
+    pub point_id: Option<Uuid>,
+    pub summary: String,
+}
+
+/// Sent on channel `alerts` by Alert Service; consumed by Data Broker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyAlert {
+    #[serde(rename = "type")]
+    pub msg_type: String,       // always "alert"
+    pub alert_id: Uuid,
+    pub severity: String,
+    pub template_name: String,
+    pub title: String,
+    pub requires_acknowledgment: bool,
+    pub full_screen_takeover: bool,
+}
+
+/// Sent on channel `alert_trigger` by Event Service; consumed by Alert Service.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyAlertTrigger {
+    #[serde(rename = "type")]
+    pub msg_type: String,       // always "alert_trigger"
+    pub source_event_id: Uuid,
+    pub trigger_type: String,
+    pub severity: String,
+    pub point_id: Option<Uuid>,
+    pub context: serde_json::Value,
+}
+
+/// Sent on channel `import_status` by Import Service; consumed by API Gateway.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyImportStatus {
+    #[serde(rename = "type")]
+    pub msg_type: String,       // always "import_status"
+    pub run_id: Uuid,
+    pub status: String,         // "running", "completed", "failed"
+    pub progress_pct: u8,
+    pub error_message: Option<String>,
+}
+
+/// Sent on channel `export_progress` by API Gateway; consumed by Data Broker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyExportProgress {
+    #[serde(rename = "type")]
+    pub msg_type: String,       // always "export_progress"
+    pub job_id: Uuid,
+    pub user_id: Uuid,
+    pub status: String,         // "queued", "processing", "completed", "failed"
+    pub progress_pct: u8,
+}
+
+/// Sent on channel `presence_updates` by API Gateway; consumed by Data Broker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyPresenceUpdate {
+    #[serde(rename = "type")]
+    pub msg_type: String,       // always "presence_update"
+    pub user_id: Uuid,
+    pub presence_state: String, // "on_site", "off_site"
+    pub badge_event_type: Option<String>,
+    pub timestamp: String,      // RFC 3339
+}
+
+/// Sent on channel `email_send` by any service; consumed by Email Service.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyEmailSend {
+    #[serde(rename = "type")]
+    pub msg_type: String,       // always "email_send"
+    pub template_id: Option<Uuid>,
+    pub to: Vec<String>,
+    pub subject: Option<String>,
+    pub template_variables: Option<serde_json::Value>,
+    pub priority: String,       // "normal", "critical", "high", "low"
+    pub context_type: String,   // "report", "alert", "export", "round", "auth", "test"
+    pub context_id: Option<Uuid>,
+}
+
 // ---------------------------------------------------------------------------
 // WebSocket outbound message types (broker → client, doc 16)
 // ---------------------------------------------------------------------------
