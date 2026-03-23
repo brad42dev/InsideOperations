@@ -149,6 +149,7 @@ export interface TextReadoutConfig {
   minWidth: number
   width?: number
   height?: number
+  showSignalLine?: boolean
 }
 
 export interface AnalogBarConfig {
@@ -184,6 +185,7 @@ export interface FillGaugeConfig {
   showLevelLine: boolean
   showValue: boolean
   valueFormat: string
+  showSignalLine?: boolean
 }
 
 export interface SparklineConfig {
@@ -195,6 +197,7 @@ export interface SparklineConfig {
   dataPoints: number
   sparkWidth?: number
   sparkHeight?: number
+  showSignalLine?: boolean
 }
 
 export interface AlarmIndicatorConfig {
@@ -212,6 +215,7 @@ export interface DigitalStatusConfig {
   abnormalPriority: 1 | 2 | 3 | 4 | 5
   width?: number
   height?: number
+  showSignalLine?: boolean
 }
 
 export type DisplayElementConfig =

@@ -3,7 +3,7 @@ import type {
   GraphicDocument, SceneNode, SymbolInstance, DisplayElement, Primitive,
   Pipe, TextBlock, Group, Annotation, ImageNode, EmbeddedSvgNode,
   WidgetNode, ViewportState, LayerDefinition,
-  TextReadoutConfig, AnalogBarConfig, FillGaugeConfig, DigitalStatusConfig,
+  TextReadoutConfig, AnalogBarConfig, FillGaugeConfig, SparklineConfig, DigitalStatusConfig,
   Stencil,
   DimensionLineConfig, NorthArrowConfig, LegendConfig,
   SectionBreakConfig, HeaderConfig, FooterConfig,
@@ -532,6 +532,19 @@ export function SceneRenderer({
             {isManual && (
               <text data-role="manual-badge" x={w - 2} y={2} textAnchor="end" dominantBaseline="hanging" fontFamily="Inter" fontSize={7} fontWeight={700} fill={DE_COLORS.manualBadge}>M</text>
             )}
+            {cfg.showSignalLine && parentOffset && (() => {
+              const ex = -parentOffset.x
+              const ey = -parentOffset.y
+              return (
+                <line
+                  x1={0} y1={h / 2}
+                  x2={ex} y2={ey}
+                  stroke="#52525B"
+                  strokeWidth={0.75}
+                  strokeDasharray="3 2"
+                />
+              )
+            })()}
           </g>
         )
       }
@@ -566,6 +579,20 @@ export function SceneRenderer({
           <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="digital_status" data-point-id={pvKey}>
             <rect data-role="bg" x={0} y={0} width={w} height={22} rx={2} fill={fill} />
             <text data-role="value" x={w/2} y={11} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fill={textColor}>{label}</text>
+            {cfg.showSignalLine && parentOffset && (() => {
+              const h = 22
+              const ex = -parentOffset.x
+              const ey = -parentOffset.y
+              return (
+                <line
+                  x1={0} y1={h / 2}
+                  x2={ex} y2={ey}
+                  stroke="#52525B"
+                  strokeWidth={0.75}
+                  strokeDasharray="3 2"
+                />
+              )
+            })()}
           </g>
         )
       }
@@ -661,6 +688,7 @@ export function SceneRenderer({
       }
 
       case 'sparkline': {
+        const cfg = node.config as SparklineConfig
         const W = 110, H = 18
         const alarmPriority = pv?.alarmPriority as number | null | undefined
         const strokeColor = alarmPriority ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary
@@ -688,6 +716,19 @@ export function SceneRenderer({
             ) : (
               <line x1={3} y1={H/2} x2={W-3} y2={H/2} stroke={strokeColor} strokeWidth={1.5} strokeLinecap="round" opacity={0.3} />
             )}
+            {cfg.showSignalLine && parentOffset && (() => {
+              const ex = -parentOffset.x
+              const ey = -parentOffset.y
+              return (
+                <line
+                  x1={0} y1={H / 2}
+                  x2={ex} y2={ey}
+                  stroke="#52525B"
+                  strokeWidth={0.75}
+                  strokeDasharray="3 2"
+                />
+              )
+            })()}
           </g>
         )
       }
@@ -720,6 +761,19 @@ export function SceneRenderer({
               <rect data-role="fill" x={0} y={fillY} width={bw} height={fillH + 20} fill={fillColor} clipPath={`url(#${clipId})`} />
               {cfg.showLevelLine && fillH > 0 && <line x1={0} y1={fillY} x2={bw} y2={fillY} stroke={DE_COLORS.borderStrong} strokeWidth={1} strokeDasharray="5 3" />}
               {cfg.showValue && fillH > 0 && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill={DE_COLORS.textSecondary}>{fmtPct}</text>}
+              {cfg.showSignalLine && parentOffset && (() => {
+                const ex = -parentOffset.x
+                const ey = -parentOffset.y
+                return (
+                  <line
+                    x1={0} y1={bh / 2}
+                    x2={ex} y2={ey}
+                    stroke="#52525B"
+                    strokeWidth={0.75}
+                    strokeDasharray="3 2"
+                  />
+                )
+              })()}
             </g>
           )
         }
@@ -733,6 +787,19 @@ export function SceneRenderer({
             <rect data-role="fill" x={1} y={fillY} width={bw-2} height={fillH} rx={1} fill={fillColor} />
             {cfg.showLevelLine && fillH > 0 && <line x1={1} y1={fillY} x2={bw-1} y2={fillY} stroke={DE_COLORS.borderStrong} strokeWidth={1} strokeDasharray="5 3" />}
             {cfg.showValue && <text data-role="value" x={bw/2} y={fillY + fillH/2} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={10} fill={DE_COLORS.textSecondary}>{fmtPct}</text>}
+            {cfg.showSignalLine && parentOffset && (() => {
+              const ex = -parentOffset.x
+              const ey = -parentOffset.y
+              return (
+                <line
+                  x1={0} y1={bh / 2}
+                  x2={ex} y2={ey}
+                  stroke="#52525B"
+                  strokeWidth={0.75}
+                  strokeDasharray="3 2"
+                />
+              )
+            })()}
           </g>
         )
       }
