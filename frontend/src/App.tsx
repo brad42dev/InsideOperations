@@ -953,7 +953,7 @@ function AppRoutes() {
           <Route
             path="roles"
             element={
-              <PermissionGuard permission="system:manage_users">
+              <PermissionGuard permission="system:manage_roles">
                 <RolesPage />
               </PermissionGuard>
             }
