@@ -43,13 +43,13 @@ pub async fn jwt_auth(
         .unwrap_or_default();
 
     let token = match extract_bearer(req.headers()) {
-        Some(t) => t,
+        Some(t) => t.to_owned(),
         None => return unauthorized("Authentication required"),
     };
 
     // Allow service-to-service calls with the service secret
     if let Some(service_secret) = req.extensions().get::<Arc<ServiceSecret>>() {
-        if constant_time_eq(token, &service_secret.0) {
+        if constant_time_eq(&token, &service_secret.0) {
             // Service-level access: insert a synthetic claims struct
             let service_claims = Claims {
                 sub: "service".to_string(),
@@ -63,7 +63,12 @@ pub async fn jwt_auth(
         }
     }
 
-    match validate_token(token, &jwt_secret) {
+    // API key path: tokens prefixed with io_sk_
+    if token.starts_with("io_sk_") {
+        return handle_api_key_auth(&token, &state, req, next).await;
+    }
+
+    match validate_token(&token, &jwt_secret) {
         Ok(claims) => {
             // Check that the user account is still enabled. This enforces immediate
             // lockout when an admin disables an account — the 15-min access-token
@@ -155,6 +160,117 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 pub struct ServiceSecret(pub String);
+
+// ---------------------------------------------------------------------------
+// API key authentication
+//
+// Tokens with the `io_sk_` prefix are API keys stored in the database.
+// The full token is hashed with Argon2id at creation time; we cannot do a
+// direct hash-equality lookup, so we first narrow by key_prefix (first 8
+// characters) and then verify each candidate with Argon2id.
+// ---------------------------------------------------------------------------
+
+async fn handle_api_key_auth(
+    token: &str,
+    state: &AppState,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    // The prefix stored in the DB is the first 8 characters of the token.
+    // For io_sk_ keys this is always the first 8 chars (e.g. "io_sk_XX").
+    let prefix: String = token.chars().take(8).collect();
+
+    // Fetch all active, non-expired candidates that share this prefix.
+    // We do Argon2 verification in Rust to find the matching row.
+    let rows = match sqlx::query(
+        "SELECT id, user_id, key_hash, scopes, expires_at
+         FROM api_keys
+         WHERE key_prefix = $1
+           AND (expires_at IS NULL OR expires_at > NOW())",
+    )
+    .bind(&prefix)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!(error = %e, "api key db lookup failed");
+            return unauthorized("Authentication error");
+        }
+    };
+
+    // Argon2 verify each candidate. We never log the raw token.
+    let mut matched_row = None;
+    for row in &rows {
+        let stored_hash: &str = row.get("key_hash");
+        match io_auth::verify_password(token, stored_hash) {
+            Ok(true) => {
+                matched_row = Some(row);
+                break;
+            }
+            Ok(false) => continue,
+            Err(e) => {
+                tracing::warn!(error = %e, "api key hash verification error");
+                continue;
+            }
+        }
+    }
+
+    let row = match matched_row {
+        Some(r) => r,
+        None => return unauthorized("Invalid or expired API key"),
+    };
+
+    let key_id: uuid::Uuid = row.get("id");
+    let user_id: uuid::Uuid = row.get("user_id");
+    let scopes: Vec<String> = row.get::<Option<Vec<String>>, _>("scopes").unwrap_or_default();
+
+    // Look up the username so the synthetic claims include a meaningful identity.
+    let username = match sqlx::query(
+        "SELECT username FROM users WHERE id = $1 AND deleted_at IS NULL AND enabled = true",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r.get::<String, _>("username"),
+        Ok(None) => return unauthorized("API key owner not found or disabled"),
+        Err(e) => {
+            tracing::error!(error = %e, "api key user lookup failed");
+            return unauthorized("Authentication error");
+        }
+    };
+
+    // Fire-and-forget: update last_used_at asynchronously so we don't block the request.
+    let db = state.db.clone();
+    tokio::spawn(async move {
+        let _ = sqlx::query("UPDATE api_keys SET last_used_at = NOW() WHERE id = $1")
+            .bind(key_id)
+            .execute(&db)
+            .await;
+    });
+
+    let api_claims = Claims {
+        sub: user_id.to_string(),
+        username,
+        permissions: scopes,
+        exp: i64::MAX,
+        iat: Utc::now().timestamp(),
+    };
+
+    // Inject the same context headers as the JWT path.
+    if let Ok(v) = HeaderValue::from_str(&api_claims.sub) {
+        req.headers_mut().insert("x-io-user-id", v);
+    }
+    if let Ok(v) = HeaderValue::from_str(&api_claims.username) {
+        req.headers_mut().insert("x-io-username", v);
+    }
+    if let Ok(v) = HeaderValue::from_str(&api_claims.permissions.join(",")) {
+        req.headers_mut().insert("x-io-permissions", v);
+    }
+    req.extensions_mut().insert(api_claims);
+    next.run(req).await
+}
 
 // ---------------------------------------------------------------------------
 // Rate limiting middleware

@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T01:25:13.842754+00:00",
+  "last_updated": "2026-03-23T01:30:08.044972+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -3609,7 +3609,7 @@
       "wave": 3,
       "title": "Fix Pagination field names in io-models to match spec (per_page, total_items, total_pages)",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3619,7 +3619,7 @@
       "wave": 3,
       "title": "Implement API key (io_sk_ prefix) auth path in gateway JWT middleware",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
