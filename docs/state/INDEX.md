@@ -38,7 +38,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | DD-36 | 3 | 8 | 0 | 8 | 0 | DD-36-001 |
 | DD-37 | 3 | 6 | 0 | 6 | 0 | DD-37-001 |
 | DD-38 | 3 | 7 | 0 | 7 | 0 | DD-38-001 |
-| DD-39 | 4 | 9 | 0 | 8 | 0 | DD-39-001 |
+| DD-39 | 4 | 11 | 0 | 10 | 0 | DD-39-001 |
 
 **Total: 291 tasks | 7 verified | 284 pending | 0 escalated**
 

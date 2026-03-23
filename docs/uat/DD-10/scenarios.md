@@ -1,13 +1,8 @@
 # UAT Scenarios — DD-10
 
-## Dashboard Page Renders
-Scenario 1: [DD-10-012] Dashboard page renders without error — navigate to /dashboards → page loads, no error boundary, no "Something went wrong"
-Scenario 2: [DD-10-012] Non-alarm dashboard loads without "Unknown widget type" — navigate to /dashboards, open any dashboard → no "Unknown widget type" text visible
-
-## Point Context Menu
-Scenario 3: [DD-10-005] PointContextMenu available on widget values — navigate to /dashboards, right-click a numeric value → [role="menu"] appears
-Scenario 4: [DD-10-005] Context menu has point actions — after right-click on point value → menu contains "Point Detail" or "Trend Point"
-
-## Widget Config Aggregation
-Scenario 5: [DD-10-006] Widget config shows aggregation options — in /dashboards edit mode, open widget config → aggregation type selector visible (avg/min/max/sum/count)
-Scenario 6: [DD-10-006] Config panel renders without error — click widget settings → no blank or empty panel
+## Dashboard Rendering
+Scenario 1: [DD-10-013] Dashboards page renders without error — navigate to /dashboards → page loads, no error boundary, dashboard list or empty state visible
+Scenario 2: [DD-10-013] Widget content not badge labels — open any dashboard → widgets show real UI content or loading/empty state, NOT raw type strings like "alarm-kpi" or "opc-status"
+Scenario 3: [DD-10-005] PointContextMenu on widget value — navigate to /dashboards, open a dashboard → right-click a widget point value → [role="menu"] appears with context menu items
+Scenario 4: [DD-10-006] Widget config has aggregation selector — open dashboard editor, click widget config → panel shows aggregation type dropdown (Last/Average/Min/Max)
+Scenario 5: [DD-10-014] Aggregation type field alongside Title/Metric/Unit — in widget config panel, confirm aggregation type field exists

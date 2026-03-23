@@ -3,29 +3,29 @@ unit: DD-34
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 4
-scenarios_passed: 3
+scenarios_tested: 3
+scenarios_passed: 2
 scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /designer/import loads the DCS Graphics Import wizard.
+pass: /designer/import loads with New Import and Import History tabs.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | DCS Import | [DD-34-004] DCS import page renders without error | ✅ pass | 6-step wizard (Upload→Preview→Tag Mapping→Symbol Mapping→Generate→Refine) loads |
-| 2 | DCS Import | [DD-34-006] Platform list shows correct platforms | ✅ pass | All 12 platforms visible: Generic SVG, Generic JSON, Honeywell Experion PKS, Emerson DeltaV Live, Yokogawa CENTUM VP, ABB 800xA, Siemens PCS 7/WinCC Classic, Foxboro I/A Series, GE iFIX/Proficy, AVEVA InTouch/Wonderware, AspenTech Aspen, Rockwell FactoryTalk View |
-| 3 | DCS Import | [DD-34-004] DCS import job list visible | ❌ fail | /designer/import shows only the new-import wizard — no import job history or job list section |
-| 4 | DCS Import | [DD-34-004] Import job creation UI accessible | ✅ pass | 6-step import wizard IS the creation UI; accessible at /designer/import |
+| 1 | DCS Import | [DD-34-007] Import History tab visible | ✅ pass | "Import History" button tab present alongside "New Import" |
+| 2 | DCS Import | [DD-34-004] Import wizard renders | ✅ pass | 6-step wizard (Upload/Preview/Tag Mapping/Symbol Mapping/Generate/Refine) with DCS platform selector showing 12 platforms |
+| 3 | DCS Import | [DD-34-007] Import history loads content or empty state | ❌ fail | Clicking "Import History" shows "Failed to load import history — Failed to parse server response". API /api/designer/import/dcs returns 404. |
 
 ## New Bug Tasks Created
 
-DD-34-007 — No DCS import job history list — /designer/import shows only new-import wizard with no history of past imports
+None
 
 ## Screenshot Notes
 
-DCS Import wizard shows correct 12-platform list with kit-required and full-support badges. No job history/management section visible.
+- Screenshot docs/uat/DD-34/dd34-007-import-history-error.png: Import History tab with API error
+- DD-34-001, DD-34-002 (ZIP parsing, per-platform parsers) are backend implementations — wizard UI renders correctly with all 12 platforms selectable

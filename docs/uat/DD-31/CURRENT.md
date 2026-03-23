@@ -11,20 +11,21 @@ scenarios_skipped: 0
 
 ## Module Route Check
 
-pass: Navigating to /alerts loads real Alerts module implementation.
+pass: /alerts loads real implementation.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alerts | [DD-31-015] Alerts module renders without error | ✅ pass | /alerts loads alert list without error boundary |
-| 2 | Alerts | [DD-31-015] Alert compose shows multiple notification channels | ❌ fail | Compose dialog only shows "WebSocket (browser)" channel — no Email, SMS or other channels |
-| 3 | Alerts | [DD-31-015] Notification channels endpoint not 404 | ❌ fail | /api/notifications/channels/enabled returns 404; compose falls back to WebSocket only |
+| 1 | Alerts Channels | [DD-31-016] Alerts page renders without error | ✅ pass | Full alerts compose UI with Template, Severity, Title, Message, Channels, Recipients |
+| 2 | Alerts Channels | [DD-31-016] Alert compose shows multiple channels | ❌ fail | CHANNELS section shows only "websocket" checkbox. No Email, SMS, or other channels. |
+| 3 | Alerts Channels | [DD-31-016] Channels populated beyond WebSocket | ❌ fail | Same — only one channel option available |
 
 ## New Bug Tasks Created
 
-DD-31-016 — Notification channels API endpoint (/api/notifications/channels/enabled) returns 404; alert compose only shows WebSocket channel
+None
 
 ## Screenshot Notes
 
-Screenshot saved at docs/uat/DD-31/channels-websocket-only.png showing compose dialog with only "WebSocket (browser)" channel option.
+- Screenshot docs/uat/DD-31/dd31-016-websocket-only.png: Alert compose with only "websocket" channel
+- /api/notifications/channels/enabled likely still returning 404 per console errors

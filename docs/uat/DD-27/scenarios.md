@@ -1,7 +1,6 @@
 # UAT Scenarios — DD-27
 
-## Alert Settings
-Scenario 1: [DD-27-009] SMS Providers settings page accessible — navigate to /settings, find SMS or Notification Providers section → page loads without "Access Denied" for admin user
-Scenario 2: [DD-27-007] Notification channels settings visible — navigate to /settings/alerts or notifications → channel configuration options shown (SMS, Email, etc.)
-Scenario 3: [DD-27-002] Alerts module renders without error — navigate to /alerts → page loads, no error boundary
-Scenario 4: [DD-27-003] Alert list shows escalation status — navigate to /alerts → active alerts show escalation/status information
+## Alert System
+Scenario 1: [DD-27-010] SMS Providers page accessible without Access Denied — navigate to /settings/sms-providers as admin → page renders (not "Access Denied")
+Scenario 2: [DD-27-007] Alert channels UI shows multiple channel types — navigate to /alerts, open compose → notification channel selector shows more than just WebSocket
+Scenario 3: [DD-27-010] Settings page renders without permission error — /settings/sms-providers shows configuration or empty state, not an RBAC error

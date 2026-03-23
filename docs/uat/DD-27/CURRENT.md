@@ -3,29 +3,29 @@ unit: DD-27
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 2
-scenarios_passed: 1
-scenarios_failed: 1
-scenarios_skipped: 2
+scenarios_tested: 3
+scenarios_passed: 0
+scenarios_failed: 3
+scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /alerts loads real Alerts implementation.
+pass: /alerts loads. /settings/sms-providers shows "Access Denied".
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alerts | [DD-27-009] SMS Providers settings page accessible | ❌ fail | /settings/sms-providers returns "Access Denied" for admin user |
-| 2 | Alerts | [DD-27-007] Notification channels settings visible | skipped | Could not navigate to channel configuration |
-| 3 | Alerts | [DD-27-002] Alerts module renders without error | ✅ pass | /alerts loads with alert list |
-| 4 | Alerts | [DD-27-003] Alert list shows escalation status | skipped | No active alerts in dev environment |
+| 1 | Alert System | [DD-27-010] SMS Providers page without Access Denied | ❌ fail | /settings/sms-providers still shows "Access Denied — You do not have permission to view this page." for admin user |
+| 2 | Alert System | [DD-27-007] Alert channels shows multiple types | ❌ fail | Alerts compose CHANNELS section shows only "websocket" checkbox. No email/SMS/other channels. |
+| 3 | Alert System | [DD-27-010] Settings renders without permission error | ❌ fail | Same as Scenario 1 — RBAC permission fix not applied |
 
 ## New Bug Tasks Created
 
-DD-27-010 — SMS Providers settings returns Access Denied for admin user
+None
 
 ## Screenshot Notes
 
-/settings/sms-providers shows Access Denied page even for admin account. Screenshot saved at docs/uat/DD-27/sms-providers-access-denied.png.
+- Screenshot docs/uat/DD-27/dd27-010-sms-access-denied.png: Access Denied for admin on /settings/sms-providers
+- DD-27-003, DD-27-004 (CancellationToken, startup recovery) are backend behavioral changes not browser-testable

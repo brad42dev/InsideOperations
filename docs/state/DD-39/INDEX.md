@@ -12,3 +12,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-39-007 | Serialize expression ASTs in graphic.json during export | pending | 0 |
 | DD-39-008 | Fix export route path, HTTP method, and MIME type | pending | 0 |
 | DD-39-009 | No .iographic file export option in Designer — Save persists to DB only | pending | 0 |
+| DD-39-010 | No custom shapes management UI — Symbol Library shows only built-in ISA-101 categories | pending | 0 |
