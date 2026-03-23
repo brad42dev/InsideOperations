@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T00:00:00Z",
+  "last_updated": "2026-03-23T19:28:56.133857Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -158,7 +158,8 @@
     "DD-12-012": 1,
     "DD-13-009": 1,
     "DD-10-011": 1,
-    "DD-31-014": 1
+    "DD-31-014": 1,
+    "DD-28-009": 1
   },
   "queue": [
     {
@@ -4603,7 +4604,7 @@
       "wave": 3,
       "title": "Email provider type selector missing MS Graph, Gmail, SES, SMTP-XOAUTH2 options",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4615,7 +4616,7 @@
       "wave": 3,
       "title": "/api/notifications/channels/enabled still returns 404 \u2014 alert compose shows only websocket",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
