@@ -416,6 +416,7 @@ export default function LogPage() {
   const [filterTo, setFilterTo] = useState('')
   const [filterTemplateId, setFilterTemplateId] = useState('')
   const [filterShiftId, setFilterShiftId] = useState('')
+  const [filterAuthor, setFilterAuthor] = useState('')
 
   const { data: activeData, isLoading: activeLoading } = useQuery({
     queryKey: ['log-instances', 'active'],
@@ -451,10 +452,10 @@ export default function LogPage() {
     // Load always so templates are available for the search filter dropdown
   })
 
-  const hasActiveFilters = filterFrom !== '' || filterTo !== '' || filterTemplateId !== '' || filterShiftId !== ''
+  const hasActiveFilters = filterFrom !== '' || filterTo !== '' || filterTemplateId !== '' || filterShiftId !== '' || filterAuthor !== ''
 
   const { data: searchData, isLoading: searchLoading } = useQuery({
-    queryKey: ['log-search', searchQuery, filterFrom, filterTo, filterTemplateId, filterShiftId],
+    queryKey: ['log-search', searchQuery, filterFrom, filterTo, filterTemplateId, filterShiftId, filterAuthor],
     queryFn: async () => {
       const res = await logsApi.search({
         q: searchQuery || undefined,
@@ -462,6 +463,7 @@ export default function LogPage() {
         to: filterTo || undefined,
         template_id: filterTemplateId || undefined,
         shift_id: filterShiftId || undefined,
+        author: filterAuthor || undefined,
       })
       if (!res.success) throw new Error(res.error.message)
       return res.data
@@ -625,6 +627,23 @@ export default function LogPage() {
                   width: '100px',
                 }}
               />
+              {/* Author filter */}
+              <input
+                type="text"
+                value={filterAuthor}
+                onChange={(e) => setFilterAuthor(e.target.value)}
+                placeholder="Author"
+                aria-label="Filter by author"
+                style={{
+                  background: 'var(--io-bg)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '6px',
+                  padding: '7px 10px',
+                  fontSize: '13px',
+                  color: 'var(--io-text-primary)',
+                  width: '120px',
+                }}
+              />
               <button
                 type="submit"
                 style={{
@@ -692,6 +711,7 @@ export default function LogPage() {
                   setFilterTo('')
                   setFilterTemplateId('')
                   setFilterShiftId('')
+                  setFilterAuthor('')
                   setSearchSubmitted(false)
                 }}
                 style={{

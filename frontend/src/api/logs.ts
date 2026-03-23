@@ -148,6 +148,7 @@ export const logsApi = {
     from?: string
     to?: string
     template_id?: string
+    author?: string
   }): Promise<ApiResult<SearchResult[]>> =>
     api.get<SearchResult[]>(`/api/logs/search${queryString(params)}`),
 
