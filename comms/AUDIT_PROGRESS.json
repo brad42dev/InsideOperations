@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T19:28:56.133857Z",
+  "last_updated": "2026-03-23T19:32:26.405794+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -790,7 +790,7 @@
       "completed_at": "2026-03-21",
       "notes": "12 tasks. Emergency permission not enforced; template variables typed wrong; no resolve/cancel on active alerts.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     },
     {
       "unit": "DD-32",
@@ -4616,7 +4616,7 @@
       "wave": 3,
       "title": "/api/notifications/channels/enabled still returns 404 \u2014 alert compose shows only websocket",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4628,7 +4628,7 @@
       "wave": 3,
       "title": "\"Unknown widget type\" error on non-alarm dashboards",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

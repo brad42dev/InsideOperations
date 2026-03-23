@@ -13,6 +13,7 @@ import AlarmCountBySeverityWidget from './AlarmCountBySeverityWidget'
 import UnackCountWidget from './UnackCountWidget'
 import AlarmRateWidget from './AlarmRateWidget'
 import AlarmListWidget from './AlarmListWidget'
+import PlaceholderWidget from './PlaceholderWidget'
 import ExportDataDialog from './ExportDataDialog'
 
 interface Props {
@@ -56,20 +57,7 @@ function WidgetBody({
     case 'alarm-list':
       return <AlarmListWidget config={config} variables={variables} />
     default:
-      return (
-        <div
-          style={{
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--io-text-muted)',
-            fontSize: '12px',
-          }}
-        >
-          Unknown widget type: {config.type}
-        </div>
-      )
+      return <PlaceholderWidget config={config} />
   }
 }
 
