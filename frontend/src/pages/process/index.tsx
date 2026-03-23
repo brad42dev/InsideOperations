@@ -1174,10 +1174,30 @@ export default function ProcessPage() {
               </div>
             )}
 
-            {/* Loading */}
+            {/* Loading — module-shaped skeleton */}
             {selectedId && isLoading && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--io-text-muted)', fontSize: 13 }}>
-                Loading…
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'row', background: 'var(--io-surface-primary)', overflow: 'hidden' }}>
+                {/* Sidebar skeleton */}
+                <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--io-border)', padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div className="io-skeleton" style={{ height: 16, width: '60%', borderRadius: 4 }} />
+                  <div className="io-skeleton" style={{ height: 12, width: '90%', borderRadius: 4 }} />
+                  <div className="io-skeleton" style={{ height: 12, width: '75%', borderRadius: 4 }} />
+                  <div className="io-skeleton" style={{ height: 12, width: '85%', borderRadius: 4 }} />
+                  <div className="io-skeleton" style={{ height: 12, width: '70%', borderRadius: 4 }} />
+                  <div className="io-skeleton" style={{ height: 12, width: '80%', borderRadius: 4 }} />
+                  <div className="io-skeleton" style={{ height: 12, width: '65%', borderRadius: 4 }} />
+                </div>
+                {/* Viewport + toolbar skeleton */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  {/* Main viewport area */}
+                  <div className="io-skeleton" style={{ flex: 1 }} />
+                  {/* Toolbar band at bottom */}
+                  <div style={{ height: 40, borderTop: '1px solid var(--io-border)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="io-skeleton" style={{ height: 20, width: 60, borderRadius: 4 }} />
+                    <div className="io-skeleton" style={{ height: 20, width: 60, borderRadius: 4 }} />
+                    <div className="io-skeleton" style={{ height: 20, width: 80, borderRadius: 4 }} />
+                  </div>
+                </div>
               </div>
             )}
 

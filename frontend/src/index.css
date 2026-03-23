@@ -596,6 +596,23 @@
   50%       { opacity: 0.45; }
 }
 
+/* Skeleton shimmer — module-shaped loading states */
+@keyframes io-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.io-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--io-surface-secondary) 25%,
+    var(--io-surface-elevated) 50%,
+    var(--io-surface-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: io-shimmer 1.5s linear infinite;
+}
+
 /* Unacknowledged — 1Hz flash between alarm color and gray */
 @keyframes io-alarm-flash {
   0%, 49% { opacity: 1; }
