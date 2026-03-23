@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { showToast } from '../../shared/components/Toast'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/auth'
@@ -718,12 +719,19 @@ export default function DashboardBuilder() {
       void queryClient.invalidateQueries({ queryKey: ['dashboards'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard', id] })
       setSaveError(null)
+      showToast({ title: 'Dashboard saved', variant: 'success', duration: 4000 })
       if (isNew && data) {
         navigate(`/dashboards/${data.id}`)
       }
     },
     onError: (err: Error) => {
       setSaveError(err.message)
+      showToast({
+        title: 'Save failed',
+        description: err.message || 'Could not save the dashboard. Please try again.',
+        variant: 'error',
+        duration: 0,
+      })
     },
   })
 
