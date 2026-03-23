@@ -249,6 +249,7 @@ function CreateUserDialog({
     role_ids: [],
   })
   const [formError, setFormError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string; password?: string }>({})
 
   const mutation = useMutation({
     mutationFn: (req: CreateUserRequest) => usersApi.create(req),
@@ -261,41 +262,72 @@ function CreateUserDialog({
       onOpenChange(false)
       setForm({ username: '', email: '', full_name: '', password: '', role_ids: [] })
       setFormError(null)
+      setFieldErrors({})
     },
   })
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setFormError(null)
+
+    const errors: { username?: string; email?: string; password?: string } = {}
+    if (!form.username.trim()) errors.username = 'Username is required'
+    if (!form.email.trim()) errors.email = 'Email is required'
+    if (!form.password.trim()) errors.password = 'Password is required'
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+
+    setFieldErrors({})
     const req: CreateUserRequest = { ...form }
     if (!req.full_name) delete req.full_name
     mutation.mutate(req)
+  }
+
+  const fieldErrorStyle: React.CSSProperties = {
+    marginTop: '4px',
+    fontSize: '12px',
+    color: 'var(--io-danger)',
   }
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <ModalContent title="Add User">
         {formError && <ErrorBanner message={formError} />}
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <label style={labelStyle}>Username *</label>
               <input
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  borderColor: fieldErrors.username ? 'var(--io-danger)' : undefined,
+                }}
                 value={form.username}
-                onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                required
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, username: e.target.value }))
+                  if (fieldErrors.username) setFieldErrors((fe) => ({ ...fe, username: undefined }))
+                }}
               />
+              {fieldErrors.username && <p style={fieldErrorStyle}>{fieldErrors.username}</p>}
             </div>
             <div>
               <label style={labelStyle}>Email *</label>
               <input
                 type="email"
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  borderColor: fieldErrors.email ? 'var(--io-danger)' : undefined,
+                }}
                 value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                required
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                  if (fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: undefined }))
+                }}
               />
+              {fieldErrors.email && <p style={fieldErrorStyle}>{fieldErrors.email}</p>}
             </div>
             <div>
               <label style={labelStyle}>Full Name</label>
@@ -309,11 +341,17 @@ function CreateUserDialog({
               <label style={labelStyle}>Password *</label>
               <input
                 type="password"
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  borderColor: fieldErrors.password ? 'var(--io-danger)' : undefined,
+                }}
                 value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                required
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, password: e.target.value }))
+                  if (fieldErrors.password) setFieldErrors((fe) => ({ ...fe, password: undefined }))
+                }}
               />
+              {fieldErrors.password && <p style={fieldErrorStyle}>{fieldErrors.password}</p>}
             </div>
             <div>
               <label style={labelStyle}>Roles</label>
