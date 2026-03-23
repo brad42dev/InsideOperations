@@ -21,3 +21,17 @@ SELECT add_retention_policy('ambient_monitoring', INTERVAL '2 years');
 -- Observability metrics: 30 days raw, 1 year rollups
 SELECT add_retention_policy('io_metrics.samples', INTERVAL '30 days');
 SELECT add_retention_policy('io_metrics.samples_5m', INTERVAL '365 days');
+
+-- io_metrics.samples: compress after 7 days (metric_name segments compress well)
+ALTER TABLE io_metrics.samples SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'metric_name',
+    timescaledb.compress_orderby = 'time DESC'
+);
+SELECT add_compression_policy('io_metrics.samples', INTERVAL '7 days');
+
+-- io_metrics.samples_5m: continuous aggregate auto-refresh every 5 minutes
+SELECT add_continuous_aggregate_policy('io_metrics.samples_5m',
+    start_offset      => INTERVAL '1 hour',
+    end_offset        => INTERVAL '10 minutes',
+    schedule_interval => INTERVAL '5 minutes');
