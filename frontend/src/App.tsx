@@ -1174,7 +1174,7 @@ function AppRoutes() {
           <Route
             path="recognition"
             element={
-              <PermissionGuard permission="settings:write">
+              <PermissionGuard permission="settings:admin">
                 <RecognitionPage />
               </PermissionGuard>
             }
