@@ -10,3 +10,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-14-005 | Implement conditional checkpoints in TemplateDesigner a… | pending | 0 |
 | DD-14-006 | Add export button to rounds tables (CX-EXPORT gap) | pending | 0 |
 | DD-14-007 | Replace hardcoded hex colors with design tokens across … | pending | 0 |
+| DD-14-008 | Print checklist feature not implemented — no print button in rounds | pending | 0 |

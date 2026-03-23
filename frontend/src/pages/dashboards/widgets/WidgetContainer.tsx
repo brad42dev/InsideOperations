@@ -13,6 +13,15 @@ import AlarmCountBySeverityWidget from './AlarmCountBySeverityWidget'
 import UnackCountWidget from './UnackCountWidget'
 import AlarmRateWidget from './AlarmRateWidget'
 import AlarmListWidget from './AlarmListWidget'
+import AlarmKpiWidget from './AlarmKpiWidget'
+import OpcStatusWidget from './OpcStatusWidget'
+import ShiftInfoWidget from './ShiftInfoWidget'
+import AreaStatusTableWidget from './AreaStatusTableWidget'
+import ServiceHealthWidget from './ServiceHealthWidget'
+import WsThroughputWidget from './WsThroughputWidget'
+import DbSizeWidget from './DbSizeWidget'
+import ApiResponseTimeWidget from './ApiResponseTimeWidget'
+import ServiceHealthTableWidget from './ServiceHealthTableWidget'
 import PlaceholderWidget from './PlaceholderWidget'
 import ExportDataDialog from './ExportDataDialog'
 
@@ -56,6 +65,26 @@ function WidgetBody({
       return <AlarmRateWidget config={config} variables={variables} />
     case 'alarm-list':
       return <AlarmListWidget config={config} variables={variables} />
+    // Operations Overview widgets
+    case 'alarm-kpi':
+      return <AlarmKpiWidget config={config} variables={variables} />
+    case 'opc-status':
+      return <OpcStatusWidget config={config} variables={variables} />
+    case 'shift-info':
+      return <ShiftInfoWidget config={config} variables={variables} />
+    case 'area-status-table':
+      return <AreaStatusTableWidget config={config} variables={variables} />
+    // System Health dashboard widgets
+    case 'service-health':
+      return <ServiceHealthWidget config={config} variables={variables} />
+    case 'ws-throughput':
+      return <WsThroughputWidget config={config} variables={variables} />
+    case 'db-size':
+      return <DbSizeWidget config={config} variables={variables} />
+    case 'api-response-time':
+      return <ApiResponseTimeWidget config={config} variables={variables} />
+    case 'service-health-table':
+      return <ServiceHealthTableWidget config={config} variables={variables} />
     default:
       return <PlaceholderWidget config={config} />
   }

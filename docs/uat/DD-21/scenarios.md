@@ -1,6 +1,6 @@
 # UAT Scenarios — DD-21
 
-## API / Backend (limited browser testability)
-Scenario 1: [DD-21-002] App loads without API errors — navigate to /console → no error boundary, app functional (rate limit headers don't break anything)
-Scenario 2: [DD-21-004] Form validation works — navigate to /settings, attempt to submit invalid data → validation error messages appear
-Scenario 3: [DD-21-002] Login validates input — navigate to /login, submit empty form → validation error shown (not server crash)
+## API Headers (visible via network/behavior)
+Scenario 1: [DD-21-002] Settings page loads without error — navigate to /settings → page renders, no error boundary
+Scenario 2: [DD-21-004] Form validation shows inline errors — navigate to /settings, try submitting a form with invalid data → inline validation errors shown (not browser alert dialogs)
+Scenario 3: [DD-21-002] API-driven pages render content — navigate to /settings/users → user list loads with data (not blank page or error)

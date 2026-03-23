@@ -3,32 +3,29 @@ unit: DD-39
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 1
-scenarios_passed: 1
-scenarios_failed: 0
-scenarios_skipped: 3
+scenarios_tested: 4
+scenarios_passed: 3
+scenarios_failed: 1
+scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: /designer loads designer module with graphic, dashboard, and report template sections.
+pass: Navigating to /designer loads real Designer implementation.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | .iographic | [DD-39-001] Designer page renders without error | ✅ pass | Designer home loads with Dashboards (9), Report Templates (0), recently modified items |
-| 2 | .iographic | [DD-39-002] Export graphic option | skipped | No process graphics found — only dashboard templates |
-| 3 | .iographic | [DD-39-004] Import graphic option | skipped | Import DCS Graphics button visible but not a .iographic import |
-| 4 | .iographic | [DD-39-005] Export produces download | skipped | Cannot test without a process graphic |
+| 1 | .iographic | [DD-39-001] Designer page renders without error | ✅ pass | /designer loads with Dashboards, Report Templates, recently modified list |
+| 2 | .iographic | [DD-39-002] Designer save option available | ✅ pass | Dashboard editor at /designer/dashboards/{id}/edit has Save button |
+| 3 | .iographic | [DD-39-004] Designer import option accessible | ✅ pass | "Import DCS Graphics" button visible on /designer landing page |
+| 4 | .iographic | [DD-39-005] Export produces downloadable file | ❌ fail | No Export/Download button found in dashboard editor or landing page; Save only persists to DB, no .iographic file export |
 
 ## New Bug Tasks Created
 
-None
+DD-39-009 — No .iographic file export option in Designer — Save persists to DB only, no downloadable export
 
 ## Screenshot Notes
 
-- Designer shows Dashboards (9 items) and Report Templates (0 items)
-- Dashboard editor opened showing widget palette and existing KPI widgets
-- .iographic format is for process graphics (SVG-based) — no process graphics exist in the system
-- DD-39 backend tasks (manifest fields, tag-based bindings, SHA-256 checksum, shape.json sidecar, AST serialization) not browser-verifiable
+Dashboard editor toolbar: Variables, Published toggle, Cancel, Save — no Export or Download button. Dashboard detail page (/designer/dashboards/{id}) returns 404.

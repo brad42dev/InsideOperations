@@ -1,18 +1,18 @@
 # UAT Scenarios — DD-13
 
-## Page Load
-Scenario 1: [DD-13-002] Log module renders without error — navigate to /log → page loads, no error boundary
+## Log Editor Renders
+Scenario 1: [DD-13-002] Log page renders without error — navigate to /log → page loads, no error boundary
+Scenario 2: [DD-13-002] Log editor toolbar visible — navigate to /log, open or create a log entry → toolbar with B/I/U/S buttons visible
 
-## Toolbar Buttons
-Scenario 2: [DD-13-002] Underline button visible in log toolbar — navigate to /log, open or create a log entry → underline button (U) visible in toolbar
-Scenario 3: [DD-13-002] Underline button applies underline (not strikethrough) — click underline button on selected text → text becomes underlined, not struck through
+## Underline Button
+Scenario 3: [DD-13-002] Underline button applies underline (not strikethrough) — click U button in log editor toolbar → text gets underline formatting, not strikethrough
+
+## Auto-save Indicator
+Scenario 4: [DD-13-003] Log editor has autosave indicator — open a log entry for editing → autosave status indicator visible (e.g., "Saved" or "Saving...")
 
 ## Status States
-Scenario 4: [DD-13-004] Log instance status states match spec — navigate to /log → status indicators show draft/submitted/reviewed (not pending/completed)
+Scenario 5: [DD-13-004] Log instance status shows correct values — navigate to /log, view instance list → statuses show "draft", "submitted", or "reviewed" (not "pending" or "completed")
 
-## Attachment Upload
-Scenario 5: [DD-13-005] Attachment upload UI visible — navigate to /log, open a log entry → attachment upload option (photo/video/audio) visible
-Scenario 6: [DD-13-005] Attachment upload accepts files — click attachment upload → file picker or upload area appears
-
-## Auto-save
-Scenario 7: [DD-13-003] Log module loads real UI — navigate to /log → WYSIWYG editor or log list visible, not a stub
+## Attachment Upload UI
+Scenario 6: [DD-13-005] Attachment section visible in log editor — open a log entry in draft state → "Attachments" section visible below content
+Scenario 7: [DD-13-005] Attachment upload accepts media types — click attachment upload button → file input accepts image/video/audio types

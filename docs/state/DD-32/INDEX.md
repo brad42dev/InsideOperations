@@ -13,3 +13,5 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-32-008 | Implement density mode React context so shared componen… | pending | 0 |
 | DD-32-009 | Fix ErrorBoundary button label to "Reload Module" per s… | pending | 0 |
 | DD-32-010 | Toast notification not shown on workspace creation failure | pending | 0 |
+| DD-32-011 | No toast notification shown on dashboard save — silent success/failure | pending | 0 |
+| DD-32-012 | PointPicker is plain text input — missing Browse/Search/Favorites tab interface | pending | 0 |

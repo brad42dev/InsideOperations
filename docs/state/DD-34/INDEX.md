@@ -9,3 +9,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-34-004 | Implement stateful 6-endpoint DCS import job API | pending | 0 |
 | DD-34-005 | Enforce designer:import RBAC permission on DCS import e… | pending | 0 |
 | DD-34-006 | Correct platform list — add missing platforms, remove n… | pending | 0 |
+| DD-34-007 | No DCS import job history list — import wizard shows no history of past imports | pending | 0 |

@@ -15,3 +15,5 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-10-010 | Dashboard widgets render 'Unknown widget type' for alarm-count-by-severity and 3 other types | pending | 0 |
 | DD-10-011 | Playback Bar (play/pause/seek) not implemented in DashboardViewer time-context mode | pending | 0 |
 | DD-10-012 | "Unknown widget type" error on non-alarm dashboards | pending | 0 |
+| DD-10-013 | Dashboard widgets render as type-label badges instead of actual widget content | pending | 0 |
+| DD-10-014 | Widget config missing aggregation type selector | pending | 0 |

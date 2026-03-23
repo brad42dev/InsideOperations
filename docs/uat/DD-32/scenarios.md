@@ -1,21 +1,22 @@
 # UAT Scenarios — DD-32
 
-## ECharts Theme Switching
-Scenario 1: [DD-32-002] Theme switching works on dashboards — navigate to /dashboards → charts render in current theme, no error
-Scenario 2: [DD-32-002] Theme change updates charts — toggle app theme in settings/header → charts update to reflect new theme (no white-on-white or invisible charts)
+## Toast Notifications
+Scenario 1: [DD-32-007] Toast component visible when triggered — navigate to /console, perform an action that triggers a toast → toast notification appears
+Scenario 2: [DD-32-007] Error toasts persist — trigger an error toast (e.g., failed action) → error toast stays visible without auto-dismissing
+Scenario 3: [DD-32-010] Toast shown on workspace failure — attempt to save/create workspace → if it fails, toast notification appears (not silent fail)
 
-## PointDetailPanel
-Scenario 3: [DD-32-004] PointDetailPanel opens — navigate to /console, right-click a point → "Point Detail" option visible; click it → PointDetailPanel opens with sections
-Scenario 4: [DD-32-004] PointDetailPanel has resize handle — open PointDetailPanel → resize handle visible
+## Point Context Menu
+Scenario 4: [DD-32-005] PointContextMenu has correct actions — right-click on a point value in console → menu has "Point Detail", "Trend Point", "Investigate Point", "Report on Point"
+Scenario 5: [DD-32-005] Context menu renders — right-click on point value → [role="menu"] appears, not empty
 
-## PointContextMenu
-Scenario 5: [DD-32-005] PointContextMenu has Trend option — right-click a point anywhere → "Trend Point" option visible in context menu
-Scenario 6: [DD-32-005] PointContextMenu has Investigate option — right-click a point anywhere → "Investigate Point" option visible in context menu
+## Point Detail Panel
+Scenario 6: [DD-32-004] PointDetailPanel has all sections — open point detail on a point → panel shows sections including alarm data, value, engineering unit
+
+## ECharts Theme
+Scenario 7: [DD-32-002] ECharts renders in current theme — navigate to /dashboards or a page with charts → charts visible without theme errors
 
 ## PointPicker
-Scenario 7: [DD-32-006] PointPicker has Favorites tab — open PointPicker (any point binding) → Favorites tab visible
-Scenario 8: [DD-32-006] PointPicker has Recent list — open PointPicker → Recent points section visible
+Scenario 8: [DD-32-006] PointPicker has Favorites tab — open point picker (e.g., in designer or dashboard config) → "Favorites" tab visible alongside Browse/Search tabs
 
-## Toast Notifications
-Scenario 9: [DD-32-007] Toast appears on actions — trigger any action that shows toast → toast notification visible
-Scenario 10: [DD-32-007] Console page loads without error — navigate to /console → page loads, no error boundary
+## Shared Components
+Scenario 9: [DD-32-002] Console page renders without error — navigate to /console → no error boundary
