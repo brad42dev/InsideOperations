@@ -46,9 +46,32 @@ export default function LineChart({ config }: Props) {
   const aggregation = cfg.aggregation ?? '5m'
   const points = cfg.points ?? []
 
-  // Read global time range from playback store — set by the time-context bar in DashboardViewer.
-  // When set, it overrides the per-widget timeRange config.
-  const { globalTimeRange } = usePlaybackStore()
+  // Read global time range and playback timestamp from playback store.
+  // globalTimeRange: set by the time-context bar preset/pickers — overrides per-widget default.
+  // globalPlaybackTimestamp: set by the PlaybackBar scrubber — narrows the query to a
+  //   window around the current playback position so widgets show historical data at that point.
+  const { globalTimeRange, globalPlaybackTimestamp } = usePlaybackStore()
+
+  // Derive the effective query range:
+  //  1. If globalPlaybackTimestamp is set, show a window of the full global range centered on it.
+  //     The window spans ±1/2 the global range, clamped within the global range bounds.
+  //  2. Else if globalTimeRange is set, use the full global range.
+  //  3. Else fall back to per-widget relative range.
+  function resolveEffectiveRange(): { start: string; end: string } {
+    if (globalPlaybackTimestamp && globalTimeRange) {
+      const tsMs = new Date(globalPlaybackTimestamp).getTime()
+      const rangeStartMs = new Date(globalTimeRange.start).getTime()
+      const rangeEndMs = new Date(globalTimeRange.end).getTime()
+      const halfRangeMs = Math.max(1, (rangeEndMs - rangeStartMs) / 2)
+      const windowStart = Math.max(rangeStartMs, tsMs - halfRangeMs)
+      const windowEnd = Math.min(rangeEndMs, tsMs + halfRangeMs)
+      return {
+        start: new Date(windowStart).toISOString(),
+        end: new Date(windowEnd).toISOString(),
+      }
+    }
+    return globalTimeRange ?? parseTimeRange(perWidgetTimeRange)
+  }
 
   // Track context menu state for the chart container.
   // For multi-series charts, right-clicking the container opens the menu for the first point.
@@ -57,14 +80,12 @@ export default function LineChart({ config }: Props) {
   const contextPointId = points[0] ?? ''
 
   // Resolve the effective time range: global override takes precedence, otherwise per-widget default.
-  // queryKey includes globalTimeRange so the query refetches when the global range changes.
+  // queryKey includes globalTimeRange + globalPlaybackTimestamp so the query refetches when they change.
   const query = useQuery({
-    queryKey: ['archive-history', points, perWidgetTimeRange, aggregation, globalTimeRange],
+    queryKey: ['archive-history', points, perWidgetTimeRange, aggregation, globalTimeRange, globalPlaybackTimestamp],
     queryFn: async () => {
       if (points.length === 0) return []
-      // If a global time range is set by the dashboard time-context bar, use it.
-      // Otherwise fall back to the per-widget relative range.
-      const { start, end } = globalTimeRange ?? parseTimeRange(perWidgetTimeRange)
+      const { start, end } = resolveEffectiveRange()
       const results = await Promise.all(
         points.map(async (pointId) => {
           const res = await api.get<HistoryResponse>(

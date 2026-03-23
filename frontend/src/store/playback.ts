@@ -29,6 +29,13 @@ interface PlaybackStore {
    * ISO 8601 strings; null means "not set — use per-widget default".
    */
   globalTimeRange: { start: string; end: string } | null
+  /**
+   * Current playback position within globalTimeRange for the dashboard PlaybackBar.
+   * When non-null, widgets narrow their query to a window around this timestamp
+   * to show historical data at this point in time.
+   * ISO 8601 string; null means "not scrubbing — show full globalTimeRange".
+   */
+  globalPlaybackTimestamp: string | null
 
   setMode: (mode: PlaybackMode) => void
   setTimestamp: (ts: number) => void
@@ -40,6 +47,7 @@ interface PlaybackStore {
   setLoopEnd: (ts: number | null) => void
   setLoopEnabled: (enabled: boolean) => void
   setGlobalTimeRange: (range: { start: string; end: string } | null) => void
+  setGlobalPlaybackTimestamp: (ts: string | null) => void
 }
 
 function defaultRange() {
@@ -59,6 +67,7 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   loopEnd: null,
   loopEnabled: false,
   globalTimeRange: null,
+  globalPlaybackTimestamp: null,
 
   setMode: (mode) =>
     set((s) => ({
@@ -78,4 +87,5 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   setLoopEnd: (loopEnd) => set({ loopEnd }),
   setLoopEnabled: (loopEnabled) => set({ loopEnabled }),
   setGlobalTimeRange: (globalTimeRange) => set({ globalTimeRange }),
+  setGlobalPlaybackTimestamp: (globalPlaybackTimestamp) => set({ globalPlaybackTimestamp }),
 }))

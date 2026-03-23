@@ -14,6 +14,11 @@
  *  - Loop toggle button
  *  - Current timestamp display (RFC 3339)
  *  - Keyboard shortcuts (Space, arrows, [, ], L/l, Home, End)
+ *
+ * In "time-context" mode (used by DashboardViewer):
+ *  - Preset time range buttons (15m / 1h / 6h / 24h / 7d / 30d)
+ *  - Custom From/To datetime pickers
+ *  - Playback Bar: play/pause, timeline scrubber, current timestamp, speed
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -86,27 +91,58 @@ export default function HistoricalPlaybackBar({ mode: barMode = 'playback' }: Hi
 
 // ---------------------------------------------------------------------------
 // TimeContextBar — used by DashboardViewer
+// Includes: preset buttons, From/To pickers, Playback Bar (play/pause/scrub/speed)
 // ---------------------------------------------------------------------------
 
+const TC_SPEEDS: PlaybackSpeed[] = [1, 2, 4, 8, 16, 32]
+
 function TimeContextBar() {
-  const { globalTimeRange, setGlobalTimeRange } = usePlaybackStore()
+  const {
+    globalTimeRange,
+    globalPlaybackTimestamp,
+    setGlobalTimeRange,
+    setGlobalPlaybackTimestamp,
+  } = usePlaybackStore()
+
+  // Local playback state
+  const [tcPlaying, setTcPlaying] = useState(false)
+  const [tcSpeed, setTcSpeed] = useState<PlaybackSpeed>(1)
+  const rafRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastRealRef = useRef<number>(Date.now())
 
   // Default displayed range: last 1 hour
   const now = new Date()
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
 
-  function fmtDatetimeLocal(date: Date): string {
+  function fmtDatetimeLocalStr(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
   }
 
   // Parse stored ISO strings back for display
   const displayStart = globalTimeRange
-    ? fmtDatetimeLocal(new Date(globalTimeRange.start))
-    : fmtDatetimeLocal(oneHourAgo)
+    ? fmtDatetimeLocalStr(new Date(globalTimeRange.start))
+    : fmtDatetimeLocalStr(oneHourAgo)
   const displayEnd = globalTimeRange
-    ? fmtDatetimeLocal(new Date(globalTimeRange.end))
-    : fmtDatetimeLocal(now)
+    ? fmtDatetimeLocalStr(new Date(globalTimeRange.end))
+    : fmtDatetimeLocalStr(now)
+
+  // Effective range (fall back to last 1h)
+  const rangeStart = globalTimeRange
+    ? new Date(globalTimeRange.start).getTime()
+    : oneHourAgo.getTime()
+  const rangeEnd = globalTimeRange
+    ? new Date(globalTimeRange.end).getTime()
+    : now.getTime()
+  const rangeMs = Math.max(1, rangeEnd - rangeStart)
+
+  // Current playback position
+  const currentMs = globalPlaybackTimestamp
+    ? new Date(globalPlaybackTimestamp).getTime()
+    : rangeStart
+  const clampedMs = Math.max(rangeStart, Math.min(rangeEnd, currentMs))
+  const progress = (clampedMs - rangeStart) / rangeMs
+  const sliderValue = Math.round(progress * 1000)
 
   // Preset shortcuts
   const presets: { label: string; ms: number }[] = [
@@ -122,6 +158,9 @@ function TimeContextBar() {
     const end = new Date()
     const start = new Date(end.getTime() - ms)
     setGlobalTimeRange({ start: start.toISOString(), end: end.toISOString() })
+    // Reset playback position to start of new range and stop
+    setTcPlaying(false)
+    setGlobalPlaybackTimestamp(start.toISOString())
   }
 
   function handleStartChange(val: string) {
@@ -130,6 +169,8 @@ function TimeContextBar() {
       const end = globalTimeRange ? new Date(globalTimeRange.end) : now
       if (start < end) {
         setGlobalTimeRange({ start: start.toISOString(), end: end.toISOString() })
+        setTcPlaying(false)
+        setGlobalPlaybackTimestamp(start.toISOString())
       }
     }
   }
@@ -140,60 +181,210 @@ function TimeContextBar() {
       const start = globalTimeRange ? new Date(globalTimeRange.start) : oneHourAgo
       if (end > start) {
         setGlobalTimeRange({ start: start.toISOString(), end: end.toISOString() })
+        setTcPlaying(false)
       }
     }
   }
 
+  function handleScrub(sliderVal: number) {
+    const pct = sliderVal / 1000
+    const ts = rangeStart + pct * rangeMs
+    setGlobalPlaybackTimestamp(new Date(ts).toISOString())
+    setTcPlaying(false)
+  }
+
+  function togglePlay() {
+    if (tcPlaying) {
+      setTcPlaying(false)
+      return
+    }
+    // If at end of range, restart from beginning
+    if (clampedMs >= rangeEnd) {
+      setGlobalPlaybackTimestamp(new Date(rangeStart).toISOString())
+    }
+    setTcPlaying(true)
+  }
+
+  // Auto-advance timer
+  useEffect(() => {
+    if (!tcPlaying) {
+      if (rafRef.current !== null) {
+        clearInterval(rafRef.current)
+        rafRef.current = null
+      }
+      return
+    }
+
+    lastRealRef.current = Date.now()
+
+    rafRef.current = setInterval(() => {
+      const now2 = Date.now()
+      const realElapsed = now2 - lastRealRef.current
+      lastRealRef.current = now2
+      const simElapsed = realElapsed * tcSpeed
+
+      const store = usePlaybackStore.getState()
+      const currentRangeStart = store.globalTimeRange
+        ? new Date(store.globalTimeRange.start).getTime()
+        : Date.now() - 3_600_000
+      const currentRangeEnd = store.globalTimeRange
+        ? new Date(store.globalTimeRange.end).getTime()
+        : Date.now()
+      const currentPos = store.globalPlaybackTimestamp
+        ? new Date(store.globalPlaybackTimestamp).getTime()
+        : currentRangeStart
+
+      const next = currentPos + simElapsed
+      if (next >= currentRangeEnd) {
+        // Reached the end — stop
+        setGlobalPlaybackTimestamp(new Date(currentRangeEnd).toISOString())
+        setTcPlaying(false)
+      } else {
+        setGlobalPlaybackTimestamp(new Date(next).toISOString())
+      }
+    }, 100)
+
+    return () => {
+      if (rafRef.current !== null) {
+        clearInterval(rafRef.current)
+        rafRef.current = null
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tcPlaying, tcSpeed])
+
+  // Stop playback when range changes
+  useEffect(() => {
+    setTcPlaying(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalTimeRange?.start, globalTimeRange?.end])
+
+  // Ensure globalPlaybackTimestamp is initialized when a range is set
+  useEffect(() => {
+    if (globalTimeRange && !globalPlaybackTimestamp) {
+      setGlobalPlaybackTimestamp(globalTimeRange.start)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalTimeRange])
+
+  const isAtEnd = clampedMs >= rangeEnd
+
   return (
-    <div style={barStyle}>
-      <span style={{ fontSize: 10, color: 'var(--io-text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>
-        Time Range:
-      </span>
-
-      {/* Preset buttons */}
-      {presets.map((p) => (
-        <button
-          key={p.label}
-          onClick={() => applyPreset(p.ms)}
-          style={iconBtnStyle}
-          title={`Last ${p.label}`}
-        >
-          {p.label}
-        </button>
-      ))}
-
-      {/* Custom range */}
-      <label style={labelStyle}>From</label>
-      <input
-        type="datetime-local"
-        value={displayStart}
-        onChange={(e) => handleStartChange(e.target.value)}
-        style={inputStyle}
-      />
-      <label style={labelStyle}>To</label>
-      <input
-        type="datetime-local"
-        value={displayEnd}
-        onChange={(e) => handleEndChange(e.target.value)}
-        style={inputStyle}
-      />
-
-      {/* Clear — restore per-widget defaults */}
-      {globalTimeRange && (
-        <button
-          onClick={() => setGlobalTimeRange(null)}
-          style={{ ...iconBtnStyle, color: 'var(--io-text-muted)' }}
-          title="Clear global time range — widgets use their per-widget default"
-        >
-          Reset
-        </button>
-      )}
-
-      {globalTimeRange && (
-        <span style={{ fontSize: 10, color: 'var(--io-accent)', whiteSpace: 'nowrap' }}>
-          {new Date(globalTimeRange.start).toLocaleDateString()} — {new Date(globalTimeRange.end).toLocaleDateString()}
+    <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, background: 'var(--io-surface)', borderTop: '1px solid var(--io-border)' }}>
+      {/* Top row: time range controls */}
+      <div style={{ ...barStyle, borderTop: 'none' }}>
+        <span style={{ fontSize: 10, color: 'var(--io-text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+          Time Range:
         </span>
-      )}
+
+        {/* Preset buttons */}
+        {presets.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => applyPreset(p.ms)}
+            style={iconBtnStyle}
+            title={`Last ${p.label}`}
+          >
+            {p.label}
+          </button>
+        ))}
+
+        {/* Custom range */}
+        <label style={labelStyle}>From</label>
+        <input
+          type="datetime-local"
+          value={displayStart}
+          onChange={(e) => handleStartChange(e.target.value)}
+          style={inputStyle}
+        />
+        <label style={labelStyle}>To</label>
+        <input
+          type="datetime-local"
+          value={displayEnd}
+          onChange={(e) => handleEndChange(e.target.value)}
+          style={inputStyle}
+        />
+
+        {/* Clear — restore per-widget defaults */}
+        {globalTimeRange && (
+          <button
+            onClick={() => {
+              setGlobalTimeRange(null)
+              setGlobalPlaybackTimestamp(null)
+              setTcPlaying(false)
+            }}
+            style={{ ...iconBtnStyle, color: 'var(--io-text-muted)' }}
+            title="Clear global time range — widgets use their per-widget default"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* Playback Bar row — always visible */}
+      <div style={{ ...barStyle, borderTop: '1px solid var(--io-border)', gap: 8 }}>
+        {/* Play / Pause */}
+        <button
+          onClick={togglePlay}
+          style={{
+            ...iconBtnStyle,
+            minWidth: 34,
+            color: tcPlaying ? 'var(--io-accent)' : 'var(--io-text-primary)',
+            borderColor: tcPlaying ? 'var(--io-accent)' : 'var(--io-border)',
+          }}
+          title={tcPlaying ? 'Pause playback' : isAtEnd ? 'Replay from start' : 'Play'}
+          aria-label={tcPlaying ? 'Pause' : 'Play'}
+        >
+          {tcPlaying ? '⏸' : isAtEnd ? '↺' : '▶'}
+        </button>
+
+        {/* Timeline scrubber */}
+        <div style={{ position: 'relative', flex: 1, minWidth: 100, display: 'flex', alignItems: 'center' }}>
+          <input
+            type="range"
+            min={0}
+            max={1000}
+            value={sliderValue}
+            onChange={(e) => handleScrub(Number(e.target.value))}
+            style={{ width: '100%', cursor: 'pointer', margin: 0 }}
+            aria-label="Playback timeline scrubber"
+          />
+        </div>
+
+        {/* Current timestamp display */}
+        <span
+          style={{
+            fontSize: 11,
+            fontFamily: 'var(--io-font-mono, monospace)',
+            color: tcPlaying ? 'var(--io-accent)' : 'var(--io-text-secondary)',
+            whiteSpace: 'nowrap',
+            minWidth: 160,
+          }}
+          title="Current playback position"
+        >
+          {globalPlaybackTimestamp
+            ? new Date(clampedMs).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
+            : '--'}
+        </span>
+
+        {/* Speed selector */}
+        <select
+          value={tcSpeed}
+          onChange={(e) => setTcSpeed(Number(e.target.value) as PlaybackSpeed)}
+          style={inputStyle}
+          title="Playback speed"
+          aria-label="Playback speed"
+        >
+          {TC_SPEEDS.map((s) => (
+            <option key={s} value={s}>x{s}</option>
+          ))}
+        </select>
+
+        {/* Label */}
+        <span style={{ fontSize: 10, color: 'var(--io-text-muted)', whiteSpace: 'nowrap' }}>
+          Playback
+        </span>
+      </div>
     </div>
   )
 }
