@@ -12,3 +12,5 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-10-007 | Add UOM client-side conversion for real-time widget val… | pending | 0 |
 | DD-10-008 | Add Playback Bar in time-context mode to DashboardViewe… | pending | 0 |
 | DD-10-009 | Replace hardcoded hex colors with CSS design tokens acr… | pending | 0 |
+| DD-10-010 | Dashboard widgets render 'Unknown widget type' for alarm-count-by-severity and 3 other types | pending | 0 |
+| DD-10-011 | Playback Bar (play/pause/seek) not implemented in DashboardViewer time-context mode | pending | 0 |

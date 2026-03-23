@@ -1607,7 +1607,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-10-003",
@@ -1662,7 +1662,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-10-008",
@@ -1673,7 +1673,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-10-009",
@@ -1684,7 +1684,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-11-001",
@@ -1796,7 +1796,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-003",
@@ -1807,7 +1807,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-004",
@@ -1864,7 +1864,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-009",
@@ -1886,7 +1886,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-12-011",
@@ -1897,7 +1897,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-012",
@@ -2009,7 +2009,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-010",
@@ -2020,7 +2020,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-14-001",
@@ -2097,7 +2097,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-15-001",
@@ -2358,7 +2358,7 @@
         "DD-20-001"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-20-003",
@@ -2415,7 +2415,7 @@
         "DD-20-004"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-20-008",
@@ -2558,7 +2558,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-002",
@@ -2571,7 +2571,7 @@
         "DD-23-001"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-003",
@@ -2582,7 +2582,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-004",
@@ -2593,7 +2593,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-005",
@@ -2604,7 +2604,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-006",
@@ -2615,7 +2615,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-007",
@@ -2629,7 +2629,7 @@
         "DD-23-005"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-008",
@@ -2640,7 +2640,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-009",
@@ -2651,7 +2651,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-010",
@@ -2662,7 +2662,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-011",
@@ -2673,7 +2673,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-012",
@@ -2684,7 +2684,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-013",
@@ -2697,7 +2697,7 @@
         "DD-23-011"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-014",
@@ -2708,7 +2708,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-015",
@@ -2719,7 +2719,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-016",
@@ -2732,7 +2732,7 @@
         "DD-23-001"
       ],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-24-001",
@@ -3270,7 +3270,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "partial"
     },
     {
       "id": "DD-30-001",
@@ -3371,7 +3371,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-003",
@@ -3406,7 +3406,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-006",
@@ -3428,7 +3428,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-008",
@@ -3472,7 +3472,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-012",
@@ -3483,7 +3483,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-001",
@@ -3518,7 +3518,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-004",
@@ -4084,7 +4084,7 @@
       "depends_on": [],
       "audit_round": 2,
       "source": "feature",
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-29-010",
@@ -4140,7 +4140,7 @@
       "depends_on": [],
       "audit_round": 2,
       "source": "feature",
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "GFX-SHAPES-007",
@@ -4521,7 +4521,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-026",
@@ -4529,7 +4529,67 @@
       "wave": null,
       "title": "Designer graphics list crashes with TypeError reading 'slice' on load",
       "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": "pass"
+    },
+    {
+      "id": "DD-10-010",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Dashboard widgets render 'Unknown widget type' for alarm-count-by-severity and 3 other types",
+      "priority": "high",
       "status": "implementing",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-10-011",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Playback Bar (play/pause/seek) not implemented in DashboardViewer time-context mode",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-12-013",
+      "unit": "DD-12",
+      "wave": 3,
+      "title": "Historical Playback Bar missing from forensics investigation workspace for graphic snapshot control",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-23-017",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Expression Library page returns 'Access Denied' for admin user \u2014 blocks all expression builder UAT",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-014",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Alert compose form shows only 'websocket' channel \u2014 /notifications/channels/enabled API returns 404",
+      "priority": "high",
+      "status": "pending",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

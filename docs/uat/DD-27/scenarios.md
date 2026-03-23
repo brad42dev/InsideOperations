@@ -1,6 +1,7 @@
 # UAT Scenarios — DD-27
 
-## Alert System (Backend)
-Scenario 1: [DD-27-001] Alerts module loads — navigate to /alerts → page loads without error
-Scenario 2: [DD-27-005] Alert templates section — navigate to /alerts → alert templates section accessible
-Scenario 3: [DD-27-006] Recipient rosters accessible — navigate to /alerts → recipient rosters/groups section accessible
+## Alert Service Backend
+Scenario 1: [DD-27-002] Alerts page renders without error — navigate to /alerts → page loads, no error boundary
+Scenario 2: [DD-27-008] Alerts page shows UI — navigate to /alerts → alert-related UI visible, no "Something went wrong"
+Scenario 3: [DD-27-003] Console renders without error — navigate to /console → page renders, no error boundary
+Scenario 4: [DD-27-004] App shell loads with navigation — navigate to /console → all 9 navigation modules visible

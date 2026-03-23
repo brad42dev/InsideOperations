@@ -9,6 +9,10 @@ import GaugeWidget from './GaugeWidget'
 import TableWidget from './TableWidget'
 import TextWidget from './TextWidget'
 import AlertStatusWidget from './AlertStatusWidget'
+import AlarmCountBySeverityWidget from './AlarmCountBySeverityWidget'
+import UnackCountWidget from './UnackCountWidget'
+import AlarmRateWidget from './AlarmRateWidget'
+import AlarmListWidget from './AlarmListWidget'
 import ExportDataDialog from './ExportDataDialog'
 
 interface Props {
@@ -43,6 +47,14 @@ function WidgetBody({
       return <TextWidget config={config} variables={variables} />
     case 'alert-status':
       return <AlertStatusWidget config={config} variables={variables} />
+    case 'alarm-count-by-severity':
+      return <AlarmCountBySeverityWidget config={config} variables={variables} />
+    case 'unack-count':
+      return <UnackCountWidget config={config} variables={variables} />
+    case 'alarm-rate':
+      return <AlarmRateWidget config={config} variables={variables} />
+    case 'alarm-list':
+      return <AlarmListWidget config={config} variables={variables} />
     default:
       return (
         <div

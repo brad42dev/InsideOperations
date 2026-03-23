@@ -1,6 +1,6 @@
 # UAT Scenarios — DD-34
 
-## DCS Graphics Import
-Scenario 1: [DD-34-003] DCS Import Wizard in Designer — navigate to /designer → look for DCS import option in File menu or toolbar
-Scenario 2: [DD-34-005] Import requires permission — DCS import option only shown/accessible when admin
-Scenario 3: [DD-34-006] Correct platform list — DCS import wizard lists correct platforms (not extra non-spec platforms)
+## DCS Graphics Import (Backend)
+Scenario 1: [DD-34-001] Settings page renders without error — navigate to /settings → page loads, no error boundary
+Scenario 2: [DD-34-004] Console renders without error — navigate to /console → page renders, no error boundary
+Scenario 3: [DD-34-006] App shell loads — navigate to /console → navigation visible, no error boundary

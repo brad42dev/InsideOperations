@@ -15,3 +15,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-12-010 | Replace datetime-local input for graphic snapshot times… | pending | 0 |
 | DD-12-011 | Add nested error boundaries inside InvestigationWorkspa… | pending | 0 |
 | DD-12-012 | Fix empty state CTA permission gate, hardcoded colors i… | pending | 0 |
+| DD-12-013 | Historical Playback Bar missing from forensics investigation workspace for graphic snapshot control | pending | 0 |

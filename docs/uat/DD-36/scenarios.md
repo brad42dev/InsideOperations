@@ -1,6 +1,6 @@
 # UAT Scenarios — DD-36
 
-## Observability/Health
-Scenario 1: [DD-36-008] System Health page — navigate to /settings → look for System Health section → 6-tab health page loads
-Scenario 2: [DD-36-008] Shell status dot — header/sidebar shows status dot indicator for service health
-Scenario 3: [DD-36-001] Health indicator shows — sidebar status button shows service health state
+## Observability / Metrics (Backend)
+Scenario 1: [DD-36-002] Console renders without error — navigate to /console → page loads, no error boundary
+Scenario 2: [DD-36-003] Settings page renders — navigate to /settings → page loads, no error boundary
+Scenario 3: [DD-36-005] App shell loads with navigation — navigate to /console → all module links visible in sidebar

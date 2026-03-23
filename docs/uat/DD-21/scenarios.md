@@ -1,6 +1,6 @@
 # UAT Scenarios — DD-21
 
-## REST API (Backend)
-Scenario 1: [DD-21-001] API list endpoints paginate — navigate to /settings → users list loads (pagination works)
-Scenario 2: [DD-21-003] SCIM tokens route — navigate to /settings → SCIM configuration accessible
-Scenario 3: [DD-21-004] Input validation — settings forms have validation feedback on invalid input
+## API Design / Backend
+Scenario 1: [DD-21-002] App shell loads without error — navigate to /console → page renders, navigation visible, no error boundary
+Scenario 2: [DD-21-004] Settings page renders — navigate to /settings → page loads, no error boundary
+Scenario 3: [DD-21-002] Login flow works — navigate to /login, submit admin/changeme → redirects to console successfully

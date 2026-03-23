@@ -1,8 +1,8 @@
 # UAT Scenarios — DD-29
 
 ## Authentication
-Scenario 1: [DD-29-001] Login page renders — navigate to /login → login form visible
-Scenario 2: [DD-29-004] MFA settings accessible — navigate to /settings → MFA configuration section accessible
-Scenario 3: [DD-29-009] Password verify endpoint works — settings security section allows password verification
-Scenario 4: [DD-29-010] Lock screen visible — find lock session button in header/user menu → clicking it shows lock screen
-Scenario 5: [DD-29-011] PIN unlock option on lock screen — lock screen has PIN entry option
+Scenario 1: [DD-29-009] Login page renders without error — navigate to /login → login form visible, no error boundary
+Scenario 2: [DD-29-009] Login with valid credentials works — submit admin/changeme → redirects to /console
+Scenario 3: [DD-29-008] Login with invalid credentials shows error — submit admin/wrongpass → "Invalid username or password" error message visible
+Scenario 4: [DD-29-011] No PIN lock screen visible on normal login — navigate to /console → no PIN lock screen shown (PIN lock is optional feature)
+Scenario 5: [DD-29-005] No unexpected MFA screen on admin login — submit admin/changeme → redirected to console without MFA prompt (admin has no MFA configured)

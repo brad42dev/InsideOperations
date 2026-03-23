@@ -6,30 +6,28 @@ verdict: partial
 scenarios_tested: 6
 scenarios_passed: 4
 scenarios_failed: 2
-scenarios_skipped: 2
+scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-✅ pass: /alerts loads Alerts module
+pass: Navigating to /alerts loads real implementation — compose form with severity/channels/recipients, Send Alert and Active/History/Management tabs visible.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alerts Module | [DD-31-001] Alerts page renders | ✅ pass | Page loads with Send Alert form, Active/History/Management tabs |
-| 2 | Alerts Module | [DD-31-001] Active alert cards Resolve/Cancel | skipped | No active alerts exist — "No active emergency or critical alerts in the last 24 hours" |
-| 3 | Alerts Module | [DD-31-004] Emergency quick-send section | ✅ pass | Send Alert form shows emergency templates (Evacuation Order, Fire Alarm, Gas Leak, Shelter in Place) |
-| 4 | Alerts Module | [DD-31-007] Muster dashboard export button | skipped | Muster dashboard not accessible from /alerts — would need Shifts module |
-| 5 | Alerts Module | [DD-31-008] Alert history export button | ❌ fail | History tab shows severity filter and "No messages found." — no export button visible |
-| 6 | Alerts Module | [DD-31-009] Right-click context menu on template rows | ✅ pass | Right-click on template row shows menu: Edit, Duplicate, Send Alert from Template, Test Send, Delete |
-| 7 | Alerts Module | [DD-31-013] Alert history tab doesn't crash | ✅ pass | History tab loads without TypeError crash |
-| 8 | Alerts Module | [DD-31-010] Loading skeleton | ❌ fail | History tab shows plain empty state text — no skeleton loading state visible |
+| 1 | Alerts Module | [DD-31-011] Alerts page renders without error | ✅ pass | Page loads, no error boundary |
+| 2 | Alerts Module | [DD-31-011] Alerts shows UI content | ✅ pass | Compose form visible with Template, Severity, Title, Message, Channels, Recipients fields |
+| 3 | Permission | [DD-31-002] Emergency alert visible for admin | ✅ pass | Severity buttons show emergency/critical/warning/info — admin can see EMERGENCY |
+| 4 | Channels | [DD-31-005] Available channels from Alert Service config | ❌ fail | Only "websocket" checkbox visible in compose form; API call to /notifications/channels/enabled failed (404); channels are hardcoded fallback |
+| 5 | Muster | [DD-31-007] Export Unaccounted List button | ❌ fail | No muster dashboard visible; Management tab shows Templates/Groups only — no muster section |
+| 6 | Muster | [DD-31-012] Muster dashboard hidden without AC integration | ✅ pass | Muster dashboard correctly not shown (no access control integration configured) |
 
 ## New Bug Tasks Created
 
-None
+DD-31-014 — Available channels falls back to hardcoded "websocket" when /notifications/channels/enabled API returns 404
 
 ## Screenshot Notes
 
-Alerts module works well. Right-click context menus on template rows confirmed working. History tab doesn't crash. Missing: export button on history table, loading skeleton.
+Alerts compose form shows only "websocket" channel checkbox (API /notifications/channels/enabled returns 404). Management tab shows Notification Templates (9 templates with websocket/email/sms/pa/push channels) and Groups — but no Muster Dashboard section, consistent with DD-31-012 behavior (hidden without AC integration). No "Export Unaccounted List" button visible anywhere.

@@ -3,34 +3,32 @@ unit: DD-12
 date: 2026-03-23
 uat_mode: auto
 verdict: partial
-scenarios_tested: 4
-scenarios_passed: 2
-scenarios_failed: 2
-scenarios_skipped: 5
+scenarios_tested: 6
+scenarios_passed: 4
+scenarios_failed: 1
+scenarios_skipped: 1
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /forensics loads Forensics module with landing page
+pass: Navigating to /forensics loads real implementation — Investigations list with New Investigation button, Threshold Search, Alarm Search tabs, filter controls.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Forensics Landing | [DD-12-001] Forensics page renders | ✅ pass | Page loads with Investigations/Threshold Search/Alarm Search tabs |
-| 2 | Forensics Landing | [DD-12-001] Alarm search entry point | ✅ pass | "Alarm Search" button visible in tab bar on landing page |
-| 3 | Investigation | [DD-12-004] Investigation stage drag-to-reorder | skipped | No investigations exist to open |
-| 4 | Investigation | [DD-12-003] Toolbar Export/Share/Print | skipped | No investigations exist to open |
-| 5 | Investigation | [DD-12-008] Right-click on investigation rows | ❌ fail | Investigation list is empty — cannot test right-click; empty state shows no investigations |
-| 6 | Investigation | [DD-12-011] Nested error boundaries | skipped | Cannot verify without opening investigation |
-| 7 | Point Context | [DD-12-006] PointContextMenu on point tags | skipped | Cannot verify without investigation workspace |
-| 8 | Point Context | [DD-12-010] Historical playback bar | skipped | Cannot verify without investigation workspace |
-| 9 | Empty State | [DD-12-012] Empty state CTA permission | ❌ fail | Empty state shown but no CTA button visible for admin to create investigation — the "New Investigation" button is in the header but no empty-state specific CTA |
+| 1 | Forensics | [DD-12-011] Forensics page renders without error | ✅ pass | Page loads, no error boundary |
+| 2 | Forensics | [DD-12-011] Investigation list shows empty state | ✅ pass | "No investigations found" with emoji and CTA |
+| 3 | Investigation Toolbar | [DD-12-003] Export/Share/Print buttons in toolbar | ✅ pass | Export, Share, Print, Save, Close, Cancel all visible in investigation toolbar |
+| 4 | Investigation List | [DD-12-008] Right-click on investigation list row | ✅ pass | Context menu appears with Open, Close, Cancel, Export…, Share…, Delete |
+| 5 | Threshold Search | [DD-12-002] Threshold trend view accessible | ✅ pass | Threshold Search tab opens with Point, Operator, Threshold, Lookback fields; List View and Trend View buttons present |
+| 6 | Investigation | [DD-12-010] Historical playback bar in forensics | ❌ fail | Investigation workspace (stages panel) has no Historical Playback Bar. Only Analysis Results panel with static buttons. |
+| 7 | Point Context Menu | [DD-12-006] Point context menu on forensics tag | ⏭ skipped | No OPC points connected; no point tag displays to test on |
 
 ## New Bug Tasks Created
 
-None
+DD-12-013 — Historical Playback Bar missing from investigation workspace (graphic snapshot timestamp still uses no playback control)
 
 ## Screenshot Notes
 
-Forensics landing shows Investigations (empty), Threshold Search, Alarm Search tabs. "New Investigation" button in top-right. Filter buttons: All/Active/Closed/Cancelled. Empty list with no CTA in the empty state area.
+Investigation workspace (created "UAT Test Investigation") shows: toolbar with Export/Share/Print/Save/Close/Cancel, Included Points panel, Stages panel ("No stages yet"), Analysis Results panel with Correlations/Heatmap/Change Points/Spikes/Run Analysis. No Historical Playback Bar component visible. Right-click context menu on investigation row works correctly with 6 actions.

@@ -23,3 +23,4 @@ MOD-DESIGNER-025 | Extend PromoteToShapeWizard to accept groups with display ele
 MOD-DESIGNER-009 | Wire PointContextMenu to point-bound display elements in Designer test mode | verified 2026-03-22 | commit 1707990 | npx tsc --noEmit | PASS
 MOD-DESIGNER-010 | Add nested error boundaries, fix Reload Module label, module-shaped loading skeleton, and hardcoded colors | verified 2026-03-22 | commit b98def8 | npx tsc --noEmit | PASS
 MOD-DESIGNER-008 | Add right-click context menus for layer panel (RC-DES-16) and guides (RC-DES-17) | verified 2026-03-23 | commit 99c5a59 | npx tsc --noEmit | PASS
+MOD-DESIGNER-026 | Designer graphics list crashes with TypeError reading 'slice' on load | verified 2026-03-23 | commit b42199b | npx tsc --noEmit | PASS

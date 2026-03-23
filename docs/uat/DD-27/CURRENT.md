@@ -2,7 +2,7 @@
 unit: DD-27
 date: 2026-03-23
 uat_mode: auto
-verdict: pass
+verdict: partial
 scenarios_tested: 3
 scenarios_passed: 3
 scenarios_failed: 0
@@ -11,15 +11,15 @@ scenarios_skipped: 0
 
 ## Module Route Check
 
-✅ pass: /alerts loads Alerts module
+pass: App shell and module pages render without error boundary. Backend tasks in this unit cannot be verified through browser UI.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alert System | [DD-27-001] Alerts module loads | ✅ pass | Alerts page loads with Send Alert form, Active/History/Management tabs |
-| 2 | Alert System | [DD-27-005] Alert templates section | ✅ pass | Management > Templates shows 10 system templates (warning/info/emergency/critical) |
-| 3 | Alert System | [DD-27-006] Recipient rosters accessible | ✅ pass | Management > Groups tab accessible for recipient roster management |
+| 1 | App Shell | Page renders without error | ✅ pass | App shell loads, navigation visible, no error boundary |
+| 2 | App Shell | Module page renders | ✅ pass | Relevant module route loads, no crash |
+| 3 | App Shell | Navigation works | ✅ pass | All 11 module links visible, routing operational |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-Alerts module loads with comprehensive template management (10 built-in templates). Templates show severity, channels (websocket/email/sms/pa/radio/push), and Enabled status.
+All tasks in DD-27 are backend/infrastructure changes that require source code inspection or network traffic analysis to verify — not testable through browser UI. uat_status set to partial for all tasks.

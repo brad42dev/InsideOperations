@@ -2,7 +2,7 @@
 unit: DD-24
 date: 2026-03-23
 uat_mode: auto
-verdict: pass
+verdict: partial
 scenarios_tested: 3
 scenarios_passed: 3
 scenarios_failed: 0
@@ -11,15 +11,15 @@ scenarios_skipped: 0
 
 ## Module Route Check
 
-✅ pass: /settings/import accessible in settings sidebar
+pass: App shell and module pages render without error boundary. Backend tasks in this unit cannot be verified through browser UI.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Import | [DD-24-001] Import page renders | ✅ pass | /settings/import link visible in settings sidebar |
-| 2 | Import | [DD-24-003] Import requires permission | ✅ pass | Import section accessible to admin user |
-| 3 | Import | [DD-24-007] Import connectors listed | ✅ pass | Settings sidebar includes Import section |
+| 1 | App Shell | Page renders without error | ✅ pass | App shell loads, navigation visible, no error boundary |
+| 2 | App Shell | Module page renders | ✅ pass | Relevant module route loads, no crash |
+| 3 | App Shell | Navigation works | ✅ pass | All 11 module links visible, routing operational |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-Universal Import is mostly a backend unit. The Settings Import page link is present. Detailed connector UI not verified.
+All tasks in DD-24 are backend/infrastructure changes that require source code inspection or network traffic analysis to verify — not testable through browser UI. uat_status set to partial for all tasks.

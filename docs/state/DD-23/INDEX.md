@@ -19,3 +19,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-23-014 | Fix saveForFuture default to true (checked by default) | pending | 0 |
 | DD-23-015 | Fix Round tile precision to use powers-of-10 increment … | pending | 0 |
 | DD-23-016 | Implement Rhai expression evaluation handler in API gat… | pending | 0 |
+| DD-23-017 | Expression Library page returns 'Access Denied' for admin user — blocks all expression builder UAT | pending | 0 |
