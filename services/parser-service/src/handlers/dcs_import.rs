@@ -12,6 +12,9 @@ use io_error::{IoError, IoResult};
 use io_models::ApiResponse;
 
 use crate::AppState;
+use super::dcs_ge::{self, ZipContents};
+use super::dcs_rockwell;
+use super::dcs_siemens;
 
 // ---------------------------------------------------------------------------
 // Output types
@@ -443,6 +446,7 @@ fn platform_display_name(platform: &str) -> &'static str {
         "yokogawa_centum" => "Yokogawa CENTUM VP",
         "abb_800xa" => "ABB 800xA",
         "siemens_pcs7" => "Siemens PCS 7 / WinCC Classic",
+        "siemens_wincc_unified" => "Siemens WinCC Unified",
         "foxboro_ia" => "Foxboro I/A Series",
         "ge_proficy" => "GE iFIX / Proficy",
         "wonderware" => "AVEVA InTouch / Wonderware",
@@ -462,6 +466,7 @@ fn is_valid_platform(p: &str) -> bool {
             | "yokogawa_centum"
             | "abb_800xa"
             | "siemens_pcs7"
+            | "siemens_wincc_unified"
             | "foxboro_ia"
             | "ge_proficy"
             | "wonderware"
@@ -525,7 +530,7 @@ pub async fn dcs_import(
 
     if !is_valid_platform(&platform) {
         return Err(IoError::BadRequest(format!(
-            "Unknown platform '{}'. Valid platforms: honeywell_experion, emerson_deltav, yokogawa_centum, abb_800xa, siemens_pcs7, foxboro_ia, ge_proficy, wonderware, aspentech_aspen, rockwell_factorytalk, generic_svg, generic_json",
+            "Unknown platform '{}'. Valid platforms: honeywell_experion, emerson_deltav, yokogawa_centum, abb_800xa, siemens_pcs7, siemens_wincc_unified, foxboro_ia, ge_proficy, wonderware, aspentech_aspen, rockwell_factorytalk, generic_svg, generic_json",
             platform
         )));
     }
@@ -554,6 +559,10 @@ fn parse_zip(
     let mut tags_bytes: Option<Vec<u8>> = None;
     let mut import_report_bytes: Option<Vec<u8>> = None;
     let mut svg_files: Vec<(String, Vec<u8>)> = Vec::new();
+    // GE iFIX: .xtg tag-group sidecar
+    let mut xtg_bytes: Option<Vec<u8>> = None;
+    // Rockwell FactoryTalk: .xml file with <gfx> root
+    let mut gfx_xml_bytes: Option<Vec<u8>> = None;
 
     for i in 0..archive.len() {
         let mut entry = archive
@@ -612,6 +621,26 @@ fn parse_zip(
                     .map_err(|e| IoError::BadRequest(format!("Failed to read SVG: {}", e)))?;
                 svg_files.push((raw_name, buf));
             }
+            // GE iFIX tag-group sidecar
+            _ if lower.ends_with(".xtg") => {
+                if xtg_bytes.is_none() {
+                    let mut buf = Vec::new();
+                    entry
+                        .read_to_end(&mut buf)
+                        .map_err(|e| IoError::BadRequest(format!("Failed to read .xtg file: {}", e)))?;
+                    xtg_bytes = Some(buf);
+                }
+            }
+            // Rockwell FactoryTalk XML (<gfx> root)
+            _ if lower.ends_with(".xml") => {
+                if gfx_xml_bytes.is_none() {
+                    let mut buf = Vec::new();
+                    entry
+                        .read_to_end(&mut buf)
+                        .map_err(|e| IoError::BadRequest(format!("Failed to read XML file: {}", e)))?;
+                    gfx_xml_bytes = Some(buf);
+                }
+            }
             _ => {}
         }
     }
@@ -646,7 +675,7 @@ fn parse_zip(
         .unwrap_or(platform);
 
     if let Some(json_bytes) = display_json_bytes {
-        // Parse intermediate JSON format
+        // Parse intermediate JSON format (generic_json and kit-provided display.json)
         let mut result = parse_from_intermediate_json(&json_bytes, effective_platform)?;
         result.tags = tags;
         result.manifest_platform = manifest_platform;
@@ -654,34 +683,108 @@ fn parse_zip(
         return Ok(result);
     }
 
-    if !svg_files.is_empty() {
-        // Use the first SVG file found
-        let (svg_name, svg_bytes) = &svg_files[0];
-        let base_name = svg_name
-            .rsplit('/')
-            .next()
-            .unwrap_or(svg_name.as_str())
-            .to_string();
-        match parse_svg_from_bytes(svg_bytes, &base_name) {
-            Ok((display_name, width, height, elements)) => {
-                let element_count = elements.len();
-                return Ok(DcsImportResult {
-                    display_name,
-                    width,
-                    height,
-                    element_count,
-                    elements,
-                    unresolved_symbols: vec![],
-                    platform: effective_platform.to_string(),
-                    tags,
-                    manifest_platform,
-                    import_warnings,
-                });
-            }
-            Err(e) => {
-                return Err(IoError::BadRequest(format!("SVG parse error: {}", e)));
+    // Build ZipContents for per-platform parsers.
+    let zip_contents = ZipContents {
+        svgs: svg_files,
+        xtg: xtg_bytes,
+        gfx_xml: gfx_xml_bytes,
+    };
+
+    // Dispatch by effective platform.
+    match effective_platform {
+        "ge_proficy" => {
+            let elements = dcs_ge::parse(&zip_contents)
+                .map_err(IoError::BadRequest)?;
+            let (display_name, width, height) = svg_display_dimensions(
+                zip_contents.svgs.first(),
+                file_name,
+            );
+            let element_count = elements.len();
+            return Ok(DcsImportResult {
+                display_name,
+                width,
+                height,
+                element_count,
+                elements,
+                unresolved_symbols: vec![],
+                platform: effective_platform.to_string(),
+                tags,
+                manifest_platform,
+                import_warnings,
+            });
+        }
+        "rockwell_factorytalk" => {
+            let elements = dcs_rockwell::parse(&zip_contents)
+                .map_err(IoError::BadRequest)?;
+            let element_count = elements.len();
+            return Ok(DcsImportResult {
+                display_name: file_name
+                    .trim_end_matches(".zip")
+                    .trim_end_matches(".ZIP")
+                    .to_string(),
+                width: 1920,
+                height: 1080,
+                element_count,
+                elements,
+                unresolved_symbols: vec![],
+                platform: effective_platform.to_string(),
+                tags,
+                manifest_platform,
+                import_warnings,
+            });
+        }
+        "siemens_wincc_unified" => {
+            let elements = dcs_siemens::parse(&zip_contents)
+                .map_err(IoError::BadRequest)?;
+            let (display_name, width, height) = svg_display_dimensions(
+                zip_contents.svgs.first(),
+                file_name,
+            );
+            let element_count = elements.len();
+            return Ok(DcsImportResult {
+                display_name,
+                width,
+                height,
+                element_count,
+                elements,
+                unresolved_symbols: vec![],
+                platform: effective_platform.to_string(),
+                tags,
+                manifest_platform,
+                import_warnings,
+            });
+        }
+        "generic_svg" => {
+            if !zip_contents.svgs.is_empty() {
+                let (svg_name, svg_bytes) = &zip_contents.svgs[0];
+                let base_name = svg_name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(svg_name.as_str())
+                    .to_string();
+                match parse_svg_from_bytes(svg_bytes, &base_name) {
+                    Ok((display_name, width, height, elements)) => {
+                        let element_count = elements.len();
+                        return Ok(DcsImportResult {
+                            display_name,
+                            width,
+                            height,
+                            element_count,
+                            elements,
+                            unresolved_symbols: vec![],
+                            platform: effective_platform.to_string(),
+                            tags,
+                            manifest_platform,
+                            import_warnings,
+                        });
+                    }
+                    Err(e) => {
+                        return Err(IoError::BadRequest(format!("SVG parse error: {}", e)));
+                    }
+                }
             }
         }
+        _ => {}
     }
 
     // For kit-required platforms with no parseable content, return stub with metadata
@@ -691,6 +794,42 @@ fn parse_zip(
     result.manifest_platform = manifest_platform;
     result.import_warnings = import_warnings;
     Ok(result)
+}
+
+/// Extract display_name, width, height from the first SVG in the ZIP.
+/// Falls back to the ZIP file name and standard 1920×1080 if no SVG.
+fn svg_display_dimensions(
+    first_svg: Option<&(String, Vec<u8>)>,
+    zip_file_name: &str,
+) -> (String, u32, u32) {
+    if let Some((svg_name, svg_bytes)) = first_svg {
+        if let Ok(content) = std::str::from_utf8(svg_bytes) {
+            if let Ok(doc) = roxmltree::Document::parse(content) {
+                let root = doc.root_element();
+                let width: u32 = root
+                    .attribute("width")
+                    .and_then(|w| w.trim_end_matches("px").parse().ok())
+                    .unwrap_or(1920);
+                let height: u32 = root
+                    .attribute("height")
+                    .and_then(|h| h.trim_end_matches("px").parse().ok())
+                    .unwrap_or(1080);
+                let display_name = svg_name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(svg_name.as_str())
+                    .trim_end_matches(".svg")
+                    .trim_end_matches(".SVG")
+                    .to_string();
+                return (display_name, width, height);
+            }
+        }
+    }
+    let display_name = zip_file_name
+        .trim_end_matches(".zip")
+        .trim_end_matches(".ZIP")
+        .to_string();
+    (display_name, 1920, 1080)
 }
 
 fn parse_from_intermediate_json(bytes: &[u8], platform: &str) -> IoResult<DcsImportResult> {
