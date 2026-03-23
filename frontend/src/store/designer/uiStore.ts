@@ -100,6 +100,7 @@ export interface GuideDefinition {
   id: string
   axis: 'h' | 'v'
   position: number
+  locked?: boolean
 }
 
 export interface SmartGuide {
@@ -215,6 +216,7 @@ export interface UiStore {
   setSnap(enabled: boolean): void
   addGuide(axis: 'h' | 'v', position: number): void
   removeGuide(id: string): void
+  toggleGuideLock(id: string): void
   clearGuides(): void
   setActiveGroup(id: string | null): void
 
@@ -425,6 +427,12 @@ export const useUiStore = create<UiStore>((set, get) => ({
   removeGuide(id) {
     set((state) => ({
       guides: state.guides.filter((g) => g.id !== id),
+    }))
+  },
+
+  toggleGuideLock(id) {
+    set((state) => ({
+      guides: state.guides.map((g) => g.id === id ? { ...g, locked: !g.locked } : g),
     }))
   },
 

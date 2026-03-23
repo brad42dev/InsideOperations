@@ -998,8 +998,8 @@ export class ChangeLayerPropertyCommand implements SceneCommand {
   description = 'Change Layer'
   constructor(
     private layerId: string,
-    private patch: Partial<Pick<LayerDefinition, 'name' | 'visible' | 'locked'>>,
-    private prevPatch: Partial<Pick<LayerDefinition, 'name' | 'visible' | 'locked'>>
+    private patch: Partial<Pick<LayerDefinition, 'name' | 'visible' | 'locked' | 'order'>>,
+    private prevPatch: Partial<Pick<LayerDefinition, 'name' | 'visible' | 'locked' | 'order'>>
   ) {}
 
   private applyPatch(doc: GraphicDocument, patch: Partial<LayerDefinition>): GraphicDocument {

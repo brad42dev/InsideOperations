@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react'
+import * as ContextMenuPrimitive from '@radix-ui/react-context-menu'
 import { useSceneStore, useHistoryStore, useLibraryStore, useUiStore } from '../../store/designer'
 import type { NodeId } from '../../shared/types/graphics'
 import type {
@@ -53,6 +54,8 @@ import {
   GroupNodesCommand,
   AddLayerCommand,
   RemoveLayerCommand,
+  CompoundCommand,
+  SetLayerCommand,
 } from '../../shared/graphics/commands'
 import type { SceneCommand, AlignmentType } from '../../shared/graphics/commands'
 import { PIPE_SERVICE_COLORS } from '../../shared/types/graphics'
@@ -1949,13 +1952,60 @@ function SceneTreePanel({ selectedIds }: { selectedIds: string[] }) {
 // Layers Panel — always visible at the bottom of the right panel (spec §15)
 // ---------------------------------------------------------------------------
 
+/** Collect all node IDs in the scene tree that belong to a given layer. */
+function collectNodeIdsByLayer(nodes: import('../../shared/types/graphics').SceneNode[], layerId: string): string[] {
+  const result: string[] = []
+  function walk(list: import('../../shared/types/graphics').SceneNode[]) {
+    for (const n of list) {
+      if (n.layerId === layerId) result.push(n.id)
+      if ('children' in n && Array.isArray(n.children)) {
+        walk(n.children as import('../../shared/types/graphics').SceneNode[])
+      }
+    }
+  }
+  walk(nodes)
+  return result
+}
+
+const layerCtxMenuContent: React.CSSProperties = {
+  background: 'var(--io-surface)',
+  border: '1px solid var(--io-border)',
+  borderRadius: 'var(--io-radius)',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+  minWidth: 160,
+  overflow: 'hidden',
+  fontSize: 12,
+  zIndex: 1000,
+  padding: '3px 0',
+}
+
+const layerCtxMenuItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  padding: '5px 14px',
+  fontSize: 12,
+  cursor: 'pointer',
+  userSelect: 'none',
+  outline: 'none',
+  color: 'var(--io-text-primary)',
+  background: 'transparent',
+  border: 'none',
+  width: '100%',
+  textAlign: 'left',
+}
+
+const layerCtxMenuSepStyle: React.CSSProperties = {
+  height: 1,
+  background: 'var(--io-border)',
+  margin: '2px 0',
+}
+
 function LayersPanel() {
   const executeCmd = useExecuteCmd()
   const doc = useSceneStore(s => s.doc)
   const [collapsed, setCollapsed] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  const [layerCtx, setLayerCtx] = useState<{ x: number; y: number; layerId: string } | null>(null)
 
   if (!doc) return null
 
@@ -1992,8 +2042,36 @@ function LayersPanel() {
   }
   function handleDeleteLayer(layerId: string) {
     if (!doc || doc.layers.length <= 1) return
-    executeCmd(new RemoveLayerCommand(layerId))
-    setLayerCtx(null)
+    // Move all nodes on this layer to the default layer (lowest order) before deleting
+    const defaultLayer = [...doc.layers].sort((a, b) => a.order - b.order).find(l => l.id !== layerId)
+    if (!defaultLayer) return
+    const nodeIds = collectNodeIdsByLayer(doc.children, layerId)
+    const subCmds = nodeIds.map(nid => {
+      const node = doc.children.find(n => n.id === nid) ?? doc.children.flatMap(function flatten(n): import('../../shared/types/graphics').SceneNode[] { return 'children' in n && Array.isArray(n.children) ? [n, ...(n.children as import('../../shared/types/graphics').SceneNode[]).flatMap(flatten)] : [n] }).find(n => n.id === nid)
+      return new SetLayerCommand(nid, defaultLayer.id, node?.layerId)
+    })
+    const cmds = subCmds.length > 0
+      ? [...subCmds, new RemoveLayerCommand(layerId)]
+      : [new RemoveLayerCommand(layerId)]
+    executeCmd(new CompoundCommand('Delete Layer', cmds))
+  }
+  function handleMoveUp(layer: LayerDefinition, layerIndex: number) {
+    // In display order (highest order = top), "move up" means increase order to go above previous
+    if (layerIndex === 0) return
+    const above = layers[layerIndex - 1]
+    // Swap orders
+    executeCmd(new CompoundCommand('Move Layer Up', [
+      new ChangeLayerPropertyCommand(layer.id, { order: above.order }, { order: layer.order }),
+      new ChangeLayerPropertyCommand(above.id, { order: layer.order }, { order: above.order }),
+    ]))
+  }
+  function handleMoveDown(layer: LayerDefinition, layerIndex: number) {
+    if (layerIndex === layers.length - 1) return
+    const below = layers[layerIndex + 1]
+    executeCmd(new CompoundCommand('Move Layer Down', [
+      new ChangeLayerPropertyCommand(layer.id, { order: below.order }, { order: layer.order }),
+      new ChangeLayerPropertyCommand(below.id, { order: layer.order }, { order: below.order }),
+    ]))
   }
 
   const iconBtn: React.CSSProperties = {
@@ -2016,46 +2094,103 @@ function LayersPanel() {
 
       {!collapsed && (
         <div>
-          {/* Layer rows */}
-          {layers.map(layer => (
-            <div
-              key={layer.id}
-              onContextMenu={e => { e.preventDefault(); setLayerCtx({ x: e.clientX, y: e.clientY, layerId: layer.id }) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 12px',
-                fontSize: 12, color: layer.visible ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
-              }}
-            >
-              {/* Visibility toggle */}
-              <button title={layer.visible ? 'Hide' : 'Show'} style={iconBtn} onClick={() => handleToggleVisible(layer)}>
-                {layer.visible ? '👁' : '○'}
-              </button>
-              {/* Lock toggle */}
-              <button title={layer.locked ? 'Unlock' : 'Lock'} style={iconBtn} onClick={() => handleToggleLocked(layer)}>
-                {layer.locked ? '🔒' : '🔓'}
-              </button>
-              {/* Name — double-click to edit */}
-              {editingId === layer.id ? (
-                <input
-                  autoFocus
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                  onBlur={() => handleRenameCommit(layer)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleRenameCommit(layer)
-                    if (e.key === 'Escape') setEditingId(null)
+          {/* Layer rows — each wrapped in Radix ContextMenu (RC-DES-16) */}
+          {layers.map((layer, layerIndex) => (
+            <ContextMenuPrimitive.Root key={layer.id}>
+              <ContextMenuPrimitive.Trigger asChild>
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px 3px 12px',
+                    fontSize: 12, color: layer.visible ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
                   }}
-                  style={{ ...inputStyle, flex: 1, height: 20, fontSize: 12 }}
-                />
-              ) : (
-                <span
-                  style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
-                  onDoubleClick={() => handleRenameStart(layer)}
                 >
-                  {layer.name}
-                </span>
-              )}
-            </div>
+                  {/* Visibility toggle */}
+                  <button title={layer.visible ? 'Hide' : 'Show'} style={iconBtn} onClick={() => handleToggleVisible(layer)}>
+                    {layer.visible ? '👁' : '○'}
+                  </button>
+                  {/* Lock toggle */}
+                  <button title={layer.locked ? 'Unlock' : 'Lock'} style={iconBtn} onClick={() => handleToggleLocked(layer)}>
+                    {layer.locked ? '🔒' : '🔓'}
+                  </button>
+                  {/* Name — double-click to edit */}
+                  {editingId === layer.id ? (
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      onBlur={() => handleRenameCommit(layer)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleRenameCommit(layer)
+                        if (e.key === 'Escape') setEditingId(null)
+                      }}
+                      style={{ ...inputStyle, flex: 1, height: 20, fontSize: 12 }}
+                    />
+                  ) : (
+                    <span
+                      style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
+                      onDoubleClick={() => handleRenameStart(layer)}
+                    >
+                      {layer.name}
+                    </span>
+                  )}
+                </div>
+              </ContextMenuPrimitive.Trigger>
+              <ContextMenuPrimitive.Portal>
+                <ContextMenuPrimitive.Content style={layerCtxMenuContent}>
+                  <ContextMenuPrimitive.Item
+                    style={layerCtxMenuItemStyle}
+                    onSelect={() => handleRenameStart(layer)}
+                  >
+                    Rename
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={layerCtxMenuItemStyle}
+                    onSelect={() => {
+                      const maxOrder = doc.layers.reduce((m, l) => Math.max(m, l.order), 0)
+                      executeCmd(new AddLayerCommand({ ...layer, id: crypto.randomUUID(), name: layer.name + ' Copy', order: maxOrder + 1 }))
+                    }}
+                  >
+                    Duplicate
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Separator style={layerCtxMenuSepStyle} />
+                  <ContextMenuPrimitive.Item
+                    style={layerCtxMenuItemStyle}
+                    onSelect={() => handleToggleVisible(layer)}
+                  >
+                    {layer.visible ? 'Hide Layer' : 'Show Layer'}
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={layerCtxMenuItemStyle}
+                    onSelect={() => handleToggleLocked(layer)}
+                  >
+                    {layer.locked ? 'Unlock Layer' : 'Lock Layer'}
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Separator style={layerCtxMenuSepStyle} />
+                  <ContextMenuPrimitive.Item
+                    style={{ ...layerCtxMenuItemStyle, opacity: layerIndex === 0 ? 0.4 : 1, cursor: layerIndex === 0 ? 'default' : 'pointer' }}
+                    disabled={layerIndex === 0}
+                    onSelect={() => handleMoveUp(layer, layerIndex)}
+                  >
+                    Move Up
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Item
+                    style={{ ...layerCtxMenuItemStyle, opacity: layerIndex === layers.length - 1 ? 0.4 : 1, cursor: layerIndex === layers.length - 1 ? 'default' : 'pointer' }}
+                    disabled={layerIndex === layers.length - 1}
+                    onSelect={() => handleMoveDown(layer, layerIndex)}
+                  >
+                    Move Down
+                  </ContextMenuPrimitive.Item>
+                  <ContextMenuPrimitive.Separator style={layerCtxMenuSepStyle} />
+                  <ContextMenuPrimitive.Item
+                    style={{ ...layerCtxMenuItemStyle, color: doc.layers.length <= 1 ? 'var(--io-text-muted)' : 'var(--io-danger)', cursor: doc.layers.length <= 1 ? 'default' : 'pointer', opacity: doc.layers.length <= 1 ? 0.4 : 1 }}
+                    disabled={doc.layers.length <= 1}
+                    onSelect={() => handleDeleteLayer(layer.id)}
+                  >
+                    Delete
+                  </ContextMenuPrimitive.Item>
+                </ContextMenuPrimitive.Content>
+              </ContextMenuPrimitive.Portal>
+            </ContextMenuPrimitive.Root>
           ))}
 
           {/* Add layer */}
@@ -2072,50 +2207,6 @@ function LayersPanel() {
             </button>
           </div>
         </div>
-      )}
-
-      {/* Layer context menu */}
-      {layerCtx && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onMouseDown={() => setLayerCtx(null)} />
-          <div style={{
-            position: 'fixed', left: layerCtx.x, top: layerCtx.y, zIndex: 1000,
-            background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)', boxShadow: 'var(--io-shadow-lg)', padding: '4px 0', minWidth: 140,
-          }}>
-            {[
-              {
-                label: 'Delete Layer',
-                disabled: doc.layers.length <= 1,
-                onClick: () => handleDeleteLayer(layerCtx.layerId),
-              },
-              {
-                label: 'Duplicate Layer',
-                disabled: false,
-                onClick: () => {
-                  const orig = doc.layers.find(l => l.id === layerCtx.layerId)
-                  if (!orig) return
-                  const maxOrder = doc.layers.reduce((m, l) => Math.max(m, l.order), 0)
-                  executeCmd(new AddLayerCommand({ ...orig, id: crypto.randomUUID(), name: orig.name + ' Copy', order: maxOrder + 1 }))
-                  setLayerCtx(null)
-                },
-              },
-            ].map(item => (
-              <div
-                key={item.label}
-                style={{
-                  padding: '5px 14px', fontSize: 12, cursor: item.disabled ? 'default' : 'pointer',
-                  color: item.disabled ? 'var(--io-text-muted)' : (item.label === 'Delete Layer' ? 'var(--io-danger)' : 'var(--io-text-primary)'),
-                }}
-                onMouseEnter={e => { if (!item.disabled) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '' }}
-                onClick={item.disabled ? undefined : item.onClick}
-              >
-                {item.label}
-              </div>
-            ))}
-          </div>
-        </>
       )}
     </div>
   )

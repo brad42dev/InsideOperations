@@ -4525,10 +4525,11 @@ interface RulersOverlayProps {
 }
 
 function RulersOverlay({ panX, panY, zoom, canvasW, canvasH, containerRef }: RulersOverlayProps) {
-  const guides         = useUiStore(s => s.guides)
-  const guidesVisible  = useUiStore(s => s.guidesVisible)
-  const addGuide       = useUiStore(s => s.addGuide)
-  const removeGuide    = useUiStore(s => s.removeGuide)
+  const guides           = useUiStore(s => s.guides)
+  const guidesVisible    = useUiStore(s => s.guidesVisible)
+  const addGuide         = useUiStore(s => s.addGuide)
+  const removeGuide      = useUiStore(s => s.removeGuide)
+  const toggleGuideLock  = useUiStore(s => s.toggleGuideLock)
 
   function screenToCanvas(screenX: number, screenY: number) {
     const rect = containerRef.current?.getBoundingClientRect()
@@ -4623,91 +4624,112 @@ function RulersOverlay({ panX, panY, zoom, canvasW, canvasH, containerRef }: Rul
       {/* Corner square */}
       <div style={{ position: 'absolute', top: 0, left: 0, width: RULER_SIZE, height: RULER_SIZE, background: 'var(--io-surface-elevated)', zIndex: 11, borderRight: '1px solid var(--io-border)', borderBottom: '1px solid var(--io-border)' }} />
 
-      {/* User guides rendered over the canvas (screen-space) */}
+      {/* User guides rendered over the canvas (screen-space) — RC-DES-17 */}
       {guidesVisible && guides.map(g => {
         const screenPos = g.axis === 'v'
           ? g.position * zoom + panX + RULER_SIZE
           : g.position * zoom + panY + RULER_SIZE
 
-        return g.axis === 'v' ? (
-          <div
-            key={g.id}
-            title="Drag to move, drag off canvas to delete"
-            onMouseDown={e => {
-              e.preventDefault()
-              e.stopPropagation()
-              const origId = g.id
-              removeGuide(origId)
-              let liveId: string | null = null
-              const moveFn = (me: MouseEvent) => {
-                const cp = screenToCanvas(me.clientX, me.clientY)
-                if (liveId !== null) removeGuide(liveId)
-                if (cp.x >= 0 && cp.x <= canvasW) {
-                  addGuide('v', cp.x)
-                  // The latest guide is in store — find its id
-                  liveId = useUiStore.getState().guides.at(-1)?.id ?? null
-                } else {
-                  liveId = null
-                }
-              }
-              const upFn = () => {
-                document.removeEventListener('mousemove', moveFn)
-                document.removeEventListener('mouseup', upFn)
-              }
-              document.addEventListener('mousemove', moveFn)
-              document.addEventListener('mouseup', upFn)
-            }}
-            style={{
-              position: 'absolute',
-              top: RULER_SIZE,
-              left: screenPos,
-              width: 1,
-              height: `calc(100% - ${RULER_SIZE}px)`,
-              background: 'rgba(0,200,255,0.5)',
-              cursor: 'ew-resize',
-              zIndex: 9,
-              pointerEvents: 'all',
-            }}
-          />
-        ) : (
-          <div
-            key={g.id}
-            title="Drag to move, drag off canvas to delete"
-            onMouseDown={e => {
-              e.preventDefault()
-              e.stopPropagation()
-              const origId = g.id
-              removeGuide(origId)
-              let liveId: string | null = null
-              const moveFn = (me: MouseEvent) => {
-                const cp = screenToCanvas(me.clientX, me.clientY)
-                if (liveId !== null) removeGuide(liveId)
-                if (cp.y >= 0 && cp.y <= canvasH) {
-                  addGuide('h', cp.y)
-                  liveId = useUiStore.getState().guides.at(-1)?.id ?? null
-                } else {
-                  liveId = null
-                }
-              }
-              const upFn = () => {
-                document.removeEventListener('mousemove', moveFn)
-                document.removeEventListener('mouseup', upFn)
-              }
-              document.addEventListener('mousemove', moveFn)
-              document.addEventListener('mouseup', upFn)
-            }}
-            style={{
-              position: 'absolute',
-              top: screenPos,
-              left: RULER_SIZE,
-              height: 1,
-              width: `calc(100% - ${RULER_SIZE}px)`,
-              background: 'rgba(0,200,255,0.5)',
-              cursor: 'ns-resize',
-              zIndex: 9,
-              pointerEvents: 'all',
-            }}
-          />
+        const guideLineStyle: React.CSSProperties = g.axis === 'v' ? {
+          position: 'absolute',
+          top: RULER_SIZE,
+          left: screenPos,
+          width: 1,
+          height: `calc(100% - ${RULER_SIZE}px)`,
+          background: g.locked ? 'rgba(255,160,0,0.5)' : 'rgba(0,200,255,0.5)',
+          cursor: g.locked ? 'not-allowed' : 'ew-resize',
+          zIndex: 9,
+          pointerEvents: 'all',
+        } : {
+          position: 'absolute',
+          top: screenPos,
+          left: RULER_SIZE,
+          height: 1,
+          width: `calc(100% - ${RULER_SIZE}px)`,
+          background: g.locked ? 'rgba(255,160,0,0.5)' : 'rgba(0,200,255,0.5)',
+          cursor: g.locked ? 'not-allowed' : 'ns-resize',
+          zIndex: 9,
+          pointerEvents: 'all',
+        }
+
+        function handleGuideDragStart(e: React.MouseEvent) {
+          if (g.locked) return
+          e.preventDefault()
+          e.stopPropagation()
+          const origId = g.id
+          removeGuide(origId)
+          let liveId: string | null = null
+          const moveFn = (me: MouseEvent) => {
+            const cp = screenToCanvas(me.clientX, me.clientY)
+            if (liveId !== null) removeGuide(liveId)
+            if (g.axis === 'v' ? (cp.x >= 0 && cp.x <= canvasW) : (cp.y >= 0 && cp.y <= canvasH)) {
+              addGuide(g.axis, g.axis === 'v' ? cp.x : cp.y)
+              liveId = useUiStore.getState().guides.at(-1)?.id ?? null
+            } else {
+              liveId = null
+            }
+          }
+          const upFn = () => {
+            document.removeEventListener('mousemove', moveFn)
+            document.removeEventListener('mouseup', upFn)
+          }
+          document.addEventListener('mousemove', moveFn)
+          document.addEventListener('mouseup', upFn)
+        }
+
+        const guideCtxContentStyle: React.CSSProperties = {
+          background: 'var(--io-surface)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          minWidth: 160,
+          overflow: 'hidden',
+          fontSize: 12,
+          zIndex: 1000,
+          padding: '3px 0',
+        }
+
+        const guideCtxItemStyle: React.CSSProperties = {
+          display: 'flex',
+          alignItems: 'center',
+          padding: '6px 14px',
+          fontSize: 12,
+          cursor: 'pointer',
+          userSelect: 'none',
+          outline: 'none',
+          color: 'var(--io-text-primary)',
+          background: 'transparent',
+          border: 'none',
+          width: '100%',
+          textAlign: 'left',
+        }
+
+        return (
+          <ContextMenuPrimitive.Root key={g.id}>
+            <ContextMenuPrimitive.Trigger asChild>
+              <div
+                title={g.locked ? 'Guide is locked' : 'Drag to move, drag off canvas to delete'}
+                onMouseDown={handleGuideDragStart}
+                style={guideLineStyle}
+              />
+            </ContextMenuPrimitive.Trigger>
+            <ContextMenuPrimitive.Portal>
+              <ContextMenuPrimitive.Content style={guideCtxContentStyle}>
+                <ContextMenuPrimitive.Item
+                  style={{ ...guideCtxItemStyle, color: 'var(--io-danger)' }}
+                  onSelect={() => removeGuide(g.id)}
+                >
+                  Remove Guide
+                </ContextMenuPrimitive.Item>
+                <ContextMenuPrimitive.Item
+                  style={guideCtxItemStyle}
+                  onSelect={() => toggleGuideLock(g.id)}
+                >
+                  {g.locked ? 'Unlock Guide' : 'Lock Guide'}
+                </ContextMenuPrimitive.Item>
+              </ContextMenuPrimitive.Content>
+            </ContextMenuPrimitive.Portal>
+          </ContextMenuPrimitive.Root>
         )
       })}
     </>
