@@ -33,6 +33,7 @@ import EvidenceRenderer from './EvidenceRenderer'
 import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
 import { useAuthStore } from '../../store/auth'
 import PointContextMenu from '../../shared/components/PointContextMenu'
+import ForensicsPlaybackBar from '../../shared/components/ForensicsPlaybackBar'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -107,7 +108,7 @@ function StageCard({
   const [showEvidenceMenu, setShowEvidenceMenu] = useState(false)
   const [showSnapshotDialog, setShowSnapshotDialog] = useState(false)
   const [snapshotGraphicId, setSnapshotGraphicId] = useState('')
-  const [snapshotTimestamp, setSnapshotTimestamp] = useState(stage.time_range_start.slice(0, 16))
+  const [snapshotTimestamp, setSnapshotTimestamp] = useState(stage.time_range_start)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Load graphic list only when snapshot dialog is open
@@ -469,19 +470,13 @@ function StageCard({
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontWeight: 600 }}>Snapshot Timestamp</label>
-                <input
-                  type="datetime-local"
+                {/* ForensicsPlaybackBar — scrub + step controls scoped to stage time range, with alarm markers */}
+                <ForensicsPlaybackBar
+                  startTime={stage.time_range_start}
+                  endTime={stage.time_range_end}
                   value={snapshotTimestamp}
-                  onChange={(e) => setSnapshotTimestamp(e.target.value)}
-                  style={{
-                    padding: '6px 10px',
-                    background: 'var(--io-surface)',
-                    border: '1px solid var(--io-border)',
-                    borderRadius: 'var(--io-radius)',
-                    color: 'var(--io-text-primary)',
-                    fontSize: '13px',
-                    outline: 'none',
-                  }}
+                  onChange={(ts) => setSnapshotTimestamp(ts)}
+                  showAlarmMarkers={true}
                 />
               </div>
 
