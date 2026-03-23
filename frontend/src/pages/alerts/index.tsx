@@ -957,8 +957,14 @@ function HistoryPanel() {
       }),
   })
 
-  const messages: NotificationMessage[] = (result?.success && result.data) ? result.data : []
-  const pagination = (result as { pagination?: { total: number; pages: number } } | undefined)?.pagination
+  // The backend returns a paginated envelope: { success, data: NotificationMessage[], pagination }
+  // The API client detects the pagination field and wraps the payload as PaginatedResult:
+  // { data: NotificationMessage[], pagination: { total, pages, ... } }
+  // So result.data is that PaginatedResult object, not the raw array.
+  type HistoryData = { data: NotificationMessage[]; pagination: { total: number; pages: number } }
+  const pagedData = (result?.success && result.data) ? (result.data as unknown as HistoryData) : null
+  const messages: NotificationMessage[] = Array.isArray(pagedData?.data) ? pagedData.data : []
+  const pagination = pagedData?.pagination
 
   const handleExport = useCallback(async (format: ExportFormat) => {
     setExportDropdownOpen(false)
