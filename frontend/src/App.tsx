@@ -1150,7 +1150,7 @@ function AppRoutes() {
           <Route
             path="imports/connections"
             element={
-              <PermissionGuard permission="settings:write">
+              <PermissionGuard permission="system:import_connections">
                 <ImportSettingsPage defaultTab="connections" />
               </PermissionGuard>
             }
@@ -1158,7 +1158,7 @@ function AppRoutes() {
           <Route
             path="imports/definitions"
             element={
-              <PermissionGuard permission="settings:write">
+              <PermissionGuard permission="system:import_definitions">
                 <ImportSettingsPage defaultTab="definitions" />
               </PermissionGuard>
             }
@@ -1166,7 +1166,7 @@ function AppRoutes() {
           <Route
             path="imports/history"
             element={
-              <PermissionGuard permission="settings:write">
+              <PermissionGuard permission="system:import_history">
                 <ImportSettingsPage defaultTab="runs" />
               </PermissionGuard>
             }
