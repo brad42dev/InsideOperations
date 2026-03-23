@@ -787,17 +787,37 @@ export default function ConsolePage() {
 
   if (isLoading && isAuthenticated) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: 'var(--io-text-muted)',
-          fontSize: 14,
-        }}
-      >
-        Loading workspaces…
+      <div style={{ display: 'flex', height: '100%', background: 'var(--io-bg)' }}>
+        {/* Left panel skeleton */}
+        <div style={{
+          width: 280, flexShrink: 0,
+          background: 'var(--io-surface-secondary)',
+          borderRight: '1px solid var(--io-border)',
+          padding: 8, display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} style={{
+              height: 28, borderRadius: 4,
+              background: 'var(--io-surface-elevated)',
+              animation: 'io-shimmer 1.4s ease-in-out infinite',
+            }} />
+          ))}
+        </div>
+        {/* Grid area skeleton */}
+        <div style={{
+          flex: 1, display: 'grid',
+          gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr',
+          gap: 4, padding: 4,
+        }}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} style={{
+              borderRadius: 4,
+              background: 'var(--io-surface-secondary)',
+              animation: 'io-shimmer 1.4s ease-in-out infinite',
+              animationDelay: `${i * 0.1}s`,
+            }} />
+          ))}
+        </div>
       </div>
     )
   }
