@@ -698,6 +698,99 @@ fn transform_bindings_uuids_to_tags(
     }
 }
 
+/// Recursively walks an expression AST JSON value and collects all UUID strings
+/// found under `point_id` keys inside `tag_ref` nodes.  This is separate from
+/// the bindings collector because expression ASTs use `{ "type": "tag_ref",
+/// "point_id": "uuid" }` rather than top-level `point_id` binding fields.
+fn collect_point_ids_from_expression_ast(val: &JsonValue, out: &mut HashSet<Uuid>) {
+    match val {
+        JsonValue::Object(map) => {
+            // Detect a tag_ref node: { "type": "tag_ref", "point_id": "<uuid>" }
+            let is_tag_ref = map
+                .get("type")
+                .and_then(|t| t.as_str())
+                .map(|s| s == "tag_ref")
+                .unwrap_or(false);
+
+            if is_tag_ref {
+                if let Some(JsonValue::String(s)) = map.get("point_id") {
+                    if let Ok(uuid) = Uuid::parse_str(s) {
+                        out.insert(uuid);
+                    }
+                }
+                // tag_ref nodes have no meaningful child nodes to recurse into
+                return;
+            }
+
+            // Non-tag_ref objects: recurse into all values
+            for (_key, child) in map {
+                collect_point_ids_from_expression_ast(child, out);
+            }
+        }
+        JsonValue::Array(arr) => {
+            for item in arr {
+                collect_point_ids_from_expression_ast(item, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Recursively walks an expression AST JSON value and replaces
+/// `{ "type": "tag_ref", "point_id": "uuid" }` nodes with
+/// `{ "type": "tag_ref", "tag": "FIC-101.PV" }` using the lookup map.
+///
+/// Unresolvable UUIDs produce `{ "type": "tag_ref", "tag": "<DELETED:uuid>" }`.
+fn transform_expression_ast_uuids_to_tags(
+    val: JsonValue,
+    lookup: &HashMap<Uuid, (String, String)>,
+) -> JsonValue {
+    match val {
+        JsonValue::Object(map) => {
+            let is_tag_ref = map
+                .get("type")
+                .and_then(|t| t.as_str())
+                .map(|s| s == "tag_ref")
+                .unwrap_or(false);
+
+            if is_tag_ref {
+                if let Some(JsonValue::String(ref s)) = map.get("point_id") {
+                    if let Ok(uuid) = Uuid::parse_str(s) {
+                        let tag_name = match lookup.get(&uuid) {
+                            Some((tag, _)) => tag.clone(),
+                            None => format!("<DELETED:{}>", s),
+                        };
+                        // Rebuild node with "tag" instead of "point_id"
+                        let mut new_map = serde_json::Map::new();
+                        for (k, v) in &map {
+                            if k != "point_id" {
+                                new_map.insert(k.clone(), v.clone());
+                            }
+                        }
+                        new_map.insert("tag".to_string(), JsonValue::String(tag_name));
+                        return JsonValue::Object(new_map);
+                    }
+                }
+                // tag_ref without a valid UUID point_id — pass through unchanged
+                return JsonValue::Object(map);
+            }
+
+            // Non-tag_ref objects: recurse into all values
+            let mut new_map = serde_json::Map::new();
+            for (k, v) in map {
+                new_map.insert(k, transform_expression_ast_uuids_to_tags(v, lookup));
+            }
+            JsonValue::Object(new_map)
+        }
+        JsonValue::Array(arr) => JsonValue::Array(
+            arr.into_iter()
+                .map(|item| transform_expression_ast_uuids_to_tags(item, lookup))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/graphics/:id/export
 // Returns a .iographic ZIP file as a download (doc 39 format)
@@ -737,13 +830,20 @@ pub async fn export_graphic(
 
     // 1a. Resolve point UUIDs → tag names for portable graphic.json
     //
-    // Walk the raw bindings JSON, collect all UUIDs from "point_id",
-    // "setpoint_point_id", and "equipment_point_ids" fields, then batch-resolve
-    // them in a single SQL query.
+    // Walk the raw bindings JSON, collect all UUIDs from:
+    // - "point_id", "setpoint_point_id", "equipment_point_ids" in the bindings sub-object
+    // - "tag_ref" nodes in expression ASTs
+    // Then batch-resolve them in a single SQL query.
     let uuid_to_tag: HashMap<Uuid, (String, String)> = {
         let mut uuid_set: HashSet<Uuid> = HashSet::new();
         if let Some(ref b) = bindings {
             collect_point_ids_from_bindings(b, &mut uuid_set);
+            // Also collect UUIDs from expression ASTs (tag_ref nodes with point_id)
+            if let JsonValue::Object(ref obj) = b {
+                if let Some(exprs) = obj.get("expressions") {
+                    collect_point_ids_from_expression_ast(exprs, &mut uuid_set);
+                }
+            }
         }
 
         if uuid_set.is_empty() {
@@ -822,7 +922,7 @@ pub async fn export_graphic(
 
     // Extract sub-fields from the DB JSONB if it is a GraphicModel-style object
     // (top-level: shapes, pipes, annotations, bindings, metadata).
-    let (model_shapes, model_pipes, model_annotations, model_layers, inner_bindings) =
+    let (model_shapes, model_pipes, model_annotations, model_layers, inner_bindings, inner_expressions) =
         if let JsonValue::Object(ref obj) = raw_bindings {
             let shapes = obj
                 .get("shapes")
@@ -840,12 +940,17 @@ pub async fn export_graphic(
                 .get("layers")
                 .cloned()
                 .unwrap_or(JsonValue::Array(vec![]));
-            // The bindings sub-object is what actually holds per-element point references
+            // The bindings sub-object holds per-element point references
             let inner = obj
                 .get("bindings")
                 .cloned()
                 .unwrap_or(JsonValue::Object(serde_json::Map::new()));
-            (shapes, pipes, annotations, layers, inner)
+            // The expressions sub-object holds expression definitions keyed by local key
+            let exprs = obj
+                .get("expressions")
+                .cloned()
+                .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+            (shapes, pipes, annotations, layers, inner, exprs)
         } else {
             (
                 JsonValue::Array(vec![]),
@@ -853,11 +958,53 @@ pub async fn export_graphic(
                 JsonValue::Array(vec![]),
                 JsonValue::Array(vec![]),
                 raw_bindings.clone(),
+                JsonValue::Object(serde_json::Map::new()),
             )
         };
 
     // Transform the inner bindings object: replace all UUID point references with tags
     let tag_based_bindings = transform_bindings_uuids_to_tags(inner_bindings, &uuid_to_tag);
+
+    // Transform expression ASTs: replace tag_ref nodes' point_id with tag names (doc 39 §4, §8).
+    // For each expression in the expressions object, walk its AST and replace
+    // { "type": "tag_ref", "point_id": "uuid" } → { "type": "tag_ref", "tag": "FIC-101.PV" }.
+    // Expressions that contain no tag_ref nodes (e.g. simple function expressions using
+    // direct tag inputs) are passed through unchanged.
+    let tag_based_expressions = if let JsonValue::Object(exprs_map) = inner_expressions {
+        let mut out_map = serde_json::Map::new();
+        for (key, expr_val) in exprs_map {
+            // Each expression entry may have an "ast" sub-object, or may itself be the AST.
+            // Handle both: if the entry has an "ast" key, transform that; otherwise transform
+            // the entire entry value.
+            let transformed = if let JsonValue::Object(ref entry_obj) = expr_val {
+                if entry_obj.contains_key("ast") {
+                    // Has explicit "ast" wrapper — transform the "ast" sub-value
+                    let mut new_entry = serde_json::Map::new();
+                    for (ek, ev) in entry_obj {
+                        if ek == "ast" {
+                            new_entry.insert(
+                                "ast".to_string(),
+                                transform_expression_ast_uuids_to_tags(ev.clone(), &uuid_to_tag),
+                            );
+                        } else {
+                            new_entry.insert(ek.clone(), ev.clone());
+                        }
+                    }
+                    JsonValue::Object(new_entry)
+                } else {
+                    // No explicit "ast" key — the expression value itself may contain tag_ref nodes.
+                    // Transform it recursively.
+                    transform_expression_ast_uuids_to_tags(expr_val, &uuid_to_tag)
+                }
+            } else {
+                transform_expression_ast_uuids_to_tags(expr_val, &uuid_to_tag)
+            };
+            out_map.insert(key, transformed);
+        }
+        JsonValue::Object(out_map)
+    } else {
+        JsonValue::Object(serde_json::Map::new())
+    };
 
     // Build the metadata envelope for the graphic.json
     let graphic_metadata = {
@@ -881,7 +1028,11 @@ pub async fn export_graphic(
         JsonValue::Object(m)
     };
 
-    // Assemble the full graphic.json object (doc 39 §4 schema)
+    // Assemble the full graphic.json object (doc 39 §4 schema).
+    // "expressions" is keyed by local expression key (e.g. "expr-001" or arbitrary slug).
+    // Expression-bound binding entries use "expression_key" (not "point_tag") to reference
+    // these definitions — the bindings are left unchanged by transform_bindings_uuids_to_tags
+    // since they don't contain "point_id" fields.
     let graphic_json_obj = serde_json::json!({
         "name": name,
         "type": graphic_type,
@@ -889,7 +1040,7 @@ pub async fn export_graphic(
         "shapes": model_shapes,
         "pipes": model_pipes,
         "bindings": tag_based_bindings,
-        "expressions": {},
+        "expressions": tag_based_expressions,
         "annotations": model_annotations,
         "layers": model_layers
     });
