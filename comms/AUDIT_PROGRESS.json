@@ -1,9 +1,9 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-22T23:58:45.523454+00:00",
+  "last_updated": "2026-03-23T00:03:49.744212+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
-  "current_unit": "DD-32",
+  "current_unit": null,
   "task_attempts": {
     "GFX-SHAPES-001": 1,
     "GFX-SHAPES-002": 0,
@@ -3296,7 +3296,7 @@
       "wave": 3,
       "title": "Add PointPicker Favorites tab, Recent points list, and hover preview with sparkline",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3316,7 +3316,7 @@
       "wave": 3,
       "title": "Implement density mode React context so shared components respond to global density setting",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-32-003"
       ],

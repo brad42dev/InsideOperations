@@ -1,19 +1,22 @@
 import { useState } from 'react'
 import { setTheme, initTheme, type Theme } from '../../shared/theme/tokens'
+import { useSetDensity, type Density } from '../../shared/theme/ThemeContext'
 
 const DENSITY_KEY = 'io:display:density'
 const DATE_FORMAT_KEY = 'io:display:dateFormat'
 const TIME_FORMAT_KEY = 'io:display:timeFormat'
-
-type Density = 'comfortable' | 'compact'
 type DateFormat = 'local' | 'iso' | 'us'
 type TimeFormat = '12h' | '24h'
 
 export default function Display() {
+  const setDensityCtx = useSetDensity()
+
   const [theme, setThemeState] = useState<Theme>(() => initTheme())
-  const [density, setDensityState] = useState<Density>(
-    () => (localStorage.getItem(DENSITY_KEY) as Density | null) ?? 'comfortable',
-  )
+  const [density, setDensityState] = useState<Density>(() => {
+    const stored = localStorage.getItem(DENSITY_KEY)
+    if (stored === 'compact' || stored === 'default' || stored === 'comfortable') return stored
+    return 'default'
+  })
   const [dateFormat, setDateFormatState] = useState<DateFormat>(
     () => (localStorage.getItem(DATE_FORMAT_KEY) as DateFormat | null) ?? 'local',
   )
@@ -29,6 +32,7 @@ export default function Display() {
   function applyDensity(d: Density) {
     setDensityState(d)
     localStorage.setItem(DENSITY_KEY, d)
+    setDensityCtx(d)
   }
 
   function applyDateFormat(f: DateFormat) {

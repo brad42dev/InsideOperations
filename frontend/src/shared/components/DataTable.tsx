@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { useDensity } from '../theme/ThemeContext'
 import {
   useReactTable,
   getCoreRowModel,
@@ -187,12 +188,16 @@ export default function DataTable<T extends object>({
   data,
   columns,
   height = 400,
-  rowHeight = 36,
+  rowHeight,
   onRowClick,
   loading = false,
   emptyMessage = 'No data available',
   showExport = true,
 }: DataTableProps<T>) {
+  const density = useDensity()
+  const densityRowHeight = density === 'compact' ? 28 : density === 'comfortable' ? 44 : 36
+  const resolvedRowHeight = rowHeight ?? densityRowHeight
+
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnPinning] = useState<ColumnPinningState>({
@@ -242,20 +247,20 @@ export default function DataTable<T extends object>({
   })
 
   const rows = table.getRowModel().rows
-  const totalHeight = rows.length * rowHeight
+  const totalHeight = rows.length * resolvedRowHeight
   const toolbarH = showExport ? TOOLBAR_HEIGHT : 0
   const filterRowH = hasFilters ? FILTER_ROW_HEIGHT : 0
   const fixedTop = HEADER_HEIGHT + filterRowH + toolbarH
   const visibleHeight = height - fixedTop
 
-  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - VIRTUAL_BUFFER)
+  const startIndex = Math.max(0, Math.floor(scrollTop / resolvedRowHeight) - VIRTUAL_BUFFER)
   const endIndex = Math.min(
     rows.length,
-    Math.ceil((scrollTop + visibleHeight) / rowHeight) + VIRTUAL_BUFFER,
+    Math.ceil((scrollTop + visibleHeight) / resolvedRowHeight) + VIRTUAL_BUFFER,
   )
   const visibleRows = rows.slice(startIndex, endIndex)
-  const paddingTop = startIndex * rowHeight
-  const paddingBottom = (rows.length - endIndex) * rowHeight
+  const paddingTop = startIndex * resolvedRowHeight
+  const paddingBottom = (rows.length - endIndex) * resolvedRowHeight
 
   const handleScroll = useCallback(() => {
     if (scrollRef.current) {
@@ -614,7 +619,7 @@ export default function DataTable<T extends object>({
         {loading && (
           <div>
             {Array.from({ length: 5 }).map((_, i) => (
-              <SkeletonRow key={i} columnCount={columns.length} rowHeight={rowHeight} />
+              <SkeletonRow key={i} columnCount={columns.length} rowHeight={resolvedRowHeight} />
             ))}
           </div>
         )}
@@ -646,7 +651,7 @@ export default function DataTable<T extends object>({
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   style={{
                     display: 'flex',
-                    height: rowHeight,
+                    height: resolvedRowHeight,
                     alignItems: 'center',
                     borderBottom: '1px solid var(--io-border)',
                     cursor: onRowClick ? 'pointer' : 'default',
