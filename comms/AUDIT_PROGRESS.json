@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T19:53:58Z",
+  "last_updated": "2026-03-23T21:13:23.565725+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -161,7 +161,8 @@
     "DD-31-014": 1,
     "DD-28-009": 1,
     "DD-10-012": 1,
-    "DD-29-012": 1
+    "DD-29-012": 1,
+    "DD-10-013": 1
   },
   "queue": [
     {
@@ -4690,7 +4691,7 @@
       "wave": 3,
       "title": "Dashboard widgets render as type-label badges instead of actual widget content",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4702,7 +4703,7 @@
       "wave": 3,
       "title": "Widget config missing aggregation type selector",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4714,7 +4715,7 @@
       "wave": 3,
       "title": "Print checklist feature not implemented \u2014 no print button in rounds",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4726,7 +4727,7 @@
       "wave": 3,
       "title": "Add User form missing React inline validation error messages",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4738,7 +4739,7 @@
       "wave": 3,
       "title": "SMS Providers settings page returns Access Denied for admin user",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

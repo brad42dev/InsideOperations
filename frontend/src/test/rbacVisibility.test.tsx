@@ -143,6 +143,35 @@ describe('PermissionGuard — permission checks', () => {
     expect(screen.getByText('Access Denied')).toBeDefined()
   })
 
+  // Regression: DD-27-010 — /settings/sms-providers returned Access Denied for admin user.
+  // The route requires system:configure which was missing from the seed permissions table.
+  // Migration 20260323000001 adds system:configure and assigns it to the Admin role.
+  it('admin with system:configure can access SMS providers page guard', () => {
+    setAuthState({ user: makeUser(['system:configure']), isAuthenticated: true })
+    render(
+      <MemoryRouter>
+        <PermissionGuard permission="system:configure">
+          <div>SMS Providers</div>
+        </PermissionGuard>
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('SMS Providers')).toBeDefined()
+    expect(screen.queryByText('Access Denied')).toBeNull()
+  })
+
+  it('user without system:configure sees Access Denied on SMS providers page guard', () => {
+    setAuthState({ user: makeUser(['settings:read', 'auth:manage_mfa']), isAuthenticated: true })
+    render(
+      <MemoryRouter>
+        <PermissionGuard permission="system:configure">
+          <div>SMS Providers</div>
+        </PermissionGuard>
+      </MemoryRouter>,
+    )
+    expect(screen.queryByText('SMS Providers')).toBeNull()
+    expect(screen.getByText('Access Denied')).toBeDefined()
+  })
+
   it('admin permission does not bypass specific module permission check', () => {
     // console:admin does NOT grant console:workspace_publish unless explicitly listed
     setAuthState({ user: makeUser(['console:admin']), isAuthenticated: true })
@@ -272,5 +301,16 @@ describe('inline permission checks (UI element gating)', () => {
 
     expect(canDo(sysAdmin.permissions, 'settings:admin')).toBe(true)
     expect(canDo(regular.permissions, 'settings:admin')).toBe(false)
+  })
+
+  // Regression: DD-27-010 — SMS providers page returned Access Denied for admin.
+  // Root cause: system:configure was missing from the permissions table seed.
+  // Fix: migration 20260323000001 adds system:configure and assigns it to the Admin role.
+  it('system:configure grants access to SMS providers settings page', () => {
+    const adminUser = makeUser(['system:configure', 'system:manage_users', 'system:manage_roles'])
+    const viewerUser = makeUser(['settings:read'])
+
+    expect(canDo(adminUser.permissions, 'system:configure')).toBe(true)
+    expect(canDo(viewerUser.permissions, 'system:configure')).toBe(false)
   })
 })
