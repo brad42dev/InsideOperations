@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T13:19:10.442436+00:00",
+  "last_updated": "2026-03-23T13:28:22.637656+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -149,7 +149,8 @@
     "DD-06-003": 1,
     "DD-06-009": 1,
     "DD-11-005": 1,
-    "DD-06-013": 1
+    "DD-06-013": 1,
+    "MOD-CONSOLE-014": 1
   },
   "queue": [
     {
@@ -232,7 +233,7 @@
       "completed_at": "2026-03-22T02:44:13.591467+00:00",
       "notes": "11 tasks generated, 10 open, wave0 findings yes",
       "last_audit_round": 8,
-      "verified_since_last_audit": 5
+      "verified_since_last_audit": 6
     },
     {
       "unit": "MOD-PROCESS",
@@ -4390,7 +4391,7 @@
       "wave": 3,
       "title": "Kiosk mode URL parameter is ?kiosk=true instead of spec ?mode=kiosk",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4486,7 +4487,7 @@
       "wave": 2,
       "title": "Console module fails to load due to dynamic import error",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

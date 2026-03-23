@@ -540,7 +540,7 @@ export default function AppShell() {
     setTopbarHidden(true)
     sessionStorage.setItem('io_kiosk', '1')
     const params = new URLSearchParams(searchParams)
-    params.set('kiosk', 'true')
+    params.set('mode', 'kiosk')
     setSearchParams(params, { replace: true })
     showToast({ title: 'Kiosk mode active. Press Escape to exit.', variant: 'info', duration: 2000 })
   }
@@ -551,7 +551,7 @@ export default function AppShell() {
     setTopbarHidden(preKioskTopbarRef.current)
     sessionStorage.removeItem('io_kiosk')
     const params = new URLSearchParams(searchParams)
-    params.delete('kiosk')
+    params.delete('mode')
     setSearchParams(params, { replace: true })
   }
 
@@ -564,7 +564,7 @@ export default function AppShell() {
   // Activate kiosk on mount if URL param or sessionStorage says so
   useEffect(() => {
     const isKioskParam =
-      searchParams.get('kiosk') === 'true' || sessionStorage.getItem('io_kiosk') === '1'
+      searchParams.get('mode') === 'kiosk' || sessionStorage.getItem('io_kiosk') === '1'
     if (isKioskParam) {
       setKiosk(true)
       setSidebarState('hidden')
