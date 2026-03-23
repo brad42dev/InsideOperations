@@ -786,7 +786,7 @@ pub async fn export_graphic(
 
     // 2. Load associated shapes
     let shape_rows = match sqlx::query(
-        "SELECT id, name, svg_data FROM design_objects \
+        "SELECT id, name, svg_data, metadata FROM design_objects \
          WHERE parent_id = $1 AND type IN ('shape', 'stencil')",
     )
     .bind(id)
@@ -1001,6 +1001,21 @@ pub async fn export_graphic(
         file_map.insert(
             format!("shapes/{}/shape.svg", shape_dir),
             shape_svg.into_bytes(),
+        );
+
+        // shape.json — sidecar following the doc 35 schema.  Always written; falls back
+        // to an empty object so the importer knows the file was intentionally minimal.
+        let shape_meta: Option<JsonValue> = shape_row
+            .try_get::<Option<JsonValue>, _>("metadata")
+            .ok()
+            .flatten();
+        let shape_json_str = serde_json::to_string_pretty(
+            &shape_meta.unwrap_or(JsonValue::Object(serde_json::Map::new())),
+        )
+        .unwrap_or_else(|_| "{}".to_string());
+        file_map.insert(
+            format!("shapes/{}/shape.json", shape_dir),
+            shape_json_str.into_bytes(),
         );
     }
 

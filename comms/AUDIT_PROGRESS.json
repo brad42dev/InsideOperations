@@ -143,7 +143,8 @@
     "DD-37-006": 1,
     "DD-38-002": 1,
     "DD-38-003": 1,
-    "DD-38-006": 1
+    "DD-38-006": 1,
+    "DD-39-005": 1
   },
   "queue": [
     {
@@ -3747,7 +3748,7 @@
       "wave": 3,
       "title": "Compute SHA-256 checksum on export and verify on import",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-39-001"
       ],
@@ -3759,7 +3760,7 @@
       "wave": 3,
       "title": "Export shape.json sidecar alongside shape.svg for custom shapes",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
