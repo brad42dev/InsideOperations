@@ -790,7 +790,8 @@ export default function AppShell() {
       }
 
       // G-key sequence: press G, then a letter within 2000ms (spec §G-Key Navigation)
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'g') {
+      // Match both 'g' and 'G' so CapsLock does not prevent the shortcut.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'g') {
         e.preventDefault()
         gKeyPending.current = true
         setGKeyHintVisible(true)
