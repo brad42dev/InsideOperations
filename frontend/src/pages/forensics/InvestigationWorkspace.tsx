@@ -1,6 +1,20 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   forensicsApi,
   type Investigation,
@@ -76,11 +90,13 @@ function StageCard({
   investigationId,
   readOnly,
   onRefresh,
+  dragHandleProps,
 }: {
   stage: InvestigationStage
   investigationId: string
   readOnly: boolean
   onRefresh: () => void
+  dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>
 }) {
   const queryClient = useQueryClient()
   const [editingName, setEditingName] = useState(false)
@@ -196,6 +212,22 @@ function StageCard({
           borderBottom: '1px solid var(--io-border)',
         }}
       >
+        {!readOnly && dragHandleProps && (
+          <span
+            {...dragHandleProps}
+            title="Drag to reorder"
+            style={{
+              color: 'var(--io-text-muted)',
+              cursor: 'grab',
+              fontSize: '14px',
+              flexShrink: 0,
+              userSelect: 'none',
+              lineHeight: 1,
+            }}
+          >
+            ⠿
+          </span>
+        )}
         {editingName && !readOnly ? (
           <input
             autoFocus
@@ -1312,6 +1344,45 @@ function ResultsPanel({
 }
 
 // ---------------------------------------------------------------------------
+// SortableStageCard — wraps StageCard with @dnd-kit useSortable
+// ---------------------------------------------------------------------------
+
+function SortableStageCard({
+  stage,
+  investigationId,
+  readOnly,
+  onRefresh,
+}: {
+  stage: InvestigationStage
+  investigationId: string
+  readOnly: boolean
+  onRefresh: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: stage.id,
+    disabled: readOnly,
+  })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <StageCard
+        stage={stage}
+        investigationId={investigationId}
+        readOnly={readOnly}
+        onRefresh={onRefresh}
+        dragHandleProps={readOnly ? undefined : { ...attributes, ...listeners }}
+      />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // InvestigationWorkspace
 // ---------------------------------------------------------------------------
 
@@ -1330,6 +1401,14 @@ export default function InvestigationWorkspace() {
   const [shareUserIds, setShareUserIds] = useState('')
   const [shareRoleIds, setShareRoleIds] = useState('')
   const [shareStatus, setShareStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [localStageOrder, setLocalStageOrder] = useState<string[]>([])
+
+  // Reset local stage order when the investigation changes
+  useEffect(() => {
+    setLocalStageOrder([])
+  }, [id])
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const { user } = useAuthStore()
   const canExport = user?.permissions.includes('forensics:export') ?? false
@@ -1462,7 +1541,36 @@ export default function InvestigationWorkspace() {
   }
 
   const isReadOnly = investigation.status !== 'active'
-  const stages = (investigation.stages ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)
+  const serverStages = (investigation.stages ?? []).slice().sort((a, b) => a.sort_order - b.sort_order)
+  // Apply local optimistic ordering if set, otherwise use server order
+  const stages =
+    localStageOrder.length === serverStages.length && localStageOrder.length > 0
+      ? localStageOrder.map((sid) => serverStages.find((s) => s.id === sid)!).filter(Boolean)
+      : serverStages
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = stages.findIndex((s) => s.id === active.id)
+    const newIndex = stages.findIndex((s) => s.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(stages, oldIndex, newIndex)
+    // Optimistically update local order immediately
+    setLocalStageOrder(reordered.map((s) => s.id))
+
+    // Persist new sort_order values for every stage in the reordered list
+    if (!id) return
+    reordered.forEach((stage, idx) => {
+      const newSortOrder = idx + 1
+      if (stage.sort_order !== newSortOrder) {
+        void forensicsApi.updateStage(id, stage.id, { sort_order: newSortOrder }).then(() => {
+          void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+        })
+      }
+    })
+  }
 
   const handleSaveName = () => {
     if (nameInput.trim() && nameInput !== investigation.name) {
@@ -1720,18 +1828,22 @@ export default function InvestigationWorkspace() {
               </div>
             )}
 
-            {stages.map((stage) => (
-              <ErrorBoundary key={stage.id} module={`Forensics — Stage: ${stage.name}`}>
-                <StageCard
-                  stage={stage}
-                  investigationId={investigation.id}
-                  readOnly={isReadOnly}
-                  onRefresh={() =>
-                    void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
-                  }
-                />
-              </ErrorBoundary>
-            ))}
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                {stages.map((stage) => (
+                  <ErrorBoundary key={stage.id} module={`Forensics — Stage: ${stage.name}`}>
+                    <SortableStageCard
+                      stage={stage}
+                      investigationId={investigation.id}
+                      readOnly={isReadOnly}
+                      onRefresh={() =>
+                        void queryClient.invalidateQueries({ queryKey: ['investigation', id] })
+                      }
+                    />
+                  </ErrorBoundary>
+                ))}
+              </SortableContext>
+            </DndContext>
 
             {!isReadOnly && (
               <button

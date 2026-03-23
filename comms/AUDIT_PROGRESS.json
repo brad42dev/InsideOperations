@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T14:10:31.456309+00:00",
+  "last_updated": "2026-03-23T14:45:46.211357+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -153,7 +153,8 @@
     "MOD-CONSOLE-014": 1,
     "DD-06-014": 1,
     "DD-13-011": 1,
-    "MOD-PROCESS-009": 1
+    "MOD-PROCESS-009": 1,
+    "DD-11-007": 1
   },
   "queue": [
     {
@@ -1757,7 +1758,7 @@
       "wave": 3,
       "title": "Fix ErrorBoundary button text from \"Try again\" to \"[Reload Module]\"",
       "priority": "low",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null
@@ -1768,7 +1769,7 @@
       "wave": 3,
       "title": "Improve template browser empty state with illustration, explanation, and CTA",
       "priority": "low",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null
@@ -1812,7 +1813,7 @@
       "wave": 3,
       "title": "Implement drag-to-reorder for investigation stages",
       "priority": "low",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null
@@ -4466,7 +4467,7 @@
       "wave": 3,
       "title": "Group Management CRUD is missing from settings sidebar",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4478,7 +4479,7 @@
       "wave": 3,
       "title": "Alerts History tab crashes with messages.map TypeError",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
