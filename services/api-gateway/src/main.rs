@@ -891,7 +891,30 @@ async fn proxy_scim(State(state): State<AppState>, req: Request) -> Response {
 
 /// Proxy `POST /api/dcs-import` to parser-service at `/parse/dcs-import`.
 /// This is a dedicated top-level alias for the DCS Graphics Import wizard.
-async fn proxy_dcs_import(State(state): State<AppState>, req: Request) -> Response {
+/// Requires the `designer:import` RBAC permission (doc 34 §Permissions).
+async fn proxy_dcs_import(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    req: Request,
+) -> Response {
+    let has_permission = claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == "designer:import");
+    if !has_permission {
+        return (
+            axum::http::StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "success": false,
+                "error": {
+                    "code": "FORBIDDEN",
+                    "message": "designer:import permission required"
+                }
+            })),
+        )
+            .into_response();
+    }
+
     proxy::proxy(&state, req, &state.config.parser_service_url, "/parse/dcs-import").await
 }
 

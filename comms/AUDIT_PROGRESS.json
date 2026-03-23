@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T00:00:00Z",
+  "last_updated": "2026-03-23T00:32:43.614797Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -136,7 +136,8 @@
     "DD-31-009": 1,
     "DD-32-005": 1,
     "DD-32-008": 1,
-    "DD-33-001": 1
+    "DD-33-001": 1,
+    "DD-33-004": 1
   },
   "queue": [
     {
@@ -3362,7 +3363,7 @@
       "wave": 3,
       "title": "Add criterion benchmark job and Goose load test job to nightly CI",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-33-006"
       ],
@@ -3374,7 +3375,7 @@
       "wave": 3,
       "title": "Create weekly CI workflow for license scan and extended dependency audit",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -3426,7 +3427,7 @@
       "wave": 3,
       "title": "Implement per-platform DCS parser modules for Phase 1 platforms",
       "priority": "medium",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-34-001"
       ],
@@ -3462,7 +3463,7 @@
       "wave": 3,
       "title": "Enforce designer:import RBAC permission on DCS import endpoint",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },
