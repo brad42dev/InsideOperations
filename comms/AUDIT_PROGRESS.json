@@ -155,7 +155,8 @@
     "DD-13-011": 1,
     "MOD-PROCESS-009": 1,
     "DD-11-007": 1,
-    "DD-12-012": 1
+    "DD-12-012": 1,
+    "DD-13-009": 1
   },
   "queue": [
     {
@@ -2005,7 +2006,7 @@
       "wave": 3,
       "title": "Replace hardcoded hex colors with design tokens (CX-TOKENS)",
       "priority": "low",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2,
       "uat_status": null
