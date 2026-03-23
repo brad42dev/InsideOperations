@@ -169,6 +169,46 @@ export const graphicsApi = {
       `/api/v1/design-objects/${id}/versions/${versionId}/restore`, {}
     ),
 
+  // ── User (custom) shapes ────────────────────────────────────────────────
+
+  /**
+   * List all user-uploaded custom shapes.
+   * Returns an array of { id, shape_id, name, category, source, created_at }.
+   */
+  listUserShapes: () =>
+    api.get<{ data: Array<{ id: string; shape_id: string; name: string; category: string; source: 'user'; created_at: string | null }> }>(
+      '/api/v1/shapes/user'
+    ),
+
+  /**
+   * Upload an SVG file as a new custom shape.
+   * `name` and `category` are optional metadata; defaults to filename stem / "custom".
+   */
+  uploadUserShape: async (file: File, name?: string, category?: string): Promise<{ id: string; shape_id: string; name: string; category: string; source: 'user' }> => {
+    const form = new FormData()
+    form.append('svg', file)
+    if (name) form.append('name', name)
+    if (category) form.append('category', category)
+    const resp = await fetch('/api/v1/shapes/user', {
+      method: 'POST',
+      body: form,
+      credentials: 'include',
+    })
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ message: resp.statusText }))
+      throw new Error(err.message ?? 'Upload failed')
+    }
+    const json = await resp.json()
+    return json.data
+  },
+
+  /**
+   * Delete a user-created custom shape by its design_objects UUID.
+   * Only user shapes (source=user) can be deleted; library shapes are immutable.
+   */
+  deleteUserShape: (id: string) =>
+    api.delete(`/api/v1/shapes/user/${id}`),
+
   /** Export a graphic as a .iographic ZIP (returns Blob) */
   exportIographic: async (id: string, description?: string): Promise<Blob> => {
     const resp = await fetch(`/api/v1/design-objects/${id}/export/iographic`, {

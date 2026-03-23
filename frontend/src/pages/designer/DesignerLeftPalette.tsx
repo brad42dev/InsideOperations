@@ -851,6 +851,232 @@ function EquipmentSection({ collapsed }: { collapsed: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
+// Custom (user) shapes section — palette variant
+// ---------------------------------------------------------------------------
+
+interface UserShapeItem {
+  id: string
+  shape_id: string
+  name: string
+  category: string
+  source: 'user'
+}
+
+function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const el = e.currentTarget as HTMLElement
+    el.setAttribute('data-dragging', 'true')
+
+    const ghost = document.createElement('div')
+    ghost.style.cssText = `
+      position: fixed; pointer-events: none; z-index: 9999;
+      padding: 4px 8px;
+      background: var(--io-accent);
+      color: #09090b;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      transform: translate(-50%, -50%);
+      left: ${e.clientX}px;
+      top: ${e.clientY}px;
+    `
+    ghost.textContent = item.name
+    ghost.id = 'io-drag-ghost'
+    document.body.appendChild(ghost)
+
+    const onMove = (ev: MouseEvent) => {
+      ghost.style.left = `${ev.clientX}px`
+      ghost.style.top = `${ev.clientY}px`
+      document.dispatchEvent(new CustomEvent('io:shape-drag-move', {
+        detail: { shapeId: item.shape_id, x: ev.clientX, y: ev.clientY },
+      }))
+    }
+
+    const onUp = (ev: MouseEvent) => {
+      ghost.remove()
+      el.removeAttribute('data-dragging')
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.dispatchEvent(new CustomEvent('io:shape-drop', {
+        detail: { shapeId: item.shape_id, x: ev.clientX, y: ev.clientY },
+      }))
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [item.shape_id, item.name])
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      title={item.name}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        width: 64,
+        height: 64,
+        background: 'var(--io-surface-elevated)',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        overflow: 'hidden',
+        userSelect: 'none',
+        padding: 4,
+        textAlign: 'center',
+        flexShrink: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+    >
+      <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="6" width="18" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" fill="none" />
+          <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      </div>
+      <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
+        {item.name.length > 12 ? item.name.slice(0, 11) + '…' : item.name}
+      </div>
+    </div>
+  )
+}
+
+function CustomShapesPaletteSection({ collapsed }: { collapsed: boolean }) {
+  const [shapes, setShapes] = useState<UserShapeItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Lazy-load on first open (when not collapsed)
+  useEffect(() => {
+    if (collapsed || loaded || loading) return
+    setLoading(true)
+    graphicsApi.listUserShapes()
+      .then(resp => {
+        if (resp.success) setShapes(resp.data.data ?? [])
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+      .finally(() => setLoading(false))
+  }, [collapsed, loaded, loading])
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const result = await graphicsApi.uploadUserShape(file)
+      setShapes(prev => [...prev, { ...result }])
+    } catch {
+      // silently fail in palette context — user can try Symbol Library for details
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 4px', alignItems: 'center' }}>
+        {shapes.slice(0, 4).map(item => (
+          <div
+            key={item.id}
+            title={item.name}
+            style={{
+              width: 32,
+              height: 32,
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'grab',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="1" y="3" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" fill="none" style={{ color: 'var(--io-text-muted)' }} />
+            </svg>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Upload button row */}
+      <div style={{ padding: '6px 8px', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            flex: 1,
+            padding: '5px 0',
+            background: 'var(--io-surface-elevated)',
+            border: '1px dashed var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            color: 'var(--io-text-muted)',
+            fontSize: 11,
+            cursor: uploading ? 'wait' : 'pointer',
+            textAlign: 'center',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)'; e.currentTarget.style.color = 'var(--io-accent)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)'; e.currentTarget.style.color = 'var(--io-text-muted)' }}
+        >
+          {uploading ? 'Uploading…' : '+ Upload SVG'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".svg,image/svg+xml"
+          onChange={handleUpload}
+          style={{ display: 'none' }}
+        />
+      </div>
+
+      {/* Shape tiles */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 8px' }}>
+        {loading && (
+          <div style={{ fontSize: 11, color: 'var(--io-text-muted)', padding: '8px 0' }}>
+            Loading…
+          </div>
+        )}
+        {loaded && shapes.length === 0 && (
+          <div
+            style={{
+              padding: '12px 8px',
+              fontSize: 11,
+              color: 'var(--io-text-muted)',
+              textAlign: 'center',
+              lineHeight: 1.5,
+            }}
+          >
+            No custom shapes yet.
+            <br />
+            Upload an SVG to get started.
+          </div>
+        )}
+        {loaded && shapes.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 4 }}>
+            {shapes.map(item => (
+              <CustomShapesPaletteTile key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Stencils section
 // ---------------------------------------------------------------------------
 
@@ -1414,6 +1640,7 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
   const isReportMode  = designMode === 'report'
 
   const [equipOpen,       setEquipOpen]       = useState(true)
+  const [myShapesOpen,    setMyShapesOpen]    = useState(false)
   const [stencilsOpen,    setStencilsOpen]    = useState(false)
   const [elemOpen,        setElemOpen]        = useState(true)
   const [pointsOpen,      setPointsOpen]      = useState(false)
@@ -1435,6 +1662,8 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
         {isGraphicMode ? (
           <>
             <EquipmentSection collapsed />
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <CustomShapesPaletteSection collapsed />
             <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
             <StencilsSection collapsed />
             <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
@@ -1458,6 +1687,8 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
             <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
             <EquipmentSection collapsed />
             <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
+            <CustomShapesPaletteSection collapsed />
+            <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
             <StencilsSection collapsed />
             <div style={{ height: 1, background: 'var(--io-border)', flexShrink: 0 }} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 4 }}>
@@ -1480,6 +1711,14 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
           {equipOpen && (
             <div style={{ flex: '1 1 0', minHeight: 100, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <EquipmentSection collapsed={false} />
+            </div>
+          )}
+
+          {/* My Shapes section — user-uploaded custom SVG shapes */}
+          <SectionHeader label="My Shapes" open={myShapesOpen} onToggle={() => setMyShapesOpen(v => !v)} />
+          {myShapesOpen && (
+            <div style={{ flex: '0 1 auto', maxHeight: 220, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <CustomShapesPaletteSection collapsed={false} />
             </div>
           )}
 
@@ -1524,6 +1763,14 @@ export default function DesignerLeftPalette({ collapsed, width }: DesignerLeftPa
           {equipOpen && (
             <div style={{ flex: '0 0 auto', maxHeight: 200, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <EquipmentSection collapsed={false} />
+            </div>
+          )}
+
+          {/* My Shapes section — user-uploaded custom SVG shapes */}
+          <SectionHeader label="My Shapes" open={myShapesOpen} onToggle={() => setMyShapesOpen(v => !v)} />
+          {myShapesOpen && (
+            <div style={{ flex: '0 1 auto', maxHeight: 180, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <CustomShapesPaletteSection collapsed={false} />
             </div>
           )}
 

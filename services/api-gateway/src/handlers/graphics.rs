@@ -1557,3 +1557,297 @@ fn collect_point_ids_rec(val: &JsonValue, ids: &mut Vec<String>) {
         _ => {}
     }
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/shapes/user — list user-created (custom) shapes
+// ---------------------------------------------------------------------------
+
+pub async fn list_user_shapes(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:read") {
+        return IoError::Forbidden("designer:read permission required".into()).into_response();
+    }
+
+    let rows = match sqlx::query(
+        r#"
+        SELECT
+            id,
+            name,
+            svg_data,
+            metadata,
+            created_at,
+            created_by
+        FROM design_objects
+        WHERE type IN ('shape', 'symbol')
+          AND metadata->>'source' = 'user'
+        ORDER BY name ASC
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!(error = %e, "list_user_shapes query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let items: Vec<JsonValue> = rows
+        .iter()
+        .map(|row| {
+            let id: Option<Uuid> = row.try_get("id").ok();
+            let name: Option<String> = row.try_get("name").ok().flatten();
+            let metadata: Option<JsonValue> = row.try_get("metadata").ok().flatten();
+            let created_at: Option<DateTime<Utc>> = row.try_get("created_at").ok().flatten();
+
+            let shape_id = metadata
+                .as_ref()
+                .and_then(|m| m.get("shape_id"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| id.map(|u| u.to_string()).unwrap_or_default());
+
+            let category = metadata
+                .as_ref()
+                .and_then(|m| m.get("category"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("custom")
+                .to_string();
+
+            serde_json::json!({
+                "id": id.map(|u| u.to_string()).unwrap_or_default(),
+                "shape_id": shape_id,
+                "name": name.unwrap_or_default(),
+                "category": category,
+                "source": "user",
+                "created_at": created_at.map(|t| t.to_rfc3339()),
+            })
+        })
+        .collect();
+
+    Json(ApiResponse::ok(serde_json::json!({ "data": items, "total": items.len() }))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/shapes/user — upload a custom SVG shape
+// ---------------------------------------------------------------------------
+
+pub async fn upload_user_shape(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:write") {
+        return IoError::Forbidden("designer:write permission required".into()).into_response();
+    }
+
+    let created_by: Uuid = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => return IoError::Unauthorized.into_response(),
+    };
+
+    let mut svg_data: Option<String> = None;
+    let mut shape_name: Option<String> = None;
+    let mut category = "custom".to_string();
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let field_name = field.name().unwrap_or("").to_string();
+        match field_name.as_str() {
+            "svg" | "file" => {
+                let ct = field.content_type().unwrap_or("").to_string();
+                if !ct.is_empty() && !ct.contains("svg") && !ct.contains("octet-stream") {
+                    return IoError::BadRequest(format!(
+                        "Expected SVG file, got content-type: {ct}"
+                    ))
+                    .into_response();
+                }
+                let filename = field
+                    .file_name()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                if shape_name.is_none() && !filename.is_empty() {
+                    // Use filename stem as the default name
+                    let stem = std::path::Path::new(&filename)
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Custom Shape")
+                        .to_string();
+                    shape_name = Some(stem);
+                }
+                match field.bytes().await {
+                    Ok(data) => {
+                        if data.len() > 2 * 1024 * 1024 {
+                            return IoError::BadRequest("SVG too large (max 2MB)".into())
+                                .into_response();
+                        }
+                        let text = match std::str::from_utf8(&data) {
+                            Ok(s) => s.to_string(),
+                            Err(_) => {
+                                return IoError::BadRequest("SVG must be valid UTF-8".into())
+                                    .into_response()
+                            }
+                        };
+                        // Basic sanity check — must contain <svg
+                        if !text.contains("<svg") {
+                            return IoError::BadRequest(
+                                "File does not appear to be an SVG".into(),
+                            )
+                            .into_response();
+                        }
+                        // Security scan
+                        if let Err(e) = file_scan::check_upload(text.as_bytes(), "upload.svg") {
+                            return e.into_response();
+                        }
+                        svg_data = Some(text);
+                    }
+                    Err(e) => {
+                        return IoError::BadRequest(format!("Failed to read SVG field: {e}"))
+                            .into_response();
+                    }
+                }
+            }
+            "name" => {
+                if let Ok(bytes) = field.bytes().await {
+                    if let Ok(s) = std::str::from_utf8(&bytes) {
+                        let trimmed = s.trim().to_string();
+                        if !trimmed.is_empty() {
+                            shape_name = Some(trimmed);
+                        }
+                    }
+                }
+            }
+            "category" => {
+                if let Ok(bytes) = field.bytes().await {
+                    if let Ok(s) = std::str::from_utf8(&bytes) {
+                        let trimmed = s.trim().to_string();
+                        if !trimmed.is_empty() {
+                            category = trimmed;
+                        }
+                    }
+                }
+            }
+            _ => {
+                // ignore unknown fields
+                let _ = field.bytes().await;
+            }
+        }
+    }
+
+    let svg = match svg_data {
+        Some(s) => s,
+        None => {
+            return IoError::BadRequest("No SVG file provided (field name: 'svg' or 'file')".into())
+                .into_response()
+        }
+    };
+
+    let name = shape_name.unwrap_or_else(|| "Custom Shape".to_string());
+
+    // Generate a user-scoped shape_id to avoid collisions with library IDs
+    let shape_id = format!(
+        ".custom.{}",
+        Uuid::new_v4().simple().to_string()
+    );
+
+    let metadata = serde_json::json!({
+        "shape_id": shape_id,
+        "source": "user",
+        "category": category,
+        "schema": "io-shape-v1",
+        "sidecar": {
+            "geometry": {
+                "viewBox": "0 0 100 100"
+            }
+        }
+    });
+
+    let id = Uuid::new_v4();
+
+    match sqlx::query(
+        r#"
+        INSERT INTO design_objects
+            (id, name, type, svg_data, metadata, created_by)
+        VALUES
+            ($1, $2, 'shape', $3, $4::jsonb, $5)
+        "#,
+    )
+    .bind(id)
+    .bind(&name)
+    .bind(&svg)
+    .bind(metadata.to_string())
+    .bind(created_by)
+    .execute(&state.db)
+    .await
+    {
+        Ok(_) => Json(ApiResponse::ok(serde_json::json!({
+            "id": id.to_string(),
+            "shape_id": shape_id,
+            "name": name,
+            "category": category,
+            "source": "user",
+        })))
+        .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "upload_user_shape insert failed");
+            IoError::Database(e).into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /api/v1/shapes/user/:id — delete a user-created custom shape
+// ---------------------------------------------------------------------------
+
+pub async fn delete_user_shape(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:write") {
+        return IoError::Forbidden("designer:write permission required".into()).into_response();
+    }
+
+    // Verify it exists and is a user shape (not a library shape)
+    let row = match sqlx::query(
+        r#"
+        SELECT id, metadata->>'source' as source
+        FROM design_objects
+        WHERE id = $1
+          AND type IN ('shape', 'symbol')
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return IoError::NotFound(format!("Shape {} not found", id)).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "delete_user_shape lookup failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let source: Option<String> = row.try_get("source").ok().flatten();
+    if source.as_deref() != Some("user") {
+        return IoError::Forbidden("Cannot delete built-in library shapes".into()).into_response();
+    }
+
+    match sqlx::query("DELETE FROM design_objects WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await
+    {
+        Ok(_) => Json(ApiResponse::ok(serde_json::json!({ "deleted": id.to_string() })))
+            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "delete_user_shape delete failed");
+            IoError::Database(e).into_response()
+        }
+    }
+}
