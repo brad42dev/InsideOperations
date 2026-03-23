@@ -79,6 +79,8 @@ pub struct IographicManifest {
     /// Deduplicated list of all point tag names referenced in bindings (doc 39 §3).
     pub point_tags: Vec<String>,
     /// SHA-256 digest of all other files in the ZIP (excluding manifest.json itself) (doc 39 §3).
+    /// Absent in packages produced before this feature was added — treated as a warning on import.
+    #[serde(default)]
     pub checksum: String,
 }
 
@@ -1563,7 +1565,11 @@ pub async fn analyze_iographic(
 
     // 5. Verify checksum — re-read all files except manifest.json sorted by path (BTreeMap order).
     //    We re-open the ZIP from the original bytes so we have a fresh cursor.
-    {
+    //    If checksum is absent (empty) in the manifest — this is a pre-feature package, log a
+    //    warning and skip verification rather than hard-rejecting.
+    if manifest.checksum.is_empty() {
+        tracing::warn!("analyze_iographic: manifest has no checksum field — package predates integrity check feature, skipping verification");
+    } else {
         let cursor2 = std::io::Cursor::new(bytes);
         match zip::ZipArchive::new(cursor2) {
             Ok(mut zip2) => {
@@ -1597,10 +1603,12 @@ pub async fn analyze_iographic(
                 );
 
                 if computed != manifest.checksum {
-                    errors.push(format!(
-                        "Checksum mismatch: expected '{}', computed '{}'",
-                        manifest.checksum, computed
-                    ));
+                    tracing::warn!(
+                        expected = %manifest.checksum,
+                        computed = %computed,
+                        "analyze_iographic: checksum mismatch"
+                    );
+                    errors.push("Package integrity check failed".to_string());
                 }
             }
             Err(e) => {
@@ -1969,7 +1977,8 @@ pub async fn commit_iographic(
     };
 
     // 2. Parse ZIP and read manifest.json
-    let cursor = std::io::Cursor::new(bytes);
+    //    Clone bytes so we can re-open the ZIP later for checksum verification.
+    let cursor = std::io::Cursor::new(bytes.clone());
     let mut zip = match zip::ZipArchive::new(cursor) {
         Ok(z) => z,
         Err(e) => {
@@ -2005,6 +2014,54 @@ pub async fn commit_iographic(
         return IoError::BadRequest(
             format!("Unrecognised format '{}' — expected 'iographic'", manifest.format)
         ).into_response();
+    }
+
+    // 2b. Verify checksum if present.
+    //     Missing checksum (pre-feature package) → log warning and continue.
+    //     Checksum mismatch → reject with "Package integrity check failed".
+    if manifest.checksum.is_empty() {
+        tracing::warn!("commit_iographic: manifest has no checksum field — package predates integrity check feature, skipping verification");
+    } else {
+        use std::io::Read as _;
+        let cursor_cs = std::io::Cursor::new(&bytes);
+        match zip::ZipArchive::new(cursor_cs) {
+            Ok(mut zip_cs) => {
+                let all_names: Vec<String> = (0..zip_cs.len())
+                    .filter_map(|i| zip_cs.by_index(i).ok().map(|e| e.name().to_string()))
+                    .filter(|n| n != "manifest.json")
+                    .collect();
+                let mut file_map_cs: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+                for name in &all_names {
+                    if let Ok(mut entry) = zip_cs.by_name(name) {
+                        let mut buf = Vec::new();
+                        if entry.read_to_end(&mut buf).is_ok() {
+                            file_map_cs.insert(name.clone(), buf);
+                        }
+                    }
+                }
+                let mut hasher = Sha256::new();
+                for (_, content) in &file_map_cs {
+                    hasher.update(content);
+                }
+                let hash_bytes = hasher.finalize();
+                let computed = format!(
+                    "sha256:{}",
+                    hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                );
+                if computed != manifest.checksum {
+                    tracing::warn!(
+                        expected = %manifest.checksum,
+                        computed = %computed,
+                        "commit_iographic: checksum mismatch"
+                    );
+                    return IoError::BadRequest("Package integrity check failed".into()).into_response();
+                }
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "commit_iographic: failed to re-open ZIP for checksum verification");
+                return IoError::Internal("Failed to verify package integrity".into()).into_response();
+            }
+        }
     }
 
     // 3. Build tag resolution map from options.tag_mappings + auto-resolution.

@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T01:49:37.514787Z",
+  "last_updated": "2026-03-23T01:54:49.673140Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -3693,7 +3693,7 @@
       "wave": 3,
       "title": "Fix default post-login redirect \u2014 use first visible module per user permissions",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-38-001"
       ],
@@ -3747,7 +3747,7 @@
       "wave": 3,
       "title": "Compute SHA-256 checksum on export and verify on import",
       "priority": "medium",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [
         "DD-39-001"
       ],
