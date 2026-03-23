@@ -22,9 +22,9 @@ interface PointCurrentResponse {
 
 function getTrendColor(value: number, thresholds?: { warning: number; critical: number }): string {
   if (!thresholds) return 'var(--io-text-primary)'
-  if (value >= thresholds.critical) return 'var(--io-danger, #ef4444)'
-  if (value >= thresholds.warning) return 'var(--io-warning, #f59e0b)'
-  return 'var(--io-success, #22c55e)'
+  if (value >= thresholds.critical) return 'var(--io-alarm-critical)'
+  if (value >= thresholds.warning) return 'var(--io-alarm-high)'
+  return 'var(--io-alarm-normal)'
 }
 
 interface Props {
@@ -137,7 +137,7 @@ export default function KpiCard({ config }: Props) {
                   width: '7px',
                   height: '7px',
                   borderRadius: '50%',
-                  background: quality === 'bad' ? 'var(--io-danger, #ef4444)' : 'var(--io-warning, #f59e0b)',
+                  background: quality === 'bad' ? 'var(--io-danger)' : 'var(--io-warning)',
                   flexShrink: 0,
                 }}
               />
@@ -148,7 +148,7 @@ export default function KpiCard({ config }: Props) {
           )}
 
           {query.isError && (
-            <span style={{ fontSize: '11px', color: 'var(--io-danger, #ef4444)' }}>
+            <span style={{ fontSize: '11px', color: 'var(--io-danger)' }}>
               Error loading value
             </span>
           )}

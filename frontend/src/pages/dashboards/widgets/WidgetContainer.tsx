@@ -154,7 +154,7 @@ const WidgetContainer = memo(function WidgetContainer({
                     background: 'var(--io-surface-elevated)',
                     border: '1px solid var(--io-border)',
                     borderRadius: 'var(--io-radius)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    boxShadow: 'var(--io-shadow-lg)',
                     zIndex: 99,
                     overflow: 'hidden',
                   }}
@@ -174,7 +174,7 @@ const WidgetContainer = memo(function WidgetContainer({
                         padding: '8px 12px',
                         background: 'none',
                         border: 'none',
-                        color: item.danger ? 'var(--io-danger, #ef4444)' : 'var(--io-text-secondary)',
+                        color: item.danger ? 'var(--io-danger)' : 'var(--io-text-secondary)',
                         fontSize: '13px',
                         cursor: 'pointer',
                         textAlign: 'left',

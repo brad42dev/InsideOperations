@@ -295,7 +295,7 @@ function NewPlaylistForm({
             background: 'var(--io-accent)',
             border: 'none',
             borderRadius: 'var(--io-radius)',
-            color: '#fff',
+            color: 'var(--io-btn-text)',
             cursor: 'pointer',
             fontSize: '13px',
             fontWeight: 600,
@@ -370,7 +370,7 @@ export default function PlaylistManager({ onClose }: Props) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.5)',
+        background: 'var(--io-modal-backdrop)',
         zIndex: 200,
         display: 'flex',
         alignItems: 'center',
@@ -386,7 +386,7 @@ export default function PlaylistManager({ onClose }: Props) {
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+          boxShadow: 'var(--io-shadow-lg)',
         }}
       >
         {/* Header */}
@@ -459,7 +459,7 @@ export default function PlaylistManager({ onClose }: Props) {
                     background: 'var(--io-accent)',
                     border: 'none',
                     borderRadius: 'var(--io-radius)',
-                    color: '#fff',
+                    color: 'var(--io-btn-text)',
                     cursor: 'pointer',
                     fontSize: '12px',
                     fontWeight: 600,
@@ -478,7 +478,7 @@ export default function PlaylistManager({ onClose }: Props) {
                     background: 'none',
                     border: '1px solid var(--io-border)',
                     borderRadius: 'var(--io-radius)',
-                    color: 'var(--io-danger, #ef4444)',
+                    color: 'var(--io-danger)',
                     cursor: 'pointer',
                     fontSize: '12px',
                   }}

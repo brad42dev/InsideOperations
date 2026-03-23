@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T00:00:00Z",
+  "last_updated": "2026-03-23T03:19:53.218863+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -146,7 +146,8 @@
     "DD-38-006": 1,
     "DD-39-005": 1,
     "MOD-DESIGNER-008": 1,
-    "DD-06-003": 1
+    "DD-06-003": 1,
+    "DD-06-009": 1
   },
   "queue": [
     {
@@ -1502,7 +1503,7 @@
       "wave": 3,
       "title": "Replace static About page with API-driven license browser and SBOM download",
       "priority": "low",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 2
     },
@@ -1604,7 +1605,7 @@
       "wave": 3,
       "title": "Replace hardcoded hex colors with CSS design tokens across dashboards widgets",
       "priority": "low",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 2
     },

@@ -253,7 +253,7 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
           justifyContent: 'center',
           flexDirection: 'column',
           gap: '12px',
-          color: 'var(--io-danger, #ef4444)',
+          color: 'var(--io-danger)',
           fontSize: '14px',
         }}
       >
@@ -314,7 +314,7 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
                   left: 0,
                   right: 0,
                   zIndex: 20,
-                  background: 'rgba(0,0,0,0.85)',
+                  background: 'var(--io-surface-overlay)',
                   backdropFilter: 'blur(8px)',
                   borderBottom: 'none',
                 }
@@ -390,7 +390,7 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
                   background: 'var(--io-accent)',
                   border: 'none',
                   borderRadius: 'var(--io-radius)',
-                  color: '#fff',
+                  color: 'var(--io-btn-text)',
                   cursor: 'pointer',
                   fontSize: '12px',
                   fontWeight: 600,
@@ -512,7 +512,7 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
                     background: 'var(--io-accent)',
                     border: 'none',
                     borderRadius: 'var(--io-radius)',
-                    color: '#fff',
+                    color: 'var(--io-btn-text)',
                     cursor: 'pointer',
                     fontSize: '13px',
                   }}

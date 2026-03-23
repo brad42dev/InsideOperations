@@ -8,7 +8,10 @@ interface PieChartConfig {
   donut?: boolean
 }
 
-const DEFAULT_COLORS = ['#4A9EFF', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#84cc16']
+/** Resolve a CSS custom property for use in ECharts options. */
+function resolveToken(token: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+}
 
 interface Props {
   config: WidgetConfig
@@ -20,6 +23,19 @@ export default function PieChart({ config }: Props) {
   const series = cfg.series ?? []
   const isDonut = cfg.donut ?? false
 
+  // Chart series colors resolved from pen tokens so they reflect the active theme.
+  // ECharts requires resolved color values, not CSS variable strings.
+  const defaultColors = [
+    resolveToken('--io-pen-1'),
+    resolveToken('--io-pen-3'),
+    resolveToken('--io-pen-4'),
+    resolveToken('--io-pen-2'),
+    resolveToken('--io-pen-5'),
+    resolveToken('--io-pen-6'),
+    resolveToken('--io-pen-7'),
+    resolveToken('--io-pen-8'),
+  ]
+
   const option: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: {
@@ -30,7 +46,7 @@ export default function PieChart({ config }: Props) {
       orient: 'vertical',
       right: 8,
       top: 'middle',
-      textStyle: { color: '#999', fontSize: 11 },
+      textStyle: { color: resolveToken('--io-text-muted'), fontSize: 11 },
       itemWidth: 10,
       itemHeight: 10,
     },
@@ -42,12 +58,12 @@ export default function PieChart({ config }: Props) {
         data: series.map((s, idx) => ({
           name: s.label,
           value: s.value,
-          itemStyle: { color: s.color ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length] },
+          itemStyle: { color: s.color ?? defaultColors[idx % defaultColors.length] },
         })),
         label: { show: false },
         labelLine: { show: false },
         emphasis: {
-          itemStyle: { shadowBlur: 8, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.5)' },
+          itemStyle: { shadowBlur: 8, shadowOffsetX: 0, shadowColor: resolveToken('--io-surface-overlay') },
         },
       },
     ],

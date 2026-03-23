@@ -93,7 +93,7 @@ const DashboardCard = memo(function DashboardCard({
       onClick={() => navigate(`/dashboards/${dashboard.id}`)}
       onMouseEnter={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--io-accent)'
-        ;(e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,0,0,0.2)'
+        ;(e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--io-shadow-lg)'
       }}
       onMouseLeave={(e) => {
         ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--io-border)'
@@ -153,7 +153,7 @@ const DashboardCard = memo(function DashboardCard({
                     background: 'var(--io-surface-elevated)',
                     border: '1px solid var(--io-border)',
                     borderRadius: 'var(--io-radius)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    boxShadow: 'var(--io-shadow-lg)',
                     zIndex: 99,
                     overflow: 'hidden',
                   }}
@@ -195,7 +195,7 @@ const DashboardCard = memo(function DashboardCard({
                         background: 'none',
                         border: 'none',
                         color: item.danger
-                          ? 'var(--io-danger, #ef4444)'
+                          ? 'var(--io-danger)'
                           : 'var(--io-text-secondary)',
                         fontSize: '13px',
                         cursor: item.disabled ? 'not-allowed' : 'pointer',
@@ -523,7 +523,7 @@ export default function DashboardsPage() {
                     background: 'var(--io-surface-elevated)',
                     border: '1px solid var(--io-border)',
                     borderRadius: 'var(--io-radius)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    boxShadow: 'var(--io-shadow-lg)',
                     zIndex: 100,
                     overflow: 'hidden',
                   }}
@@ -616,7 +616,7 @@ export default function DashboardsPage() {
               background: 'var(--io-accent)',
               border: 'none',
               borderRadius: 'var(--io-radius)',
-              color: '#fff',
+              color: 'var(--io-btn-text)',
               cursor: 'pointer',
               fontSize: '13px',
               fontWeight: 600,
@@ -703,10 +703,10 @@ export default function DashboardsPage() {
           <div
             style={{
               padding: '20px',
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
+              background: 'color-mix(in srgb, var(--io-danger) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--io-danger) 30%, transparent)',
               borderRadius: 'var(--io-radius)',
-              color: 'var(--io-danger, #ef4444)',
+              color: 'var(--io-danger)',
               fontSize: '13px',
             }}
           >
@@ -768,7 +768,7 @@ export default function DashboardsPage() {
                       background: 'var(--io-accent)',
                       border: 'none',
                       borderRadius: 'var(--io-radius)',
-                      color: '#fff',
+                      color: 'var(--io-btn-text)',
                       cursor: 'pointer',
                       fontSize: '13px',
                       fontWeight: 600,

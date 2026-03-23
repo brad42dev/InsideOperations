@@ -14,11 +14,24 @@ interface Props {
   variables: Record<string, string[]>
 }
 
+/** Resolve a CSS custom property for use in ECharts options.
+ *  ECharts requires resolved color strings, not CSS variable references.
+ */
+function resolveToken(token: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+}
+
 export default function BarChart({ config }: Props) {
   const cfg = config.config as unknown as BarChartConfig
   const series = cfg.series ?? []
   const isHorizontal = cfg.horizontal ?? false
-  const color = cfg.color ?? '#4A9EFF'
+  // Use caller-supplied color if provided; otherwise resolve the first pen token.
+  // --io-pen-1 is the primary chart series color (blue, static across themes).
+  const color = cfg.color ?? resolveToken('--io-pen-1')
+
+  const axisColor = resolveToken('--io-border-strong')
+  const labelColor = resolveToken('--io-text-muted')
+  const gridColor = resolveToken('--io-chart-grid')
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -28,21 +41,21 @@ export default function BarChart({ config }: Props) {
     },
     grid: { top: 16, right: 16, bottom: 40, left: 48 },
     xAxis: isHorizontal
-      ? { type: 'value', axisLine: { lineStyle: { color: '#555' } }, axisLabel: { color: '#999', fontSize: 11 }, splitLine: { lineStyle: { color: '#333' } } }
+      ? { type: 'value', axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: labelColor, fontSize: 11 }, splitLine: { lineStyle: { color: gridColor } } }
       : {
           type: 'category',
           data: series.map((s) => s.label),
-          axisLine: { lineStyle: { color: '#555' } },
-          axisLabel: { color: '#999', fontSize: 11, interval: 0, rotate: series.length > 6 ? 30 : 0 },
+          axisLine: { lineStyle: { color: axisColor } },
+          axisLabel: { color: labelColor, fontSize: 11, interval: 0, rotate: series.length > 6 ? 30 : 0 },
         },
     yAxis: isHorizontal
       ? {
           type: 'category',
           data: series.map((s) => s.label),
-          axisLine: { lineStyle: { color: '#555' } },
-          axisLabel: { color: '#999', fontSize: 11 },
+          axisLine: { lineStyle: { color: axisColor } },
+          axisLabel: { color: labelColor, fontSize: 11 },
         }
-      : { type: 'value', axisLine: { lineStyle: { color: '#555' } }, axisLabel: { color: '#999', fontSize: 11 }, splitLine: { lineStyle: { color: '#333' } } },
+      : { type: 'value', axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: labelColor, fontSize: 11 }, splitLine: { lineStyle: { color: gridColor } } },
     series: [
       {
         type: 'bar',

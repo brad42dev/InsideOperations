@@ -147,7 +147,7 @@ export default function PlaylistPlayer() {
           justifyContent: 'center',
           flexDirection: 'column',
           gap: '12px',
-          color: 'var(--io-danger, #ef4444)',
+          color: 'var(--io-danger)',
         }}
       >
         <span>Failed to load playlist</span>
@@ -227,7 +227,9 @@ export default function PlaylistPlayer() {
             left: 0,
             right: 0,
             height: '48px',
-            background: 'rgba(0,0,0,0.85)',
+            // Kiosk overlay strip — intentionally dark regardless of theme;
+          // var(--io-surface-overlay) provides the correct semi-transparent dark background.
+          background: 'var(--io-surface-overlay)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
@@ -341,7 +343,7 @@ export default function PlaylistPlayer() {
           left: 0,
           right: 0,
           height: '3px',
-          background: 'rgba(255,255,255,0.1)',
+          background: 'var(--io-border-subtle)',
           zIndex: 100,
         }}
       >

@@ -141,7 +141,7 @@ export default function ExportDataDialog({ widgetConfig, onClose }: Props) {
           position: 'fixed',
           inset: 0,
           zIndex: 200,
-          background: 'rgba(0,0,0,0.5)',
+          background: 'var(--io-modal-backdrop)',
         }}
       />
 
@@ -160,7 +160,7 @@ export default function ExportDataDialog({ widgetConfig, onClose }: Props) {
           background: 'var(--io-surface-elevated)',
           border: '1px solid var(--io-border)',
           borderRadius: 'var(--io-radius)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          boxShadow: 'var(--io-shadow-lg)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -235,7 +235,7 @@ export default function ExportDataDialog({ widgetConfig, onClose }: Props) {
                     value={opt.value}
                     checked={format === opt.value}
                     onChange={() => setFormat(opt.value)}
-                    style={{ accentColor: 'var(--io-accent, #4A9EFF)', cursor: 'pointer' }}
+                    style={{ accentColor: 'var(--io-accent)', cursor: 'pointer' }}
                   />
                   {opt.label}
                 </label>
@@ -249,9 +249,9 @@ export default function ExportDataDialog({ widgetConfig, onClose }: Props) {
               style={{
                 padding: '8px 12px',
                 borderRadius: 4,
-                background: 'var(--io-danger-bg, rgba(239,68,68,0.12))',
-                border: '1px solid var(--io-danger, #ef4444)',
-                color: 'var(--io-danger, #ef4444)',
+                background: 'color-mix(in srgb, var(--io-danger) 12%, transparent)',
+                border: '1px solid var(--io-danger)',
+                color: 'var(--io-danger)',
                 fontSize: '12px',
               }}
             >
@@ -264,9 +264,9 @@ export default function ExportDataDialog({ widgetConfig, onClose }: Props) {
               style={{
                 padding: '8px 12px',
                 borderRadius: 4,
-                background: 'var(--io-info-bg, rgba(74,158,255,0.12))',
-                border: '1px solid var(--io-accent, #4A9EFF)',
-                color: 'var(--io-accent, #4A9EFF)',
+                background: 'color-mix(in srgb, var(--io-accent) 12%, transparent)',
+                border: '1px solid var(--io-accent)',
+                color: 'var(--io-accent)',
                 fontSize: '12px',
               }}
             >
@@ -308,10 +308,10 @@ export default function ExportDataDialog({ widgetConfig, onClose }: Props) {
             disabled={loading}
             style={{
               padding: '6px 16px',
-              background: 'var(--io-accent, #4A9EFF)',
+              background: 'var(--io-accent)',
               border: 'none',
               borderRadius: 'var(--io-radius)',
-              color: '#fff',
+              color: 'var(--io-btn-text)',
               fontSize: '13px',
               fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',

@@ -83,7 +83,19 @@ export default function LineChart({ config }: Props) {
   // Subscribe to live values — appended as the rightmost point on each series
   const liveValues = usePointValues(points)
 
-  const colors = ['#4A9EFF', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4']
+  // Chart series colors use the trend pen tokens from the design token registry.
+  // Pen tokens are resolved at render time so they reflect the active theme.
+  // Using getComputedStyle because TimeSeriesChart (uPlot) requires hex/rgb values.
+  const resolveToken = (token: string) =>
+    getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+  const colors = [
+    resolveToken('--io-pen-1'),
+    resolveToken('--io-pen-3'),
+    resolveToken('--io-pen-4'),
+    resolveToken('--io-pen-2'),
+    resolveToken('--io-pen-5'),
+    resolveToken('--io-pen-6'),
+  ]
 
   const nowSec = Math.floor(Date.now() / 1000)
 
@@ -143,7 +155,7 @@ export default function LineChart({ config }: Props) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'var(--io-danger, #ef4444)',
+          color: 'var(--io-danger)',
           fontSize: '12px',
         }}
       >

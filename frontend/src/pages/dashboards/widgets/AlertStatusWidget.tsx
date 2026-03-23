@@ -19,12 +19,16 @@ interface ActiveAlarm {
   acknowledged_at?: string | null
 }
 
+// Alarm severity colors use ISA-101 alarm tokens (not UI state tokens).
+// These are intentionally non-customizable per the CX-TOKENS contract.
+// The strings here are CSS custom property references passed directly to
+// inline styles — browsers resolve them at paint time per active theme.
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: '#ef4444',
-  high: '#f97316',
-  medium: '#f59e0b',
-  low: '#3b82f6',
-  info: '#6b7280',
+  critical: 'var(--io-alarm-critical)',
+  high: 'var(--io-alarm-high)',
+  medium: 'var(--io-alarm-medium)',
+  low: 'var(--io-info)',
+  info: 'var(--io-text-muted)',
 }
 
 function timeAgo(isoString: string): string {
@@ -98,7 +102,7 @@ export default function AlertStatusWidget({ config }: Props) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--io-danger, #ef4444)',
+            color: 'var(--io-danger)',
             fontSize: '12px',
           }}
         >
@@ -113,7 +117,7 @@ export default function AlertStatusWidget({ config }: Props) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--io-success, #22c55e)',
+            color: 'var(--io-alarm-normal)',
             fontSize: '12px',
             gap: '6px',
           }}
@@ -126,7 +130,7 @@ export default function AlertStatusWidget({ config }: Props) {
       {!query.isLoading && alarms.length > 0 && (
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {alarms.map((alarm) => {
-            const sevColor = SEVERITY_COLORS[alarm.severity] ?? '#6b7280'
+            const sevColor = SEVERITY_COLORS[alarm.severity] ?? 'var(--io-text-muted)'
             const isAcknowledged = !!alarm.acknowledged_at
 
             return (
@@ -186,7 +190,9 @@ export default function AlertStatusWidget({ config }: Props) {
                         fontSize: '10px',
                         padding: '1px 5px',
                         borderRadius: '100px',
-                        background: `${sevColor}22`,
+                        // color-mix derives a 13% alpha tint from the severity token.
+                        // Avoids appending opacity hex to a CSS variable reference.
+                        background: `color-mix(in srgb, ${sevColor} 13%, transparent)`,
                         color: sevColor,
                         fontWeight: 700,
                         flexShrink: 0,
@@ -253,7 +259,7 @@ export default function AlertStatusWidget({ config }: Props) {
                     style={{
                       flexShrink: 0,
                       fontSize: '10px',
-                      color: 'var(--io-success, #22c55e)',
+                      color: 'var(--io-alarm-normal)',
                     }}
                   >
                     ✓

@@ -28,6 +28,15 @@ interface Props {
   variables: Record<string, string[]>
 }
 
+/** Resolve a CSS custom property to its computed value for use in ECharts options.
+ *  ECharts configuration objects do not support CSS variable strings — they require
+ *  resolved color values. This reads from the document root at render time so the
+ *  chart reflects the currently active theme.
+ */
+function resolveToken(token: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+}
+
 export default function GaugeWidget({ config }: Props) {
   const cfg = config.config as unknown as GaugeConfig
   const { pointId, min = 0, max = 100, unit = '', thresholds } = cfg
@@ -68,21 +77,21 @@ export default function GaugeWidget({ config }: Props) {
   const isStale = livePoint?.stale === true || quality === 'uncertain' || quality === 'bad'
 
   function getColor(val: number): string {
-    if (!thresholds) return '#4A9EFF'
-    if (val >= thresholds.critical) return '#ef4444'
-    if (val >= thresholds.warning) return '#f59e0b'
-    return '#22c55e'
+    if (!thresholds) return resolveToken('--io-accent')
+    if (val >= thresholds.critical) return resolveToken('--io-alarm-critical')
+    if (val >= thresholds.warning) return resolveToken('--io-alarm-high')
+    return resolveToken('--io-alarm-normal')
   }
 
   const color = getColor(clampedValue)
 
   const axisLineData: [number, string][] = thresholds
     ? [
-        [thresholds.warning / max, '#22c55e'],
-        [thresholds.critical / max, '#f59e0b'],
-        [1, '#ef4444'],
+        [thresholds.warning / max, resolveToken('--io-alarm-normal')],
+        [thresholds.critical / max, resolveToken('--io-alarm-high')],
+        [1, resolveToken('--io-alarm-critical')],
       ]
-    : [[1, '#4A9EFF']]
+    : [[1, resolveToken('--io-accent')]]
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -110,10 +119,10 @@ export default function GaugeWidget({ config }: Props) {
         axisTick: { show: false },
         splitLine: {
           length: 8,
-          lineStyle: { color: '#555', width: 1 },
+          lineStyle: { color: resolveToken('--io-border-strong'), width: 1 },
         },
         axisLabel: {
-          color: '#999',
+          color: resolveToken('--io-text-muted'),
           fontSize: 10,
           distance: 14,
         },
@@ -156,7 +165,7 @@ export default function GaugeWidget({ config }: Props) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'var(--io-danger, #ef4444)',
+          color: 'var(--io-danger)',
           fontSize: '12px',
         }}
       >
@@ -187,7 +196,7 @@ export default function GaugeWidget({ config }: Props) {
                 width: '6px',
                 height: '6px',
                 borderRadius: '50%',
-                background: quality === 'bad' ? 'var(--io-danger, #ef4444)' : 'var(--io-warning, #f59e0b)',
+                background: quality === 'bad' ? 'var(--io-danger)' : 'var(--io-warning)',
                 flexShrink: 0,
               }}
             />

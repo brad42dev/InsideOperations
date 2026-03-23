@@ -461,7 +461,7 @@ function VariablesModal({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.5)',
+        background: 'var(--io-modal-backdrop)',
         zIndex: 200,
         display: 'flex',
         alignItems: 'center',
@@ -477,7 +477,7 @@ function VariablesModal({
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+          boxShadow: 'var(--io-shadow-lg)',
         }}
       >
         <div
@@ -548,7 +548,7 @@ function VariablesModal({
                 </label>
                 <button
                   onClick={() => removeVar(idx)}
-                  style={{ marginTop: '20px', background: 'none', border: 'none', color: 'var(--io-danger, #ef4444)', cursor: 'pointer', fontSize: '16px', flexShrink: 0 }}
+                  style={{ marginTop: '20px', background: 'none', border: 'none', color: 'var(--io-danger)', cursor: 'pointer', fontSize: '16px', flexShrink: 0 }}
                 >
                   ×
                 </button>
@@ -622,7 +622,7 @@ function VariablesModal({
           </button>
           <button
             onClick={() => { onSave(localVars); onClose() }}
-            style={{ padding: '7px 16px', background: 'var(--io-accent)', border: 'none', borderRadius: 'var(--io-radius)', color: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+            style={{ padding: '7px 16px', background: 'var(--io-accent)', border: 'none', borderRadius: 'var(--io-radius)', color: 'var(--io-btn-text)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
           >
             Save Variables
           </button>
@@ -828,7 +828,7 @@ export default function DashboardBuilder() {
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
           {saveError && (
-            <span style={{ fontSize: '12px', color: 'var(--io-danger, #ef4444)' }}>
+            <span style={{ fontSize: '12px', color: 'var(--io-danger)' }}>
               {saveError}
             </span>
           )}
@@ -892,7 +892,7 @@ export default function DashboardBuilder() {
               background: 'var(--io-accent)',
               border: 'none',
               borderRadius: 'var(--io-radius)',
-              color: '#fff',
+              color: 'var(--io-btn-text)',
               cursor: 'pointer',
               fontSize: '12px',
               fontWeight: 600,
