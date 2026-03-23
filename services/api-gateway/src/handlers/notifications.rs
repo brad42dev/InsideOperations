@@ -1627,6 +1627,42 @@ pub async fn get_active_notifications(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/notifications/channels/enabled
+// ---------------------------------------------------------------------------
+
+pub async fn get_enabled_channels(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "alerts:read") {
+        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
+            .into_response();
+    }
+
+    let rows = sqlx::query(
+        r#"SELECT channel_type FROM alert_channels WHERE enabled = true ORDER BY channel_type"#,
+    )
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rows) => {
+            let channels: Vec<String> = rows.iter().map(|r| r.get("channel_type")).collect();
+            ok(channels).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "get_enabled_channels query failed");
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch enabled channels",
+            )
+            .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Route builder (called from main.rs)
 // ---------------------------------------------------------------------------
 
@@ -1635,6 +1671,7 @@ pub fn notifications_routes() -> axum::Router<AppState> {
 
     axum::Router::new()
         // Static routes first
+        .route("/api/notifications/channels/enabled", get(get_enabled_channels))
         .route("/api/notifications/active", get(get_active_notifications))
         .route(
             "/api/notifications/messages",
