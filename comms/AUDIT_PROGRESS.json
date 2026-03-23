@@ -156,7 +156,8 @@
     "MOD-PROCESS-009": 1,
     "DD-11-007": 1,
     "DD-12-012": 1,
-    "DD-13-009": 1
+    "DD-13-009": 1,
+    "DD-10-011": 1
   },
   "queue": [
     {
@@ -4553,7 +4554,7 @@
       "wave": 3,
       "title": "Playback Bar (play/pause/seek) not implemented in DashboardViewer time-context mode",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4577,7 +4578,7 @@
       "wave": 3,
       "title": "Expression Library page returns 'Access Denied' for admin user \u2014 blocks all expression builder UAT",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

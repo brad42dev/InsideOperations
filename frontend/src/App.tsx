@@ -1089,7 +1089,7 @@ function AppRoutes() {
           />
           <Route path="certificates" element={<PermissionGuard permission="system:certificates"><CertificatesPage /></PermissionGuard>} />
           <Route path="backup" element={<PermissionGuard permission="system:change_backup"><BackupRestorePage /></PermissionGuard>} />
-          <Route path="expressions" element={<PermissionGuard permission="system:configure"><ExpressionLibrary /></PermissionGuard>} />
+          <Route path="expressions" element={<PermissionGuard permission="system:expression_manage"><ExpressionLibrary /></PermissionGuard>} />
           <Route path="report-scheduling" element={<PermissionGuard permission="reports:schedule_manage"><ReportScheduling /></PermissionGuard>} />
           <Route path="export-presets" element={<PermissionGuard permission="settings:export"><ExportPresets /></PermissionGuard>} />
           <Route
