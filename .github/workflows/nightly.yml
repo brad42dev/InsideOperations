@@ -47,3 +47,46 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report/
+
+  benchmarks:
+    name: Performance benchmarks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y libxmlsec1-dev libxmlsec1-openssl libxml2-dev
+      - name: Run criterion benchmarks
+        run: cargo bench --workspace 2>&1 | tee bench-results.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: bench-results.txt
+
+  load-tests:
+    name: Goose load tests
+    runs-on: ubuntu-24.04
+    # Requires a running staging gateway — only trigger manually with STAGING_URL set.
+    # Do NOT run against the ephemeral CI database; it cannot sustain 200 concurrent
+    # WebSocket connections at 10,000 point updates/second.
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y libxmlsec1-dev libxmlsec1-openssl libxml2-dev
+      - name: Run Goose load tests (200 users, 60 s)
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          cargo run -p io-load-tests -- \
+            --host "$STAGING_URL" \
+            --users 200 \
+            --run-time 60s \
+            --report-file load-report.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-report
+          path: load-report.html
