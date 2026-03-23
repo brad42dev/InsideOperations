@@ -305,14 +305,35 @@ function TemplateBrowser({
           <div
             style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              height: '120px',
+              height: '180px',
+              gap: '10px',
               color: 'var(--io-text-muted)',
-              fontSize: '13px',
+              padding: '24px',
+              textAlign: 'center',
             }}
           >
-            No templates found.
+            <svg
+              width="40" height="40" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="1" opacity={0.4}
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--io-text-secondary)' }}>
+              {search || category !== 'All'
+                ? 'No templates match your search'
+                : 'No report templates available'}
+            </div>
+            <div style={{ fontSize: '12px', lineHeight: 1.5 }}>
+              {search || category !== 'All'
+                ? 'Try clearing the search or selecting a different category.'
+                : 'Report templates are seeded at startup. Contact your administrator if templates are missing.'}
+            </div>
           </div>
         )}
 
