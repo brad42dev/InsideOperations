@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { roundsApi } from '../../api/rounds'
 import { ExportButton } from '../../shared/components/ExportDialog'
+import { PrintDialog } from './PrintDialog'
 
 const TEMPLATE_COLUMNS = [
   { id: 'name', label: 'Name' },
@@ -86,6 +87,12 @@ export default function RoundTemplates() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
+                <PrintDialog
+                  preselectedTemplateId={t.id}
+                  trigger={
+                    <button style={btnStyle()}>Print</button>
+                  }
+                />
                 <button style={btnStyle()} onClick={() => navigate(`/rounds/templates/${t.id}/edit`)}>Edit</button>
               </div>
             </div>

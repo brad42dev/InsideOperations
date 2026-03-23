@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { roundsApi, type RoundInstance, type RoundHistoryEntry } from '../../api/rounds'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
 import { useOfflineRounds } from '../../shared/hooks/useOfflineRounds'
+import { PrintDialog } from './PrintDialog'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -348,23 +349,61 @@ export default function RoundsPage() {
               </span>
             )}
           </div>
-          {tab === 'templates' && (
-            <button
-              onClick={() => navigate('/rounds/templates/new/edit')}
-              style={{
-                padding: '8px 16px',
-                background: 'var(--io-accent, #4A9EFF)',
-                color: 'var(--io-accent-foreground)',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: 600,
-              }}
-            >
-              + New Template
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <PrintDialog
+              trigger={
+                <button
+                  style={{
+                    padding: '8px 16px',
+                    background: 'none',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: 'var(--io-text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="6 9 6 2 18 2 18 9" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <rect x="6" y="14" width="12" height="8" />
+                  </svg>
+                  Print
+                </button>
+              }
+            />
+            {tab === 'templates' && (
+              <button
+                onClick={() => navigate('/rounds/templates/new/edit')}
+                style={{
+                  padding: '8px 16px',
+                  background: 'var(--io-accent, #4A9EFF)',
+                  color: 'var(--io-accent-foreground)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                }}
+              >
+                + New Template
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}
