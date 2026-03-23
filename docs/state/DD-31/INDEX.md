@@ -15,3 +15,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-31-010 | Replace generic text loading states with module-shaped … | pending | 0 |
 | DD-31-011 | Replace hardcoded hex colors with design tokens through… | pending | 0 |
 | DD-31-012 | Hide muster dashboard and on-shift/on-site group types … | pending | 0 |
+| DD-31-013 | Alerts History tab crashes with messages.map TypeError | pending | 0 |

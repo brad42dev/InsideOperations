@@ -12,3 +12,4 @@ Wave 2 | Audit: ✅ completed 2026-03-21
 | MOD-PROCESS-006 | Navigation tree | pending | 0 |
 | MOD-PROCESS-007 | Kiosk mode | pending | 0 |
 | MOD-PROCESS-008 | Skeleton loading state | pending | 0 |
+| MOD-PROCESS-009 | Process module fails to load due to dynamic import error | pending | 0 |

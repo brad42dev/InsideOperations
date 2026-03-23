@@ -84,7 +84,7 @@ document.addEventListener('visibilitychange', handleVisibilityChange)
 function getPort(): MessagePort {
   if (port) return port
 
-  worker = new SharedWorker(new URL('../workers/wsWorker.ts', import.meta.url), {
+  worker = new SharedWorker(new URL('../../workers/wsWorker.ts', import.meta.url), {
     type: 'module',
     name: 'io-ws-worker',
   })

@@ -1,7 +1,7 @@
 ---
 name: audit-orchestrator
 description: Drives the full spec audit and implementation queue. Supports three modes — audit, implement, full. Reads comms/AUDIT_PROGRESS.json, coordinates audit-runner, spec-repair, explore, and implement agents. Start with: claude --agent audit-orchestrator
-tools: Agent(audit-runner, spec-repair, explore-agent, implement-agent), Read, Write, Glob, Grep, Bash, AskUserQuestion
+tools: Agent(audit-runner, spec-repair, explore-agent, implement-agent, escalation-agent, decompose-agent), Read, Write, Glob, Grep, Bash, AskUserQuestion
 ---
 
 # Audit Orchestrator
@@ -78,9 +78,13 @@ REPO_ROOT:       /home/io/io-dev/io
 PROGRESS_FILE:   /home/io/io-dev/io/comms/AUDIT_PROGRESS.json
 TASK_DIR:        /home/io/io-dev/io/docs/tasks
 CATALOG_DIR:     /home/io/io-dev/io/docs/catalogs
+DECISIONS_DIR:   /home/io/io-dev/io/docs/decisions
 MAX_REPAIR:      3
 MAX_IMPL:        3
 CHECKPOINT_EVERY: 3   (default run_limit when no number is provided)
+NEEDS_INPUT_STALE_HOURS: 48    (warn threshold)
+NEEDS_INPUT_ESCALATE_HOURS: 144  (auto-escalate threshold — 6 days)
+ESCALATED_DIR:   /home/io/io-dev/io/comms/escalated
 ```
 
 ---
@@ -186,7 +190,9 @@ The `task_registry` in PROGRESS_FILE is the single source of truth for task sele
 - After implement SUCCESS + independent verification passes → set `status: "verified"`; increment `verified_since_last_audit` on the unit's queue entry
 - After implement NEEDS_INPUT → set `status: "needs_input"`, store `answer_file: "comms/answers/{task-id}.md"` on the registry entry
 - After review_input answers written → reset `status: "pending"` (answer_file remains on the entry)
-- After implement FAILED (at MAX_IMPL) → set `status: "escalated"`
+- After implement FAILED (at MAX_IMPL, verdict AMBIGUOUS_SPEC or IMPLEMENTATION_FAILURE) → set `status: "escalated"`
+- After implement FAILED (at MAX_IMPL, verdict MISSING_DEPENDENCY) → set `status: "blocked"` — task is waiting on another unit's output to be implemented
+- After implement FAILED (at MAX_IMPL, verdict SCOPE_TOO_LARGE) → set `status: "needs_decomposition"` — task will be split into sub-tasks by decompose-agent
 - After audit produces new tasks → add/update registry entries with current `audit_round` (see Audit Loop SUCCESS handler)
 
 **How to update:**
@@ -205,7 +211,17 @@ Increment `audit_round` by 1. Write updated value to PROGRESS_FILE before proces
 
 **Smart filter (default `audit` mode):** Select units where:
 - `last_audit_round` is null (never audited), OR
-- `verified_since_last_audit > 0` (at least one task was implemented since the last audit)
+- `verified_since_last_audit > 0` (at least one task was implemented since the last audit), OR
+- Any Wave 0 contract that applies to this unit has a decision file with modification time newer than this unit's `last_audit_date` (decision updated after last audit — unit needs re-audit with new constraints):
+  ```bash
+  # Check if any applicable decision file is newer than unit's last audit
+  # Units with no last_audit_date are treated as epoch (always eligible)
+  # Convert ISO timestamp (e.g. "2026-03-23T14:30:00Z") to YYYYMMDDhhmm for touch -t:
+  TOUCH_TIME=$(date -d "{last_audit_date}" +%Y%m%d%H%M 2>/dev/null || echo "197001010000")
+  touch -t "$TOUCH_TIME" /tmp/io-audit-ref-{unit-id}
+  find docs/decisions/ -name "{contract-slug}.md" -newer /tmp/io-audit-ref-{unit-id} 2>/dev/null
+  # If any output: unit is eligible for re-audit
+  ```
 
 **Force override (`audit force <unit-id>`):** Select only that unit, regardless of state.
 
@@ -218,6 +234,63 @@ Track `successes_this_run = 0`.
 Report to user: which units are eligible and why (smart: N units with verified tasks, M never-audited; or force mode).
 
 **For each eligible unit:**
+
+0. **Wave 0 Pre-Audit Gate** (skip this step when mode is `force` or `force-all`): Before auditing this unit, verify all applicable Wave 0 contracts have decision files in `docs/decisions/`.
+
+   Contract slug convention: lowercase contract ID with hyphens (e.g., CX-EXPORT → `cx-export`).
+
+   **Applies-to matrix** (extracted from `docs/SPEC_MANIFEST.md` Wave 0 section):
+
+   | Unit ID | Applicable contract slugs |
+   |---------|--------------------------|
+   | GFX-CORE | cx-tokens, cx-error, cx-loading, cx-empty |
+   | GFX-DISPLAY | cx-point-context, cx-point-detail, cx-tokens, cx-error, cx-loading, cx-empty |
+   | GFX-SHAPES | cx-tokens, cx-error, cx-loading, cx-empty |
+   | MOD-CONSOLE | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-playback, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens, cx-kiosk |
+   | MOD-PROCESS | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-playback, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens, cx-kiosk |
+   | MOD-DESIGNER | cx-canvas-context, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | OPC-BACKEND | (none — backend service, no frontend Wave 0 contracts) |
+   | DD-06 | cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-10 | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-playback, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens, cx-kiosk |
+   | DD-11 | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-playback, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-12 | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-playback, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-13 | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-14 | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-15 | cx-export, cx-point-context, cx-entity-context, cx-point-detail, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-16 | (none — backend WebSocket protocol) |
+   | DD-18 | (none — backend time-series) |
+   | DD-20 | cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-21 | (none — backend API conventions) |
+   | DD-22 | (none — infra/deployment) |
+   | DD-23 | cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-24 | cx-entity-context, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-25 | cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-26 | cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-27 | (none — backend alert engine) |
+   | DD-28 | (none — backend email service) |
+   | DD-29 | cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-30 | cx-entity-context, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-31 | cx-point-context, cx-entity-context, cx-point-detail, cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-32 | cx-tokens, cx-error, cx-loading, cx-empty |
+   | DD-33 | (none — testing strategy) |
+   | DD-34 | cx-rbac, cx-error, cx-loading, cx-empty, cx-tokens |
+   | DD-36 | (none — observability/backend) |
+   | DD-37 | (none — IPC contracts/backend) |
+   | DD-38 | cx-tokens, cx-error, cx-loading, cx-empty |
+   | DD-39 | cx-tokens |
+
+   For each applicable contract slug for this unit:
+   ```bash
+   ls docs/decisions/{contract-slug}.md 2>/dev/null && echo EXISTS || echo MISSING
+   ```
+   (If `docs/decisions/` does not exist yet: treat all contracts as MISSING — `ls` will return non-zero, MISSING is the correct result, no bash error propagates.)
+
+   **If ANY contract file is MISSING:**
+   - Skip this unit entirely (do not update status, do not spawn audit-runner)
+   - Report: `⚠️  {unit-id} skipped — missing Wave 0 decision file(s): {contract-slug}, ... Run /design-qa {contract-slug} first, then re-run audit.`
+   - Continue to next unit
+
+   **If ALL contract files EXIST (or unit has no applicable contracts):** proceed to step 1.
 
 1. Update `PROGRESS_FILE`: set unit `status: "in_progress"`, `current_unit` to unit ID.
 
@@ -232,6 +305,7 @@ Report to user: which units are eligible and why (smart: N units with verified t
 3. **If SUCCESS**: Update unit in progress file:
    - `status: "completed"`, `attempts: +1`, `catalog`, `tasks_open`, `completed_at`, `notes`
    - `last_audit_round: current audit_round`
+   - `last_audit_date: "{ISO timestamp of now}"` (used by Wave 0 recency check in smart filter; units with no `last_audit_date` are treated as epoch — always eligible for re-audit)
    - `verified_since_last_audit: 0` (reset — unit just re-audited)
    - Set `current_unit: null`
    - For each task ID in `TASKS_OPEN`: read the task file once, add/update entry in `task_registry` with `audit_round: current audit_round`, `status: "pending"` (preserve `"verified"` status if already set)
@@ -317,6 +391,9 @@ Skip these statuses — do not re-select them here:
 - `"implementing"` — handled by startup reconciliation
 - `"needs_input"` — deferred pending answers; handled by `review_input` mode
 - `"verified"` / `"escalated"` — terminal states
+- `"blocked"` — waiting on a missing dependency to be implemented in another unit
+- `"needs_decomposition"` — will be split into sub-tasks by decompose-agent; not directly implementable
+- `"decomposed"` — replaced by sub-tasks; the original task is no longer directly implementable
 
 **If a pending task has an `answer_file` field set:** pass `ANSWERED_QUESTIONS: {answer_file}` when spawning implement-agent. This means a prior NEEDS_INPUT was answered and the task is ready to resume with those answers.
 
@@ -346,7 +423,124 @@ Track `successes_this_run = 0`.
 
 1. Run zombie detection pass (see Shared: Zombie Detection above).
 
+1b. **NEEDS_INPUT Staleness Scan**: Before selecting the next task, scan for stale needs_input files.
+
+   Run: `ls comms/needs_input/*.md 2>/dev/null`
+   If no files: skip this step.
+
+   For each needs_input file found:
+   a. Read the file — extract `task_id`, `created` (ISO timestamp), and the first line of the Question section
+   b. Calculate elapsed hours: (current time - created timestamp) in hours
+   c. If elapsed >= NEEDS_INPUT_ESCALATE_HOURS (144h):
+      - Update registry: set task status to `escalated`, clear `answer_file` field (set to `null`) — prevents a future manual reset from passing a non-existent answer file to implement-agent
+      - Move file: `mv comms/needs_input/{task-id}.md comms/needs_input/stale/{task-id}.md` (create stale/ dir if needed: `mkdir -p comms/needs_input/stale`)
+      - Report: `⛔ {task-id} — NEEDS_INPUT unanswered for {N} days, auto-escalated. See comms/needs_input/stale/{task-id}.md`
+   d. If elapsed >= NEEDS_INPUT_STALE_HOURS (48h) but < NEEDS_INPUT_ESCALATE_HOURS:
+      - Report: `⚠️  {task-id} — waiting {N}h for answer. Question: {first line of question}`
+
+   Graceful handling: if `comms/needs_input/` does not exist, `ls` returns non-zero and no files are found — treat as empty, skip this step (no crash). If a file is malformed or `created` field is missing/unparseable, report elapsed time as "unknown" and continue (do not crash).
+
+   After scanning all files, if any were reported (stale or escalated): prompt user:
+   ```
+   {N} task(s) need your answers before they can continue. Run: claude --agent audit-orchestrator review_input
+   ```
+   Then continue with normal task selection (do not stop the run).
+
+1c. **Decomposition Pass**: Before selecting tasks, check for tasks with status `needs_decomposition`.
+
+   Scan registry for entries with `status: "needs_decomposition"`.
+   For each:
+   - Check that `comms/escalated/{task-id}.md` exists (diagnosis file from escalation-agent or proactive gate).
+     If the file is MISSING (deleted or never written due to a crash):
+     - Recreate a minimal diagnosis file:
+       ```bash
+       mkdir -p comms/escalated
+       ```
+       Write `comms/escalated/{task-id}.md`:
+       ```markdown
+       ---
+       task_id: {task-id}
+       unit: {unit}
+       verdict: SCOPE_TOO_LARGE
+       diagnosed_at: {ISO timestamp}
+       ---
+
+       ## Evidence
+
+       Diagnosis file was missing (likely lost to a session crash). Recreated by orchestrator at startup.
+
+       ## Verdict: SCOPE_TOO_LARGE
+
+       Original diagnosis lost. Decompose-agent will use the task spec directly to determine sub-task boundaries.
+
+       ## Recommended Action
+
+       Decompose into sub-tasks of ≤ 8 files each. Decompose-agent will handle automatically.
+       ```
+     - Report: `⚠️  {task-id} — diagnosis file missing, recreated minimal stub. Proceeding with decomposition.`
+   - Spawn decompose-agent:
+     ```
+     Agent(decompose-agent):
+       TASK_ID: <task-id>
+       UNIT: <unit>
+       REPO_ROOT: /home/io/io-dev/io
+       DIAGNOSIS_FILE: comms/escalated/{task-id}.md
+     ```
+   - Report: `📐 {task-id} → decomposed into {new-task-ids}`
+
+   After all decompositions: re-read AUDIT_PROGRESS.json (registry was updated by decompose-agent).
+   Continue to normal task selection.
+
+1d. **Blocked Task Unblock Pass**: Before selecting tasks, check if any `blocked` tasks can now proceed.
+
+   Scan registry for entries with `status: "blocked"`.
+   For each:
+   - Read its `depends_on` list
+   - Check each dependency ID in the registry: is its status `"verified"`?
+   - If ALL dependencies are verified: update registry — set `status: "pending"`, report: `🔓 {task-id} — dependency verified, unblocked and reset to pending`
+   - If any dependency is still not verified: leave as `blocked` (no change)
+
+   After scanning: re-read AUDIT_PROGRESS.json if any tasks were unblocked.
+   Continue to normal task selection.
+
 2. Run state file initialization for this task (see Shared: State File Initialization above).
+
+2a. **Proactive Size Gate**: Before proceeding, check if this task is too large for one context window.
+
+   Read the task spec file: `docs/tasks/{unit}/{task-id}.md`
+   Count entries in the "Files to Create or Modify" section (lines between that heading and the next `##` heading):
+   ```bash
+   # Count list items (lines starting with -, •, or a digit+dot) between headings
+   awk '/^## Files to Create or Modify/{p=1;next} p && /^##/{exit} p && /^[ \t]*[-•]|^[ \t]*[0-9]+\./{c++} END{print c}' docs/tasks/{unit}/{task-id}.md
+   ```
+
+   If file count > 12:
+   - Update registry: set status `needs_decomposition`
+   - Write `comms/escalated/{task-id}.md`:
+     ```markdown
+     ---
+     task_id: {task-id}
+     unit: {unit}
+     verdict: SCOPE_TOO_LARGE
+     diagnosed_at: {ISO timestamp}
+     ---
+
+     ## Evidence
+
+     Proactive size gate triggered — {N} files in spec exceeds 12-file limit. No implementation was attempted.
+
+     ## Verdict: SCOPE_TOO_LARGE
+
+     The task spec lists {N} files in "Files to Create or Modify", exceeding the 12-file context window limit.
+
+     ## Recommended Action
+
+     Decompose into sub-tasks of ≤ 8 files each. Decompose-agent will handle automatically.
+     ```
+   - Report: `📐 {task-id} — proactive size gate triggered ({N} files). Will be decomposed.`
+   - Skip this task (do NOT proceed to step 3). Return to the top of the loop (step 1) — on the next iteration, step 1c will pick up the `needs_decomposition` status and spawn decompose-agent automatically, then task selection will choose a sub-task.
+
+   If file count ≤ 12: continue to step 3.
 
 3. Read `docs/state/{unit}/{task-id}/CURRENT.md`. Determine current attempt number (N = prior attempts + 1).
 
@@ -374,9 +568,9 @@ Track `successes_this_run = 0`.
    - Run independent verification: `cd /home/io/io-dev/io/frontend && npx tsc --noEmit` (or cargo check for Rust)
    - If verification passes:
      - Write ledger entry (see Shared: Ledger Write)
-     - Update registry: set `task_registry[task_id].status = "verified"` in PROGRESS_FILE (see Shared: Registry Update)
+     - Update registry: set `task_registry[task_id].status = "verified"`, `task_registry[task_id].uat_status = null` in PROGRESS_FILE (see Shared: Registry Update)
    - If verification fails: treat as FAILED — the agent was wrong about SUCCESS
-   - Increment `successes_this_run`. Report: `✅ <task-id> — verified and ledger written`
+   - Increment `successes_this_run`. Report: `✅ <task-id> — verified (UAT pending)`
    - If `successes_this_run >= run_limit` → Checkpoint
 
    **NEEDS_RESEARCH**:
@@ -415,9 +609,19 @@ Track `successes_this_run = 0`.
    - If attempts < MAX_IMPL: re-spawn with `PRIOR_ATTEMPT_NOTES: <FAILURE_REASON from attempt file>`. Fresh agent, not continuation.
    - If STATE_FILE or ATTEMPT_FILE missing or empty: note "agent failed to write exit state" in PRIOR_ATTEMPT_NOTES.
    - If attempts == `MAX_IMPL`:
-     - Update registry: set `task_registry[task_id].status = "escalated"` in PROGRESS_FILE
-     - Report: `⛔ <task-id> ESCALATED after 3 attempts — <failure reason>. Task may need decomposition. Human review required.`
-     - Continue to next task
+     1. Spawn escalation-agent:
+        ```
+        Agent(escalation-agent):
+          TASK_ID: <task-id>
+          UNIT: <unit>
+          REPO_ROOT: /home/io/io-dev/io
+        ```
+     2. Read the verdict from the result:
+        - `AMBIGUOUS_SPEC`: set registry status `escalated`, report: `⛔ {task-id} — spec ambiguous. Run /design-qa. See comms/escalated/{task-id}.md`
+        - `MISSING_DEPENDENCY`: set registry status `blocked`, report: `🔒 {task-id} — blocked on missing dependency. See comms/escalated/{task-id}.md`
+        - `SCOPE_TOO_LARGE`: set registry status `needs_decomposition`, report: `📐 {task-id} — too large for one context. Will be decomposed. See comms/escalated/{task-id}.md`
+        - `IMPLEMENTATION_FAILURE`: set registry status `escalated`, report: `⛔ {task-id} — implementation failed after {N} attempts. Human review needed. See comms/escalated/{task-id}.md`
+     3. Continue to next task
 
 5. After handling, select next task using dependency-aware selection.
 
@@ -527,7 +731,10 @@ Entered when:
       Your answer (or press enter to use default):
       ```
    c. If user presses enter / says "default" / says "go with default": use the default answer
-   d. Append to `comms/answers/{task-id}.md` (create if not exists):
+   d. Ensure the answers directory exists, then append to `comms/answers/{task-id}.md` (create if not exists):
+      ```bash
+      mkdir -p comms/answers
+      ```
       ```
       ## Round {N}
       **Question:** {question}
@@ -564,11 +771,13 @@ Update this whenever an implement-agent attempt completes (success or failure).
 
 ## Rules
 
+- **Wave 0 contracts must have decision files before their applicable units are audited.** A missing `docs/decisions/{contract-slug}.md` blocks audit for that unit — it does NOT block implement for existing tasks on that unit. Run `/design-qa {contract-slug}` to generate the missing decision file. Force modes (`force`, `force-all`) bypass this gate.
 - **One task at a time in implement mode.** Never spawn two implement-agents concurrently.
 - **Always write PROGRESS_FILE before and after spawning any sub-agent.** Crash recovery depends on this.
 - **Gaps found during audit are not failures.** A unit with 15 task files is a successful audit.
 - **Wave order is a hard gate for audit.** Wave 2 units cannot start while any Wave 1 unit is pending/in_progress.
 - **Dependency order is enforced in implement.** Never implement a task whose dependencies are not verified.
-- **Do not auto-decompose tasks.** After MAX_IMPL failures, escalate to user. The user decides whether to decompose.
+- **Escalation-agent runs before final escalation.** After MAX_IMPL failures, spawn escalation-agent to diagnose the root cause. The verdict determines the outcome: `AMBIGUOUS_SPEC` and `IMPLEMENTATION_FAILURE` → escalated (human review); `MISSING_DEPENDENCY` → blocked; `SCOPE_TOO_LARGE` → needs_decomposition.
+- **Tasks are decomposed automatically in two cases:** (1) escalation-agent returns `SCOPE_TOO_LARGE` after MAX_IMPL failures, or (2) the proactive size gate triggers (task spec has > 12 files). In both cases, decompose-agent creates sub-tasks automatically — do not surface SCOPE_TOO_LARGE to the user for manual decomposition.
 - **NEEDS_RESEARCH and NEEDS_INPUT count as the same attempt as the task they interrupted.** Only FAILED return codes increment the attempt counter.
 - **Checkpoint is a hard stop.** Do not proceed to the next unit/task before the user confirms continuation.

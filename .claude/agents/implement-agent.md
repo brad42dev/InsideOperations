@@ -30,9 +30,9 @@ REPO_ROOT: /home/io/io-dev/io
 CURRENT_MD:  docs/state/{unit}/{task-id}/CURRENT.md
 ATTEMPTS_DIR: docs/state/{unit}/{task-id}/attempts/
 TASK_SPEC:   docs/tasks/{unit}/{task-id}.md  (or docs/tasks/{unit-lowercase}/{task-id}*.md)
-STATE_INDEX: docs/state/INDEX.md
-UNIT_INDEX:  docs/state/{unit}/INDEX.md
 ```
+
+Note: `docs/state/INDEX.md` (per-unit scoreboard) and `docs/state/{unit}/INDEX.md` (static audit snapshot) are NOT used by this agent — they are not authoritative for task existence and are not updated by UAT or later audit rounds. The registry source of truth is `comms/AUDIT_PROGRESS.json`.
 
 Replace `{unit}` with the lowercase unit ID (e.g. `gfx-core`, `mod-console`).
 
@@ -40,25 +40,35 @@ Replace `{unit}` with the lowercase unit ID (e.g. `gfx-core`, `mod-console`).
 
 ## ENTRY PROTOCOL — complete all steps before any implementation
 
-### E1 — Read the global state index
+### E1 — Verify task exists in registry
 
-Use the Read tool on `docs/state/INDEX.md`.
+Run: `grep -c '"id": "{TASK_ID}"' comms/AUDIT_PROGRESS.json`
 
-Find your TASK_ID in the table. Confirm it is listed. If it is not listed: return immediately:
+If the count is 0 (task not found): return immediately:
 ```
 RESULT: FAILED
 TASK_ID: <task-id>
 ATTEMPT: 0
-FAILURE_REASON: task_not_in_index — task ID not found in docs/state/INDEX.md
+FAILURE_REASON: task_not_in_registry — task ID not found in comms/AUDIT_PROGRESS.json
 STATE_FILE: none
 ATTEMPT_FILE: none
 ```
 
-### E2 — Read the unit state index
+Note: `docs/state/INDEX.md` is a per-unit summary scoreboard, NOT a per-task index — do not use it to gate task existence. `docs/state/{unit}/INDEX.md` is a static snapshot created at initial audit time and is not updated when new tasks are added (e.g., by UAT or later audit rounds). `comms/AUDIT_PROGRESS.json` is the authoritative task registry.
 
-Use the Read tool on `docs/state/{unit}/INDEX.md`.
+### E2 — Verify state directory exists
 
-Confirm the task appears in the unit index. Note its current status.
+Run: `ls docs/state/{unit}/{task-id}/ 2>/dev/null && echo EXISTS || echo MISSING`
+
+If MISSING: return immediately:
+```
+RESULT: FAILED
+TASK_ID: <task-id>
+ATTEMPT: 0
+FAILURE_REASON: state_directory_missing — docs/state/{unit}/{task-id}/ not found; orchestrator may not have initialized this task
+STATE_FILE: none
+ATTEMPT_FILE: none
+```
 
 ### E3 — Read CURRENT.md and check for active claim
 
@@ -79,7 +89,7 @@ Use the Read tool on `docs/state/{unit}/{task-id}/CURRENT.md`.
 
 From the CURRENT.md you just read, copy out the full **Prior Attempt Fingerprints** table. You will use these for cycle detection in X2.
 
-If N > 2: use the Read tool on `docs/state/{unit}/{task-id}/attempts/{(N-1) zero-padded to 3 digits}.md`. Read the **Why This Attempt Failed** and **Notes for Next Attempt** sections. You MUST read this before implementing anything.
+If N > 1: use the Read tool on `docs/state/{unit}/{task-id}/attempts/{(N-1) zero-padded to 3 digits}.md`. Read the **Why This Attempt Failed** and **Notes for Next Attempt** sections. You MUST read this before implementing anything.
 
 If PRIOR_ATTEMPT_NOTES was provided in your input: read it now. Do not repeat what failed before.
 
@@ -112,10 +122,9 @@ Append to the Work Log:
 Before writing anything, state this explicitly in your response:
 
 > "ENTRY CONFIRMED: I am claiming task {task-id} ({title from spec}), attempt {N}.
-> Prior attempts: {count}. Prior fingerprints: {list or 'none'}.
-> Cycle check: CLEAR / CYCLE DETECTED on attempt {M} ({fingerprint})."
+> Prior attempts: {count}. Prior fingerprints: {list or 'none'}."
 
-**If cycle detected:** do not implement. Execute Exit Protocol with `RESULT: CYCLE_DETECTED`.
+Note: Cycle detection runs at X2 after the patch is computed — not here. At this stage, just list prior fingerprints for reference.
 
 ### E7 — Write the claim
 
@@ -141,11 +150,8 @@ last_heartbeat: {current timestamp ISO-8601}
 CLAIM
 
 ### Files Loaded
-- [x] docs/state/INDEX.md
-- [x] docs/state/{unit}/INDEX.md
 - [x] docs/state/{unit}/{task-id}/CURRENT.md
 - [x] docs/tasks/{unit}/{task-id}*.md
-- [ ] CLAUDE.md
 - [ ] {list target files from task spec here}
 
 ### Work Log
@@ -172,14 +178,16 @@ ATTEMPT_FILE: none
 
 ## LOAD PHASE
 
-Read CLAUDE.md at the repo root. Then read every file listed in the task spec's "Files to Create or Modify" section. Read current contents before modifying — never write blind.
+Read every file listed in the task spec's "Files to Create or Modify" section. Read current contents before modifying — never write blind. (CLAUDE.md is already in your system context — do not re-read it here.)
 
-After each file read, append to the Work Log in CURRENT.md:
+After ALL files are loaded (not after each individual read), append a single batch entry to the Work Log in CURRENT.md:
 ```
-- {timestamp} — Read {filepath}
+- {timestamp} — Loaded: {filepath-1}, {filepath-2}, ... (N files)
 ```
 
-Update CURRENT.md: change `status` to `implementing` and update `last_heartbeat`. Read the `status` field back to confirm it says `implementing`.
+Update CURRENT.md in the same write: change `status` to `implementing`, update `last_heartbeat`, and include the batch Work Log entry above — all in one Write call.
+
+Confirm the write succeeded: `grep "^status:" docs/state/{unit}/{task-id}/CURRENT.md` — must return `status: implementing`.
 
 ---
 
@@ -204,18 +212,16 @@ If the task requires the same mechanical change across more than 10 files (e.g.,
 **After every file modification (or after a bulk script run):**
 
 1. Run the build check:
-   - TypeScript files: `cd /home/io/io-dev/io/frontend && npx tsc --noEmit 2>&1 | tail -20`
-   - Rust files: `cd /home/io/io-dev/io && cargo check 2>&1 | head -30`
+   - TypeScript files: `cd frontend && npx tsc --noEmit 2>&1 | tail -20`
+   - Rust files: `cargo check 2>&1 | head -30`
 
-2. Append to Work Log in CURRENT.md:
+2. Write a single CURRENT.md update that combines: the Work Log entry AND the updated `last_heartbeat` timestamp — one Write call, not two.
    ```
    - {timestamp} — Modified {filepath}: {what changed in one line}
    - {timestamp} — Build check: PASS / FAIL ({error if fail})
    ```
 
-3. Update `last_heartbeat` in CURRENT.md frontmatter.
-
-4. Use the Read tool on CURRENT.md to read back the `last_heartbeat` field. Confirm it updated.
+3. Confirm the heartbeat write succeeded: `grep "^last_heartbeat:" docs/state/{unit}/{task-id}/CURRENT.md` — the timestamp must match what you just wrote. If it does not match, retry the Write once.
 
 **If you need research or user input:**
 
@@ -236,14 +242,79 @@ Work through every item in the task spec's Verification Checklist:
 2. Determine: ✅ passes or ❌ fails
 3. Append to Work Log: `- {timestamp} — Checklist: {item description} — ✅ / ❌`
 
-Run final build:
-- TypeScript: `cd /home/io/io-dev/io/frontend && npx tsc --noEmit`
-- Rust: `cd /home/io/io-dev/io && cargo check`
+Run the full verification suite below. Record every command and its output in the Work Log.
 
-Record the full output in Work Log.
+**TypeScript tasks — run all six steps:**
 
-**If any checklist item is ❌ or build fails:**
-Attempt to fix (maximum 2 fix cycles). After 2 cycles still failing: proceed to Exit Protocol with `RESULT: FAILED`. Do not report SUCCESS with failing checks.
+1. **Type check:** `cd frontend && npx tsc --noEmit 2>&1 | tail -20`
+
+2. **Unit tests:** `cd frontend && pnpm test 2>&1 | tail -30`
+   - If tests fail on files this task modified: ❌
+   - If tests fail on unrelated pre-existing files: record as ⚠️ warning, do not block
+
+3. **Production build:**
+   ```bash
+   rm -f /tmp/io-build.log && cd frontend && pnpm build > /tmp/io-build.log 2>&1; echo "BUILD_EXIT:$?"
+   tail -20 /tmp/io-build.log
+   ```
+   - The `rm -f` removes any stale log from a prior run before writing a new one
+   - Run as a single bash invocation — the `;` runs `echo` unconditionally so `$?` captures pnpm build's exit code. Do NOT split into two separate Bash tool calls (the second call would get `$?` from the first call's shell, not pnpm's exit code).
+   - Check the `BUILD_EXIT:N` line in the output: `BUILD_EXIT:0` = ✅ pass; any other value = ❌ failure
+   - Warnings printed to log are acceptable; only a non-zero exit code is a failure
+   - Same rule: failures in files this task touched = ❌; pre-existing failures elsewhere = ⚠️
+
+4. **Import check** (for every new component/page file created this session):
+   ```bash
+   # Replace NewComponent with the actual export name
+   grep -r "NewComponent" frontend/src/ --include="*.ts" --include="*.tsx" -l
+   ```
+   - If the new file is the **only** result (not imported anywhere): ❌ ghost implementation
+   - Exception: stores, hooks, utility files, and type-only files do not need a direct parent import
+   - New **page components** must appear in `frontend/src/App.tsx` or fail the next check
+
+5. **Route registration check** (if a new page component was created):
+   ```bash
+   grep -n "NewPageComponent" frontend/src/App.tsx
+   ```
+   - If absent from App.tsx: ❌ component is unreachable via any URL
+
+6. **TODO stub check** — new stubs introduced in this session are unfinished work:
+   ```bash
+   # For existing files (tracked by git):
+   git diff HEAD -- {space-separated list of MODIFIED existing files} \
+     | grep "^+" | grep -v "^+++" | grep -iE "\bTODO\b|\bFIXME\b|\bunimplemented\b|\bstub\b|\bcoming soon\b"
+   # For NEW files created this session (untracked — git diff HEAD won't show them):
+   grep -n --include="*.ts" --include="*.tsx" -iE "\bTODO\b|\bFIXME\b|\bunimplemented\b|\bstub\b|\bcoming soon\b" {space-separated list of NEW file paths}
+   ```
+   - Each new TODO/FIXME/stub comment is ❌ — a silent failure that reaches the user
+   - Fix them, or explicitly mark the checklist item out-of-scope with a written justification
+   - TODOs that existed before this session (visible in `git diff` context lines, not `+` lines) are not your responsibility
+
+**Rust tasks — run all four steps:**
+
+1. **Compile + type check:** `cargo check 2>&1 | head -30`
+
+2. **Unit tests:** `cargo test -p {full-package-name-from-Cargo.toml} 2>&1 | tail -30`
+   - Use the `name` field from the service's `Cargo.toml` (e.g., `io-api-gateway`, `io-archive-service`) — not the directory name
+   - Same rule as frontend: failures in files this task touched = ❌; pre-existing elsewhere = ⚠️
+
+3. **Route registration check** (if new handler functions were added):
+   ```bash
+   grep -n "new_handler_fn_name" services/{service}/src/main.rs
+   ```
+   - If the new handler is not registered in the Axum router: ❌ endpoint is unreachable
+
+4. **TODO stub check** — new stubs introduced in this session are unfinished work:
+   ```bash
+   git diff HEAD -- {space-separated list of MODIFIED existing files} \
+     | grep "^+" | grep -v "^+++" | grep -E "\btodo!\s*\(|\bunimplemented!\s*\(|//\s*TODO\b|//\s*FIXME\b"
+   ```
+   For NEW files (untracked): `grep -rn -E "\btodo!\s*\(|\bunimplemented!\s*\(|//\s*TODO\b|//\s*FIXME\b" {space-separated list of NEW file paths}`
+   - `todo!()` and `unimplemented!()` compile successfully but panic at runtime — cargo check passes, users hit crashes
+   - Each new instance is ❌ — fix or justify explicitly
+
+**If any ❌ is found:**
+Attempt to fix (maximum 2 fix cycles). After 2 cycles still failing: proceed to Exit Protocol with `RESULT: FAILED`. Do not report SUCCESS with failing checks or unresolved TODOs.
 
 ---
 
@@ -253,25 +324,32 @@ Attempt to fix (maximum 2 fix cycles). After 2 cycles still failing: proceed to 
 
 ### X1 — Compute patch fingerprint
 
-Run: `cd /home/io/io-dev/io && git diff HEAD --unified=0 | grep "^[+-]" | grep -v "^[+-][+-][+-]" | sort | sha256sum`
+Run as a single bash invocation:
+```bash
+BEFORE=$(git rev-parse HEAD); \
+AFTER=$(git diff HEAD --unified=0 | grep "^[+-]" | grep -v "^[+-][+-][+-]" | sort | sha256sum | awk '{print $1}'); \
+echo "before_state: $BEFORE"; \
+echo "after_state (diff hash): $AFTER"
+```
 
-Record output as `fingerprint`.
+Record:
+- `fingerprint` = the `after_state` diff hash (used for cycle detection)
+- `before_state` = the commit hash (`git rev-parse HEAD`) — this is the base commit before changes
+- `after_state` = sha256 of the sorted diff lines — this uniquely identifies the patch
 
-Run: `cd /home/io/io-dev/io && git stash list | head -1` and `git diff HEAD -- {modified files} | sha256sum` for before/after state hashes.
-
-If no files were modified (e.g. NEEDS_INPUT before any implementation): fingerprint = "no-changes".
+If no files were modified (e.g. NEEDS_INPUT before any implementation): fingerprint = "no-changes", before_state = git rev-parse HEAD, after_state = "no-changes".
 
 ### X2 — Cycle check
 
-Compare your `fingerprint` against every fingerprint in the Prior Attempt Fingerprints table from CURRENT.md.
+Compare your `fingerprint` (after_state diff hash) against every fingerprint in the Prior Attempt Fingerprints table from CURRENT.md.
 
 If any fingerprint matches: your result becomes `CYCLE_DETECTED`. Record which attempt number matched.
 
-Compare your changes' `after_state` hash against every prior `before_state` hash. If any match: you have produced a reversion — `CYCLE_DETECTED`.
-
 ### X3 — Determine attempt file number
 
-Count existing files in `docs/state/{unit}/{task-id}/attempts/`. The new file is NNN = count + 1, zero-padded to 3 digits (e.g., 001, 002, 003).
+Run: `ls docs/state/{unit}/{task-id}/attempts/ 2>/dev/null | wc -l | tr -d ' '`
+
+The new file is NNN = (that count) + 1, zero-padded to 3 digits (e.g., if 0 files exist → 001, if 2 exist → 003).
 
 ### X4 — Write the attempt file
 
@@ -317,17 +395,16 @@ output: {relevant lines, or "clean"}
 {If succeeded: "N/A"}
 ```
 
-### X5 — Read back the attempt file
+### X5 — Verify the attempt file
 
-Use the Read tool on `docs/state/{unit}/{task-id}/attempts/{NNN}.md`.
+Run: `grep -E "^(task_id|attempt|result):" docs/state/{unit}/{task-id}/attempts/{NNN}.md`
 
-Confirm:
-- File is non-empty
-- `task_id` field matches your TASK_ID
-- `attempt` field matches N
-- `result` field matches your intended result
+Expected output — three lines:
+- `task_id: {TASK_ID}`
+- `attempt: {N}`
+- `result: {your intended result}`
 
-If the read returns empty or the fields are wrong: retry the write once. If still wrong: note this in your return message under `ATTEMPT_FILE_WRITE_STATUS`.
+If any line is missing or has the wrong value: retry the write once. If still wrong: note this in your return message under `ATTEMPT_FILE_WRITE_STATUS`.
 
 ### X6 — Update CURRENT.md with final state
 
@@ -363,11 +440,11 @@ CLOSED
 - [ ] CURRENT.md read back — status field confirmed  ← (you will check this in X7)
 ```
 
-### X7 — Read back CURRENT.md and confirm
+### X7 — Confirm CURRENT.md final status
 
-Use the Read tool on `docs/state/{unit}/{task-id}/CURRENT.md`.
+Run: `grep "^status:" docs/state/{unit}/{task-id}/CURRENT.md`
 
-Read the `status` field from the YAML frontmatter. It must match your intended final status.
+The output must match your intended final status (e.g., `status: completed`).
 
 If it matches: check off the final Exit Checklist item in your working response.
 
@@ -399,10 +476,10 @@ CHECKLIST:
 
 ## Absolute rules (violations invalidate the result)
 
-1. Never return any result before completing X1–X8. Not even CONFLICT or CYCLE_DETECTED.
+1. Never return any result before completing X1–X8. **Exception: CONFLICT returned in E3 (active claim by another agent) exits immediately with no files written** — there is no work to record, and writing an attempt file for a zero-work session would corrupt the attempt history.
 2. Never skip E1–E7. If you cannot confirm task identity from three independent reads, return FAILED with reason `task_identity_unconfirmed`.
 3. Never write a file you have not first read (unless creating a new file that did not exist).
 4. Never report SUCCESS if any Verification Checklist item is ❌.
 5. Never report SUCCESS if the build check fails.
 6. Never use an approach described as failed in PRIOR_ATTEMPT_NOTES or the latest attempt file.
-7. Heartbeat writes (updating `last_heartbeat`) are mandatory after every file modification. Read back the field each time.
+7. Heartbeat writes (updating `last_heartbeat`) are mandatory after every file modification. Verify with `grep "^last_heartbeat:" ...CURRENT.md` — not a full Read tool call.

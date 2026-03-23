@@ -276,7 +276,8 @@ After writing each task file, read it back to confirm non-empty.
   "status": "pending",
   "depends_on": [],
   "audit_round": <current audit_round value>,
-  "source": "feature"
+  "source": "feature",
+  "uat_status": null
 }
 ```
 

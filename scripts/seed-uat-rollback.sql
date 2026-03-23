@@ -1,0 +1,21 @@
+-- Rollback UAT seed data (seed-uat.sql)
+
+DELETE FROM points_current
+WHERE point_id IN (
+    SELECT id FROM points_metadata WHERE source_id = '11110000-0000-0000-0000-000000000001'
+);
+
+DELETE FROM points_metadata
+WHERE source_id = '11110000-0000-0000-0000-000000000001';
+
+DELETE FROM point_sources
+WHERE id = '11110000-0000-0000-0000-000000000001';
+
+DELETE FROM design_objects
+WHERE id IN (
+    '33330000-0000-0000-0000-000000000001',
+    '44440000-0000-0000-0000-000000000001'
+);
+
+DELETE FROM dashboards
+WHERE id = '55550000-0000-0000-0000-000000000001';

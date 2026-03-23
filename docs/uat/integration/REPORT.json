@@ -1,0 +1,106 @@
+{
+  "timestamp": "2026-03-23T07:31:17.638Z",
+  "results": [
+    {
+      "journey": "Login and Session",
+      "steps": [
+        {
+          "name": "successful login lands on app",
+          "passed": true
+        },
+        {
+          "name": "app shell renders",
+          "passed": true
+        },
+        {
+          "name": "sidebar navigation works",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "journey": "Console — Workspace Load",
+      "steps": [
+        {
+          "name": "navigate to console",
+          "passed": true
+        },
+        {
+          "name": "console module has content",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: Console module fails to load — fill in when console module is implemented"
+        },
+        {
+          "name": "open first workspace (if any)",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: requires OPC data — fill in when OPC pipeline is connected"
+        }
+      ]
+    },
+    {
+      "journey": "Designer — Open and Render",
+      "steps": [
+        {
+          "name": "navigate to designer",
+          "passed": true
+        },
+        {
+          "name": "designer UI renders",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: Designer module fails to load — fill in when designer module is implemented"
+        },
+        {
+          "name": "create new graphic (if supported)",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: fill in when designer new-file flow is implemented"
+        }
+      ]
+    },
+    {
+      "journey": "Data Binding — OPC Point Browser",
+      "steps": [
+        {
+          "name": "navigate to console or designer with point binding",
+          "passed": true
+        },
+        {
+          "name": "point browser accessible",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: requires OPC service — fill in when OPC pipeline is connected"
+        },
+        {
+          "name": "real-time value updates",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: requires live OPC data — fill in when SimBLAH is connected"
+        }
+      ]
+    },
+    {
+      "journey": "Reports — Generate a Canned Report",
+      "steps": [
+        {
+          "name": "navigate to reports",
+          "passed": true
+        },
+        {
+          "name": "report list renders",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: Reports module fails to load — fill in when reports module is implemented"
+        },
+        {
+          "name": "generate a report",
+          "passed": true,
+          "skipped": true,
+          "error": "SKIP: fill in when async report generation pipeline is implemented"
+        }
+      ]
+    }
+  ]
+}

@@ -13,3 +13,6 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-06-008 | Fix ErrorBoundary button label and add nested boundarie… | pending | 0 |
 | DD-06-009 | Replace static About page with API-driven license brows… | pending | 0 |
 | DD-06-010 | Implement sidebar state persistence, BroadcastChannel s… | pending | 0 |
+| DD-06-013 | Keyboard shortcut help overlay (? key) not displayed | pending | 0 |
+| DD-06-014 | Kiosk mode URL parameter is ?kiosk=true instead of spec ?mode=kiosk | pending | 0 |
+| DD-06-015 | G-key navigation hint overlay not showing when G is pressed | pending | 0 |

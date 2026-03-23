@@ -12,3 +12,6 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-15-007 | Replace EULA textarea with split-pane markdown editor a… | pending | 0 |
 | DD-15-008 | Add ErrorBoundary wrapper, export buttons, entity right… | pending | 0 |
 | DD-15-009 | Add Data Category selection to source config and implem… | pending | 0 |
+| DD-15-010 | EULA settings page returns Access Denied for admin user | pending | 0 |
+| DD-15-011 | Settings role edit dialog crashes with TypeError on open | pending | 0 |
+| DD-15-012 | Group Management CRUD is missing from settings sidebar | pending | 0 |

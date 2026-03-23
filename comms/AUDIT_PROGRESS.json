@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T03:19:53.218863+00:00",
+  "last_updated": "2026-03-23T13:19:10.442436+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -147,7 +147,9 @@
     "DD-39-005": 1,
     "MOD-DESIGNER-008": 1,
     "DD-06-003": 1,
-    "DD-06-009": 1
+    "DD-06-009": 1,
+    "DD-11-005": 1,
+    "DD-06-013": 1
   },
   "queue": [
     {
@@ -940,7 +942,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-CORE-002",
@@ -950,7 +953,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-CORE-003",
@@ -960,7 +964,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-CORE-004",
@@ -970,7 +975,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-CORE-005",
@@ -982,7 +988,8 @@
       "depends_on": [
         "GFX-CORE-001"
       ],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-DISPLAY-001",
@@ -992,7 +999,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-DISPLAY-002",
@@ -1002,7 +1010,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-DISPLAY-003",
@@ -1012,7 +1021,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-DISPLAY-004",
@@ -1022,7 +1032,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-DISPLAY-005",
@@ -1032,7 +1043,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-DISPLAY-006",
@@ -1042,7 +1054,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-SHAPES-001",
@@ -1052,7 +1065,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-SHAPES-002",
@@ -1062,7 +1076,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-SHAPES-003",
@@ -1073,7 +1088,8 @@
         "GFX-SHAPES-002"
       ],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-SHAPES-004",
@@ -1083,7 +1099,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-SHAPES-005",
@@ -1094,7 +1111,8 @@
         "GFX-SHAPES-002"
       ],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "GFX-SHAPES-006",
@@ -1105,7 +1123,8 @@
         "GFX-SHAPES-001"
       ],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-001",
@@ -1115,7 +1134,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -1124,7 +1144,8 @@
       "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-003",
@@ -1134,7 +1155,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-004",
@@ -1143,7 +1165,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 7
+      "audit_round": 7,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-005",
@@ -1152,7 +1175,8 @@
       "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-006",
@@ -1161,7 +1185,8 @@
       "priority": "low",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-007",
@@ -1170,7 +1195,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-008",
@@ -1179,7 +1205,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-009",
@@ -1188,7 +1215,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-010",
@@ -1197,7 +1225,8 @@
       "priority": "low",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-011",
@@ -1206,7 +1235,8 @@
       "priority": "low",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 8
+      "audit_round": 8,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-012",
@@ -1216,7 +1246,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-CONSOLE-013",
@@ -1226,7 +1257,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-PROCESS-001",
@@ -1236,7 +1268,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-002",
@@ -1246,7 +1279,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-003",
@@ -1256,7 +1290,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-004",
@@ -1266,7 +1301,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-005",
@@ -1276,7 +1312,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-006",
@@ -1286,7 +1323,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-007",
@@ -1296,7 +1334,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-008",
@@ -1306,7 +1345,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-001",
@@ -1316,7 +1356,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-002",
@@ -1325,7 +1366,8 @@
       "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-003",
@@ -1334,7 +1376,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-004",
@@ -1343,7 +1386,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-005",
@@ -1354,7 +1398,8 @@
         "MOD-DESIGNER-004"
       ],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-006",
@@ -1365,7 +1410,8 @@
         "MOD-DESIGNER-004"
       ],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-007",
@@ -1374,7 +1420,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-008",
@@ -1383,7 +1430,8 @@
       "priority": "low",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "OPC-BACKEND-001",
@@ -1393,7 +1441,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "OPC-BACKEND-002",
@@ -1403,7 +1452,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "OPC-BACKEND-003",
@@ -1413,7 +1463,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 1
+      "audit_round": 1,
+      "uat_status": "partial"
     },
     {
       "id": "DD-06-001",
@@ -1423,7 +1474,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-06-002",
@@ -1433,7 +1485,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-06-003",
@@ -1443,7 +1496,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "fail"
     },
     {
       "id": "DD-06-004",
@@ -1453,7 +1507,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-06-005",
@@ -1463,7 +1518,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-006",
@@ -1473,7 +1529,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-007",
@@ -1485,7 +1542,8 @@
       "depends_on": [
         "DD-06-002"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-008",
@@ -1495,7 +1553,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-06-009",
@@ -1505,7 +1564,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-010",
@@ -1517,7 +1577,8 @@
       "depends_on": [
         "DD-06-002"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-001",
@@ -1527,7 +1588,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-002",
@@ -1537,7 +1599,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-003",
@@ -1547,7 +1610,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-004",
@@ -1557,7 +1621,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-005",
@@ -1567,7 +1632,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-006",
@@ -1577,7 +1643,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-007",
@@ -1587,7 +1654,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-008",
@@ -1597,7 +1665,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-10-009",
@@ -1605,9 +1674,10 @@
       "wave": 3,
       "title": "Replace hardcoded hex colors with CSS design tokens across dashboards widgets",
       "priority": "low",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-11-001",
@@ -1617,7 +1687,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-11-002",
@@ -1627,7 +1698,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-11-003",
@@ -1637,7 +1709,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-11-004",
@@ -1647,7 +1720,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-11-005",
@@ -1655,11 +1729,12 @@
       "wave": 3,
       "title": "Add \"Equipment & Maintenance\" to frontend template browser categories",
       "priority": "low",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "DD-11-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-11-006",
@@ -1669,7 +1744,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-11-007",
@@ -1679,7 +1755,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-11-008",
@@ -1689,7 +1766,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-12-001",
@@ -1699,7 +1777,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-002",
@@ -1709,7 +1788,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-003",
@@ -1719,7 +1799,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-004",
@@ -1729,7 +1810,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-12-005",
@@ -1739,7 +1821,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-006",
@@ -1749,7 +1832,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-007",
@@ -1761,7 +1845,8 @@
       "depends_on": [
         "DD-12-006"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-008",
@@ -1771,7 +1856,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-009",
@@ -1781,7 +1867,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-010",
@@ -1791,7 +1878,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-12-011",
@@ -1801,7 +1889,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-12-012",
@@ -1811,7 +1900,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-13-001",
@@ -1821,7 +1911,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-002",
@@ -1833,7 +1924,8 @@
       "depends_on": [
         "DD-13-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-003",
@@ -1843,7 +1935,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-004",
@@ -1853,7 +1946,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-005",
@@ -1863,7 +1957,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-006",
@@ -1873,7 +1968,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "fail"
     },
     {
       "id": "DD-13-007",
@@ -1883,7 +1979,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "fail"
     },
     {
       "id": "DD-13-008",
@@ -1893,7 +1990,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-009",
@@ -1903,7 +2001,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-13-010",
@@ -1913,7 +2012,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-14-001",
@@ -1923,7 +2023,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-14-002",
@@ -1933,7 +2034,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-14-003",
@@ -1943,7 +2045,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-14-004",
@@ -1953,7 +2056,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-14-005",
@@ -1963,7 +2067,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-14-006",
@@ -1973,7 +2078,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-14-007",
@@ -1983,7 +2089,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-15-001",
@@ -1993,7 +2100,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-15-002",
@@ -2005,7 +2113,8 @@
       "depends_on": [
         "DD-15-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-15-003",
@@ -2015,7 +2124,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "fail"
     },
     {
       "id": "DD-15-004",
@@ -2025,7 +2135,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "fail"
     },
     {
       "id": "DD-15-005",
@@ -2035,7 +2146,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-15-006",
@@ -2045,7 +2157,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-15-007",
@@ -2055,7 +2168,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "fail"
     },
     {
       "id": "DD-15-008",
@@ -2067,7 +2181,8 @@
       "depends_on": [
         "DD-15-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-15-009",
@@ -2077,7 +2192,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-16-001",
@@ -2087,7 +2203,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-16-002",
@@ -2099,7 +2216,8 @@
       "depends_on": [
         "DD-16-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-16-003",
@@ -2109,7 +2227,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-16-004",
@@ -2119,7 +2238,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-16-005",
@@ -2129,7 +2249,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-16-006",
@@ -2139,7 +2260,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-18-001",
@@ -2149,7 +2271,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-18-002",
@@ -2159,7 +2282,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-18-003",
@@ -2169,7 +2293,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-18-004",
@@ -2179,7 +2304,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-18-005",
@@ -2189,7 +2315,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-18-006",
@@ -2199,7 +2326,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-001",
@@ -2209,7 +2337,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-002",
@@ -2221,7 +2350,8 @@
       "depends_on": [
         "DD-20-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-003",
@@ -2231,7 +2361,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-004",
@@ -2241,7 +2372,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-005",
@@ -2251,7 +2383,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-006",
@@ -2261,7 +2394,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-007",
@@ -2273,7 +2407,8 @@
       "depends_on": [
         "DD-20-004"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-20-008",
@@ -2283,7 +2418,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-21-001",
@@ -2293,7 +2429,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-21-002",
@@ -2303,7 +2440,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-21-003",
@@ -2313,7 +2451,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-21-004",
@@ -2323,7 +2462,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-22-001",
@@ -2333,7 +2473,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-22-002",
@@ -2343,7 +2484,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-22-003",
@@ -2353,7 +2495,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-22-004",
@@ -2363,7 +2506,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-22-005",
@@ -2373,7 +2517,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-22-006",
@@ -2383,7 +2528,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-22-007",
@@ -2393,7 +2539,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-001",
@@ -2403,7 +2550,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-002",
@@ -2415,7 +2563,8 @@
       "depends_on": [
         "DD-23-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-003",
@@ -2425,7 +2574,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-004",
@@ -2435,7 +2585,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-005",
@@ -2445,7 +2596,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-006",
@@ -2455,7 +2607,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-007",
@@ -2468,7 +2621,8 @@
         "DD-23-001",
         "DD-23-005"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-008",
@@ -2478,7 +2632,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-009",
@@ -2488,7 +2643,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-010",
@@ -2498,7 +2654,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-011",
@@ -2508,7 +2665,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-012",
@@ -2518,7 +2676,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-013",
@@ -2530,7 +2689,8 @@
       "depends_on": [
         "DD-23-011"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-23-014",
@@ -2540,7 +2700,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-23-015",
@@ -2550,7 +2711,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-23-016",
@@ -2562,7 +2724,8 @@
       "depends_on": [
         "DD-23-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-24-001",
@@ -2572,7 +2735,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-24-002",
@@ -2584,7 +2748,8 @@
       "depends_on": [
         "DD-24-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-24-003",
@@ -2594,7 +2759,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-24-004",
@@ -2604,7 +2770,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-24-005",
@@ -2616,7 +2783,8 @@
       "depends_on": [
         "DD-24-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-24-006",
@@ -2628,7 +2796,8 @@
       "depends_on": [
         "DD-24-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-24-007",
@@ -2638,7 +2807,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-25-001",
@@ -2648,7 +2818,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-25-002",
@@ -2660,7 +2831,8 @@
       "depends_on": [
         "DD-25-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-25-003",
@@ -2670,7 +2842,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-25-004",
@@ -2682,7 +2855,8 @@
       "depends_on": [
         "DD-25-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-25-005",
@@ -2694,7 +2868,8 @@
       "depends_on": [
         "DD-25-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-25-006",
@@ -2704,7 +2879,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-25-007",
@@ -2716,7 +2892,8 @@
       "depends_on": [
         "DD-25-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-26-001",
@@ -2726,7 +2903,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-26-002",
@@ -2736,7 +2914,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-26-003",
@@ -2749,7 +2928,8 @@
         "DD-26-001",
         "DD-26-002"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-26-004",
@@ -2759,7 +2939,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-26-005",
@@ -2769,7 +2950,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-26-006",
@@ -2781,7 +2963,8 @@
       "depends_on": [
         "DD-26-005"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-26-007",
@@ -2795,7 +2978,8 @@
         "DD-26-002",
         "DD-26-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-001",
@@ -2805,7 +2989,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-002",
@@ -2817,7 +3002,8 @@
       "depends_on": [
         "DD-27-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-003",
@@ -2829,7 +3015,8 @@
       "depends_on": [
         "DD-27-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-004",
@@ -2842,7 +3029,8 @@
         "DD-27-001",
         "DD-27-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-005",
@@ -2854,7 +3042,8 @@
       "depends_on": [
         "DD-27-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-006",
@@ -2866,7 +3055,8 @@
       "depends_on": [
         "DD-27-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-007",
@@ -2879,7 +3069,8 @@
         "DD-27-001",
         "DD-27-006"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-27-008",
@@ -2891,7 +3082,8 @@
       "depends_on": [
         "DD-27-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-001",
@@ -2901,7 +3093,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-002",
@@ -2911,7 +3104,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-003",
@@ -2921,7 +3115,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-004",
@@ -2931,7 +3126,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-005",
@@ -2941,7 +3137,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-006",
@@ -2951,7 +3148,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-007",
@@ -2961,7 +3159,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-28-008",
@@ -2973,7 +3172,8 @@
       "depends_on": [
         "DD-28-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-001",
@@ -2983,7 +3183,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-002",
@@ -2993,7 +3194,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-003",
@@ -3003,7 +3205,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-004",
@@ -3013,7 +3216,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-005",
@@ -3025,7 +3229,8 @@
       "depends_on": [
         "DD-29-004"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-006",
@@ -3035,7 +3240,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-007",
@@ -3045,7 +3251,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-008",
@@ -3055,7 +3262,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-30-001",
@@ -3065,7 +3273,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-30-002",
@@ -3075,7 +3284,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-30-003",
@@ -3085,7 +3295,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-30-004",
@@ -3095,7 +3306,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-30-005",
@@ -3105,7 +3317,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-30-006",
@@ -3117,7 +3330,8 @@
       "depends_on": [
         "DD-30-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-30-007",
@@ -3127,7 +3341,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-31-001",
@@ -3137,7 +3352,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-31-002",
@@ -3147,7 +3363,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-31-003",
@@ -3157,7 +3374,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-004",
@@ -3169,7 +3387,8 @@
       "depends_on": [
         "DD-31-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-31-005",
@@ -3179,7 +3398,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-31-006",
@@ -3189,7 +3409,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-31-007",
@@ -3199,7 +3420,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-31-008",
@@ -3209,7 +3431,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-31-009",
@@ -3219,7 +3442,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-31-010",
@@ -3229,7 +3453,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-31-011",
@@ -3239,7 +3464,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-31-012",
@@ -3249,7 +3475,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-32-001",
@@ -3259,7 +3486,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-32-002",
@@ -3271,7 +3499,8 @@
       "depends_on": [
         "DD-32-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-32-003",
@@ -3281,7 +3510,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-32-004",
@@ -3291,7 +3521,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-32-005",
@@ -3301,7 +3532,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-32-006",
@@ -3311,7 +3543,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-32-007",
@@ -3321,7 +3554,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-32-008",
@@ -3333,7 +3567,8 @@
       "depends_on": [
         "DD-32-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-32-009",
@@ -3343,7 +3578,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-33-001",
@@ -3353,7 +3589,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-33-002",
@@ -3365,7 +3602,8 @@
       "depends_on": [
         "DD-33-007"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-33-003",
@@ -3377,7 +3615,8 @@
       "depends_on": [
         "DD-33-006"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-33-004",
@@ -3387,7 +3626,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-33-005",
@@ -3397,7 +3637,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-33-006",
@@ -3409,7 +3650,8 @@
       "depends_on": [
         "DD-33-005"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-33-007",
@@ -3419,7 +3661,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-34-001",
@@ -3429,7 +3672,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-34-002",
@@ -3441,7 +3685,8 @@
       "depends_on": [
         "DD-34-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-34-003",
@@ -3453,7 +3698,8 @@
       "depends_on": [
         "DD-34-004"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-34-004",
@@ -3465,7 +3711,8 @@
       "depends_on": [
         "DD-34-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-34-005",
@@ -3475,7 +3722,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-34-006",
@@ -3485,7 +3733,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-36-001",
@@ -3495,7 +3744,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-36-002",
@@ -3505,7 +3755,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-36-003",
@@ -3515,7 +3766,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-36-004",
@@ -3525,7 +3777,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-36-005",
@@ -3535,7 +3788,8 @@
       "priority": "low",
       "status": "pending",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": null
     },
     {
       "id": "DD-36-006",
@@ -3545,7 +3799,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-36-007",
@@ -3555,7 +3810,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-36-008",
@@ -3567,7 +3823,8 @@
       "depends_on": [
         "DD-36-004"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-37-001",
@@ -3577,7 +3834,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-37-002",
@@ -3587,7 +3845,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-37-003",
@@ -3599,7 +3858,8 @@
       "depends_on": [
         "DD-37-002"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-37-004",
@@ -3609,7 +3869,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-37-005",
@@ -3619,7 +3880,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-37-006",
@@ -3629,7 +3891,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-38-001",
@@ -3639,7 +3902,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-38-002",
@@ -3649,7 +3913,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-38-003",
@@ -3659,7 +3924,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-38-004",
@@ -3669,7 +3935,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-38-005",
@@ -3679,7 +3946,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-38-006",
@@ -3689,7 +3957,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-38-007",
@@ -3701,7 +3970,8 @@
       "depends_on": [
         "DD-38-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "pass"
     },
     {
       "id": "DD-39-001",
@@ -3711,7 +3981,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-39-002",
@@ -3721,7 +3992,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-39-003",
@@ -3731,7 +4003,8 @@
       "priority": "high",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-39-004",
@@ -3743,7 +4016,8 @@
       "depends_on": [
         "DD-39-003"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-39-005",
@@ -3755,7 +4029,8 @@
       "depends_on": [
         "DD-39-001"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-39-006",
@@ -3765,7 +4040,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-39-007",
@@ -3777,7 +4053,8 @@
       "depends_on": [
         "DD-39-002"
       ],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-39-008",
@@ -3787,7 +4064,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 2
+      "audit_round": 2,
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-009",
@@ -3798,7 +4076,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-010",
@@ -3811,7 +4090,8 @@
         "DD-29-009"
       ],
       "audit_round": 2,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "DD-29-011",
@@ -3824,7 +4104,8 @@
         "DD-29-009"
       ],
       "audit_round": 2,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "DD-06-011",
@@ -3839,7 +4120,8 @@
         "DD-29-011"
       ],
       "audit_round": 2,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "DD-06-012",
@@ -3850,7 +4132,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "GFX-SHAPES-007",
@@ -3862,7 +4145,8 @@
         "GFX-SHAPES-002"
       ],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-009",
@@ -3871,7 +4155,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-010",
@@ -3880,7 +4165,8 @@
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 3
+      "audit_round": 3,
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-011",
@@ -3891,7 +4177,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-012",
@@ -3902,7 +4189,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-013",
@@ -3915,7 +4203,8 @@
         "MOD-DESIGNER-011"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-014",
@@ -3928,7 +4217,8 @@
         "MOD-DESIGNER-011"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-015",
@@ -3944,7 +4234,8 @@
         "MOD-DESIGNER-014"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-016",
@@ -3955,7 +4246,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-017",
@@ -3968,7 +4260,8 @@
         "MOD-DESIGNER-016"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-018",
@@ -3979,7 +4272,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-019",
@@ -3992,7 +4286,8 @@
         "MOD-DESIGNER-016"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-020",
@@ -4007,7 +4302,8 @@
         "MOD-DESIGNER-019"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-021",
@@ -4018,7 +4314,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-022",
@@ -4031,7 +4328,8 @@
         "MOD-DESIGNER-021"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-023",
@@ -4042,7 +4340,8 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-024",
@@ -4056,7 +4355,8 @@
         "MOD-DESIGNER-023"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-025",
@@ -4069,7 +4369,140 @@
         "MOD-DESIGNER-021"
       ],
       "audit_round": 6,
-      "source": "feature"
+      "source": "feature",
+      "uat_status": "partial"
+    },
+    {
+      "id": "DD-06-013",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Keyboard shortcut help overlay (? key) not displayed",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-06-014",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Kiosk mode URL parameter is ?kiosk=true instead of spec ?mode=kiosk",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-06-015",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "G-key navigation hint overlay not showing when G is pressed",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-011",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Export button missing from log list toolbar",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-012",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Author filter missing from log search UI",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-15-010",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "EULA settings page returns Access Denied for admin user",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-15-011",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Settings role edit dialog crashes with TypeError on open",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-15-012",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Group Management CRUD is missing from settings sidebar",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-013",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Alerts History tab crashes with messages.map TypeError",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-014",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Console module fails to load due to dynamic import error",
+      "priority": "high",
+      "status": "implementing",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-PROCESS-009",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Process module fails to load due to dynamic import error",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
     }
   ],
   "audit_round": 9,

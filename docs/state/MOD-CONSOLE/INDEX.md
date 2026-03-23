@@ -17,3 +17,4 @@ Wave 2 | Audit: ✅ completed 2026-03-21
 | MOD-CONSOLE-011 | Kiosk mode | pending | 0 |
 | MOD-CONSOLE-012 | Per-pane error boundaries | pending | 0 |
 | MOD-CONSOLE-013 | Design token hardcoded colors | pending | 0 |
+| MOD-CONSOLE-014 | Console module fails to load due to dynamic import error | pending | 0 |
