@@ -1679,7 +1679,7 @@ export function ExpressionBuilder({
     description: '',
     outputType: initialExpression?.output?.type ?? 'float',
     outputPrecision: initialExpression?.output?.precision ?? 2,
-    saveForFuture: false,
+    saveForFuture: true,
     shareExpression: false,
     past: [],
     future: [],
