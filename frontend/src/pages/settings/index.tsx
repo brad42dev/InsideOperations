@@ -19,6 +19,7 @@ const SUB_NAV: SubNavItem[] = [
   { path: '/settings/appearance', label: 'Appearance' },
   { path: '/settings/health', label: 'System Health' },
   { path: '/settings/certificates', label: 'Certificates' },
+  { path: '/settings/archive', label: 'Archive' },
   { path: '/settings/backup', label: 'Backup & Restore' },
   { path: '/settings/auth-providers', label: 'Auth Providers' },
   { path: '/settings/mfa', label: 'MFA' },

@@ -179,6 +179,7 @@ const AlertConfig = lazy(() => import('./pages/settings/AlertConfig'))
 const Badges = lazy(() => import('./pages/settings/Badges'))
 const BulkUpdate = lazy(() => import('./pages/settings/BulkUpdate'))
 const Snapshots = lazy(() => import('./pages/settings/Snapshots'))
+const ArchiveSettings = lazy(() => import('./pages/settings/ArchiveSettings'))
 
 // ---------------------------------------------------------------------------
 // Minimal loading fallback used by Suspense boundaries
@@ -1099,6 +1100,7 @@ function AppRoutes() {
             }
           />
           <Route path="certificates" element={<PermissionGuard permission="system:certificates"><CertificatesPage /></PermissionGuard>} />
+          <Route path="archive" element={<PermissionGuard permission="system:configure"><ArchiveSettings /></PermissionGuard>} />
           <Route path="backup" element={<PermissionGuard permission="system:change_backup"><BackupRestorePage /></PermissionGuard>} />
           <Route path="expressions" element={<PermissionGuard permission="system:expression_manage"><ExpressionLibrary /></PermissionGuard>} />
           <Route path="report-scheduling" element={<PermissionGuard permission="reports:schedule_manage"><ReportScheduling /></PermissionGuard>} />

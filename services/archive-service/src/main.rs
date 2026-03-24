@@ -71,6 +71,11 @@ async fn main() -> anyhow::Result<()> {
             "/history/points/batch",
             post(handlers::history::get_batch_history),
         )
+        // Archive settings — GET returns current config, PUT persists to system_settings table
+        .route(
+            "/settings",
+            get(handlers::settings::get_settings).put(handlers::settings::put_settings),
+        )
         .with_state(state);
 
     let app = api
