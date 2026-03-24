@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T03:38:31.765465Z",
+  "last_updated": "2026-03-24T04:00:55.979652+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -166,7 +166,8 @@
     "DD-27-010": 1,
     "DD-32-012": 1,
     "DD-39-009": 1,
-    "DD-39-010": 1
+    "DD-39-010": 1,
+    "MOD-DESIGNER-029": 1
   },
   "queue": [
     {
@@ -4959,7 +4960,7 @@
       "wave": 3,
       "title": "Alerts module crashes on load \u2014 templates.find is not a function",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -4971,7 +4972,7 @@
       "wave": 3,
       "title": "Alerts module ErrorBoundary shows Reload Alerts instead of Reload Module",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5031,7 +5032,7 @@
       "wave": 2,
       "title": "No file tab bar visible in designer when multiple graphics are open",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
