@@ -22,6 +22,17 @@ import WsThroughputWidget from './WsThroughputWidget'
 import DbSizeWidget from './DbSizeWidget'
 import ApiResponseTimeWidget from './ApiResponseTimeWidget'
 import ServiceHealthTableWidget from './ServiceHealthTableWidget'
+import QualityDistributionWidget from './QualityDistributionWidget'
+import StalePointsWidget from './StalePointsWidget'
+import BadQualityBySourceWidget from './BadQualityBySourceWidget'
+import PointStatusTableWidget from './PointStatusTableWidget'
+import AlarmHealthKpiWidget from './AlarmHealthKpiWidget'
+import ProductionStatusWidget from './ProductionStatusWidget'
+import RoundsCompletionWidget from './RoundsCompletionWidget'
+import OpenAlertsWidget from './OpenAlertsWidget'
+import SystemUptimeWidget from './SystemUptimeWidget'
+import AlarmRateTrendWidget from './AlarmRateTrendWidget'
+import TrendChartWidget from './TrendChartWidget'
 import PlaceholderWidget from './PlaceholderWidget'
 import ExportDataDialog from './ExportDataDialog'
 
@@ -85,6 +96,31 @@ function WidgetBody({
       return <ApiResponseTimeWidget config={config} variables={variables} />
     case 'service-health-table':
       return <ServiceHealthTableWidget config={config} variables={variables} />
+    // Equipment Health dashboard widgets
+    case 'quality-distribution':
+      return <QualityDistributionWidget config={config} variables={variables} />
+    case 'stale-points':
+      return <StalePointsWidget config={config} variables={variables} />
+    case 'bad-quality-by-source':
+      return <BadQualityBySourceWidget config={config} variables={variables} />
+    case 'point-status-table':
+      return <PointStatusTableWidget config={config} variables={variables} />
+    // Executive Summary dashboard widgets
+    case 'alarm-health-kpi':
+      return <AlarmHealthKpiWidget config={config} variables={variables} />
+    case 'production-status':
+      return <ProductionStatusWidget config={config} variables={variables} />
+    case 'rounds-completion':
+      return <RoundsCompletionWidget config={config} variables={variables} />
+    case 'open-alerts':
+      return <OpenAlertsWidget config={config} variables={variables} />
+    case 'system-uptime':
+      return <SystemUptimeWidget config={config} variables={variables} />
+    case 'alarm-rate-trend':
+      return <AlarmRateTrendWidget config={config} variables={variables} />
+    // Process/time-series trend chart
+    case 'trend-chart':
+      return <TrendChartWidget config={config} variables={variables} />
     default:
       return <PlaceholderWidget config={config} />
   }

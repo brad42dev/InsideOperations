@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T12:56:36.812572Z",
+  "last_updated": "2026-03-24T13:05:45.516445+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -352,7 +352,7 @@
       "completed_at": "2026-03-21",
       "notes": "10 tasks.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 1
+      "verified_since_last_audit": 2
     },
     {
       "unit": "DD-10",
@@ -5044,7 +5044,7 @@
       "wave": 3,
       "title": "G+letter navigation does not execute after hint overlay appears",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5056,7 +5056,7 @@
       "wave": 3,
       "title": "Several widget types still render as raw type-label badges on non-alarm dashboards",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
