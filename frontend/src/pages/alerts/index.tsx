@@ -337,8 +337,15 @@ function SendAlertPanel() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const templates: NotificationTemplate[] = (templatesResult?.success && templatesResult.data) ? templatesResult.data : []
-  const groups: NotificationGroup[] = (groupsResult?.success && groupsResult.data) ? groupsResult.data : []
+  const templates: NotificationTemplate[] = (templatesResult?.success && Array.isArray(templatesResult.data)) ? templatesResult.data : []
+  // list_groups returns a PagedResponse envelope; unwrap .data if present, else treat as plain array
+  const groups: NotificationGroup[] = (() => {
+    if (!groupsResult?.success || !groupsResult.data) return []
+    const d = groupsResult.data as unknown
+    if (Array.isArray(d)) return d as NotificationGroup[]
+    const paged = d as { data?: unknown }
+    return Array.isArray(paged?.data) ? (paged.data as NotificationGroup[]) : []
+  })()
   // Enabled channels from config — fall back to websocket-only if API fails or is loading
   const enabledChannels: NotificationChannel[] =
     (enabledChannelsResult?.success && enabledChannelsResult.data && enabledChannelsResult.data.length > 0)
@@ -1223,7 +1230,7 @@ function TemplatesPanel() {
     queryFn: () => notificationsApi.listTemplates(),
   })
 
-  const templates: NotificationTemplate[] = (result?.success && result.data) ? result.data : []
+  const templates: NotificationTemplate[] = (result?.success && Array.isArray(result.data)) ? result.data : []
   const deleteTarget = deleteConfirmId ? templates.find((t) => t.id === deleteConfirmId) : null
 
   const createMutation = useMutation({
@@ -1612,7 +1619,14 @@ function GroupsPanel() {
     queryFn: () => notificationsApi.listGroups(),
   })
 
-  const groups: NotificationGroup[] = (result?.success && result.data) ? result.data : []
+  // list_groups returns a PagedResponse envelope; unwrap .data if present, else treat as plain array
+  const groups: NotificationGroup[] = (() => {
+    if (!result?.success || !result.data) return []
+    const d = result.data as unknown
+    if (Array.isArray(d)) return d as NotificationGroup[]
+    const paged = d as { data?: unknown }
+    return Array.isArray(paged?.data) ? (paged.data as NotificationGroup[]) : []
+  })()
   const deleteGroupTarget = deleteGroupId ? groups.find((g) => g.id === deleteGroupId) : null
   const editGroupTarget = editGroupId ? groups.find((g) => g.id === editGroupId) : null
   const viewMembersTarget = viewMembersGroupId ? groups.find((g) => g.id === viewMembersGroupId) : null

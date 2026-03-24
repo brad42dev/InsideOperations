@@ -62,14 +62,19 @@ export default function AlertComposer() {
     },
   })
 
-  const { data: groups } = useQuery({
+  const { data: groupsData } = useQuery({
     queryKey: ['notifications', 'groups'],
     queryFn: async () => {
       const result = await notificationsApi.listGroups()
       if (!result.success) throw new Error(result.error.message)
-      return result.data
+      // list_groups returns a PagedResponse envelope — unwrap the inner array
+      const d = result.data as unknown
+      if (Array.isArray(d)) return d as import('../../api/notifications').NotificationGroup[]
+      const paged = d as { data?: unknown }
+      return (Array.isArray(paged?.data) ? paged.data : []) as import('../../api/notifications').NotificationGroup[]
     },
   })
+  const groups = groupsData ?? []
 
   const { data: enabledChannelsResult } = useQuery({
     queryKey: ['notification-channels-enabled'],

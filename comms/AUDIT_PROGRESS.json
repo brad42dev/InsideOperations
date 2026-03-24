@@ -169,7 +169,8 @@
     "DD-39-010": 1,
     "MOD-DESIGNER-029": 1,
     "DD-13-013": 1,
-    "DD-23-019": 1
+    "DD-23-019": 1,
+    "DD-23-021": 1
   },
   "queue": [
     {
@@ -5154,7 +5155,7 @@
       "wave": 3,
       "title": "\"Save for Future Use\" checkbox not checked by default",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5178,7 +5179,7 @@
       "wave": 3,
       "title": "Alerts module crashes on load \u2014 templates.find is not a function",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
