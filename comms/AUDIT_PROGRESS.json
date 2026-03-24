@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-23T23:30:17.306076+00:00",
+  "last_updated": "2026-03-23T23:45:20.821432+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -946,7 +946,7 @@
       "completed_at": "2026-03-21",
       "notes": "8 tasks. UUID\u2192tag conversion absent; analyze/commit import endpoints missing; manifest missing 5 required fields.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 1
     }
   ],
   "escalated": [],
@@ -4838,6 +4838,18 @@
       "unit": "DD-39",
       "wave": 4,
       "title": "Custom shapes backend route missing \u2014 /api/v1/shapes/user returns 404",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": "fail"
+    },
+    {
+      "id": "DD-39-012",
+      "unit": "DD-39",
+      "wave": 3,
+      "title": "/api/v1/shapes/user returns 404 \u2014 Custom Shapes section shows error instead of empty state",
       "priority": "high",
       "status": "implementing",
       "depends_on": [],
