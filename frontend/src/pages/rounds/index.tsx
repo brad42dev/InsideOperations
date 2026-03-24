@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { roundsApi, type RoundInstance, type RoundHistoryEntry } from '../../api/rounds'
+import { roundsApi, type RoundInstance, type RoundHistoryEntry, type RoundTemplate, type RoundSchedule } from '../../api/rounds'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
 import { useOfflineRounds } from '../../shared/hooks/useOfflineRounds'
 import { PrintDialog } from './PrintDialog'
@@ -275,16 +275,16 @@ export default function RoundsPage() {
     },
   })
 
-  const pendingInstances =
-    availableResult?.success ? availableResult.data : []
-  const inProgressInstances =
-    inProgressResult?.success ? inProgressResult.data : []
-  const historyEntries =
-    historyResult?.success ? historyResult.data : []
-  const templates =
-    templatesResult?.success ? templatesResult.data : []
-  const schedules =
-    schedulesResult?.success ? schedulesResult.data : []
+  const pendingInstances: RoundInstance[] =
+    availableResult?.success && Array.isArray(availableResult.data) ? availableResult.data : []
+  const inProgressInstances: RoundInstance[] =
+    inProgressResult?.success && Array.isArray(inProgressResult.data) ? inProgressResult.data : []
+  const historyEntries: RoundHistoryEntry[] =
+    historyResult?.success && Array.isArray(historyResult.data) ? historyResult.data : []
+  const templates: RoundTemplate[] =
+    templatesResult?.success && Array.isArray(templatesResult.data) ? templatesResult.data : []
+  const schedules: RoundSchedule[] =
+    schedulesResult?.success && Array.isArray(schedulesResult.data) ? schedulesResult.data : []
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
