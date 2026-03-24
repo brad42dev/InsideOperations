@@ -87,7 +87,7 @@ export default function AlertHistory() {
   const [severity, setSeverity] = useState<NotificationSeverity | ''>('')
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-  const canExport = usePermission('alerts:export')
+  const canExport = usePermission('alerts:read')
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['notifications', 'messages', page, severity],

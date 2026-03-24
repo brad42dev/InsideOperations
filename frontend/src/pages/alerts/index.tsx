@@ -952,7 +952,7 @@ function HistoryPanel() {
   const [severity, setSeverity] = useState<NotificationSeverity | ''>('')
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
-  const canExport = usePermission('alerts:export')
+  const canExport = usePermission('alerts:read')
 
   const { data: result, isLoading } = useQuery({
     queryKey: ['notification-messages', { page, severity: severity || undefined }],
