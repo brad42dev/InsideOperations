@@ -5312,7 +5312,7 @@
       "wave": 3,
       "title": "Log module crashes \u2014 templates API response not guarded before .map call",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
