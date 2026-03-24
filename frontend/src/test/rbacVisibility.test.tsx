@@ -313,4 +313,45 @@ describe('inline permission checks (UI element gating)', () => {
     expect(canDo(adminUser.permissions, 'system:configure')).toBe(true)
     expect(canDo(viewerUser.permissions, 'system:configure')).toBe(false)
   })
+
+  // Regression: DD-15-014 — /settings/eula returned Access Denied for admin user.
+  // Root cause: system:configure was missing from the permissions table seed.
+  // The EULA route (App.tsx) uses PermissionGuard permission="system:configure".
+  // Fix: migration 20260324000002 ensures system:configure exists in permissions
+  // table and is assigned to the Admin role on all installation paths.
+  it('admin with system:configure can access EULA settings page guard', () => {
+    setAuthState({ user: makeUser(['system:configure', 'system:manage_users']), isAuthenticated: true })
+    render(
+      <MemoryRouter>
+        <PermissionGuard permission="system:configure">
+          <div>EULA Settings</div>
+        </PermissionGuard>
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('EULA Settings')).toBeDefined()
+    expect(screen.queryByText('Access Denied')).toBeNull()
+  })
+
+  it('user without system:configure sees Access Denied on EULA settings page guard', () => {
+    setAuthState({ user: makeUser(['settings:read', 'system:manage_users']), isAuthenticated: true })
+    render(
+      <MemoryRouter>
+        <PermissionGuard permission="system:configure">
+          <div>EULA Settings</div>
+        </PermissionGuard>
+      </MemoryRouter>,
+    )
+    expect(screen.queryByText('EULA Settings')).toBeNull()
+    expect(screen.getByText('Access Denied')).toBeDefined()
+  })
+
+  it('system:configure grants access to EULA admin settings', () => {
+    const adminUser = makeUser([
+      'system:configure', 'system:manage_users', 'system:manage_roles', 'system:admin',
+    ])
+    const operatorUser = makeUser(['console:read', 'process:read'])
+
+    expect(canDo(adminUser.permissions, 'system:configure')).toBe(true)
+    expect(canDo(operatorUser.permissions, 'system:configure')).toBe(false)
+  })
 })

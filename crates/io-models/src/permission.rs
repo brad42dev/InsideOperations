@@ -236,7 +236,7 @@ pub enum Permission {
     AlertGroupsWrite,
 
     // -----------------------------------------------------------------
-    // System (27)
+    // System (29)
     // -----------------------------------------------------------------
     #[serde(rename = "system:manage_users")]
     SystemManageUsers,
@@ -248,6 +248,10 @@ pub enum Permission {
     SystemViewLogs,
     #[serde(rename = "system:system_settings")]
     SystemSystemSettings,
+    #[serde(rename = "system:configure")]
+    SystemConfigure,
+    #[serde(rename = "system:certificates")]
+    SystemCertificates,
     #[serde(rename = "system:opc_config")]
     SystemOpcConfig,
     #[serde(rename = "system:source_config")]
