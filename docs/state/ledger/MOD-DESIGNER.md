@@ -28,3 +28,4 @@ MOD-DESIGNER-027 | Node context menu identical to empty canvas menu — node-spe
 MOD-DESIGNER-028 | Right-clicking shape in palette adds it to canvas instead of showing context menu | verified 2026-03-24 | commit eaa1aff | npx tsc --noEmit | PASS
 MOD-DESIGNER-029 | No file tab bar visible in designer when multiple graphics are open | verified 2026-03-24 | commit a4c51ea | npx tsc --noEmit | PASS
 MOD-DESIGNER-030 | File tab bar missing — no open-file tabs visible in Designer | verified 2026-03-24 | commit 7c71860 | npx tsc --noEmit | PASS
+MOD-DESIGNER-031 | Drag ghost missing — no preview element when dragging shape on canvas | verified 2026-03-24 | commit 24c6807 | npx tsc --noEmit | PASS
