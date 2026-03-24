@@ -76,8 +76,10 @@ import {
 import type { SceneCommand } from '../../shared/graphics/commands'
 import { PIPE_SERVICE_COLORS } from '../../shared/types/graphics'
 import { routePipe } from '../../shared/graphics/pipeRouter'
+import { useNavigate } from 'react-router-dom'
 import { usePointValues } from '../../shared/hooks/usePointValues'
 import type { PointValue } from '../../shared/hooks/usePointValues'
+import { usePermission } from '../../shared/hooks/usePermission'
 import { SaveAsStencilDialog } from './components/SaveAsStencilDialog'
 import { PromoteToShapeWizard } from './components/PromoteToShapeWizard'
 import PointPickerModal from './components/PointPickerModal'
@@ -4842,6 +4844,9 @@ function DesignerContextMenuContent({
   onOpenGroupInTab,
 }: DesignerContextMenuContentProps) {
   const getShape = useLibraryStore(s => s.getShape)
+  const navigate = useNavigate()
+  const canForensics = usePermission('forensics:read')
+  const canReports = usePermission('reports:read')
 
   // ctxNodeId is React state (not just a ref) so this component re-renders
   // with the correct value every time the context menu is triggered.
@@ -5436,6 +5441,96 @@ function DesignerContextMenuContent({
             {displayElementNode && (
               <>
                 <ContextMenuPrimitive.Separator style={sepStyle} />
+
+                {/* CX-POINT-CONTEXT P1 items — present for all display elements,
+                    disabled when the element has no point binding.
+                    Spec: context-menu-implementation-spec.md §2 + decisions/cx-point-context.md */}
+                {(() => {
+                  const pointId = displayElementNode.binding.pointId ?? null
+                  // PointBinding has no tagName field — use pointId as the tag name
+                  // (same pattern used by DisplayElementRenderer for test-mode PointContextMenu)
+                  const tagName = pointId ?? ''
+                  const isBound = !!pointId
+                  const isAlarmType = displayElementNode.displayType === 'alarm_indicator'
+                  return (
+                    <>
+                      <ContextMenuPrimitive.Item
+                        style={itemStyle}
+                        disabled={!isBound}
+                        onSelect={() => {
+                          if (!pointId) return
+                          navigate(`/forensics?point=${encodeURIComponent(pointId)}&panel=detail`)
+                        }}
+                      >
+                        Point Detail
+                      </ContextMenuPrimitive.Item>
+
+                      <ContextMenuPrimitive.Item
+                        style={itemStyle}
+                        disabled={!isBound}
+                        onSelect={() => {
+                          if (!pointId) return
+                          navigate(`/console?trend=${encodeURIComponent(pointId)}`)
+                        }}
+                      >
+                        Trend This Point
+                      </ContextMenuPrimitive.Item>
+
+                      {canForensics && (
+                        <ContextMenuPrimitive.Item
+                          style={itemStyle}
+                          disabled={!isBound}
+                          onSelect={() => {
+                            if (!pointId) return
+                            navigate(`/forensics/new?point=${encodeURIComponent(pointId)}`)
+                          }}
+                        >
+                          Investigate Point
+                        </ContextMenuPrimitive.Item>
+                      )}
+
+                      {canReports && (
+                        <ContextMenuPrimitive.Item
+                          style={itemStyle}
+                          disabled={!isBound}
+                          onSelect={() => {
+                            if (!pointId) return
+                            navigate(`/reports/new?point=${encodeURIComponent(pointId)}`)
+                          }}
+                        >
+                          Report on Point
+                        </ContextMenuPrimitive.Item>
+                      )}
+
+                      {isAlarmType && canForensics && (
+                        <ContextMenuPrimitive.Item
+                          style={itemStyle}
+                          disabled={!isBound}
+                          onSelect={() => {
+                            if (!pointId) return
+                            navigate(`/forensics/new?alarm=${encodeURIComponent(pointId)}`)
+                          }}
+                        >
+                          Investigate Alarm
+                        </ContextMenuPrimitive.Item>
+                      )}
+
+                      <ContextMenuPrimitive.Item
+                        style={itemStyle}
+                        disabled={!isBound}
+                        onSelect={() => {
+                          if (!tagName) return
+                          void navigator.clipboard.writeText(tagName)
+                        }}
+                      >
+                        Copy Tag Name
+                      </ContextMenuPrimitive.Item>
+
+                      <ContextMenuPrimitive.Separator style={sepStyle} />
+                    </>
+                  )
+                })()}
+
                 <ContextMenuPrimitive.Sub>
                   <ContextMenuPrimitive.SubTrigger style={itemStyle}>
                     Change Type
