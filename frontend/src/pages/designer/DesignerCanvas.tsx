@@ -5529,6 +5529,17 @@ function DesignerContextMenuContent({
                         Trend This Point
                       </ContextMenuPrimitive.Item>
 
+                      <ContextMenuPrimitive.Item
+                        style={itemStyle}
+                        disabled={!isBound}
+                        onSelect={() => {
+                          if (!pointId) return
+                          navigate(`/forensics?tab=alarm&point=${encodeURIComponent(pointId)}`)
+                        }}
+                      >
+                        View Alerts
+                      </ContextMenuPrimitive.Item>
+
                       {canForensics && (
                         <ContextMenuPrimitive.Item
                           style={itemStyle}
