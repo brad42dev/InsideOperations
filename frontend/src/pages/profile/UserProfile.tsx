@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuthStore } from '../../store/auth'
+import { useUiStore } from '../../store/ui'
 import { authApi } from '../../api/auth'
 import { showToast } from '../../shared/components/Toast'
 
@@ -58,6 +59,9 @@ function PinSetupSection({
         return
       }
       showToast({ title: 'PIN set successfully.', variant: 'success' })
+      // Update lockMeta so the lock screen immediately offers PIN entry
+      // without requiring a page reload.
+      useUiStore.getState().setLockMeta({ hasPin: true })
       resetForm()
     } finally {
       setSubmitting(false)
@@ -80,6 +84,9 @@ function PinSetupSection({
         return
       }
       showToast({ title: 'PIN removed successfully.', variant: 'success' })
+      // Update lockMeta so the lock screen immediately drops PIN entry
+      // without requiring a page reload.
+      useUiStore.getState().setLockMeta({ hasPin: false })
       resetForm()
     } finally {
       setSubmitting(false)

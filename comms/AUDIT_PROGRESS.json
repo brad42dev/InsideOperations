@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T20:47:58.610278Z",
+  "last_updated": "2026-03-24T21:03:59.374488Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -176,7 +176,8 @@
     "MOD-DESIGNER-034": 1,
     "DD-10-018": 1,
     "DD-13-015": 1,
-    "DD-32-016": 1
+    "DD-32-016": 1,
+    "DD-23-023": 0
   },
   "queue": [
     {
@@ -5523,7 +5524,7 @@
       "wave": 3,
       "title": "Drag-and-drop from palette into group container interior still does not work",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5535,7 +5536,7 @@
       "wave": 3,
       "title": "Breadcrumb trail still not shown above workspace when cursor is inside a nested container",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5559,7 +5560,7 @@
       "wave": 3,
       "title": "Lock screen does not offer PIN entry after PIN is set",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
