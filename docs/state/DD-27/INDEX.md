@@ -13,3 +13,5 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-27-008 | Add missing alert API routes (active, cancel, webhooks,… | pending | 0 |
 | DD-27-009 | SMS Providers settings page shows Access Denied for admin user | pending | 0 |
 | DD-27-010 | SMS Providers settings page returns Access Denied for admin user | pending | 0 |
+| DD-27-012 | Alerts module crashes on load — templates.find is not a function | pending | 0 |
+| DD-27-013 | Alerts module channel adapters untestable — module crashes on load (templates.find is not a function) | pending | 0 |

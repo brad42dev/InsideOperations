@@ -31,3 +31,8 @@
 | MOD-DESIGNER-027 | Node context menu identical to empty canvas menu — node-specific items missing | pending | 0 |
 | MOD-DESIGNER-028 | Right-clicking shape in palette adds it to canvas instead of showing context menu | pending | 0 |
 | MOD-DESIGNER-029 | No file tab bar visible in designer when multiple graphics are open | pending | 0 |
+| MOD-DESIGNER-030 | File tab bar missing — no open-file tabs visible in Designer | pending | 0 |
+| MOD-DESIGNER-031 | Drag ghost missing — no preview element when dragging shape on canvas | pending | 0 |
+| MOD-DESIGNER-032 | Drag ghost overlay missing when dragging shapes from palette to canvas | pending | 0 |
+| MOD-DESIGNER-033 | Point context menu items missing from display element right-click menu | pending | 0 |
+| MOD-DESIGNER-034 | Group editing does not open a sub-tab in the Designer tab bar | pending | 0 |

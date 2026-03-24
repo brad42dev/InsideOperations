@@ -2,29 +2,31 @@
 unit: DD-18
 date: 2026-03-24
 uat_mode: auto
-verdict: fail
-scenarios_tested: 2
-scenarios_passed: 0
-scenarios_failed: 2
-scenarios_skipped: 1
+verdict: partial
+scenarios_tested: 5
+scenarios_passed: 4
+scenarios_failed: 1
+scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-fail: No dedicated archive/timeseries settings route exists. /settings/archive returns 404. Settings sidebar has no Archive link.
+pass: Navigating to /settings loads real Settings implementation with sidebar navigation
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Archive | [DD-18-002] Archive API accessible | ❌ fail | No archive/timeseries settings page found — /settings/archive returns 404, no link in settings sidebar |
-| 2 | Archive | [DD-18-002] Archive resolution tiers | ❌ fail | No page to test 15m/1d resolution options — archive settings route does not exist |
-| 3 | Archive | [DD-18-002] Page renders without error | skipped | No archive page to navigate to — System Health page shows archive-service Healthy but has no settings |
+| 1 | Archive Settings Page | [DD-18-007] Settings page renders without error — navigate to /settings | ✅ pass | Page loads normally, no error boundary |
+| 2 | Archive Settings Page | [DD-18-007] Archive section visible in sidebar — navigate to /settings | ✅ pass | "Archive" link visible in Settings sidebar at /settings/archive |
+| 3 | Archive Settings Page | [DD-18-007] Archive route loads — click Archive in sidebar | ✅ pass | /settings/archive loads with real component (not 404), breadcrumb shows Settings › Archive |
+| 4 | Archive Settings Page | [DD-18-007] Archive settings form functional — retention inputs/compression toggles present | ❌ fail | Shows "Failed to load archive settings. Ensure the archive service is running." — API /api/archive/settings returns 404 Not Found. No form elements visible. |
+| 5 | Archive Settings Page | [DD-18-007] Direct navigation to /settings/archive | ✅ pass | Route loads with real component, Archive highlighted in sidebar |
 
 ## New Bug Tasks Created
 
-DD-18-007 — Archive/timeseries settings page does not exist — route returns 404
+DD-18-008 — Archive settings API endpoint /api/archive/settings returns 404 — form never loads
 
 ## Screenshot Notes
 
-/settings/archive route returns 404. Settings sidebar shows no Archive or Time-Series settings section. System Health page only shows service status (archive-service: Healthy) but no configuration options.
+- scenario4-archive-api-404.png: /settings/archive shows error state "Failed to load archive settings. Ensure the archive service is running." The frontend component exists and renders correctly with error handling, but the backend API endpoint GET /api/archive/settings does not exist (404). No form fields for retention, compression, or continuous aggregates are visible to the user.

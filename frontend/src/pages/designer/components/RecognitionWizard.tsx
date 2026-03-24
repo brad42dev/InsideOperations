@@ -46,6 +46,8 @@ interface ReviewDetection extends Detection {
 
 export interface RecognitionWizardProps {
   onClose: () => void
+  /** When provided, the wizard opens in a degraded state showing this message in step 1. */
+  serviceUnavailableReason?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -267,9 +269,10 @@ function WizardShell({
 interface UploadStepProps {
   onDetected: (imageUrl: string, detections: ReviewDetection[], domain: Domain) => void
   onClose: () => void
+  serviceUnavailableReason?: string
 }
 
-function UploadStep({ onDetected, onClose }: UploadStepProps) {
+function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadStepProps) {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -327,11 +330,29 @@ function UploadStep({ onDetected, onClose }: UploadStepProps) {
     <WizardShell
       step="upload"
       onClose={onClose}
-      onNext={file && !loading ? handleDetect : undefined}
+      onNext={!serviceUnavailableReason && file && !loading ? handleDetect : undefined}
       nextLabel={loading ? 'Detecting...' : 'Detect Symbols'}
-      nextDisabled={!file || loading}
+      nextDisabled={!!serviceUnavailableReason || !file || loading}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {serviceUnavailableReason && (
+          <div
+            style={{
+              padding: '12px 16px',
+              background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 'var(--io-radius)',
+              color: '#ef4444',
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+            }}
+          >
+            <span style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
+            <span>{serviceUnavailableReason}</span>
+          </div>
+        )}
         <p style={{ margin: 0, fontSize: 13, color: 'var(--io-text-secondary)' }}>
           Upload a P&amp;ID or DCS image to detect symbols. Supported formats: PNG, JPEG, PDF, TIFF.
         </p>
@@ -1042,7 +1063,7 @@ function SpinnerIcon() {
 // RecognitionWizard — main exported component
 // ---------------------------------------------------------------------------
 
-export default function RecognitionWizard({ onClose }: RecognitionWizardProps) {
+export default function RecognitionWizard({ onClose, serviceUnavailableReason }: RecognitionWizardProps) {
   const [step, setStep] = useState<WizardStep>('upload')
   const [imageUrl, setImageUrl] = useState<string>('')
   const [detections, setDetections] = useState<ReviewDetection[]>([])
@@ -1063,7 +1084,7 @@ export default function RecognitionWizard({ onClose }: RecognitionWizardProps) {
   }
 
   if (step === 'upload') {
-    return <UploadStep onDetected={handleDetected} onClose={onClose} />
+    return <UploadStep onDetected={handleDetected} onClose={onClose} serviceUnavailableReason={serviceUnavailableReason} />
   }
 
   if (step === 'review') {
@@ -1147,70 +1168,13 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
     status.domains.pid.mode === 'disabled' &&
     status.domains.dcs.mode === 'disabled'
 
-  // When service is unreachable (status API failed), show a disabled state with explanation
-  // rather than hiding the entry point.
-  if (statusLoaded && statusError) {
-    const tooltip = 'Recognition service is unavailable. The service may not be running. Contact your administrator.'
-    if (renderAs === 'inline') {
-      return (
-        <span
-          style={{
-            color: 'var(--io-text-muted)',
-            fontSize: '13px',
-            cursor: 'not-allowed',
-          }}
-          title={tooltip}
-        >
-          Recognize Image (unavailable)
-        </span>
-      )
-    }
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '7px 14px',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          color: 'var(--io-text-muted)',
-          fontSize: '13px',
-          cursor: 'not-allowed',
-          opacity: 0.65,
-        }}
-        title={tooltip}
-      >
-        <span>⬡</span>
-        Recognize Image
-      </div>
-    )
-  }
-
-  if (bothDisabled) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '7px 14px',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          color: 'var(--io-text-muted)',
-          fontSize: '13px',
-          cursor: 'not-allowed',
-          opacity: 0.65,
-        }}
-        title="Symbol recognition is not available. No model is loaded. Contact your administrator."
-      >
-        <span>⬡</span>
-        Recognize Image
-      </div>
-    )
-  }
+  // Determine if service is degraded and what message to show inside the wizard
+  const serviceUnavailableReason: string | undefined =
+    statusLoaded && statusError
+      ? 'Recognition service is currently unavailable. The service may not be running. Contact your administrator.'
+      : bothDisabled
+      ? 'Symbol recognition is currently unavailable — no recognition model is loaded. Contact your administrator.'
+      : undefined
 
   if (renderAs === 'inline') {
     return (
@@ -1228,7 +1192,12 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
         >
           Recognize Image
         </button>
-        {wizardOpen && <RecognitionWizard onClose={() => setWizardOpen(false)} />}
+        {wizardOpen && (
+          <RecognitionWizard
+            onClose={() => setWizardOpen(false)}
+            serviceUnavailableReason={serviceUnavailableReason}
+          />
+        )}
       </>
     )
   }
@@ -1262,7 +1231,12 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
         <span>⬡</span>
         Recognize Image
       </button>
-      {wizardOpen && <RecognitionWizard onClose={() => setWizardOpen(false)} />}
+      {wizardOpen && (
+        <RecognitionWizard
+          onClose={() => setWizardOpen(false)}
+          serviceUnavailableReason={serviceUnavailableReason}
+        />
+      )}
     </>
   )
 }

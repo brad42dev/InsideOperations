@@ -19,3 +19,7 @@
 | MOD-CONSOLE-015 | Console module crashes with TypeError reading 'reduce' | pending | 0 |
 | MOD-CONSOLE-016 | Favorites group missing from console left nav panel | pending | 0 |
 | MOD-CONSOLE-017 | Console kiosk mode URL parameter not activating kiosk UI | pending | 0 |
+| MOD-CONSOLE-018 | Pane context menu missing "Open in New Window" item for detached window | pending | 0 |
+| MOD-CONSOLE-019 | No right-click context menu on workspace items in Console left nav panel | pending | 0 |
+| MOD-CONSOLE-020 | Kiosk mode does not hide Console ASSETS/left panel | pending | 0 |
+| MOD-CONSOLE-021 | Workspace list items missing right-click context menu | pending | 0 |

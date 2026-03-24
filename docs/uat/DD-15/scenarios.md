@@ -1,9 +1,9 @@
 # UAT Scenarios — DD-15
 
-## Settings Module
+## Group Management API
 
-Scenario 1: [DD-15-003] Settings/OPC page renders — navigate to /settings/opc-sources → page loads, form visible
-Scenario 2: [DD-15-003] OPC source form fields — navigate to OPC source create/edit form → client certificate dropdown, platform dropdown, and minimum publish interval field present
-Scenario 3: [DD-15-004] Group Management CRUD — navigate to settings group management → create group button, group list with edit/delete actions visible
-Scenario 4: [DD-15-007] EULA settings page — navigate to EULA settings → split-pane markdown editor visible (not just textarea), acceptance records summary cards visible
-Scenario 5: [DD-15-010] EULA accessible to admin — navigate to EULA settings as admin → page loads (not "Access Denied")
+Scenario 1: [DD-15-013] Settings/groups page renders without error — navigate to /settings/groups → page loads, no "Failed to parse server response" error, no red error card
+Scenario 2: [DD-15-013] Groups page shows group list or clean empty state — navigate to /settings/groups → either a list of groups or a clean empty state (not an API error message) is displayed
+Scenario 3: [DD-15-013] Create Group button is visible — look for a create/add group button on the groups page → button is present
+Scenario 4: [DD-15-013] Create Group dialog opens — click the create group button → a dialog or form appears for entering group details
+Scenario 5: [DD-15-013] Create a group and it appears in the list — fill in group name and submit → new group appears in the list without error

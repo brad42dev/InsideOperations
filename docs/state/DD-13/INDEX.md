@@ -15,3 +15,4 @@ Wave 3 | Audit: ✅ completed 2026-03-21
 | DD-13-010 | Replace plain text "Loading..." with module-shaped skel… | pending | 0 |
 | DD-13-011 | Export button missing from log list toolbar | pending | 0 |
 | DD-13-012 | Author filter missing from log search UI | pending | 0 |
+| DD-13-013 | Log module crashes — templates.map TypeError when API returns non-array | pending | 0 |

@@ -994,7 +994,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "GFX-CORE-005",
@@ -1007,7 +1007,7 @@
         "GFX-CORE-001"
       ],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "GFX-DISPLAY-001",
@@ -1040,7 +1040,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "GFX-DISPLAY-004",
@@ -1051,7 +1051,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "GFX-DISPLAY-005",
@@ -1062,7 +1062,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "GFX-DISPLAY-006",
@@ -1073,7 +1073,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "GFX-SHAPES-001",
@@ -1130,7 +1130,7 @@
       ],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "GFX-SHAPES-006",
@@ -1142,7 +1142,7 @@
       ],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-001",
@@ -1163,7 +1163,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-003",
@@ -1174,7 +1174,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-004",
@@ -1204,7 +1204,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-007",
@@ -1214,7 +1214,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-008",
@@ -1234,7 +1234,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-010",
@@ -1276,7 +1276,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-001",
@@ -1298,7 +1298,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-003",
@@ -1364,7 +1364,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-001",
@@ -1385,7 +1385,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-003",
@@ -1395,7 +1395,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-004",
@@ -1449,7 +1449,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "OPC-BACKEND-001",
@@ -1515,7 +1515,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-06-004",
@@ -1572,7 +1572,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-009",
@@ -1618,7 +1618,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-003",
@@ -1651,7 +1651,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-006",
@@ -1673,7 +1673,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-008",
@@ -1684,7 +1684,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-009",
@@ -1785,7 +1785,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-12-001",
@@ -1897,7 +1897,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-011",
@@ -1919,7 +1919,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-001",
@@ -1987,7 +1987,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-13-007",
@@ -1998,7 +1998,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-008",
@@ -2009,7 +2009,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-009",
@@ -2075,7 +2075,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-14-005",
@@ -2097,7 +2097,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-14-007",
@@ -2301,7 +2301,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-18-003",
@@ -2481,7 +2481,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-22-001",
@@ -2569,7 +2569,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-002",
@@ -2582,7 +2582,7 @@
         "DD-23-001"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-003",
@@ -2593,7 +2593,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-004",
@@ -2604,7 +2604,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-005",
@@ -2615,7 +2615,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-006",
@@ -2626,7 +2626,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-007",
@@ -2640,7 +2640,7 @@
         "DD-23-005"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-008",
@@ -2651,7 +2651,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-009",
@@ -2662,7 +2662,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-010",
@@ -2673,7 +2673,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-011",
@@ -2684,7 +2684,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-012",
@@ -2695,7 +2695,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-013",
@@ -2708,7 +2708,7 @@
         "DD-23-011"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-014",
@@ -2719,7 +2719,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-23-015",
@@ -2730,7 +2730,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-016",
@@ -2743,7 +2743,7 @@
         "DD-23-001"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-24-001",
@@ -2997,7 +2997,7 @@
         "DD-26-003"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-27-001",
@@ -3088,7 +3088,7 @@
         "DD-27-006"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-27-008",
@@ -3393,7 +3393,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-004",
@@ -3417,7 +3417,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-006",
@@ -3428,7 +3428,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-007",
@@ -3439,7 +3439,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-008",
@@ -3450,7 +3450,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-009",
@@ -3472,7 +3472,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-011",
@@ -3551,7 +3551,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-006",
@@ -3562,7 +3562,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-007",
@@ -3573,7 +3573,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-008",
@@ -3597,7 +3597,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-33-001",
@@ -4048,7 +4048,7 @@
         "DD-39-001"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-39-006",
@@ -4059,7 +4059,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-39-007",
@@ -4083,7 +4083,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-29-009",
@@ -4109,7 +4109,7 @@
       ],
       "audit_round": 2,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-29-011",
@@ -4123,7 +4123,7 @@
       ],
       "audit_round": 2,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-06-011",
@@ -4174,7 +4174,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-010",
@@ -4208,7 +4208,7 @@
       "depends_on": [],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-013",
@@ -4222,7 +4222,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-014",
@@ -4236,7 +4236,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-015",
@@ -4253,7 +4253,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-016",
@@ -4321,7 +4321,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-021",
@@ -4333,7 +4333,7 @@
       "depends_on": [],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-022",
@@ -4347,7 +4347,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-023",
@@ -4374,7 +4374,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-025",
@@ -4388,7 +4388,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-013",
@@ -4424,7 +4424,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-011",
@@ -4568,7 +4568,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-12-013",
@@ -4604,7 +4604,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-28-009",
@@ -4628,7 +4628,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-10-012",
@@ -4640,7 +4640,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-25-008",
@@ -4664,7 +4664,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-29-012",
@@ -4688,7 +4688,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-10-013",
@@ -4748,7 +4748,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-29-013",
@@ -4772,7 +4772,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-011",
@@ -4808,7 +4808,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-39-009",
@@ -4820,7 +4820,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-39-010",
@@ -4832,7 +4832,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-39-011",
@@ -4844,7 +4844,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-39-012",
@@ -4880,7 +4880,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-017",
@@ -4892,7 +4892,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-15-013",
@@ -4904,7 +4904,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-15-014",
@@ -4916,7 +4916,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-18-007",
@@ -4928,7 +4928,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-26-008",
@@ -4940,7 +4940,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-27-011",
@@ -4952,7 +4952,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-017",
@@ -4964,7 +4964,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-013",
@@ -4972,11 +4972,11 @@
       "wave": 3,
       "title": "Alerts module ErrorBoundary shows Reload Alerts instead of Reload Module",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-016",
@@ -4988,7 +4988,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-017",
@@ -5000,7 +5000,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-027",
@@ -5012,7 +5012,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-028",
@@ -5024,7 +5024,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-029",
@@ -5033,6 +5033,404 @@
       "title": "No file tab bar visible in designer when multiple graphics are open",
       "priority": "high",
       "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": "fail"
+    },
+    {
+      "id": "DD-06-018",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "G+letter navigation does not execute after hint overlay appears",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-10-015",
+      "unit": "DD-10",
+      "wave": 3,
+      "title": "Several widget types still render as raw type-label badges on non-alarm dashboards",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-11-009",
+      "unit": "DD-11",
+      "wave": 3,
+      "title": "Add CTA button to template browser empty state",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-013",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Log module crashes \u2014 templates.map TypeError when API returns non-array",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-14-009",
+      "unit": "DD-14",
+      "wave": 3,
+      "title": "Rounds module crashes on load \u2014 pendingInstances.map is not a function",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-15-015",
+      "unit": "DD-15",
+      "wave": 3,
+      "title": "Groups page still shows \"Failed to parse server response\" \u2014 /api/groups returns 404",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-23-018",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Drag-and-drop tile into container does not work",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-23-019",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "Insertion cursor not visible in workspace",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-23-020",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "No breadcrumb navigation when cursor is inside nested container",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-23-021",
+      "unit": "DD-23",
+      "wave": 3,
+      "title": "\"Save for Future Use\" checkbox not checked by default",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-26-009",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Recognize Image click does nothing \u2014 wizard blocked when recognition service unavailable",
+      "priority": "high",
+      "status": "implementing",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-27-012",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Alerts module crashes on load \u2014 templates.find is not a function",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-29-014",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "Session lock/unlock API endpoints missing \u2014 /api/auth/lock and /api/auth/verify-password return 404",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-29-015",
+      "unit": "DD-29",
+      "wave": 3,
+      "title": "PIN set/delete/verify endpoints missing \u2014 /api/auth/pin returns 404",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-018",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Management tab crashes \u2014 \"templates.map is not a function\"",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-019",
+      "unit": "DD-31",
+      "wave": 3,
+      "title": "Alert History tab missing Export button (CX-EXPORT)",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "GFX-DISPLAY-007",
+      "unit": "GFX-DISPLAY",
+      "wave": 1,
+      "title": "Add alarm flash text fill keyframes and priority classes for P2-P5",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-018",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Pane context menu missing \"Open in New Window\" item for detached window",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-019",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "No right-click context menu on workspace items in Console left nav panel",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-020",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Kiosk mode does not hide Console ASSETS/left panel",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-030",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "File tab bar missing \u2014 no open-file tabs visible in Designer",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-031",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Drag ghost missing \u2014 no preview element when dragging shape on canvas",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-014",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Log module crashes \u2014 templates API response not guarded before .map call",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-18-008",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "Archive settings API endpoint /api/archive/settings returns 404 \u2014 form never loads",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-27-013",
+      "unit": "DD-27",
+      "wave": 3,
+      "title": "Alerts module channel adapters untestable \u2014 module crashes on load (templates.find is not a function)",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-014",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Workspace creation still silent \u2014 no toast on success or failure after + \u2192 Done flow",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-021",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Workspace list items missing right-click context menu",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-032",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Drag ghost overlay missing when dragging shapes from palette to canvas",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-033",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Point context menu items missing from display element right-click menu",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-034",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group editing does not open a sub-tab in the Designer tab bar",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-PROCESS-010",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "React Query graphic data returns undefined instead of null on graphic load",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-26-010",
+      "unit": "DD-26",
+      "wave": 3,
+      "title": "Recognition wizard entirely blocked when service unavailable \u2014 wizard must open showing service status",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [
+        "DD-26-009"
+      ],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-015",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "No toast shown when workspace duplication fails \u2014 silent 404 error",
+      "priority": "high",
+      "status": "pending",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
