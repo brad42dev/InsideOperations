@@ -7,6 +7,7 @@ pub mod duo;
 pub mod email_mfa;
 pub mod eula;
 pub mod expressions;
+pub mod groups;
 pub mod ldap_auth;
 pub mod mfa;
 pub mod oidc;

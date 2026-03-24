@@ -141,6 +141,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/roles/:id", delete(handlers::roles::delete_role))
         // Permissions reference
         .route("/permissions", get(handlers::roles::list_permissions))
+        // Group management (RBAC groups — user groups with role assignments)
+        // NOTE: static sub-paths (/members) must be before parameterised /:id
+        .route("/groups", get(handlers::groups::list_groups))
+        .route("/groups", post(handlers::groups::create_group))
+        .route("/groups/:id", get(handlers::groups::get_group))
+        .route("/groups/:id", put(handlers::groups::update_group))
+        .route("/groups/:id", delete(handlers::groups::delete_group))
+        .route("/groups/:id/members", get(handlers::groups::list_group_members))
+        .route("/groups/:id/members", post(handlers::groups::add_group_member))
+        .route("/groups/:id/members/:user_id", delete(handlers::groups::remove_group_member))
         // Settings
         .route("/settings", get(handlers::settings::list_settings))
         .route("/settings/:key", put(handlers::settings::update_setting))

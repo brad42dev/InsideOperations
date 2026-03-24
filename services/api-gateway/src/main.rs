@@ -205,6 +205,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/roles", get(proxy_auth).post(proxy_auth))
         .route("/api/roles/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
         .route("/api/permissions", get(proxy_auth))
+        // Group management (RBAC groups — proxied to auth-service)
+        // NOTE: static sub-paths (/members) must be before parameterised /:id
+        .route("/api/groups", get(proxy_auth).post(proxy_auth))
+        .route("/api/groups/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
+        .route("/api/groups/:id/members", get(proxy_auth).post(proxy_auth))
+        .route("/api/groups/:id/members/:user_id", delete(proxy_auth))
         // Settings
         .route("/api/settings", get(proxy_auth))
         .route("/api/settings/:key", put(proxy_auth))
