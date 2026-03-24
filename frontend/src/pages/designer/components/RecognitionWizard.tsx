@@ -105,6 +105,9 @@ function WizardShell({
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Recognize Image"
         style={{
           background: 'var(--io-surface-elevated)',
           border: '1px solid var(--io-border)',
@@ -191,20 +194,35 @@ function WizardShell({
           {children}
         </div>
 
-        {/* Footer */}
-        {(onBack || onNext) && (
-          <div
+        {/* Footer — always rendered so Cancel/Close is always accessible */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            padding: '12px 20px',
+            borderTop: '1px solid var(--io-border)',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={onClose}
             style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 8,
-              padding: '12px 20px',
-              borderTop: '1px solid var(--io-border)',
-              flexShrink: 0,
+              height: 32,
+              padding: '0 16px',
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              color: 'var(--io-text-secondary)',
+              fontSize: 13,
+              cursor: 'pointer',
             }}
           >
+            {onBack || onNext ? 'Cancel' : 'Close'}
+          </button>
+          {onBack && (
             <button
-              onClick={onClose}
+              onClick={onBack}
               style={{
                 height: 32,
                 padding: '0 16px',
@@ -216,47 +234,30 @@ function WizardShell({
                 cursor: 'pointer',
               }}
             >
-              Cancel
+              Back
             </button>
-            {onBack && (
-              <button
-                onClick={onBack}
-                style={{
-                  height: 32,
-                  padding: '0 16px',
-                  background: 'var(--io-surface)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: 'var(--io-radius)',
-                  color: 'var(--io-text-secondary)',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                }}
-              >
-                Back
-              </button>
-            )}
-            {onNext && (
-              <button
-                onClick={onNext}
-                disabled={nextDisabled}
-                style={{
-                  height: 32,
-                  padding: '0 16px',
-                  background: nextDisabled ? 'var(--io-surface-elevated)' : 'var(--io-accent)',
-                  border: 'none',
-                  borderRadius: 'var(--io-radius)',
-                  color: nextDisabled ? 'var(--io-text-muted)' : '#09090b',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: nextDisabled ? 'not-allowed' : 'pointer',
-                  opacity: nextDisabled ? 0.6 : 1,
-                }}
-              >
-                {nextLabel ?? 'Next'}
-              </button>
-            )}
-          </div>
-        )}
+          )}
+          {onNext && (
+            <button
+              onClick={onNext}
+              disabled={nextDisabled}
+              style={{
+                height: 32,
+                padding: '0 16px',
+                background: nextDisabled ? 'var(--io-surface-elevated)' : 'var(--io-accent)',
+                border: 'none',
+                borderRadius: 'var(--io-radius)',
+                color: nextDisabled ? 'var(--io-text-muted)' : '#09090b',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: nextDisabled ? 'not-allowed' : 'pointer',
+                opacity: nextDisabled ? 0.6 : 1,
+              }}
+            >
+              {nextLabel ?? 'Next'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
