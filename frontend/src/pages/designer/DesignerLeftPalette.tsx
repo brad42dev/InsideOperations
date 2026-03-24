@@ -303,6 +303,7 @@ function ShapeTile({
       position: fixed;
       pointer-events: none;
       z-index: 9999;
+      opacity: 0.7;
       padding: 4px 8px;
       background: var(--io-accent);
       color: #09090b;
@@ -316,6 +317,7 @@ function ShapeTile({
     `
     ghost.textContent = item.label
     ghost.id = 'io-drag-ghost'
+    ghost.setAttribute('data-drag-ghost', 'true')
     document.body.appendChild(ghost)
 
     const onMove = (ev: MouseEvent) => {
@@ -642,12 +644,13 @@ function DisplayElementTile({
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999;
+      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
       padding: 4px 8px; background: var(--io-accent); color: #09090b;
       border-radius: 4px; font-size: 11px; font-weight: 600;
       transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
     `
     ghost.textContent = label
+    ghost.setAttribute('data-drag-ghost', 'true')
     document.body.appendChild(ghost)
 
     const onMove = (ev: MouseEvent) => {
@@ -889,6 +892,7 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
     const ghost = document.createElement('div')
     ghost.style.cssText = `
       position: fixed; pointer-events: none; z-index: 9999;
+      opacity: 0.7;
       padding: 4px 8px;
       background: var(--io-accent);
       color: #09090b;
@@ -902,6 +906,7 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
     `
     ghost.textContent = item.name
     ghost.id = 'io-drag-ghost'
+    ghost.setAttribute('data-drag-ghost', 'true')
     document.body.appendChild(ghost)
 
     const onMove = (ev: MouseEvent) => {
@@ -1135,12 +1140,13 @@ function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolea
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999;
+      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
       padding: 4px 8px; background: var(--io-accent); color: #09090b;
       border-radius: 4px; font-size: 11px; font-weight: 600;
       transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
     `
     ghost.textContent = item.name
+    ghost.setAttribute('data-drag-ghost', 'true')
     document.body.appendChild(ghost)
     const onMove = (ev: MouseEvent) => {
       ghost.style.left = `${ev.clientX}px`
@@ -1337,12 +1343,13 @@ function WidgetTile({
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999;
+      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
       padding: 4px 8px; background: var(--io-accent); color: #09090b;
       border-radius: 4px; font-size: 11px; font-weight: 600;
       transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
     `
     ghost.textContent = label
+    ghost.setAttribute('data-drag-ghost', 'true')
     document.body.appendChild(ghost)
     const onMove = (ev: MouseEvent) => {
       ghost.style.left = `${ev.clientX}px`
@@ -1483,12 +1490,13 @@ function ReportElementTile({ elementType, label, collapsed }: ReportElementDef &
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999;
+      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
       padding: 4px 8px; background: var(--io-accent); color: #09090b;
       border-radius: 4px; font-size: 11px; font-weight: 600;
       transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
     `
     ghost.textContent = label
+    ghost.setAttribute('data-drag-ghost', 'true')
     document.body.appendChild(ghost)
     const onMove = (ev: MouseEvent) => {
       ghost.style.left = `${ev.clientX}px`
