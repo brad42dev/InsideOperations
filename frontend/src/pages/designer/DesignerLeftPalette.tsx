@@ -291,6 +291,8 @@ function ShapeTile({
   }, [item.id, shape, loadShape])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only handle left-click drags; right-clicks go to the context menu
+    if (e.button !== 0) return
     // Initiate a custom drag event the canvas can listen for
     e.preventDefault()
     const el = e.currentTarget as HTMLElement
@@ -338,6 +340,16 @@ function ShapeTile({
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
   }, [item.id, item.label])
+
+  function handleAddToCanvas() {
+    const canvasEl = document.querySelector('[data-designer-canvas="true"]')
+    const rect = canvasEl?.getBoundingClientRect()
+    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+    document.dispatchEvent(new CustomEvent('io:shape-drop', {
+      detail: { shapeId: item.id, x: cx, y: cy },
+    }))
+  }
 
   function handleExportSvg() {
     graphicsApi.exportShapeSvg(item.id).then(svgContent => {
@@ -453,6 +465,10 @@ function ShapeTile({
   const contextMenuContent = (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content style={cmContentStyle}>
+        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleAddToCanvas}>
+          Add to Canvas
+        </ContextMenuPrimitive.Item>
+        <ContextMenuPrimitive.Separator style={cmSepStyle} />
         {isLibrary && (
           <>
             <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleCopyToMyShapes}>
@@ -864,6 +880,8 @@ interface UserShapeItem {
 
 function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only handle left-click drags; right-clicks go to the context menu
+    if (e.button !== 0) return
     e.preventDefault()
     const el = e.currentTarget as HTMLElement
     el.setAttribute('data-dragging', 'true')
@@ -908,7 +926,17 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
     document.addEventListener('mouseup', onUp)
   }, [item.shape_id, item.name])
 
-  return (
+  function handleAddToCanvas() {
+    const canvasEl = document.querySelector('[data-designer-canvas="true"]')
+    const rect = canvasEl?.getBoundingClientRect()
+    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+    document.dispatchEvent(new CustomEvent('io:shape-drop', {
+      detail: { shapeId: item.shape_id, x: cx, y: cy },
+    }))
+  }
+
+  const tileDiv = (
     <div
       onMouseDown={handleMouseDown}
       title={item.name}
@@ -943,6 +971,21 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
         {item.name.length > 12 ? item.name.slice(0, 11) + '…' : item.name}
       </div>
     </div>
+  )
+
+  return (
+    <ContextMenuPrimitive.Root>
+      <ContextMenuPrimitive.Trigger asChild>
+        {tileDiv}
+      </ContextMenuPrimitive.Trigger>
+      <ContextMenuPrimitive.Portal>
+        <ContextMenuPrimitive.Content style={cmContentStyle}>
+          <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleAddToCanvas}>
+            Add to Canvas
+          </ContextMenuPrimitive.Item>
+        </ContextMenuPrimitive.Content>
+      </ContextMenuPrimitive.Portal>
+    </ContextMenuPrimitive.Root>
   )
 }
 

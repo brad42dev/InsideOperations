@@ -3897,6 +3897,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
       ref={containerRef}
       className={className}
       tabIndex={0}
+      data-designer-canvas="true"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
