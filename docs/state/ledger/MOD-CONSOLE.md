@@ -25,3 +25,4 @@ MOD-CONSOLE-015 | fix TypeError reading 'reduce' on workspaces selector | verifi
 MOD-CONSOLE-016 | Favorites group missing from console left nav panel | verified 2026-03-24 | commit b57fece | npx tsc --noEmit | PASS
 MOD-CONSOLE-017 | Console kiosk mode URL parameter fix | verified 2026-03-24 | commit f6431d9 | npx tsc --noEmit | PASS
 MOD-CONSOLE-018 | Pane context menu missing "Open in New Window" item for detached window | verified 2026-03-24 | commit 312ef5e | npx tsc --noEmit | PASS
+MOD-CONSOLE-019 | No right-click context menu on workspace rows in left nav | verified 2026-03-24 | commit 5630d49 | npx tsc --noEmit | PASS

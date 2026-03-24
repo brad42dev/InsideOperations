@@ -1196,13 +1196,16 @@ interface DropZoneRowProps {
   isDragging: boolean
 }
 
-// Inject CSS keyframe for cursor blink once per page load
+// Inject CSS keyframes for cursor blink and hover once per page load
 let _cursorStyleInjected = false
 function ensureCursorStyle() {
   if (_cursorStyleInjected) return
   _cursorStyleInjected = true
   const style = document.createElement('style')
-  style.textContent = `@keyframes io-cursor-blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }`
+  style.textContent = [
+    `@keyframes io-cursor-blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }`,
+    `.io-hitbox:hover .io-hitbox-preview { opacity: 1 !important; }`,
+  ].join('\n')
   document.head.appendChild(style)
 }
 
@@ -1227,23 +1230,29 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds, cursorP
     return (
       <div
         key={`cursor-${index}`}
+        role="presentation"
+        aria-label="Insertion cursor"
         style={{
           width: '2px',
+          minWidth: '2px',
           height: '36px',
           background: 'var(--io-accent)',
+          boxShadow: '0 0 4px var(--io-accent)',
           animation: isDragging ? 'none' : 'io-cursor-blink 1.06s step-end infinite',
           flexShrink: 0,
           alignSelf: 'center',
+          borderRadius: '1px',
         }}
-        aria-hidden="true"
       />
     )
   }
 
   function renderHitbox(index: number) {
+    const isActive = showCursorHere && cursorIndex === index
     return (
       <div
         key={`hitbox-${index}`}
+        className="io-hitbox"
         onClick={(e) => {
           e.stopPropagation()
           dispatch({ type: 'SET_CURSOR', parentId, index })
@@ -1254,9 +1263,30 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds, cursorP
           flexShrink: 0,
           cursor: 'text',
           alignSelf: 'center',
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
         aria-hidden="true"
-      />
+      >
+        {/* Hover preview line — appears when hovering over the hitbox and cursor is not already here */}
+        {!isActive && (
+          <div
+            className="io-hitbox-preview"
+            style={{
+              position: 'absolute',
+              width: '2px',
+              height: '28px',
+              background: 'var(--io-accent)',
+              borderRadius: '1px',
+              opacity: 0,
+              transition: 'opacity 0.1s',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+      </div>
     )
   }
 
@@ -1311,8 +1341,34 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds, cursorP
           </React.Fragment>
         ))}
         {tiles.length === 0 && (
-          <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', padding: '4px 6px', alignSelf: 'center' }}>
-            Drop tiles here
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '4px 6px',
+              alignSelf: 'center',
+              color: 'var(--io-text-muted)',
+              fontSize: '11px',
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {/* Visible cursor indicator in empty state */}
+            <div
+              role="presentation"
+              style={{
+                width: '2px',
+                minWidth: '2px',
+                height: '28px',
+                background: 'var(--io-accent)',
+                boxShadow: '0 0 4px var(--io-accent)',
+                animation: isDragging ? 'none' : 'io-cursor-blink 1.06s step-end infinite',
+                borderRadius: '1px',
+                flexShrink: 0,
+              }}
+            />
+            <span>Click palette tiles to insert, or drag them here</span>
           </div>
         )}
       </div>
