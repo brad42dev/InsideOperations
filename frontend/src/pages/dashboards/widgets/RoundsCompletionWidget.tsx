@@ -71,7 +71,7 @@ export default function RoundsCompletionWidget({ config }: Props) {
     )
   }
 
-  const instances = query.data ?? []
+  const instances = Array.isArray(query.data) ? query.data : []
 
   if (instances.length === 0) {
     return (
