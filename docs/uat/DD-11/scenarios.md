@@ -1,7 +1,7 @@
 # UAT Scenarios — DD-11
 
 ## Reports Module
-Scenario 1: [DD-11-007] Reports page renders — navigate to /reports → page loads without error boundary
-Scenario 2: [DD-11-007] ErrorBoundary button label — trigger error boundary → button reads "[Reload Module]"
-Scenario 3: [DD-11-008] Template browser empty state — open template browser → shows illustration and explanation, not blank
-Scenario 4: [DD-11-008] Template browser CTA button — empty state has a call-to-action button
+
+Scenario 1: [DD-11-008] Reports page renders without error — navigate to /reports → page loads, no error boundary
+Scenario 2: [DD-11-008] Template browser empty state — navigate to template browser with no templates → illustration, explanation text, and call-to-action button visible (not just blank)
+Scenario 3: [DD-11-008] Reports primary feature — click on a report type → report generation UI accessible

@@ -1,9 +1,10 @@
 # UAT Scenarios — GFX-DISPLAY
 
-## Display Elements (Designer)
-Scenario 1: [GFX-DISPLAY-001] Display elements palette visible — navigate to /designer → palette shows display element types
-Scenario 2: [GFX-DISPLAY-002] Fill gauge renders — add fill gauge to canvas → renders as vessel shape not rectangle
-Scenario 3: [GFX-DISPLAY-003] Quality state visible — display elements show quality indicators (good/bad/stale)
-Scenario 4: [GFX-DISPLAY-004] Alarm indicator animation — alarm display elements show appropriate alarm visual indicators
-Scenario 5: [GFX-DISPLAY-005] Signal line visible — text_readout and digital_status elements have signal line
-Scenario 6: [GFX-DISPLAY-006] CSS variables used — display elements use CSS custom properties not hardcoded hex colors
+## Display Elements
+
+Scenario 1: [GFX-DISPLAY-001] Designer/canvas renders — navigate to /designer → canvas loads without error
+Scenario 2: [GFX-DISPLAY-002] Fill gauge element visible — open Designer, add fill gauge → gauge element renders
+Scenario 3: [GFX-DISPLAY-003] Quality state handling — display elements in canvas → quality state (e.g., bad quality) reflected visually
+Scenario 4: [GFX-DISPLAY-004] Alarm flash animation — elements with alarm state → alarm priority flashing animation visible
+Scenario 5: [GFX-DISPLAY-005] Signal line on display elements — text readout or sparkline element → signal line indicator present
+Scenario 6: [GFX-DISPLAY-006] CSS custom properties used — inspect display elements → colors reference CSS variables not hardcoded hex

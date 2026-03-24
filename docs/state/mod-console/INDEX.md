@@ -17,3 +17,5 @@
 | MOD-CONSOLE-013 | Replace hardcoded hex colors in Console with design tokens | verified | 1 |
 | MOD-CONSOLE-014 | Console module fails to load due to dynamic import error | verified | 1 |
 | MOD-CONSOLE-015 | Console module crashes with TypeError reading 'reduce' | pending | 0 |
+| MOD-CONSOLE-016 | Favorites group missing from console left nav panel | pending | 0 |
+| MOD-CONSOLE-017 | Console kiosk mode URL parameter not activating kiosk UI | pending | 0 |

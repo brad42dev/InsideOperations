@@ -1,25 +1,30 @@
 ---
 unit: MOD-PROCESS
-date: 2026-03-23
+date: 2026-03-24
 uat_mode: auto
 verdict: pass
-scenarios_tested: 3
-scenarios_passed: 3
+scenarios_tested: 6
+scenarios_passed: 6
 scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /process loads the Process module with sidebar, viewport controls, and empty state
+pass: Navigating to /process loads real implementation — full-screen process graphics viewer with toolbar and nav sidebar.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Process Module | [MOD-PROCESS-009] Process module loads | ✅ pass | Module loads cleanly with Views/Bookmarks/Navigation/Recent sidebar and canvas with zoom/live/historical controls |
-| 2 | Process Module | [MOD-PROCESS-009] Process content visible | ✅ pass | Shows "Select a graphic from the sidebar" empty state with full toolbar |
-| 3 | Process Module | [MOD-PROCESS-009] Process navigation works | ✅ pass | Sidebar /process link navigated successfully |
+| 1 | Loading | [MOD-PROCESS-001] Process module loads | ✅ pass | /process loads without error — toolbar and graphics area visible |
+| 2 | Zoom | [MOD-PROCESS-001] Auto zoom-to-fit | ✅ pass | Process graphic auto-fits to viewport on load |
+| 3 | Zoom | [MOD-PROCESS-003] Zoom upper bound 800% | ✅ pass | Zoom cap confirmed at 800% — progression: 100→125→156→195→244→305→381→477→596→745→800%, additional "+" clicks held at 800% |
+| 4 | Points | [MOD-PROCESS-004] PointContextMenu on right-click | skipped | No live point values available to right-click |
+| 5 | Export | [MOD-PROCESS-005] Export button in toolbar | ✅ pass | Export button visible in toolbar with Quick export format dropdown |
+| 6 | Navigation | [MOD-PROCESS-006] Navigation hierarchy sidebar | ✅ pass | Navigation tree sidebar visible on left side of process view |
+| 7 | Kiosk | [MOD-PROCESS-007] Kiosk mode | ✅ pass | /process?kiosk=true activates kiosk mode — navigation sidebar hidden, only process content visible |
+| 8 | Loading | [MOD-PROCESS-008] Loading skeleton | skipped | Fast load — skeleton not observable in this session |
 
 ## New Bug Tasks Created
 
@@ -27,4 +32,4 @@ None
 
 ## Screenshot Notes
 
-Process module loads with: sidebar (Views, Bookmarks, Navigation, Recent Views tabs), canvas with zoom (−/+/Fit/100%), Live/Historical mode buttons, Export button, fullscreen toggle, and status bar showing "Disconnected | 0/0 points | LOD 3 – Detail".
+Zoom cap verified manually by clicking "+" 10 times from 100%. Process kiosk mode confirmed via ?kiosk=true parameter. Export dropdown opens with format options.

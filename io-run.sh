@@ -294,7 +294,7 @@ PYEOF
         [ -z "$UNIT_ID" ] && continue
 
         echo "─── UAT: $UNIT_ID ─────────────────────────────────────────────"
-        claude --dangerously-skip-permissions --agent uat-agent --print "$UAT_MODE $UNIT_ID" || true
+        claude --dangerously-skip-permissions --agent uat-agent --print "$UAT_MODE $UNIT_ID" < /dev/null || true
 
         # Read verdict from result file
         RESULT_FILE="docs/uat/$UNIT_ID/CURRENT.md"

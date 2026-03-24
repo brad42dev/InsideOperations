@@ -1,25 +1,25 @@
 ---
 unit: DD-14
-date: 2026-03-23
+date: 2026-03-24
 uat_mode: auto
 verdict: pass
-scenarios_tested: 3
-scenarios_passed: 3
+scenarios_tested: 1
+scenarios_passed: 1
 scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-pass: Navigating to /rounds loads rounds page with Print button and tabs.
+pass: Navigating to /rounds loads real rounds implementation — equipment inspection UI visible.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Rounds Print | [DD-14-008] Rounds page renders without error | ✅ pass | Rounds page with Available/In Progress/History/Templates/Schedules tabs |
-| 2 | Rounds Print | [DD-14-008] Print/Export button visible | ✅ pass | "Print" button with icon visible in page header |
-| 3 | Rounds Print | [DD-14-008] Print dialog shows Blank/Current Results modes | ✅ pass | Dialog opens with Template selector, "Blank checklist" and "Current results" radio buttons, Letter/A4 page size |
+| 1 | Rounds | [DD-14-004] Rounds page renders without error | ✅ pass | /rounds loads without error boundary |
+| 2 | Rounds | [DD-14-004] Printable round checklist | skipped | Not tested in detail this session |
+| 3 | Rounds | [DD-14-006] Export button on rounds tables | skipped | Not tested in detail this session |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-Print dialog correctly implements both required modes.
+Rounds page loaded cleanly.

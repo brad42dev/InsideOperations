@@ -28,3 +28,6 @@
 | MOD-DESIGNER-024 | Group sub-tabs — open group content in a dedicated sub-tab | verified | 1 |
 | MOD-DESIGNER-025 | Extend Promote to Shape wizard to accept groups with children | verified | 1 |
 | MOD-DESIGNER-026 | Designer graphics list crashes with TypeError reading 'slice' | pending | 0 |
+| MOD-DESIGNER-027 | Node context menu identical to empty canvas menu — node-specific items missing | pending | 0 |
+| MOD-DESIGNER-028 | Right-clicking shape in palette adds it to canvas instead of showing context menu | pending | 0 |
+| MOD-DESIGNER-029 | No file tab bar visible in designer when multiple graphics are open | pending | 0 |

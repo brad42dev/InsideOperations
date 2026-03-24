@@ -1,25 +1,25 @@
 ---
 unit: DD-21
-date: 2026-03-23
+date: 2026-03-24
 uat_mode: auto
-verdict: pass
-scenarios_tested: 3
-scenarios_passed: 3
+verdict: skipped
+scenarios_tested: 0
+scenarios_passed: 0
 scenarios_failed: 0
-scenarios_skipped: 0
+scenarios_skipped: 3
 ---
 
 ## Module Route Check
 
-pass: Navigating to /settings/users loads Users management page.
+pass: Navigating to /console loads without validation-related errors.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | User Form Validation | [DD-21-005] Add User form accessible | ✅ pass | Settings/Users page loads with "+ Add User" button |
-| 2 | User Form Validation | [DD-21-005] Empty submit shows inline errors | ✅ pass | Clicking "Create User" with empty fields shows "Username is required", "Email is required", "Password is required" paragraphs |
-| 3 | User Form Validation | [DD-21-005] Errors are inline paragraphs not alert dialogs | ✅ pass | Error messages are <paragraph> elements in dialog DOM, no browser alert() |
+| 1 | API | [DD-21-004] App renders without error | skipped | Not tested — /console loads but form validation scenarios not reached |
+| 2 | Forms | [DD-21-004] Form validation present | skipped | Not tested — could not reach invalid form submission in this session |
+| 3 | API | [DD-21-004] API returns validation errors | skipped | Not tested — browser time constraints prevented form validation testing |
 
 ## New Bug Tasks Created
 
@@ -27,4 +27,4 @@ None
 
 ## Screenshot Notes
 
-Inline validation works correctly per spec.
+Not tested this session due to browser crash recovery and session time constraints.

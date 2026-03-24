@@ -19,6 +19,7 @@ import { useRealtimeStore } from '../../store/realtimeStore'
 import { ExportDialog } from '../../shared/components/ExportDialog'
 import { exportsApi, type ExportFormat } from '../../api/exports'
 import { showToast } from '../../shared/components/Toast'
+import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
 
 // ---------------------------------------------------------------------------
 // ConsoleStatusBar
@@ -199,6 +200,8 @@ export default function ConsolePage() {
   } = useWorkspaceStore()
 
   const temporal = useWorkspaceTemporal()
+
+  const { toggleFavorite, isFavorite } = useConsoleWorkspaceFavorites()
 
   const {
     selectedPaneIds,
@@ -1550,6 +1553,13 @@ export default function ConsolePage() {
               {
                 label: 'Switch to Workspace',
                 onClick: () => setActiveId(ws.id),
+              },
+              {
+                label: isFavorite(ws.id) ? 'Remove from Favorites' : 'Add to Favorites',
+                onClick: () => {
+                  toggleFavorite(ws.id)
+                  setTabContextMenu(null)
+                },
               },
               {
                 label: 'Rename…',

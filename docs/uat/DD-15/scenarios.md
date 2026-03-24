@@ -1,8 +1,9 @@
 # UAT Scenarios — DD-15
 
-## Settings — Point Configuration
-Scenario 1: [DD-15-006] Settings page renders without error — navigate to /settings → page loads, no error boundary
-Scenario 2: [DD-15-006] Point configuration navigation — find Points or Point Configuration link in settings nav → link visible
-Scenario 3: [DD-15-006] Point configuration page loads — navigate to /settings/points → page renders with point list or empty state
-Scenario 4: [DD-15-006] Aggregation types visible — open a point in settings → aggregation type configuration options visible
-Scenario 5: [DD-15-006] Lifecycle metadata visible — open a point → lifecycle state/metadata version section visible
+## Settings Module
+
+Scenario 1: [DD-15-003] Settings/OPC page renders — navigate to /settings/opc-sources → page loads, form visible
+Scenario 2: [DD-15-003] OPC source form fields — navigate to OPC source create/edit form → client certificate dropdown, platform dropdown, and minimum publish interval field present
+Scenario 3: [DD-15-004] Group Management CRUD — navigate to settings group management → create group button, group list with edit/delete actions visible
+Scenario 4: [DD-15-007] EULA settings page — navigate to EULA settings → split-pane markdown editor visible (not just textarea), acceptance records summary cards visible
+Scenario 5: [DD-15-010] EULA accessible to admin — navigate to EULA settings as admin → page loads (not "Access Denied")

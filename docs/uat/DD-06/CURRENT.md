@@ -1,30 +1,34 @@
 ---
 unit: DD-06
-date: 2026-03-23
+date: 2026-03-24
 uat_mode: auto
-verdict: pass
-scenarios_tested: 3
-scenarios_passed: 3
-scenarios_failed: 0
-scenarios_skipped: 0
+verdict: partial
+scenarios_tested: 4
+scenarios_passed: 1
+scenarios_failed: 3
+scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-pass: Navigating to /console loads real app shell — full sidebar navigation with all 11 modules visible, header with search/alerts/theme/user controls, no error boundary.
+pass: Navigating to /console loads real implementation — app shell, navigation, header all present.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | App Shell | [DD-06-012] Console renders without error | ✅ pass | Page loads, full app shell visible, no error boundary |
-| 2 | App Shell | [DD-06-012] No popup banner visible on normal load | ✅ pass | No popup-blocked banner — expected (popups not blocked in test) |
-| 3 | App Shell | [DD-06-012] App shell navigation complete | ✅ pass | All 11 module links visible: Console, Process, Dashboards, Reports, Forensics, Log, Rounds, Alerts, Shifts, Settings, Designer |
+| 1 | Navigation | [DD-06-003] G-key navigation hint overlay | skipped | Cannot test keyboard overlay via Playwright automation |
+| 2 | Navigation | [DD-06-015] G-key hint overlay duplicate fix | skipped | Cannot test keyboard overlay via Playwright automation |
+| 3 | Lock | [DD-06-004] Password-based lock overlay | ❌ fail | ▲ button in header toggled but no lock overlay with password/PIN appeared |
+| 4 | Lock | [DD-06-011] LockOverlay rewrite | ❌ fail | No lock screen triggered at all — transparent passive state not observable |
+| 5 | Error Handling | [DD-06-008] ErrorBoundary button label | ❌ fail | Alerts error boundary showed "Reload Alerts" not generic "Reload Module" |
+| 6 | Shell | [DD-06-003] App shell renders without error | ✅ pass | /console loads with nav, header, module content all visible |
 
 ## New Bug Tasks Created
 
-None
+DD-06-016 — Lock overlay not implemented in app shell
+DD-06-017 — ErrorBoundary button uses module-specific text instead of "Reload Module"
 
 ## Screenshot Notes
 
-Popup detection banner task (DD-06-012) is for detecting browser popup blocking. In the test environment popups are not blocked so no banner is shown — this is correct behavior.
+Lock overlay not triggered by ▲ button. Alerts module crash confirmed "Reload Alerts" label instead of "Reload Module" (screenshot: docs/uat/DD-31/alerts-crash.png).

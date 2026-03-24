@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { graphicsApi } from '../../api/graphics'
 import type { WorkspaceLayout } from './types'
+import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -189,18 +190,122 @@ function DraggableItem({
 }
 
 // ---------------------------------------------------------------------------
-// Workspaces section
+// Star icon — used in workspace rows to toggle favorites
+// ---------------------------------------------------------------------------
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill={filled ? 'var(--io-warning)' : 'none'}
+      stroke={filled ? 'var(--io-warning)' : 'var(--io-text-muted)'}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Single workspace row — used in both favorites and full list
+// ---------------------------------------------------------------------------
+
+function WorkspaceRow({
+  ws,
+  isActive,
+  isFavorite,
+  onSelect,
+  onToggleFavorite,
+}: {
+  ws: WorkspaceLayout
+  isActive: boolean
+  isFavorite: boolean
+  onSelect: () => void
+  onToggleFavorite: () => void
+}) {
+  const [hovering, setHovering] = useState(false)
+
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center',
+        background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
+        padding: '0 4px 0 0',
+      }}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      <button
+        onClick={onSelect}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          flex: 1, padding: '5px 6px 5px 10px', border: 'none',
+          background: 'transparent',
+          cursor: 'pointer', textAlign: 'left',
+          minWidth: 0,
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <path d="M8 21h8M12 17v4" />
+        </svg>
+        <span style={{
+          flex: 1, fontSize: 12, color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontWeight: isActive ? 600 : 400,
+        }}>
+          {ws.name}
+        </span>
+        {ws.published && (
+          <span style={{ fontSize: 9, background: 'var(--io-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 600, letterSpacing: '0.03em', flexShrink: 0 }}>
+            PUB
+          </span>
+        )}
+      </button>
+      {/* Star button — visible on hover or when already favorited */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
+        title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 3, flexShrink: 0,
+          opacity: isFavorite || hovering ? 1 : 0,
+          transition: 'opacity 0.1s',
+        }}
+      >
+        <StarIcon filled={isFavorite} />
+      </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Workspaces section — with Favorites group pinned at top
 // ---------------------------------------------------------------------------
 
 function WorkspacesSection({
   workspaces,
   activeWorkspaceId,
   onSelectWorkspace,
+  favoriteIds,
+  onToggleFavorite,
 }: {
   workspaces: WorkspaceLayout[]
   activeWorkspaceId: string | null
   onSelectWorkspace?: (id: string) => void
+  favoriteIds: Set<string>
+  onToggleFavorite: (id: string) => void
 }) {
+  const [favoritesOpen, setFavoritesOpen] = useState(true)
+
+  const favoriteWorkspaces = workspaces.filter((ws) => favoriteIds.has(ws.id))
+  const hasFavorites = favoriteWorkspaces.length > 0
+
   if (workspaces.length === 0) {
     return (
       <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
@@ -211,38 +316,74 @@ function WorkspacesSection({
 
   return (
     <div style={{ padding: '4px 0' }}>
-      {workspaces.map((ws) => {
-        const isActive = ws.id === activeWorkspaceId
-        return (
+      {/* Favorites group — pinned at top, only shown when there are favorites */}
+      {hasFavorites && (
+        <div style={{ marginBottom: 2 }}>
+          {/* Favorites sub-header */}
           <button
-            key={ws.id}
-            onClick={() => onSelectWorkspace?.(ws.id)}
+            onClick={() => setFavoritesOpen((v) => !v)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              width: '100%', padding: '5px 10px', border: 'none',
-              background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
-              cursor: 'pointer', textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: 5,
+              width: '100%', padding: '3px 10px', border: 'none',
+              background: 'transparent', cursor: 'pointer', textAlign: 'left',
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <path d="M8 21h8M12 17v4" />
+            <svg
+              style={{
+                width: 10, height: 10, color: 'var(--io-text-muted)',
+                transition: 'transform 0.15s',
+                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                flexShrink: 0,
+              }}
+              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+            >
+              <polyline points="6 4 10 8 6 12" />
             </svg>
+            <StarIcon filled />
             <span style={{
-              flex: 1, fontSize: 12, color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              fontWeight: isActive ? 600 : 400,
+              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
             }}>
-              {ws.name}
+              Favorites
             </span>
-            {ws.published && (
-              <span style={{ fontSize: 9, background: 'var(--io-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 600, letterSpacing: '0.03em' }}>
-                PUB
-              </span>
-            )}
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
+              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
+            }}>
+              {favoriteWorkspaces.length}
+            </span>
           </button>
-        )
-      })}
+          {favoritesOpen && (
+            <div>
+              {favoriteWorkspaces.map((ws) => (
+                <WorkspaceRow
+                  key={ws.id}
+                  ws={ws}
+                  isActive={ws.id === activeWorkspaceId}
+                  isFavorite
+                  onSelect={() => onSelectWorkspace?.(ws.id)}
+                  onToggleFavorite={() => onToggleFavorite(ws.id)}
+                />
+              ))}
+            </div>
+          )}
+          {/* Divider between Favorites and full list */}
+          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+        </div>
+      )}
+
+      {/* Full workspace list */}
+      {workspaces.map((ws) => (
+        <WorkspaceRow
+          key={ws.id}
+          ws={ws}
+          isActive={ws.id === activeWorkspaceId}
+          isFavorite={favoriteIds.has(ws.id)}
+          onSelect={() => onSelectWorkspace?.(ws.id)}
+          onToggleFavorite={() => onToggleFavorite(ws.id)}
+        />
+      ))}
     </div>
   )
 }
@@ -523,6 +664,8 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
     points: false,
   })
 
+  const { favoriteIds, toggleFavorite } = useConsoleWorkspaceFavorites()
+
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
@@ -613,7 +756,13 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           onToggle={() => toggleSection('workspaces')}
           badge={workspaces.length}
         >
-          <WorkspacesSection workspaces={workspaces} activeWorkspaceId={activeWorkspaceId} onSelectWorkspace={onSelectWorkspace} />
+          <WorkspacesSection
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
+            onSelectWorkspace={onSelectWorkspace}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={toggleFavorite}
+          />
         </AccordionSection>
 
         <AccordionSection

@@ -1,31 +1,32 @@
 ---
 unit: DD-27
-date: 2026-03-23
+date: 2026-03-24
 uat_mode: auto
-verdict: partial
-scenarios_tested: 3
+verdict: fail
+scenarios_tested: 2
 scenarios_passed: 0
-scenarios_failed: 3
-scenarios_skipped: 0
+scenarios_failed: 2
+scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-pass: /alerts loads. /settings/sms-providers shows "Access Denied".
+fail: /settings/sms-providers shows "Access Denied" for admin user — RBAC configuration bug.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alert System | [DD-27-010] SMS Providers page without Access Denied | ❌ fail | /settings/sms-providers still shows "Access Denied — You do not have permission to view this page." for admin user |
-| 2 | Alert System | [DD-27-007] Alert channels shows multiple types | ❌ fail | Alerts compose CHANNELS section shows only "websocket" checkbox. No email/SMS/other channels. |
-| 3 | Alert System | [DD-27-010] Settings renders without permission error | ❌ fail | Same as Scenario 1 — RBAC permission fix not applied |
+| 1 | SMS | [DD-27-009] SMS Providers settings accessible | ❌ fail | /settings/sms-providers shows "Access Denied" for admin |
+| 2 | SMS | [DD-27-010] SMS Providers page loads | ❌ fail | "You do not have permission to view this page." displayed |
+| 3 | Alert | [DD-27-007] Channel adapters in alert compose | skipped | Alerts module crashed before reaching compose form |
+| 4 | Alert | [DD-27-007] Alert settings page renders | skipped | Alerts module crashes on load — cannot test settings page |
 
 ## New Bug Tasks Created
 
-None
+DD-27-011 — SMS Providers settings page shows Access Denied for admin user
 
 ## Screenshot Notes
 
-- Screenshot docs/uat/DD-27/dd27-010-sms-access-denied.png: Access Denied for admin on /settings/sms-providers
-- DD-27-003, DD-27-004 (CancellationToken, startup recovery) are backend behavioral changes not browser-testable
+SMS Access Denied screenshot: docs/uat/DD-27/sms-access-denied.png
+Admin user lacks permission for sms-providers and eula settings pages — same RBAC bug pattern as DD-15.
