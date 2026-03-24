@@ -183,7 +183,7 @@ export default function ConsolePage() {
   // ---- Kiosk mode -----------------------------------------------------------
 
   const [searchParams] = useSearchParams()
-  const { setKiosk } = useUiStore()
+  const { setKiosk, isKiosk } = useUiStore()
 
   // Track whether this component instance set kiosk to true, so cleanup
   // doesn't accidentally clear kiosk state set by another module.
@@ -1307,32 +1307,34 @@ export default function ConsolePage() {
 
       {/* Body */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
-        {/* Left palette */}
-        <ConsolePalette
-          visible={paletteVisible}
-          onToggle={() => setPaletteVisible((v) => !v)}
-          onQuickPlace={handleQuickPlace}
-          workspaces={workspaces}
-          activeWorkspaceId={activeId}
-          onSelectWorkspace={setActiveId}
-          onRenameWorkspace={(id) => {
-            const ws = workspaces.find((w) => w.id === id)
-            if (!ws) return
-            const newName = prompt('Workspace name:', ws.name)
-            if (newName && newName.trim()) handleRenameWorkspace(id, newName.trim())
-          }}
-          onDuplicateWorkspace={duplicateWorkspace}
-          onDeleteWorkspace={(id) => {
-            const nextWorkspaces = workspaces.filter((w) => w.id !== id)
-            setWorkspaces(nextWorkspaces)
-            if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null)
-            if (useApi) {
-              deleteMutation.mutate(id)
-            } else {
-              saveWorkspacesLocal(nextWorkspaces)
-            }
-          }}
-        />
+        {/* Left palette — hidden in kiosk mode so pane content fills the screen */}
+        {!isKiosk && (
+          <ConsolePalette
+            visible={paletteVisible}
+            onToggle={() => setPaletteVisible((v) => !v)}
+            onQuickPlace={handleQuickPlace}
+            workspaces={workspaces}
+            activeWorkspaceId={activeId}
+            onSelectWorkspace={setActiveId}
+            onRenameWorkspace={(id) => {
+              const ws = workspaces.find((w) => w.id === id)
+              if (!ws) return
+              const newName = prompt('Workspace name:', ws.name)
+              if (newName && newName.trim()) handleRenameWorkspace(id, newName.trim())
+            }}
+            onDuplicateWorkspace={duplicateWorkspace}
+            onDeleteWorkspace={(id) => {
+              const nextWorkspaces = workspaces.filter((w) => w.id !== id)
+              setWorkspaces(nextWorkspaces)
+              if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null)
+              if (useApi) {
+                deleteMutation.mutate(id)
+              } else {
+                saveWorkspacesLocal(nextWorkspaces)
+              }
+            }}
+          />
+        )}
 
         {/* Workspace area */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
