@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T20:12:46.922207Z",
+  "last_updated": "2026-03-24T20:33:48.516541+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -173,7 +173,9 @@
     "DD-23-021": 1,
     "DD-29-014": 1,
     "DD-31-018": 1,
-    "MOD-DESIGNER-034": 1
+    "MOD-DESIGNER-034": 1,
+    "DD-10-018": 1,
+    "DD-13-015": 1
   },
   "queue": [
     {
@@ -5484,7 +5486,7 @@
       "wave": 3,
       "title": "TrendChart widget crashes \u2014 results.some is not a function",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5496,7 +5498,7 @@
       "wave": 3,
       "title": "Template editor crashes on open: allSegments.filter is not a function",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5508,11 +5510,11 @@
       "wave": 3,
       "title": "Archive settings API GET/PUT /api/archive/settings returns 404 \u2014 form never loads",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-022",
@@ -5604,7 +5606,7 @@
       "wave": 2,
       "title": "\"View Alerts\" missing from display element point context menu",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
