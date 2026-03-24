@@ -1826,8 +1826,10 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   const [rotationPreview, setRotationPreview] = useState<{ nodeId: NodeId; angle: number } | null>(null)
 
   // Context menu state
-  // nodeId of the node right-clicked — stored in a ref so Radix ContextMenu
-  // content can read it synchronously when the menu opens.
+  // ctxNodeId is React state so DesignerContextMenuContent re-renders with the
+  // correct value when the menu opens (a plain ref would not trigger re-render).
+  // ctxNodeIdRef mirrors it for use inside event callbacks without stale closures.
+  const [ctxNodeId, setCtxNodeId] = useState<NodeId | null>(null)
   const ctxNodeIdRef = useRef<NodeId | null>(null)
 
   // Point context menu (test mode only) — tracks trigger position + point identity
@@ -3482,11 +3484,13 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   // Right-click context menu
   // -------------------------------------------------------------------------
 
-  // Called on the Radix Trigger's onContextMenu — updates the ref so menu
-  // content can read the hit-tested nodeId when it renders.
+  // Called on the Radix Trigger's onContextMenu — updates both the ref and the
+  // state so DesignerContextMenuContent re-renders with the correct nodeId.
+  // The ref is kept in sync so callbacks inside the menu can read it
+  // synchronously without stale-closure issues.
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     const rect = getRect()
-    if (!rect) { ctxNodeIdRef.current = null; return }
+    if (!rect) { ctxNodeIdRef.current = null; setCtxNodeId(null); return }
     const vp = viewportRef.current
     const cx = (e.clientX - rect.left - vp.panX) / vp.zoom
     const cy = (e.clientY - rect.top  - vp.panY) / vp.zoom
@@ -3496,6 +3500,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
       useUiStore.getState().setSelectedNodes([hitId])
     }
     ctxNodeIdRef.current = hitId
+    setCtxNodeId(hitId)
   }, [])
 
   // -------------------------------------------------------------------------
@@ -4483,7 +4488,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
 
     {/* Radix portal-rendered context menu */}
     <DesignerContextMenuContent
-      ctxNodeIdRef={ctxNodeIdRef}
+      ctxNodeId={ctxNodeId}
       selectedIdsRef={selectedIdsRef}
       doc={doc}
       docRef={docRef}
@@ -4762,7 +4767,7 @@ function makeDefaultDisplayConfig(dtype: DisplayElementType): import('../../shar
 // ---------------------------------------------------------------------------
 
 interface DesignerContextMenuContentProps {
-  ctxNodeIdRef: React.MutableRefObject<NodeId | null>
+  ctxNodeId: NodeId | null
   selectedIdsRef: React.MutableRefObject<Set<NodeId>>
   doc: GraphicDocument | null
   docRef: React.MutableRefObject<GraphicDocument | null>
@@ -4794,7 +4799,7 @@ interface DesignerContextMenuContentProps {
 }
 
 function DesignerContextMenuContent({
-  ctxNodeIdRef,
+  ctxNodeId,
   selectedIdsRef,
   doc,
   docRef,
@@ -4820,8 +4825,9 @@ function DesignerContextMenuContent({
 }: DesignerContextMenuContentProps) {
   const getShape = useLibraryStore(s => s.getShape)
 
-  // Read nodeId and selectedIds at render time (Radix calls this when menu opens)
-  const nodeId = ctxNodeIdRef.current
+  // ctxNodeId is React state (not just a ref) so this component re-renders
+  // with the correct value every time the context menu is triggered.
+  const nodeId = ctxNodeId
   const selectedIds = selectedIdsRef.current
   const hasSelection = selectedIds.size > 0
   const hasDoc = !!doc
