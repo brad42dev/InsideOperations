@@ -407,7 +407,7 @@ export default function TemplateEditor() {
     queryFn: async () => {
       const res = await logsApi.listSegments()
       if (!res.success) throw new Error(res.error.message)
-      return res.data
+      return Array.isArray(res.data) ? res.data : []
     },
   })
 
@@ -416,7 +416,8 @@ export default function TemplateEditor() {
     queryFn: async () => {
       const res = await logsApi.listTemplates()
       if (!res.success) throw new Error(res.error.message)
-      return res.data.find((t: LogTemplate) => t.id === id) ?? null
+      const templates = Array.isArray(res.data) ? res.data : []
+      return templates.find((t: LogTemplate) => t.id === id) ?? null
     },
     enabled: !isNew && !!id,
   })
