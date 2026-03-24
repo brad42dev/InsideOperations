@@ -1,15 +1,18 @@
 # UAT Scenarios — DD-14
 
-## Page Load
-Scenario 1: [DD-14-004] Rounds module renders without error — navigate to /rounds → page loads, no error boundary, no blank stub
+## Page Load / Error Boundary
 
-## Printable Checklist (DD-14-004)
-Scenario 2: [DD-14-004] Print/Export button visible in rounds view — navigate to /rounds and open a round or template → print or export button visible in the UI
-Scenario 3: [DD-14-004] Print dialog opens with mode options — click print/export button on a round → dialog opens with "Blank checklist" and "Current results" mode options visible
-Scenario 4: [DD-14-004] Blank checklist mode initiates action — select "Blank checklist" mode → print dialog or PDF download initiates (no silent no-op)
-Scenario 5: [DD-14-004] Current results mode initiates action — select "Current results" mode → print dialog or PDF download initiates (no silent no-op)
+Scenario 1: [DD-14-009] Rounds page loads without error boundary — navigate to /rounds → no "Something went wrong" error boundary, page content visible
+Scenario 2: [DD-14-009] Rounds page tabs visible — navigate to /rounds → tabs "Available", "In Progress", "History", "Templates", "Schedules" are all present in snapshot
 
-## Export Button (DD-14-006)
-Scenario 6: [DD-14-006] Export button visible on rounds table — navigate to /rounds → export button or icon visible in rounds list/table toolbar
-Scenario 7: [DD-14-006] Export action produces output — click export button on rounds table → download initiated or export dialog opens (no silent no-op)
-Scenario 8: [DD-14-006] Export button visible on round templates table — navigate to rounds templates section → export button visible in toolbar
+## Tab Navigation
+
+Scenario 3: [DD-14-009] Available tab accessible — click "Available" tab → tab content renders without crash, empty state or data shown
+Scenario 4: [DD-14-009] In Progress tab accessible — click "In Progress" tab → tab content renders without crash, empty state or data shown
+Scenario 5: [DD-14-009] History tab accessible — click "History" tab → tab content renders without crash, empty state or data shown
+Scenario 6: [DD-14-009] Templates tab accessible — click "Templates" tab → tab content renders without crash, empty state or data shown
+Scenario 7: [DD-14-009] Schedules tab accessible — click "Schedules" tab → tab content renders without crash, empty state or data shown
+
+## Empty State Handling
+
+Scenario 8: [DD-14-009] Empty state shown instead of crash — with no rounds data, each tab shows empty state message rather than JavaScript error or blank white screen

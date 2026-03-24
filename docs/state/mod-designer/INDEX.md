@@ -36,3 +36,5 @@
 | MOD-DESIGNER-032 | Drag ghost overlay missing when dragging shapes from palette to canvas | pending | 0 |
 | MOD-DESIGNER-033 | Point context menu items missing from display element right-click menu | pending | 0 |
 | MOD-DESIGNER-034 | Group editing does not open a sub-tab in the Designer tab bar | pending | 0 |
+| MOD-DESIGNER-035 | Canvas drag ghost missing — no preview when dragging shape on canvas | pending | 0 |
+| MOD-DESIGNER-036 | "View Alerts" missing from display element point context menu | pending | 0 |

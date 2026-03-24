@@ -3,38 +3,36 @@ unit: DD-13
 date: 2026-03-24
 uat_mode: auto
 verdict: partial
-scenarios_tested: 10
-scenarios_passed: 4
-scenarios_failed: 6
+scenarios_tested: 11
+scenarios_passed: 10
+scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-partial: Navigating to /log briefly loads real implementation (heading, filter controls, tabs visible) then crashes with "(templatesData ?? []).map is not a function" error boundary consistently on every load/reload.
+pass: Navigating to /log loads real implementation — Log module with filter bar, tabs (Active Logs, Completed, Templates), and empty state.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Log Module Renders | [DD-13-007] Log module loads without error | ❌ fail | Module crashes every load with "(templatesData ?? []).map is not a function" — error boundary shown |
-| 2 | Log Module Renders | [DD-13-008] Log module renders schedule management section | ❌ fail | Module crashes before Templates tab is accessible |
-| 3 | Log Search Filter Controls | [DD-13-007] Date filter control present | ✅ pass | "From date" and "To date" textboxes visible in initial load |
-| 4 | Log Search Filter Controls | [DD-13-007] Author filter control present | ✅ pass | "Filter by author" textbox with Author placeholder visible |
-| 5 | Log Search Filter Controls | [DD-13-007] Shift filter control present | ✅ pass | "Shift ID" textbox visible |
-| 6 | Log Search Filter Controls | [DD-13-007] Template filter control present | ✅ pass | Combobox with "All templates" option visible |
-| 7 | Log Search Filter Controls | [DD-13-007] Date filter is interactive | ❌ fail | Module crashes before interaction can be performed |
-| 8 | Log Schedule Management UI | [DD-13-008] Schedule management section exists | ❌ fail | Crash blocks access to Templates tab entirely |
-| 9 | Log Schedule Management UI | [DD-13-008] Schedule management shows interactive UI | ❌ fail | Cannot access due to crash |
-| 10 | Log Schedule Management UI | [DD-13-008] Schedule create/edit button clickable | ❌ fail | Cannot access due to crash |
+| 1 | Module Load | [DD-13-013] Log module renders without error boundary | ✅ pass | Heading "Log" visible, no ErrorBoundary |
+| 2 | Module Load | [DD-13-014] Log module does not crash on /log | ✅ pass | Empty state "No active logs" shown |
+| 3 | Module Load | [DD-13-014] Reload does not re-trigger crash | ✅ pass | Module reloads cleanly |
+| 4 | Filter Controls | [DD-13-007] Date filter control visible | ✅ pass | "From date" and "To date" textboxes present |
+| 5 | Filter Controls | [DD-13-007] Author filter control visible | ✅ pass | "Filter by author" input present |
+| 6 | Filter Controls | [DD-13-007] Shift filter control visible | ✅ pass | "Shift ID" input present |
+| 7 | Filter Controls | [DD-13-007] Template filter control visible | ✅ pass | "All templates" combobox present |
+| 8 | Filter Controls | [DD-13-007] Filter controls are interactive | ✅ pass | "From date" input activated on click |
+| 9 | Schedule Mgmt | [DD-13-008] Schedule management UI visible | ✅ pass | Templates tab shows "New Template" button |
+| 10 | Schedule Mgmt | [DD-13-008] Schedule UI is interactive | ❌ fail | Clicking "New Template" navigates to /log/templates/new/edit and crashes: ErrorBoundary "Log failed to load — allSegments.filter is not a function" |
+| 11 | Schedule Mgmt | [DD-13-008] Schedule list shows content or empty state | ✅ pass | "No templates yet. Create one to get started." — proper empty state |
 
 ## New Bug Tasks Created
 
-None — all failures are blocked by the existing crash tracked in pending tasks DD-13-013 and DD-13-014 ("(templatesData ?? []).map is not a function"). No new bug tasks warranted.
+DD-13-015 — Template editor crashes on open: allSegments.filter is not a function
 
 ## Screenshot Notes
 
-- docs/uat/DD-13/crash-templates-map.png — Error boundary: "Log failed to load / (templatesData ?? []).map is not a function"
-- The crash is triggered by the templates API returning a non-array (e.g. 429 Too Many Requests response), which then hits the un-guarded .map call
-- Four DD-13-007 filter controls (date, author, shift, template) ARE present and visible in the brief window before the crash confirms that DD-13-007's filter UI implementation is in place
-- DD-13-008's Templates tab (schedule management) could not be verified at all — blocked entirely by the crash
+- docs/uat/DD-13/fail-scenario10-template-editor-crash.png — ErrorBoundary visible at /log/templates/new/edit; error: "allSegments.filter is not a function". Template editor is completely non-functional; the "New Template" workflow is broken.

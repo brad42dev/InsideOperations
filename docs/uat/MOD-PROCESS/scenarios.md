@@ -1,15 +1,11 @@
 # UAT Scenarios — MOD-PROCESS
 
-## Page Load & Module Health
-Scenario 1: [MOD-PROCESS-002] Process module route renders without error — navigate to /process → page loads, no error boundary ("Something went wrong") visible
-Scenario 2: [MOD-PROCESS-002] Process module shows content or empty state — navigate to /process → either a process graphic or an empty-state message is visible (not a blank page)
-Scenario 3: [MOD-PROCESS-002] No JavaScript console errors on load — navigate to /process, wait 3s → no unhandled errors surfaced in page (error boundaries absent)
+## Page Load & Error Boundary
+Scenario 1: [MOD-PROCESS-010] Process module renders without error — navigate to /process → page loads, no "Something went wrong" error boundary visible
+Scenario 2: [MOD-PROCESS-010] Process module sidebar visible — navigate to /process → sidebar navigation or views list is present
 
-## Skeleton / Loading State (MOD-PROCESS-008)
-Scenario 4: [MOD-PROCESS-008] No legacy spinner during load — navigate to /process → no element with role="progressbar" or class containing "spinner" is visible after content loads
-Scenario 5: [MOD-PROCESS-008] Skeleton state appears during initial load — navigate to /process → skeleton placeholder elements visible momentarily before content, OR content loads immediately with no spinner (both acceptable)
-Scenario 6: [MOD-PROCESS-008] Process toolbar is visible once loaded — navigate to /process → toolbar with process controls visible (zoom, export, navigation elements)
-
-## Navigation & Interaction
-Scenario 7: [MOD-PROCESS-002] Navigating between process views does not produce errors — if multiple process views exist, click navigation items → page remains functional with no error boundary
-Scenario 8: [MOD-PROCESS-002] Process module sidebar (navigation tree) is visible — navigate to /process → sidebar or navigation panel present
+## Console Error Verification (Observable via UI behavior)
+Scenario 3: [MOD-PROCESS-010] Graphic loads without crashing — navigate to /process and wait for full load → no error boundary appears, graphic area renders (or shows empty state)
+Scenario 4: [MOD-PROCESS-010] Browser console messages checked for Query undefined error — navigate to /process → no "Query data cannot be undefined" errors in browser console messages
+Scenario 5: [MOD-PROCESS-010] Clicking a graphic in the sidebar loads it — click first available graphic/view in sidebar → graphic renders or shows placeholder, no error boundary appears
+Scenario 6: [MOD-PROCESS-010] Multiple graphic selections produce no error boundary — click 2-3 different items in sidebar → process view continues to render correctly, no crash

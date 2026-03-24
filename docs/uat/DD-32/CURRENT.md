@@ -3,36 +3,35 @@ unit: DD-32
 date: 2026-03-24
 uat_mode: auto
 verdict: partial
-scenarios_tested: 6
-scenarios_passed: 3
-scenarios_failed: 3
-scenarios_skipped: 3
+scenarios_tested: 7
+scenarios_passed: 6
+scenarios_failed: 1
+scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /console loads real implementation — console page with workspace tabs, asset palette, and process graphic pane visible.
+pass: Navigating to /console loads real implementation (workspace tabs, assets palette, notifications region all present)
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Health | [DD-32-010] Console page renders without error | ✅ pass | Page loads with full nav, workspace "Reactor Overview", asset palette, graphic pane |
-| 2 | Workspace Toast | [DD-32-010] Workspace creation shows toast | ❌ fail | Clicked + → Done; no toast appeared in Notifications (F8). Backend returned 404 on workspace save. Silent failure. |
-| 3 | Workspace Toast | [DD-32-010] Toast visible in notifications area | ❌ fail | Notifications (F8) region present but empty list after workspace creation. |
-| 4 | PointContextMenu | [DD-32-005] Console page has interactive elements | ✅ pass | Workspace tab, asset palette, graphics pane all present. |
-| 5 | PointContextMenu | [DD-32-005] Right-click on console element shows context menu | ✅ pass | Right-clicking "Reactor Overview" tab showed [role="menu"] with Switch/Rename/Duplicate/Publish/Delete items. |
-| 6 | PointContextMenu | [DD-32-005] Context menu contains expected point actions | skipped | No OPC point elements accessible (OPC offline, graphic failed to load). Cannot test Trend/Investigate/Report actions. |
-| 7 | Toast Component | [DD-32-007] Toast component renders when triggered | ❌ fail | Duplicated workspace via right-click → Duplicate; API returned 404; no error toast shown. Notifications (F8) empty. |
-| 8 | Toast Component | [DD-32-007] Toast max enforcement (3-toast max with badge) | skipped | Cannot test max enforcement — no toasts appeared in any tested operation. |
-| 9 | Toast Component | [DD-32-007] Toast area location | skipped | Cannot verify toast location — no toasts appeared to observe placement. |
+| 1 | Console Route Health | [DD-32-014] Console page renders without error | ✅ pass | Workspace tabs visible, no app-level error boundary |
+| 2 | Workspace Creation Toast | [DD-32-014] Create workspace via "+" shows success toast | ✅ pass | "Workspace created" toast appeared in Notifications (F8) immediately on "+" click |
+| 3 | Workspace Creation Toast | [DD-32-014] Workspace tab count increments after creation | ❌ fail | "Workspaces 1" counter stayed at 1 after create; backend returned 404 on new workspace fetch; optimistic success toast fires even when backend fails |
+| 4 | Notifications Panel (F8) | [DD-32-014] F8 keypress opens Notifications panel | ✅ pass | Pressing F8 set the notifications list to [active] state |
+| 5 | Workspace Context Menu | [DD-32-015] Right-click workspace tab shows Duplicate option | ✅ pass | Context menu appeared with "Duplicate" menuitem |
+| 6 | Workspace Context Menu | [DD-32-015] Context menu shows full CRUD actions | ✅ pass | Menu contained: Switch to Workspace, Remove from Favorites, Rename…, Duplicate, Publish, Delete |
+| 7 | Workspace Duplication Toast | [DD-32-015] Duplicating a workspace shows a toast | ✅ pass | "Workspace duplicated" toast appeared in Notifications region; not silent |
 
 ## New Bug Tasks Created
 
-DD-32-015 — No toast shown when workspace duplication fails — silent 404 error
+DD-32-016 — Optimistic success toast fires on workspace creation even when backend returns 404
 
 ## Screenshot Notes
 
-- fail-scenario2-no-toast.png: Console after + → Done; Notifications region visible but empty. Workspace count stays at 1 (save failed silently with 404).
-- fail-scenario7-no-toast-duplicate.png: Console after right-click → Duplicate; Notifications region empty despite 404 error from backend. Toast component not firing for workspace CRUD failures.
-- DD-32-005 point context menu cannot be fully tested without OPC connection (no data-bound SVG elements available to right-click).
+- Scenario 3 screenshot: docs/uat/DD-32/scenario3-fail-tab-count.png
+- After clicking "+" and then "Done", the workspace tab bar still shows only "Reactor Overview" (count=1). Console logged: "Failed to load resource: 404 Not Found @ /api/v1/console/workspaces/{uuid}". The "Workspace created" toast fired before or without confirming backend success.
+- Duplicate (Scenario 7) also triggered a backend 404 on the new workspace fetch, but the toast correctly appeared. The duplicate workspace similarly did not appear as a new tab.
+- Login: default credentials admin/admin failed; seed credentials admin/changeme succeeded.

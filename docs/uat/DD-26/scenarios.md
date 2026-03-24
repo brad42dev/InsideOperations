@@ -1,13 +1,15 @@
 # UAT Scenarios — DD-26
 
 ## Page Load
-Scenario 1: [DD-26-007] Designer page renders without error — navigate to /designer → page loads with no error boundary ("Something went wrong")
+Scenario 1: [DD-26-009] Designer page renders without error — navigate to /designer → page loads with no error boundary, no "Something went wrong" text
 
 ## Recognition Entry Point
-Scenario 2: [DD-26-007] Recognize Image button visible in Designer — navigate to /designer, look at toolbar/menu → "Recognize Image" or "Import from P&ID" or equivalent button/menu item is present
-Scenario 3: [DD-26-007] Clicking Recognize Image opens a dialog — click the recognition entry point → [role="dialog"] appears (wizard dialog opens)
+Scenario 2: [DD-26-009] Recognize Image button is visible — navigate to /designer → "Recognize Image" or equivalent recognition entry point is present in toolbar/menu
+Scenario 3: [DD-26-009] Recognize Image button has correct role — navigate to /designer, inspect element → rendered as role="button" (clickable), not a non-interactive generic element
+Scenario 4: [DD-26-009] Clicking Recognize Image opens wizard dialog — click "Recognize Image" → [role="dialog"] appears (not a silent no-op)
 
-## Wizard Content
-Scenario 4: [DD-26-007] Wizard has a file upload area — after opening wizard → a file input or dropzone for uploading an image/.iomodel file is visible
-Scenario 5: [DD-26-007] Wizard has a close/cancel button — after opening wizard → a close button (X) or Cancel button is present
-Scenario 6: [DD-26-007] Close button dismisses wizard — click close/cancel button → dialog disappears from snapshot
+## Wizard Content and Service Status
+Scenario 5: [DD-26-009] Wizard shows service status message when unavailable — after wizard opens with recognition service unavailable → dialog contains user-readable message about service status (e.g., "unavailable", "service", "recognition")
+Scenario 6: [DD-26-010] Wizard has a close/cancel button — with dialog open → a close (X) or Cancel button is present in the dialog
+Scenario 7: [DD-26-010] Close button dismisses wizard — click close/cancel → dialog is dismissed, Designer returns to normal state
+Scenario 8: [DD-26-010] Recognize Image always produces visible UI change — click "Recognize Image" → something visible changes in the UI (no silent no-op behavior)

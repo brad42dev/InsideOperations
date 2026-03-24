@@ -3,35 +3,34 @@ unit: DD-27
 date: 2026-03-24
 uat_mode: auto
 verdict: partial
-scenarios_tested: 9
-scenarios_passed: 1
-scenarios_failed: 8
+scenarios_tested: 7
+scenarios_passed: 5
+scenarios_failed: 2
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-fail: Navigating to /alerts triggers an error boundary — "Alerts failed to load: templates.find is not a function". The /settings/sms-providers route loads correctly.
+pass: Navigating to /alerts loads real implementation — Alerts module with Send Alert composer, Active/History/Management tabs visible, no error boundary.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alerts Module Rendering | [DD-27-007] Alerts page renders without error | ❌ fail | Error boundary: "Alerts failed to load — templates.find is not a function" |
-| 2 | Alerts Module Rendering | [DD-27-007] Alert composer accessible | ❌ fail | Cannot access — page crashed before composer could be reached |
-| 3 | Channel Adapter Visibility | [DD-27-007] SMS channel option present in alert composer | ❌ fail | Cannot access — page crashed |
-| 4 | Channel Adapter Visibility | [DD-27-007] PA channel option present in alert composer | ❌ fail | Cannot access — page crashed |
-| 5 | Channel Adapter Visibility | [DD-27-007] Radio channel option present in alert composer | ❌ fail | Cannot access — page crashed |
-| 6 | Channel Adapter Visibility | [DD-27-007] Push/BrowserPush channel option present in alert composer | ❌ fail | Cannot access — page crashed |
-| 7 | Channel Interaction | [DD-27-007] Channel checkbox toggleable | ❌ fail | Cannot access — page crashed |
-| 8 | Channel Interaction | [DD-27-007] Alert templates page renders | ❌ fail | Cannot access — page crashed |
-| 9 | SMS Providers Settings | [DD-27-007] SMS Providers settings accessible | ✅ pass | /settings/sms-providers renders "SMS Providers" heading, "Add Provider" button, no Access Denied |
+| 1 | Alerts Module Load | [DD-27-012] Alerts page renders without error | ✅ pass | Full module loaded with heading, tabs, composer |
+| 2 | Alerts Module Load | [DD-27-012] No templates.find crash | ✅ pass | Console shows 429 rate-limit errors but no TypeError; module interactive |
+| 3 | Alerts Module Load | [DD-27-012] Empty state when no templates | ✅ pass | Template combobox shows "— Ad-hoc notification —" default; 10 system templates populated |
+| 4 | Alert Composer | [DD-27-013] Alert composer opens | ✅ pass | Send Alert view is immediately visible with full compose form |
+| 5 | Alert Composer | [DD-27-013] Channel options visible in composer | ❌ fail | Only "websocket" checkbox shown; SMS/PA/Radio/Push not present. API /api/notifications/channels/enabled returns 429 (rate limited) |
+| 6 | Alert Composer | [DD-27-013] SMS channel checkbox toggleable | ❌ fail | SMS checkbox not visible in composer — cannot test |
+| 7 | Templates Section | [DD-27-013] Templates section renders | ✅ pass | Management > Templates shows 10 system templates with correct channel tags (sms, pa, radio, push visible in template cards) |
 
 ## New Bug Tasks Created
 
-DD-27-013 — Alerts module channel adapters untestable — module crashes on load (templates.find is not a function)
+DD-27-014 — Alert composer channels section only shows websocket; SMS/PA/Radio/Push channels absent
 
 ## Screenshot Notes
 
-- docs/uat/DD-27/fail-alerts-crash.png — Error boundary visible at /alerts: "Alerts failed to load — templates.find is not a function". This is the same crash already tracked as DD-27-012 (pending). All channel adapter scenarios (SMS, PA, Radio, Push) for DD-27-007 cannot be verified until this crash is resolved.
-- SMS Providers (/settings/sms-providers) loaded correctly with "Add Provider" button visible. The "Loading…" text below is a backend API issue (404 on provider list), not a frontend crash.
+- Screenshot: .playwright-mcp/page-2026-03-24T18-46-33-011Z.png
+  Shows Send Alert composer with "Custom Alert (info)" template selected. Preview pane shows only "websocket" channel badge. The Channels section (below template variables) only renders the websocket checkbox — no SMS, PA, Radio, or Push options despite the Custom Alert template referencing all those channels in the Management view.
+- The /api/notifications/channels/enabled endpoint returned HTTP 429 (Too Many Requests), preventing the composer from loading the list of enabled channels. The channel data IS referenced in templates (Management view shows sms, pa, radio, push tags on template cards) but the composer's channel picker depends on this API response to render channel checkboxes.

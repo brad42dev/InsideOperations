@@ -5,41 +5,40 @@ uat_mode: auto
 verdict: partial
 scenarios_tested: 14
 scenarios_passed: 11
-scenarios_failed: 3
+scenarios_failed: 2
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /designer loads real implementation — canvas, toolbar, shape palette, display element palette all visible.
+pass: Navigating to /designer loads real implementation (landing page + full graphic editor)
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Module Setup | [MOD-DESIGNER-002] Designer page renders without error | ✅ pass | Canvas, toolbar, and palettes loaded; no error boundary |
-| 2 | Drag Ghost | [MOD-DESIGNER-002] Shape palette visible with draggable shapes | ✅ pass | Equipment shapes visible in left palette panel |
-| 3 | Drag Ghost | [MOD-DESIGNER-002] Drag ghost appears during palette drag | ❌ fail | No ghost DOM element (opacity < 1, position:fixed/absolute overlay) found during mid-drag evaluation; only native browser drag image |
-| 4 | Drag Ghost | [MOD-DESIGNER-002] Shape lands at drop position after drag | ✅ pass | Dragged rectangle shape appeared on canvas at target coordinates |
-| 5 | Point Context Menu | [MOD-DESIGNER-009] Display element palette visible | ✅ pass | Text Readout and other display elements visible in palette |
-| 6 | Point Context Menu | [MOD-DESIGNER-009] Right-clicking display element shows context menu | ✅ pass | [role="menu"] appeared with "Bind Point…" and "Change Type" items |
-| 7 | Point Context Menu | [MOD-DESIGNER-009] Point context menu includes Trend/Detail/Alerts options | ❌ fail | Menu showed only "Bind Point…" and "Change Type" — no Trend, Detail, or Alerts point-context items; point is unbound so CX-POINT-CONTEXT options absent |
-| 8 | Group Resize | [MOD-DESIGNER-013] Can create and select a group | ✅ pass | Ctrl+A selected all elements, Ctrl+G opened Name Group dialog, group created successfully |
-| 9 | Group Resize | [MOD-DESIGNER-013] Group resize handles visible after selection | ✅ pass | 8 SVG rect handles (6×6px, resize cursors: nw/n/ne/e/se/s/sw/w) visible after group click |
-| 10 | Group Resize | [MOD-DESIGNER-013] Group drag-resize changes group bounds and scales children | ✅ pass | Dragging SE corner handle resized group; contained shapes scaled proportionally |
-| 11 | Group Sub-Tabs | [MOD-DESIGNER-024] Double-clicking group enters edit mode | ✅ pass | Double-click showed "Untitled Graphic › Group 1" breadcrumb and entered group editing context |
-| 12 | Group Sub-Tabs | [MOD-DESIGNER-024] Group sub-tab appears in tab bar | ❌ fail | No file-level tab bar found; group navigation displayed only as in-canvas breadcrumb, not as a browser-style tab in a persistent tab strip |
-| 13 | Promote to Shape | [MOD-DESIGNER-025] Promote to Shape option visible in group context menu | ✅ pass | "Promote to Shape…" item visible when right-clicking group |
-| 14 | Promote to Shape | [MOD-DESIGNER-025] Promote to Shape wizard opens | ✅ pass | Wizard opened to "Step 1 of 8: Source Analysis" with shape boundary detection |
+| 1 | File Tab Bar | [MOD-DESIGNER-030] Designer loads without error | ✅ pass | |
+| 2 | File Tab Bar | [MOD-DESIGNER-030] File tab bar visible when graphic open | ✅ pass | tablist "Open graphics" appeared after Create |
+| 3 | File Tab Bar | [MOD-DESIGNER-030] Active tab is visually highlighted | ✅ pass | Tab shows [selected] state |
+| 4 | File Tab Bar | [MOD-DESIGNER-030] Mode selector distinct from file tabs | ✅ pass | Mode selector (◆/▦/📄) row is separate from tablist |
+| 5 | Canvas Drag Ghost | [MOD-DESIGNER-031] Drag ghost appears when moving shape on canvas | ❌ fail | MutationObserver detected NO ghost element during real Playwright mouse drag (mousedown→mousemove×10→mouseup). Element moved (630,325→680,295) but no opacity<1 overlay added to DOM |
+| 6 | Canvas Drag Ghost | [MOD-DESIGNER-031] Ghost disappears on mouse release / element moves | ✅ pass | Element correctly moved to new position, no stale ghost after drop |
+| 7 | Palette Drag Ghost | [MOD-DESIGNER-032] Drag ghost appears when dragging from palette | ✅ pass | MutationObserver detected DIV with opacity=0.7, position=fixed during palette drag |
+| 8 | Palette Drag Ghost | [MOD-DESIGNER-032] Shape lands at drop position after palette drag | ✅ pass | Text Readout appeared on canvas, Scene panel updated |
+| 9 | Point Context Menu | [MOD-DESIGNER-033] Right-click display element shows context menu | ✅ pass | Full context menu appeared with 30+ items |
+| 10 | Point Context Menu | [MOD-DESIGNER-033] Point context items present (Open Trend, View Detail, View Alerts) | ❌ fail | "Trend This Point" and "Point Detail" present (disabled), but "View Alerts" / "Alerts" entirely missing from menu |
+| 11 | Point Context Menu | [MOD-DESIGNER-033] Bind Point… and Change Type still present | ✅ pass | Both items present in menu |
+| 12 | Group Sub-tab | [MOD-DESIGNER-034] Double-clicking group opens sub-tab | ✅ pass | Sub-tab "Untitled Gra… › Group 1" appeared and was selected |
+| 13 | Group Sub-tab | [MOD-DESIGNER-034] Tab bar shows parent and group sub-tab | ✅ pass | Both "Untitled Graphic" (parent) and "Untitled Gra… › Group 1" (sub-tab) visible |
+| 14 | Group Sub-tab | [MOD-DESIGNER-034] Clicking parent tab exits group editing | ✅ pass | Parent tab became selected, group sub-tab deselected |
 
 ## New Bug Tasks Created
 
-MOD-DESIGNER-032 — Drag ghost overlay missing when dragging shapes from palette to canvas
-MOD-DESIGNER-033 — Point context menu items missing from display element right-click menu
-MOD-DESIGNER-034 — Group editing does not open a sub-tab in the Designer tab bar
+MOD-DESIGNER-035 — Canvas drag ghost missing — no preview when dragging shape on canvas
+MOD-DESIGNER-036 — "View Alerts" missing from display element point context menu
 
 ## Screenshot Notes
 
-- fail-drag-ghost-missing.png: Canvas with selected rectangle visible; no DOM ghost element found during mid-drag evaluation. Native HTML drag may be used without a custom ghost overlay.
-- fail-display-element-no-point-context.png: Context menu on Text Readout display element shows "Bind Point…" and "Change Type" but none of the CX-POINT-CONTEXT items (Open Trend, View Detail, View Alerts). These may only appear after a point is bound.
-- fail-group-subtab-missing.png: After double-clicking group, shows in-canvas breadcrumb "Untitled Graphic › Group 1" but no tab bar strip with tabs for the graphic file + the open group. The spec calls for a tab bar (sub-tab) UX pattern for group editing navigation.
+- Scenario 5: Canvas drag succeeded (element moved) but MutationObserver confirmed NO ghost overlay element was added to DOM during real Playwright mouse drag. Contrast with Scenario 7 (palette drag) which DID produce a ghost (DIV opacity=0.7).
+- Scenario 10: Screenshot captured at .playwright-mcp/page-2026-03-24T19-19-33-952Z.png. Menu contains: Point Detail (disabled), Trend This Point (disabled), Investigate Point (disabled), Report on Point (disabled), Copy Tag Name (disabled). Missing: "View Alerts" or any alerts-related item.
+- Scenario 14: After clicking parent tab, canvas showed "Failed to load graphic / Failed to parse server response" — expected behavior since graphic was not saved to backend API. The tab switching itself worked correctly.

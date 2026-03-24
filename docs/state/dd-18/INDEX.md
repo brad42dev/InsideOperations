@@ -10,3 +10,4 @@
 | DD-18-006 | Implement aggregation type validation in history API | verified | 0 |
 | DD-18-007 | Archive/timeseries settings page does not exist — route returns 404 | verified | 0 |
 | DD-18-008 | Archive settings API endpoint /api/archive/settings returns 404 — form never loads | pending | 0 |
+| DD-18-009 | Archive settings API GET/PUT /api/archive/settings returns 404 — form never loads | pending | 0 |

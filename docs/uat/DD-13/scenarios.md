@@ -1,20 +1,21 @@
 # UAT Scenarios — DD-13
 
-## Log Module Renders
+## Module Load & Crash Prevention
 
-Scenario 1: [DD-13-007] Log module loads without error — navigate to /log → log module UI visible, no "Something went wrong" error boundary
-Scenario 2: [DD-13-008] Log module renders schedule management section — navigate to /log → page shows real UI content (not stub placeholder or blank)
+Scenario 1: [DD-13-013] Log module renders without error boundary — navigate to /log → page loads showing Log module UI (no "Something went wrong" / "Log failed to load" error boundary)
+Scenario 2: [DD-13-014] Log module does not crash on /log — navigate to /log, wait for data load → log entries list or empty state visible, no ErrorBoundary text
+Scenario 3: [DD-13-014] Reload does not re-trigger crash — reload /log page → module still shows log list or empty state, no error boundary
 
-## Log Search Filter Controls (DD-13-007)
+## Log Search Filter Controls
 
-Scenario 3: [DD-13-007] Date filter control present in log search — navigate to /log, look at search/filter area → date filter input or date picker visible
-Scenario 4: [DD-13-007] Author filter control present in log search — navigate to /log, look at search/filter area → author filter control visible
-Scenario 5: [DD-13-007] Shift filter control present in log search — navigate to /log, look at search/filter area → shift filter control visible
-Scenario 6: [DD-13-007] Template filter control present in log search — navigate to /log, look at search/filter area → template filter control visible
-Scenario 7: [DD-13-007] Applying date filter is interactive — click date filter control → filter responds (opens picker, updates list, or shows active state)
+Scenario 4: [DD-13-007] Date filter control visible in log search — navigate to /log → date filter input or picker visible in search/filter area
+Scenario 5: [DD-13-007] Author filter control visible in log search — navigate to /log → author filter (dropdown or input) visible in search/filter area
+Scenario 6: [DD-13-007] Shift filter control visible in log search — navigate to /log → shift filter (dropdown or selector) visible in search/filter area
+Scenario 7: [DD-13-007] Template filter control visible in log search — navigate to /log → template filter (dropdown or selector) visible in search/filter area
+Scenario 8: [DD-13-007] Filter controls are interactive — click date filter → filter input activates or date picker opens (not a no-op stub)
 
-## Log Schedule Management UI (DD-13-008)
+## Log Schedule Management
 
-Scenario 8: [DD-13-008] Schedule management section exists — navigate to /log and look for schedule or templates tab/section → schedule management area visible (not a TODO stub)
-Scenario 9: [DD-13-008] Schedule management shows interactive UI — navigate to log schedule area → shows real controls (create/edit buttons, list of schedules, or form — not static text)
-Scenario 10: [DD-13-008] Schedule create/edit button is present and clickable — find create or add schedule button → clicking it produces visible change (dialog opens, form expands — not a no-op)
+Scenario 9: [DD-13-008] Schedule management UI visible — navigate to /log, look for schedule or templates section → schedule management UI present (not just a placeholder text)
+Scenario 10: [DD-13-008] Schedule UI is interactive — find schedule management button/link, click it → schedule management dialog or view opens (not a silent no-op)
+Scenario 11: [DD-13-008] Schedule list shows content or empty state — navigate to schedule management view → shows either a list of schedules or a proper empty state (not "TODO" or "Phase 7" placeholder)

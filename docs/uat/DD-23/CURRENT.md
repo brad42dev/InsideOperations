@@ -2,37 +2,42 @@
 unit: DD-23
 date: 2026-03-24
 uat_mode: auto
-verdict: pass
-scenarios_tested: 5
-scenarios_passed: 5
-scenarios_failed: 0
-scenarios_skipped: 1
+verdict: partial
+scenarios_tested: 10
+scenarios_passed: 6
+scenarios_failed: 4
+scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /settings/expressions loads the Expression Library page (real implementation, no stub, no error boundary). Navigating to /designer loads the Designer landing page without error.
+pass: Navigating to /settings/expressions loads the Expression Library with real implementation (expression list with Edit/Delete buttons, full expression builder modal)
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Expression Builder | [DD-23-002] Expression builder page renders without error | ✅ pass | /settings/expressions loads cleanly, heading "Expression Library" visible, no error boundary |
-| 2 | Expression Builder | [DD-23-002] Expression builder palette is visible | ✅ pass | Edit dialog opens; palette shows Values, Operators, Functions, Compare groups |
-| 3 | Expression Builder | [DD-23-002] field_ref tile appears in rounds_checkpoint/log_segment palette | ⏭ skipped | Cannot test via browser: Rounds module crashes (pendingInstances.map is not a function) and Log module crashes ((templatesData ?? []).map is not a function) before expression builder is accessible. No ExpressionBuilderModal calls exist in either module's source. Context is UI-only (backend only accepts: conversion, calculated_value, alarm_condition, custom). Code-confirmed: field_ref IS in ROUNDS_EXTRA and LOG_EXTRA in ExpressionBuilder.tsx lines 86,91. |
-| 4 | Designer | [DD-23-002] Expression builder opens from designer | ✅ pass | /designer loads without error, Designer landing page with Dashboards/Reports/Symbol Library visible |
-| 5 | Expression Builder | [DD-23-002] Expression builder has tile workspace area | ✅ pass | Edit dialog shows "Drop tiles here" application workspace |
-| 6 | Expression Builder | [DD-23-002] Palette contains standard tile types | ✅ pass | Point Ref, Enter Value, +, −, ×, ÷, mod, x^y, (…), x², x³, round, −x, |x|, >, <, ≥, ≤ all present |
+| 1 | Page Load | [DD-23-019] Expression library page renders without error | ✅ pass | Page loaded with 1 expression "UAT test", no error boundary |
+| 2 | Insertion Cursor | [DD-23-019] Insertion cursor visible in empty workspace | ✅ pass | `generic "Insertion cursor"` element present in accessibility tree |
+| 3 | Insertion Cursor | [DD-23-019] Cursor moves on click | ✅ pass | Cursor moved from after tile (e285) to before tile (e288) after clicking the tile |
+| 4 | Drag into Container | [DD-23-018] Drag palette tile into container's empty zone | ❌ fail | Status bar showed "Draggable item palette-constant was dropped" but group content unchanged; tile NOT inserted inside container |
+| 5 | Drag into Container | [DD-23-018] Drop into sibling gap inside container | ❌ fail | Container still empty after drag; gap drop untestable |
+| 6 | Breadcrumb | [DD-23-020] No breadcrumb shown at root level | ✅ pass | No breadcrumb visible above workspace at root level (correct behavior) |
+| 7 | Breadcrumb | [DD-23-020] Breadcrumb appears when entering a container | ❌ fail | Clicked inside group container (group became active, visual cursor line appeared inside), but no breadcrumb trail appeared above workspace |
+| 8 | Breadcrumb | [DD-23-020] Breadcrumb navigation clickable | ❌ fail | No breadcrumb appeared so nothing to click |
+| 9 | Save Checkbox | [DD-23-021] "Save for Future Use" checked by default on open | ✅ pass | Checkbox shows `[checked]` immediately on modal open before any interaction |
+| 10 | Save Checkbox | [DD-23-021] Checkbox state persists through workspace changes | ✅ pass | Checkbox remained `[checked]` after adding a tile to the workspace |
 
 ## New Bug Tasks Created
 
-None
+DD-23-022 — Drag-and-drop from palette into group container interior still does not work
+DD-23-023 — Breadcrumb trail still not shown above workspace when cursor is inside a nested container
 
 ## Screenshot Notes
 
-- Expression Library at /settings/expressions accessible to admin with no Access Denied error (confirms DD-23-017 fix holds).
-- Expression builder edit dialog opens correctly for the "UAT test / Test Expression" entry stored in custom_expressions DB table with expression_context='custom'.
-- Context label shows empty (`<strong>` with no text) for the custom context expression — the frontend CONTEXT_LABELS map does not include 'custom' as a key.
-- Rounds module crashes on load: "pendingInstances.map is not a function" — separate bug not related to DD-23-002.
-- Log module crashes on load: "(templatesData ?? []).map is not a function" — separate bug not related to DD-23-002.
-- Backend context enum mismatch: frontend uses rounds_checkpoint/log_segment/point_config/alarm_definition/widget/forensics; backend only accepts conversion/calculated_value/alarm_condition/custom. The rounds_checkpoint and log_segment contexts are UI-only palette selectors, never persisted.
+- docs/uat/DD-23/scenario4-drag-fail.png: Shows workspace after drag attempt — group still empty, drag drop event fired but tile not placed inside container
+- docs/uat/DD-23/group-click.png: Shows group active (teal border) with visual cursor line inside, but no breadcrumb area visible above workspace
+- DD-23-019 FIXED: Insertion cursor is now visible and responsive — both scenarios 2 and 3 pass
+- DD-23-021 FIXED: "Save for Future Use" checkbox is now checked by default — both scenarios 9 and 10 pass
+- DD-23-018 STILL FAILING: Drag-and-drop from palette into container interior does not work; the HTML5 drag event fires ("was dropped" in status) but the tile is not placed inside the group
+- DD-23-020 STILL FAILING: Breadcrumb navigation does not appear when cursor is inside a nested container

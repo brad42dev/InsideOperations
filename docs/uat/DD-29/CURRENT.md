@@ -3,36 +3,37 @@ unit: DD-29
 date: 2026-03-24
 uat_mode: auto
 verdict: partial
-scenarios_tested: 7
-scenarios_passed: 5
-scenarios_failed: 2
+scenarios_tested: 9
+scenarios_passed: 8
+scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /login redirects to /console (already authenticated) — real implementation loaded, no error boundary
+pass: Navigating to /login loads the real login form implementation. /profile loads the full profile page with PIN setup section.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Baseline | [DD-29-010] Login page renders without error | ✅ pass | Redirects to /console as expected for authenticated user |
-| 2 | Session Lock UI | [DD-29-010] Lock screen trigger exists in user menu | ✅ pass | "Lock Screen" button present in "A admin ▾" user menu |
-| 3 | Session Lock UI | [DD-29-010] Lock screen activates on click | ✅ pass | `dialog "Screen locked"` appeared with password field; note: /api/auth/lock returns 404 (server-side state not persisted) |
-| 4 | Session Lock UI | [DD-29-010] Lock screen shows PIN entry field | ❌ fail | Only Password field visible — no PIN option. Root cause: /api/auth/lock returns 404 and /api/auth/pin returns 404, so PIN cannot be set |
-| 5 | PIN Management | [DD-29-011] Profile page has PIN section | ✅ pass | /profile loads with "My Profile" heading, Security section with "Lock Screen PIN" description |
-| 6 | PIN Management | [DD-29-011] PIN can be set from profile | ✅ pass | "Set PIN" opens form with New PIN, Confirm PIN, Current Password fields and "Save PIN" button |
-| 7 | PIN Management | [DD-29-011] PIN save endpoint works | ❌ fail | /api/auth/pin returns 404 Not Found; UI shows "Failed to parse server response" |
+| 1 | Auth/Login | [DD-29-014] Login page renders without error | ✅ pass | |
+| 2 | Auth/Lock | [DD-29-014] User menu shows Lock Screen option | ✅ pass | |
+| 3 | Auth/Lock | [DD-29-014] Triggering lock screen shows lock dialog | ✅ pass | dialog "Screen locked" appeared with password field |
+| 4 | Auth/Lock | [DD-29-014] Correct password unlocks session | ✅ pass | "changeme" unlocked — dialog dismissed, no error |
+| 5 | Auth/PIN | [DD-29-015] Profile page accessible from user menu | ✅ pass | "Profile & PIN Setup" link visible in user dropdown |
+| 6 | Auth/PIN | [DD-29-015] Profile page loads with PIN section | ✅ pass | /profile loads Security section with "Lock Screen PIN" |
+| 7 | Auth/PIN | [DD-29-015] Set PIN form accepts input | ✅ pass | PIN 123456 saved — "PIN set successfully." toast shown |
+| 8 | Auth/PIN | [DD-29-015] Lock screen shows PIN option after PIN set | ❌ fail | Lock screen shows only Password field; no PIN entry option despite PIN being set |
+| 9 | Auth/PIN | [DD-29-015] Remove PIN option present on profile | ✅ pass | "Remove PIN" button visible on /profile Security section |
 
 ## New Bug Tasks Created
 
-DD-29-014 — Session lock/unlock API endpoints missing — /api/auth/lock and /api/auth/verify-password return 404
-DD-29-015 — PIN set/delete/verify endpoints missing — /api/auth/pin returns 404
+DD-29-016 — Lock screen does not offer PIN entry after PIN is set
 
 ## Screenshot Notes
 
-- docs/uat/DD-29/fail-lock-screen-no-pin-field.png: Lock screen shows only Password field ("Session locked. Enter your password to continue."), no PIN input visible. Console error: 404 on /api/auth/lock confirms server-side lock state not persisted.
-- docs/uat/DD-29/fail-pin-endpoint-404.png: PIN Set form filled (123456/123456/admin) and "Save PIN" clicked — "Failed to parse server response" alert shown. Console error: 404 on /api/auth/pin.
-- DD-29-010 backend issue: /api/auth/lock returns 404 (lock), /api/auth/verify-password returns error (unlock). Session lock state is client-side only — not persisted server-side.
-- DD-29-011 backend issue: /api/auth/pin endpoint completely missing (404). UI for PIN setup exists and is well-formed, but the backing API is absent.
+Scenario 8 failure: docs/uat/DD-29/s8-lock-screen-no-pin-option.png
+Lock screen shows only "Password" field and "Unlock" button. No PIN tab, PIN toggle, or "Use PIN instead" option visible. The PIN was successfully set (scenario 7 passed with "PIN set successfully." toast) but the lock screen dialog does not reflect this — it remains password-only.
+
+Note: Default admin password is "changeme" (not "admin"). This differs from the UAT agent default credential assumption.

@@ -3,30 +3,32 @@ unit: DD-18
 date: 2026-03-24
 uat_mode: auto
 verdict: partial
-scenarios_tested: 5
-scenarios_passed: 4
-scenarios_failed: 1
+scenarios_tested: 6
+scenarios_passed: 1
+scenarios_failed: 5
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /settings loads real Settings implementation with sidebar navigation
+pass: Navigating to /settings/archive loads a real settings page (route resolves, sidebar visible, breadcrumb shows "Settings › Archive")
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Archive Settings Page | [DD-18-007] Settings page renders without error — navigate to /settings | ✅ pass | Page loads normally, no error boundary |
-| 2 | Archive Settings Page | [DD-18-007] Archive section visible in sidebar — navigate to /settings | ✅ pass | "Archive" link visible in Settings sidebar at /settings/archive |
-| 3 | Archive Settings Page | [DD-18-007] Archive route loads — click Archive in sidebar | ✅ pass | /settings/archive loads with real component (not 404), breadcrumb shows Settings › Archive |
-| 4 | Archive Settings Page | [DD-18-007] Archive settings form functional — retention inputs/compression toggles present | ❌ fail | Shows "Failed to load archive settings. Ensure the archive service is running." — API /api/archive/settings returns 404 Not Found. No form elements visible. |
-| 5 | Archive Settings Page | [DD-18-007] Direct navigation to /settings/archive | ✅ pass | Route loads with real component, Archive highlighted in sidebar |
+| 1 | Archive Settings | [DD-18-008] Page renders without error | ❌ fail | Page loads but shows "Failed to load archive settings. Ensure the archive service is running." — error message visible, form absent |
+| 2 | Archive Settings | [DD-18-008] Archive settings form is visible | ❌ fail | Only error message visible — no form elements rendered; API /api/archive/settings returns 404 |
+| 3 | Archive Settings | [DD-18-008] Retention period inputs present | ❌ fail | No retention period inputs visible — form not loaded due to API 404 |
+| 4 | Archive Settings | [DD-18-008] Compression toggles present | ❌ fail | No compression toggles visible — form not loaded due to API 404 |
+| 5 | Archive Settings | [DD-18-008] Continuous aggregate settings present | ❌ fail | No continuous aggregate settings visible — form not loaded due to API 404 |
+| 6 | Archive Settings | [DD-18-008] Archive section in settings sidebar | ✅ pass | "Archive" link present in Settings sidebar, navigates to /settings/archive |
 
 ## New Bug Tasks Created
 
-DD-18-008 — Archive settings API endpoint /api/archive/settings returns 404 — form never loads
+DD-18-009 — Archive settings API GET/PUT /api/archive/settings returns 404 — form never loads
 
 ## Screenshot Notes
 
-- scenario4-archive-api-404.png: /settings/archive shows error state "Failed to load archive settings. Ensure the archive service is running." The frontend component exists and renders correctly with error handling, but the backend API endpoint GET /api/archive/settings does not exist (404). No form fields for retention, compression, or continuous aggregates are visible to the user.
+Screenshot: docs/uat/DD-18/archive-settings-api-fail.png
+Page navigates to /settings/archive correctly. The route exists and renders a settings shell with the sidebar showing "Archive" as an active link. However, the content area immediately shows "Failed to load archive settings. Ensure the archive service is running." in red text. Console confirms: GET /api/archive/settings returns 404 Not Found. The archive service GET /api/archive/settings endpoint has not been implemented — DD-18-008 is still broken at the API layer.

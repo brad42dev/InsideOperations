@@ -2,37 +2,34 @@
 unit: MOD-PROCESS
 date: 2026-03-24
 uat_mode: auto
-verdict: partial
-scenarios_tested: 8
-scenarios_passed: 7
-scenarios_failed: 1
+verdict: pass
+scenarios_tested: 6
+scenarios_passed: 6
+scenarios_failed: 0
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /process loads real implementation with sidebar, toolbar, and status bar.
+pass: Navigating to /process loads real implementation — sidebar, toolbar, status bar all present with full interaction
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Load | [MOD-PROCESS-002] Process module route renders without error | ✅ pass | No error boundary, full UI loaded |
-| 2 | Page Load | [MOD-PROCESS-002] Process module shows content or empty state | ✅ pass | Views list, toolbar, status bar all visible |
-| 3 | Page Load | [MOD-PROCESS-002] No JavaScript console errors on load | ❌ fail | `Query data cannot be undefined` for query key `["graphic","<uuid>"]` fires on initial load and on each graphic selection |
-| 4 | Skeleton / Loading | [MOD-PROCESS-008] No legacy spinner during load | ✅ pass | No `[role="progressbar"]` or spinner element visible |
-| 5 | Skeleton / Loading | [MOD-PROCESS-008] Skeleton state appears during initial load | ✅ pass | Views sidebar showed brief "Loading…" text then resolved; main canvas loaded immediately without spinner |
-| 6 | Skeleton / Loading | [MOD-PROCESS-008] Process toolbar visible once loaded | ✅ pass | −, +, Fit, 100%, ● Live, ◷ Historical, ★, Export, Toggle fullscreen all present |
-| 7 | Navigation | [MOD-PROCESS-002] Navigating between views does not produce errors | ✅ pass | Clicked Air Cooler then Ball Valve — both activated, status bar updated, no error boundary |
-| 8 | Navigation | [MOD-PROCESS-002] Process module sidebar is visible | ✅ pass | Sidebar with Views, Bookmarks, Navigation, Recent Views sections present |
+| 1 | Page Load & Error Boundary | [MOD-PROCESS-010] Process module renders without error | ✅ pass | No "Something went wrong" boundary; page title "Process" visible |
+| 2 | Page Load & Error Boundary | [MOD-PROCESS-010] Process module sidebar visible | ✅ pass | Sidebar shows Views list, Bookmarks, Navigation, Recent Views |
+| 3 | Console Error Verification | [MOD-PROCESS-010] Graphic loads without crashing | ✅ pass | Status bar updated to current graphic name; no error boundary appeared |
+| 4 | Console Error Verification | [MOD-PROCESS-010] No "Query data cannot be undefined" errors on load | ✅ pass | Console log checked — zero matching entries across all log files |
+| 5 | Console Error Verification | [MOD-PROCESS-010] Clicking a graphic in the sidebar loads it | ✅ pass | Clicked "Air Cooler / Fin-Fan": button became [active], status bar updated, Recent Views updated |
+| 6 | Console Error Verification | [MOD-PROCESS-010] Multiple graphic selections produce no error boundary | ✅ pass | Clicked "Compressor" after "Air Cooler / Fin-Fan"; clean transition, console error count unchanged at 53 (all 404 thumbnail 404s unrelated to query fix) |
 
 ## New Bug Tasks Created
 
-MOD-PROCESS-010 — React Query graphic data returns undefined instead of null on graphic load
+None
 
 ## Screenshot Notes
 
-- screenshot: docs/uat/MOD-PROCESS/scenario3-console-error.png
-- The Process module renders correctly and navigation between graphics works. The main canvas viewport is empty (no graphic rendered) — expected in dev environment without OPC data.
-- Console error `Query data cannot be undefined` fires on initial load for the default graphic and on each subsequent graphic selection. This is a React Query contract violation — the query function for `["graphic","<uuid>"]` returns `undefined` instead of `null` when the graphic data is not available.
-- No legacy spinner was observed. Loading states use text placeholders rather than animated skeleton elements, but no spinner is present.
+- Console errors during session are exclusively 404s for missing thumbnail images and /api/v1/uom/catalog endpoint — these are backend resource issues unrelated to the React Query fix being tested.
+- The canvas area renders graphically but is essentially empty (no SVG visible in the accessibility tree) — the process viewer is connected (status: "Connected", "0/0 points") but no live backend data.
+- The fix for MOD-PROCESS-010 (React Query `["graphic", uuid]` returning `undefined`) is confirmed working: zero "Query data cannot be undefined" errors observed across 3 graphic selections.

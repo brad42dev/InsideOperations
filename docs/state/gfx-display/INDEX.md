@@ -9,3 +9,4 @@
 | GFX-DISPLAY-005 | Implement signal line for text_readout, fill_gauge, sparkline, and digital_status | verified | 0 |
 | GFX-DISPLAY-006 | Replace hardcoded hex colors with CSS custom property references in display elements | verified | 0 |
 | GFX-DISPLAY-007 | Add alarm flash text fill keyframes and priority classes for P2-P5 | pending | 0 |
+| GFX-DISPLAY-008 | Implement missing alarm flash text-fill keyframes and priority class CSS rules | pending | 0 |
