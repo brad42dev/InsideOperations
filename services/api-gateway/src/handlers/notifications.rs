@@ -140,8 +140,6 @@ pub struct MessagesQuery {
 #[derive(Debug, Deserialize)]
 pub struct TemplatesQuery {
     pub enabled: Option<bool>,
-    pub page: Option<u32>,
-    pub limit: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -609,24 +607,6 @@ pub async fn list_templates(
             .into_response();
     }
 
-    let pg = q.page.unwrap_or(1).max(1);
-    let limit = q.limit.unwrap_or(50).clamp(1, 100);
-    let offset = ((pg - 1) * limit) as i64;
-
-    let total: i64 = match sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notification_templates WHERE ($1::BOOLEAN IS NULL OR enabled = $1)",
-    )
-    .bind(q.enabled)
-    .fetch_one(&state.db)
-    .await
-    {
-        Ok(n) => n,
-        Err(e) => {
-            tracing::error!(error = %e, "list_templates count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count templates").into_response();
-        }
-    };
-
     let rows = sqlx::query(
         r#"
         SELECT id, name, category, severity, title_template, body_template,
@@ -634,12 +614,9 @@ pub async fn list_templates(
         FROM notification_templates
         WHERE ($1::BOOLEAN IS NULL OR enabled = $1)
         ORDER BY is_system DESC, severity DESC, name ASC
-        LIMIT $2 OFFSET $3
         "#,
     )
     .bind(q.enabled)
-    .bind(limit as i64)
-    .bind(offset)
     .fetch_all(&state.db)
     .await;
 
@@ -663,7 +640,7 @@ pub async fn list_templates(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(templates, pg, limit, total as u64))).into_response()
+            ok(templates).into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_templates query failed");
