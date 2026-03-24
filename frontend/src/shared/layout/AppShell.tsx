@@ -39,6 +39,17 @@ const G_KEY_MAP: Record<string, string> = Object.fromEntries(
     .map((r) => [r.g_key.split(' ')[1].toLowerCase(), r.path]),
 )
 
+// G-key state at module level so React Strict Mode double-mount does not reset it.
+// React 18 Strict Mode unmounts + remounts components in development; a useRef
+// declared inside the component is reset to its initial value on remount, which
+// causes gKeyPending to be false when the second letter arrives.  Moving these
+// outside the component ensures they survive the remount cycle.
+const _gKeyPending = { current: false }
+const _gKeyTimerRef: { current: ReturnType<typeof setTimeout> | null } = { current: null }
+// Setter ref: the live component instance registers its setGKeyHintVisible here
+// so the module-level keyboard handler always calls the active setter.
+const _setGKeyHintVisible: { current: ((v: boolean) => void) | null } = { current: null }
+
 function getPageTitle(pathname: string): string {
   const route = ROUTE_REGISTRY.find(
     (r) => pathname === r.path || pathname.startsWith(r.path + '/'),
@@ -714,10 +725,26 @@ export default function AppShell() {
     }
   }, [unlock, resetIdleTimer])
 
-  // G-key navigation state (tracks whether 'g' was pressed first)
-  const gKeyPending = useRef(false)
-  const gKeyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // G-key navigation state — backed by module-level refs to survive React Strict
+  // Mode's double-mount cycle (useRef resets on remount; module vars do not).
   const [gKeyHintVisible, setGKeyHintVisible] = useState(false)
+
+  // Register the live setter so the module-level keyboard handler can reach it.
+  // On Strict Mode remount the new instance overwrites the stale setter reference.
+  useEffect(() => {
+    _setGKeyHintVisible.current = setGKeyHintVisible
+    return () => {
+      // Only clear if this instance is still the registered one (guard against
+      // out-of-order cleanup in dev double-mount).
+      if (_setGKeyHintVisible.current === setGKeyHintVisible) {
+        _setGKeyHintVisible.current = null
+      }
+    }
+  }, [setGKeyHintVisible])
+
+  // Aliases so the handler below reads identically to the original.
+  const gKeyPending = _gKeyPending
+  const gKeyTimerRef = _gKeyTimerRef
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -740,7 +767,7 @@ export default function AppShell() {
         if (gKeyPending.current) {
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
-          setGKeyHintVisible(false)
+          _setGKeyHintVisible.current?.(false)
           return
         }
         if (isKioskRef.current && !isLockedRef.current) {
@@ -813,11 +840,11 @@ export default function AppShell() {
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'g') {
         e.preventDefault()
         gKeyPending.current = true
-        setGKeyHintVisible(true)
+        _setGKeyHintVisible.current?.(true)
         if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
         gKeyTimerRef.current = setTimeout(() => {
           gKeyPending.current = false
-          setGKeyHintVisible(false)
+          _setGKeyHintVisible.current?.(false)
         }, 2000)
         return
       }
@@ -828,7 +855,7 @@ export default function AppShell() {
           e.preventDefault()
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
-          setGKeyHintVisible(false)
+          _setGKeyHintVisible.current?.(false)
           navigateRef.current(path)
         }
         return
