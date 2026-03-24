@@ -474,6 +474,11 @@ export default function AppShell() {
   // Derive sidebar groups from the central route registry, filtered by user permissions
   const navGroups: NavGroup[] = getSidebarGroups(user?.permissions ?? [])
   const navigate = useNavigate()
+  // navigateRef keeps the latest navigate function without causing the keyboard
+  // effect to re-run. The effect dep array is [], so the listener is registered
+  // once on mount and always reads the current navigate via this ref.
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -824,7 +829,7 @@ export default function AppShell() {
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
           setGKeyHintVisible(false)
-          navigate(path)
+          navigateRef.current(path)
         }
         return
       }
@@ -835,7 +840,8 @@ export default function AppShell() {
       window.removeEventListener('keydown', handleKeyDown)
       if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
     }
-  }, [navigate])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleLogout() {
     await logout()
