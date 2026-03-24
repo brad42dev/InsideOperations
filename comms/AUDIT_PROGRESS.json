@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T13:05:45.516445+00:00",
+  "last_updated": "2026-03-24T13:46:01.667092+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -167,7 +167,8 @@
     "DD-32-012": 1,
     "DD-39-009": 1,
     "DD-39-010": 1,
-    "MOD-DESIGNER-029": 1
+    "MOD-DESIGNER-029": 1,
+    "DD-13-013": 1
   },
   "queue": [
     {
@@ -250,7 +251,7 @@
       "completed_at": "2026-03-22T02:44:13.591467+00:00",
       "notes": "11 tasks generated, 10 open, wave0 findings yes",
       "last_audit_round": 8,
-      "verified_since_last_audit": 8
+      "verified_since_last_audit": 9
     },
     {
       "unit": "MOD-PROCESS",
@@ -5068,7 +5069,7 @@
       "wave": 3,
       "title": "Add CTA button to template browser empty state",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5080,7 +5081,7 @@
       "wave": 3,
       "title": "Log module crashes \u2014 templates.map TypeError when API returns non-array",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5248,7 +5249,7 @@
       "wave": 2,
       "title": "Pane context menu missing \"Open in New Window\" item for detached window",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5260,7 +5261,7 @@
       "wave": 2,
       "title": "No right-click context menu on workspace items in Console left nav panel",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

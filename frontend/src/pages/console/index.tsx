@@ -1315,6 +1315,23 @@ export default function ConsolePage() {
           workspaces={workspaces}
           activeWorkspaceId={activeId}
           onSelectWorkspace={setActiveId}
+          onRenameWorkspace={(id) => {
+            const ws = workspaces.find((w) => w.id === id)
+            if (!ws) return
+            const newName = prompt('Workspace name:', ws.name)
+            if (newName && newName.trim()) handleRenameWorkspace(id, newName.trim())
+          }}
+          onDuplicateWorkspace={duplicateWorkspace}
+          onDeleteWorkspace={(id) => {
+            const nextWorkspaces = workspaces.filter((w) => w.id !== id)
+            setWorkspaces(nextWorkspaces)
+            if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null)
+            if (useApi) {
+              deleteMutation.mutate(id)
+            } else {
+              saveWorkspacesLocal(nextWorkspaces)
+            }
+          }}
         />
 
         {/* Workspace area */}

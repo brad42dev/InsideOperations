@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { graphicsApi } from '../../api/graphics'
 import type { WorkspaceLayout } from './types'
 import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
+import ContextMenu from '../../shared/components/ContextMenu'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -220,14 +221,31 @@ function WorkspaceRow({
   isFavorite,
   onSelect,
   onToggleFavorite,
+  onRename,
+  onDuplicate,
+  onDelete,
+  canDelete,
 }: {
   ws: WorkspaceLayout
   isActive: boolean
   isFavorite: boolean
   onSelect: () => void
   onToggleFavorite: () => void
+  onRename?: () => void
+  onDuplicate?: () => void
+  onDelete?: () => void
+  canDelete?: boolean
 }) {
   const [hovering, setHovering] = useState(false)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const closeCtxMenu = useCallback(() => setCtxMenu(null), [])
 
   return (
     <div
@@ -238,6 +256,7 @@ function WorkspaceRow({
       }}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
+      onContextMenu={handleContextMenu}
     >
       <button
         onClick={onSelect}
@@ -280,6 +299,40 @@ function WorkspaceRow({
       >
         <StarIcon filled={isFavorite} />
       </button>
+
+      {/* Right-click context menu */}
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={closeCtxMenu}
+          items={[
+            {
+              label: 'Open',
+              onClick: () => { closeCtxMenu(); onSelect() },
+            },
+            {
+              label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
+              divider: true,
+              onClick: () => { closeCtxMenu(); onToggleFavorite() },
+            },
+            ...(onRename ? [{
+              label: 'Rename\u2026',
+              onClick: () => { closeCtxMenu(); onRename() },
+            }] : []),
+            ...(onDuplicate ? [{
+              label: 'Duplicate',
+              onClick: () => { closeCtxMenu(); onDuplicate() },
+            }] : []),
+            ...(onDelete ? [{
+              label: 'Delete',
+              divider: true,
+              disabled: !canDelete,
+              onClick: () => { closeCtxMenu(); onDelete() },
+            }] : []),
+          ]}
+        />
+      )}
     </div>
   )
 }
@@ -294,12 +347,18 @@ function WorkspacesSection({
   onSelectWorkspace,
   favoriteIds,
   onToggleFavorite,
+  onRenameWorkspace,
+  onDuplicateWorkspace,
+  onDeleteWorkspace,
 }: {
   workspaces: WorkspaceLayout[]
   activeWorkspaceId: string | null
   onSelectWorkspace?: (id: string) => void
   favoriteIds: Set<string>
   onToggleFavorite: (id: string) => void
+  onRenameWorkspace?: (id: string) => void
+  onDuplicateWorkspace?: (id: string) => void
+  onDeleteWorkspace?: (id: string) => void
 }) {
   const [favoritesOpen, setFavoritesOpen] = useState(true)
 
@@ -364,6 +423,10 @@ function WorkspacesSection({
                   isFavorite
                   onSelect={() => onSelectWorkspace?.(ws.id)}
                   onToggleFavorite={() => onToggleFavorite(ws.id)}
+                  onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+                  onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+                  onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+                  canDelete={workspaces.length > 1}
                 />
               ))}
             </div>
@@ -382,6 +445,10 @@ function WorkspacesSection({
           isFavorite={favoriteIds.has(ws.id)}
           onSelect={() => onSelectWorkspace?.(ws.id)}
           onToggleFavorite={() => onToggleFavorite(ws.id)}
+          onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+          onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+          onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+          canDelete={workspaces.length > 1}
         />
       ))}
     </div>
@@ -654,9 +721,12 @@ interface ConsolePaletteProps {
   workspaces?: WorkspaceLayout[]
   activeWorkspaceId?: string | null
   onSelectWorkspace?: (id: string) => void
+  onRenameWorkspace?: (id: string) => void
+  onDuplicateWorkspace?: (id: string) => void
+  onDeleteWorkspace?: (id: string) => void
 }
 
-export default function ConsolePalette({ visible, onToggle, onQuickPlace, workspaces = [], activeWorkspaceId = null, onSelectWorkspace }: ConsolePaletteProps) {
+export default function ConsolePalette({ visible, onToggle, onQuickPlace, workspaces = [], activeWorkspaceId = null, onSelectWorkspace, onRenameWorkspace, onDuplicateWorkspace, onDeleteWorkspace }: ConsolePaletteProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     workspaces: false,
     graphics: true,
@@ -762,6 +832,9 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
             onSelectWorkspace={onSelectWorkspace}
             favoriteIds={favoriteIds}
             onToggleFavorite={toggleFavorite}
+            onRenameWorkspace={onRenameWorkspace}
+            onDuplicateWorkspace={onDuplicateWorkspace}
+            onDeleteWorkspace={onDeleteWorkspace}
           />
         </AccordionSection>
 
