@@ -282,7 +282,71 @@ export default function ConsolePage() {
 
   const saveMutation = useMutation({
     mutationFn: (ws: WorkspaceLayout) => consoleApi.saveWorkspace(ws),
-    onSuccess: (_data, ws) => {
+    onSuccess: (data, ws) => {
+      // The API client never rejects — it returns { success: false } on error.
+      // We must check here so that 4xx/5xx responses route to error handling
+      // rather than firing a false-positive success toast.
+      if (!data.success) {
+        const errorMessage = data.error.message ?? 'The server could not be reached. Please try again.'
+        const isCreate = pendingCreateIdsRef.current.has(ws.id)
+        if (isCreate) {
+          pendingCreateIdsRef.current.delete(ws.id)
+          // Roll back the optimistic workspace addition
+          useWorkspaceStore.getState().deleteWorkspace(ws.id)
+          queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
+            prev ? prev.filter((w) => w.id !== ws.id) : [],
+          )
+          showToast({
+            title: 'Failed to create workspace',
+            description: errorMessage,
+            variant: 'error',
+            duration: 0,
+          })
+          return
+        }
+        const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id)
+        if (isDuplicate) {
+          pendingDuplicateIdsRef.current.delete(ws.id)
+          // Roll back the optimistic duplicate addition
+          useWorkspaceStore.getState().deleteWorkspace(ws.id)
+          queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
+            prev ? prev.filter((w) => w.id !== ws.id) : [],
+          )
+          showToast({
+            title: 'Failed to duplicate workspace',
+            description: errorMessage,
+            variant: 'error',
+            duration: 0,
+          })
+          return
+        }
+        if (pendingRenameIdsRef.current.has(ws.id)) {
+          pendingRenameIdsRef.current.delete(ws.id)
+          showToast({
+            title: 'Failed to rename workspace',
+            description: errorMessage,
+            variant: 'error',
+            duration: 0,
+          })
+          return
+        }
+        saveFailCountRef.current += 1
+        const next = saveFailCountRef.current
+        if (next === 1) {
+          showToast({ title: 'Failed to save workspace. Retrying\u2026', variant: 'error' })
+        }
+        if (next >= 3) {
+          setShowSaveBanner(true)
+          showToast({ title: 'Workspace save failed after multiple attempts.', variant: 'error' })
+        } else {
+          const delay = Math.pow(2, next - 1) * 1000
+          if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+          retryTimerRef.current = setTimeout(() => {
+            saveMutation.mutate(ws)
+          }, delay)
+        }
+        return
+      }
       const isCreate = pendingCreateIdsRef.current.has(ws.id)
       if (isCreate) {
         pendingCreateIdsRef.current.delete(ws.id)

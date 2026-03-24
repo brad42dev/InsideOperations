@@ -5514,7 +5514,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": "pass"
+      "uat_status": null
     },
     {
       "id": "DD-23-022",
@@ -5570,7 +5570,7 @@
       "wave": 3,
       "title": "Optimistic success toast fires on workspace creation even when backend returns 404",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
