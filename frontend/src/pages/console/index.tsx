@@ -282,7 +282,12 @@ export default function ConsolePage() {
 
   const saveMutation = useMutation({
     mutationFn: (ws: WorkspaceLayout) => consoleApi.saveWorkspace(ws),
-    onSuccess: () => {
+    onSuccess: (_data, ws) => {
+      const isCreate = pendingCreateIdsRef.current.has(ws.id)
+      if (isCreate) {
+        pendingCreateIdsRef.current.delete(ws.id)
+        showToast({ title: 'Workspace created', variant: 'success' })
+      }
       saveFailCountRef.current = 0
       setShowSaveBanner(false)
       if (retryTimerRef.current) {
@@ -292,6 +297,17 @@ export default function ConsolePage() {
       void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
     },
     onError: (_err, ws) => {
+      const isCreate = pendingCreateIdsRef.current.has(ws.id)
+      if (isCreate) {
+        pendingCreateIdsRef.current.delete(ws.id)
+        showToast({
+          title: 'Failed to create workspace',
+          description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
+          variant: 'error',
+          duration: 0,
+        })
+        return
+      }
       saveFailCountRef.current += 1
       const next = saveFailCountRef.current
       if (next === 1) {
@@ -396,6 +412,8 @@ export default function ConsolePage() {
   const [showSaveBanner, setShowSaveBanner] = useState(false)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
+  const pendingCreateIdsRef = useRef<Set<string>>(new Set())
 
   const [paletteVisible, setPaletteVisible] = useState(true)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
@@ -427,6 +445,10 @@ export default function ConsolePage() {
     setWorkspaces([...currentWorkspaces, ws])
     setActiveId(ws.id)
     setEditMode(true)
+    // Mark as a new creation so saveMutation can show a toast on success/failure
+    if (useApi) {
+      pendingCreateIdsRef.current.add(ws.id)
+    }
     persistWorkspace(ws)
     if (useApi) {
       queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
