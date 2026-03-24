@@ -5349,7 +5349,7 @@
       "wave": 3,
       "title": "Workspace creation still silent \u2014 no toast on success or failure after + \u2192 Done flow",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
