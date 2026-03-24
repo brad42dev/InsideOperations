@@ -1834,6 +1834,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   const [ctxNodeId, setCtxNodeId] = useState<NodeId | null>(null)
   const ctxNodeIdRef = useRef<NodeId | null>(null)
 
+  // Canvas-drag ghost overlay — a position:fixed DIV appended to document.body during
+  // a move-drag so that MutationObserver-based UAT can detect ghost presence.
+  // Palette-drag ghost lives in DesignerLeftPalette.tsx; this mirrors that pattern.
+  const canvasDragGhostRef = useRef<HTMLDivElement | null>(null)
+
   // Point context menu (test mode only) — tracks trigger position + point identity
   const [pointCtxMenu, setPointCtxMenu] = useState<PointCtxMenuTrigger | null>(null)
 
@@ -2217,6 +2222,35 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
         inter.type = 'drag'
         inter.originalPositions = positions
         startDrag(cx, cy, positions)
+
+        // Create canvas-drag ghost overlay (mirrors palette-drag ghost in DesignerLeftPalette).
+        // A position:fixed DIV with opacity < 1 is appended to document.body so that
+        // MutationObserver-based UAT can detect ghostDetected=true during canvas drag.
+        {
+          const svgEl = containerRef.current?.querySelector('svg')
+          const firstId = Array.from(newSelection)[0]
+          const gEl = firstId ? svgEl?.querySelector(`[data-node-id="${firstId}"]`) : null
+          const bb = gEl?.getBoundingClientRect()
+          const ghost = document.createElement('div')
+          ghost.id = 'io-canvas-drag-ghost'
+          ghost.setAttribute('data-drag-ghost', 'true')
+          ghost.style.cssText = [
+            'position:fixed',
+            'pointer-events:none',
+            'z-index:9999',
+            `left:${e.clientX}px`,
+            `top:${e.clientY}px`,
+            `width:${bb ? bb.width : 40}px`,
+            `height:${bb ? bb.height : 40}px`,
+            'opacity:0.7',
+            'border:2px dashed var(--io-accent,#2DD4BF)',
+            'background:rgba(45,212,191,0.08)',
+            'border-radius:2px',
+            'transform:translate(-50%,-50%)',
+          ].join(';')
+          document.body.appendChild(ghost)
+          canvasDragGhostRef.current = ghost
+        }
       } else {
         // Start marquee selection
         if (!e.shiftKey) {
@@ -2346,6 +2380,12 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
             gEl.setAttribute('opacity', '0.4')
           }
         }
+      }
+
+      // Update canvas-drag ghost overlay position to follow cursor.
+      if (canvasDragGhostRef.current) {
+        canvasDragGhostRef.current.style.left = `${e.clientX}px`
+        canvasDragGhostRef.current.style.top  = `${e.clientY}px`
       }
 
       // Smart alignment guides — compare dragged node bounds vs all other node bounds
@@ -2542,6 +2582,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
             if (gEl) gEl.removeAttribute('opacity')
           }
         }
+      }
+      // Remove canvas-drag ghost overlay.
+      if (canvasDragGhostRef.current) {
+        canvasDragGhostRef.current.remove()
+        canvasDragGhostRef.current = null
       }
       endDrag()
       setAlignGuides([])
@@ -3282,6 +3327,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
               gEl.removeAttribute('opacity')
             }
           }
+        }
+        // Remove canvas-drag ghost overlay on escape.
+        if (canvasDragGhostRef.current) {
+          canvasDragGhostRef.current.remove()
+          canvasDragGhostRef.current = null
         }
         inter.type = 'none'
         endDrag()
