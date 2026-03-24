@@ -448,7 +448,7 @@ export default function ProcessPage() {
     queryFn: async () => {
       if (!selectedId) return null
       const result = await graphicsApi.get(selectedId)
-      if (result.success) return result.data.data
+      if (result.success) return result.data ?? null
       return null
     },
     enabled: !!selectedId,

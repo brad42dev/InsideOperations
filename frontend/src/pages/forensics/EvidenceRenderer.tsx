@@ -510,7 +510,7 @@ function GraphicSnapshotEvidence({ item }: { item: EvidenceItem }) {
     queryFn: async () => {
       if (!graphicId) return null
       const result = await graphicsApi.get(graphicId)
-      return result.success ? result.data.data : null
+      return result.success ? result.data : null
     },
     enabled: !!graphicId,
     staleTime: 300_000,

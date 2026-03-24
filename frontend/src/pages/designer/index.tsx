@@ -667,7 +667,7 @@ export default function DesignerPage() {
         setLoadError(resp.error.message)
         return
       }
-      const record = resp.data.data
+      const record = resp.data
       loadGraphic(record.id, record.scene_data)
       historyClear()
 
@@ -878,8 +878,8 @@ export default function DesignerPage() {
     const result = await graphicsApi.restoreVersion(currentId, versionId).catch(() => null)
     if (result?.success) {
       const fresh = await graphicsApi.get(currentId).catch(() => null)
-      if (fresh?.success && fresh.data.data.scene_data) {
-        loadGraphic(currentId, fresh.data.data.scene_data)
+      if (fresh?.success && fresh.data.scene_data) {
+        loadGraphic(currentId, fresh.data.scene_data)
       }
     }
   }, [loadGraphic])
@@ -1013,7 +1013,7 @@ export default function DesignerPage() {
         tabStoreCloseTab(tabId)
         return
       }
-      const record = resp.data.data
+      const record = resp.data
       loadGraphic(record.id, record.scene_data)
       historyClear()
       setViewport({ panX: 0, panY: 0, zoom: 1 })
@@ -1151,7 +1151,7 @@ export default function DesignerPage() {
           setLoadError(resp.error.message)
           return
         }
-        const record = resp.data.data
+        const record = resp.data
         loadGraphic(record.id, record.scene_data)
         historyClear()
         setViewport({ panX: 0, panY: 0, zoom: 1 })
@@ -1212,7 +1212,7 @@ export default function DesignerPage() {
           try {
             const resp = await graphicsApi.get(nextTab.graphicId)
             if (resp.success) {
-              loadGraphic(resp.data.data.id, resp.data.data.scene_data)
+              loadGraphic(resp.data.id, resp.data.scene_data)
               historyClear()
               setViewport({ panX: 0, panY: 0, zoom: 1 })
             }

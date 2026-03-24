@@ -143,7 +143,7 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
     queryKey: ['graphic', graphicId],
     queryFn: async () => {
       const result = await graphicsApi.get(graphicId)
-      if (result.success) return result.data.data
+      if (result.success) return result.data
       throw new Error('Failed to load graphic')
     },
     staleTime: 30_000,

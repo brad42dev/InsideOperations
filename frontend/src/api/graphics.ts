@@ -40,7 +40,7 @@ export const graphicsApi = {
 
   /** Get a single graphic by ID */
   get: (id: string) =>
-    api.get<{ data: { id: string; name: string; scene_data: GraphicDocument; version: number; updatedAt: string; locked_by: string | null; locked_by_name: string | null; locked_at: string | null } }>(
+    api.get<{ id: string; name: string; scene_data: GraphicDocument; version: number; updatedAt: string; locked_by: string | null; locked_by_name: string | null; locked_at: string | null }>(
       `/api/v1/design-objects/${id}`
     ),
 
