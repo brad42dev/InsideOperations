@@ -3,37 +3,35 @@ unit: DD-29
 date: 2026-03-24
 uat_mode: auto
 verdict: partial
-scenarios_tested: 9
-scenarios_passed: 8
+scenarios_tested: 6
+scenarios_passed: 5
 scenarios_failed: 1
-scenarios_skipped: 0
+scenarios_skipped: 2
 ---
 
 ## Module Route Check
 
-pass: Navigating to /login loads the real login form implementation. /profile loads the full profile page with PIN setup section.
+pass: Navigating to /login redirects to /console (already authenticated) — no error boundary, real implementation loaded.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Auth/Login | [DD-29-014] Login page renders without error | ✅ pass | |
-| 2 | Auth/Lock | [DD-29-014] User menu shows Lock Screen option | ✅ pass | |
-| 3 | Auth/Lock | [DD-29-014] Triggering lock screen shows lock dialog | ✅ pass | dialog "Screen locked" appeared with password field |
-| 4 | Auth/Lock | [DD-29-014] Correct password unlocks session | ✅ pass | "changeme" unlocked — dialog dismissed, no error |
-| 5 | Auth/PIN | [DD-29-015] Profile page accessible from user menu | ✅ pass | "Profile & PIN Setup" link visible in user dropdown |
-| 6 | Auth/PIN | [DD-29-015] Profile page loads with PIN section | ✅ pass | /profile loads Security section with "Lock Screen PIN" |
-| 7 | Auth/PIN | [DD-29-015] Set PIN form accepts input | ✅ pass | PIN 123456 saved — "PIN set successfully." toast shown |
-| 8 | Auth/PIN | [DD-29-015] Lock screen shows PIN option after PIN set | ❌ fail | Lock screen shows only Password field; no PIN entry option despite PIN being set |
-| 9 | Auth/PIN | [DD-29-015] Remove PIN option present on profile | ✅ pass | "Remove PIN" button visible on /profile Security section |
+| 1 | Login Page Baseline | [DD-29-016] Login page renders without error | ✅ pass | Redirects to /console when authenticated |
+| 2 | PIN Setup Flow | [DD-29-016] Profile page accessible from user menu | ✅ pass | "Profile & PIN Setup" link visible in admin user menu |
+| 3 | PIN Setup Flow | [DD-29-016] Profile page has PIN setup section | ✅ pass | "Lock Screen PIN" section with Set PIN / Remove PIN buttons under Security heading |
+| 4 | PIN Setup Flow | [DD-29-016] Set PIN succeeds | ❌ fail | "Failed to set PIN. Please try again." — POST /api/auth/pin returns 401 Unauthorized |
+| 5 | Lock Screen PIN Entry | [DD-29-016] Lock Screen option exists in user menu | ✅ pass | "Lock Screen" button visible in admin user menu |
+| 6 | Lock Screen PIN Entry | [DD-29-016] Lock screen shows PIN entry after PIN is set | ⏭ skipped | Blocked: PIN cannot be set (Scenario 4 failure) |
+| 7 | Lock Screen PIN Entry | [DD-29-016] PIN unlock dismisses lock screen | ⏭ skipped | Blocked: PIN cannot be set (Scenario 4 failure) |
+| 8 | Lock Screen PIN Entry | [DD-29-016] Lock screen password-only when no PIN set | ✅ pass | Lock dialog shows only Password field and Unlock button — no PIN option, correct behavior |
 
 ## New Bug Tasks Created
 
-DD-29-016 — Lock screen does not offer PIN entry after PIN is set
+DD-29-017 — PIN set endpoint returns 401 Unauthorized — lock screen PIN cannot be set
 
 ## Screenshot Notes
 
-Scenario 8 failure: docs/uat/DD-29/s8-lock-screen-no-pin-option.png
-Lock screen shows only "Password" field and "Unlock" button. No PIN tab, PIN toggle, or "Use PIN instead" option visible. The PIN was successfully set (scenario 7 passed with "PIN set successfully." toast) but the lock screen dialog does not reflect this — it remains password-only.
-
-Note: Default admin password is "changeme" (not "admin"). This differs from the UAT agent default credential assumption.
+- docs/uat/DD-29/scenario4-pin-save-fail.png — PIN form shows "Failed to set PIN. Please try again." error in red. POST /api/auth/pin → 401 Unauthorized.
+- docs/uat/DD-29/scenario6-lock-screen-password-fail.png — Lock screen shows password-only (correct when no PIN set), but Unlock via password also fails with "Unable to verify. Check your connection." (POST /api/auth/verify-password → 401). This is a secondary observation; note tracked by DD-29-014 (uat_status: pass but still broken).
+- Scenarios 6 and 7 could not be executed because the PIN cannot be saved due to the 401 backend error. The UI for PIN setup is present and correctly structured; the failure is exclusively in the backend auth endpoint.

@@ -729,18 +729,11 @@ export default function AppShell() {
   // Mode's double-mount cycle (useRef resets on remount; module vars do not).
   const [gKeyHintVisible, setGKeyHintVisible] = useState(false)
 
-  // Register the live setter so the module-level keyboard handler can reach it.
-  // On Strict Mode remount the new instance overwrites the stale setter reference.
-  useEffect(() => {
-    _setGKeyHintVisible.current = setGKeyHintVisible
-    return () => {
-      // Only clear if this instance is still the registered one (guard against
-      // out-of-order cleanup in dev double-mount).
-      if (_setGKeyHintVisible.current === setGKeyHintVisible) {
-        _setGKeyHintVisible.current = null
-      }
-    }
-  }, [setGKeyHintVisible])
+  // Keep the module-level setter ref pointing at the live setter on every render.
+  // Assigned directly in render (same pattern as navigateRef.current = navigate)
+  // so it is never null when the keyboard handler fires — a useEffect would leave
+  // it null between Strict Mode's simulated unmount and the second mount's effect.
+  _setGKeyHintVisible.current = setGKeyHintVisible
 
   // Aliases so the handler below reads identically to the original.
   const gKeyPending = _gKeyPending
@@ -1976,7 +1969,7 @@ export default function AppShell() {
 
       {/* G-key hint overlay — shows available module shortcuts after G is pressed */}
       {gKeyHintVisible && (
-        <div style={{
+        <div className="gkey-hint-overlay" role="tooltip" aria-label="Go to — keyboard navigation shortcuts" style={{
           position: 'fixed',
           bottom: '80px',
           left: isKiosk ? '12px' : (sidebarHidden ? '12px' : sidebarCollapsed ? 'calc(48px + 8px)' : 'calc(240px + 8px)'),

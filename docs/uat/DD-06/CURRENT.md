@@ -2,42 +2,34 @@
 unit: DD-06
 date: 2026-03-24
 uat_mode: auto
-verdict: fail
-scenarios_tested: 6
-scenarios_passed: 1
-scenarios_failed: 5
+verdict: partial
+scenarios_tested: 7
+scenarios_passed: 4
+scenarios_failed: 3
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /console loads real implementation (app shell with sidebar, topbar, navigation)
+pass: Navigating to /console loads the real Console implementation — sidebar navigation, top bar, workspace panel, and pane grid all rendered correctly.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | G-Key Navigation | [DD-06-018] Page renders without error | ✅ pass | /console loads correctly |
-| 2 | G-Key Navigation | [DD-06-018] G key shows hint overlay | ❌ fail | Hint overlay never appears in DOM after trusted G keypress; setGKeyHintVisible(true) has no visible DOM effect |
-| 3 | G-Key Navigation | [DD-06-018] G+P navigates to Process | ❌ fail | URL stayed at /console; spy showed G=prevented:true but P=prevented:false (navigation block never entered) |
-| 4 | G-Key Navigation | [DD-06-018] G+R navigates to Reports | ❌ fail | URL stayed at /console |
-| 5 | G-Key Navigation | [DD-06-018] G+D navigates to Designer | ❌ fail | URL stayed at /console |
-| 6 | G-Key Navigation | [DD-06-018] Hint overlay auto-dismisses | ❌ fail | Cannot verify — overlay never appeared |
+| 1 | App Shell | [DD-06-019] App shell renders without error | ✅ pass | Console page loads with full navigation, no error boundary |
+| 2 | G-Key Navigation | [DD-06-019] G-key hint overlay appears after pressing G | ❌ fail | No overlay appeared in DOM or accessibility tree after pressing G — expected "Go to…" hint panel with module shortcuts |
+| 3 | G-Key Navigation | [DD-06-019] Overlay lists correct module shortcuts | ❌ fail | Overlay never appeared; shortcuts cannot be verified |
+| 4 | G-Key Navigation | [DD-06-019] G+P navigates to /process | ✅ pass | URL changed to /process immediately after G then P |
+| 5 | G-Key Navigation | [DD-06-019] G+R navigates to /reports | ✅ pass | URL changed to /reports immediately after G then R |
+| 6 | G-Key Navigation | [DD-06-019] G+D navigates to /designer | ✅ pass | URL changed to /designer immediately after G then D |
+| 7 | G-Key Navigation | [DD-06-019] Overlay auto-dismisses after 2.5s timeout | ❌ fail | Overlay never appeared so auto-dismiss cannot be verified; URL did stay at /console after 2.5s wait |
 
 ## New Bug Tasks Created
 
-DD-06-019 — G-key navigation broken with trusted keyboard events — React Strict Mode ref reset
+DD-06-020 — G-key hint overlay does not render — navigation works but overlay is invisible
 
 ## Screenshot Notes
 
-- docs/uat/DD-06/scenario2-g-key-after.png — After pressing G, no hint overlay visible in viewport
-- docs/uat/DD-06/scenario3-g-p-navigation-fail.png — After G+P, still at /console ("No workspaces yet" state)
-- docs/uat/DD-06/scenario2-hint-after-g.png — After fresh G press on /console, still no hint overlay
-
-**Root cause analysis:**
-- With JS-dispatched untrusted events, G+letter navigation WORKS (verified: G+P→/process, G+R→/reports, G+D→/designer in ~56ms)
-- With Playwright trusted keyboard events (simulating real user input), G is handled (`prevented:true`) but second key is NOT (`prevented:false`)
-- MutationObserver confirmed: hint overlay NEVER appears after trusted G press (setGKeyHintVisible(true) has no DOM effect)
-- Root cause: React 18 Strict Mode in dev causes AppShell component to remount during G key processing, resetting `gKeyPending` useRef to initial value `false` before the second key fires. The old handler's state setter is orphaned (React silently ignores setState on unmounted component in React 18).
-- The feature IS implemented and works with untrusted JS events — the underlying logic (G_KEY_MAP, navigateRef, gKeyPending) is correct.
-- Fix needed: either (1) remove StrictMode, (2) store gKeyPending in a module-level variable outside React, or (3) use a stable cross-render mechanism that survives Strict Mode remounts.
+- docs/uat/DD-06/fail-no-gkey-overlay.png — Console page after pressing G key; no hint overlay visible anywhere on screen. Navigation mechanism works (G+P/R/D all execute correctly) but the visual "Go to…" hint overlay is absent. This matches the task title: the overlay rendering is broken due to React Strict Mode ref reset, even though the underlying navigation handler still fires.
+- The overlay is completely absent from the DOM (no elements with "overlay", "hint", "gkey", or "Go to" text found via querySelectorAll). The navigation state machine registers keystrokes and executes navigation, but the overlay render path is broken.

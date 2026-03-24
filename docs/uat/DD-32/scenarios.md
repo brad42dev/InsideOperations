@@ -1,18 +1,17 @@
 # UAT Scenarios — DD-32
 
-## Console Route Health
-Scenario 1: [DD-32-014] Console page renders without error — navigate to /console → workspace list/tabs visible, no error boundary text ("Something went wrong")
+## Page Load Check
+Scenario 1: [DD-32-014] Console page renders without error — navigate to /console → page loads with workspace list, no error boundary
 
 ## Workspace Creation Toast
-Scenario 2: [DD-32-014] Create workspace via "+" shows success toast — click "+" button on console, enter a workspace name, click "Done" → a toast notification appears within 3 seconds confirming success
-Scenario 3: [DD-32-014] Workspace tab count increments after creation — before clicking "+": note tab count; after creating workspace and clicking "Done" → tab count is higher by 1
+Scenario 2: [DD-32-014] "+" button is present on /console — navigate to /console → "+" button visible in workspace header/tab area
+Scenario 3: [DD-32-014] Click "+" opens workspace creation flow — click "+" button → dialog or inline form appears to configure workspace
+Scenario 4: [DD-32-014] Completing workspace creation shows success toast — complete the "+" → Done flow → success toast appears within 3 seconds
+Scenario 5: [DD-32-014] Workspace tab count increments on creation — after creating a workspace → workspace tab count increases by 1
+Scenario 6: [DD-32-016] Toast fires only after backend confirms (not optimistic) — create workspace → toast appears only after backend responds; no instant premature toast
 
-## Notifications Panel (F8)
-Scenario 4: [DD-32-014] F8 keypress opens Notifications panel — press F8 on /console → notifications/toast history panel appears (role="dialog" or notifications region visible)
-
-## Workspace Context Menu (Duplicate)
-Scenario 5: [DD-32-015] Right-click workspace tab shows Duplicate option — right-click an existing workspace tab → [role="menu"] appears and contains "Duplicate" item
-Scenario 6: [DD-32-015] Context menu shows full CRUD actions — right-click workspace tab → menu contains Rename, Delete, and Duplicate items
+## Notifications Panel
+Scenario 7: [DD-32-014] F8 opens Notifications panel — press F8 → Notifications region/panel opens and shows toast history
 
 ## Workspace Duplication Toast
-Scenario 7: [DD-32-015] Duplicating a workspace shows a toast — right-click workspace tab → click "Duplicate" → a toast notification appears (success or error, but NOT silent)
+Scenario 8: [DD-32-016] Right-click workspace → Duplicate shows success toast — right-click a workspace tab/row, select Duplicate → success toast appears confirming duplication

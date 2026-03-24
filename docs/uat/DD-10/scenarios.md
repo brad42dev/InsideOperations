@@ -1,19 +1,23 @@
 # UAT Scenarios — DD-10
 
-## Page Load and Dashboard List
-Scenario 1: [DD-10-015] Dashboards page renders without error — navigate to /dashboards → dashboard list visible, no error boundary or blank page
+## BadQualityBySource Widget (DD-10-016)
 
-## Equipment Health Dashboard
-Scenario 2: [DD-10-015] Equipment Health dashboard loads — navigate to /dashboards, open Equipment Health → page renders with widgets, no "Unknown widget type" or raw type-string badge
-Scenario 3: [DD-10-015] Equipment Health widgets show real content — after opening Equipment Health → all widgets render visual content or proper empty/loading state (not raw type strings like "quality-distribution", "stale-points", "bad-quality-by-source", "point-status-table")
+Scenario 1: [DD-10-016] Dashboards page renders without error — navigate to /dashboards → page loads, no error boundary
+Scenario 2: [DD-10-016] Equipment Health dashboard loads without crash — click Equipment Health dashboard → page opens, no "Dashboards failed to load" error boundary
+Scenario 3: [DD-10-016] BadQualityBySource widget renders content or graceful state — open Equipment Health → BadQualityBySource widget area shows content, loading spinner, or "No data" — NOT a raw "bad-quality-by-source" type badge and NOT a JS crash error boundary
 
-## Executive Summary Dashboard
-Scenario 4: [DD-10-015] Executive Summary dashboard loads — navigate to /dashboards, open Executive Summary → page renders with widgets, no error boundary
-Scenario 5: [DD-10-015] Executive Summary widgets show real content — after opening Executive Summary → widgets render content not raw type-label badges (not "alarm-health-kpi", "production-status", "rounds-completion", "open-alerts", "system-uptime", "alarm-rate-trend")
+## ProductionStatus Widget (DD-10-017)
 
-## Reactor Unit 1 KPIs Dashboard
-Scenario 6: [DD-10-015] Reactor Unit 1 KPIs dashboard loads — navigate to /dashboards, open Reactor Unit 1 KPIs → page renders, no error
-Scenario 7: [DD-10-015] Trend chart widget renders as chart not type badge — on Reactor Unit 1 KPIs, Unit 1 Trends widget shows a chart visual, not the raw string "trend-chart"
+Scenario 4: [DD-10-017] Executive Summary dashboard loads without crash — click Executive Summary dashboard → page opens, no "Dashboards failed to load" error boundary
+Scenario 5: [DD-10-017] ProductionStatus widget renders content or graceful state — open Executive Summary → ProductionStatus widget area shows content, loading spinner, or "No data" — NOT a raw "production-status" type badge and NOT a JS crash
 
-## No Raw Type Strings Anywhere
-Scenario 8: [DD-10-015] No raw widget type strings visible across dashboards — spot-check → no widget card shows raw type identifier string (e.g., "quality-distribution", "stale-points", "alarm-health-kpi", "trend-chart") as its primary visible text content
+## TrendChart Widget (DD-10-018)
+
+Scenario 6: [DD-10-018] Reactor Unit 1 KPIs dashboard loads without crash — click Reactor Unit 1 KPIs dashboard → page opens, no "Dashboards failed to load" error boundary
+Scenario 7: [DD-10-018] TrendChart widget renders chart or graceful state — open Reactor Unit 1 KPIs → Unit 1 Trends / trend-chart widget shows a chart or "No data" placeholder — NOT a raw "trend-chart" type badge and NOT a JS crash
+
+## Cross-cutting
+
+Scenario 8: [DD-10-016] No raw type-string badges visible on Equipment Health — after opening Equipment Health, no widget shows raw type string text (e.g., "bad-quality-by-source", "stale-points") as visible content
+Scenario 9: [DD-10-017] No raw type-string badge "production-status" visible — open Executive Summary, no widget shows raw "production-status" text as content
+Scenario 10: [DD-10-018] No raw type-string badge "trend-chart" visible — open Reactor Unit 1 KPIs, no widget shows raw "trend-chart" text as content

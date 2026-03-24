@@ -2,42 +2,40 @@
 unit: DD-23
 date: 2026-03-24
 uat_mode: auto
-verdict: partial
-scenarios_tested: 10
-scenarios_passed: 6
-scenarios_failed: 4
+verdict: pass
+scenarios_tested: 9
+scenarios_passed: 9
+scenarios_failed: 0
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /settings/expressions loads the Expression Library with real implementation (expression list with Edit/Delete buttons, full expression builder modal)
+pass: Navigating to /settings/expressions loads real Expression Library implementation with expression list, Edit/Delete actions, and full expression editor dialog.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Load | [DD-23-019] Expression library page renders without error | ✅ pass | Page loaded with 1 expression "UAT test", no error boundary |
-| 2 | Insertion Cursor | [DD-23-019] Insertion cursor visible in empty workspace | ✅ pass | `generic "Insertion cursor"` element present in accessibility tree |
-| 3 | Insertion Cursor | [DD-23-019] Cursor moves on click | ✅ pass | Cursor moved from after tile (e285) to before tile (e288) after clicking the tile |
-| 4 | Drag into Container | [DD-23-018] Drag palette tile into container's empty zone | ❌ fail | Status bar showed "Draggable item palette-constant was dropped" but group content unchanged; tile NOT inserted inside container |
-| 5 | Drag into Container | [DD-23-018] Drop into sibling gap inside container | ❌ fail | Container still empty after drag; gap drop untestable |
-| 6 | Breadcrumb | [DD-23-020] No breadcrumb shown at root level | ✅ pass | No breadcrumb visible above workspace at root level (correct behavior) |
-| 7 | Breadcrumb | [DD-23-020] Breadcrumb appears when entering a container | ❌ fail | Clicked inside group container (group became active, visual cursor line appeared inside), but no breadcrumb trail appeared above workspace |
-| 8 | Breadcrumb | [DD-23-020] Breadcrumb navigation clickable | ❌ fail | No breadcrumb appeared so nothing to click |
-| 9 | Save Checkbox | [DD-23-021] "Save for Future Use" checked by default on open | ✅ pass | Checkbox shows `[checked]` immediately on modal open before any interaction |
-| 10 | Save Checkbox | [DD-23-021] Checkbox state persists through workspace changes | ✅ pass | Checkbox remained `[checked]` after adding a tile to the workspace |
+| 1 | Drag-Drop Into Container | Expression builder opens without error | ✅ pass | Expression Library page loaded with 1 saved expression, no error boundary |
+| 2 | Drag-Drop Into Container | Add group container to workspace | ✅ pass | (…) group tile appeared with "Click palette tiles to insert, or drag them here" drop zone |
+| 3 | Drag-Drop Into Container | Drag tile from palette into group container interior | ✅ pass | "Enter Value" dropped INSIDE group as child (Value: 0 tile, indented in group); status bar confirmed drop |
+| 4 | Drag-Drop Into Container | Group error clears after tile dropped inside | ✅ pass | "(…) container must have at least one child tile." error gone after successful drop |
+| 5 | Drag-Drop Into Container | Second tile drops into sibling gap inside group | ✅ pass | Dragged second "Enter Value" onto existing tile inside group; group now shows two children (expression: (0 0)) |
+| 6 | Breadcrumb Navigation | No breadcrumb at root level | ✅ pass | At root level, no breadcrumb trail visible above workspace (no "Expression nesting path" navigation) |
+| 7 | Breadcrumb Navigation | Breadcrumb appears when cursor enters container | ✅ pass | After drag moved cursor into group, breadcrumb nav "Root > (…)" appeared above workspace |
+| 8 | Breadcrumb Navigation | Breadcrumb is clickable — Root returns to root | ✅ pass | Clicking "Root" button returned cursor to root level; breadcrumb nav disappeared |
+| 9 | Breadcrumb Navigation | Breadcrumb updates dynamically on deeper nesting | ✅ pass | After entering nested level-2 group, breadcrumb showed "Root > (…) > (…)" with outer (…) clickable and inner disabled |
 
 ## New Bug Tasks Created
 
-DD-23-022 — Drag-and-drop from palette into group container interior still does not work
-DD-23-023 — Breadcrumb trail still not shown above workspace when cursor is inside a nested container
+None
 
 ## Screenshot Notes
 
-- docs/uat/DD-23/scenario4-drag-fail.png: Shows workspace after drag attempt — group still empty, drag drop event fired but tile not placed inside container
-- docs/uat/DD-23/group-click.png: Shows group active (teal border) with visual cursor line inside, but no breadcrumb area visible above workspace
-- DD-23-019 FIXED: Insertion cursor is now visible and responsive — both scenarios 2 and 3 pass
-- DD-23-021 FIXED: "Save for Future Use" checkbox is now checked by default — both scenarios 9 and 10 pass
-- DD-23-018 STILL FAILING: Drag-and-drop from palette into container interior does not work; the HTML5 drag event fires ("was dropped" in status) but the tile is not placed inside the group
-- DD-23-020 STILL FAILING: Breadcrumb navigation does not appear when cursor is inside a nested container
+All scenarios passed cleanly. Key observations:
+- Drag-and-drop from palette into group container now works correctly (DD-23-022 fixed)
+- Tiles dropped into group appear as children with level-2 group styling (Group, level 2 shown in accessibility tree)
+- Breadcrumb navigation (DD-23-023) fully working: shows/hides based on nesting level, supports click-to-navigate, updates dynamically for multiple levels
+- The "Enter Value" palette button was marked [active] during drag operations indicating the drag state was tracked
+- Expression preview updates correctly: empty → (0) → (0 0) → (0 0 ()) as tiles were added

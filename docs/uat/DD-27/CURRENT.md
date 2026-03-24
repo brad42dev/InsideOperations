@@ -4,33 +4,35 @@ date: 2026-03-24
 uat_mode: auto
 verdict: partial
 scenarios_tested: 7
-scenarios_passed: 5
-scenarios_failed: 2
+scenarios_passed: 3
+scenarios_failed: 4
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /alerts loads real implementation — Alerts module with Send Alert composer, Active/History/Management tabs visible, no error boundary.
+pass: Navigating to /alerts loads real implementation — Alerts module renders with Send Alert / Active / History / Management tabs, composer form, and template management.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Alerts Module Load | [DD-27-012] Alerts page renders without error | ✅ pass | Full module loaded with heading, tabs, composer |
-| 2 | Alerts Module Load | [DD-27-012] No templates.find crash | ✅ pass | Console shows 429 rate-limit errors but no TypeError; module interactive |
-| 3 | Alerts Module Load | [DD-27-012] Empty state when no templates | ✅ pass | Template combobox shows "— Ad-hoc notification —" default; 10 system templates populated |
-| 4 | Alert Composer | [DD-27-013] Alert composer opens | ✅ pass | Send Alert view is immediately visible with full compose form |
-| 5 | Alert Composer | [DD-27-013] Channel options visible in composer | ❌ fail | Only "websocket" checkbox shown; SMS/PA/Radio/Push not present. API /api/notifications/channels/enabled returns 429 (rate limited) |
-| 6 | Alert Composer | [DD-27-013] SMS channel checkbox toggleable | ❌ fail | SMS checkbox not visible in composer — cannot test |
-| 7 | Templates Section | [DD-27-013] Templates section renders | ✅ pass | Management > Templates shows 10 system templates with correct channel tags (sms, pa, radio, push visible in template cards) |
+| 1 | Module Load | [DD-27-014] Alerts module renders without error | ✅ pass | Page loads, heading visible, no error boundary |
+| 2 | Send Alert Composer | [DD-27-014] Send Alert tab visible and clickable | ✅ pass | Composer shown by default with form fields |
+| 3 | Send Alert Composer | [DD-27-014] Channels section shows all channel types | ❌ fail | Only `websocket` checkbox present; SMS, PA, Radio, Push absent. `/api/notifications/channels/enabled` returns 404 |
+| 4 | Send Alert Composer | [DD-27-014] SMS channel checkbox is toggleable | ❌ fail | SMS checkbox does not exist in Channels section |
+| 5 | Send Alert Composer | [DD-27-014] PA channel checkbox is toggleable | ❌ fail | PA checkbox does not exist in Channels section |
+| 6 | Send Alert Composer | [DD-27-014] Custom Alert template updates channels | ❌ fail | Selecting "Custom Alert" (websocket/email/sms/radio/push) shows template variables but Channels section still shows only websocket — not updated |
+| 7 | Templates Section | [DD-27-014] Alert templates section renders | ✅ pass | Management > Templates shows 10 seeded system templates with correct channel tags |
 
 ## New Bug Tasks Created
 
-DD-27-014 — Alert composer channels section only shows websocket; SMS/PA/Radio/Push channels absent
+DD-27-015 — Channels endpoint missing: /api/notifications/channels/enabled returns 404
+DD-27-016 — Template selection in composer does not update Channels section
 
 ## Screenshot Notes
 
-- Screenshot: .playwright-mcp/page-2026-03-24T18-46-33-011Z.png
-  Shows Send Alert composer with "Custom Alert (info)" template selected. Preview pane shows only "websocket" channel badge. The Channels section (below template variables) only renders the websocket checkbox — no SMS, PA, Radio, or Push options despite the Custom Alert template referencing all those channels in the Management view.
-- The /api/notifications/channels/enabled endpoint returned HTTP 429 (Too Many Requests), preventing the composer from loading the list of enabled channels. The channel data IS referenced in templates (Management view shows sms, pa, radio, push tags on template cards) but the composer's channel picker depends on this API response to render channel checkboxes.
+- docs/uat/DD-27/fail-channels-missing.png: Channels section showing only websocket with full composer visible
+- docs/uat/DD-27/fail-channels-template-no-update.png: Custom Alert template selected; Channels section still shows only websocket despite template having websocket/email/sms/radio/push; Preview panel also shows only websocket
+- /api/notifications/channels/enabled returns 404 — the enabled-channels endpoint is not implemented/routed, causing the frontend to fall back to only websocket
+- /api/notifications/templates?enabled=true initially returned 404 but templates were visible in Management tab (management uses a different endpoint); after visiting Management tab the templates cached and became available in the composer dropdown

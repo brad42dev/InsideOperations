@@ -1,16 +1,17 @@
 # UAT Scenarios — GFX-DISPLAY
 
 ## Page Load
-Scenario 1: [GFX-DISPLAY-007] Designer page renders without error — navigate to /designer → page loads, no error boundary text
+Scenario 1: [GFX-DISPLAY-008] Designer renders without error — navigate to /designer → page loads, no error boundary ("Something went wrong") visible
 
-## CSS Keyframes — Alarm Flash Text
-Scenario 2: [GFX-DISPLAY-007] io-alarm-flash-high-text keyframe exists — evaluate document.styleSheets → @keyframes io-alarm-flash-high-text found with fill #F97316 and fill #808080 transitions
-Scenario 3: [GFX-DISPLAY-007] io-alarm-flash-medium-text keyframe exists — evaluate document.styleSheets → @keyframes io-alarm-flash-medium-text found with fill #EAB308 and fill #808080 transitions
-Scenario 4: [GFX-DISPLAY-007] io-alarm-flash-advisory-text keyframe exists — evaluate document.styleSheets → @keyframes io-alarm-flash-advisory-text found with fill #06B6D4 and fill #808080 transitions
-Scenario 5: [GFX-DISPLAY-007] io-alarm-flash-custom-text keyframe exists — evaluate document.styleSheets → @keyframes io-alarm-flash-custom-text found with fill #7C3AED and fill #808080 transitions
+## Alarm Flash CSS Keyframes
+Scenario 2: [GFX-DISPLAY-008] All 4 alarm flash text keyframes present — evaluate document.styleSheets for @keyframes names → io-alarm-flash-high-text, io-alarm-flash-medium-text, io-alarm-flash-advisory-text, io-alarm-flash-custom-text all present
+Scenario 3: [GFX-DISPLAY-008] High-priority text keyframe colors correct — evaluate io-alarm-flash-high-text keyframe rules → contains fill: #F97316 (orange) and fill: #808080 (gray) transitions
+Scenario 4: [GFX-DISPLAY-008] Medium-priority text keyframe colors correct — evaluate io-alarm-flash-medium-text keyframe rules → contains fill: #EAB308 (yellow) and fill: #808080 transitions
+Scenario 5: [GFX-DISPLAY-008] Advisory-priority text keyframe colors correct — evaluate io-alarm-flash-advisory-text keyframe rules → contains fill: #06B6D4 (cyan) and fill: #808080 transitions
+Scenario 6: [GFX-DISPLAY-008] Custom-priority text keyframe colors correct — evaluate io-alarm-flash-custom-text keyframe rules → contains fill: #7C3AED (purple) and fill: #808080 transitions
 
-## CSS Classes — Priority Flash Rules
-Scenario 6: [GFX-DISPLAY-007] io-alarm-flash-high class has stroke and text-fill rules — evaluate document.styleSheets → .io-alarm-flash-high found with > * stroke animation and text fill animation using io-alarm-flash-high-text
-Scenario 7: [GFX-DISPLAY-007] io-alarm-flash-medium class has stroke and text-fill rules — evaluate document.styleSheets → .io-alarm-flash-medium found with > * stroke animation and text fill animation using io-alarm-flash-medium-text
-Scenario 8: [GFX-DISPLAY-007] io-alarm-flash-advisory class has stroke and text-fill rules — evaluate document.styleSheets → .io-alarm-flash-advisory found with > * stroke animation and text fill animation using io-alarm-flash-advisory-text
-Scenario 9: [GFX-DISPLAY-007] io-alarm-flash-custom class has stroke and text-fill rules — evaluate document.styleSheets → .io-alarm-flash-custom found with > * stroke animation and text fill animation using io-alarm-flash-custom-text
+## Alarm Flash Priority Classes
+Scenario 7: [GFX-DISPLAY-008] Priority class .io-alarm-flash-high has text fill animation — evaluate CSS class rules → class has both a "> *" stroke animation rule and a "text" fill animation rule using io-alarm-flash-high-text
+Scenario 8: [GFX-DISPLAY-008] Priority class .io-alarm-flash-medium has text fill animation — evaluate CSS class rules → class has both a "> *" stroke animation rule and a "text" fill animation rule using io-alarm-flash-medium-text
+Scenario 9: [GFX-DISPLAY-008] Priority class .io-alarm-flash-advisory has text fill animation — evaluate CSS class rules → class has both a "> *" stroke animation rule and a "text" fill animation rule using io-alarm-flash-advisory-text
+Scenario 10: [GFX-DISPLAY-008] Priority class .io-alarm-flash-custom has text fill animation — evaluate CSS class rules → class has both a "> *" stroke animation rule and a "text" fill animation rule using io-alarm-flash-custom-text

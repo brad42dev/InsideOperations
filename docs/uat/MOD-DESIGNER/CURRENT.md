@@ -2,43 +2,39 @@
 unit: MOD-DESIGNER
 date: 2026-03-24
 uat_mode: auto
-verdict: partial
-scenarios_tested: 14
-scenarios_passed: 11
-scenarios_failed: 2
+verdict: pass
+scenarios_tested: 10
+scenarios_passed: 10
+scenarios_failed: 0
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /designer loads real implementation (landing page + full graphic editor)
+pass: Navigating to /designer/graphics/new loads real implementation — shape palette visible, canvas functional, toolbar present, no error boundary
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | File Tab Bar | [MOD-DESIGNER-030] Designer loads without error | ✅ pass | |
-| 2 | File Tab Bar | [MOD-DESIGNER-030] File tab bar visible when graphic open | ✅ pass | tablist "Open graphics" appeared after Create |
-| 3 | File Tab Bar | [MOD-DESIGNER-030] Active tab is visually highlighted | ✅ pass | Tab shows [selected] state |
-| 4 | File Tab Bar | [MOD-DESIGNER-030] Mode selector distinct from file tabs | ✅ pass | Mode selector (◆/▦/📄) row is separate from tablist |
-| 5 | Canvas Drag Ghost | [MOD-DESIGNER-031] Drag ghost appears when moving shape on canvas | ❌ fail | MutationObserver detected NO ghost element during real Playwright mouse drag (mousedown→mousemove×10→mouseup). Element moved (630,325→680,295) but no opacity<1 overlay added to DOM |
-| 6 | Canvas Drag Ghost | [MOD-DESIGNER-031] Ghost disappears on mouse release / element moves | ✅ pass | Element correctly moved to new position, no stale ghost after drop |
-| 7 | Palette Drag Ghost | [MOD-DESIGNER-032] Drag ghost appears when dragging from palette | ✅ pass | MutationObserver detected DIV with opacity=0.7, position=fixed during palette drag |
-| 8 | Palette Drag Ghost | [MOD-DESIGNER-032] Shape lands at drop position after palette drag | ✅ pass | Text Readout appeared on canvas, Scene panel updated |
-| 9 | Point Context Menu | [MOD-DESIGNER-033] Right-click display element shows context menu | ✅ pass | Full context menu appeared with 30+ items |
-| 10 | Point Context Menu | [MOD-DESIGNER-033] Point context items present (Open Trend, View Detail, View Alerts) | ❌ fail | "Trend This Point" and "Point Detail" present (disabled), but "View Alerts" / "Alerts" entirely missing from menu |
-| 11 | Point Context Menu | [MOD-DESIGNER-033] Bind Point… and Change Type still present | ✅ pass | Both items present in menu |
-| 12 | Group Sub-tab | [MOD-DESIGNER-034] Double-clicking group opens sub-tab | ✅ pass | Sub-tab "Untitled Gra… › Group 1" appeared and was selected |
-| 13 | Group Sub-tab | [MOD-DESIGNER-034] Tab bar shows parent and group sub-tab | ✅ pass | Both "Untitled Graphic" (parent) and "Untitled Gra… › Group 1" (sub-tab) visible |
-| 14 | Group Sub-tab | [MOD-DESIGNER-034] Clicking parent tab exits group editing | ✅ pass | Parent tab became selected, group sub-tab deselected |
+| 1 | Page Load | [MOD-DESIGNER-035] Designer route renders without error | ✅ pass | Heading "Designer", breadcrumb, full UI loaded |
+| 2 | Shape Palette | [MOD-DESIGNER-035] Shape palette visible on new graphic | ✅ pass | Equipment, Display Elements, Widgets all visible in palette |
+| 3 | Canvas | [MOD-DESIGNER-035] Drag shape from palette to canvas | ✅ pass | Text Readout dragged from palette, "Undo: Add" confirmed element placed |
+| 4 | Canvas | [MOD-DESIGNER-035] Canvas shape can be moved by drag | ✅ pass | Transform changed from translate(100,150) to translate(100,30); Undo shows "Undo: Move" |
+| 5 | Canvas | [MOD-DESIGNER-035] Ghost/preview element during canvas drag | ✅ pass | Element id="io-canvas-drag-ghost" detected: opacity:0.7, dashed border (var(--io-accent)), pointer-events:none |
+| 6 | Context Menu | [MOD-DESIGNER-036] Right-clicking display element shows context menu | ✅ pass | [role="menu"] appeared immediately on right-click |
+| 7 | Context Menu | [MOD-DESIGNER-036] Context menu contains View Alerts item | ✅ pass | "View Alerts" present and disabled (no binding — correct per spec) |
+| 8 | Context Menu | [MOD-DESIGNER-036] Context menu contains Trend This Point | ✅ pass | "Trend This Point" present and disabled (no binding) |
+| 9 | Context Menu | [MOD-DESIGNER-036] Context menu contains Point Detail | ✅ pass | "Point Detail" present and disabled (no binding) |
+| 10 | Context Menu | [MOD-DESIGNER-036] Context menu contains Bind Point | ✅ pass | "Bind Point…" present and enabled |
 
 ## New Bug Tasks Created
 
-MOD-DESIGNER-035 — Canvas drag ghost missing — no preview when dragging shape on canvas
-MOD-DESIGNER-036 — "View Alerts" missing from display element point context menu
+None
 
 ## Screenshot Notes
 
-- Scenario 5: Canvas drag succeeded (element moved) but MutationObserver confirmed NO ghost overlay element was added to DOM during real Playwright mouse drag. Contrast with Scenario 7 (palette drag) which DID produce a ghost (DIV opacity=0.7).
-- Scenario 10: Screenshot captured at .playwright-mcp/page-2026-03-24T19-19-33-952Z.png. Menu contains: Point Detail (disabled), Trend This Point (disabled), Investigate Point (disabled), Report on Point (disabled), Copy Tag Name (disabled). Missing: "View Alerts" or any alerts-related item.
-- Scenario 14: After clicking parent tab, canvas showed "Failed to load graphic / Failed to parse server response" — expected behavior since graphic was not saved to backend API. The tab switching itself worked correctly.
+- canvas-with-element.png: Text Readout placed on canvas with dashed selection handles
+- context-menu-full.png: Full context menu visible with all point-context items at bottom (Point Detail, Trend This Point, View Alerts, Investigate Point, Report on Point, Copy Tag Name, Change Type, Bind Point…)
+- The "View Alerts" item is correctly disabled when unbound — matches spec requirement
+- Ghost element confirmed: #io-canvas-drag-ghost with opacity 0.7, fixed positioning, 2px dashed accent border — clean implementation

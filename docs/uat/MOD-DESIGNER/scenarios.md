@@ -1,25 +1,17 @@
 # UAT Scenarios — MOD-DESIGNER
 
-## File Tab Bar (MOD-DESIGNER-030)
-Scenario 1: [MOD-DESIGNER-030] Designer loads without error — navigate to /designer → page renders, no error boundary text
-Scenario 2: [MOD-DESIGNER-030] File tab bar visible when graphic open — navigate to /designer/graphics/new → a tab bar with a tab labeled with the file name appears, distinct from the mode selector (Graphic/Dashboard/Report)
-Scenario 3: [MOD-DESIGNER-030] Active tab is visually highlighted — open a graphic → the open file's tab appears highlighted/active in the tab bar
-Scenario 4: [MOD-DESIGNER-030] Mode selector distinct from file tabs — open a graphic → mode selector row (Graphic/Dashboard/Report buttons) is separate from the file tab bar
+## Page Load
+Scenario 1: [MOD-DESIGNER-035] Designer route renders without error — navigate to /designer → UI loads, no error boundary text ("Something went wrong"), navigation visible
 
-## Drag Ghost on Canvas (MOD-DESIGNER-031)
-Scenario 5: [MOD-DESIGNER-031] Drag ghost appears when moving shape on canvas — click and drag a shape already on the canvas → a translucent ghost/preview element follows the cursor during drag
-Scenario 6: [MOD-DESIGNER-031] Ghost disappears on mouse release — release drag → shape snaps to drop position, ghost element is gone
+## Shape Palette and Canvas
+Scenario 2: [MOD-DESIGNER-035] Shape palette visible on new graphic — navigate to /designer/graphics/new → sidebar palette with equipment shapes is visible
+Scenario 3: [MOD-DESIGNER-035] Drag shape from palette to canvas — drag shape from palette to canvas area → shape appears on canvas
+Scenario 4: [MOD-DESIGNER-035] Canvas shape can be moved by drag — click to select an existing shape on canvas, drag it to a new position → shape lands at the new position (position changed from original)
+Scenario 5: [MOD-DESIGNER-035] Ghost/preview element during canvas drag — evaluate DOM while dragging shape on canvas → ghost/overlay element with reduced opacity or "ghost"/"dragging" class present in DOM during drag
 
-## Drag Ghost from Palette (MOD-DESIGNER-032)
-Scenario 7: [MOD-DESIGNER-032] Drag ghost appears when dragging from palette — drag a shape from the left palette toward the canvas → a semi-transparent ghost element appears following the cursor mid-drag
-Scenario 8: [MOD-DESIGNER-032] Shape lands at drop position after palette drag — drop the shape on the canvas → shape appears at the drop location on canvas
-
-## Point Context Menu on Display Elements (MOD-DESIGNER-033)
-Scenario 9: [MOD-DESIGNER-033] Right-clicking display element shows context menu — drag a Text Readout (or any display element) onto canvas, right-click it → context menu appears
-Scenario 10: [MOD-DESIGNER-033] Point context items present in display element menu — right-click display element → menu contains "Open Trend"/"Trend", "View Detail"/"Detail", and "View Alerts"/"Alerts" (or equivalent CX-POINT-CONTEXT items)
-Scenario 11: [MOD-DESIGNER-033] Bind Point and Change Type still present — right-click display element → "Bind Point…" and "Change Type" items are visible in the menu
-
-## Group Sub-tab (MOD-DESIGNER-034)
-Scenario 12: [MOD-DESIGNER-034] Double-clicking group opens sub-tab — place shapes, group them with Ctrl+G, double-click the group → a sub-tab appears in the tab bar for the group
-Scenario 13: [MOD-DESIGNER-034] Tab bar shows parent and group sub-tab — in group edit mode → tab bar shows both the parent file tab and a group sub-tab
-Scenario 14: [MOD-DESIGNER-034] Clicking parent tab exits group editing — while in group edit mode, click the parent file tab → exits group editing, returns to top-level canvas view
+## Display Element Context Menu
+Scenario 6: [MOD-DESIGNER-036] Right-clicking display element shows context menu — right-click a display element on canvas → [role="menu"] appears
+Scenario 7: [MOD-DESIGNER-036] Context menu contains View Alerts item — right-click display element, inspect menu → "View Alerts", "Alerts", "Active Alarms for Point", or alerts-equivalent item is visible in menu
+Scenario 8: [MOD-DESIGNER-036] Context menu contains Trend This Point — right-click display element → menu contains "Trend This Point" or "Open Trend"
+Scenario 9: [MOD-DESIGNER-036] Context menu contains Point Detail — right-click display element → menu contains "Point Detail" or "View Detail"
+Scenario 10: [MOD-DESIGNER-036] Context menu contains Bind Point — right-click display element → menu contains "Bind Point…" or equivalent binding option
