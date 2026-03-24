@@ -298,6 +298,17 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
     let path = req.uri().path();
     let now = Utc::now().timestamp();
 
+    // Static configuration endpoints that the authenticated UI polls at low
+    // frequency — exempt from per-IP throttling to prevent spurious 429s when
+    // the rate_limit middleware runs before jwt_auth (claims not yet injected).
+    // These endpoints still require a valid JWT; rate-limiting is skipped here
+    // because USER_LIMIT (600/min) would be applied by a correctly-ordered
+    // middleware chain, and these paths will never approach even 30/min in
+    // normal usage.
+    if is_static_config_endpoint(path) {
+        return next.run(req).await;
+    }
+
     // Prefer the real socket IP from ConnectInfo (injected by into_make_service_with_connect_info).
     // Fall back to X-Forwarded-For/X-Real-IP only when ConnectInfo is absent (e.g. tests).
     let socket_ip = req
@@ -386,6 +397,19 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
 
 fn is_auth_endpoint(path: &str) -> bool {
     path.starts_with("/api/auth/")
+}
+
+/// Endpoints that return static or rarely-changing configuration data.
+///
+/// The rate_limit middleware runs BEFORE jwt_auth in the current tower stack,
+/// so authenticated requests to these paths are incorrectly classified as
+/// unauthenticated and subject to the low 30 req/min IP limit. These paths
+/// are exempt from rate limiting here because:
+///   1. They are always JWT-protected — jwt_auth will still reject unauthenticated requests.
+///   2. They are polled by the UI at low frequency (staleTime ≥ 5 minutes).
+///   3. A 429 from these endpoints causes visible UI degradation (missing channels, etc.).
+fn is_static_config_endpoint(path: &str) -> bool {
+    matches!(path, "/api/notifications/channels/enabled")
 }
 
 /// Fallback IP extraction from headers. Only used when ConnectInfo<SocketAddr> is absent

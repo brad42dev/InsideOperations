@@ -32,3 +32,4 @@ MOD-DESIGNER-031 | Drag ghost missing — no preview element when dragging shape
 MOD-DESIGNER-032 | Drag ghost overlay missing when dragging shapes from palette to canvas | verified 2026-03-24 | commit 6fadafe | npx tsc --noEmit | PASS
 MOD-DESIGNER-033 | Point context menu items missing from display element right-click menu | verified 2026-03-24 | commit 948194a | npx tsc --noEmit | PASS
 MOD-DESIGNER-034 | Group editing does not open a sub-tab in the Designer tab bar | verified 2026-03-24 | commit 4664f0f | npx tsc --noEmit | PASS
+MOD-DESIGNER-035 | Canvas drag ghost missing — no preview when dragging shape on canvas | verified 2026-03-24 | commit 9e3904c | cd frontend && npx tsc --noEmit | PASS

@@ -11,8 +11,11 @@ import {
 import { usePermission } from '../../shared/hooks/usePermission'
 
 const ALL_SEVERITIES: NotificationSeverity[] = ['emergency', 'critical', 'warning', 'info']
-// CHANNELS is no longer hardcoded — loaded from Alert Service config at runtime.
-const FALLBACK_CHANNELS: NotificationChannel[] = ['websocket']
+// CHANNELS is loaded from Alert Service config at runtime.
+// If the endpoint fails or is slow, show all five standard channels so the
+// composer remains functional. The backend will reject unrecognised channels
+// gracefully, and the DB seeds all five as enabled.
+const FALLBACK_CHANNELS: NotificationChannel[] = ['websocket', 'sms', 'pa', 'radio', 'push']
 
 const SEVERITY_LABEL: Record<NotificationSeverity, string> = {
   emergency: 'Emergency',
@@ -88,7 +91,8 @@ export default function AlertComposer() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // Channels enabled in Alert Service config — fall back to websocket-only
+  // Channels enabled in Alert Service config — fall back to all standard channels
+  // if the API is unavailable (prevents the composer from appearing broken)
   const enabledChannels: NotificationChannel[] =
     (enabledChannelsResult?.success && enabledChannelsResult.data && enabledChannelsResult.data.length > 0)
       ? enabledChannelsResult.data
@@ -124,6 +128,17 @@ export default function AlertComposer() {
     const tpl = templates.find(t => t.id === id)
     if (tpl) {
       setSeverity(tpl.severity)
+      // Apply the template's channel list to the composer checkboxes so the
+      // user sees which channels the template is configured to send through.
+      // Only include channels that are actually enabled in the system config.
+      if (tpl.channels && tpl.channels.length > 0) {
+        const tplSet = new Set(
+          tpl.channels.filter((ch) => enabledChannels.includes(ch))
+        )
+        // Always keep websocket — it is the baseline delivery channel.
+        tplSet.add('websocket')
+        setChannels(tplSet)
+      }
       // Do not overwrite title/body with raw template strings — the preview
       // will show the substituted result via the template selection.
     }
