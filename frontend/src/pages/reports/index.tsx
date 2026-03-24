@@ -334,6 +334,27 @@ function TemplateBrowser({
                 ? 'Try clearing the search or selecting a different category.'
                 : 'Report templates are seeded at startup. Contact your administrator if templates are missing.'}
             </div>
+            {(search || category !== 'All') && (
+              <button
+                onClick={() => {
+                  setSearch('')
+                  setCategory('All')
+                }}
+                style={{
+                  marginTop: '4px',
+                  padding: '6px 14px',
+                  background: 'var(--io-accent)',
+                  border: 'none',
+                  borderRadius: 'var(--io-radius)',
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                View All Templates
+              </button>
+            )}
           </div>
         )}
 
