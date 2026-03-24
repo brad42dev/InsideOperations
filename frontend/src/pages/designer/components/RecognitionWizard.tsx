@@ -1115,15 +1115,22 @@ export interface RecognitionWizardTriggerProps {
 export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: RecognitionWizardTriggerProps) {
   const [status, setStatus] = useState<RecognitionStatus | null>(null)
   const [statusLoaded, setStatusLoaded] = useState(false)
+  const [statusError, setStatusError] = useState(false)
   const [wizardOpen, setWizardOpen] = useState(false)
 
-  // Check recognition service availability on mount
+  // Check recognition service availability on mount.
+  // The trigger is always rendered — we never hide it due to API failure.
   useEffect(() => {
     if (!canImport) return
     recognitionApi.getStatus().then((res) => {
-      if (res.success) setStatus(res.data)
+      if (res.success) {
+        setStatus(res.data)
+      } else {
+        setStatusError(true)
+      }
       setStatusLoaded(true)
     }).catch(() => {
+      setStatusError(true)
       setStatusLoaded(true)
     })
   }, [canImport])
@@ -1131,14 +1138,55 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
   // Do not render anything if user lacks permission
   if (!canImport) return null
 
-  // Wait for status check before rendering trigger
-  if (!statusLoaded) return null
-
-  // Check if recognition is unavailable (both domains disabled)
+  // Check if recognition is explicitly unavailable (both domains disabled and status loaded)
+  // When the API fails or is still loading, do NOT hide — show the button as available.
   const bothDisabled =
+    statusLoaded &&
+    !statusError &&
     status !== null &&
     status.domains.pid.mode === 'disabled' &&
     status.domains.dcs.mode === 'disabled'
+
+  // When service is unreachable (status API failed), show a disabled state with explanation
+  // rather than hiding the entry point.
+  if (statusLoaded && statusError) {
+    const tooltip = 'Recognition service is unavailable. The service may not be running. Contact your administrator.'
+    if (renderAs === 'inline') {
+      return (
+        <span
+          style={{
+            color: 'var(--io-text-muted)',
+            fontSize: '13px',
+            cursor: 'not-allowed',
+          }}
+          title={tooltip}
+        >
+          Recognize Image (unavailable)
+        </span>
+      )
+    }
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '7px 14px',
+          background: 'var(--io-surface-elevated)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          color: 'var(--io-text-muted)',
+          fontSize: '13px',
+          cursor: 'not-allowed',
+          opacity: 0.65,
+        }}
+        title={tooltip}
+      >
+        <span>⬡</span>
+        Recognize Image
+      </div>
+    )
+  }
 
   if (bothDisabled) {
     return (
@@ -1153,11 +1201,13 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
           borderRadius: 'var(--io-radius)',
           color: 'var(--io-text-muted)',
           fontSize: '13px',
+          cursor: 'not-allowed',
+          opacity: 0.65,
         }}
         title="Symbol recognition is not available. No model is loaded. Contact your administrator."
       >
-        <span>⊘</span>
-        Recognition not available
+        <span>⬡</span>
+        Recognize Image
       </div>
     )
   }

@@ -617,7 +617,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/email/internal/send", any(proxy_email))
         // Universal Import (proxied to import-service)
         .route("/api/import/*path", any(proxy_import))
-        // Recognition Service (proxied to recognition-service)
+        // Recognition Service — status endpoint handled locally so it always returns
+        // a valid response even when the recognition-service is not running.
+        .route("/api/recognition/status", get(get_recognition_status))
         .route("/api/recognition/*path", any(proxy_recognition))
         // Alert Service (proxied to alert-service)
         .route("/api/alerts/*path", any(proxy_alerts))
@@ -892,6 +894,52 @@ async fn proxy_import(
 
     let downstream = path.strip_prefix("/api/import").unwrap_or(&path).to_string();
     proxy::proxy(&state, req, &state.config.import_service_url, &downstream).await
+}
+
+/// GET /api/recognition/status — local handler that always returns a valid response.
+///
+/// Tries to fetch status from the recognition-service. If the service is not running
+/// (connection refused, timeout, or non-2xx), returns a stub response with both domains
+/// disabled rather than propagating a 404/502 to the client.
+/// This ensures the Designer's "Recognize Image" button is always shown (in disabled state)
+/// rather than being hidden due to an API error.
+async fn get_recognition_status(State(state): State<AppState>) -> Response {
+    let url = format!("{}/recognition/status", state.config.recognition_service_url);
+    match state.http_client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            // Forward the recognition service response verbatim.
+            match resp.json::<serde_json::Value>().await {
+                Ok(body) => Json(body).into_response(),
+                Err(_) => Json(serde_json::json!({
+                    "success": true,
+                    "data": {
+                        "domains": {
+                            "pid": { "model_loaded": false, "hardware": "cpu", "mode": "disabled" },
+                            "dcs": { "model_loaded": false, "hardware": "cpu", "mode": "disabled" }
+                        }
+                    }
+                })).into_response(),
+            }
+        }
+        _ => {
+            // Recognition service is not reachable — return a valid stub so the frontend
+            // can show the "Recognize Image" button in a disabled/unavailable state.
+            Json(serde_json::json!({
+                "success": true,
+                "data": {
+                    "domains": {
+                        "pid": { "model_loaded": false, "hardware": "cpu", "mode": "disabled" },
+                        "dcs": { "model_loaded": false, "hardware": "cpu", "mode": "disabled" }
+                    }
+                }
+            })).into_response()
+        }
+    }
 }
 
 /// Proxy all `/api/recognition/...` requests to the recognition-service, stripping `/api/recognition`.
