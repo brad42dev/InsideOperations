@@ -99,6 +99,12 @@ export interface TabStore {
   setTabName(tabId: string, name: string): void
 
   /**
+   * Update a tab's graphicId (used when a 'new' graphic is saved and assigned a real server ID).
+   * Also updates the graphicName if provided.
+   */
+  setTabGraphicId(tabId: string, graphicId: string, graphicName?: string): void
+
+  /**
    * Close all tabs except the one specified.
    * Returns array of closed tab IDs so caller can handle save prompts.
    */
@@ -262,6 +268,16 @@ export const useTabStore = create<TabStore>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map(t =>
         t.id === tabId ? { ...t, graphicName: name } : t
+      ),
+    }))
+  },
+
+  setTabGraphicId(tabId, graphicId, graphicName) {
+    set((state) => ({
+      tabs: state.tabs.map(t =>
+        t.id === tabId
+          ? { ...t, graphicId, ...(graphicName !== undefined ? { graphicName } : {}) }
+          : t
       ),
     }))
   },

@@ -27,3 +27,4 @@ MOD-CONSOLE-017 | Console kiosk mode URL parameter fix | verified 2026-03-24 | c
 MOD-CONSOLE-018 | Pane context menu missing "Open in New Window" item for detached window | verified 2026-03-24 | commit 312ef5e | npx tsc --noEmit | PASS
 MOD-CONSOLE-019 | No right-click context menu on workspace rows in left nav | verified 2026-03-24 | commit 5630d49 | npx tsc --noEmit | PASS
 MOD-CONSOLE-020 | Kiosk mode does not hide Console ASSETS/left panel | verified 2026-03-24 | commit e674eff | npx tsc --noEmit | PASS
+MOD-CONSOLE-021 | Workspace list items missing right-click context menu | verified 2026-03-24 | commit 88620cf | npx tsc --noEmit | PASS

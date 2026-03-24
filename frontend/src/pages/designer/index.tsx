@@ -583,6 +583,7 @@ export default function DesignerPage() {
   const tabStoreFindByGraphic    = useTabStore(s => s.findTabByGraphicId)
   const tabStoreOpenGroupTab     = useTabStore(s => s.openGroupTab)
   const tabStoreCloseGroupTabs   = useTabStore(s => s.closeGroupTabsForGraphic)
+  const tabStoreSetGraphicId     = useTabStore(s => s.setTabGraphicId)
   const setViewport              = useUiStore(s => s.setViewport)
   const setActiveGroup           = useUiStore(s => s.setActiveGroup)
 
@@ -670,6 +671,9 @@ export default function DesignerPage() {
       loadGraphic(record.id, record.scene_data)
       historyClear()
 
+      // Register a tab for this graphic so the file tab bar is visible
+      tabStoreOpenTab(record.id, record.name)
+
       // Try to acquire the pessimistic edit lock
       const lockResp = await graphicsApi.acquireLock(gid).catch(() => null)
       if (lockResp?.success) {
@@ -699,7 +703,7 @@ export default function DesignerPage() {
     } finally {
       setLoading(false)
     }
-  }, [graphicId, isNew, graphicIdInStore, doc, loadGraphic, historyClear])
+  }, [graphicId, isNew, graphicIdInStore, doc, loadGraphic, historyClear, tabStoreOpenTab])
 
   useEffect(() => {
     loadDoc()
@@ -761,6 +765,11 @@ export default function DesignerPage() {
         }
         // Update graphicId in store via loadGraphic (sets graphicId in scene state)
         loadGraphic(resp.data.data.id, currentDoc)
+        // Upgrade the 'new' placeholder tab to the real server-assigned graphicId
+        const newTab = useTabStore.getState().findTabByGraphicId('new')
+        if (newTab) {
+          tabStoreSetGraphicId(newTab.id, resp.data.data.id, docName)
+        }
       }
       markClean()
       historyMarkClean()
@@ -821,7 +830,7 @@ export default function DesignerPage() {
     } finally {
       setIsSaving(false)
     }
-  }, [isSaving, markClean, historyMarkClean, loadGraphic])
+  }, [isSaving, markClean, historyMarkClean, loadGraphic, tabStoreSetGraphicId])
 
   /** Stable callback for UI-initiated saves (toolbar, menu) — marks explicit for toast warnings. */
   const handleExplicitSave = useCallback(() => handleSave({ explicit: true }), [handleSave])
@@ -1468,6 +1477,8 @@ export default function DesignerPage() {
     newDocument(mode, name, width, height, autoHeight)
     historyClear()
     setShowNewDialog(false)
+    // Register a placeholder tab so the file tab bar is visible before the first save
+    tabStoreOpenTab('new', name)
   }
 
   function handleNewCancel() {
