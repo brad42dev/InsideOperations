@@ -120,7 +120,7 @@ export default function TrendChartWidget({ config, variables }: Props) {
     )
   }
 
-  const results = query.data ?? []
+  const results = Array.isArray(query.data) ? query.data : []
 
   const hasData = results.some((r) => r.rows && r.rows.length > 0)
   if (!hasData) {
