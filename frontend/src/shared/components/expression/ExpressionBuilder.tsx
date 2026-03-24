@@ -742,7 +742,14 @@ function WorkspaceTile({ tile, selected, depth, dispatch, allSelectedIds, cursor
   function handleClick(e: React.MouseEvent) {
     e.stopPropagation()
     dispatch({ type: 'SELECT', ids: [tile.id], additive: e.ctrlKey || e.metaKey })
-    dispatch({ type: 'SET_CURSOR', parentId: null, index: 0 })
+    // For container tiles, move the cursor into the container so the breadcrumb
+    // trail updates to show the nesting path. For non-container tiles, do not
+    // move the cursor — clicking a leaf tile only selects it; the hit-box rows
+    // inside DropZoneRow handle precise cursor placement.
+    if (isContainer || isControlFlow) {
+      const innerChildren = tile.children ?? []
+      dispatch({ type: 'SET_CURSOR', parentId: tile.id, index: innerChildren.length })
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
