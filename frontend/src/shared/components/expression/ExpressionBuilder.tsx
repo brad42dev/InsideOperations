@@ -8,8 +8,11 @@ import {
   useSensors,
   useDraggable,
   useDroppable,
+  pointerWithin,
+  closestCenter,
   type DragEndEvent,
   type DragStartEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -106,6 +109,31 @@ function getPaletteItems(context: ExpressionContext): PaletteItem[] {
     default:
       return BASE_PALETTE
   }
+}
+
+// ---------------------------------------------------------------------------
+// Collision detection — prefer innermost droppable at pointer position.
+//
+// dnd-kit's default rectIntersection picks the droppable with the largest
+// overlap area. When nested droppables exist (e.g. container-zone-{id} is
+// rendered inside the container tile's sortable node, which is itself inside
+// root-zone), the outermost droppable often wins because it has a larger rect.
+//
+// This custom strategy first uses pointerWithin (finds droppables that
+// physically contain the pointer — returns the smallest matching one),
+// and falls back to closestCenter when the pointer is not directly inside any
+// droppable rect.
+// ---------------------------------------------------------------------------
+
+const customCollisionDetection: CollisionDetection = (args) => {
+  // Try pointer-within first — gives priority to the smallest droppable that
+  // physically contains the current pointer position.
+  const pointerCollisions = pointerWithin(args)
+  if (pointerCollisions.length > 0) return pointerCollisions
+
+  // Fall back to closest-center for cases where the pointer is not inside any
+  // droppable rect (e.g. drag started from palette, pointer still over palette).
+  return closestCenter(args)
 }
 
 // ---------------------------------------------------------------------------
@@ -1791,7 +1819,7 @@ export function ExpressionBuilder({
       type: 'INSERT_TILE',
       tile,
       parentId: state.cursorParentId,
-      index: state.tiles.length,
+      index: state.cursorIndex,
     })
   }
 
@@ -2262,6 +2290,7 @@ export function ExpressionBuilder({
       {/* Palette + Workspace share a single DndContext so palette→workspace drag works */}
       <DndContext
         sensors={sensors}
+        collisionDetection={customCollisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
