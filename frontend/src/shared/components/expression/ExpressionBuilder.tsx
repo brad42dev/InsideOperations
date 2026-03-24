@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   useDraggable,
+  useDroppable,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
@@ -313,6 +314,27 @@ function findTileLocation(
     }
   }
   return null
+}
+
+/**
+ * Returns the ID of the container tile that directly owns the tile with `childId`,
+ * or null if the tile is at the top level.
+ * Returns undefined if the tile is not found in the tree.
+ */
+function findParentId(
+  tiles: ExpressionTile[],
+  childId: string,
+  parentId: string | null = null,
+): string | null | undefined {
+  for (const t of tiles) {
+    if (t.id === childId) return parentId
+    for (const sub of [t.children, t.condition, t.thenBranch, t.elseBranch]) {
+      if (!sub) continue
+      const found = findParentId(sub, childId, t.id)
+      if (found !== undefined) return found
+    }
+  }
+  return undefined
 }
 
 // Find all tile ids in a tree
@@ -1194,6 +1216,12 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds, cursorP
 
   const showCursorHere = cursorParentId === parentId
 
+  // Register this zone as a droppable when it belongs to a container (parentId != null).
+  // The droppable id encodes the parentId so handleDragEnd can route drops into the
+  // correct container even when the zone is empty (no sortable children).
+  const droppableId = parentId !== null ? `container-zone-${parentId}` : 'root-zone'
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: droppableId, data: { parentId } })
+
   function renderCursor(index: number) {
     if (!showCursorHere || cursorIndex !== index) return null
     return (
@@ -1238,6 +1266,7 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds, cursorP
       strategy={horizontalListSortingStrategy}
     >
       <div
+        ref={setDroppableRef}
         style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -1246,12 +1275,16 @@ function DropZoneRow({ tiles, parentId, depth, dispatch, allSelectedIds, cursorP
           padding: '4px',
           border: depthBlocked
             ? '1px dashed var(--io-danger, #ef4444)'
-            : '1px dashed var(--io-border)',
+            : isOver && tiles.length === 0
+              ? '1px dashed var(--io-accent, #3b82f6)'
+              : '1px dashed var(--io-border)',
           borderRadius: 'var(--io-radius)',
           alignItems: 'flex-start',
           background: depthBlocked
             ? 'rgba(239,68,68,0.05)'
-            : 'rgba(255,255,255,0.02)',
+            : isOver && tiles.length === 0
+              ? 'rgba(59,130,246,0.08)'
+              : 'rgba(255,255,255,0.02)',
         }}
         data-parent-id={parentId ?? 'root'}
         data-depth-blocked={depthBlocked ? 'true' : undefined}
@@ -1590,13 +1623,46 @@ export function ExpressionBuilder({
       const tileType = active.data.current?.tileType as TileType
       if (!tileType) return
       const tile = createTile(tileType)
-      const toLoc = findTileLocation(state.tiles, String(over.id))
-      dispatch({
-        type: 'INSERT_TILE',
-        tile,
-        parentId: null,
-        index: toLoc?.index ?? state.tiles.length,
-      })
+      const overId = String(over.id)
+
+      // Case 1: dropped onto a DropZoneRow interior (container-zone-{parentId}).
+      // Insert as the last child of that container.
+      if (overId.startsWith('container-zone-')) {
+        const zoneParentId = overId.slice('container-zone-'.length)
+        const childArr = getChildArray(state.tiles, zoneParentId) ?? []
+        dispatch({
+          type: 'INSERT_TILE',
+          tile,
+          parentId: zoneParentId,
+          index: childArr.length,
+        })
+        return
+      }
+
+      const toLoc = findTileLocation(state.tiles, overId)
+      // Case 2: dropped onto a container tile itself — insert as its last child.
+      const overTile = toLoc ? toLoc.arr[toLoc.index] : null
+      const overIsContainer = overTile != null && CONTAINER_TILE_TYPES.includes(overTile.type)
+      if (overIsContainer && overTile != null) {
+        const children = overTile.children ?? overTile.condition ?? overTile.thenBranch ?? []
+        dispatch({
+          type: 'INSERT_TILE',
+          tile,
+          parentId: overTile.id,
+          index: children.length,
+        })
+      } else {
+        // Case 3: dropped onto a non-container tile — insert as a sibling at that position.
+        // Use findParentId to find which parent array the target tile lives in.
+        const parentId = findParentId(state.tiles, overId) ?? null
+        const insertIndex = toLoc?.index ?? (parentId === null ? state.tiles.length : 0)
+        dispatch({
+          type: 'INSERT_TILE',
+          tile,
+          parentId,
+          index: insertIndex,
+        })
+      }
       return
     }
 
