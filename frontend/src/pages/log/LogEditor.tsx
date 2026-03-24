@@ -1042,11 +1042,13 @@ export default function LogEditor() {
   }
 
   // Segments for this template (in order)
-  const template = templateData?.find((t: LogTemplate) => t.id === instanceData?.template_id)
+  const templateList: LogTemplate[] = Array.isArray(templateData) ? templateData : []
+  const segmentList: LogSegment[] = Array.isArray(segmentsData) ? segmentsData : []
+  const template = templateList.find((t: LogTemplate) => t.id === instanceData?.template_id)
   const orderedSegments: LogSegment[] = []
-  if (template && segmentsData) {
+  if (template && segmentList.length > 0) {
     for (const segId of template.segment_ids) {
-      const seg = segmentsData.find((s: LogSegment) => s.id === segId)
+      const seg = segmentList.find((s: LogSegment) => s.id === segId)
       if (seg) orderedSegments.push(seg)
     }
   }

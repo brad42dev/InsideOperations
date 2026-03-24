@@ -16,7 +16,7 @@ export default function LogTemplates() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['log', 'templates'] }),
   })
 
-  const templates = data?.success ? data.data : []
+  const templates = data?.success && Array.isArray(data.data) ? data.data : []
 
   const btnStyle = (primary?: boolean): React.CSSProperties => ({
     padding: '6px 14px',

@@ -170,7 +170,8 @@
     "MOD-DESIGNER-029": 1,
     "DD-13-013": 1,
     "DD-23-019": 1,
-    "DD-23-021": 1
+    "DD-23-021": 1,
+    "DD-29-014": 1
   },
   "queue": [
     {
@@ -314,7 +315,7 @@
       "completed_at": "2026-03-21",
       "notes": "Re-audited round 3. 10 gaps found. Wave 0 findings: CX-CANVAS-CONTEXT, CX-POINT-CONTEXT, CX-ERROR, CX-LOADING, CX-TOKENS. Round 6: 15 feature tasks added (resize completeness, canvas size controls, cross-mode palette parity, group management/tabs, promote group to shape).",
       "last_audit_round": 3,
-      "verified_since_last_audit": 3
+      "verified_since_last_audit": 4
     },
     {
       "unit": "OPC-BACKEND",
@@ -5191,7 +5192,7 @@
       "wave": 3,
       "title": "Session lock/unlock API endpoints missing \u2014 /api/auth/lock and /api/auth/verify-password return 404",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5287,7 +5288,7 @@
       "wave": 2,
       "title": "File tab bar missing \u2014 no open-file tabs visible in Designer",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5311,7 +5312,7 @@
       "wave": 3,
       "title": "Log module crashes \u2014 templates API response not guarded before .map call",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

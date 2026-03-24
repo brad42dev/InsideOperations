@@ -14,7 +14,7 @@ export default function LogNew() {
     queryFn: () => logsApi.listTemplates({ is_active: true }),
   })
 
-  const templates = templatesResult?.success ? templatesResult.data : []
+  const templates = templatesResult?.success && Array.isArray(templatesResult.data) ? templatesResult.data : []
 
   const createMutation = useMutation({
     mutationFn: () =>
