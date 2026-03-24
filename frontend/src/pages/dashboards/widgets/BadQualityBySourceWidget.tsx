@@ -61,7 +61,7 @@ export default function BadQualityBySourceWidget({ config: _config }: Props) {
     )
   }
 
-  const sources = query.data ?? []
+  const sources = Array.isArray(query.data) ? query.data : []
 
   if (sources.length === 0) {
     return (
