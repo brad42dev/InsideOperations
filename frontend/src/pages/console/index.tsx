@@ -288,6 +288,15 @@ export default function ConsolePage() {
         pendingCreateIdsRef.current.delete(ws.id)
         showToast({ title: 'Workspace created', variant: 'success' })
       }
+      const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id)
+      if (isDuplicate) {
+        pendingDuplicateIdsRef.current.delete(ws.id)
+        showToast({ title: 'Workspace duplicated', variant: 'success' })
+      }
+      if (pendingRenameIdsRef.current.has(ws.id)) {
+        pendingRenameIdsRef.current.delete(ws.id)
+        // Rename success is silent — the tab label already updated optimistically
+      }
       saveFailCountRef.current = 0
       setShowSaveBanner(false)
       if (retryTimerRef.current) {
@@ -302,6 +311,28 @@ export default function ConsolePage() {
         pendingCreateIdsRef.current.delete(ws.id)
         showToast({
           title: 'Failed to create workspace',
+          description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
+          variant: 'error',
+          duration: 0,
+        })
+        return
+      }
+      const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id)
+      if (isDuplicate) {
+        pendingDuplicateIdsRef.current.delete(ws.id)
+        showToast({
+          title: 'Failed to duplicate workspace',
+          description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
+          variant: 'error',
+          duration: 0,
+        })
+        return
+      }
+      const isRename = pendingRenameIdsRef.current.has(ws.id)
+      if (isRename) {
+        pendingRenameIdsRef.current.delete(ws.id)
+        showToast({
+          title: 'Failed to rename workspace',
           description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
           variant: 'error',
           duration: 0,
@@ -332,6 +363,14 @@ export default function ConsolePage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
     },
+    onError: (_err) => {
+      showToast({
+        title: 'Failed to delete workspace',
+        description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
+        variant: 'error',
+        duration: 0,
+      })
+    },
   })
 
   const publishMutation = useMutation({
@@ -339,6 +378,14 @@ export default function ConsolePage() {
       consoleApi.publishWorkspace(id, published),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+    },
+    onError: (_err, vars) => {
+      showToast({
+        title: vars.published ? 'Failed to publish workspace' : 'Failed to unpublish workspace',
+        description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
+        variant: 'error',
+        duration: 0,
+      })
     },
   })
 
@@ -414,6 +461,10 @@ export default function ConsolePage() {
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
   const pendingCreateIdsRef = useRef<Set<string>>(new Set())
+  // Track workspace IDs that are being duplicated so we can show specific toasts
+  const pendingDuplicateIdsRef = useRef<Set<string>>(new Set())
+  // Track workspace IDs that are being renamed so we can show specific toasts
+  const pendingRenameIdsRef = useRef<Set<string>>(new Set())
 
   const [paletteVisible, setPaletteVisible] = useState(true)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
@@ -481,6 +532,9 @@ export default function ConsolePage() {
     const currentWorkspaces = useWorkspaceStore.getState().workspaces
     setWorkspaces([...currentWorkspaces, copy])
     setActiveId(copy.id)
+    if (useApi) {
+      pendingDuplicateIdsRef.current.add(copy.id)
+    }
     persistWorkspace(copy)
     if (useApi) {
       queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
@@ -497,7 +551,12 @@ export default function ConsolePage() {
   const handleRenameWorkspace = (id: string, name: string) => {
     renameWorkspace(id, name)
     const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id)
-    if (ws) persistWorkspace({ ...ws, name })
+    if (ws) {
+      if (useApi) {
+        pendingRenameIdsRef.current.add(id)
+      }
+      persistWorkspace({ ...ws, name })
+    }
   }
 
   const handleChangeLayout = (layout: LayoutPreset) => {
