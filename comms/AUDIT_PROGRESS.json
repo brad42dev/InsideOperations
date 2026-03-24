@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T14:23:35.949006+00:00",
+  "last_updated": "2026-03-24T14:33:30.542999Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -168,7 +168,8 @@
     "DD-39-009": 1,
     "DD-39-010": 1,
     "MOD-DESIGNER-029": 1,
-    "DD-13-013": 1
+    "DD-13-013": 1,
+    "DD-23-019": 1
   },
   "queue": [
     {
@@ -5129,7 +5130,7 @@
       "wave": 3,
       "title": "Insertion cursor not visible in workspace",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5141,7 +5142,7 @@
       "wave": 3,
       "title": "No breadcrumb navigation when cursor is inside nested container",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",

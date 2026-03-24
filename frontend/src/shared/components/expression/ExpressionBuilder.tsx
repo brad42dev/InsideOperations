@@ -1181,6 +1181,137 @@ function IfThenElseContent({
 }
 
 // ---------------------------------------------------------------------------
+// Breadcrumb helpers
+// ---------------------------------------------------------------------------
+
+interface BreadcrumbItem {
+  /** null means "Root" (top-level scope) */
+  parentId: string | null
+  label: string
+}
+
+/**
+ * Build the ordered list of breadcrumb items for the current cursor position.
+ *
+ * Returns an array starting with the root item and ending with the item
+ * that corresponds to the container identified by `targetParentId`.
+ *
+ * Example for cursor inside round(…) which is itself inside group(…):
+ *   [ { parentId: null, label: 'Root' },
+ *     { parentId: 'abc', label: '(…)' },
+ *     { parentId: 'def', label: 'round(1)' } ]
+ */
+function buildBreadcrumbPath(
+  tiles: ExpressionTile[],
+  targetParentId: string | null,
+): BreadcrumbItem[] {
+  if (targetParentId === null) return []
+
+  /** Walk the tile tree; collect the path of containers from root to targetParentId. */
+  function walk(
+    current: ExpressionTile[],
+    path: BreadcrumbItem[],
+  ): BreadcrumbItem[] | null {
+    for (const tile of current) {
+      if (tile.id === targetParentId) {
+        // Found it — return the path up to (and including) this container
+        return [
+          ...path,
+          { parentId: tile.id, label: getTileLabel(tile) },
+        ]
+      }
+      // Recurse into all child arrays
+      for (const sub of [tile.children, tile.condition, tile.thenBranch, tile.elseBranch]) {
+        if (!sub) continue
+        const result = walk(sub, [
+          ...path,
+          { parentId: tile.id, label: getTileLabel(tile) },
+        ])
+        if (result !== null) return result
+      }
+    }
+    return null
+  }
+
+  const found = walk(tiles, [])
+  if (!found) return []
+  // Prepend the Root item
+  return [{ parentId: null, label: 'Root' }, ...found]
+}
+
+// ---------------------------------------------------------------------------
+// Breadcrumb navigation component
+// ---------------------------------------------------------------------------
+
+interface BreadcrumbNavProps {
+  tiles: ExpressionTile[]
+  cursorParentId: string | null
+  dispatch: React.Dispatch<Action>
+}
+
+function BreadcrumbNav({ tiles, cursorParentId, dispatch }: BreadcrumbNavProps) {
+  if (cursorParentId === null) return null
+
+  const path = buildBreadcrumbPath(tiles, cursorParentId)
+  if (path.length === 0) return null
+
+  return (
+    <nav
+      aria-label="Expression nesting path"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '2px',
+        padding: '5px 10px',
+        background: 'var(--io-surface-secondary)',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        fontSize: '12px',
+        marginBottom: '4px',
+      }}
+    >
+      {path.map((item, i) => {
+        const isLast = i === path.length - 1
+        return (
+          <React.Fragment key={item.parentId ?? '__root__'}>
+            <button
+              onClick={() => {
+                dispatch({ type: 'SET_CURSOR', parentId: item.parentId, index: 0 })
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '2px 4px',
+                borderRadius: '3px',
+                cursor: isLast ? 'default' : 'pointer',
+                color: isLast ? 'var(--io-text-primary)' : 'var(--io-accent)',
+                fontWeight: isLast ? 600 : 400,
+                fontSize: '12px',
+                textDecoration: isLast ? 'none' : 'underline',
+                opacity: isLast ? 1 : 0.85,
+              }}
+              aria-current={isLast ? 'location' : undefined}
+              disabled={isLast}
+            >
+              {item.label}
+            </button>
+            {!isLast && (
+              <span
+                aria-hidden="true"
+                style={{ color: 'var(--io-text-muted)', userSelect: 'none', padding: '0 1px' }}
+              >
+                {'>'}
+              </span>
+            )}
+          </React.Fragment>
+        )
+      })}
+    </nav>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Drop zone row (sortable children area)
 // ---------------------------------------------------------------------------
 
@@ -2161,6 +2292,13 @@ export function ExpressionBuilder({
           </div>
         ))}
       </div>
+
+      {/* Breadcrumb navigation — shows nesting path when cursor is inside a container */}
+      <BreadcrumbNav
+        tiles={state.tiles}
+        cursorParentId={state.cursorParentId}
+        dispatch={dispatch}
+      />
 
       {/* Workspace */}
         <div
