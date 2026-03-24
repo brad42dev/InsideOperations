@@ -1,4 +1,4 @@
-import { api, queryString, type ApiResult } from './client'
+import { api, queryString, type ApiResult, type PaginatedResult } from './client'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,8 +85,8 @@ export const dashboardsApi = {
     published?: boolean
     category?: string
     system?: boolean
-  }): Promise<ApiResult<Dashboard[]>> =>
-    api.get<Dashboard[]>(`/api/dashboards${queryString(params)}`),
+  }): Promise<ApiResult<PaginatedResult<Dashboard>>> =>
+    api.get<PaginatedResult<Dashboard>>(`/api/dashboards${queryString(params)}`),
 
   get: (id: string): Promise<ApiResult<Dashboard>> =>
     api.get<Dashboard>(`/api/dashboards/${id}`),

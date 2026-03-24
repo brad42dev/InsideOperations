@@ -226,7 +226,7 @@ export default function DesignerDashboardsList() {
     queryFn: async () => {
       const r = await dashboardsApi.list()
       if (!r.success) throw new Error(r.error.message)
-      return r.data
+      return r.data.data
     },
   })
 

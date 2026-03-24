@@ -336,7 +336,7 @@ export default function PlaylistManager({ onClose }: Props) {
     queryFn: async () => {
       const result = await dashboardsApi.list()
       if (!result.success) throw new Error(result.error.message)
-      return result.data
+      return result.data.data
     },
   })
 
