@@ -55,10 +55,10 @@ pub async fn get_settings(
         maintenance_interval_secs: cfg.maintenance_interval_secs,
     };
 
-    // Try to read overrides persisted to the system_settings table.
+    // Try to read overrides persisted to the settings table.
     // Use non-macro sqlx::query_as to avoid requiring DATABASE_URL at compile time.
     let rows: Result<Vec<(String, JsonValue)>, _> = sqlx::query_as::<_, (String, JsonValue)>(
-        "SELECT key, value FROM system_settings WHERE key LIKE 'archive.%'",
+        "SELECT key, value FROM settings WHERE key LIKE 'archive.%'",
     )
     .fetch_all(&state.db)
     .await;
@@ -91,7 +91,7 @@ pub async fn get_settings(
 }
 
 // ---------------------------------------------------------------------------
-// PUT /settings — persist archive configuration to system_settings table
+// PUT /settings — persist archive configuration to settings table
 // ---------------------------------------------------------------------------
 
 pub async fn put_settings(
@@ -120,7 +120,7 @@ pub async fn put_settings(
         ));
     }
 
-    // Upsert each setting into system_settings.
+    // Upsert each setting into the settings table.
     let entries: &[(&str, i64)] = &[
         ("archive.retention_raw_days", body.retention_raw_days),
         ("archive.retention_1m_days", body.retention_1m_days),
@@ -140,7 +140,7 @@ pub async fn put_settings(
         let description = format!("Archive service setting: {key}");
         sqlx::query(
             r#"
-            INSERT INTO system_settings (key, value, description, is_public, requires_restart)
+            INSERT INTO settings (key, value, description, is_public, requires_restart)
             VALUES ($1, $2, $3, false, false)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
             "#,
