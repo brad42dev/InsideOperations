@@ -58,7 +58,7 @@ export default function QualityDistributionWidget({ config: _config }: Props) {
     return <QualityDistributionFallback />
   }
 
-  const rows = query.data
+  const rows = Array.isArray(query.data) ? query.data : []
   const counts: QualityCount = { Good: 0, Bad: 0, Uncertain: 0, Unknown: 0 }
   for (const row of rows) {
     const q = row.quality as keyof QualityCount
@@ -163,7 +163,7 @@ function QualityDistributionFallback() {
     )
   }
 
-  const sources = query.data ?? []
+  const sources = Array.isArray(query.data) ? query.data : []
   const connected = sources.filter((s) => s.connected).length
   const total = sources.length
   const good = sources.reduce((sum, s) => sum + (s.connected && s.subscribed_points ? s.subscribed_points : 0), 0)

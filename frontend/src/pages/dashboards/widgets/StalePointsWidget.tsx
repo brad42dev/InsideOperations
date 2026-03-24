@@ -64,7 +64,7 @@ export default function StalePointsWidget({ config }: Props) {
     return <StalePointsFallback thresholdMinutes={thresholdMinutes} />
   }
 
-  const points = query.data ?? []
+  const points = Array.isArray(query.data) ? query.data : []
   const count = points.length
 
   if (count === 0) {

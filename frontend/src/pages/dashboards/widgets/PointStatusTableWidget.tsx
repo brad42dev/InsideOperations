@@ -94,7 +94,7 @@ export default function PointStatusTableWidget({ config, variables }: Props) {
     return <PointStatusFallback />
   }
 
-  const points = query.data ?? []
+  const points = Array.isArray(query.data) ? query.data : []
 
   if (points.length === 0) {
     return (
