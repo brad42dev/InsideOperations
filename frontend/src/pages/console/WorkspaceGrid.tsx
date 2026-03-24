@@ -515,6 +515,7 @@ export default function WorkspaceGrid({
                   onSwapWith={onSwapWith}
                   onSwapComplete={onSwapComplete}
                   onReplace={onReplace}
+                  workspaceId={workspace.id}
                 />
               </ErrorBoundary>
             </div>

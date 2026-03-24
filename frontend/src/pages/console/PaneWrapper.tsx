@@ -38,6 +38,8 @@ export interface PaneWrapperProps {
   onSwapComplete?: (targetId: string) => void
   /** Called when user selects a new graphic in the Replace dialog */
   onReplace?: (paneId: string, graphicId: string, graphicName: string) => void
+  /** Workspace ID — used to construct the detached window URL for "Open in New Window" */
+  workspaceId?: string
 }
 
 const PANE_TYPE_LABELS: Record<string, string> = {
@@ -146,6 +148,7 @@ export default function PaneWrapper({
   swapModeSourceId,
   onSwapComplete,
   onReplace,
+  workspaceId,
 }: PaneWrapperProps) {
   const navigate = useNavigate()
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
@@ -471,6 +474,13 @@ export default function PaneWrapper({
               label: isFullscreen ? 'Exit Full Screen' : 'Full Screen',
               onClick: () => onToggleFullscreen?.(),
             },
+            ...(workspaceId ? [{
+              label: 'Open in New Window',
+              onClick: () => {
+                setPaneCtxMenu(null)
+                window.open(`/detached/console/${workspaceId}`, '_blank', 'noopener,noreferrer')
+              },
+            }] : []),
             {
               label: 'Copy',
               onClick: () => {
