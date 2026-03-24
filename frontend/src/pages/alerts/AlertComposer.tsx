@@ -12,10 +12,13 @@ import { usePermission } from '../../shared/hooks/usePermission'
 
 const ALL_SEVERITIES: NotificationSeverity[] = ['emergency', 'critical', 'warning', 'info']
 // CHANNELS is loaded from Alert Service config at runtime.
-// If the endpoint fails or is slow, show all five standard channels so the
+// If the endpoint fails or is slow, show all six standard channels so the
 // composer remains functional. The backend will reject unrecognised channels
-// gracefully, and the DB seeds all five as enabled.
-const FALLBACK_CHANNELS: NotificationChannel[] = ['websocket', 'sms', 'pa', 'radio', 'push']
+// gracefully, and the DB seeds all six as enabled.
+const FALLBACK_CHANNELS: NotificationChannel[] = ['websocket', 'email', 'sms', 'pa', 'radio', 'push']
+
+// Default channels shown when no template is selected (ad-hoc notification)
+const DEFAULT_CHANNELS: Set<NotificationChannel> = new Set(['websocket'])
 
 const SEVERITY_LABEL: Record<NotificationSeverity, string> = {
   emergency: 'Emergency',
@@ -124,12 +127,17 @@ export default function AlertComposer() {
 
   function handleTemplateChange(id: string) {
     setSelectedTemplateId(id)
-    if (!id) return
+    if (!id) {
+      // Ad-hoc notification selected — reset channels to the default set
+      setChannels(new Set(DEFAULT_CHANNELS))
+      return
+    }
     const tpl = templates.find(t => t.id === id)
     if (tpl) {
       setSeverity(tpl.severity)
       // Apply the template's channel list to the composer checkboxes so the
       // user sees which channels the template is configured to send through.
+      // Read channel list directly from the template object (not hardcoded).
       // Only include channels that are actually enabled in the system config.
       if (tpl.channels && tpl.channels.length > 0) {
         const tplSet = new Set(
@@ -303,7 +311,7 @@ export default function AlertComposer() {
 
           <div>
             <label style={labelStyle}>Channels</label>
-            <div style={{ display: 'flex', gap: 16 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {enabledChannels.map(ch => (
                 <label key={ch} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: 'var(--io-text-primary)', fontSize: 14 }}>
                   <input
@@ -315,6 +323,52 @@ export default function AlertComposer() {
                   {ch.charAt(0).toUpperCase() + ch.slice(1)}
                 </label>
               ))}
+            </div>
+          </div>
+
+          {/* Preview panel — reflects current template and channel selections */}
+          <div style={{
+            border: '1px solid var(--io-border)',
+            borderRadius: 8,
+            padding: '14px 16px',
+            background: 'var(--io-surface)',
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--io-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              Preview
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, color: 'var(--io-text-secondary)', minWidth: 70 }}>Template:</span>
+                <span style={{ fontSize: 13, color: 'var(--io-text-primary)' }}>
+                  {selectedTemplateId
+                    ? (templates.find(t => t.id === selectedTemplateId)?.name ?? '—')
+                    : '— Ad-hoc notification —'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, color: 'var(--io-text-secondary)', minWidth: 70 }}>Severity:</span>
+                <span style={{ fontSize: 13, color: 'var(--io-text-primary)', textTransform: 'capitalize' }}>{severity}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, color: 'var(--io-text-secondary)', minWidth: 70 }}>Channels:</span>
+                <span style={{ fontSize: 13, color: 'var(--io-text-primary)' }}>
+                  {channels.size > 0
+                    ? Array.from(channels).map(ch => ch.charAt(0).toUpperCase() + ch.slice(1)).join(', ')
+                    : '—'}
+                </span>
+              </div>
+              {title && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                  <span style={{ fontSize: 12, color: 'var(--io-text-secondary)', minWidth: 70 }}>Title:</span>
+                  <span style={{ fontSize: 13, color: 'var(--io-text-primary)' }}>{title}</span>
+                </div>
+              )}
+              {body && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 12, color: 'var(--io-text-secondary)', minWidth: 70, paddingTop: 1 }}>Message:</span>
+                  <span style={{ fontSize: 13, color: 'var(--io-text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{body}</span>
+                </div>
+              )}
             </div>
           </div>
 
