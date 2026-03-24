@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import { graphicsApi } from '../../api/graphics'
 import type { WorkspaceLayout } from './types'
 import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
-import ContextMenu from '../../shared/components/ContextMenu'
+import * as RadixContextMenu from '@radix-ui/react-context-menu'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -237,104 +237,163 @@ function WorkspaceRow({
   canDelete?: boolean
 }) {
   const [hovering, setHovering] = useState(false)
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setCtxMenu({ x: e.clientX, y: e.clientY })
-  }
-
-  const closeCtxMenu = useCallback(() => setCtxMenu(null), [])
 
   return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'center',
-        background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
-        padding: '0 4px 0 0',
-      }}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
-      onContextMenu={handleContextMenu}
-    >
-      <button
-        onClick={onSelect}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          flex: 1, padding: '5px 6px 5px 10px', border: 'none',
-          background: 'transparent',
-          cursor: 'pointer', textAlign: 'left',
-          minWidth: 0,
-        }}
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
-          <rect x="2" y="3" width="20" height="14" rx="2" />
-          <path d="M8 21h8M12 17v4" />
-        </svg>
-        <span style={{
-          flex: 1, fontSize: 12, color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          fontWeight: isActive ? 600 : 400,
-        }}>
-          {ws.name}
-        </span>
-        {ws.published && (
-          <span style={{ fontSize: 9, background: 'var(--io-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 600, letterSpacing: '0.03em', flexShrink: 0 }}>
-            PUB
-          </span>
-        )}
-      </button>
-      {/* Star button — visible on hover or when already favorited */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
-        title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 3, flexShrink: 0,
-          opacity: isFavorite || hovering ? 1 : 0,
-          transition: 'opacity 0.1s',
-        }}
-      >
-        <StarIcon filled={isFavorite} />
-      </button>
+    <RadixContextMenu.Root>
+      <RadixContextMenu.Trigger asChild>
+        <div
+          style={{
+            display: 'flex', alignItems: 'center',
+            background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
+            padding: '0 4px 0 0',
+          }}
+          onMouseEnter={() => setHovering(true)}
+          onMouseLeave={() => setHovering(false)}
+        >
+          <button
+            onClick={onSelect}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              flex: 1, padding: '5px 6px 5px 10px', border: 'none',
+              background: 'transparent',
+              cursor: 'pointer', textAlign: 'left',
+              minWidth: 0,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+            <span style={{
+              flex: 1, fontSize: 12, color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              fontWeight: isActive ? 600 : 400,
+            }}>
+              {ws.name}
+            </span>
+            {ws.published && (
+              <span style={{ fontSize: 9, background: 'var(--io-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 600, letterSpacing: '0.03em', flexShrink: 0 }}>
+                PUB
+              </span>
+            )}
+          </button>
+          {/* Star button — visible on hover or when already favorited. Do not remove. */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
+            title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 3, flexShrink: 0,
+              opacity: isFavorite || hovering ? 1 : 0,
+              transition: 'opacity 0.1s',
+            }}
+          >
+            <StarIcon filled={isFavorite} />
+          </button>
+        </div>
+      </RadixContextMenu.Trigger>
 
-      {/* Right-click context menu */}
-      {ctxMenu && (
-        <ContextMenu
-          x={ctxMenu.x}
-          y={ctxMenu.y}
-          onClose={closeCtxMenu}
-          items={[
-            {
-              label: 'Open',
-              onClick: () => { closeCtxMenu(); onSelect() },
-            },
-            {
-              label: isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
-              divider: true,
-              onClick: () => { closeCtxMenu(); onToggleFavorite() },
-            },
-            ...(onRename ? [{
-              label: 'Rename\u2026',
-              onClick: () => { closeCtxMenu(); onRename() },
-            }] : []),
-            ...(onDuplicate ? [{
-              label: 'Duplicate',
-              onClick: () => { closeCtxMenu(); onDuplicate() },
-            }] : []),
-            ...(onDelete ? [{
-              label: 'Delete',
-              divider: true,
-              disabled: !canDelete,
-              onClick: () => { closeCtxMenu(); onDelete() },
-            }] : []),
-          ]}
-        />
-      )}
-    </div>
+      <RadixContextMenu.Portal>
+        <RadixContextMenu.Content
+          style={{
+            zIndex: 2000,
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            minWidth: 200,
+            paddingTop: 4,
+            paddingBottom: 4,
+            outline: 'none',
+            animation: 'io-context-menu-in 0.08s ease',
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <style>{`
+            @keyframes io-context-menu-in {
+              from { opacity: 0; transform: scale(0.97) translateY(-3px); }
+              to   { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            [data-radix-context-menu-item]:focus {
+              background: var(--io-accent-subtle);
+              outline: none;
+            }
+          `}</style>
+
+          <RadixContextMenu.Item
+            onSelect={onSelect}
+            style={ctxMenuItemStyle}
+          >
+            Open
+          </RadixContextMenu.Item>
+
+          <RadixContextMenu.Separator style={ctxMenuSeparatorStyle} />
+
+          <RadixContextMenu.Item
+            onSelect={onToggleFavorite}
+            style={ctxMenuItemStyle}
+          >
+            {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+          </RadixContextMenu.Item>
+
+          {onRename && (
+            <RadixContextMenu.Item
+              onSelect={onRename}
+              style={ctxMenuItemStyle}
+            >
+              {'Rename\u2026'}
+            </RadixContextMenu.Item>
+          )}
+
+          {onDuplicate && (
+            <RadixContextMenu.Item
+              onSelect={onDuplicate}
+              style={ctxMenuItemStyle}
+            >
+              Duplicate
+            </RadixContextMenu.Item>
+          )}
+
+          {onDelete && (
+            <>
+              <RadixContextMenu.Separator style={ctxMenuSeparatorStyle} />
+              <RadixContextMenu.Item
+                onSelect={onDelete}
+                disabled={!canDelete}
+                style={{
+                  ...ctxMenuItemStyle,
+                  color: !canDelete ? 'var(--io-text-muted)' : 'var(--io-text-primary)',
+                  opacity: !canDelete ? 0.5 : 1,
+                  cursor: !canDelete ? 'default' : 'pointer',
+                }}
+              >
+                Delete
+              </RadixContextMenu.Item>
+            </>
+          )}
+        </RadixContextMenu.Content>
+      </RadixContextMenu.Portal>
+    </RadixContextMenu.Root>
   )
+}
+
+const ctxMenuItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '6px 14px',
+  fontSize: 13,
+  color: 'var(--io-text-primary)',
+  cursor: 'pointer',
+  userSelect: 'none',
+  outline: 'none',
+}
+
+const ctxMenuSeparatorStyle: React.CSSProperties = {
+  height: 1,
+  background: 'var(--io-border)',
+  margin: '3px 0',
 }
 
 // ---------------------------------------------------------------------------
