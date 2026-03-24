@@ -121,7 +121,7 @@ async function extractRetryAfter(err: unknown): Promise<number> {
 // ---------------------------------------------------------------------------
 
 export default function LockOverlay() {
-  const { isLocked, lockMeta, unlock } = useUiStore()
+  const { isLocked, lockMeta, lockImmediate, unlock, clearLockImmediate } = useUiStore()
   const { user, logout } = useAuthStore()
 
   const { authProvider, authProviderName, hasPin } = lockMeta
@@ -221,8 +221,17 @@ export default function LockOverlay() {
       setIsSubmitting(false)
       // Clean up any running countdown
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-      // Overlay stays hidden until interaction
-      setPhase('hidden')
+
+      if (lockImmediate) {
+        // Manual lock (e.g. lock button click) — show overlay immediately
+        clearLockImmediate()
+        setPhase('entering')
+        setTimeout(() => setPhase('visible'), FADE_IN_MS)
+        autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS)
+      } else {
+        // Passive lock (idle timeout, WS event) — overlay stays hidden until interaction
+        setPhase('hidden')
+      }
     } else {
       // Unlocked — clean up all timers and hide overlay
       if (autoDismissRef.current) clearTimeout(autoDismissRef.current)
@@ -235,7 +244,7 @@ export default function LockOverlay() {
       }
       setPhase('hidden')
     }
-  }, [isLocked, authProvider, hasPin])
+  }, [isLocked, authProvider, hasPin, lockImmediate, clearLockImmediate, dismissOverlay])
 
   // ---------------------------------------------------------------------------
   // Interaction listeners — click and keypress trigger overlay.

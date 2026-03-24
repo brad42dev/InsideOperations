@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   Download,
   Info,
+  Lock,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
@@ -789,6 +790,16 @@ export default function AppShell() {
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '?') {
         e.preventDefault()
         setHelpOpen((v) => !v)
+        return
+      }
+
+      // Ctrl+L — lock screen (immediate, shows overlay right away)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key === 'l') {
+        e.preventDefault()
+        lockRef.current(undefined, true)
+        authApi.lockSession().catch(() => {
+          // Best-effort — UI is already locked even if API fails
+        })
         return
       }
 
@@ -1593,6 +1604,32 @@ export default function AppShell() {
                         }}
                       >
                         <Monitor size={14} /> {isKiosk ? 'Exit Kiosk Mode' : 'Enter Kiosk Mode'}
+                      </button>
+
+                      {/* Lock screen */}
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false)
+                          lock(undefined, true)
+                          authApi.lockSession().catch(() => {
+                            // Best-effort — UI is already locked even if API fails
+                          })
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 14px',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--io-text-secondary)',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <Lock size={14} /> Lock Screen
                       </button>
 
                       <div style={{ height: '1px', background: 'var(--io-border)' }} />

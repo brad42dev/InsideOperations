@@ -25,19 +25,23 @@ interface UiState {
   theme: Theme
   isLocked: boolean
   lockMeta: LockMeta
+  /** When true the LockOverlay should display immediately (for manual lock actions). */
+  lockImmediate: boolean
   isKiosk: boolean
   emergencyAlert: EmergencyAlert
 
   setTheme: (theme: Theme) => void
   /** Apply theme locally without broadcasting — used by BroadcastChannel receiver. */
   setThemeLocal: (theme: Theme) => void
-  lock: (meta?: Partial<LockMeta>) => void
+  lock: (meta?: Partial<LockMeta>, immediate?: boolean) => void
   /** Lock locally without broadcasting — used by BroadcastChannel receiver. */
   lockLocal: (meta?: Partial<LockMeta>) => void
   unlock: () => void
   /** Unlock locally without broadcasting — used by BroadcastChannel receiver. */
   unlockLocal: () => void
   setLockMeta: (meta: Partial<LockMeta>) => void
+  /** Clear the lockImmediate flag after overlay has acknowledged it. */
+  clearLockImmediate: () => void
   setKiosk: (kiosk: boolean) => void
   showEmergencyAlert: (message: string) => void
   dismissEmergencyAlert: () => void
@@ -53,6 +57,7 @@ export const useUiStore = create<UiState>((set) => ({
   theme: initTheme(),
   isLocked: false,
   lockMeta: { ...DEFAULT_LOCK_META },
+  lockImmediate: false,
   isKiosk: false,
   emergencyAlert: { active: false, message: '' },
 
@@ -68,10 +73,11 @@ export const useUiStore = create<UiState>((set) => ({
     // No broadcast — this is the receiving end
   },
 
-  lock: (meta?: Partial<LockMeta>) => {
+  lock: (meta?: Partial<LockMeta>, immediate = false) => {
     set((state) => ({
       isLocked: true,
       lockMeta: { ...state.lockMeta, ...meta },
+      lockImmediate: immediate,
     }))
     publishSessionLock()
   },
@@ -100,6 +106,8 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({
       lockMeta: { ...state.lockMeta, ...meta },
     })),
+
+  clearLockImmediate: () => set({ lockImmediate: false }),
 
   setKiosk: (kiosk: boolean) => set({ isKiosk: kiosk }),
 
