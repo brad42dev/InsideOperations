@@ -5659,7 +5659,7 @@
       "wave": 3,
       "title": "Archive settings API /api/archive/settings still returns 404 \u2014 form never loads",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -5683,7 +5683,7 @@
       "wave": 2,
       "title": "Selecting a template in Send Alert composer does not update Channels section",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [
         "DD-27-015"
       ],
