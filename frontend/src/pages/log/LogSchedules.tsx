@@ -201,8 +201,8 @@ export default function LogSchedules() {
     queryFn: () => logsApi.listTemplates({ is_active: true }),
   })
 
-  const schedules = schedData?.success ? schedData.data : []
-  const templates = tmplData?.success ? tmplData.data : []
+  const schedules = schedData?.success && Array.isArray(schedData.data) ? schedData.data : []
+  const templates = tmplData?.success && Array.isArray(tmplData.data) ? tmplData.data : []
   const templateOptions = templates.map((t) => ({ id: t.id, name: t.name }))
 
   // Mutations

@@ -557,8 +557,9 @@ export default function LogPage() {
     queryKey: ['log-templates'],
     queryFn: async () => {
       const res = await logsApi.listTemplates()
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      if (!res.success) return []
+      // Guard against non-array responses (pagination wrappers, error objects, etc.)
+      return Array.isArray(res.data) ? res.data : []
     },
     // Load always so templates are available for the search filter dropdown
   })
@@ -718,7 +719,7 @@ export default function LogPage() {
                 }}
               >
                 <option value="">All templates</option>
-                {(templatesData ?? []).map((t) => (
+                {(Array.isArray(templatesData) ? templatesData : []).map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
@@ -897,7 +898,7 @@ export default function LogPage() {
               <TemplatesListSkeleton />
             ) : (
               <TemplatesList
-                templates={templatesData ?? []}
+                templates={Array.isArray(templatesData) ? templatesData : []}
                 onNewTemplate={() => navigate('/log/templates/new/edit')}
                 onEdit={(id) => navigate(`/log/templates/${id}/edit`)}
                 onDelete={(id) => {
