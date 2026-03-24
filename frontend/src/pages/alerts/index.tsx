@@ -84,10 +84,10 @@ function SeverityBadge({ severity }: { severity: NotificationSeverity }) {
 // Channel chips
 // ---------------------------------------------------------------------------
 
-function ChannelChips({ channels }: { channels: string[] }) {
+function ChannelChips({ channels }: { channels: string[] | null | undefined }) {
   return (
     <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-      {channels.map((ch) => (
+      {(channels ?? []).map((ch) => (
         <span
           key={ch}
           style={{
@@ -413,7 +413,7 @@ function SendAlertPanel() {
   }
 
   const hasUnfilledRequired = selectedTemplate
-    ? selectedTemplate.variables.some((v: TemplateVariable) => v.required && !variableValues[v.name]?.trim())
+    ? (selectedTemplate.variables ?? []).some((v: TemplateVariable) => v.required && !variableValues[v.name]?.trim())
     : false
 
   const doSend = () => {
@@ -448,10 +448,10 @@ function SendAlertPanel() {
       setSeverity(tpl.severity)
       // Filter template channels to only include channels enabled in the
       // Alert Service config. If none survive the filter, fall back to websocket.
-      const filteredChannels = tpl.channels.filter((ch) => enabledChannels.includes(ch))
+      const filteredChannels = (tpl.channels ?? []).filter((ch) => enabledChannels.includes(ch))
       setChannels(filteredChannels.length > 0 ? filteredChannels : ['websocket'])
       const initVars: Record<string, string> = {}
-      tpl.variables.forEach((v) => { initVars[v.name] = v.default_value ?? '' })
+      ;(tpl.variables ?? []).forEach((v) => { initVars[v.name] = v.default_value ?? '' })
       setVariableValues(initVars)
     } else {
       setVariableValues({})
@@ -569,11 +569,11 @@ function SendAlertPanel() {
         )}
 
         {/* Variable inputs */}
-        {selectedTemplate && selectedTemplate.variables.length > 0 && (
+        {selectedTemplate && (selectedTemplate.variables ?? []).length > 0 && (
           <div>
             <label style={labelStyle}>Template Variables</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {selectedTemplate.variables.map((v: TemplateVariable) => (
+              {(selectedTemplate.variables ?? []).map((v: TemplateVariable) => (
                 <div key={v.name}>
                   <label style={{ ...labelStyle, textTransform: 'none', fontSize: 11 }}>
                     {v.label}{v.required && <span style={{ color: '#ef4444', marginLeft: 2 }}>*</span>}

@@ -33,6 +33,36 @@ fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
 }
 
 // ---------------------------------------------------------------------------
+// Variable helpers
+// ---------------------------------------------------------------------------
+
+/// Convert a TEXT[] variable-name list from the database into the structured
+/// TemplateVariable objects the frontend expects:
+///   ["location"] → [{"name":"location","label":"location","required":false}]
+fn var_names_to_objects(names: Vec<String>) -> Vec<JsonValue> {
+    names
+        .into_iter()
+        .map(|n| json!({"name": n, "label": n, "required": false}))
+        .collect()
+}
+
+/// Extract the variable `name` string from either a plain string value or a
+/// structured TemplateVariable object sent by the frontend.
+///   "location"  → "location"
+///   {"name": "location", ...} → "location"
+fn extract_var_name(v: &JsonValue) -> Option<String> {
+    if let Some(s) = v.as_str() {
+        return Some(s.to_string());
+    }
+    if let Some(obj) = v.as_object() {
+        if let Some(name) = obj.get("name").and_then(|n| n.as_str()) {
+            return Some(name.to_string());
+        }
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
 // Variable substitution
 // ---------------------------------------------------------------------------
 
@@ -61,7 +91,10 @@ pub struct NotificationTemplateRow {
     pub title_template: String,
     pub body_template: String,
     pub channels: Vec<String>,
-    pub variables: Vec<String>,
+    /// Serialised as structured TemplateVariable objects so the frontend
+    /// receives [{name, label, required, default_value?}] instead of ["name"].
+    /// The database still stores TEXT[] — we convert on read.
+    pub variables: Vec<JsonValue>,
     pub is_system: bool,
     pub enabled: bool,
     pub created_at: DateTime<Utc>,
@@ -166,7 +199,9 @@ pub struct CreateTemplateBody {
     pub title_template: String,
     pub body_template: String,
     pub channels: Option<Vec<String>>,
-    pub variables: Option<Vec<String>>,
+    /// Accepts either plain string names ["var"] or structured objects
+    /// [{"name":"var","label":"Var","required":false}] from the frontend.
+    pub variables: Option<Vec<JsonValue>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -177,7 +212,8 @@ pub struct UpdateTemplateBody {
     pub title_template: Option<String>,
     pub body_template: Option<String>,
     pub channels: Option<Vec<String>>,
-    pub variables: Option<Vec<String>>,
+    /// Accepts either plain string names or structured TemplateVariable objects.
+    pub variables: Option<Vec<JsonValue>>,
     pub enabled: Option<bool>,
 }
 
@@ -632,7 +668,7 @@ pub async fn list_templates(
                     title_template: r.get("title_template"),
                     body_template: r.get("body_template"),
                     channels: r.get("channels"),
-                    variables: r.get("variables"),
+                    variables: var_names_to_objects(r.get("variables")),
                     is_system: r.get("is_system"),
                     enabled: r.get("enabled"),
                     created_at: r.get("created_at"),
@@ -667,7 +703,13 @@ pub async fn create_template(
     let category = body.category.unwrap_or_else(|| "custom".to_string());
     let severity = body.severity.unwrap_or_else(|| "info".to_string());
     let channels = body.channels.unwrap_or_else(|| vec!["websocket".to_string()]);
-    let variables: Vec<String> = body.variables.unwrap_or_default();
+    // Accept either plain string names or structured TemplateVariable objects from the frontend.
+    let variables: Vec<String> = body
+        .variables
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|v| extract_var_name(v))
+        .collect();
     let channels_ref: Vec<&str> = channels.iter().map(|s| s.as_str()).collect();
     let vars_ref: Vec<&str> = variables.iter().map(|s| s.as_str()).collect();
 
@@ -700,7 +742,7 @@ pub async fn create_template(
             title_template: r.get("title_template"),
             body_template: r.get("body_template"),
             channels: r.get("channels"),
-            variables: r.get("variables"),
+            variables: var_names_to_objects(r.get("variables")),
             is_system: r.get("is_system"),
             enabled: r.get("enabled"),
             created_at: r.get("created_at"),
@@ -752,7 +794,7 @@ pub async fn get_template(
             title_template: r.get("title_template"),
             body_template: r.get("body_template"),
             channels: r.get("channels"),
-            variables: r.get("variables"),
+            variables: var_names_to_objects(r.get("variables")),
             is_system: r.get("is_system"),
             enabled: r.get("enabled"),
             created_at: r.get("created_at"),
@@ -844,7 +886,7 @@ pub async fn update_template(
                     title_template: r.get("title_template"),
                     body_template: r.get("body_template"),
                     channels: r.get("channels"),
-                    variables: r.get("variables"),
+                    variables: var_names_to_objects(r.get("variables")),
                     is_system: r.get("is_system"),
                     enabled: r.get("enabled"),
                     created_at: r.get("created_at"),
@@ -864,7 +906,10 @@ pub async fn update_template(
 
     // User-defined template — update any provided fields
     let channels_owned: Option<Vec<String>> = body.channels.clone();
-    let vars_owned: Option<Vec<String>> = body.variables.clone();
+    // Accept either plain string names or structured TemplateVariable objects from the frontend.
+    let vars_owned: Option<Vec<String>> = body.variables.as_ref().map(|list| {
+        list.iter().filter_map(|v| extract_var_name(v)).collect()
+    });
     let channels_ref: Option<Vec<&str>> = channels_owned.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
     let vars_ref: Option<Vec<&str>> = vars_owned.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
 
@@ -906,7 +951,7 @@ pub async fn update_template(
             title_template: r.get("title_template"),
             body_template: r.get("body_template"),
             channels: r.get("channels"),
-            variables: r.get("variables"),
+            variables: var_names_to_objects(r.get("variables")),
             is_system: r.get("is_system"),
             enabled: r.get("enabled"),
             created_at: r.get("created_at"),
