@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePermission } from '../../shared/hooks/usePermission'
 
@@ -12,6 +13,7 @@ import type { WorkspaceLayout, PaneConfig, LayoutPreset } from './types'
 import { uuidv4 } from '../../lib/uuid'
 import { consoleApi } from '../../api/console'
 import { useAuthStore } from '../../store/auth'
+import { useUiStore } from '../../store/ui'
 import { usePlaybackStore } from '../../store/playback'
 import { useWorkspaceStore, useWorkspaceTemporal, makeNewWorkspace } from '../../store/workspaceStore'
 import { useSelectionStore } from '../../store/selectionStore'
@@ -177,6 +179,29 @@ export default function ConsolePage() {
   const queryClient = useQueryClient()
   const { isAuthenticated, user } = useAuthStore()
   const canPublish = user?.permissions.includes('console:workspace_publish') ?? false
+
+  // ---- Kiosk mode -----------------------------------------------------------
+
+  const [searchParams] = useSearchParams()
+  const { setKiosk } = useUiStore()
+
+  // Track whether this component instance set kiosk to true, so cleanup
+  // doesn't accidentally clear kiosk state set by another module.
+  const didSetKioskRef = useRef(false)
+
+  useEffect(() => {
+    const kioskParam = searchParams.get('kiosk') === 'true'
+    if (kioskParam) {
+      didSetKioskRef.current = true
+      setKiosk(true)
+    }
+    return () => {
+      if (didSetKioskRef.current) {
+        setKiosk(false)
+        didSetKioskRef.current = false
+      }
+    }
+  }, [searchParams, setKiosk])
 
   // ---- Zustand stores ------------------------------------------------------
 
