@@ -2329,6 +2329,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
       // DRAG PREVIEW EXCEPTION — direct DOM manipulation for 60fps ghost position.
       // The scene graph (sceneStore) is NOT updated here. Only on mouseup is a
       // MoveNodesCommand committed. This matches the spec's "Drag Preview Exception".
+      // Opacity is set to 0.4 to render the moving element as a translucent ghost,
+      // providing visual feedback that the drag is in progress. Restored on mouseup/escape.
       const svgEl = containerRef.current?.querySelector('svg')
       if (svgEl) {
         for (const id of selectedIdsRef.current) {
@@ -2339,6 +2341,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
           const gEl = svgEl.querySelector(`[data-node-id="${id}"]`)
           if (gEl) {
             gEl.setAttribute('transform', `translate(${ghostX},${ghostY})`)
+            gEl.setAttribute('opacity', '0.4')
           }
         }
       }
@@ -2523,6 +2526,19 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
             { x: snap(dx), y: snap(dy) },
             prevTransforms,
           ))
+        }
+      }
+      // Restore ghost opacity — elements were faded to 0.4 during drag.
+      // executeCmd (when called) triggers React re-render which rebuilds the node,
+      // but for the no-move case (dx/dy < 0.5) no command fires, so DOM must be
+      // restored explicitly here for both paths.
+      {
+        const svgEl = containerRef.current?.querySelector('svg')
+        if (svgEl) {
+          for (const [id] of inter.originalPositions) {
+            const gEl = svgEl.querySelector(`[data-node-id="${id}"]`)
+            if (gEl) gEl.removeAttribute('opacity')
+          }
         }
       }
       endDrag()
@@ -3258,6 +3274,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
             const gEl = svgEl.querySelector(`[data-node-id="${id}"]`)
             if (gEl) {
               gEl.setAttribute('transform', `translate(${orig.x},${orig.y})`)
+              gEl.removeAttribute('opacity')
             }
           }
         }

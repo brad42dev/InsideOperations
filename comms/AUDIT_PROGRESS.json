@@ -1,6 +1,6 @@
 {
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T00:05:00Z",
+  "last_updated": "2026-03-24T15:48:37.794958+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -5300,7 +5300,7 @@
       "wave": 2,
       "title": "Drag ghost missing \u2014 no preview element when dragging shape on canvas",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
