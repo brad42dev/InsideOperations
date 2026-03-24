@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   notificationsApi,
+  type NotificationTemplate,
   type NotificationSeverity,
   type NotificationChannel,
   type SendNotificationPayload,
@@ -53,14 +54,19 @@ export default function AlertComposer() {
   const [channels, setChannels] = useState<Set<NotificationChannel>>(new Set(['websocket']))
   const [confirmed, setConfirmed] = useState(false)
 
-  const { data: templates } = useQuery({
+  const { data: templatesRaw } = useQuery({
     queryKey: ['notifications', 'templates'],
     queryFn: async () => {
       const result = await notificationsApi.listTemplates({ enabled: true })
       if (!result.success) throw new Error(result.error.message)
-      return result.data
+      // Normalize: API may return a paged envelope object instead of a plain array
+      const d = result.data as unknown
+      if (Array.isArray(d)) return d as NotificationTemplate[]
+      const paged = d as { data?: unknown }
+      return (Array.isArray(paged?.data) ? paged.data : []) as NotificationTemplate[]
     },
   })
+  const templates: NotificationTemplate[] = templatesRaw ?? []
 
   const { data: groupsData } = useQuery({
     queryKey: ['notifications', 'groups'],
@@ -115,7 +121,7 @@ export default function AlertComposer() {
   function handleTemplateChange(id: string) {
     setSelectedTemplateId(id)
     if (!id) return
-    const tpl = templates?.find(t => t.id === id)
+    const tpl = templates.find(t => t.id === id)
     if (tpl) {
       setSeverity(tpl.severity)
       // Do not overwrite title/body with raw template strings — the preview
@@ -181,7 +187,7 @@ export default function AlertComposer() {
         <div style={{ display: 'grid', gap: 20 }}>
 
           {/* Emergency Quick-Send: prominent emergency/critical templates */}
-          {templates && templates.filter(t => (t.severity === 'critical') || (t.severity === 'emergency' && canSendEmergency)).length > 0 && (
+          {templates.filter(t => (t.severity === 'critical') || (t.severity === 'emergency' && canSendEmergency)).length > 0 && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
                 Emergency Quick-Send
@@ -215,7 +221,7 @@ export default function AlertComposer() {
             </div>
           )}
 
-          {templates && templates.length > 0 && (
+          {templates.length > 0 && (
             <div>
               <label style={labelStyle}>Template (optional)</label>
               <select
