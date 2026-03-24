@@ -96,6 +96,7 @@ export default function ProductionStatusWidget({ config: _config }: Props) {
   })
 
   const isLoading = sourcesQuery.isLoading || alarmsQuery.isLoading
+  const isError = sourcesQuery.isError || alarmsQuery.isError
 
   if (isLoading) {
     return (
@@ -120,8 +121,26 @@ export default function ProductionStatusWidget({ config: _config }: Props) {
     )
   }
 
-  const sources = sourcesQuery.data ?? []
-  const alarms = alarmsQuery.data ?? []
+  if (isError) {
+    return (
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--io-danger)',
+          fontSize: '12px',
+        }}
+      >
+        Failed to load status data
+      </div>
+    )
+  }
+
+  // Guard against non-array API responses (e.g. paginated envelopes or null)
+  const sources = Array.isArray(sourcesQuery.data) ? sourcesQuery.data : []
+  const alarms = Array.isArray(alarmsQuery.data) ? alarmsQuery.data : []
   const status = deriveStatus(sources, alarms)
 
   return (
