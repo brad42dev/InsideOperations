@@ -1,8 +1,8 @@
 /**
  * Designer page — main orchestrator.
  *
- * Route: /designer/graphics/:graphicId/edit  (edit existing)
- *        /designer/graphics/new              (create new)
+ * Route: /designer/graphics/:id/edit  (edit existing)
+ *        /designer/graphics/new         (create new)
  *
  * Layout:
  *   ┌─────────────────────────────────────────────────────┐
@@ -554,7 +554,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 // ---------------------------------------------------------------------------
 
 export default function DesignerPage() {
-  const { graphicId } = useParams<{ graphicId?: string }>()
+  const { id: graphicId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
   const isNew = !graphicId || graphicId === 'new'
 
