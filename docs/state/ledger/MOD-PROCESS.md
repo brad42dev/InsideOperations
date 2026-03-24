@@ -7,3 +7,4 @@ MOD-PROCESS-006 | Implement Navigation hierarchy tree in sidebar | verified 2026
 MOD-PROCESS-007 | Wire up kiosk mode (?kiosk=true) in Process module | verified 2026-03-22 | commit 4c179d9 | cd frontend && npx tsc --noEmit | PASS
 MOD-PROCESS-008 | Replace loading spinner with module-shaped skeleton state | verified 2026-03-23 | commit 206d5dd | npx tsc --noEmit | PASS
 MOD-PROCESS-009 | Process module fails to load due to dynamic import error | verified 2026-03-23 | commit 9cb5782 | npx tsc --noEmit | PASS
+MOD-PROCESS-010 | React Query graphic data returns undefined instead of null on graphic load | verified 2026-03-24 | commit e748c8c | npx tsc --noEmit | PASS

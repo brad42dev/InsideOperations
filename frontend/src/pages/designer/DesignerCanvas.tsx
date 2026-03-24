@@ -3039,6 +3039,9 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
               if (existingIdx >= 0) return prev.slice(0, existingIdx + 1)
               return [...prev, { id: hitId, name: node.name ?? 'Group' }]
             })
+            // Open a group sub-tab in the tab bar so the user can see and navigate
+            // the group context from the tab strip (not just the in-canvas breadcrumb).
+            onOpenGroupInTab?.(hitId, node.name ?? 'Group')
             return
           }
         }
@@ -3088,7 +3091,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
       setPenWaypoints(null)
       setTool('select')
     }
-  }, [penWaypoints, pipeDrawState, setPenWaypoints, setPipeDrawState, setTool, setActiveGroup])
+  }, [penWaypoints, pipeDrawState, setPenWaypoints, setPipeDrawState, setTool, setActiveGroup, onOpenGroupInTab])
 
   // -------------------------------------------------------------------------
   // Wheel — zoom centered on cursor
