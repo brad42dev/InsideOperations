@@ -1095,16 +1095,53 @@ run_parallel_uat() {
             local unit_id="${units_arr[$next_idx]}"
             next_idx=$((next_idx + 1))
             local _uat_log="/tmp/io-uat-${unit_id}-$(date '+%Y%m%dT%H%M%S').log"
+            local _uat_usage_file="/tmp/io-usage-uat-${unit_id}"
+            rm -f "$_uat_usage_file" 2>/dev/null || true
             echo "$(ts) UAT agent launching: $unit_id ($next_idx/$total) — log: $_uat_log"
-            # Each claude session runs independently. Output is tee'd to a per-agent
-            # log file so crashes/early-exits leave a readable trace.
             (
                 echo "$(ts) UAT $unit_id starting" | tee "$_uat_log"
+                # --output-format json writes final usage JSON to stdout → usage file;
+                # stderr (errors) appended to log. Heredocs safe here — no pid=$(...) capture.
                 claude --dangerously-skip-permissions \
                        --agent "$agent_file" \
-                       --print "$uat_mode $unit_id" < /dev/null \
-                2>&1 | tee -a "$_uat_log" || true
+                       --print "$uat_mode $unit_id" \
+                       --output-format json < /dev/null \
+                > "$_uat_usage_file" 2>>"$_uat_log" || true
                 echo "$(ts) UAT $unit_id finished" | tee -a "$_uat_log"
+                python3 - "$REPO/$DB_FILE" "$unit_id" "$_uat_usage_file" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'UAT_PYEOF' || true
+import sqlite3, json, sys
+from pathlib import Path
+import re
+db, unit_id, usage_file, uat_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    data = json.loads(Path(usage_file).read_text())
+    u = data.get('usage', {})
+    input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
+    output_tok = u.get('output_tokens', 0)
+    ctx_win    = data.get('modelUsage', {})
+    ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
+    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    verdict = 'unknown'
+    try:
+        cf = Path(uat_dir) / unit_id / 'CURRENT.md'
+        m  = re.search(r'^verdict:\s*(\S+)', cf.read_text(), re.MULTILINE)
+        if m: verdict = m.group(1)
+    except Exception: pass
+    task_id = f'UAT-{unit_id}'
+    con = sqlite3.connect(db, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
+        context_injection_tokens,context_final_tokens,context_utilization_pct)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct))
+    con.commit()
+    con.close()
+except Exception: pass
+finally:
+    try: Path(usage_file).unlink(missing_ok=True)
+    except Exception: pass
+UAT_PYEOF
             ) >&2 &
             active_pids+=($!)
             active_units+=("$unit_id")
@@ -2238,14 +2275,51 @@ PYEOF
                     local _uid="${_uat_arr[$_uat_idx]}"
                     _uat_idx=$((_uat_idx + 1))
                     local _auto_uat_log="/tmp/io-uat-${_uid}-$(date '+%Y%m%dT%H%M%S').log"
+                    local _auto_uat_usage="/tmp/io-usage-uat-${_uid}"
+                    rm -f "$_auto_uat_usage" 2>/dev/null || true
                     echo "$(ts) [uat  ] agent launching: ${_uid} (${_uat_idx}/${#_uat_arr[@]}) — log: $_auto_uat_log"
                     (
                         echo "$(ts) UAT ${_uid} starting" | tee "$_auto_uat_log"
                         claude --dangerously-skip-permissions \
                                --agent "uat-agent" \
-                               --print "auto ${_uid}" < /dev/null \
-                        2>&1 | tee -a "$_auto_uat_log" || true
+                               --print "auto ${_uid}" \
+                               --output-format json < /dev/null \
+                        > "$_auto_uat_usage" 2>>"$_auto_uat_log" || true
                         echo "$(ts) UAT ${_uid} finished" | tee -a "$_auto_uat_log"
+                        python3 - "$REPO/$DB_FILE" "$_uid" "$_auto_uat_usage" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'AUTO_UAT_PYEOF' || true
+import sqlite3, json, sys
+from pathlib import Path
+import re
+db, unit_id, usage_file, uat_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    data = json.loads(Path(usage_file).read_text())
+    u = data.get('usage', {})
+    input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
+    output_tok = u.get('output_tokens', 0)
+    ctx_win    = data.get('modelUsage', {})
+    ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
+    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    verdict = 'unknown'
+    try:
+        cf = Path(uat_dir) / unit_id / 'CURRENT.md'
+        m  = re.search(r'^verdict:\s*(\S+)', cf.read_text(), re.MULTILINE)
+        if m: verdict = m.group(1)
+    except Exception: pass
+    task_id = f'UAT-{unit_id}'
+    con = sqlite3.connect(db, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
+        context_injection_tokens,context_final_tokens,context_utilization_pct)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct))
+    con.commit()
+    con.close()
+except Exception: pass
+finally:
+    try: Path(usage_file).unlink(missing_ok=True)
+    except Exception: pass
+AUTO_UAT_PYEOF
                     ) >&2 &
                     local _pid=$!
                     _auto_pids+=("$_pid"); _auto_types+=("uat"); _auto_ids+=("$_uid")
