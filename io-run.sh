@@ -617,9 +617,11 @@ _RPI_CLAIMED=0
 run_parallel_implement() {
     _RPI_CLAIMED=0
     local max_agents="${1:-3}"
-    if [ "$max_agents" -gt 5 ]; then
-        echo "  ⚠ Capping parallel agents at 5 (requested ${max_agents})"
-        max_agents=5
+    # Caller already enforces CFG_MAX_PARALLEL; this guard is a last-resort safety belt
+    local _hard_cap="${CFG_MAX_PARALLEL:-5}"
+    if [ "$max_agents" -gt "$_hard_cap" ]; then
+        echo "  ⚠ Capping parallel agents at ${_hard_cap} (requested ${max_agents})"
+        max_agents=$_hard_cap
     fi
 
     local agent_pids=()
@@ -1231,8 +1233,18 @@ while [ $INTERRUPTED -eq 0 ]; do
         if [ "$ROUND" -ge "$COUNT" ]; then break; fi
     fi
 
-    # Check for available work before spending a session on it
-    if ! HAS_WORK=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_DECISIONS_DIR:-docs/decisions}" <<PYEOF
+    # Check for available work before spending a session on it.
+    # For implement+SQLite: query SQLite directly (authoritative, avoids stale JSON).
+    # For all other modes (audit/full, or implement without SQLite): use JSON.
+    if [ "$MODE" = "implement" ] && [ -f "$REPO/$DB_FILE" ]; then
+        PENDING_COUNT=$(get_pending_work_count)
+        if [ "$PENDING_COUNT" -eq 0 ]; then
+            echo ""
+            echo "No more work available for '$MODE'. All caught up."
+            break
+        fi
+        HAS_WORK=1
+    elif ! HAS_WORK=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_DECISIONS_DIR:-docs/decisions}" <<PYEOF
 import json, sys
 progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
 decisions_dir = sys.argv[2] if len(sys.argv) > 2 else "docs/decisions"
@@ -1337,6 +1349,12 @@ except Exception as e:
         fi
         run_parallel_implement "$TO_CLAIM" || ORCH_EXIT=$?
         TASKS_DONE=$((TASKS_DONE + _RPI_CLAIMED))
+        # If nothing was claimed (all tasks blocked or already implementing),
+        # stop rather than busy-spinning on the same pending-in-JSON tasks.
+        if [ "$_RPI_CLAIMED" -eq 0 ]; then
+            echo "No claimable tasks — all remaining tasks may be blocked on dependencies."
+            break
+        fi
     else
         claude --dangerously-skip-permissions --agent "$ORCH_AGENT_FILE" --print "$MODE 1" || ORCH_EXIT=$?
     fi
