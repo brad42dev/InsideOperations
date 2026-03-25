@@ -24,7 +24,7 @@ A deep-dive gap analysis found that while Waves 1–5 of the orchestrator plan s
 ---
 
 ## Wave A — Stale Task Watchdog + Rate Limit Backoff
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: CRITICAL — tasks can hang indefinitely; rate limits cause silent failures**
 
 ### A1: Stale Task Reclaim Watchdog
@@ -48,12 +48,12 @@ Call `reclaim_stale_tasks()`:
 **Schema:** No changes needed — `claimed_at`, `claimed_by`, `attempt_count` already exist.
 
 **Acceptance criteria:**
-- [ ] `reclaim_stale_tasks()` function exists in io-run.sh
-- [ ] Called before every implement batch in both `implement` mode and `auto` mode
-- [ ] Tasks stuck in `implementing` for > CFG_STALE_MINUTES with no heartbeat are reset to `pending`
-- [ ] Reclaimed tasks have `attempt_count` incremented
-- [ ] Warning printed: "⚠ Reclaimed stale task {id} (stuck for Xm, attempt N)"
-- [ ] Tasks at `attempt_count >= CFG_MAX_IMPL_ATTEMPTS` are set to `failed` instead of `pending`
+- [x] `reclaim_stale_tasks()` function exists in io-run.sh
+- [x] Called before every implement batch in both `implement` mode and `auto` mode
+- [x] Tasks stuck in `implementing` for > CFG_STALE_MINUTES with no heartbeat are reset to `pending`
+- [x] Reclaimed tasks have `attempt_count` incremented
+- [x] Warning printed: "⚠ Reclaimed stale task {id} (stuck for Xm, attempt N)"
+- [x] Tasks at `attempt_count >= CFG_MAX_IMPL_ATTEMPTS` are set to `failed` instead of `pending`
 
 ---
 
@@ -88,19 +88,19 @@ In the EXIT PROTOCOL section — before writing final status, detect rate limit:
 - Do NOT mark task as failed
 
 **Acceptance criteria:**
-- [ ] `CFG_RATE_LIMIT_BACKOFF_SEC` config field exists and is loaded
-- [ ] `run_parallel_implement` checks CURRENT.md for `rate_limited: true` after agent exits non-zero
-- [ ] Rate-limited tasks are reset to `pending` with a 60s sleep, not marked `failed`
-- [ ] implement-agent writes `rate_limited: true` when it detects rate limit errors
-- [ ] Warning printed: "⚠ Task {id} rate-limited — waiting 60s then re-queuing"
+- [x] `CFG_RATE_LIMIT_BACKOFF_SEC` config field exists and is loaded
+- [x] `run_parallel_implement` checks CURRENT.md for `rate_limited: true` after agent exits non-zero
+- [x] Rate-limited tasks are reset to `pending` with a 60s sleep, not marked `failed`
+- [x] implement-agent writes `rate_limited: true` when it detects rate limit errors
+- [x] Warning printed: "⚠ Task {id} rate-limited — waiting 60s then re-queuing"
 
 ---
 
 ### Wave A Completion Checklist
-- [ ] A1 stale watchdog implemented and tested
-- [ ] A2 rate limit backoff implemented
-- [ ] `bash -n io-run.sh` passes clean
-- [ ] Update this file: mark Wave A complete, update status line above
+- [x] A1 stale watchdog implemented and tested
+- [x] A2 rate limit backoff implemented
+- [x] `bash -n io-run.sh` passes clean
+- [x] Update this file: mark Wave A complete, update status line above
 
 ---
 

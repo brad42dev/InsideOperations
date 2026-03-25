@@ -24,6 +24,36 @@ REPO_ROOT: {{PROJECT_ROOT}}
 
 ---
 
+## STARTUP — Resolve Environment (only if tokens are not pre-expanded)
+
+If you see literal `{{REGISTRY_DB}}`, `{{STATE_DIR}}`, or `{{TASK_DIR}}` in these instructions, they were not pre-expanded (you were invoked directly rather than via `io-run.sh`). Resolve them now:
+
+```bash
+git rev-parse --show-toplevel   # find repo root
+python3 -c "
+import json, sys
+try:
+    c = json.load(open('io-orchestrator.config.json'))
+    p = c.get('paths', {})
+    ts = c.get('task_store', {})
+    db = p.get('registry_db') or ts.get('path') or 'comms/tasks.db'
+    import os
+    root = os.getcwd()
+    print('REGISTRY_DB=' + os.path.join(root, db))
+    print('STATE_DIR='   + p.get('state_dir', 'docs/state'))
+    print('TASK_DIR='    + p.get('task_dir', 'docs/tasks'))
+except Exception as e:
+    import os; root = os.getcwd()
+    print('REGISTRY_DB=' + root + '/comms/tasks.db')
+    print('STATE_DIR=docs/state')
+    print('TASK_DIR=docs/tasks')
+"
+```
+
+If tokens already show real paths (not template tokens), skip this step.
+
+---
+
 ## STATE FILE LOCATIONS
 
 ```
@@ -32,7 +62,7 @@ ATTEMPTS_DIR: {{STATE_DIR}}/{unit}/{task-id}/attempts/
 TASK_SPEC:   {{TASK_DIR}}/{unit}/{task-id}.md  (or {{TASK_DIR}}/{unit-lowercase}/{task-id}*.md)
 ```
 
-Note: `{{STATE_DIR}}/INDEX.md` (per-unit scoreboard) and `{{STATE_DIR}}/{unit}/INDEX.md` (static audit snapshot) are NOT used by this agent — they are not authoritative for task existence and are not updated by UAT or later audit rounds. The registry source of truth is `{{PROGRESS_JSON}}`.
+Note: `{{STATE_DIR}}/INDEX.md` (per-unit scoreboard) and `{{STATE_DIR}}/{unit}/INDEX.md` (static audit snapshot) are NOT used by this agent — they are not authoritative for task existence and are not updated by UAT or later audit rounds. The registry source of truth is `{{REGISTRY_DB}}` (SQLite).
 
 Replace `{unit}` with the lowercase unit ID (e.g. `gfx-core`, `mod-console`).
 
@@ -42,19 +72,27 @@ Replace `{unit}` with the lowercase unit ID (e.g. `gfx-core`, `mod-console`).
 
 ### E1 — Verify task exists in registry
 
-Run: `grep -c '"id": "{TASK_ID}"' {{PROGRESS_JSON}}`
+```python
+import sqlite3
+from pathlib import Path
+db = Path("{{REGISTRY_DB}}")
+con = sqlite3.connect(str(db), timeout=30)
+row = con.execute("SELECT id FROM io_tasks WHERE id=?", ("{TASK_ID}",)).fetchone()
+con.close()
+# row is None if not found
+```
 
-If the count is 0 (task not found): return immediately:
+If `row` is None (task not found): return immediately:
 ```
 RESULT: FAILED
 TASK_ID: <task-id>
 ATTEMPT: 0
-FAILURE_REASON: task_not_in_registry — task ID not found in {{PROGRESS_JSON}}
+FAILURE_REASON: task_not_in_registry — task ID not found in {{REGISTRY_DB}}
 STATE_FILE: none
 ATTEMPT_FILE: none
 ```
 
-Note: `{{STATE_DIR}}/INDEX.md` is a per-unit summary scoreboard, NOT a per-task index — do not use it to gate task existence. `{{STATE_DIR}}/{unit}/INDEX.md` is a static snapshot created at initial audit time and is not updated when new tasks are added (e.g., by UAT or later audit rounds). `{{PROGRESS_JSON}}` is the authoritative task registry.
+Note: `{{STATE_DIR}}/INDEX.md` is a per-unit summary scoreboard, NOT a per-task index — do not use it to gate task existence. `{{STATE_DIR}}/{unit}/INDEX.md` is a static snapshot created at initial audit time and is not updated when new tasks are added (e.g., by UAT or later audit rounds). `{{REGISTRY_DB}}` is the authoritative task registry.
 
 ### E2 — Verify state directory exists
 
@@ -82,8 +120,8 @@ Use the Read tool on `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md`.
 - Read the `attempt` field — set N = (that value + 1)
 - If `status` is `claimed` or `implementing`:
   - Calculate minutes since `last_heartbeat`
-  - If < 15 minutes: return `RESULT: CONFLICT` — do not write anything
-  - If ≥ 15 minutes: this is a zombie task — continue to E4, you will recover it
+  - If < {{STALE_MINUTES}} minutes: return `RESULT: CONFLICT` — do not write anything
+  - If ≥ {{STALE_MINUTES}} minutes: this is a zombie task — continue to E4, you will recover it
 
 ### E4 — Extract prior fingerprints and read latest failure
 
@@ -138,6 +176,7 @@ status: claimed
 attempt: {N}
 claimed_at: {current timestamp ISO-8601}
 last_heartbeat: {current timestamp ISO-8601}
+rate_limited: false
 ---
 
 ## Prior Attempt Fingerprints
@@ -494,6 +533,15 @@ Expected output — three lines:
 
 If any line is missing or has the wrong value: retry the write once. If still wrong: note this in your return message under `ATTEMPT_FILE_WRITE_STATUS`.
 
+### X5b — Rate limit check
+
+Review your session for any tool or bash command that returned an error containing "rate limit", "429", "too many requests", or "quota exceeded". If any such error occurred:
+
+1. Set `rate_limited: true` in the CURRENT.md frontmatter (in X6 below)
+2. Use result `FAILED` but do NOT increment attempt_count mentally — the orchestrator will re-queue without failure penalty
+
+This signal tells the orchestrator to re-queue the task after a backoff delay rather than counting it as a permanent failure.
+
 ### X6 — Update CURRENT.md with final state
 
 Rewrite CURRENT.md completely:
@@ -506,6 +554,7 @@ status: {completed | failed | cycle_detected | needs_input | needs_research | ch
 attempt: {N}
 claimed_at: {original claimed_at}
 last_heartbeat: {current timestamp}
+rate_limited: {true if rate-limit error was observed during this session, false otherwise}
 ---
 
 ## Prior Attempt Fingerprints

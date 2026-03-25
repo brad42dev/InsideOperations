@@ -64,7 +64,8 @@
     "max_repair_attempts":      3,
     "max_impl_attempts":        3,
     "needs_input_stale_hours":  48,
-    "needs_input_escalate_hours": 144
+    "needs_input_escalate_hours": 144,
+    "rate_limit_backoff_sec":   60
   },
 
   "never_touch": [

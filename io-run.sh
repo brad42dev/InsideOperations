@@ -56,6 +56,7 @@ load_config() {
         CFG_SPEC_DOCS="/home/io/spec_docs"
         CFG_COMMS_DIR="comms"
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
+        CFG_RATE_LIMIT_BACKOFF_SEC=60
         return
     fi
     eval "$(python3 - "$config" "$REPO" <<'PYEOF'
@@ -100,6 +101,7 @@ print(f"CFG_COMMS_DIR={p.get('comms_dir', 'comms')!r}")
 print(f"CFG_NEEDS_INPUT_DIR={p.get('needs_input_dir', 'comms/needs_input')!r}")
 print(f"CFG_UAT_DIR={p.get('uat_dir', 'docs/uat')!r}")
 print(f"CFG_DECISIONS_DIR={p.get('decisions_dir', 'docs/decisions')!r}")
+print(f"CFG_RATE_LIMIT_BACKOFF_SEC={ag.get('rate_limit_backoff_sec', 60)!r}")
 PYEOF
 )" || {
         echo "WARNING: Failed to parse io-orchestrator.config.json — using hardcoded defaults" >&2
@@ -128,6 +130,7 @@ PYEOF
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
         CFG_UAT_DIR="docs/uat"
         CFG_DECISIONS_DIR="docs/decisions"
+        CFG_RATE_LIMIT_BACKOFF_SEC=60
     }
 }
 
@@ -398,6 +401,86 @@ con.close()
 PYEOF
 }
 
+# Reclaim stale tasks stuck in 'implementing' status.
+# A task is stale if claimed_at is older than CFG_STALE_MINUTES AND
+# the CURRENT.md heartbeat file has not been updated within that window.
+# Stale tasks reset to 'pending' (or 'failed' if attempt_count >= CFG_MAX_IMPL_ATTEMPTS).
+# Usage: reclaim_stale_tasks
+reclaim_stale_tasks() {
+    if [ ! -f "$REPO/$DB_FILE" ]; then
+        return 0
+    fi
+    python3 - "$REPO/$DB_FILE" "${CFG_STATE_DIR:-docs/state}" \
+        "${CFG_STALE_MINUTES:-30}" "${CFG_MAX_IMPL_ATTEMPTS:-3}" "$REPO" <<'PYEOF' 2>/dev/null || true
+import sqlite3, sys
+from pathlib import Path
+from datetime import datetime, timezone, timedelta
+
+db_path      = Path(sys.argv[1])
+state_dir    = sys.argv[2]
+stale_min    = int(sys.argv[3])
+max_attempts = int(sys.argv[4])
+repo_root    = Path(sys.argv[5])
+
+if not db_path.exists():
+    sys.exit(0)
+
+now          = datetime.now(timezone.utc)
+stale_cutoff = now - timedelta(minutes=stale_min)
+
+con = sqlite3.connect(db_path, timeout=10)
+con.execute("PRAGMA journal_mode=WAL")
+con.execute("PRAGMA busy_timeout=10000")
+
+rows = con.execute("""
+    SELECT id, unit, claimed_at, attempt_count
+    FROM io_tasks
+    WHERE status = 'implementing'
+      AND claimed_at IS NOT NULL
+""").fetchall()
+
+reclaimed = 0
+for task_id, unit, claimed_at_str, attempt_count in rows:
+    try:
+        claimed_at = datetime.fromisoformat(claimed_at_str.replace('Z', '+00:00'))
+    except Exception:
+        continue
+    if claimed_at > stale_cutoff:
+        continue  # not stale yet
+
+    # Heartbeat check: is CURRENT.md newer than the stale cutoff?
+    unit_lower = (unit or '').lower()
+    cur_md = None
+    for u in (unit_lower, unit or ''):
+        candidate = repo_root / state_dir / u / task_id / 'CURRENT.md'
+        if candidate.exists():
+            cur_md = candidate
+            break
+
+    if cur_md is not None:
+        mtime = datetime.fromtimestamp(cur_md.stat().st_mtime, tz=timezone.utc)
+        if mtime > stale_cutoff:
+            continue  # agent is still heartbeating — leave it alone
+
+    # Stale — reclaim
+    stuck_min    = int((now - claimed_at).total_seconds() / 60)
+    new_attempts = (attempt_count or 0) + 1
+    new_status   = 'failed' if new_attempts > max_attempts else 'pending'
+
+    con.execute("""
+        UPDATE io_tasks
+        SET status=?, claimed_at=NULL, claimed_by=NULL, attempt_count=?, updated_at=?
+        WHERE id=?
+    """, (new_status, new_attempts, now.strftime('%Y-%m-%dT%H:%M:%SZ'), task_id))
+    print(f"⚠ Reclaimed stale task {task_id} (stuck for {stuck_min}m, attempt {new_attempts}) → {new_status}")
+    reclaimed += 1
+
+if reclaimed:
+    con.commit()
+con.close()
+PYEOF
+}
+
 # ── Config token expansion ────────────────────────────────────────────────────
 # Expand {{TOKEN}} placeholders in agent .md files within a target directory.
 # Called from launch_agent_in_worktree after the worktree is created so that
@@ -530,6 +613,10 @@ launch_agent_in_worktree() {
 
     # Capture locals for the subshell — trap string can't expand parent vars lazily
     local _task_id="$task_id"
+    local _worktree_path="$worktree_path"
+    # Rate-limit signal file: parent checks this after wait returns non-zero.
+    local _rl_signal="/tmp/io-rl-${task_id}"
+    rm -f "$_rl_signal" 2>/dev/null || true
 
     # Launch agent in subshell. EXIT trap fires on crash OR clean exit.
     # AGENT_OUTCOME starts as "failure"; reset to "success" only if claude exits 0.
@@ -537,8 +624,19 @@ launch_agent_in_worktree() {
     # but not captured by the pid=$(...) command substitution in the caller.
     (
         AGENT_OUTCOME="failure"
-        trap 'cleanup_worktree "'"$_task_id"'" "$AGENT_OUTCOME"' EXIT
-        cd "$worktree_path"
+        _subshell_rl_signal="$_rl_signal"
+        _subshell_worktree="$_worktree_path"
+        _subshell_task_id="$_task_id"
+        trap '
+            # Before removing the worktree: check if the agent flagged rate-limiting
+            if find "$_subshell_worktree/docs/state" -name "CURRENT.md" \
+                    -exec grep -l "^rate_limited: true" {} \; 2>/dev/null | grep -q .; then
+                touch "$_subshell_rl_signal" 2>/dev/null || true
+                echo "  ⚠ Task ${_subshell_task_id}: rate limit signal detected" >&2
+            fi
+            cleanup_worktree "'"$_task_id"'" "$AGENT_OUTCOME"
+        ' EXIT
+        cd "$_worktree_path"
         _exit=0
         timeout "${CFG_STALE_MINUTES:-30}m" \
             claude --dangerously-skip-permissions \
@@ -791,10 +889,19 @@ run_parallel_implement() {
             "$REPO/io-gh-mirror.sh" mirror "$task_id" "verified" "Completed by agent PID ${pid}" || true
         else
             local exit_code=$?
-            echo "  ❌ Agent PID ${pid} (task ${task_id}) — failed (exit ${exit_code})"
-            update_task_status "$task_id" "failed"
-            "$REPO/io-gh-mirror.sh" mirror "$task_id" "failed" "Agent PID ${pid} exited ${exit_code}" || true
-            failed=$((failed + 1))
+            local rl_signal="/tmp/io-rl-${task_id}"
+            if [ -f "$rl_signal" ]; then
+                rm -f "$rl_signal" 2>/dev/null || true
+                echo "  ⚠ Task ${task_id} rate-limited — waiting ${CFG_RATE_LIMIT_BACKOFF_SEC:-60}s then re-queuing"
+                sleep "${CFG_RATE_LIMIT_BACKOFF_SEC:-60}"
+                update_task_status "$task_id" "pending"
+                "$REPO/io-gh-mirror.sh" mirror "$task_id" "pending" "Rate-limited — re-queued" || true
+            else
+                echo "  ❌ Agent PID ${pid} (task ${task_id}) — failed (exit ${exit_code})"
+                update_task_status "$task_id" "failed"
+                "$REPO/io-gh-mirror.sh" mirror "$task_id" "failed" "Agent PID ${pid} exited ${exit_code}" || true
+                failed=$((failed + 1))
+            fi
         fi
     done
 
@@ -1344,6 +1451,9 @@ if [ "$MODE" = "auto" ]; then
         echo "══════════════════════════════════════════════════"
         echo ""
 
+        # Reclaim stale tasks before checking pending work
+        reclaim_stale_tasks
+
         # ── Phase 1: implement all pending tasks ──────────────────────────────
         run_unblock_pass
         IMPL_PENDING=$(get_pending_work_count)
@@ -1587,6 +1697,11 @@ while [ $INTERRUPTED -eq 0 ]; do
         fi
     else
         if [ "$ROUND" -ge "$COUNT" ]; then break; fi
+    fi
+
+    # Reclaim any tasks stuck in 'implementing' with a stale claim
+    if [ "$MODE" = "implement" ]; then
+        reclaim_stale_tasks
     fi
 
     # Check for available work before spending a session on it. All modes use SQLite.
