@@ -158,6 +158,17 @@ else
     echo "  ⚠ .claude/agents/ not found in $SCRIPT_DIR — skipping agent files"
 fi
 
+# Copy comms support files (SQLite schema + migration helper)
+mkdir -p "$TARGET_DIR/comms"
+for comms_file in comms/schema.sql comms/migrate_to_sqlite.py; do
+    if [ -f "$SCRIPT_DIR/$comms_file" ]; then
+        cp "$SCRIPT_DIR/$comms_file" "$TARGET_DIR/$comms_file"
+        echo "  ✓ $comms_file"
+    else
+        echo "  ⚠ $comms_file not found in $SCRIPT_DIR — skipping"
+    fi
+done
+
 # ── Generate config file ──────────────────────────────────────────────────────
 CONFIG_FILE="$TARGET_DIR/io-orchestrator.config.json"
 

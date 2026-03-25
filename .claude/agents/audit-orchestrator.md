@@ -200,28 +200,36 @@ The `task_registry` in PROGRESS_FILE is the single source of truth for task sele
 **How to update (atomic write protocol):**
 Read PROGRESS_FILE, find the registry entry by `id`, update the field(s), then write using the atomic pattern:
 ```python
-import json, os
-# 1. Read current state
-with open(PROGRESS_FILE) as f:
-    data = json.load(f)
-# 2. Make updates
-# ... (find entry, update fields) ...
-# 3. Write atomically: temp file + rename (no partial write corruption)
-tmp_path = PROGRESS_FILE + ".tmp"
-with open(tmp_path, "w") as f:
-    json.dump(data, f, indent=2)
-    f.flush()
-    os.fsync(f.fileno())
-os.replace(tmp_path, PROGRESS_FILE)
-# 4. Validate: read back and confirm the change is present
-with open(PROGRESS_FILE) as f:
-    check = json.load(f)
-# assert the updated field is in check
-# 5. Update the backup (run after every successful write, not just once per session)
-import shutil
-shutil.copy2(PROGRESS_FILE, PROGRESS_FILE + ".bak")
+import json, os, fcntl
+# 1. Acquire exclusive lock via a sidecar lock file (not the JSON itself)
+lock_path = PROGRESS_FILE + ".lock"
+lock_fd = open(lock_path, "w")
+fcntl.flock(lock_fd, fcntl.LOCK_EX)  # blocks until all other writers release
+try:
+    # 2. Read current state (inside the lock — guaranteed fresh)
+    with open(PROGRESS_FILE) as f:
+        data = json.load(f)
+    # 3. Make updates
+    # ... (find entry, update fields) ...
+    # 4. Write atomically: temp file + rename (no partial write corruption)
+    tmp_path = PROGRESS_FILE + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, PROGRESS_FILE)
+    # 5. Validate: read back and confirm the change is present
+    with open(PROGRESS_FILE) as f:
+        check = json.load(f)
+    # assert the updated field is in check
+    # 6. Update the backup (run after every successful write, not just once per session)
+    import shutil
+    shutil.copy2(PROGRESS_FILE, PROGRESS_FILE + ".bak")
+finally:
+    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    lock_fd.close()
 ```
-Never write PROGRESS_FILE directly without going through a temp file. Never read task files to determine current status. The `.bak` copy in step 5 is mandatory — it ensures the backup is never more than one write stale.
+Never write PROGRESS_FILE directly without going through a temp file. Never read task files to determine current status. The `.bak` copy in step 6 is mandatory — it ensures the backup is never more than one write stale. The flock prevents lost-update races when parallel agents write simultaneously (common during multi-agent implement rounds).
 
 **When new tasks are produced by audit:**
 After audit-runner SUCCESS, for each task ID in `TASKS_OPEN`: read that task file once to extract `title`, `priority`, `depends-on`. Add an entry to `task_registry` with `status: "pending"`. This is the only time task files are read for metadata — at write time, not at selection time.

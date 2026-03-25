@@ -387,8 +387,11 @@ expand_agent_tokens() {
     local target="$1"
     local agents_dir="$target/.claude/agents"
     [ -d "$agents_dir" ] || return 0
+    # BSD sed (macOS) requires -i '' while GNU sed uses -i alone.
+    local SED_INPLACE=("-i")
+    [[ "$(uname)" == "Darwin" ]] && SED_INPLACE=("-i" "")
     find "$agents_dir" -name "*.md" -print0 | while IFS= read -r -d '' f; do
-        sed -i \
+        sed "${SED_INPLACE[@]}" \
             -e "s|{{PROJECT_ROOT}}|${REPO}|g" \
             -e "s|{{TASK_DIR}}|${CFG_TASK_DIR:-docs/tasks}|g" \
             -e "s|{{CATALOG_DIR}}|${CFG_CATALOG_DIR:-docs/catalogs}|g" \
@@ -471,10 +474,17 @@ launch_agent_in_worktree() {
         AGENT_OUTCOME="failure"
         trap 'cleanup_worktree "'"$_task_id"'" "$AGENT_OUTCOME"' EXIT
         cd "$worktree_path"
-        claude --dangerously-skip-permissions \
-               --agent "$agent_file" \
-               --print "$prompt_text" < /dev/null \
-            && AGENT_OUTCOME="success"
+        timeout "${CFG_STALE_MINUTES:-30}m" \
+            claude --dangerously-skip-permissions \
+                   --agent "$agent_file" \
+                   --print "$prompt_text" < /dev/null \
+            && AGENT_OUTCOME="success" || {
+            local _exit=$?
+            if [ "$_exit" -eq 124 ]; then
+                echo "  ✗ Task ${_task_id}: agent timed out after ${CFG_STALE_MINUTES:-30}m" >&2
+            fi
+            AGENT_OUTCOME="failure"
+        }
     ) &
     echo $!
 }
@@ -833,13 +843,14 @@ if [ "$MODE" = "uat" ] || [ "$MODE" = "human-uat" ]; then
     if [ -n "$UNIT_FILTER" ]; then
         UNITS="$UNIT_FILTER"
     else
-        if ! UNITS=$(python3 - <<'PYEOF'
+        if ! UNITS=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<'PYEOF'
 import json, sys
+progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
 try:
-    with open("comms/AUDIT_PROGRESS.json") as f:
+    with open(progress_file) as f:
         data = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"ERROR: comms/AUDIT_PROGRESS.json: {e}", file=sys.stderr)
+    print(f"ERROR: {progress_file}: {e}", file=sys.stderr)
     sys.exit(1)
 
 units = set()
@@ -1132,13 +1143,14 @@ while [ $INTERRUPTED -eq 0 ]; do
     fi
 
     # Check for available work before spending a session on it
-    if ! HAS_WORK=$(python3 - <<PYEOF
+    if ! HAS_WORK=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<PYEOF
 import json, sys
+progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
 try:
-    with open("comms/AUDIT_PROGRESS.json") as f:
+    with open(progress_file) as f:
         data = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"ERROR: comms/AUDIT_PROGRESS.json: {e}", file=sys.stderr)
+    print(f"ERROR: {progress_file}: {e}", file=sys.stderr)
     sys.exit(1)
 import os, glob as _glob
 from datetime import datetime, timezone
