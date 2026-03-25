@@ -684,6 +684,16 @@ Track `successes_this_run = 0`.
 
 ### Implement Checkpoint
 
+**Pre-exit commit (required for worktree mode):** Before writing LAST_ROUND.json and exiting, commit any uncommitted changes so they survive `git worktree remove`:
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CHANGED=$(git -C "$REPO_ROOT" status --porcelain | wc -l | tr -d ' ')
+if [ "$CHANGED" -gt 0 ]; then
+    git -C "$REPO_ROOT" add -A && git -C "$REPO_ROOT" commit -m "checkpoint: {task-id} — session state" --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+fi
+```
+This is a no-op if Ledger Write already committed (SUCCESS path). For all other exits (NEEDS_INPUT, FAILED, ESCALATED, CYCLE_DETECTED) it preserves registry updates, needs-input files, and escalation files that would otherwise be lost when the worktree is cleaned up.
+
 **If `run_limit == 1`:** Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"implement","work_done":{successes_this_run}}`, print one-line summary, exit.
 ```
 ✓ implement round complete — {task-id} verified. Progress saved.
