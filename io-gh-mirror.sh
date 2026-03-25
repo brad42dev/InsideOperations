@@ -24,7 +24,17 @@
 set -euo pipefail
 
 REPO="$(git -C "$(cd "$(dirname "$0")" && pwd)" rev-parse --show-toplevel 2>/dev/null || echo "/home/io/io-dev/io")"
-DB_FILE="$REPO/comms/tasks.db"
+if [ -f "$REPO/io-orchestrator.config.json" ]; then
+    _db=$(python3 -c "
+import json
+c = json.load(open('$REPO/io-orchestrator.config.json'))
+p = c.get('paths', {}); ts = c.get('task_store', {})
+print(p.get('registry_db') or ts.get('path') or 'comms/tasks.db')
+" 2>/dev/null || echo "comms/tasks.db")
+    DB_FILE="$REPO/$_db"
+else
+    DB_FILE="$REPO/comms/tasks.db"
+fi
 
 SUBCMD="${1:-}"
 
