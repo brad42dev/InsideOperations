@@ -1857,13 +1857,11 @@ PYEOF
     PASSED=0
     FAILED=0
     SKIPPED=0
-    UAT_AGENT_FILE=$(expand_agent_to_tmp "uat-agent")
-    UAT_AGENT_TMP="$_AGENT_TMP_DIR"
-    trap 'rm -rf "$UAT_AGENT_TMP" 2>/dev/null; INTERRUPTED=1; echo ""; echo "Stopping after current batch..."' INT
+    trap 'INTERRUPTED=1; echo ""; echo "Stopping after current batch..."' INT
 
     if [ "$UAT_MODE" = "auto" ]; then
         # Parallel: each unit gets its own claude session; no interactive input needed
-        run_parallel_uat "$UNITS" "${UAT_PARALLEL}" "$UAT_AGENT_FILE" "auto"
+        run_parallel_uat "$UNITS" "${UAT_PARALLEL}" "uat-agent" "auto"
         PASSED=$_RPU_PASSED
         FAILED=$_RPU_FAILED
         SKIPPED=$_RPU_SKIPPED
@@ -1875,7 +1873,7 @@ PYEOF
 
             echo "─── UAT: $UNIT_ID ─────────────────────────────────────────────"
             UAT_EXIT=0
-            claude --dangerously-skip-permissions --agent "$UAT_AGENT_FILE" --print "$UAT_MODE $UNIT_ID" < /dev/null || UAT_EXIT=$?
+            claude --dangerously-skip-permissions --agent "uat-agent" --print "$UAT_MODE $UNIT_ID" < /dev/null || UAT_EXIT=$?
             if [ "$UAT_EXIT" -ne 0 ]; then
                 echo "  ⚠ $UNIT_ID — claude exited $UAT_EXIT (crash/OOM?) — treating as error"
                 SKIPPED=$((SKIPPED + 1))
@@ -1899,7 +1897,6 @@ PYEOF
             echo ""
         done <<< "$UNITS"
     fi
-    rm -rf "$UAT_AGENT_TMP" 2>/dev/null || true
     trap - INT
 
     echo "═══════════════════════════════════════════"
@@ -2172,17 +2169,12 @@ PYEOF
         echo "  (pending: ${PENDING_IMPL} impl task(s), ${PENDING_UAT} UAT unit(s))"
         echo ""
 
-        # Expand UAT agent file and ensure backend running if UAT work exists
-        _AUTO_UAT_AGENT_FILE=""
-        _AUTO_UAT_AGENT_TMP=""
         if [ "$PENDING_UAT" -gt 0 ]; then
             if [ -z "$BACKEND_STARTED" ] && [ -z "$DEV_SERVER_STARTED" ]; then
                 trap 'if [ -n "$DEV_SERVER_STARTED" ]; then echo "Stopping dev server..."; kill_port 5173; fi; if [ -n "$BACKEND_STARTED" ]; then echo "Stopping backend services..."; "$REPO/dev.sh" stop > /dev/null 2>&1 || true; fi; _io_lock_cleanup' EXIT
                 ensure_backend_running "io-auto-uat-backend"
                 ensure_frontend_running "io-auto-uat-devserver"
             fi
-            _AUTO_UAT_AGENT_FILE=$(expand_agent_to_tmp "uat-agent")
-            _AUTO_UAT_AGENT_TMP="$_AGENT_TMP_DIR"
         fi
 
         # Load UAT units into indexed array for pool dispatching
@@ -2250,7 +2242,7 @@ PYEOF
                     (
                         echo "$(ts) UAT ${_uid} starting" | tee "$_auto_uat_log"
                         claude --dangerously-skip-permissions \
-                               --agent "$_AUTO_UAT_AGENT_FILE" \
+                               --agent "uat-agent" \
                                --print "auto ${_uid}" < /dev/null \
                         2>&1 | tee -a "$_auto_uat_log" || true
                         echo "$(ts) UAT ${_uid} finished" | tee -a "$_auto_uat_log"
@@ -2327,7 +2319,6 @@ PYEOF
             _auto_ids=("${_ni[@]+"${_ni[@]}"}")
         done
 
-        rm -rf "${_AUTO_UAT_AGENT_TMP:-}" 2>/dev/null || true
 
         # Re-queue rate-limited impl tasks (single sleep for all)
         if [ "${#_auto_rl_tasks[@]}" -gt 0 ]; then
