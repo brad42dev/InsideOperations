@@ -7,6 +7,50 @@ import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorks
 import * as RadixContextMenu from '@radix-ui/react-context-menu'
 
 // ---------------------------------------------------------------------------
+// View mode — persisted per section in localStorage
+// ---------------------------------------------------------------------------
+
+export type SectionViewMode = 'list' | 'thumbnails' | 'grid'
+
+const LS_VIEW_MODE_KEY = 'io-console-section-view-modes'
+
+function loadViewModes(): Record<string, SectionViewMode> {
+  try {
+    const raw = localStorage.getItem(LS_VIEW_MODE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, SectionViewMode>
+    return {}
+  } catch {
+    return {}
+  }
+}
+
+function saveViewModes(modes: Record<string, SectionViewMode>): void {
+  try {
+    localStorage.setItem(LS_VIEW_MODE_KEY, JSON.stringify(modes))
+  } catch {
+    // ignore quota errors
+  }
+}
+
+function useConsoleSectionViewMode(sectionKey: string, defaultMode: SectionViewMode = 'list') {
+  const [modes, setModes] = useState<Record<string, SectionViewMode>>(() => loadViewModes())
+
+  const viewMode: SectionViewMode = modes[sectionKey] ?? defaultMode
+
+  const setViewMode = useCallback((mode: SectionViewMode) => {
+    setModes((prev) => {
+      const next = { ...prev, [sectionKey]: mode }
+      saveViewModes(next)
+      return next
+    })
+  }, [sectionKey])
+
+  return { viewMode, setViewMode }
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -107,19 +151,61 @@ const listItem = (dragging?: boolean): React.CSSProperties => ({
 
 import React from 'react'
 
+// ---------------------------------------------------------------------------
+// View-mode icon SVGs — List, Thumbnails, Grid
+// ---------------------------------------------------------------------------
+
+function ListModeIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <line x1="2" y1="4" x2="14" y2="4" />
+      <line x1="2" y1="8" x2="14" y2="8" />
+      <line x1="2" y1="12" x2="14" y2="12" />
+    </svg>
+  )
+}
+
+function ThumbnailsModeIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="1" y="2" width="5" height="4" rx="1" />
+      <line x1="8" y1="3" x2="15" y2="3" />
+      <line x1="8" y1="5.5" x2="13" y2="5.5" />
+      <rect x="1" y="10" width="5" height="4" rx="1" />
+      <line x1="8" y1="11" x2="15" y2="11" />
+      <line x1="8" y1="13.5" x2="13" y2="13.5" />
+    </svg>
+  )
+}
+
+function GridModeIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="1" y="1" width="6" height="6" rx="1" />
+      <rect x="9" y="1" width="6" height="6" rx="1" />
+      <rect x="1" y="9" width="6" height="6" rx="1" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  )
+}
+
 interface AccordionSectionProps {
   title: string
   open: boolean
   onToggle: () => void
   badge?: number
   children: React.ReactNode
+  viewMode?: SectionViewMode
+  onViewModeChange?: (mode: SectionViewMode) => void
+  /** If false, only List mode is available (Points section) */
+  allowAllViewModes?: boolean
 }
 
-function AccordionSection({ title, open, onToggle, badge, children }: AccordionSectionProps) {
+function AccordionSection({ title, open, onToggle, badge, children, viewMode, onViewModeChange, allowAllViewModes = true }: AccordionSectionProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div
-        style={sectionHeader}
+        style={{ ...sectionHeader, paddingRight: 4 }}
         onClick={onToggle}
         role="button"
         tabIndex={0}
@@ -142,6 +228,42 @@ function AccordionSection({ title, open, onToggle, badge, children }: AccordionS
             {badge}
           </span>
         )}
+        {/* View mode buttons — stop propagation so clicks don't toggle section */}
+        {onViewModeChange && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ display: 'flex', alignItems: 'center', gap: 1, marginLeft: 2 }}
+          >
+            <ViewModeButton
+              mode="list"
+              active={viewMode === 'list'}
+              title="List view"
+              onClick={() => onViewModeChange('list')}
+            >
+              <ListModeIcon />
+            </ViewModeButton>
+            {allowAllViewModes && (
+              <>
+                <ViewModeButton
+                  mode="thumbnails"
+                  active={viewMode === 'thumbnails'}
+                  title="Thumbnails view"
+                  onClick={() => onViewModeChange('thumbnails')}
+                >
+                  <ThumbnailsModeIcon />
+                </ViewModeButton>
+                <ViewModeButton
+                  mode="grid"
+                  active={viewMode === 'grid'}
+                  title="Grid view"
+                  onClick={() => onViewModeChange('grid')}
+                >
+                  <GridModeIcon />
+                </ViewModeButton>
+              </>
+            )}
+          </div>
+        )}
       </div>
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -149,6 +271,38 @@ function AccordionSection({ title, open, onToggle, badge, children }: AccordionS
         </div>
       )}
     </div>
+  )
+}
+
+function ViewModeButton({ mode: _mode, active, title, onClick, children }: {
+  mode: SectionViewMode
+  active: boolean
+  title: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      style={{
+        background: active ? 'var(--io-accent-subtle)' : 'none',
+        border: 'none',
+        cursor: 'pointer',
+        color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
+        padding: '3px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 3,
+        transition: 'background 0.1s, color 0.1s',
+        width: 20,
+        height: 20,
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -397,6 +551,131 @@ const ctxMenuSeparatorStyle: React.CSSProperties = {
 }
 
 // ---------------------------------------------------------------------------
+// WorkspaceThumbnailCard — for thumbnails (48×36) and grid (80×60) view modes
+// ---------------------------------------------------------------------------
+
+function WorkspaceThumbnailCard({
+  ws,
+  isActive,
+  isFavorite,
+  onSelect,
+  onToggleFavorite,
+  thumbW,
+  thumbH,
+  singleLine,
+}: {
+  ws: WorkspaceLayout
+  isActive: boolean
+  isFavorite: boolean
+  onSelect: () => void
+  onToggleFavorite: () => void
+  thumbW: number
+  thumbH: number
+  singleLine: boolean
+}) {
+  return (
+    <RadixContextMenu.Root>
+      <RadixContextMenu.Trigger asChild>
+        <button
+          onClick={onSelect}
+          title={ws.name}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 3,
+            padding: '5px 4px',
+            border: '1px solid',
+            borderColor: isActive ? 'var(--io-accent)' : 'transparent',
+            borderRadius: 'var(--io-radius)',
+            background: isActive ? 'color-mix(in srgb, var(--io-accent) 10%, transparent)' : 'transparent',
+            cursor: 'pointer',
+            position: 'relative',
+            transition: 'background 0.1s, border-color 0.1s',
+          }}
+          onMouseEnter={(e) => {
+            if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+          }}
+          onMouseLeave={(e) => {
+            if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        >
+          {/* Mini layout thumbnail — gray rectangles representing panes */}
+          <div style={{
+            width: thumbW,
+            height: thumbH,
+            background: 'var(--io-surface-sunken)',
+            borderRadius: 2,
+            border: '1px solid var(--io-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            overflow: 'hidden',
+            position: 'relative',
+          }}>
+            {/* Generic 2-pane grid preview */}
+            <svg width={thumbW - 4} height={thumbH - 4} viewBox="0 0 40 30" fill="none">
+              <rect x="1" y="1" width="17" height="28" rx="1" fill="var(--io-border)" opacity="0.6" />
+              <rect x="22" y="1" width="17" height="13" rx="1" fill="var(--io-border)" opacity="0.6" />
+              <rect x="22" y="16" width="17" height="13" rx="1" fill="var(--io-border)" opacity="0.6" />
+            </svg>
+          </div>
+          {/* Name */}
+          <span style={{
+            fontSize: 10,
+            color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
+            fontWeight: isActive ? 600 : 400,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: singleLine ? 'nowrap' : undefined,
+            display: singleLine ? 'block' : '-webkit-box',
+            WebkitLineClamp: singleLine ? undefined : 2,
+            WebkitBoxOrient: singleLine ? undefined : 'vertical',
+            lineHeight: 1.3,
+            maxWidth: thumbW + 8,
+            textAlign: 'center',
+          }}>
+            {ws.name}
+          </span>
+          {/* Favorite star overlay */}
+          {isFavorite && (
+            <span style={{
+              position: 'absolute', top: 3, right: 3,
+              color: 'var(--io-warning)', lineHeight: 1,
+            }}>
+              <StarIcon filled />
+            </span>
+          )}
+        </button>
+      </RadixContextMenu.Trigger>
+      <RadixContextMenu.Portal>
+        <RadixContextMenu.Content
+          style={{
+            zIndex: 2000,
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            minWidth: 160,
+            paddingTop: 4,
+            paddingBottom: 4,
+            outline: 'none',
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <RadixContextMenu.Item onSelect={onSelect} style={ctxMenuItemStyle}>Open</RadixContextMenu.Item>
+          <RadixContextMenu.Separator style={ctxMenuSeparatorStyle} />
+          <RadixContextMenu.Item onSelect={onToggleFavorite} style={ctxMenuItemStyle}>
+            {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+          </RadixContextMenu.Item>
+        </RadixContextMenu.Content>
+      </RadixContextMenu.Portal>
+    </RadixContextMenu.Root>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Workspaces section — with Favorites group pinned at top
 // ---------------------------------------------------------------------------
 
@@ -409,6 +688,7 @@ function WorkspacesSection({
   onRenameWorkspace,
   onDuplicateWorkspace,
   onDeleteWorkspace,
+  viewMode,
 }: {
   workspaces: WorkspaceLayout[]
   activeWorkspaceId: string | null
@@ -418,10 +698,16 @@ function WorkspacesSection({
   onRenameWorkspace?: (id: string) => void
   onDuplicateWorkspace?: (id: string) => void
   onDeleteWorkspace?: (id: string) => void
+  viewMode: SectionViewMode
 }) {
   const [favoritesOpen, setFavoritesOpen] = useState(true)
+  const [search, setSearch] = useState('')
 
-  const favoriteWorkspaces = workspaces.filter((ws) => favoriteIds.has(ws.id))
+  const filteredWorkspaces = search
+    ? workspaces.filter((ws) => ws.name.toLowerCase().includes(search.toLowerCase()))
+    : workspaces
+
+  const favoriteWorkspaces = filteredWorkspaces.filter((ws) => favoriteIds.has(ws.id))
   const hasFavorites = favoriteWorkspaces.length > 0
 
   if (workspaces.length === 0) {
@@ -432,8 +718,30 @@ function WorkspacesSection({
     )
   }
 
+  // Thumbnail dimensions by view mode
+  const thumbW = viewMode === 'grid' ? 80 : 48
+  const thumbH = viewMode === 'grid' ? 60 : 36
+  const isGrid = viewMode === 'grid'
+
   return (
     <div style={{ padding: '4px 0' }}>
+      {/* Search input */}
+      <div style={{ padding: '4px 6px 6px' }}>
+        <input
+          type="search"
+          placeholder="Filter workspaces…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={searchInput}
+        />
+      </div>
+
+      {filteredWorkspaces.length === 0 && (
+        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+          No matching workspaces
+        </div>
+      )}
+
       {/* Favorites group — pinned at top, only shown when there are favorites */}
       {hasFavorites && (
         <div style={{ marginBottom: 2 }}>
@@ -473,22 +781,45 @@ function WorkspacesSection({
             </span>
           </button>
           {favoritesOpen && (
-            <div>
-              {favoriteWorkspaces.map((ws) => (
-                <WorkspaceRow
-                  key={ws.id}
-                  ws={ws}
-                  isActive={ws.id === activeWorkspaceId}
-                  isFavorite
-                  onSelect={() => onSelectWorkspace?.(ws.id)}
-                  onToggleFavorite={() => onToggleFavorite(ws.id)}
-                  onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-                  onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-                  onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
-                  canDelete={workspaces.length > 1}
-                />
-              ))}
-            </div>
+            viewMode === 'list' ? (
+              <div>
+                {favoriteWorkspaces.map((ws) => (
+                  <WorkspaceRow
+                    key={ws.id}
+                    ws={ws}
+                    isActive={ws.id === activeWorkspaceId}
+                    isFavorite
+                    onSelect={() => onSelectWorkspace?.(ws.id)}
+                    onToggleFavorite={() => onToggleFavorite(ws.id)}
+                    onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+                    onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+                    onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+                    canDelete={workspaces.length > 1}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 4,
+                padding: isGrid ? '4px 6px' : '4px 8px',
+              }}>
+                {favoriteWorkspaces.map((ws) => (
+                  <WorkspaceThumbnailCard
+                    key={ws.id}
+                    ws={ws}
+                    isActive={ws.id === activeWorkspaceId}
+                    isFavorite
+                    onSelect={() => onSelectWorkspace?.(ws.id)}
+                    onToggleFavorite={() => onToggleFavorite(ws.id)}
+                    thumbW={thumbW}
+                    thumbH={thumbH}
+                    singleLine={isGrid}
+                  />
+                ))}
+              </div>
+            )
           )}
           {/* Divider between Favorites and full list */}
           <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
@@ -496,20 +827,43 @@ function WorkspacesSection({
       )}
 
       {/* Full workspace list */}
-      {workspaces.map((ws) => (
-        <WorkspaceRow
-          key={ws.id}
-          ws={ws}
-          isActive={ws.id === activeWorkspaceId}
-          isFavorite={favoriteIds.has(ws.id)}
-          onSelect={() => onSelectWorkspace?.(ws.id)}
-          onToggleFavorite={() => onToggleFavorite(ws.id)}
-          onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-          onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-          onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
-          canDelete={workspaces.length > 1}
-        />
-      ))}
+      {viewMode === 'list' ? (
+        filteredWorkspaces.map((ws) => (
+          <WorkspaceRow
+            key={ws.id}
+            ws={ws}
+            isActive={ws.id === activeWorkspaceId}
+            isFavorite={favoriteIds.has(ws.id)}
+            onSelect={() => onSelectWorkspace?.(ws.id)}
+            onToggleFavorite={() => onToggleFavorite(ws.id)}
+            onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+            onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+            onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+            canDelete={workspaces.length > 1}
+          />
+        ))
+      ) : (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 4,
+          padding: isGrid ? '4px 6px' : '4px 8px',
+        }}>
+          {filteredWorkspaces.map((ws) => (
+            <WorkspaceThumbnailCard
+              key={ws.id}
+              ws={ws}
+              isActive={ws.id === activeWorkspaceId}
+              isFavorite={favoriteIds.has(ws.id)}
+              onSelect={() => onSelectWorkspace?.(ws.id)}
+              onToggleFavorite={() => onToggleFavorite(ws.id)}
+              thumbW={thumbW}
+              thumbH={thumbH}
+              singleLine={isGrid}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -556,18 +910,144 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
   },
 ]
 
-function WidgetsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
+// ---------------------------------------------------------------------------
+// Widget thumbnail card — for thumbnails and grid view modes
+// ---------------------------------------------------------------------------
+
+function WidgetThumbnailCard({
+  w,
+  thumbW,
+  thumbH,
+  singleLine,
+  onQuickPlace,
+}: {
+  w: typeof WIDGET_ITEMS[number]
+  thumbW: number
+  thumbH: number
+  singleLine: boolean
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
+  const [dragging, setDragging] = useState(false)
+  const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+
+  return (
+    <div
+      draggable
+      title={w.desc}
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+        e.dataTransfer.effectAllowed = 'copy'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 3,
+        padding: '5px 4px',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        opacity: dragging ? 0.5 : 1,
+        transition: 'background 0.1s',
+        border: '1px solid transparent',
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+    >
+      {/* Thumbnail placeholder with icon */}
+      <div style={{
+        width: thumbW,
+        height: thumbH,
+        background: 'var(--io-surface-sunken)',
+        borderRadius: 3,
+        border: '1px solid var(--io-border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}>
+        {/* Scale up the icon for the thumbnail */}
+        <span style={{ transform: `scale(${thumbW / 20})`, transformOrigin: 'center', display: 'flex' }}>
+          {w.icon}
+        </span>
+      </div>
+      <span style={{
+        fontSize: 10,
+        color: 'var(--io-text-primary)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: singleLine ? 'nowrap' : undefined,
+        display: singleLine ? 'block' : '-webkit-box',
+        WebkitLineClamp: singleLine ? undefined : 2,
+        WebkitBoxOrient: singleLine ? undefined : 'vertical',
+        lineHeight: 1.3,
+        maxWidth: thumbW + 8,
+        textAlign: 'center',
+      }}>
+        {w.label}
+      </span>
+    </div>
+  )
+}
+
+function WidgetsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: ConsoleDragItem) => void; viewMode: SectionViewMode }) {
+  const [search, setSearch] = useState('')
+
+  const filteredWidgets = search
+    ? WIDGET_ITEMS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()))
+    : WIDGET_ITEMS
+
+  const thumbW = viewMode === 'grid' ? 80 : 48
+  const thumbH = viewMode === 'grid' ? 60 : 36
+  const isGrid = viewMode === 'grid'
+
   return (
     <div style={{ padding: '6px 4px 4px' }}>
-      {WIDGET_ITEMS.map((w) => (
-        <DraggableItem key={w.itemType} item={{ itemType: w.itemType, label: w.label }} onQuickPlace={onQuickPlace}>
-          {w.icon}
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12 }}>{w.label}</div>
-            <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{w.desc}</div>
-          </div>
-        </DraggableItem>
-      ))}
+      <div style={{ padding: '0 2px 6px' }}>
+        <input
+          type="search"
+          placeholder="Filter widgets…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={searchInput}
+        />
+      </div>
+      {filteredWidgets.length === 0 && (
+        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+          No matching widgets
+        </div>
+      )}
+      {viewMode === 'list' ? (
+        filteredWidgets.map((w) => (
+          <DraggableItem key={w.itemType} item={{ itemType: w.itemType, label: w.label }} onQuickPlace={onQuickPlace}>
+            {w.icon}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12 }}>{w.label}</div>
+              <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{w.desc}</div>
+            </div>
+          </DraggableItem>
+        ))
+      ) : (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 4,
+          padding: isGrid ? '2px 4px' : '2px 6px',
+        }}>
+          {filteredWidgets.map((w) => (
+            <WidgetThumbnailCard
+              key={w.itemType}
+              w={w}
+              thumbW={thumbW}
+              thumbH={thumbH}
+              singleLine={isGrid}
+              onQuickPlace={onQuickPlace}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -727,7 +1207,47 @@ function GraphicTile({ item, name, thumbUrl, onQuickPlace }: { item: ConsoleDrag
 // Graphics section — shows available graphics as thumbnail tiles
 // ---------------------------------------------------------------------------
 
-function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
+// ---------------------------------------------------------------------------
+// Graphic list row — for list view mode
+// ---------------------------------------------------------------------------
+
+function GraphicListRow({ g, onQuickPlace }: { g: { id: string; name: string }; onQuickPlace?: (item: ConsoleDragItem) => void }) {
+  const [dragging, setDragging] = useState(false)
+  const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+
+  return (
+    <div
+      draggable
+      style={listItem(dragging)}
+      title={g.name}
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+        e.dataTransfer.effectAllowed = 'copy'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      onMouseEnter={(e) => {
+        if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.2" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M3 9h18M9 21V9" />
+      </svg>
+      <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {g.name}
+      </span>
+    </div>
+  )
+}
+
+function GraphicsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: ConsoleDragItem) => void; viewMode: SectionViewMode }) {
+  const [search, setSearch] = useState('')
+
   const { data, isLoading } = useQuery({
     queryKey: ['console-palette-graphics'],
     queryFn: async () => {
@@ -739,6 +1259,9 @@ function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragIt
   })
 
   const graphics = data ?? []
+  const filteredGraphics = search
+    ? graphics.filter((g) => g.name.toLowerCase().includes(search.toLowerCase()))
+    : graphics
 
   if (isLoading) {
     return (
@@ -756,15 +1279,49 @@ function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragIt
     )
   }
 
+  const isGrid = viewMode === 'grid'
+
   return (
     <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {graphics.map((g) => {
-        const thumbUrl = graphicsApi.thumbnailUrl(g.id)
-        const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
-        return (
-          <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} onQuickPlace={onQuickPlace} />
-        )
-      })}
+      <div style={{ padding: '0 0 4px' }}>
+        <input
+          type="search"
+          placeholder="Filter graphics…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={searchInput}
+        />
+      </div>
+      {filteredGraphics.length === 0 && (
+        <div style={{ padding: '4px 4px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+          No matching graphics
+        </div>
+      )}
+      {viewMode === 'list' ? (
+        // List view: use compact GraphicListRow (no thumbnail)
+        <div style={{ padding: '0 0 2px' }}>
+          {filteredGraphics.map((g) => (
+            <GraphicListRow key={g.id} g={g} onQuickPlace={onQuickPlace} />
+          ))}
+        </div>
+      ) : (
+        // Thumbnails (48×36) or Grid (80×60)
+        <div style={{
+          display: isGrid ? 'grid' : 'flex',
+          gridTemplateColumns: isGrid ? 'repeat(auto-fill, minmax(88px, 1fr))' : undefined,
+          flexDirection: isGrid ? undefined : 'column',
+          gap: isGrid ? 6 : 3,
+          padding: '0 0 2px',
+        }}>
+          {filteredGraphics.map((g) => {
+            const thumbUrl = graphicsApi.thumbnailUrl(g.id)
+            const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+            return (
+              <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} onQuickPlace={onQuickPlace} />
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -794,6 +1351,11 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
   })
 
   const { favoriteIds, toggleFavorite } = useConsoleWorkspaceFavorites()
+
+  // Per-section view modes — persisted in localStorage
+  const { viewMode: workspacesViewMode, setViewMode: setWorkspacesViewMode } = useConsoleSectionViewMode('workspaces', 'list')
+  const { viewMode: graphicsViewMode, setViewMode: setGraphicsViewMode } = useConsoleSectionViewMode('graphics', 'thumbnails')
+  const { viewMode: widgetsViewMode, setViewMode: setWidgetsViewMode } = useConsoleSectionViewMode('widgets', 'list')
 
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -884,6 +1446,8 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           open={openSections.workspaces}
           onToggle={() => toggleSection('workspaces')}
           badge={workspaces.length}
+          viewMode={workspacesViewMode}
+          onViewModeChange={setWorkspacesViewMode}
         >
           <WorkspacesSection
             workspaces={workspaces}
@@ -894,6 +1458,7 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
             onRenameWorkspace={onRenameWorkspace}
             onDuplicateWorkspace={onDuplicateWorkspace}
             onDeleteWorkspace={onDeleteWorkspace}
+            viewMode={workspacesViewMode}
           />
         </AccordionSection>
 
@@ -901,22 +1466,27 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           title="Graphics"
           open={openSections.graphics}
           onToggle={() => toggleSection('graphics')}
+          viewMode={graphicsViewMode}
+          onViewModeChange={setGraphicsViewMode}
         >
-          <GraphicsSection onQuickPlace={onQuickPlace} />
+          <GraphicsSection onQuickPlace={onQuickPlace} viewMode={graphicsViewMode} />
         </AccordionSection>
 
         <AccordionSection
           title="Widgets"
           open={openSections.widgets}
           onToggle={() => toggleSection('widgets')}
+          viewMode={widgetsViewMode}
+          onViewModeChange={setWidgetsViewMode}
         >
-          <WidgetsSection onQuickPlace={onQuickPlace} />
+          <WidgetsSection onQuickPlace={onQuickPlace} viewMode={widgetsViewMode} />
         </AccordionSection>
 
         <AccordionSection
           title="Points"
           open={openSections.points}
           onToggle={() => toggleSection('points')}
+          allowAllViewModes={false}
         >
           <PointsSection />
         </AccordionSection>
