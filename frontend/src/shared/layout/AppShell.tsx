@@ -49,6 +49,10 @@ const _gKeyTimerRef: { current: ReturnType<typeof setTimeout> | null } = { curre
 // Setter ref: the live component instance registers its setGKeyHintVisible here
 // so the module-level keyboard handler always calls the active setter.
 const _setGKeyHintVisible: { current: ((v: boolean) => void) | null } = { current: null }
+// Navigate ref: module-level so the keyboard handler is never closed over a
+// stale or null component-level useRef value across React Strict Mode remounts.
+// Updated directly in the render body (same pattern as _setGKeyHintVisible).
+const _navigateRef: { current: ((path: string) => void) | null } = { current: null }
 
 function getPageTitle(pathname: string): string {
   const route = ROUTE_REGISTRY.find(
@@ -485,11 +489,10 @@ export default function AppShell() {
   // Derive sidebar groups from the central route registry, filtered by user permissions
   const navGroups: NavGroup[] = getSidebarGroups(user?.permissions ?? [])
   const navigate = useNavigate()
-  // navigateRef keeps the latest navigate function without causing the keyboard
-  // effect to re-run. The effect dep array is [], so the listener is registered
-  // once on mount and always reads the current navigate via this ref.
-  const navigateRef = useRef(navigate)
-  navigateRef.current = navigate
+  // Register navigate in module-level _navigateRef so the keyboard handler
+  // (registered once via useEffect []) always calls the live navigate function
+  // without capturing a stale closure or null React ref across Strict Mode remounts.
+  _navigateRef.current = navigate
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -730,7 +733,7 @@ export default function AppShell() {
   const [gKeyHintVisible, setGKeyHintVisible] = useState(false)
 
   // Keep the module-level setter ref pointing at the live setter on every render.
-  // Assigned directly in render (same pattern as navigateRef.current = navigate)
+  // Assigned directly in render (same pattern as _navigateRef.current = navigate)
   // so it is never null when the keyboard handler fires — a useEffect would leave
   // it null between Strict Mode's simulated unmount and the second mount's effect.
   _setGKeyHintVisible.current = setGKeyHintVisible
@@ -849,15 +852,17 @@ export default function AppShell() {
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
           _setGKeyHintVisible.current?.(false)
-          navigateRef.current(path)
+          _navigateRef.current?.(path)
         }
         return
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
+    // Register on document (not window) — document is always reachable and avoids
+    // stopPropagation interference from window-level handlers.
+    document.addEventListener('keydown', handleKeyDown)
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', handleKeyDown)
       if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
