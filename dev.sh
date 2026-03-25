@@ -44,7 +44,8 @@ usage() {
     echo "  db reset      Drop and recreate the database"
     echo "  db migrate    Run pending database migrations"
     echo "  db seed       Run database seed data"
-    echo "  build         Build all Rust services"
+    echo "  build         Build all Rust services and restart any that were running"
+    echo "  build-only    Build all Rust services without restarting (CI / manual control)"
     echo "  frontend      Start the frontend dev server (Vite, port 5173)"
     echo "  nginx         Install/update nginx + TLS for HTTPS access on port 443"
     echo "  deploy-front  Build frontend and copy to /opt/io/frontend (nginx serve)"
@@ -107,10 +108,43 @@ db_migrate() {
     echo "OK Migrations complete"
 }
 
-build_services() {
+build_only_services() {
     echo "-> Building all Rust services..."
     cargo build --workspace 2>&1 | tail -5
     echo "OK Build complete"
+}
+
+build_and_restart_services() {
+    # Capture which services are currently running before the build
+    local running_services=()
+    for svc in "${SERVICES[@]}"; do
+        local name="${svc%%:*}"
+        local pid_file="$PID_DIR/${name}.pid"
+        if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+            running_services+=("$svc")
+        fi
+    done
+
+    if [[ ${#running_services[@]} -gt 0 ]]; then
+        echo "-> Detected ${#running_services[@]} running service(s): ${running_services[*]%%:*}"
+    else
+        echo "-> No services currently running — build only"
+    fi
+
+    # Build
+    build_only_services
+
+    # Restart only the services that were running before the build
+    if [[ ${#running_services[@]} -gt 0 ]]; then
+        echo "-> Restarting services with new binaries..."
+        for svc in "${running_services[@]}"; do
+            stop_service "$svc"
+        done
+        for svc in "${running_services[@]}"; do
+            start_service "$svc"
+        done
+        echo "OK Services restarted — running processes now use the new binary"
+    fi
 }
 
 start_service() {
@@ -254,7 +288,8 @@ case "${1:-help}" in
     restart)  cmd_stop; cmd_start ;;
     status)   cmd_status ;;
     logs)     cmd_logs "${2:-}" ;;
-    build)    build_services ;;
+    build)      build_and_restart_services ;;
+    build-only) build_only_services ;;
     clean)
         cmd_stop
         cargo clean
