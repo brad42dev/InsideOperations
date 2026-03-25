@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { graphicsApi } from '../../api/graphics'
 import type { WorkspaceLayout } from './types'
 import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
+import { useConsoleFavorites, CONSOLE_FAVORITES_KEYS } from '../../shared/hooks/useConsoleFavorites'
 import * as RadixContextMenu from '@radix-ui/react-context-menu'
 
 // ---------------------------------------------------------------------------
@@ -153,45 +154,7 @@ function AccordionSection({ title, open, onToggle, badge, children }: AccordionS
 }
 
 // ---------------------------------------------------------------------------
-// Draggable item wrapper — sets dataTransfer on drag start
-// ---------------------------------------------------------------------------
-
-function DraggableItem({
-  item,
-  children,
-  onQuickPlace,
-}: {
-  item: ConsoleDragItem
-  children: React.ReactNode
-  onQuickPlace?: (item: ConsoleDragItem) => void
-}) {
-  const [dragging, setDragging] = useState(false)
-
-  return (
-    <div
-      draggable
-      style={listItem(dragging)}
-      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
-      onDragStart={(e) => {
-        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
-        e.dataTransfer.effectAllowed = 'copy'
-        setDragging(true)
-      }}
-      onDragEnd={() => setDragging(false)}
-      onMouseEnter={(e) => {
-        if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
-      }}
-      onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Star icon — used in workspace rows to toggle favorites
+// Star icon — used in rows to toggle favorites
 // ---------------------------------------------------------------------------
 
 function StarIcon({ filled }: { filled: boolean }) {
@@ -208,6 +171,84 @@ function StarIcon({ filled }: { filled: boolean }) {
     >
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// FavoritesSubGroup — collapsible "Favorites" group pinned at the top of a
+// section. Always rendered (shows "No favorites yet" when the list is empty)
+// so users know the feature exists.
+// ---------------------------------------------------------------------------
+
+interface FavoritesSubGroupProps {
+  items: React.ReactNode[]
+  emptyLabel?: string
+}
+
+function FavoritesSubGroup({ items, emptyLabel = 'No favorites yet' }: FavoritesSubGroupProps) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <div style={{ marginBottom: 2 }}>
+      {/* Sub-header */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          width: '100%', padding: '3px 10px', border: 'none',
+          background: 'transparent', cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <svg
+          style={{
+            width: 10, height: 10, color: 'var(--io-text-muted)',
+            transition: 'transform 0.15s',
+            transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+            flexShrink: 0,
+          }}
+          viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+        >
+          <polyline points="6 4 10 8 6 12" />
+        </svg>
+        <StarIcon filled />
+        <span style={{
+          fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+          letterSpacing: '0.06em', color: 'var(--io-text-muted)',
+        }}>
+          Favorites
+        </span>
+        {items.length > 0 && (
+          <span style={{
+            fontSize: 9, fontWeight: 700,
+            background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
+            borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
+          }}>
+            {items.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div>
+          {items.length > 0 ? (
+            items
+          ) : (
+            <div style={{
+              padding: '4px 10px 6px 26px',
+              fontSize: 11,
+              color: 'var(--io-text-muted)',
+              fontStyle: 'italic',
+            }}>
+              {emptyLabel}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Divider separating Favorites from main list */}
+      <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+    </div>
   )
 }
 
@@ -277,7 +318,7 @@ function WorkspaceRow({
               </span>
             )}
           </button>
-          {/* Star button — visible on hover or when already favorited. Do not remove. */}
+          {/* Star button — visible on hover or when already favorited */}
           <button
             onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
             title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
@@ -397,7 +438,7 @@ const ctxMenuSeparatorStyle: React.CSSProperties = {
 }
 
 // ---------------------------------------------------------------------------
-// Workspaces section — with Favorites group pinned at top
+// Workspaces section — with Favorites group pinned at top (always visible)
 // ---------------------------------------------------------------------------
 
 function WorkspacesSection({
@@ -419,81 +460,38 @@ function WorkspacesSection({
   onDuplicateWorkspace?: (id: string) => void
   onDeleteWorkspace?: (id: string) => void
 }) {
-  const [favoritesOpen, setFavoritesOpen] = useState(true)
-
   const favoriteWorkspaces = workspaces.filter((ws) => favoriteIds.has(ws.id))
-  const hasFavorites = favoriteWorkspaces.length > 0
 
   if (workspaces.length === 0) {
     return (
-      <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-        No saved workspaces.
+      <div style={{ padding: '4px 0' }}>
+        <FavoritesSubGroup items={[]} />
+        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+          No saved workspaces.
+        </div>
       </div>
     )
   }
 
+  const favoriteItems = favoriteWorkspaces.map((ws) => (
+    <WorkspaceRow
+      key={`fav-${ws.id}`}
+      ws={ws}
+      isActive={ws.id === activeWorkspaceId}
+      isFavorite
+      onSelect={() => onSelectWorkspace?.(ws.id)}
+      onToggleFavorite={() => onToggleFavorite(ws.id)}
+      onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+      onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+      onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+      canDelete={workspaces.length > 1}
+    />
+  ))
+
   return (
     <div style={{ padding: '4px 0' }}>
-      {/* Favorites group — pinned at top, only shown when there are favorites */}
-      {hasFavorites && (
-        <div style={{ marginBottom: 2 }}>
-          {/* Favorites sub-header */}
-          <button
-            onClick={() => setFavoritesOpen((v) => !v)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              width: '100%', padding: '3px 10px', border: 'none',
-              background: 'transparent', cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <svg
-              style={{
-                width: 10, height: 10, color: 'var(--io-text-muted)',
-                transition: 'transform 0.15s',
-                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                flexShrink: 0,
-              }}
-              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
-            >
-              <polyline points="6 4 10 8 6 12" />
-            </svg>
-            <StarIcon filled />
-            <span style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
-            }}>
-              Favorites
-            </span>
-            <span style={{
-              fontSize: 9, fontWeight: 700,
-              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
-              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
-            }}>
-              {favoriteWorkspaces.length}
-            </span>
-          </button>
-          {favoritesOpen && (
-            <div>
-              {favoriteWorkspaces.map((ws) => (
-                <WorkspaceRow
-                  key={ws.id}
-                  ws={ws}
-                  isActive={ws.id === activeWorkspaceId}
-                  isFavorite
-                  onSelect={() => onSelectWorkspace?.(ws.id)}
-                  onToggleFavorite={() => onToggleFavorite(ws.id)}
-                  onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-                  onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-                  onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
-                  canDelete={workspaces.length > 1}
-                />
-              ))}
-            </div>
-          )}
-          {/* Divider between Favorites and full list */}
-          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
-        </div>
-      )}
+      {/* Favorites group — always visible so users know they can star items */}
+      <FavoritesSubGroup items={favoriteItems} />
 
       {/* Full workspace list */}
       {workspaces.map((ws) => (
@@ -518,8 +516,9 @@ function WorkspacesSection({
 // Widgets section (Trend, Point Table, Alarm List)
 // ---------------------------------------------------------------------------
 
-const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc: string; icon: React.ReactNode }[] = [
+const WIDGET_ITEMS: { id: string; itemType: ConsoleDragItem['itemType']; label: string; desc: string; icon: React.ReactNode }[] = [
   {
+    id: 'trend',
     itemType: 'trend',
     label: 'Trend',
     desc: 'Live time-series chart',
@@ -531,6 +530,7 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
     ),
   },
   {
+    id: 'point_table',
     itemType: 'point_table',
     label: 'Point Table',
     desc: 'Tabular point values',
@@ -543,6 +543,7 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
     ),
   },
   {
+    id: 'alarm_list',
     itemType: 'alarm_list',
     label: 'Alarm List',
     desc: 'Active alarms & events',
@@ -556,18 +557,102 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
   },
 ]
 
-function WidgetsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
+function WidgetRow({
+  w,
+  isFavorite,
+  onToggleFavorite,
+  onQuickPlace,
+}: {
+  w: typeof WIDGET_ITEMS[number]
+  isFavorite: boolean
+  onToggleFavorite: () => void
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
+  const [hovering, setHovering] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+
   return (
-    <div style={{ padding: '6px 4px 4px' }}>
-      {WIDGET_ITEMS.map((w) => (
-        <DraggableItem key={w.itemType} item={{ itemType: w.itemType, label: w.label }} onQuickPlace={onQuickPlace}>
-          {w.icon}
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12 }}>{w.label}</div>
-            <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{w.desc}</div>
-          </div>
-        </DraggableItem>
-      ))}
+    <div
+      style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      <div
+        draggable
+        style={{ ...listItem(dragging), flex: 1, margin: 0 }}
+        onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+          e.dataTransfer.effectAllowed = 'copy'
+          setDragging(true)
+        }}
+        onDragEnd={() => setDragging(false)}
+        onMouseEnter={(e) => {
+          if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+        }}
+        onMouseLeave={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+        }}
+      >
+        {w.icon}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12 }}>{w.label}</div>
+          <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{w.desc}</div>
+        </div>
+      </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
+        title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 3, flexShrink: 0,
+          opacity: isFavorite || hovering ? 1 : 0,
+          transition: 'opacity 0.1s',
+        }}
+      >
+        <StarIcon filled={isFavorite} />
+      </button>
+    </div>
+  )
+}
+
+function WidgetsSection({
+  favoriteIds,
+  onToggleFavorite,
+  onQuickPlace,
+}: {
+  favoriteIds: Set<string>
+  onToggleFavorite: (id: string) => void
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
+  const favoriteWidgets = WIDGET_ITEMS.filter((w) => favoriteIds.has(w.id))
+
+  const favoriteItems = favoriteWidgets.map((w) => (
+    <WidgetRow
+      key={`fav-${w.id}`}
+      w={w}
+      isFavorite
+      onToggleFavorite={() => onToggleFavorite(w.id)}
+      onQuickPlace={onQuickPlace}
+    />
+  ))
+
+  return (
+    <div style={{ padding: '4px 0' }}>
+      <FavoritesSubGroup items={favoriteItems} />
+      <div style={{ padding: '2px 4px 4px' }}>
+        {WIDGET_ITEMS.map((w) => (
+          <WidgetRow
+            key={w.id}
+            w={w}
+            isFavorite={favoriteIds.has(w.id)}
+            onToggleFavorite={() => onToggleFavorite(w.id)}
+            onQuickPlace={onQuickPlace}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -576,7 +661,13 @@ function WidgetsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragIte
 // Points section
 // ---------------------------------------------------------------------------
 
-function PointsSection() {
+function PointsSection({
+  favoriteIds,
+  onToggleFavorite,
+}: {
+  favoriteIds: Set<string>
+  onToggleFavorite: (id: string) => void
+}) {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -587,7 +678,7 @@ function PointsSection() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300)
   }, [])
 
-  const { data, isLoading } = useQuery({
+  const { data: allPoints, isLoading } = useQuery({
     queryKey: ['console-palette-points', debouncedSearch],
     queryFn: async () => {
       if (!debouncedSearch || debouncedSearch.length < 2) return []
@@ -599,10 +690,96 @@ function PointsSection() {
     enabled: debouncedSearch.length >= 2,
   })
 
-  const points = data ?? []
+  // Fetch favorites by IDs so they display even without an active search
+  const { data: favPointsData } = useQuery({
+    queryKey: ['console-palette-fav-points', [...favoriteIds].sort().join(',')],
+    queryFn: async () => {
+      if (favoriteIds.size === 0) return []
+      const ids = [...favoriteIds].join(',')
+      const r = await api.get<{ data: Point[] }>(`/api/points?ids=${encodeURIComponent(ids)}&limit=50`)
+      if (!r.success) return []
+      return r.data.data ?? []
+    },
+    staleTime: 60_000,
+    enabled: favoriteIds.size > 0,
+  })
+
+  const points = allPoints ?? []
+  const favPoints = favPointsData ?? []
+
+  const PointRow = ({ pt, inFavGroup }: { pt: Point; inFavGroup?: boolean }) => {
+    const [hovering, setHovering] = useState(false)
+    const [dragging, setDragging] = useState(false)
+    const isFav = favoriteIds.has(pt.id)
+    const item: ConsoleDragItem = { itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }
+
+    return (
+      <div
+        style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+      >
+        <div
+          draggable
+          style={{ ...listItem(dragging), flex: 1, margin: 0, paddingLeft: inFavGroup ? 14 : 10 }}
+          onDragStart={(e) => {
+            e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+            e.dataTransfer.effectAllowed = 'copy'
+            setDragging(true)
+          }}
+          onDragEnd={() => setDragging(false)}
+          onMouseEnter={(e) => {
+            if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
+            <circle cx="8" cy="8" r="3" />
+            <line x1="8" y1="1" x2="8" y2="4" />
+            <line x1="8" y1="12" x2="8" y2="15" />
+            <line x1="1" y1="8" x2="4" y2="8" />
+            <line x1="12" y1="8" x2="15" y2="8" />
+          </svg>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {pt.tagname}
+            </div>
+            {pt.description && (
+              <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {pt.description}
+              </div>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(pt.id) }}
+          title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 3, flexShrink: 0,
+            opacity: isFav || hovering ? 1 : 0,
+            transition: 'opacity 0.1s',
+          }}
+        >
+          <StarIcon filled={isFav} />
+        </button>
+      </div>
+    )
+  }
+
+  const favoriteItems = favPoints.map((pt) => (
+    <PointRow key={`fav-${pt.id}`} pt={pt} inFavGroup />
+  ))
 
   return (
-    <div style={{ padding: '6px 4px 4px' }}>
+    <div style={{ padding: '4px 0' }}>
+      {/* Favorites group always visible */}
+      <FavoritesSubGroup items={favoriteItems} />
+
+      {/* Search input */}
       <div style={{ padding: '0 6px 6px' }}>
         <input
           type="search"
@@ -633,28 +810,7 @@ function PointsSection() {
         </div>
       )}
       {points.map((pt) => (
-        <DraggableItem
-          key={pt.id}
-          item={{ itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
-            <circle cx="8" cy="8" r="3" />
-            <line x1="8" y1="1" x2="8" y2="4" />
-            <line x1="8" y1="12" x2="8" y2="15" />
-            <line x1="1" y1="8" x2="4" y2="8" />
-            <line x1="12" y1="8" x2="15" y2="8" />
-          </svg>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {pt.tagname}
-            </div>
-            {pt.description && (
-              <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {pt.description}
-              </div>
-            )}
-          </div>
-        </DraggableItem>
+        <PointRow key={pt.id} pt={pt} />
       ))}
     </div>
   )
@@ -664,15 +820,31 @@ function PointsSection() {
 // Graphic thumbnail tile — drag-to-drop onto console pane
 // ---------------------------------------------------------------------------
 
-function GraphicTile({ item, name, thumbUrl, onQuickPlace }: { item: ConsoleDragItem; name: string; thumbUrl: string; onQuickPlace?: (item: ConsoleDragItem) => void }) {
+function GraphicTile({
+  item,
+  name,
+  thumbUrl,
+  isFavorite,
+  onToggleFavorite,
+  onQuickPlace,
+}: {
+  item: ConsoleDragItem
+  name: string
+  thumbUrl: string
+  isFavorite: boolean
+  onToggleFavorite: () => void
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
   const [dragging, setDragging] = useState(false)
   const [thumbError, setThumbError] = useState(false)
+  const [hovering, setHovering] = useState(false)
 
   return (
     <div
       draggable
       onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
       style={{
+        position: 'relative',
         padding: '5px 6px',
         borderRadius: 'var(--io-radius)',
         cursor: 'grab',
@@ -686,8 +858,14 @@ function GraphicTile({ item, name, thumbUrl, onQuickPlace }: { item: ConsoleDrag
         setDragging(true)
       }}
       onDragEnd={() => setDragging(false)}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+      onMouseEnter={(e) => {
+        setHovering(true)
+        ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+      }}
+      onMouseLeave={(e) => {
+        setHovering(false)
+        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
     >
       {/* Thumbnail */}
       <div style={{
@@ -719,6 +897,21 @@ function GraphicTile({ item, name, thumbUrl, onQuickPlace }: { item: ConsoleDrag
       <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', color: 'var(--io-text-primary)' }}>
         {name}
       </span>
+      {/* Star overlay — shown on hover or when favorited */}
+      <button
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggleFavorite() }}
+        title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+        style={{
+          position: 'absolute', top: 8, right: 8,
+          background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'pointer',
+          padding: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 4, flexShrink: 0,
+          opacity: isFavorite || hovering ? 1 : 0,
+          transition: 'opacity 0.1s',
+        }}
+      >
+        <StarIcon filled={isFavorite} />
+      </button>
     </div>
   )
 }
@@ -727,7 +920,15 @@ function GraphicTile({ item, name, thumbUrl, onQuickPlace }: { item: ConsoleDrag
 // Graphics section — shows available graphics as thumbnail tiles
 // ---------------------------------------------------------------------------
 
-function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
+function GraphicsSection({
+  favoriteIds,
+  onToggleFavorite,
+  onQuickPlace,
+}: {
+  favoriteIds: Set<string>
+  onToggleFavorite: (id: string) => void
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ['console-palette-graphics'],
     queryFn: async () => {
@@ -739,32 +940,67 @@ function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragIt
   })
 
   const graphics = data ?? []
+  const favoriteGraphics = graphics.filter((g) => favoriteIds.has(g.id))
 
   if (isLoading) {
     return (
-      <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
-        Loading…
+      <div style={{ padding: '4px 0' }}>
+        <FavoritesSubGroup items={[]} />
+        <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+          Loading…
+        </div>
       </div>
     )
   }
 
+  const favoriteItems = favoriteGraphics.map((g) => {
+    const thumbUrl = graphicsApi.thumbnailUrl(g.id)
+    const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+    return (
+      <GraphicTile
+        key={`fav-${g.id}`}
+        item={item}
+        name={g.name}
+        thumbUrl={thumbUrl}
+        isFavorite
+        onToggleFavorite={() => onToggleFavorite(g.id)}
+        onQuickPlace={onQuickPlace}
+      />
+    )
+  })
+
   if (graphics.length === 0) {
     return (
-      <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-        No graphics. Create one in Designer.
+      <div style={{ padding: '4px 0' }}>
+        <FavoritesSubGroup items={[]} />
+        <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+          No graphics. Create one in Designer.
+        </div>
       </div>
     )
   }
 
   return (
-    <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {graphics.map((g) => {
-        const thumbUrl = graphicsApi.thumbnailUrl(g.id)
-        const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
-        return (
-          <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} onQuickPlace={onQuickPlace} />
-        )
-      })}
+    <div style={{ padding: '4px 0' }}>
+      {/* Favorites group always visible */}
+      <FavoritesSubGroup items={favoriteItems} />
+      <div style={{ padding: '2px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {graphics.map((g) => {
+          const thumbUrl = graphicsApi.thumbnailUrl(g.id)
+          const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+          return (
+            <GraphicTile
+              key={g.id}
+              item={item}
+              name={g.name}
+              thumbUrl={thumbUrl}
+              isFavorite={favoriteIds.has(g.id)}
+              onToggleFavorite={() => onToggleFavorite(g.id)}
+              onQuickPlace={onQuickPlace}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -787,13 +1023,19 @@ interface ConsolePaletteProps {
 
 export default function ConsolePalette({ visible, onToggle, onQuickPlace, workspaces = [], activeWorkspaceId = null, onSelectWorkspace, onRenameWorkspace, onDuplicateWorkspace, onDeleteWorkspace }: ConsolePaletteProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    workspaces: false,
+    workspaces: true,
     graphics: true,
     widgets: false,
     points: false,
   })
 
-  const { favoriteIds, toggleFavorite } = useConsoleWorkspaceFavorites()
+  // Workspace favorites — uses legacy hook for backward-compat with existing LS key
+  const { favoriteIds: workspaceFavoriteIds, toggleFavorite: toggleWorkspaceFavorite } = useConsoleWorkspaceFavorites()
+
+  // Graphic, widget, and point favorites — new generic hook
+  const { favoriteIds: graphicFavoriteIds, toggleFavorite: toggleGraphicFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.graphics)
+  const { favoriteIds: widgetFavoriteIds, toggleFavorite: toggleWidgetFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.widgets)
+  const { favoriteIds: pointFavoriteIds, toggleFavorite: togglePointFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.points)
 
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -889,8 +1131,8 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
             workspaces={workspaces}
             activeWorkspaceId={activeWorkspaceId}
             onSelectWorkspace={onSelectWorkspace}
-            favoriteIds={favoriteIds}
-            onToggleFavorite={toggleFavorite}
+            favoriteIds={workspaceFavoriteIds}
+            onToggleFavorite={toggleWorkspaceFavorite}
             onRenameWorkspace={onRenameWorkspace}
             onDuplicateWorkspace={onDuplicateWorkspace}
             onDeleteWorkspace={onDeleteWorkspace}
@@ -902,7 +1144,11 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           open={openSections.graphics}
           onToggle={() => toggleSection('graphics')}
         >
-          <GraphicsSection onQuickPlace={onQuickPlace} />
+          <GraphicsSection
+            favoriteIds={graphicFavoriteIds}
+            onToggleFavorite={toggleGraphicFavorite}
+            onQuickPlace={onQuickPlace}
+          />
         </AccordionSection>
 
         <AccordionSection
@@ -910,7 +1156,11 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           open={openSections.widgets}
           onToggle={() => toggleSection('widgets')}
         >
-          <WidgetsSection onQuickPlace={onQuickPlace} />
+          <WidgetsSection
+            favoriteIds={widgetFavoriteIds}
+            onToggleFavorite={toggleWidgetFavorite}
+            onQuickPlace={onQuickPlace}
+          />
         </AccordionSection>
 
         <AccordionSection
@@ -918,7 +1168,10 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           open={openSections.points}
           onToggle={() => toggleSection('points')}
         >
-          <PointsSection />
+          <PointsSection
+            favoriteIds={pointFavoriteIds}
+            onToggleFavorite={togglePointFavorite}
+          />
         </AccordionSection>
       </div>
 
