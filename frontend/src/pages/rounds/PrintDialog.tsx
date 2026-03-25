@@ -349,7 +349,7 @@ function PrintDialogContent({ preselectedTemplateId, onClose }: PrintDialogConte
     queryFn: () => roundsApi.listTemplates(),
   })
 
-  const templates = templatesResult?.success ? templatesResult.data : []
+  const templates = templatesResult?.success && Array.isArray(templatesResult.data) ? templatesResult.data : []
 
   // Load the selected template detail
   const { data: templateResult, isLoading: loadingTemplate } = useQuery({
@@ -367,7 +367,7 @@ function PrintDialogContent({ preselectedTemplateId, onClose }: PrintDialogConte
     enabled: !!selectedTemplateId && mode === 'current_results',
   })
 
-  const historyEntries = historyResult?.success ? historyResult.data : []
+  const historyEntries = historyResult?.success && Array.isArray(historyResult.data) ? historyResult.data : []
   const latestCompleted = historyEntries
     .filter((e) => e.status === 'completed')
     .sort((a, b) => {
@@ -383,7 +383,7 @@ function PrintDialogContent({ preselectedTemplateId, onClose }: PrintDialogConte
     enabled: !!latestCompleted?.id && mode === 'current_results',
   })
 
-  const responses = instanceResult?.success ? instanceResult.data.responses : []
+  const responses = instanceResult?.success && Array.isArray(instanceResult.data?.responses) ? instanceResult.data.responses : []
 
   const isLoading =
     loadingTemplates ||
