@@ -1987,24 +1987,6 @@ if [ "$MODE" = "auto" ]; then
         # ── C1: Count pending work for all three types ────────────────────────
         PENDING_IMPL=$(get_pending_work_count)
 
-        PENDING_AUDIT=0
-        if [ -f "$REPO/$DB_FILE" ]; then
-            PENDING_AUDIT=$(python3 - "$REPO/$DB_FILE" <<'PYEOF' 2>/dev/null || echo 0
-import sqlite3, sys
-from pathlib import Path
-db = Path(sys.argv[1])
-if not db.exists(): print(0); sys.exit(0)
-con = sqlite3.connect(str(db), timeout=5)
-n = con.execute("""
-    SELECT COUNT(*) FROM io_queue
-    WHERE last_audit_round IS NULL OR verified_since_last_audit > 0
-""").fetchone()[0]
-con.close()
-print(n)
-PYEOF
-)
-        fi
-
         UAT_UNITS_ALL=""
         if ! UAT_UNITS_ALL=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
 import sqlite3, sys
@@ -2032,20 +2014,18 @@ PYEOF
         PENDING_UAT=$(echo "$UAT_UNITS_ALL" | grep -c "." 2>/dev/null || echo 0)
         [ -z "$UAT_UNITS_ALL" ] && PENDING_UAT=0
 
-        TOTAL_WORK=$((PENDING_AUDIT + PENDING_IMPL + PENDING_UAT))
+        TOTAL_WORK=$((PENDING_IMPL + PENDING_UAT))
 
         if [ "$TOTAL_WORK" -eq 0 ]; then
-            echo "✅ Auto mode complete — no pending audit, no pending tasks, and no UAT needed."
+            echo "✅ Auto mode complete — no pending tasks and no UAT needed."
             break
         fi
 
-        # ── C1: Unified worker pool — 60/40 impl/UAT ratio, audit up to cap ────
+        # ── C1: Unified worker pool — 60/40 impl/UAT ratio ───────────────────
         # Slots are assigned per-completion, not pre-committed per type.
-        # Impl targets 60% of impl+UAT slots; UAT targets 40%. Audit gets up
-        # to max_audit_parallel slots independently of the ratio.
-        _MAX_AUDIT_CAP=${CFG_MAX_AUDIT_PARALLEL:-2}
-        echo "  Batch ${AUTO_BATCH}: up to ${AUTO_PARALLEL} agent(s) — impl≈60%% / UAT≈40%% / audit≤${_MAX_AUDIT_CAP}"
-        echo "  (pending: ${PENDING_AUDIT} unit(s) for audit, ${PENDING_IMPL} impl task(s), ${PENDING_UAT} UAT unit(s))"
+        # Impl targets 60% of impl+UAT slots; UAT targets 40%.
+        echo "  Batch ${AUTO_BATCH}: up to ${AUTO_PARALLEL} agent(s) — impl≈60%% / UAT≈40%%"
+        echo "  (pending: ${PENDING_IMPL} impl task(s), ${PENDING_UAT} UAT unit(s))"
         echo ""
 
         # Expand UAT agent file and ensure backend running if UAT work exists
@@ -2070,40 +2050,35 @@ PYEOF
 
         # Pool state: parallel arrays of active agent PIDs with their type and item ID
         local _auto_pids=()
-        local _auto_types=()   # "impl" | "uat" | "audit"
-        local _auto_ids=()     # task_id (impl) or unit_id (uat/audit)
+        local _auto_types=()   # "impl" | "uat"
+        local _auto_ids=()     # task_id (impl) or unit_id (uat)
 
         # Counters
-        local _impl_launched=0 _uat_launched=0 _audit_active=0
-        local _impl_exhausted=0 _uat_exhausted=0 _audit_exhausted=0
+        local _impl_launched=0 _uat_launched=0
+        local _impl_exhausted=0 _uat_exhausted=0
         [ "$PENDING_IMPL" -eq 0 ] && _impl_exhausted=1
         [ "$PENDING_UAT" -eq 0 ]  && _uat_exhausted=1
-        [ "$PENDING_AUDIT" -eq 0 ] && _audit_exhausted=1
 
-        BATCH_AUDIT_DONE=0 BATCH_IMPL_CLAIMED=0 BATCH_IMPL_VERIFIED=0
+        BATCH_IMPL_CLAIMED=0 BATCH_IMPL_VERIFIED=0
         BATCH_UAT_PASSED=0 BATCH_UAT_FAILED=0 BATCH_UAT_SKIPPED=0
         local _auto_impl_tasks=()   # for DB verified-count query
         local _auto_rl_tasks=()     # rate-limited impl tasks — re-queue after pool drains
 
         while [ "${#_auto_pids[@]}" -gt 0 ] || \
               [ "$_impl_exhausted" -eq 0 ] || \
-              [ "$_uat_exhausted" -eq 0 ] || \
-              [ "$_audit_exhausted" -eq 0 ]; do
+              [ "$_uat_exhausted" -eq 0 ]; do
 
             # ── Fill all open slots ──────────────────────────────────────────
             while [ "${#_auto_pids[@]}" -lt "$AUTO_PARALLEL" ]; do
-                # Choose type: audit up to cap first, then 60/40 impl/UAT
+                # Choose type: 60/40 impl/UAT ratio
                 local _next="none"
-                if [ "$_audit_active" -lt "$_MAX_AUDIT_CAP" ] && [ "$_audit_exhausted" -eq 0 ]; then
-                    _next="audit"
-                elif [ "$_impl_exhausted" -eq 0 ] && [ "$_uat_exhausted" -eq 0 ]; then
+                if [ "$_impl_exhausted" -eq 0 ] && [ "$_uat_exhausted" -eq 0 ]; then
                     local _total_iu=$((_impl_launched + _uat_launched))
                     local _impl_pct=0
                     [ "$_total_iu" -gt 0 ] && _impl_pct=$((_impl_launched * 100 / _total_iu))
                     [ "$_impl_pct" -lt 60 ] && _next="impl" || _next="uat"
                 elif [ "$_impl_exhausted" -eq 0 ]; then _next="impl"
                 elif [ "$_uat_exhausted" -eq 0 ];  then _next="uat"
-                elif [ "$_audit_exhausted" -eq 0 ]; then _next="audit"
                 else break  # nothing left to dispatch
                 fi
 
@@ -2137,33 +2112,6 @@ PYEOF
                     _uat_launched=$((_uat_launched + 1))
                     echo "  [uat  ] PID ${_pid} → unit ${_uid}"
 
-                elif [ "$_next" = "audit" ]; then
-                    local _uid
-                    _uid=$(claim_next_unit "io-auto-audit-$$") || { _audit_exhausted=1; continue; }
-                    [ -z "$_uid" ] && { _audit_exhausted=1; echo "  No more audit units."; continue; }
-                    echo "  [audit] claimed unit ${_uid}"
-                    local _af _at _au _ato
-                    _af=$(expand_agent_to_tmp "audit-orchestrator")
-                    _at="$_AGENT_TMP_DIR"; _au="$_uid"
-                    _ato=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
-                    local _pid
-                    _pid=$(
-                        (
-                            _ex=0
-                            timeout "${_ato}m" \
-                                claude --dangerously-skip-permissions \
-                                       --agent "$_af" \
-                                       --print "audit force ${_au} 1" < /dev/null \
-                                || _ex=$?
-                            release_unit_claim "$_au"
-                            rm -rf "$_at" 2>/dev/null || true
-                            exit "$_ex"
-                        ) >&2 &
-                        echo $!
-                    )
-                    _auto_pids+=("$_pid"); _auto_types+=("audit"); _auto_ids+=("$_uid")
-                    _audit_active=$((_audit_active + 1))
-                    echo "  [audit] PID ${_pid} → unit ${_uid}"
                 fi
             done
 
@@ -2221,17 +2169,6 @@ PYEOF
                             fi
                         fi
 
-                    elif [ "$_type" = "audit" ]; then
-                        _audit_active=$((_audit_active - 1))
-                        if [ "$_ec" -eq 0 ]; then
-                            BATCH_AUDIT_DONE=$((BATCH_AUDIT_DONE + 1))
-                            echo "  ✅ [audit] PID ${_pid} (unit ${_id}) — completed"
-                        elif [ "$_ec" -eq 124 ]; then
-                            echo "  ✗ [audit] PID ${_pid} (unit ${_id}) — timed out"
-                        else
-                            echo "  ❌ [audit] PID ${_pid} (unit ${_id}) — failed (exit ${_ec})"
-                            AUTO_ROUND_FAILED=1
-                        fi
                     fi
                 else
                     _np+=("$_pid"); _nt+=("$_type"); _ni+=("$_id")
@@ -2275,14 +2212,13 @@ except Exception:
         report_conflict_branches || true
 
         echo ""
-        [ "$BATCH_AUDIT_DONE" -gt 0 ] && echo "  Audit: ${BATCH_AUDIT_DONE} unit(s) audited"
         [ "$BATCH_IMPL_CLAIMED" -gt 0 ] && echo "  Implement: ${BATCH_IMPL_CLAIMED} claimed, ${BATCH_IMPL_VERIFIED} verified"
         [ "$(( BATCH_UAT_PASSED + BATCH_UAT_FAILED + BATCH_UAT_SKIPPED ))" -gt 0 ] && \
             echo "  UAT: ✅ ${BATCH_UAT_PASSED} pass, ❌ ${BATCH_UAT_FAILED} fail, — ${BATCH_UAT_SKIPPED} skipped"
         echo ""
 
         # ── C2: Kill switch — track consecutive zero-verified batches ─────────
-        BATCH_PROGRESS=$((BATCH_AUDIT_DONE + BATCH_IMPL_VERIFIED + BATCH_UAT_PASSED))
+        BATCH_PROGRESS=$((BATCH_IMPL_VERIFIED + BATCH_UAT_PASSED))
         if [ "$BATCH_PROGRESS" -gt 0 ]; then
             CONSECUTIVE_ZERO_VERIFIED=0
         else
