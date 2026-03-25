@@ -852,10 +852,34 @@ launch_agent_in_worktree() {
         # Hard kill at 2× stale threshold so reclaim_stale_tasks has time to fire
         # before the process is killed. CFG_STALE_MINUTES=30 → 60m hard kill.
         _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
+
+        # Record attempt start in io_task_attempts
+        _impl_usage_file="/tmp/io-usage-impl-${_task_id}"
+        rm -f "$_impl_usage_file" 2>/dev/null || true
+        _impl_attempt_row=$(python3 - "$REPO/$DB_FILE" "$_task_id" 2>/dev/null <<'IMPL_PYEOF'
+import sqlite3, sys
+db, task_id = sys.argv[1], sys.argv[2]
+try:
+    con = sqlite3.connect(db, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    con.execute("INSERT INTO io_task_attempts(task_id,attempt_number,started_at) VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'))",(task_id,n))
+    con.commit()
+    row_id = con.execute('SELECT last_insert_rowid()').fetchone()[0]
+    con.close()
+    print(row_id)
+except Exception:
+    print(0)
+IMPL_PYEOF
+)
+        # Run agent — output-format json writes final usage JSON to stderr;
+        # intermediate tool output is suppressed (use stream-json for verbosity).
         timeout "${_timeout_min}m" \
             claude --dangerously-skip-permissions \
                    --agent "$agent_file" \
-                   --print "$prompt_text" < /dev/null \
+                   --print "$prompt_text" \
+                   --output-format json < /dev/null \
+            2>"$_impl_usage_file" \
             || _exit=$?
         if [ "$_exit" -eq 0 ]; then
             AGENT_OUTCOME="success"
@@ -865,6 +889,40 @@ launch_agent_in_worktree() {
             fi
             AGENT_OUTCOME="failure"
         fi
+
+        # Parse usage JSON and update attempt row
+        python3 - "$REPO/$DB_FILE" "$_task_id" "${_impl_attempt_row:-0}" "$_impl_usage_file" 2>/dev/null <<'IMPL_PYEOF2' || true
+import sqlite3, json, sys
+from pathlib import Path
+db, task_id, row_id_str, usage_file = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+row_id = int(row_id_str)
+try:
+    data = json.loads(Path(usage_file).read_text())
+    u = data.get('usage', {})
+    # Total context = fresh input + cache hits; cache_creation = initial injection
+    input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
+    output_tok = u.get('output_tokens', 0)
+    ctx_win    = data.get('modelUsage', {})
+    ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
+    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    con = sqlite3.connect(db, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    task_row = con.execute('SELECT status FROM io_tasks WHERE id=?', (task_id,)).fetchone()
+    result   = task_row[0] if task_row else 'unknown'
+    if row_id > 0:
+        con.execute('''UPDATE io_task_attempts
+                       SET finished_at=strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+                           result=?,context_injection_tokens=?,
+                           context_final_tokens=?,context_utilization_pct=?
+                       WHERE id=?''', (result, input_tok, output_tok, util_pct, row_id))
+        con.commit()
+    con.close()
+except Exception:
+    pass
+finally:
+    try: Path(usage_file).unlink(missing_ok=True)
+    except Exception: pass
+IMPL_PYEOF2
     ) >&2 &
     echo $!
 }
@@ -1022,9 +1080,47 @@ run_parallel_uat() {
             # Each claude session runs independently; output goes to stderr so it
             # appears in the terminal without polluting the caller's capture context.
             (
+                _uat_usage_file="/tmp/io-usage-uat-${unit_id}"
+                rm -f "$_uat_usage_file" 2>/dev/null || true
                 claude --dangerously-skip-permissions \
                        --agent "$agent_file" \
-                       --print "$uat_mode $unit_id" < /dev/null
+                       --print "$uat_mode $unit_id" \
+                       --output-format json < /dev/null \
+                2>"$_uat_usage_file" || true
+                python3 - "$REPO/$DB_FILE" "$unit_id" "$_uat_usage_file" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'UAT_PYEOF' || true
+import sqlite3, json, sys
+from pathlib import Path
+import re
+db, unit_id, usage_file, uat_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    data = json.loads(Path(usage_file).read_text())
+    u = data.get('usage', {})
+    input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
+    output_tok = u.get('output_tokens', 0)
+    ctx_win    = data.get('modelUsage', {})
+    ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
+    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    verdict = 'unknown'
+    try:
+        cf = Path(uat_dir) / unit_id / 'CURRENT.md'
+        m  = re.search(r'^verdict:\s*(\S+)', cf.read_text(), re.MULTILINE)
+        if m: verdict = m.group(1)
+    except Exception: pass
+    task_id = f'UAT-{unit_id}'
+    con = sqlite3.connect(db, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
+        context_injection_tokens,context_final_tokens,context_utilization_pct)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct))
+    con.commit()
+    con.close()
+except Exception: pass
+finally:
+    try: Path(usage_file).unlink(missing_ok=True)
+    except Exception: pass
+UAT_PYEOF
             ) >&2 &
             active_pids+=($!)
             active_units+=("$unit_id")
@@ -1535,7 +1631,7 @@ from datetime import datetime, timezone
 
 ni_files = glob.glob(f"{NI_DIR}/*.md")
 stale_files = glob.glob(f"{NI_DIR}/stale/*.md")
-# ── context enrichment and utilization (D1/D2/E1) ─────────────────────────────
+# ── context enrichment (D1) ────────────────────────────────────────────────────
 try:
     con2 = sqlite3.connect(DB_FILE, timeout=5)
     total_tasks = con2.execute("SELECT COUNT(*) FROM io_tasks").fetchone()[0]
@@ -1545,12 +1641,6 @@ try:
     unenriched = con2.execute(
         "SELECT COUNT(*) FROM io_tasks WHERE status IN ('pending','failed') AND context_enriched_at IS NULL"
     ).fetchone()[0]
-    try:
-        avg_util = con2.execute(
-            "SELECT AVG(context_utilization_pct) FROM io_task_attempts WHERE context_utilization_pct IS NOT NULL"
-        ).fetchone()[0]
-    except Exception:
-        avg_util = None
     # File overlap guard stats (E1)
     try:
         tasks_with_files = con2.execute(
@@ -1569,8 +1659,6 @@ try:
         enrich_rate = f" ({enriched * 100 // total_tasks}%)" if total_tasks > 0 else ""
         print(f"  enriched tasks : {enriched}{enrich_rate}")
         print(f"  pending (none) : {unenriched}")
-        if avg_util is not None:
-            print(f"  avg ctx util   : {avg_util:.1f}%")
     if total_tracked is not None and total_tracked > 0:
         print(f"")
         print(f"File Overlap Guard")
@@ -1578,6 +1666,78 @@ try:
         print(f"  total tracked    : {total_tracked}  ({confirmed_files} confirmed)")
 except Exception:
     pass  # columns may not exist on old schema — safe no-op
+
+# ── agent context usage (D2) ──────────────────────────────────────────────────
+try:
+    con3 = sqlite3.connect(DB_FILE, timeout=5)
+    type_rows = con3.execute("""
+        SELECT
+            CASE WHEN task_id LIKE 'UAT-%' THEN 'uat' ELSE 'impl' END AS atype,
+            COUNT(*) AS runs,
+            ROUND(AVG(context_injection_tokens))  AS avg_input,
+            ROUND(AVG(context_utilization_pct),1) AS avg_util,
+            SUM(CASE WHEN result='verified' OR result='pass' THEN 1 ELSE 0 END) AS successes
+        FROM io_task_attempts
+        WHERE context_injection_tokens IS NOT NULL
+        GROUP BY atype
+        ORDER BY atype
+    """).fetchall()
+    if type_rows:
+        print(f"")
+        print(f"Agent Context Usage")
+        for atype, runs, avg_input, avg_util, successes in type_rows:
+            avg_k   = f"{int(avg_input)//1000}K" if avg_input else "?"
+            util_s  = f"  avg_ctx={avg_util:.1f}%" if avg_util is not None else ""
+            pass_rt = f"  pass_rate={int(successes*100//runs)}%" if runs else ""
+            print(f"  {atype:6s}  runs={runs}  avg_input={avg_k} tokens{util_s}{pass_rt}")
+
+    # UAT failure rate by context band
+    band_rows = con3.execute("""
+        SELECT
+            CASE
+                WHEN context_injection_tokens < 80000  THEN '1_<80K'
+                WHEN context_injection_tokens < 110000 THEN '2_80-110K'
+                WHEN context_injection_tokens < 130000 THEN '3_110-130K'
+                ELSE                                        '4_>130K'
+            END AS band,
+            result,
+            COUNT(*) AS cnt
+        FROM io_task_attempts
+        WHERE task_id LIKE 'UAT-%' AND context_injection_tokens IS NOT NULL
+        GROUP BY band, result
+        ORDER BY band, result
+    """).fetchall()
+    if band_rows:
+        print(f"")
+        print(f"UAT by Context Band")
+        prev_band = None
+        for band, result, cnt in band_rows:
+            label = band[2:]  # strip sort prefix
+            if label != prev_band:
+                print(f"  {label}")
+                prev_band = label
+            icon = '✅' if result in ('pass','verified') else ('❌' if result == 'fail' else ' ~')
+            print(f"    {icon} {result}: {cnt}")
+
+    # Impl attempt distribution
+    att_rows = con3.execute("""
+        SELECT attempt_number, COUNT(*) AS cnt,
+               SUM(CASE WHEN result='verified' THEN 1 ELSE 0 END) AS ok
+        FROM io_task_attempts
+        WHERE task_id NOT LIKE 'UAT-%' AND attempt_number IS NOT NULL
+        GROUP BY attempt_number
+        ORDER BY attempt_number
+    """).fetchall()
+    if att_rows:
+        print(f"")
+        print(f"Impl Attempt Distribution")
+        for att_num, cnt, ok in att_rows:
+            pct = f"  ({int(ok*100//cnt)}% ok)" if cnt else ""
+            print(f"  attempt {att_num}: {cnt} run(s){pct}")
+
+    con3.close()
+except Exception:
+    pass  # io_task_attempts may be empty — safe no-op
 
 if ni_files or stale_files:
     print(f"")
@@ -2102,10 +2262,49 @@ PYEOF
                     local _uid="${_uat_arr[$_uat_idx]}"
                     _uat_idx=$((_uat_idx + 1))
                     echo "  [uat  ] starting ${_uid} (${_uat_idx}/${#_uat_arr[@]})"
+                    local _auto_uat_dir="${CFG_UAT_DIR:-docs/uat}"
                     (
+                        _uat_usage_file="/tmp/io-usage-uat-${_uid}"
+                        rm -f "$_uat_usage_file" 2>/dev/null || true
                         claude --dangerously-skip-permissions \
                                --agent "$_AUTO_UAT_AGENT_FILE" \
-                               --print "auto ${_uid}" < /dev/null
+                               --print "auto ${_uid}" \
+                               --output-format json < /dev/null \
+                        2>"$_uat_usage_file" || true
+                        python3 - "$REPO/$DB_FILE" "$_uid" "$_uat_usage_file" "$_auto_uat_dir" 2>/dev/null <<'AUTO_UAT_PYEOF' || true
+import sqlite3, json, sys
+from pathlib import Path
+import re
+db, unit_id, usage_file, uat_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    data = json.loads(Path(usage_file).read_text())
+    u = data.get('usage', {})
+    input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
+    output_tok = u.get('output_tokens', 0)
+    ctx_win    = data.get('modelUsage', {})
+    ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
+    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    verdict = 'unknown'
+    try:
+        cf = Path(uat_dir) / unit_id / 'CURRENT.md'
+        m  = re.search(r'^verdict:\s*(\S+)', cf.read_text(), re.MULTILINE)
+        if m: verdict = m.group(1)
+    except Exception: pass
+    task_id = f'UAT-{unit_id}'
+    con = sqlite3.connect(db, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
+        context_injection_tokens,context_final_tokens,context_utilization_pct)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct))
+    con.commit()
+    con.close()
+except Exception: pass
+finally:
+    try: Path(usage_file).unlink(missing_ok=True)
+    except Exception: pass
+AUTO_UAT_PYEOF
                     ) >&2 &
                     local _pid=$!
                     _auto_pids+=("$_pid"); _auto_types+=("uat"); _auto_ids+=("$_uid")
