@@ -311,9 +311,28 @@ try:
     task_id = None
     for row_id, deps_raw in candidates:
         deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
-        if all(d in verified_ids for d in deps):
-            task_id = row_id
-            break
+        if not all(d in verified_ids for d in deps):
+            continue
+        # File conflict check: skip if a currently-implementing task owns overlapping files.
+        # Backwards compatible — if io_task_files doesn't exist yet, skip the check.
+        try:
+            conflict = con.execute("""
+                SELECT DISTINCT t.id
+                FROM io_task_files tf
+                JOIN io_tasks t ON t.id = tf.task_id
+                WHERE t.status = 'implementing'
+                  AND tf.file_path IN (
+                      SELECT file_path FROM io_task_files WHERE task_id = ?
+                  )
+                LIMIT 1
+            """, (row_id,)).fetchone()
+            if conflict:
+                print(f"  Skipping {row_id} — file conflict with active task {conflict[0]}", file=sys.stderr)
+                continue
+        except Exception:
+            pass  # io_task_files not yet created — proceed without conflict check
+        task_id = row_id
+        break
     if task_id is None:
         con.execute("ROLLBACK")
         sys.exit(0)

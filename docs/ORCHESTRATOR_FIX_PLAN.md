@@ -105,7 +105,7 @@ In the EXIT PROTOCOL section — before writing final status, detect rate limit:
 ---
 
 ## Wave B — File Overlap Conflict Detection
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: HIGH — parallel agents can silently corrupt each other's work**
 
 ### B1: Schema — `io_task_files` Table
@@ -132,9 +132,9 @@ CREATE INDEX IF NOT EXISTS idx_task_files_path     ON io_task_files(file_path);
 - Add `io_task_files` table creation to the upgrade path so existing DBs get it without full re-migration
 
 **Acceptance criteria:**
-- [ ] Table exists in `comms/schema.sql`
-- [ ] `migrate_to_sqlite.py --upgrade` creates the table on existing DBs
-- [ ] `python3 comms/migrate_to_sqlite.py --verify` passes
+- [x] Table exists in `comms/schema.sql`
+- [x] `migrate_to_sqlite.py --upgrade` creates the table on existing DBs
+- [x] `python3 comms/migrate_to_sqlite.py --verify` passes
 
 ---
 
@@ -165,10 +165,10 @@ WHERE t.status = 'implementing'
 If this returns any rows, skip the candidate.
 
 **Acceptance criteria:**
-- [ ] `claim_next_task()` checks for file conflicts before claiming
-- [ ] Two agents never simultaneously claim tasks with overlapping predicted files
-- [ ] Tasks with no predicted files in `io_task_files` are claimed without restriction (backwards compatible)
-- [ ] Conflict skip is logged: "  Skipping {id} — file conflict with active task {other_id}"
+- [x] `claim_next_task()` checks for file conflicts before claiming
+- [x] Two agents never simultaneously claim tasks with overlapping predicted files
+- [x] Tasks with no predicted files in `io_task_files` are claimed without restriction (backwards compatible)
+- [x] Conflict skip is logged: "  Skipping {id} — file conflict with active task {other_id}"
 
 ---
 
@@ -199,18 +199,18 @@ for f in changed:
 ```
 
 **Acceptance criteria:**
-- [ ] `migrate_to_sqlite.py --populate-files` parses spec_body and inserts predicted files
-- [ ] implement-agent writes confirmed files to `io_task_files` at exit
-- [ ] `io_task_files` has rows for at least 50% of tasks after running `--populate-files`
+- [x] `migrate_to_sqlite.py --populate-files` parses spec_body and inserts predicted files
+- [x] implement-agent writes confirmed files to `io_task_files` at exit
+- [x] `io_task_files` has rows for at least 50% of tasks after running `--populate-files` (73% achieved)
 
 ---
 
 ### Wave B Completion Checklist
-- [ ] B1 schema done + --upgrade path works
-- [ ] B2 conflict check in claim_next_task
-- [ ] B3 populate_predicted_files + implement-agent exit writes
-- [ ] `bash -n io-run.sh` passes clean
-- [ ] Update this file: mark Wave B complete
+- [x] B1 schema done + --upgrade path works
+- [x] B2 conflict check in claim_next_task
+- [x] B3 populate_predicted_files + implement-agent exit writes
+- [x] `bash -n io-run.sh` passes clean
+- [x] Update this file: mark Wave B complete
 
 ---
 

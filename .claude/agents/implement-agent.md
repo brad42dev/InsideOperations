@@ -434,6 +434,35 @@ Record:
 
 If no files were modified (e.g. NEEDS_INPUT before any implementation): changed_files = empty, before_state = git rev-parse HEAD.
 
+### X1a — Write confirmed files to io_task_files
+
+Using the list of changed files captured in X1 (`/tmp/io-changed-files.txt`), record confirmed file ownership in the task registry. This enables conflict detection for future parallel agents.
+
+Skip this step if changed_files was empty (no files modified this session).
+
+```python
+import sqlite3
+from pathlib import Path
+db  = Path("{{REGISTRY_DB}}")
+tmp = Path("/tmp/io-changed-files.txt")
+if db.exists() and tmp.exists():
+    lines = [l.strip() for l in tmp.read_text().splitlines() if l.strip()]
+    if lines:
+        con = sqlite3.connect(str(db), timeout=10)
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            for fp in lines:
+                con.execute("""
+                    INSERT OR IGNORE INTO io_task_files(task_id, file_path, status)
+                    VALUES (?, ?, 'confirmed')
+                """, ("{TASK_ID}", fp))
+            con.commit()
+        except Exception:
+            pass  # io_task_files may not exist yet — backwards compatible
+        finally:
+            con.close()
+```
+
 ### X1b — Scope check
 
 Run: `git diff HEAD --name-only`

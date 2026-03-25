@@ -67,9 +67,22 @@ CREATE TABLE IF NOT EXISTS io_global (
     value  TEXT
 );
 
+-- Per-task file ownership. Populated by migrate_to_sqlite --populate-files at task creation,
+-- confirmed by implement-agent at completion. Used by claim logic to prevent two agents
+-- from touching the same file simultaneously.
+CREATE TABLE IF NOT EXISTS io_task_files (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id     TEXT NOT NULL REFERENCES io_tasks(id) ON DELETE CASCADE,
+    file_path   TEXT NOT NULL,   -- repo-relative path
+    status      TEXT NOT NULL DEFAULT 'predicted',  -- 'predicted' | 'confirmed'
+    created_at  TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
 -- Indexes for common query patterns
 CREATE INDEX IF NOT EXISTS idx_tasks_status          ON io_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_unit            ON io_tasks(unit);
 CREATE INDEX IF NOT EXISTS idx_tasks_wave            ON io_tasks(wave);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_wave     ON io_tasks(status, wave);
 CREATE INDEX IF NOT EXISTS idx_task_attempts_task_id ON io_task_attempts(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_files_task_id    ON io_task_files(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_files_path       ON io_task_files(file_path);
