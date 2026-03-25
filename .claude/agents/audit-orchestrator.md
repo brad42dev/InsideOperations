@@ -87,7 +87,7 @@ NEEDS_INPUT_ESCALATE_HOURS: 144  (auto-escalate threshold — 6 days)
 ESCALATED_DIR:   {{PROJECT_ROOT}}/{{COMMS_DIR}}/escalated
 ```
 
-> **Dual-storage architecture:** `PROGRESS_FILE` (JSON) is what *this agent* reads and writes — it is the authoritative view of task state from the agent's perspective. `io-run.sh` also maintains a SQLite mirror (`comms/tasks.db`) which it uses for atomic parallel task claiming via `BEGIN IMMEDIATE` locks. When you write `status: "pending"`, `"implementing"`, or `"verified"` to the registry, `io-run.sh` will sync that state into SQLite after each round. You never interact with SQLite directly — write only to `PROGRESS_FILE`. The `status: completed` field in `docs/state/{unit}/{task-id}/CURRENT.md` is the *agent's internal completion marker* — it is NOT the same as registry `status: "verified"`. The orchestrator translates `CURRENT.md status: completed` → registry `status: "verified"` after independent build verification passes (see Startup Reconciliation and Ledger Write sections).
+> **Dual-storage architecture:** `PROGRESS_FILE` (JSON) is what *this agent* reads and writes — it is the authoritative view of task state from the agent's perspective. `io-run.sh` also maintains a SQLite mirror (`comms/tasks.db`) which it uses for atomic parallel task claiming via `BEGIN IMMEDIATE` locks. When you write `status: "pending"`, `"implementing"`, or `"verified"` to the registry, `io-run.sh` will sync that state into SQLite after each round. You never interact with SQLite directly — write only to `PROGRESS_FILE`. The `status: completed` field in `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md` is the *agent's internal completion marker* — it is NOT the same as registry `status: "verified"`. The orchestrator translates `CURRENT.md status: completed` → registry `status: "verified"` after independent build verification passes (see Startup Reconciliation and Ledger Write sections).
 
 ---
 
@@ -127,13 +127,13 @@ After reconciliation, continue to zombie detection.
 
 ## Shared: Zombie Detection (run before every implement loop)
 
-Before selecting a task, scan `docs/state/*/*/CURRENT.md` for zombie tasks:
+Before selecting a task, scan `{{STATE_DIR}}/*/*/CURRENT.md` for zombie tasks:
 - Read each CURRENT.md
 - If `status` is `claimed` or `implementing` AND `last_heartbeat` is > 15 minutes ago: zombie
 
 For each zombie found:
 1. Read the partial Work Log from CURRENT.md
-2. Write a new attempt file at `docs/state/{unit}/{task-id}/attempts/{NNN}.md` with `result: ZOMBIE` and the partial Work Log as its content
+2. Write a new attempt file at `{{STATE_DIR}}/{unit}/{task-id}/attempts/{NNN}.md` with `result: ZOMBIE` and the partial Work Log as its content
 3. Reset CURRENT.md: status → `pending`, increment attempt counter, clear Work Log
 4. Report to user: `⚠️ Zombie task recovered: {task-id} — attempt {N} abandoned`
 
@@ -143,9 +143,9 @@ For each zombie found:
 
 Before spawning implement-agent for a task, ensure state files exist:
 
-1. Check if `docs/state/{unit}/{task-id}/` exists. If not, create it.
-2. Check if `docs/state/{unit}/{task-id}/attempts/` exists. If not, create it.
-3. Check if `docs/state/{unit}/{task-id}/CURRENT.md` exists. If not, create it with:
+1. Check if `{{STATE_DIR}}/{unit}/{task-id}/` exists. If not, create it.
+2. Check if `{{STATE_DIR}}/{unit}/{task-id}/attempts/` exists. If not, create it.
+3. Check if `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md` exists. If not, create it with:
 ```markdown
 ---
 task_id: {task-id}
@@ -163,8 +163,8 @@ last_heartbeat: null
 ## Exit Checklist
 (not started)
 ```
-4. Check if `docs/state/{unit}/INDEX.md` exists. If not, create it listing all tasks for this unit with status: pending.
-5. Check if `docs/state/INDEX.md` exists. If not, create it as a global scoreboard.
+4. Check if `{{STATE_DIR}}/{unit}/INDEX.md` exists. If not, create it listing all tasks for this unit with status: pending.
+5. Check if `{{STATE_DIR}}/INDEX.md` exists. If not, create it as a global scoreboard.
 
 ---
 
@@ -174,12 +174,12 @@ After implement-agent returns SUCCESS and build verification passes:
 
 1. Commit the implementation: `cd {{PROJECT_ROOT}} && git add -A && git commit -m "verify: {task-id} — {task-title}" --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"`
 2. Get the commit hash: `cd {{PROJECT_ROOT}} && git rev-parse --short HEAD`
-3. Append to `docs/state/ledger/{unit-id}.md`:
+3. Append to `{{STATE_DIR}}/ledger/{unit-id}.md`:
    ```
    {task-id} | {task title} | verified {date} | commit {hash} | {verification command} | PASS
    ```
 4. Read the ledger file back, confirm the entry is present.
-5. Update `docs/state/INDEX.md` to reflect the new verified count for this unit.
+5. Update `{{STATE_DIR}}/INDEX.md` to reflect the new verified count for this unit.
 
 ---
 
@@ -549,11 +549,11 @@ Track `successes_this_run = 0`.
 
 2a. **Proactive Size Gate**: Before proceeding, check if this task is too large for one context window.
 
-   Read the task spec file: `docs/tasks/{unit}/{task-id}.md`
+   Read the task spec file: `{{TASK_DIR}}/{unit}/{task-id}.md`
    Count entries in the "Files to Create or Modify" section (lines between that heading and the next `##` heading):
    ```bash
    # Count list items (lines starting with -, •, or a digit+dot) between headings
-   awk '/^## Files to Create or Modify/{p=1;next} p && /^##/{exit} p && /^[ \t]*[-•]|^[ \t]*[0-9]+\./{c++} END{print c}' docs/tasks/{unit}/{task-id}.md
+   awk '/^## Files to Create or Modify/{p=1;next} p && /^##/{exit} p && /^[ \t]*[-•]|^[ \t]*[0-9]+\./{c++} END{print c}' {{TASK_DIR}}/{unit}/{task-id}.md
    ```
 
    If file count > 12:
@@ -584,7 +584,7 @@ Track `successes_this_run = 0`.
 
    If file count ≤ 12: continue to step 3.
 
-3. Read `docs/state/{unit}/{task-id}/CURRENT.md`. Determine current attempt number (N = prior attempts + 1).
+3. Read `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md`. Determine current attempt number (N = prior attempts + 1).
 
 4. Check `task_attempts[task_id]` in PROGRESS_FILE. If N > MAX_IMPL already: skip to escalation.
 
@@ -725,7 +725,7 @@ Write this file when implement-agent returns NEEDS_INPUT:
 ---
 task_id: {task-id}
 unit: {unit}
-checkpoint_file: docs/state/{unit}/{task-id}/CURRENT.md
+checkpoint_file: {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md
 answer_file: {{COMMS_DIR}}/answers/{task-id}.md
 attempt: {N}
 created: {ISO timestamp}

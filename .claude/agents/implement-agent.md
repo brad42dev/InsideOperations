@@ -19,7 +19,7 @@ REPO_ROOT: {{PROJECT_ROOT}}
 [PRIOR_ATTEMPT_NOTES: <what failed last time — read this before writing a single line>]
 [RESEARCH_RESULTS: <findings from explore-agent>]
 [ANSWERED_QUESTIONS: <user answers to a prior NEEDS_INPUT>]
-[CHECKPOINT_FILE: docs/state/{unit}/{task-id}/CURRENT.md — resume from here if provided]
+[CHECKPOINT_FILE: {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md — resume from here if provided]
 ```
 
 ---
@@ -27,12 +27,12 @@ REPO_ROOT: {{PROJECT_ROOT}}
 ## STATE FILE LOCATIONS
 
 ```
-CURRENT_MD:  docs/state/{unit}/{task-id}/CURRENT.md
-ATTEMPTS_DIR: docs/state/{unit}/{task-id}/attempts/
-TASK_SPEC:   docs/tasks/{unit}/{task-id}.md  (or docs/tasks/{unit-lowercase}/{task-id}*.md)
+CURRENT_MD:  {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md
+ATTEMPTS_DIR: {{STATE_DIR}}/{unit}/{task-id}/attempts/
+TASK_SPEC:   {{TASK_DIR}}/{unit}/{task-id}.md  (or {{TASK_DIR}}/{unit-lowercase}/{task-id}*.md)
 ```
 
-Note: `docs/state/INDEX.md` (per-unit scoreboard) and `docs/state/{unit}/INDEX.md` (static audit snapshot) are NOT used by this agent — they are not authoritative for task existence and are not updated by UAT or later audit rounds. The registry source of truth is `{{PROGRESS_JSON}}`.
+Note: `{{STATE_DIR}}/INDEX.md` (per-unit scoreboard) and `{{STATE_DIR}}/{unit}/INDEX.md` (static audit snapshot) are NOT used by this agent — they are not authoritative for task existence and are not updated by UAT or later audit rounds. The registry source of truth is `{{PROGRESS_JSON}}`.
 
 Replace `{unit}` with the lowercase unit ID (e.g. `gfx-core`, `mod-console`).
 
@@ -54,25 +54,25 @@ STATE_FILE: none
 ATTEMPT_FILE: none
 ```
 
-Note: `docs/state/INDEX.md` is a per-unit summary scoreboard, NOT a per-task index — do not use it to gate task existence. `docs/state/{unit}/INDEX.md` is a static snapshot created at initial audit time and is not updated when new tasks are added (e.g., by UAT or later audit rounds). `{{PROGRESS_JSON}}` is the authoritative task registry.
+Note: `{{STATE_DIR}}/INDEX.md` is a per-unit summary scoreboard, NOT a per-task index — do not use it to gate task existence. `{{STATE_DIR}}/{unit}/INDEX.md` is a static snapshot created at initial audit time and is not updated when new tasks are added (e.g., by UAT or later audit rounds). `{{PROGRESS_JSON}}` is the authoritative task registry.
 
 ### E2 — Verify state directory exists
 
-Run: `ls docs/state/{unit}/{task-id}/ 2>/dev/null && echo EXISTS || echo MISSING`
+Run: `ls {{STATE_DIR}}/{unit}/{task-id}/ 2>/dev/null && echo EXISTS || echo MISSING`
 
 If MISSING: return immediately:
 ```
 RESULT: FAILED
 TASK_ID: <task-id>
 ATTEMPT: 0
-FAILURE_REASON: state_directory_missing — docs/state/{unit}/{task-id}/ not found; orchestrator may not have initialized this task
+FAILURE_REASON: state_directory_missing — {{STATE_DIR}}/{unit}/{task-id}/ not found; orchestrator may not have initialized this task
 STATE_FILE: none
 ATTEMPT_FILE: none
 ```
 
 ### E3 — Read CURRENT.md and check for active claim
 
-Use the Read tool on `docs/state/{unit}/{task-id}/CURRENT.md`.
+Use the Read tool on `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md`.
 
 **If the file does not exist:** this is attempt 1. N = 1. No prior fingerprints. Continue to E5.
 
@@ -89,13 +89,13 @@ Use the Read tool on `docs/state/{unit}/{task-id}/CURRENT.md`.
 
 From the CURRENT.md you just read, copy out the full **Prior Attempt Fingerprints** table. You will use these for cycle detection in X2.
 
-If N > 1: use the Read tool on `docs/state/{unit}/{task-id}/attempts/{(N-1) zero-padded to 3 digits}.md`. Read the **Why This Attempt Failed** and **Notes for Next Attempt** sections. You MUST read this before implementing anything.
+If N > 1: use the Read tool on `{{STATE_DIR}}/{unit}/{task-id}/attempts/{(N-1) zero-padded to 3 digits}.md`. Read the **Why This Attempt Failed** and **Notes for Next Attempt** sections. You MUST read this before implementing anything.
 
 If PRIOR_ATTEMPT_NOTES was provided in your input: read it now. Do not repeat what failed before.
 
 ### E5 — Read the task spec
 
-Use the Read tool on the task spec file. Find it at `docs/tasks/{unit-lowercase}/{task-id}*.md` — glob for it if the exact name is uncertain.
+Use the Read tool on the task spec file. Find it at `{{TASK_DIR}}/{unit-lowercase}/{task-id}*.md` — glob for it if the exact name is uncertain.
 
 Read the entire file. Extract:
 - Title and what needs to change
@@ -128,7 +128,7 @@ Before writing anything, state this explicitly in your response:
 
 ### E7 — Write the claim
 
-Write `docs/state/{unit}/{task-id}/CURRENT.md` with this exact content, substituting values:
+Write `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md` with this exact content, substituting values:
 
 ```markdown
 ---
@@ -150,8 +150,8 @@ last_heartbeat: {current timestamp ISO-8601}
 CLAIM
 
 ### Files Loaded
-- [x] docs/state/{unit}/{task-id}/CURRENT.md
-- [x] docs/tasks/{unit}/{task-id}*.md
+- [x] {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md
+- [x] {{TASK_DIR}}/{unit}/{task-id}*.md
 - [ ] {list target files from task spec here}
 
 ### Work Log
@@ -164,13 +164,13 @@ CLAIM
 - [ ] CURRENT.md read back — status field confirmed
 ```
 
-**Immediately after writing:** Use the Read tool on `docs/state/{unit}/{task-id}/CURRENT.md`. Read the `status` field from the YAML frontmatter. It must say `claimed`. If it does not say `claimed`, your write failed — return:
+**Immediately after writing:** Use the Read tool on `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md`. Read the `status` field from the YAML frontmatter. It must say `claimed`. If it does not say `claimed`, your write failed — return:
 ```
 RESULT: FAILED
 TASK_ID: {task-id}
 ATTEMPT: {N}
 FAILURE_REASON: claim_write_failed — wrote CURRENT.md but read back showed incorrect status
-STATE_FILE: docs/state/{unit}/{task-id}/CURRENT.md
+STATE_FILE: {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md
 ATTEMPT_FILE: none
 ```
 
@@ -197,7 +197,7 @@ This step is NOT optional. Implementations that skip authority docs risk violati
 
 Update CURRENT.md in the same write: change `status` to `implementing`, update `last_heartbeat`, and include the batch Work Log entry above — all in one Write call.
 
-Confirm the write succeeded: `grep "^status:" docs/state/{unit}/{task-id}/CURRENT.md` — must return `status: implementing`.
+Confirm the write succeeded: `grep "^status:" {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md` — must return `status: implementing`.
 
 **TypeScript baseline (TypeScript tasks only):** Capture the current TS error count before writing any code. This enables the VERIFY PHASE to distinguish pre-existing errors from regressions you introduced.
 
@@ -239,7 +239,7 @@ If the task requires the same mechanical change across more than 10 files (e.g.,
    - {timestamp} — Build check: PASS / FAIL ({error if fail})
    ```
 
-3. Confirm the heartbeat write succeeded: `grep "^last_heartbeat:" docs/state/{unit}/{task-id}/CURRENT.md` — the timestamp must match what you just wrote. If it does not match, retry the Write once.
+3. Confirm the heartbeat write succeeded: `grep "^last_heartbeat:" {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md` — the timestamp must match what you just wrote. If it does not match, retry the Write once.
 
 **If you need research or user input:**
 
@@ -400,7 +400,7 @@ If no files were modified (e.g. NEEDS_INPUT before any implementation): changed_
 Run: `git diff HEAD --name-only`
 
 Compare the output against the "Files to Create or Modify" section of this task's spec file. For each file in the diff:
-- **State files** (`docs/state/`, `docs/uat/`, `comms/`): always allowed — skip, do not flag.
+- **State files** (`{{STATE_DIR}}/`, `{{UAT_DIR}}/`, `comms/`): always allowed — skip, do not flag.
 - **Test files** for a file that IS in scope (e.g., `*.test.ts` alongside an in-scope `.ts`): warn but allow — note in Work Log: `⚠ out-of-scope adjacent test file touched: {filename}`.
 - **Any other file not in the task spec**: ❌ out-of-scope edit — revert it immediately:
   ```bash
@@ -429,13 +429,13 @@ git clean -fd
 
 ### X3 — Determine attempt file number
 
-Run: `ls docs/state/{unit}/{task-id}/attempts/ 2>/dev/null | wc -l | tr -d ' '`
+Run: `ls {{STATE_DIR}}/{unit}/{task-id}/attempts/ 2>/dev/null | wc -l | tr -d ' '`
 
 The new file is NNN = (that count) + 1, zero-padded to 3 digits (e.g., if 0 files exist → 001, if 2 exist → 003).
 
 ### X4 — Write the attempt file
 
-Write `docs/state/{unit}/{task-id}/attempts/{NNN}.md`:
+Write `{{STATE_DIR}}/{unit}/{task-id}/attempts/{NNN}.md`:
 
 ```markdown
 ---
@@ -485,7 +485,7 @@ output: {relevant lines, or "clean"}
 
 ### X5 — Verify the attempt file
 
-Run: `grep -E "^(task_id|attempt|result):" docs/state/{unit}/{task-id}/attempts/{NNN}.md`
+Run: `grep -E "^(task_id|attempt|result):" {{STATE_DIR}}/{unit}/{task-id}/attempts/{NNN}.md`
 
 Expected output — three lines:
 - `task_id: {TASK_ID}`
@@ -530,7 +530,7 @@ CLOSED
 
 ### X7 — Confirm CURRENT.md final status
 
-Run: `grep "^status:" docs/state/{unit}/{task-id}/CURRENT.md`
+Run: `grep "^status:" {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md`
 
 The output must match your intended final status (e.g., `status: completed`).
 
@@ -544,8 +544,8 @@ If it does not match: note the discrepancy in your return message.
 RESULT: {SUCCESS | FAILED | CYCLE_DETECTED | NEEDS_INPUT | NEEDS_RESEARCH | CHECKPOINT | CONFLICT}
 TASK_ID: {task-id}
 ATTEMPT: {N}
-STATE_FILE: docs/state/{unit}/{task-id}/CURRENT.md
-ATTEMPT_FILE: docs/state/{unit}/{task-id}/attempts/{NNN}.md
+STATE_FILE: {{STATE_DIR}}/{unit}/{task-id}/CURRENT.md
+ATTEMPT_FILE: {{STATE_DIR}}/{unit}/{task-id}/attempts/{NNN}.md
 FILES_MODIFIED: {comma-separated file paths, or NONE}
 VERIFICATION: {PASS | FAIL | SKIPPED}
 CHECKLIST:

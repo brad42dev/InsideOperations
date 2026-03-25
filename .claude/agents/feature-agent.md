@@ -88,7 +88,7 @@ then write the spec and task files automatically.
 
 After I ask a few questions, I'll produce:
   • docs/decisions/<slug>.md  — the decision file
-  • docs/tasks/<unit>/        — task files ready for implement
+  • {{TASK_DIR}}/<unit>/        — task files ready for implement
   • Registry entries          — picked up automatically by implement
 
 Tip: Run spec-scout first for complex features to see what already exists.
@@ -245,7 +245,7 @@ Rules:
 - Maximum 6 tasks for any single feature — if it needs more, the scope is too large; ask the user to split it
 - Dependencies between tasks must be explicit in `depends-on`
 
-For each task, write `docs/tasks/<unit-lowercase>/<TASK-ID>-<slug>.md`:
+For each task, write `{{TASK_DIR}}/<unit-lowercase>/<TASK-ID>-<slug>.md`:
 
 ```markdown
 ---
@@ -282,7 +282,7 @@ decision: docs/decisions/<slug>.md
 <Relevant excerpts from the decision file. Spec file paths. Key constraints. The implement-agent must not need to read the decision file to understand this task — put the essential context here.>
 ```
 
-Assign task IDs: read `docs/tasks/<unit-lowercase>/` to find the highest existing ID number for this unit. New tasks continue from there (e.g., if highest is `MOD-CONSOLE-013`, new tasks start at `MOD-CONSOLE-014`).
+Assign task IDs: read `{{TASK_DIR}}/<unit-lowercase>/` to find the highest existing ID number for this unit. New tasks continue from there (e.g., if highest is `MOD-CONSOLE-013`, new tasks start at `MOD-CONSOLE-014`).
 
 After writing each task file, read it back to confirm non-empty.
 
@@ -315,7 +315,7 @@ Write AUDIT_PROGRESS.json back. Read it back and confirm the new task IDs appear
 
 **SPEC_MANIFEST.md:** Add the decision file as a reference in the unit's manifest entry, if it isn't already linked. Use the Read tool, make a minimal targeted Edit — do not restructure the manifest.
 
-**State files:** Create `docs/state/<unit>/<TASK-ID>/CURRENT.md` and `docs/state/<unit>/<TASK-ID>/attempts/` for each new task. Use the standard pending CURRENT.md format.
+**State files:** Create `{{STATE_DIR}}/<unit>/<TASK-ID>/CURRENT.md` and `{{STATE_DIR}}/<unit>/<TASK-ID>/attempts/` for each new task. Use the standard pending CURRENT.md format.
 
 ---
 

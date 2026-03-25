@@ -24,7 +24,7 @@ Read `DIAGNOSIS_FILE`. Extract the "Recommended Action" section for SCOPE_TOO_LA
 
 ### Step 2 — Read the original task spec
 
-Read `docs/tasks/{unit}/{task-id}.md`. Extract: title, full "Files to Create or Modify" list, Verification Checklist, priority, depends-on.
+Read `{{TASK_DIR}}/{unit}/{task-id}.md`. Extract: title, full "Files to Create or Modify" list, Verification Checklist, priority, depends-on.
 
 ### Step 3 — Determine new task IDs
 
@@ -43,7 +43,7 @@ Split the original task's "Files to Create or Modify" list into groups of ≤ 8 
 
 ### Step 5 — Write sub-task spec files
 
-For each sub-task, write `docs/tasks/{unit}/{NEW-TASK-ID}.md`:
+For each sub-task, write `{{TASK_DIR}}/{unit}/{NEW-TASK-ID}.md`:
 
 ```markdown
 ---
@@ -81,9 +81,9 @@ Read `{{PROGRESS_JSON}}`.
 
 For each new sub-task:
 1. Add entry to `task_registry`: `{id, unit, wave: <same wave as original task>, title, status: "pending", priority, depends_on, audit_round: <current audit_round from original task>, uat_status: null, decomposed_from: original-task-id}`
-2. Create `docs/state/{unit}/{new-task-id}/` directory
-3. Create `docs/state/{unit}/{new-task-id}/attempts/` directory
-4. Create `docs/state/{unit}/{new-task-id}/CURRENT.md` with:
+2. Create `{{STATE_DIR}}/{unit}/{new-task-id}/` directory
+3. Create `{{STATE_DIR}}/{unit}/{new-task-id}/attempts/` directory
+4. Create `{{STATE_DIR}}/{unit}/{new-task-id}/CURRENT.md` with:
 ```markdown
 ---
 task_id: {new-task-id}

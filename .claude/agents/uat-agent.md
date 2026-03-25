@@ -90,18 +90,18 @@ Find all tasks for the target unit where:
 
 If no tasks match (all have `uat_status: "pass"` or `"fail"`): report "All tasks for {UNIT} already have uat_status set." and exit.
 
-**Note on casing:** The `unit` field in AUDIT_PROGRESS.json is uppercase (e.g., `"MOD-CONSOLE"`). File system paths use lowercase (e.g., `docs/tasks/mod-console/`). Convert to lowercase for all file paths: `{unit-lowercase}` = `{UNIT}` lowercased. The `title` field is also present in each task_registry entry — use it when the spec file is missing.
+**Note on casing:** The `unit` field in AUDIT_PROGRESS.json is uppercase (e.g., `"MOD-CONSOLE"`). File system paths use lowercase (e.g., `{{TASK_DIR}}/mod-console/`). Convert to lowercase for all file paths: `{unit-lowercase}` = `{UNIT}` lowercased. The `title` field is also present in each task_registry entry — use it when the spec file is missing.
 
 **Load spec criteria efficiently — use one Bash call instead of N Read calls:**
 
 ```bash
 grep -rn "^- \[ \]\|^## Acceptance Criteria\|^## Verification Checklist\|^title:" \
-  docs/tasks/{unit-lowercase}/ 2>/dev/null
+  {{TASK_DIR}}/{unit-lowercase}/ 2>/dev/null
 ```
 
 This extracts all acceptance criteria and checklist items from all task spec files in a single call. The output includes the filename (which encodes the task ID) and matching lines. Parse the output to group criteria by task ID.
 
-If the `docs/tasks/{unit-lowercase}/` directory is empty or doesn't exist, synthesize scenarios from task titles alone (titles are available in AUDIT_PROGRESS.json from Phase 1). When synthesizing from a title, tag every derived scenario with that task's ID prefix — e.g., if MOD-CONSOLE-003's title is "Right-click context menu on workspace row", all scenarios synthesized from that title carry `[MOD-CONSOLE-003]`.
+If the `{{TASK_DIR}}/{unit-lowercase}/` directory is empty or doesn't exist, synthesize scenarios from task titles alone (titles are available in AUDIT_PROGRESS.json from Phase 1). When synthesizing from a title, tag every derived scenario with that task's ID prefix — e.g., if MOD-CONSOLE-003's title is "Right-click context menu on workspace row", all scenarios synthesized from that title carry `[MOD-CONSOLE-003]`.
 
 For any task where the spec file appears to have no acceptance criteria in the grep output, synthesize scenarios from its title only using the same tagging rule above.
 
@@ -476,9 +476,9 @@ For each **failed** scenario AND each scenario marked **"browser_error"** (crash
    - Never: `MOD-CONSOLE-14` (missing leading zero) or `MOD-CONSOLE-0014` (4 digits)
 3. Ensure the task directory exists, then write the task file:
 ```bash
-mkdir -p docs/tasks/{unit-lowercase}
+mkdir -p {{TASK_DIR}}/{unit-lowercase}
 ```
-Write `docs/tasks/{unit-lowercase}/{TASK-ID}-uat-{slug}.md`:
+Write `{{TASK_DIR}}/{unit-lowercase}/{TASK-ID}-uat-{slug}.md`:
 
 ```markdown
 ---
@@ -543,10 +543,10 @@ Spec reference: {relevant task-ids that originally implemented this}
 
 Run bash to create state directories (required before writing):
 ```bash
-mkdir -p docs/state/{unit-lowercase}/{TASK-ID}/attempts
+mkdir -p {{STATE_DIR}}/{unit-lowercase}/{TASK-ID}/attempts
 ```
 
-Write `docs/state/{unit-lowercase}/{TASK-ID}/CURRENT.md` with this exact format (implement-agent's E3 reads `attempt:` to compute its attempt number — a missing or wrong value causes undefined behavior):
+Write `{{STATE_DIR}}/{unit-lowercase}/{TASK-ID}/CURRENT.md` with this exact format (implement-agent's E3 reads `attempt:` to compute its attempt number — a missing or wrong value causes undefined behavior):
 
 ```markdown
 ---
@@ -577,9 +577,9 @@ Do this as a fresh read-modify-write of AUDIT_PROGRESS.json (same pattern as Pha
 
 This keeps `queue[]` and `task_registry[]` in sync: the queue entry now reflects the total number of tasks added by UAT, so status displays and wave gating can account for UAT-sourced tasks correctly.
 
-Update `docs/state/INDEX.md` — find the row for this unit and increment its `Tasks` and `Pending` counts by the number of bug tasks created. Read the file, edit the matching row, write it back. Do not modify any other rows.
+Update `{{STATE_DIR}}/INDEX.md` — find the row for this unit and increment its `Tasks` and `Pending` counts by the number of bug tasks created. Read the file, edit the matching row, write it back. Do not modify any other rows.
 
-Update `docs/state/{unit-lowercase}/INDEX.md` — append one row per new bug task to the end of the task table (columns are `| Task | Title | Status | Attempts |`):
+Update `{{STATE_DIR}}/{unit-lowercase}/INDEX.md` — append one row per new bug task to the end of the task table (columns are `| Task | Title | Status | Attempts |`):
 ```
 | {TASK-ID} | {title} | pending | 0 |
 ```

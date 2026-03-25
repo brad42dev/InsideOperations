@@ -242,9 +242,9 @@ Check `docs/SPEC_MANIFEST.md` for the Wave 0 cross-cutting contracts matrix. Ide
 
 ## PHASE 3 — Implementation state
 
-Read `docs/state/{unit}/INDEX.md` for each relevant unit to get task status at a glance.
+Read `{{STATE_DIR}}/{unit}/INDEX.md` for each relevant unit to get task status at a glance.
 
-From the task list, identify which tasks relate to the topic area. Read at most 6 task spec files total — pick the most relevant by title. Find them at `docs/tasks/{unit-lowercase}/{task-id}*.md`.
+From the task list, identify which tasks relate to the topic area. Read at most 6 task spec files total — pick the most relevant by title. Find them at `{{TASK_DIR}}/{unit-lowercase}/{task-id}*.md`.
 
 For **verified tasks**: what was confirmed implemented? What's locked in?
 
@@ -358,7 +358,7 @@ Order by priority.>
   1. {{SPEC_DOCS_ROOT}}/<spec-file>.md § <section>
   2. design-docs/<doc>.md § <section>
   3. docs/decisions/<slug>.md
-  4. docs/tasks/<unit>/<task-id>.md (pending work that could conflict)
+  4. {{TASK_DIR}}/<unit>/<task-id>.md (pending work that could conflict)
 ```
 
 ---

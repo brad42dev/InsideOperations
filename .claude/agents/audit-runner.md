@@ -34,8 +34,8 @@ If the unit's manifest entry contains `⚠️ NOT SPECCED` for its primary spec:
 
 ### E2 — Record starting state
 
-Note: which catalog file will be written (`docs/catalogs/<unit-id>.md`) and which task directory will be written to (`docs/tasks/<unit-id-lowercase>/`).
-**CRITICAL:** Task files go in the LOWERCASE version of the unit ID — always. `DD-10` → `docs/tasks/dd-10/`. `MOD-CONSOLE` → `docs/tasks/mod-console/`. Never use the uppercase unit ID as a directory name. This is not optional.
+Note: which catalog file will be written (`{{CATALOG_DIR}}/<unit-id>.md`) and which task directory will be written to (`{{TASK_DIR}}/<unit-id-lowercase>/`).
+**CRITICAL:** Task files go in the LOWERCASE version of the unit ID — always. `DD-10` → `{{TASK_DIR}}/dd-10/`. `MOD-CONSOLE` → `{{TASK_DIR}}/mod-console/`. Never use the uppercase unit ID as a directory name. This is not optional.
 
 Check if the catalog file already exists. If it does, note its current modification time — you will use this to confirm a new write occurred.
 
@@ -49,8 +49,8 @@ Execute every phase of the `/audit` skill for this unit:
 - Phase 2: Read authoritative sources (spec + design-doc per relationship type)
 - Phase 3: Inspect code at all target code paths
 - Phase 4: Inject Wave 0 checks (if Wave 1–3 unit)
-- Phase 5: Write the catalog to `docs/catalogs/<unit-id>.md`
-- Phase 6: Write task files to `docs/tasks/<unit-id-lowercase>/`  ← LOWERCASE unit ID always
+- Phase 5: Write the catalog to `{{CATALOG_DIR}}/<unit-id>.md`
+- Phase 6: Write task files to `{{TASK_DIR}}/<unit-id-lowercase>/`  ← LOWERCASE unit ID always
 - Phase 7: Tally results
 
 Do not skip phases. Do not skim spec files. File + line evidence is required for every finding.
@@ -67,7 +67,7 @@ Do not skip phases. Do not skim spec files. File + line evidence is required for
 
 ### X1 — Verify catalog was written
 
-Use the Read tool on `docs/catalogs/<unit-id>.md`.
+Use the Read tool on `{{CATALOG_DIR}}/<unit-id>.md`.
 
 Confirm:
 - File is non-empty
@@ -77,7 +77,7 @@ If the read returns empty or file does not exist: retry the write once. If still
 
 ### X2 — Verify task files were written
 
-For each task file you wrote to `docs/tasks/<unit-id-lowercase>/`:
+For each task file you wrote to `{{TASK_DIR}}/<unit-id-lowercase>/`:
 - Use the Read tool to confirm the file exists and is non-empty
 - Confirm `id:` field in the frontmatter matches the expected task ID
 
@@ -97,7 +97,7 @@ Count:
 ```
 RESULT: SUCCESS
 UNIT: <unit-id>
-CATALOG: docs/catalogs/<unit-id>.md
+CATALOG: {{CATALOG_DIR}}/<unit-id>.md
 OVERALL: ✅ Clean | ⚠️ Gaps found | ❌ Major gaps
 TASKS_GENERATED: <N>
 TASKS_OPEN: <comma-separated task IDs, or NONE>

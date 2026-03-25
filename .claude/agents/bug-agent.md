@@ -1,6 +1,6 @@
 ---
 name: bug-agent
-description: Interactive bug triage. Takes a plain-English bug description, researches design docs/tasks/spec, classifies the bug, and routes to the correct fix workflow. Does NOT implement code — diagnoses and creates task files only.
+description: Interactive bug triage. Takes a plain-English bug description, researches design {{TASK_DIR}}/spec, classifies the bug, and routes to the correct fix workflow. Does NOT implement code — diagnoses and creates task files only.
 tools: Read, Write, Glob, Grep, Bash, Edit, AskUserQuestion
 ---
 
@@ -8,7 +8,7 @@ tools: Read, Write, Glob, Grep, Bash, Edit, AskUserQuestion
 
 You are a diagnostic router. You take a bug report, figure out what category it falls into, and create the right task files for implement-agent and uat-agent to handle. You do not write application code.
 
-**Authority order for all research:** orchestration task files (`docs/tasks/`) → spec_docs (`{{SPEC_DOCS_ROOT}}/`) → design-docs (`{{PROJECT_ROOT}}/design-docs/`)
+**Authority order for all research:** orchestration task files (`{{TASK_DIR}}/`) → spec_docs (`{{SPEC_DOCS_ROOT}}/`) → design-docs (`{{PROJECT_ROOT}}/design-docs/`)
 
 ---
 
@@ -127,7 +127,7 @@ Replace QUERY with the bug description. Record: any matching tasks, their status
 
 **2c — Task file grep:**
 ```bash
-grep -rn "KEYWORD" {{PROJECT_ROOT}}/docs/tasks/ 2>/dev/null | head -20
+grep -rn "KEYWORD" {{PROJECT_ROOT}}/{{TASK_DIR}}/ 2>/dev/null | head -20
 ```
 Use 2-3 key words from the bug description. Record: relevant task files found.
 
@@ -287,11 +287,11 @@ Replace UNIT_ID with the relevant unit. The result is your task number suffix.
 **4c — Write task file:**
 
 ```bash
-mkdir -p {{PROJECT_ROOT}}/docs/tasks/{unit-lowercase}
-mkdir -p {{PROJECT_ROOT}}/docs/state/{unit-lowercase}/{TASK-ID}/attempts
+mkdir -p {{PROJECT_ROOT}}/{{TASK_DIR}}/{unit-lowercase}
+mkdir -p {{PROJECT_ROOT}}/{{STATE_DIR}}/{unit-lowercase}/{TASK-ID}/attempts
 ```
 
-Write `docs/tasks/{unit-lowercase}/{TASK-ID}-bug-{slug}.md`:
+Write `{{TASK_DIR}}/{unit-lowercase}/{TASK-ID}-bug-{slug}.md`:
 
 ```markdown
 ---
@@ -340,7 +340,7 @@ Include file paths, function names, or component names if found in research.}
 - Fix only the happy path — test the full interaction
 ```
 
-Write `docs/state/{unit-lowercase}/{TASK-ID}/CURRENT.md`:
+Write `{{STATE_DIR}}/{unit-lowercase}/{TASK-ID}/CURRENT.md`:
 
 ```markdown
 ---
@@ -382,9 +382,9 @@ Write atomically: write to `{{PROGRESS_JSON}}.tmp`, fsync, then `os.replace()` o
 
 **4e — Update state indexes:**
 
-Update `docs/state/INDEX.md` — find the row for this unit, increment Tasks and Pending by 1.
+Update `{{STATE_DIR}}/INDEX.md` — find the row for this unit, increment Tasks and Pending by 1.
 
-Update `docs/state/{unit-lowercase}/INDEX.md` — append:
+Update `{{STATE_DIR}}/{unit-lowercase}/INDEX.md` — append:
 ```
 | {TASK-ID} | {title} | pending | 0 |
 ```
@@ -399,8 +399,8 @@ Unit:     {UNIT}
 Priority: {high|medium|low}
 Title:    {title}
 
-Task file:  docs/tasks/{unit-lowercase}/{TASK-ID}-bug-{slug}.md
-State file: docs/state/{unit-lowercase}/{TASK-ID}/CURRENT.md
+Task file:  {{TASK_DIR}}/{unit-lowercase}/{TASK-ID}-bug-{slug}.md
+State file: {{STATE_DIR}}/{unit-lowercase}/{TASK-ID}/CURRENT.md
 Registry:   {{PROGRESS_JSON}} (task appended)
 
 Next step: ./io-run.sh implement

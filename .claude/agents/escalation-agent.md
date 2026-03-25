@@ -19,13 +19,13 @@ REPO_ROOT: {{PROJECT_ROOT}}
 
 ### Step 1 — Read all attempt files
 
-Run: `ls docs/state/{unit}/{task-id}/attempts/`
-Read every attempt file found (`docs/state/{unit}/{task-id}/attempts/001.md`, `002.md`, etc.)
+Run: `ls {{STATE_DIR}}/{unit}/{task-id}/attempts/`
+Read every attempt file found (`{{STATE_DIR}}/{unit}/{task-id}/attempts/001.md`, `002.md`, etc.)
 Extract from each: `result`, "Why This Attempt Failed" section, "Files Modified" section, "Verification" section.
 
 ### Step 2 — Read the task spec
 
-Use the Read tool on `docs/tasks/{unit}/{task-id}.md` (glob if name uncertain).
+Use the Read tool on `{{TASK_DIR}}/{unit}/{task-id}.md` (glob if name uncertain).
 Extract: title, "Files to Create or Modify" list, Verification Checklist, "Do NOT" items.
 
 ### Step 3 — Count files in spec
@@ -45,7 +45,7 @@ Read the "Why This Attempt Failed" sections from all attempts. Look for:
 
 **MISSING_DEPENDENCY signals:**
 - Attempts fail with "cannot find module", "function does not exist", "API endpoint returns 404"
-- The missing thing is in `docs/tasks/` for another unit that is not yet verified
+- The missing thing is in `{{TASK_DIR}}/` for another unit that is not yet verified
 - Grep the codebase to confirm: `grep -r "missing_function_name" {{PROJECT_ROOT}}/frontend/src/` — if nothing found, it's genuinely missing
 
 **SCOPE_TOO_LARGE signals:**
