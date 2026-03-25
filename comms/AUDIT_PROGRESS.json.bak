@@ -187,7 +187,7 @@
     "MOD-CONSOLE-022": 1,
     "MOD-CONSOLE-025": 1,
     "MOD-CONSOLE-023": 2,
-    "MOD-DESIGNER-041": 0
+    "MOD-DESIGNER-041": 1
   },
   "queue": [
     {
@@ -5794,11 +5794,12 @@
       "id": "MOD-DESIGNER-041",
       "unit": "MOD-DESIGNER",
       "title": "PointContextMenu does not fire in test mode for point-bound display elements",
-      "status": "implementing",
+      "status": "verified",
       "priority": "high",
       "depends_on": [],
       "source": "uat",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": null
     }
   ],
   "audit_round": 9,

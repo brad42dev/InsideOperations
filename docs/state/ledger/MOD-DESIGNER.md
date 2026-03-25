@@ -34,3 +34,4 @@ MOD-DESIGNER-033 | Point context menu items missing from display element right-c
 MOD-DESIGNER-034 | Group editing does not open a sub-tab in the Designer tab bar | verified 2026-03-24 | commit 4664f0f | npx tsc --noEmit | PASS
 MOD-DESIGNER-035 | Canvas drag ghost missing — no preview when dragging shape on canvas | verified 2026-03-24 | commit 9e3904c | cd frontend && npx tsc --noEmit | PASS
 MOD-DESIGNER-036 | "View Alerts" added to display element point context menu | verified 2026-03-24 | commit 09ea2c1 | npx tsc --noEmit | PASS
+MOD-DESIGNER-041 | PointContextMenu does not fire in test mode for point-bound display elements | verified 2026-03-25 | commit 8db82b8 | npx tsc --noEmit | PASS
