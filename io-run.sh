@@ -1062,6 +1062,98 @@ run_parallel_uat() {
     done
 }
 
+# ── Parallel Audit Runner ────────────────────────────────────────────────────
+# Output variables set by run_parallel_audit:
+#   _RPA_CLAIMED  — number of units claimed (launched) this call
+_RPA_CLAIMED=0
+
+# Launch up to N parallel audit agents, each claiming an independent unit from SQLite.
+# Waits for all agents. Runs in the main repo (no worktree — audit makes no git commits).
+# Usage: run_parallel_audit <N>
+run_parallel_audit() {
+    _RPA_CLAIMED=0
+    local max_agents="${1:-1}"
+    local _hard_cap="${CFG_MAX_PARALLEL:-5}"
+    if [ "$max_agents" -gt "$_hard_cap" ]; then
+        echo "  ⚠ Capping parallel audit agents at ${_hard_cap} (requested ${max_agents})"
+        max_agents=$_hard_cap
+    fi
+
+    reclaim_stale_units
+
+    local agent_pids=()
+    local agent_units=()
+
+    for i in $(seq 1 "$max_agents"); do
+        local unit_id
+        unit_id=$(claim_next_unit "io-audit-$$-${i}") || {
+            echo "  WARNING: claim_next_unit failed (SQLite timeout or error) — stopping agent launch" >&2
+            break
+        }
+        if [ -z "$unit_id" ]; then
+            echo "  No more units eligible for audit (claimed $((i - 1)) of ${max_agents})"
+            break
+        fi
+
+        echo "  Audit agent ${i}: claimed unit ${unit_id}"
+        local agent_file
+        agent_file=$(expand_agent_to_tmp "audit-orchestrator")
+        local _this_audit_tmp="$_AGENT_TMP_DIR"
+        # Capture unit_id for the subshell — subshell inherits the value at fork time
+        local _this_unit="$unit_id"
+        # Launch audit-orchestrator in main repo (no worktree — audit reads source files
+        # and writes to unit-specific docs/tasks/ and docs/catalogs/ dirs, no git commits).
+        # "audit force {unit} 1" = audit exactly this unit and exit.
+        local pid
+        pid=$(
+            (
+                _exit=0
+                _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
+                timeout "${_timeout_min}m" \
+                    claude --dangerously-skip-permissions \
+                           --agent "$agent_file" \
+                           --print "audit force ${_this_unit} 1" < /dev/null \
+                    || _exit=$?
+                if [ "$_exit" -eq 124 ]; then
+                    echo "  ✗ Audit unit ${_this_unit}: agent timed out after ${_timeout_min}m" >&2
+                fi
+                release_unit_claim "$_this_unit"
+                rm -rf "$_this_audit_tmp" 2>/dev/null || true
+                exit "$_exit"
+            ) >&2 &
+            echo $!
+        )
+        agent_pids+=("$pid")
+        agent_units+=("$unit_id")
+        echo "  Audit agent ${i}: PID ${pid}"
+    done
+
+    _RPA_CLAIMED=${#agent_pids[@]}
+
+    if [ "$_RPA_CLAIMED" -eq 0 ]; then
+        echo "  No units claimed — nothing to audit."
+        return 0
+    fi
+
+    echo ""
+    echo "  Running ${#agent_pids[@]} audit agent(s) in parallel..."
+
+    for idx in "${!agent_pids[@]}"; do
+        local pid="${agent_pids[$idx]}"
+        local unit_id="${agent_units[$idx]}"
+        if wait "$pid"; then
+            echo "  ✅ Audit agent PID ${pid} (unit ${unit_id}) — completed"
+        else
+            local exit_code=$?
+            if [ "$exit_code" -eq 124 ]; then
+                echo "  ✗ Audit agent PID ${pid} (unit ${unit_id}) — timed out"
+            else
+                echo "  ❌ Audit agent PID ${pid} (unit ${unit_id}) — failed (exit ${exit_code})"
+            fi
+        fi
+    done
+}
+
 # ── Wave 3: Parallel Orchestrator ────────────────────────────────────────────
 # Output variables set by run_parallel_implement:
 #   _RPI_CLAIMED  — number of tasks claimed (launched) this call
@@ -1981,7 +2073,7 @@ if [[ "$MODE" != "implement" && "$MODE" != "audit" && "$MODE" != "full" ]]; then
 fi
 
 # implement: P = parallel agents, T = task limit (0 = unlimited)
-# audit/full: ARG2 = number of rounds
+# audit/full: P = parallel agents (default 1 for backwards compat), N = unit limit or round count
 if [ "$MODE" = "implement" ]; then
     PARALLEL=${ARG2:-${CFG_MAX_PARALLEL:-3}}
     TASK_LIMIT=${ARG3:-0}
@@ -2000,12 +2092,33 @@ if [ "$MODE" = "implement" ]; then
     fi
     COUNT=0  # unused in implement mode (SQLite claim loop runs until depleted)
 else
-    COUNT=${ARG2:-${CFG_CHECKPOINT_EVERY:-5}}
-    if ! [[ "$COUNT" =~ ^[0-9]+$ ]] || [ "$COUNT" -lt 1 ]; then
-        echo "Count must be a positive integer"
+    # P = parallel agents (default 1 — serial, backwards compat with old COUNT behavior)
+    PARALLEL=${ARG2:-1}
+    if ! [[ "$PARALLEL" =~ ^[0-9]+$ ]] || [ "$PARALLEL" -lt 1 ]; then
+        echo "Parallel agent count must be a positive integer"
         exit 1
     fi
-    PARALLEL=1
+    _MAX_SAFE=${CFG_MAX_PARALLEL:-5}
+    if [ "$PARALLEL" -gt "$_MAX_SAFE" ]; then
+        echo "⚠ Capping parallel audit agents at ${_MAX_SAFE} (requested ${PARALLEL})"
+        PARALLEL=$_MAX_SAFE
+    fi
+    if [ "$PARALLEL" -eq 1 ]; then
+        # Serial mode: COUNT = number of orchestrator rounds (unit: one per round)
+        COUNT=${ARG3:-${CFG_CHECKPOINT_EVERY:-5}}
+        if ! [[ "$COUNT" =~ ^[0-9]+$ ]] || [ "$COUNT" -lt 1 ]; then
+            echo "Count must be a positive integer"
+            exit 1
+        fi
+    else
+        # Parallel mode: AUDIT_UNIT_LIMIT = total units to audit (0 = unlimited)
+        AUDIT_UNIT_LIMIT=${ARG3:-0}
+        if ! [[ "$AUDIT_UNIT_LIMIT" =~ ^[0-9]+$ ]]; then
+            echo "Unit limit must be a non-negative integer (0 = unlimited)"
+            exit 1
+        fi
+        COUNT=999999  # effectively unlimited; loop breaks on no-work or unit-limit
+    fi
     TASK_LIMIT=0
 fi
 
@@ -2026,6 +2139,12 @@ if [ "$MODE" = "implement" ]; then
     LIMIT_MSG="unlimited tasks"
     [ "$TASK_LIMIT" -gt 0 ] && LIMIT_MSG="${TASK_LIMIT} task(s) total"
     echo "Starting implement — up to ${PARALLEL} agent(s) in parallel, ${LIMIT_MSG}"
+elif [ "$PARALLEL" -gt 1 ] && [ "$MODE" = "audit" ]; then
+    AUDIT_LIMIT_MSG="unlimited units"
+    [ "${AUDIT_UNIT_LIMIT:-0}" -gt 0 ] && AUDIT_LIMIT_MSG="${AUDIT_UNIT_LIMIT} unit(s) total"
+    echo "Starting audit — up to ${PARALLEL} agent(s) in parallel, ${AUDIT_LIMIT_MSG}"
+elif [ "$PARALLEL" -gt 1 ] && [ "$MODE" = "full" ]; then
+    echo "Starting full — up to ${PARALLEL} parallel audit agent(s) then ${PARALLEL} parallel implement agent(s)"
 else
     echo "Starting $MODE — $COUNT round(s)"
 fi
@@ -2161,8 +2280,9 @@ except Exception as e:
     fi
 
     # Run one round with fresh context.
-    # implement: parallel agents, respecting remaining task budget.
-    # audit/full: serial orchestrator (one unit at a time, coordinates sub-agents).
+    # implement:          parallel agents, respecting remaining task budget.
+    # audit/full P>1:     parallel audit agents (and implement for full) per round.
+    # audit/full P==1:    serial orchestrator (one unit at a time, coordinates sub-agents).
     ORCH_EXIT=0
     if [ "$MODE" = "implement" ]; then
         TO_CLAIM="$PARALLEL"
@@ -2176,7 +2296,27 @@ except Exception as e:
             echo "No claimable tasks — all remaining tasks may be blocked on dependencies."
             break
         fi
+    elif [ "$PARALLEL" -gt 1 ] && [ "$MODE" = "audit" ]; then
+        run_parallel_audit "$PARALLEL" || ORCH_EXIT=$?
+        TASKS_DONE=$((TASKS_DONE + _RPA_CLAIMED))
+        if [ "$_RPA_CLAIMED" -eq 0 ]; then
+            echo "No units eligible for audit."
+            break
+        fi
+        if [ "${AUDIT_UNIT_LIMIT:-0}" -gt 0 ] && [ "$TASKS_DONE" -ge "$AUDIT_UNIT_LIMIT" ]; then
+            echo "Audit unit limit reached (${TASKS_DONE}/${AUDIT_UNIT_LIMIT})."
+            break
+        fi
+    elif [ "$PARALLEL" -gt 1 ] && [ "$MODE" = "full" ]; then
+        # full parallel: audit a batch then implement a batch
+        run_parallel_audit "$PARALLEL" || ORCH_EXIT=$?
+        run_parallel_implement "$PARALLEL" || ORCH_EXIT=$?
+        if [ "$_RPA_CLAIMED" -eq 0 ] && [ "$_RPI_CLAIMED" -eq 0 ]; then
+            echo "No units or tasks available."
+            break
+        fi
     else
+        # Serial audit/full: single orchestrator session per round (current behavior)
         claude --dangerously-skip-permissions --agent "$ORCH_AGENT_FILE" --print "$MODE 1" || ORCH_EXIT=$?
     fi
 

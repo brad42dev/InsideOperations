@@ -172,7 +172,7 @@ UPDATE io_queue SET claimed_at=NULL, claimed_by=NULL WHERE unit=?
 ---
 
 ## Wave 3 — Parallel audit: runner + CLI
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: HIGH — depends on Wave 2**
 
 ### What to add to `io-run.sh`
@@ -243,14 +243,14 @@ that aborts parallel audit if there are uncommitted changes that could create co
 
 ### Acceptance criteria
 
-- [ ] `./io-run.sh audit 3` launches 3 parallel audit agents on 3 different units
-- [ ] `./io-run.sh audit 3 6` audits at most 6 units using up to 3 agents at a time
-- [ ] `./io-run.sh audit` (no args) behaves identically to current behavior
-- [ ] `./io-run.sh full 2` runs 2 parallel audit agents then 2 parallel implement agents
-- [ ] Two audit agents never claim the same unit simultaneously
-- [ ] Stale claimed units are reclaimed before each batch
-- [ ] Audit agents do NOT commit to git (verified by reading audit-runner.md)
-- [ ] `bash -n io-run.sh` passes clean
+- [x] `./io-run.sh audit 3` launches 3 parallel audit agents on 3 different units
+- [x] `./io-run.sh audit 3 6` audits at most 6 units using up to 3 agents at a time
+- [x] `./io-run.sh audit` (no args) behaves identically to current behavior
+- [x] `./io-run.sh full 2` runs 2 parallel audit agents then 2 parallel implement agents
+- [x] Two audit agents never claim the same unit simultaneously (SQLite BEGIN IMMEDIATE from Wave 2)
+- [x] Stale claimed units are reclaimed before each batch (reclaim_stale_units() called at top of run_parallel_audit)
+- [x] Audit agents do NOT commit to git (verified: audit-runner.md contains no git commit/add/push commands)
+- [x] `bash -n io-run.sh` passes clean
 
 ---
 
