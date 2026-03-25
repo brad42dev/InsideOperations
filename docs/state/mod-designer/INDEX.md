@@ -38,3 +38,8 @@
 | MOD-DESIGNER-034 | Group editing does not open a sub-tab in the Designer tab bar | pending | 0 |
 | MOD-DESIGNER-035 | Canvas drag ghost missing — no preview when dragging shape on canvas | pending | 0 |
 | MOD-DESIGNER-036 | "View Alerts" missing from display element point context menu | pending | 0 |
+| MOD-DESIGNER-037 | Opening second graphic via File→New does not create a second file tab | pending | 0 |
+| MOD-DESIGNER-038 | Drag ghost verification blocked — backend /api/v1/design-objects returns 429 | pending | 0 |
+| MOD-DESIGNER-039 | TextBlock node context menu text-specific items need manual verification | pending | 0 |
+| MOD-DESIGNER-040 | Shape palette tile right-click places element instead of showing context menu | pending | 0 |
+| MOD-DESIGNER-041 | PointContextMenu does not fire in test mode for point-bound display elements | pending | 0 |

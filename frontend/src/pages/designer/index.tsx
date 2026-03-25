@@ -765,10 +765,16 @@ export default function DesignerPage() {
         }
         // Update graphicId in store via loadGraphic (sets graphicId in scene state)
         loadGraphic(resp.data.data.id, currentDoc)
-        // Upgrade the 'new' placeholder tab to the real server-assigned graphicId
-        const newTab = useTabStore.getState().findTabByGraphicId('new')
-        if (newTab) {
-          tabStoreSetGraphicId(newTab.id, resp.data.data.id, docName)
+        // Upgrade the active placeholder tab to the real server-assigned graphicId.
+        // We use activeTabId here because: (a) the active tab IS the one being saved,
+        // (b) multiple unsaved tabs each get a unique 'new-<uuid>' placeholder so we
+        //     cannot reliably search by the old static 'new' string.
+        const activeTabId = useTabStore.getState().activeTabId
+        if (activeTabId) {
+          const activeTabRecord = useTabStore.getState().getTab(activeTabId)
+          if (activeTabRecord && activeTabRecord.graphicId.startsWith('new-')) {
+            tabStoreSetGraphicId(activeTabId, resp.data.data.id, docName)
+          }
         }
       }
       markClean()
@@ -1137,12 +1143,34 @@ export default function DesignerPage() {
     setActiveGroup(null)
 
     if (incomingTab.savedScene) {
-      // Restore from cached scene
-      loadGraphic(incomingTab.graphicId, incomingTab.savedScene.scene)
-      historyClear()
+      // Restore from cached scene.
+      // For unsaved tabs (placeholder graphicId starting with 'new-'), we must NOT
+      // call loadGraphic(placeholderId, ...) because that would set graphicId to the
+      // placeholder string in sceneStore, causing the save flow to attempt an update
+      // (PUT) instead of a create (POST). Instead, restore the doc directly and keep
+      // graphicId null so the save path correctly creates a new server record.
+      if (incomingTab.graphicId.startsWith('new-')) {
+        const savedDoc = incomingTab.savedScene.scene
+        useSceneStore.setState({
+          doc: savedDoc,
+          graphicId: null,
+          isDirty: true,
+          designMode: savedDoc.metadata.designMode,
+          version: 0,
+        })
+        historyClear()
+      } else {
+        loadGraphic(incomingTab.graphicId, incomingTab.savedScene.scene)
+        historyClear()
+      }
       setViewport(incomingTab.viewport)
     } else {
-      // First time loading this tab
+      // First time loading this tab — either a saved graphic (fetch from server) or a
+      // brand-new unsaved tab whose scene is still live in sceneStore (the user created
+      // the graphic and immediately clicked away before any switch happened). In the
+      // latter case the placeholder graphicId would never get here (savedScene is only
+      // null for tabs that have never been the outgoing tab in switchToTab), so we
+      // only reach this branch for real server-side graphics.
       setLoading(true)
       setLoadError(null)
       try {
@@ -1201,8 +1229,22 @@ export default function DesignerPage() {
           setViewport(nextTab.viewport)
           setActiveGroup(nextTab.groupNodeId ?? null)
         } else if (nextTab?.savedScene) {
-          loadGraphic(nextTab.graphicId, nextTab.savedScene.scene)
-          historyClear()
+          // Same unsaved-tab guard as in switchToTab: placeholder IDs must not be
+          // passed into loadGraphic or the save flow will try PUT instead of POST.
+          if (nextTab.graphicId.startsWith('new-')) {
+            const savedDoc = nextTab.savedScene.scene
+            useSceneStore.setState({
+              doc: savedDoc,
+              graphicId: null,
+              isDirty: true,
+              designMode: savedDoc.metadata.designMode,
+              version: 0,
+            })
+            historyClear()
+          } else {
+            loadGraphic(nextTab.graphicId, nextTab.savedScene.scene)
+            historyClear()
+          }
           setViewport(nextTab.viewport)
           setActiveGroup(null)
         } else if (nextTab) {
@@ -1477,8 +1519,9 @@ export default function DesignerPage() {
     newDocument(mode, name, width, height, autoHeight)
     historyClear()
     setShowNewDialog(false)
-    // Register a placeholder tab so the file tab bar is visible before the first save
-    tabStoreOpenTab('new', name)
+    // Register a placeholder tab with a unique ID so that opening multiple new graphics
+    // each gets its own tab (the static 'new' string caused idempotency collisions).
+    tabStoreOpenTab('new-' + crypto.randomUUID(), name)
   }
 
   function handleNewCancel() {
