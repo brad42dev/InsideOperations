@@ -4900,6 +4900,7 @@ function DesignerContextMenuContent({
   const navigate = useNavigate()
   const canForensics = usePermission('forensics:read')
   const canReports = usePermission('reports:read')
+  const testMode = useUiStore(s => s.testMode)
 
   // ctxNodeId is React state (not just a ref) so this component re-renders
   // with the correct value every time the context menu is triggered.
@@ -5786,13 +5787,35 @@ function DesignerContextMenuContent({
               </>
             )}
 
-            {/* Widget-specific items (§6.12) */}
+            {/* Widget-specific items (§6.12, RC-DES-12) */}
             {widgetNode && (
               <>
                 <ContextMenuPrimitive.Separator style={sepStyle} />
                 <ContextMenuPrimitive.Item style={itemStyle}
                   onSelect={() => { /* focuses right panel — already shows widget config when selected */ }}>
                   Configure Widget…
+                </ContextMenuPrimitive.Item>
+                {/* Refresh Data — only meaningful in test mode; disabled in design mode */}
+                <ContextMenuPrimitive.Item
+                  style={{ ...itemStyle, ...(testMode ? {} : { opacity: 0.4 }) }}
+                  disabled={!testMode}
+                  onSelect={() => {
+                    if (!nodeId) return
+                    document.dispatchEvent(new CustomEvent('io:widget-refresh', { detail: { nodeId } }))
+                  }}
+                >
+                  Refresh Data
+                </ContextMenuPrimitive.Item>
+                {/* Detach from Dashboard — grayed (not hidden) when no dashboard binding */}
+                <ContextMenuPrimitive.Item
+                  style={{ ...itemStyle, ...(!widgetNode.dashboardSourceId ? { opacity: 0.4 } : {}) }}
+                  disabled={!widgetNode.dashboardSourceId}
+                  onSelect={() => {
+                    if (!nodeId || !widgetNode.dashboardSourceId) return
+                    executeCmd(new ChangePropertyCommand(nodeId, 'dashboardSourceId', undefined, widgetNode.dashboardSourceId))
+                  }}
+                >
+                  Detach from Dashboard
                 </ContextMenuPrimitive.Item>
               </>
             )}

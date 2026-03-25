@@ -617,6 +617,8 @@ export interface WidgetNode extends SceneNodeBase {
   config: WidgetConfig
   gridSpan?: { cols: number; rows: number }
   phonePriority?: number
+  /** ID of the dashboard this widget is bound to; undefined when standalone */
+  dashboardSourceId?: string
 }
 
 // ---- EmbeddedSvgNode ----
