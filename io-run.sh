@@ -423,6 +423,64 @@ con.close()
 PYEOF
 }
 
+# Launch catcher agents fire-and-forget for pending tasks without context packages.
+# Each catcher reads the task spec + current code and writes comms/context/{task_id}.md.
+# Catchers are launched in the background — we do NOT wait for them.
+# implement-agent will use the context package if present when it starts.
+# Usage: launch_catchers <n_max> <catcher_agent_file>
+launch_catchers() {
+    local n_max="$1"
+    local agent_file="$2"
+    local ctx_dir="$REPO/${CFG_COMMS_DIR:-comms}/context"
+    mkdir -p "$ctx_dir"
+
+    # Get up to n_max pending tasks that haven't been enriched yet
+    local task_ids
+    task_ids=$(python3 - "$REPO/$DB_FILE" "$n_max" <<'PYEOF' 2>/dev/null || true
+import sqlite3, sys
+from pathlib import Path
+db = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+n = int(sys.argv[2]) if len(sys.argv) > 2 else 3
+if not db.exists():
+    sys.exit(0)
+con = sqlite3.connect(db, timeout=5)
+try:
+    rows = con.execute("""
+        SELECT id FROM io_tasks
+        WHERE status IN ('pending', 'failed')
+          AND context_enriched_at IS NULL
+          AND spec_body IS NOT NULL
+        ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, id
+        LIMIT ?
+    """, (n,)).fetchall()
+    print("\n".join(r[0] for r in rows))
+except Exception:
+    pass  # context_enriched_at column may not exist on old DBs — safe no-op
+con.close()
+PYEOF
+    ) || true
+
+    [ -z "$task_ids" ] && return 0
+
+    local launched=0
+    while IFS= read -r task_id; do
+        [ -z "$task_id" ] && continue
+        # Skip if context package already exists on disk (double-check beyond DB)
+        [ -f "$ctx_dir/${task_id}.md" ] && continue
+        (
+            claude --dangerously-skip-permissions \
+                   --model claude-haiku-4-5-20251001 \
+                   --agent "$agent_file" \
+                   --print "TASK_ID: ${task_id}" \
+                   < /dev/null > "/tmp/io-catcher-${task_id}.log" 2>&1
+        ) &
+        launched=$((launched + 1))
+    done <<< "$task_ids"
+
+    [ "$launched" -gt 0 ] && echo "  🔍 Launched ${launched} catcher(s) in background (enriching context packages)"
+    return 0
+}
+
 # Reclaim stale tasks stuck in 'implementing' status.
 # A task is stale if claimed_at is older than CFG_STALE_MINUTES AND
 # the CURRENT.md heartbeat file has not been updated within that window.
@@ -1116,6 +1174,32 @@ from datetime import datetime, timezone
 
 ni_files = glob.glob(f"{NI_DIR}/*.md")
 stale_files = glob.glob(f"{NI_DIR}/stale/*.md")
+# ── context enrichment and utilization (D1/D2) ────────────────────────────────
+try:
+    con2 = sqlite3.connect(DB_FILE, timeout=5)
+    enriched = con2.execute(
+        "SELECT COUNT(*) FROM io_tasks WHERE context_enriched_at IS NOT NULL"
+    ).fetchone()[0]
+    unenriched = con2.execute(
+        "SELECT COUNT(*) FROM io_tasks WHERE status IN ('pending','failed') AND context_enriched_at IS NULL"
+    ).fetchone()[0]
+    try:
+        avg_util = con2.execute(
+            "SELECT AVG(context_utilization_pct) FROM io_task_attempts WHERE context_utilization_pct IS NOT NULL"
+        ).fetchone()[0]
+    except Exception:
+        avg_util = None
+    con2.close()
+    if enriched > 0 or unenriched > 0:
+        print(f"")
+        print(f"Context Enrichment")
+        print(f"  enriched tasks : {enriched}")
+        print(f"  pending (none) : {unenriched}")
+        if avg_util is not None:
+            print(f"  avg ctx util   : {avg_util:.1f}%")
+except Exception:
+    pass  # columns may not exist on old schema — safe no-op
+
 if ni_files or stale_files:
     print(f"")
     print(f"  Pending Questions ({len(ni_files)} active, {len(stale_files)} auto-escalated)")
@@ -1468,9 +1552,18 @@ if [ "$MODE" = "auto" ]; then
     CONSECUTIVE_ZERO_VERIFIED=0
     _MAX_ZERO_WAVES=${CFG_MAX_ZERO_WAVES:-3}
 
+    # D1: Pre-expand catcher agent once for all batches (fire-and-forget enrichment)
+    CATCHER_AGENT_FILE=""
+    _CATCHER_AGENT_TMP=""
+    if [ -f "$REPO/.claude/agents/catcher-agent.md" ]; then
+        CATCHER_AGENT_FILE=$(expand_agent_to_tmp "catcher-agent") || CATCHER_AGENT_FILE=""
+        _CATCHER_AGENT_TMP="$_AGENT_TMP_DIR"
+    fi
+
     echo ""
     echo "Starting auto mode — proportional implement+UAT dispatch until complete"
     echo "Max parallel agents: ${AUTO_PARALLEL}  |  kill switch after ${_MAX_ZERO_WAVES} consecutive zero batches"
+    [ -n "$CATCHER_AGENT_FILE" ] && echo "Context pre-enrichment: enabled (catcher-agent)"
     echo "Ctrl+C stops between batches."
     echo ""
 
@@ -1486,6 +1579,11 @@ if [ "$MODE" = "auto" ]; then
         # Reclaim stale tasks before counting pending work
         reclaim_stale_tasks
         run_unblock_pass
+
+        # D1: Fire-and-forget catcher agents for unenriched pending tasks
+        if [ -n "$CATCHER_AGENT_FILE" ]; then
+            launch_catchers "$AUTO_PARALLEL" "$CATCHER_AGENT_FILE" || true
+        fi
 
         # ── C1: Count pending work for both types ─────────────────────────────
         PENDING_IMPL=$(get_pending_work_count)
@@ -1637,6 +1735,8 @@ PYEOF
     else
         echo "Auto mode finished."
     fi
+    # Cleanup catcher agent temp dir
+    rm -rf "${_CATCHER_AGENT_TMP:-}" 2>/dev/null || true
     echo ""
     "$0" status
     echo ""

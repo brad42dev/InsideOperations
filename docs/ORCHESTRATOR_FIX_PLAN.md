@@ -279,7 +279,7 @@ Add `CFG_MAX_ZERO_WAVES=3` to config and both load_config fallback blocks.
 ---
 
 ## Wave D — Catcher Agent + Context Package Pre-computation
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: MEDIUM — efficiency improvement; not blocking**
 
 ### D1: Catcher Agent
@@ -313,11 +313,11 @@ ALTER TABLE io_tasks ADD COLUMN context_enriched_at TEXT;  -- ISO timestamp; NUL
 Add via `--upgrade` in `migrate_to_sqlite.py`.
 
 **Acceptance criteria:**
-- [ ] `.claude/agents/catcher-agent.md` exists with full agent protocol
-- [ ] `comms/context/` directory used for pre-computed context packages
-- [ ] Catcher launched fire-and-forget for pending tasks without context packages
-- [ ] implement-agent prepends context package if available
-- [ ] `context_enriched_at` column tracks enrichment timestamp
+- [x] `.claude/agents/catcher-agent.md` exists with full agent protocol
+- [x] `comms/context/` directory used for pre-computed context packages
+- [x] Catcher launched fire-and-forget for pending tasks without context packages
+- [x] implement-agent prepends context package if available
+- [x] `context_enriched_at` column tracks enrichment timestamp
 
 ---
 
@@ -338,17 +338,17 @@ context_utilization_pct   REAL       -- final/max * 100
 Write context metrics if available (claude doesn't expose exact token counts directly, but utilization % is shown in context bar — agent should record approximate value if visible).
 
 **Acceptance criteria:**
-- [ ] Columns exist in schema and --upgrade path
-- [ ] implement-agent writes approximate utilization if detectable
-- [ ] `./io-run.sh status` shows average context utilization across recent attempts
+- [x] Columns exist in schema and --upgrade path
+- [x] implement-agent writes approximate utilization if detectable
+- [x] `./io-run.sh status` shows average context utilization across recent attempts
 
 ---
 
 ### Wave D Completion Checklist
-- [ ] D1 catcher agent written and wired
-- [ ] D2 context columns in schema + --upgrade
-- [ ] status command shows context metrics
-- [ ] Update this file: mark Wave D complete
+- [x] D1 catcher agent written and wired
+- [x] D2 context columns in schema + --upgrade
+- [x] status command shows context metrics
+- [x] Update this file: mark Wave D complete
 
 ---
 

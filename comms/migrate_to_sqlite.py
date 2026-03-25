@@ -280,9 +280,16 @@ def upgrade_schema() -> int:
 
     # io_tasks new columns
     new_task_cols = [
-        ("answer_file",     "TEXT"),
-        ("decomposed_from", "TEXT"),
-        ("decomposed_into", "TEXT DEFAULT '[]'"),
+        ("answer_file",          "TEXT"),
+        ("decomposed_from",      "TEXT"),
+        ("decomposed_into",      "TEXT DEFAULT '[]'"),
+        ("context_enriched_at",  "TEXT"),   # D1: catcher enrichment timestamp
+    ]
+    # io_task_attempts new columns (D2: context utilization metrics)
+    new_attempts_cols = [
+        ("context_injection_tokens", "INTEGER"),
+        ("context_final_tokens",     "INTEGER"),
+        ("context_utilization_pct",  "REAL"),
     ]
     # io_queue new columns
     new_queue_cols = [
@@ -310,6 +317,14 @@ def upgrade_schema() -> int:
             con.execute(f"ALTER TABLE io_queue ADD COLUMN {col} {typedef}")
             added += 1
             print(f"  + io_queue.{col}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+    for col, typedef in new_attempts_cols:
+        try:
+            con.execute(f"ALTER TABLE io_task_attempts ADD COLUMN {col} {typedef}")
+            added += 1
+            print(f"  + io_task_attempts.{col}")
         except sqlite3.OperationalError:
             pass  # column already exists
 

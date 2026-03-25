@@ -142,6 +142,25 @@ Read the entire file. Extract:
 - "Do NOT" items
 - `depends-on` field — confirm all dependencies are verified before proceeding
 
+### E5b — Load pre-computed context package (if available)
+
+Check for a pre-enriched context package written by the catcher agent:
+
+```bash
+ls "{{PROJECT_ROOT}}/comms/context/{TASK_ID}.md" 2>/dev/null && echo EXISTS || echo MISSING
+```
+
+If the file EXISTS: use the Read tool to read it. Append to Work Log:
+```
+- {timestamp} — Loaded context package: {{PROJECT_ROOT}}/comms/context/{TASK_ID}.md
+```
+
+If MISSING: continue — self-discover as normal.
+
+This step is optional — the context package summarizes the task spec and current code state to reduce your discovery overhead. It does not replace reading the full spec (E5).
+
+---
+
 ### E5a — Load pre-answered questions (if ANSWERED_QUESTIONS provided)
 
 If `ANSWERED_QUESTIONS` was provided in your input: use the Read tool on that file now, before writing any code. Parse every `## Round N` block. Hold all Q&A pairs in working memory for the duration of this task.
@@ -459,6 +478,36 @@ if db.exists() and tmp.exists():
             con.commit()
         except Exception:
             pass  # io_task_files may not exist yet — backwards compatible
+        finally:
+            con.close()
+```
+
+### X1c — Record context utilization (D2)
+
+If context utilization percentage was visible in the context bar during this session, record it in the task attempts table. This is best-effort — skip if not detectable.
+
+```python
+import sqlite3
+from pathlib import Path
+db = Path("{{REGISTRY_DB}}")
+if db.exists():
+    # Estimate from visible context utilization if you observed it during the session.
+    # If you did not see a context percentage, set utilization_pct = None and skip.
+    utilization_pct = None  # replace with observed value, e.g. 72.5, if visible
+    if utilization_pct is not None:
+        con = sqlite3.connect(str(db), timeout=10)
+        con.execute("PRAGMA journal_mode=WAL")
+        try:
+            # Update the most recent attempt row for this task
+            con.execute("""
+                UPDATE io_task_attempts
+                SET context_utilization_pct = ?
+                WHERE task_id = ?
+                  AND id = (SELECT MAX(id) FROM io_task_attempts WHERE task_id = ?)
+            """, (utilization_pct, "{TASK_ID}", "{TASK_ID}"))
+            con.commit()
+        except Exception:
+            pass  # columns may not exist on old DBs — safe no-op
         finally:
             con.close()
 ```

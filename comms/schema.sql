@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS io_tasks (
     answer_file                TEXT,                -- path to answers file for needs_input tasks
     decomposed_from            TEXT,                -- parent task ID if this is a sub-task
     decomposed_into            TEXT DEFAULT '[]',   -- JSON array of sub-task IDs (set on the original task)
+    context_enriched_at        TEXT,                -- ISO-8601; NULL if catcher has not yet enriched this task
     created_at                 TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at                 TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -36,7 +37,10 @@ CREATE TABLE IF NOT EXISTS io_task_attempts (
     finished_at     TEXT,
     result          TEXT,
     notes           TEXT,
-    changed_files   TEXT DEFAULT '[]'   -- JSON array
+    changed_files   TEXT DEFAULT '[]',  -- JSON array
+    context_injection_tokens  INTEGER,  -- approx tokens at session start (D2)
+    context_final_tokens      INTEGER,  -- approx tokens at session end (D2)
+    context_utilization_pct   REAL      -- final/max * 100 (D2)
 );
 
 -- Per-unit audit queue. Tracks audit status and wave-gate state.
