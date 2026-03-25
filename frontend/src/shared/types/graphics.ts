@@ -342,6 +342,8 @@ export interface Group extends SceneNodeBase {
 
 export type AnnotationType = 'callout' | 'dimension_line' | 'north_arrow' | 'legend' | 'border' | 'title_block' | 'section_break' | 'page_break' | 'header' | 'footer'
 
+export type AnnotationStyle = 'note' | 'warning' | 'info'
+
 export interface CalloutConfig {
   annotationType: 'callout'
   text: string
@@ -456,6 +458,7 @@ export type AnnotationConfig =
 export interface Annotation extends SceneNodeBase {
   type: 'annotation'
   annotationType: AnnotationType
+  annotationStyle?: AnnotationStyle  // default: 'note'
   width: number
   height: number
   config: AnnotationConfig

@@ -1029,9 +1029,16 @@ function RenderNode({
           const cCfg = an.config as import('../../shared/types/graphics').CalloutConfig
           const cFs = cCfg.fontSize ?? 11
           const cPad = cCfg.padding ?? 6
-          const cBg = cCfg.backgroundColor ?? '#27272A'
-          const cBorder = cCfg.borderColor ?? '#3F3F46'
-          const cFill = cCfg.fill ?? '#F4F4F5'
+          // annotationStyle drives default colors: note=gray, warning=amber, info=blue
+          const annotStyle = an.annotationStyle ?? 'note'
+          const styleDefaults = annotStyle === 'warning'
+            ? { bg: 'rgba(217,119,6,0.15)', border: 'var(--io-status-warning)', fill: '#FDE68A' }
+            : annotStyle === 'info'
+              ? { bg: 'rgba(59,130,246,0.15)', border: 'var(--io-accent)', fill: '#93C5FD' }
+              : { bg: '#27272A', border: '#3F3F46', fill: '#F4F4F5' }
+          const cBg = cCfg.backgroundColor ?? styleDefaults.bg
+          const cBorder = cCfg.borderColor ?? styleDefaults.border
+          const cFill = cCfg.fill ?? styleDefaults.fill
           const cRx = cCfg.borderRadius ?? 4
           const cText = cCfg.text ?? ''
           const cW = Math.max(60, cText.length * cFs * 0.6 + cPad * 2)
@@ -5884,15 +5891,16 @@ function DesignerContextMenuContent({
                   <ContextMenuPrimitive.SubTrigger style={itemStyle}>Change Style</ContextMenuPrimitive.SubTrigger>
                   <ContextMenuPrimitive.Portal>
                     <ContextMenuPrimitive.SubContent style={subContentStyle}>
-                      {(['callout', 'legend', 'border', 'title_block'] as const).map(atype => {
-                        const label = atype === 'title_block' ? 'Title Block' : atype.charAt(0).toUpperCase() + atype.slice(1)
+                      {(['note', 'warning', 'info'] as const).map(style => {
+                        const labels: Record<string, string> = { note: 'Note', warning: 'Warning', info: 'Info' }
+                        const currentStyle = annotationNode.annotationStyle ?? 'note'
                         return (
-                          <ContextMenuPrimitive.Item key={atype} style={itemStyle}
+                          <ContextMenuPrimitive.Item key={style} style={itemStyle}
                             onSelect={() => {
                               if (!nodeId) return
-                              executeCmd(new ChangePropertyCommand(nodeId, 'annotationType', atype, annotationNode.annotationType))
+                              executeCmd(new ChangePropertyCommand(nodeId, 'annotationStyle', style, currentStyle))
                             }}>
-                            {annotationNode.annotationType === atype ? `\u2713 ${label}` : label}
+                            {currentStyle === style ? `\u2713 ${labels[style]}` : labels[style]}
                           </ContextMenuPrimitive.Item>
                         )
                       })}
