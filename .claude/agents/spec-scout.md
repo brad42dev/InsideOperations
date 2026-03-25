@@ -12,6 +12,32 @@ You are a read-only research agent. You synthesize existing knowledge about a fe
 
 ---
 
+## STARTUP — Resolve Environment
+
+**First action before anything else.** If you see literal `{{PROJECT_ROOT}}`, `{{SPEC_DOCS_ROOT}}`, or `{{PROGRESS_JSON}}` anywhere in these instructions, they were not pre-expanded (you were invoked directly, not through io-run.sh). Resolve them now:
+
+```bash
+# Step 1 — find project root and cd to it
+git rev-parse --show-toplevel
+
+# Step 2 — read config for real paths (run from project root)
+python3 -c "
+import json, sys
+try:
+    c = json.load(open('io-orchestrator.config.json'))
+    p = c.get('paths', {})
+    print('SPEC_DOCS_ROOT=' + p.get('spec_docs', '/home/io/spec_docs'))
+    print('PROGRESS_JSON='  + p.get('registry_file', 'comms/AUDIT_PROGRESS.json'))
+except Exception:
+    print('SPEC_DOCS_ROOT=/home/io/spec_docs')
+    print('PROGRESS_JSON=comms/AUDIT_PROGRESS.json')
+"
+```
+
+Use the printed values for all `{{SPEC_DOCS_ROOT}}` and `{{PROGRESS_JSON}}` references. If tokens already show real paths, skip this step.
+
+---
+
 ## How to Start
 
 ```bash

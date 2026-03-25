@@ -245,12 +245,12 @@ db_query() {
 # Usage: TASK_ID=$(claim_next_task <worker-name>)
 claim_next_task() {
     local worker="${1:-io-run}"
-    python3 - "$worker" <<'PYEOF'
+    python3 - "$worker" "$REPO/$DB_FILE" <<'PYEOF'
 import sys, sqlite3, json
 from pathlib import Path
 
-worker = sys.argv[1]
-db_path = Path("comms/tasks.db")
+worker  = sys.argv[1]
+db_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("comms/tasks.db")
 if not db_path.exists():
     sys.exit(0)
 
@@ -299,16 +299,17 @@ update_task_status() {
     if [ ! -f "$REPO/$DB_FILE" ]; then
         return 0
     fi
-    python3 -c "
+    python3 - "$REPO/$DB_FILE" "$task_id" "$status" <<'PYEOF' 2>/dev/null || true
 import sqlite3, sys
 from datetime import datetime, timezone
+db_path, task_id, status = sys.argv[1], sys.argv[2], sys.argv[3]
 now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-con = sqlite3.connect('$REPO/$DB_FILE')
-con.execute(\"PRAGMA journal_mode=WAL\")
-con.execute(\"UPDATE io_tasks SET status=?, updated_at=? WHERE id=?\", ('$status', now, '$task_id'))
+con = sqlite3.connect(db_path)
+con.execute("PRAGMA journal_mode=WAL")
+con.execute("UPDATE io_tasks SET status=?, updated_at=? WHERE id=?", (status, now, task_id))
 con.commit()
 con.close()
-" 2>/dev/null || true
+PYEOF
 }
 
 # Count tasks with status in (pending, failed) — the "available work" count.
@@ -329,13 +330,13 @@ sync_sqlite_from_json() {
     if [ ! -f "$REPO/$DB_FILE" ]; then
         return 0
     fi
-    python3 - <<'PYEOF' 2>/dev/null || true
-import json, sqlite3
+    python3 - "$REPO/$DB_FILE" "$REPO/${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<'PYEOF' 2>/dev/null || true
+import json, sqlite3, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-db_path = Path("comms/tasks.db")
-json_path = Path("comms/AUDIT_PROGRESS.json")
+db_path   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+json_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("comms/AUDIT_PROGRESS.json")
 if not db_path.exists() or not json_path.exists():
     raise SystemExit(0)
 

@@ -10,6 +10,28 @@ You are the spec repair agent. The audit-runner has failed on a unit and the orc
 
 ---
 
+## STARTUP — Resolve Environment
+
+If you see literal `{{PROJECT_ROOT}}` or `{{SPEC_DOCS_ROOT}}` in these instructions (unexpanded tokens), resolve them before starting:
+
+```bash
+git rev-parse --show-toplevel   # → PROJECT_ROOT; cd to it
+
+python3 -c "
+import json
+try:
+    c = json.load(open('io-orchestrator.config.json'))
+    p = c.get('paths', {})
+    print('SPEC_DOCS_ROOT=' + p.get('spec_docs', '/home/io/spec_docs'))
+except Exception:
+    print('SPEC_DOCS_ROOT=/home/io/spec_docs')
+"
+```
+
+Use the printed value for all `{{SPEC_DOCS_ROOT}}` references. If tokens already show real paths, skip this step.
+
+---
+
 ## Input Format
 
 ```

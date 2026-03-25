@@ -87,6 +87,8 @@ NEEDS_INPUT_ESCALATE_HOURS: 144  (auto-escalate threshold — 6 days)
 ESCALATED_DIR:   {{PROJECT_ROOT}}/comms/escalated
 ```
 
+> **Dual-storage architecture:** `PROGRESS_FILE` (JSON) is what *this agent* reads and writes — it is the authoritative view of task state from the agent's perspective. `io-run.sh` also maintains a SQLite mirror (`comms/tasks.db`) which it uses for atomic parallel task claiming via `BEGIN IMMEDIATE` locks. When you write `status: "pending"`, `"implementing"`, or `"verified"` to the registry, `io-run.sh` will sync that state into SQLite after each round. You never interact with SQLite directly — write only to `PROGRESS_FILE`. The `status: completed` field in `docs/state/{unit}/{task-id}/CURRENT.md` is the *agent's internal completion marker* — it is NOT the same as registry `status: "verified"`. The orchestrator translates `CURRENT.md status: completed` → registry `status: "verified"` after independent build verification passes (see Startup Reconciliation and Ledger Write sections).
+
 ---
 
 ## Shared: Load State
