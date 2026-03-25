@@ -329,7 +329,8 @@ PYEOF
 
 # Update a task's status in the database.
 # Usage: update_task_status <task-id> <status>
-# Valid statuses: pending, implementing, verified, failed, escalated, needs_input
+# Valid statuses: pending, implementing, verified, failed, escalated, needs_input,
+#                 blocked, needs_decomposition, decomposed
 update_task_status() {
     local task_id="$1"
     local status="$2"
@@ -403,6 +404,11 @@ for task in data.get("task_registry", []):
         )
         updated += 1
     elif row[0] != status or row[1] != uat_status:
+        # Don't downgrade 'failed' → 'pending': update_task_status sets SQLite
+        # directly when a parallel agent exits non-zero, but the failed worktree
+        # branch is never merged, so JSON still shows the pre-run status ('pending').
+        if row[0] == 'failed' and status in ('pending', 'implementing'):
+            continue
         con.execute(
             "UPDATE io_tasks SET status=?, uat_status=?, updated_at=? WHERE id=?",
             (status, uat_status, now, task_id)
@@ -565,6 +571,12 @@ launch_agent_in_worktree() {
     # Expand config tokens in agent files within the worktree so agents see
     # real paths (e.g. {{PROJECT_ROOT}} → /home/io/io-dev/io) at runtime.
     expand_agent_tokens "$worktree_path"
+    # Mark expanded agent files as assume-unchanged so 'git add -A' in the
+    # Ledger Write step doesn't commit the expanded (non-template) versions
+    # to the task branch and corrupt the templates when merged back to main.
+    git -C "$worktree_path" update-index --assume-unchanged \
+        $(git -C "$worktree_path" ls-files '.claude/agents/' 2>/dev/null | tr '\n' ' ') \
+        2>/dev/null || true
 
     # Capture locals for the subshell — trap string can't expand parent vars lazily
     local _task_id="$task_id"
