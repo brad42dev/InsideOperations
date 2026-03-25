@@ -301,6 +301,9 @@ def upgrade_schema() -> int:
         ("tasks_open",        "TEXT DEFAULT '[]'"),
         ("completed_at",      "TEXT"),
         ("notes",             "TEXT"),
+        # Wave 2: parallel audit claim columns
+        ("claimed_at",        "TEXT"),
+        ("claimed_by",        "TEXT"),
     ]
 
     added = 0

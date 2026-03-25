@@ -561,6 +561,134 @@ con.close()
 PYEOF
 }
 
+# Atomically claim the next unit eligible for audit. Prints unit ID on success, empty on none.
+# Uses BEGIN IMMEDIATE (WAL-mode write lock) to prevent concurrent claims.
+# Eligible: last_audit_round IS NULL (never audited) OR verified_since_last_audit > 0 (new verified tasks since last audit)
+# AND (claimed_at IS NULL OR claimed_at < now - CFG_STALE_MINUTES)
+# Usage: UNIT_ID=$(claim_next_unit <worker-name>)
+claim_next_unit() {
+    local worker="${1:-io-audit}"
+    python3 - "$worker" "$REPO/$DB_FILE" "${CFG_STALE_MINUTES:-30}" <<'PYEOF'
+import sys, sqlite3
+from pathlib import Path
+from datetime import datetime, timezone, timedelta
+
+worker     = sys.argv[1]
+db_path    = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("comms/tasks.db")
+stale_min  = int(sys.argv[3]) if len(sys.argv) > 3 else 30
+if not db_path.exists():
+    sys.exit(0)
+
+now          = datetime.now(timezone.utc)
+stale_cutoff = (now - timedelta(minutes=stale_min)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+con = sqlite3.connect(db_path, timeout=10)
+con.execute("PRAGMA journal_mode=WAL")
+try:
+    con.execute("BEGIN IMMEDIATE")
+    row = con.execute("""
+        SELECT unit FROM io_queue
+        WHERE (last_audit_round IS NULL OR verified_since_last_audit > 0)
+          AND (claimed_at IS NULL OR claimed_at < ?)
+        ORDER BY last_audit_round ASC NULLS FIRST,
+                 CASE WHEN last_audit_round IS NULL THEN 0 ELSE 1 END,
+                 unit ASC
+        LIMIT 1
+    """, (stale_cutoff,)).fetchone()
+    if row is None:
+        con.execute("ROLLBACK")
+        sys.exit(0)
+    unit_id = row[0]
+    now_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+    con.execute(
+        "UPDATE io_queue SET claimed_at=?, claimed_by=? WHERE unit=?",
+        (now_str, worker, unit_id)
+    )
+    con.execute("COMMIT")
+    print(unit_id)
+except Exception as e:
+    try: con.execute("ROLLBACK")
+    except: pass
+    print(f"claim_next_unit error: {e}", file=sys.stderr)
+    sys.exit(1)
+finally:
+    con.close()
+PYEOF
+}
+
+# Reclaim stale audit unit claims — reset claimed_at/claimed_by when claim is older than CFG_STALE_MINUTES.
+# Audit agents do not write heartbeat files, so only the claim timestamp is checked.
+# Usage: reclaim_stale_units
+reclaim_stale_units() {
+    if [ ! -f "$REPO/$DB_FILE" ]; then
+        return 0
+    fi
+    python3 - "$REPO/$DB_FILE" "${CFG_STALE_MINUTES:-30}" <<'PYEOF' 2>/dev/null || true
+import sqlite3, sys
+from pathlib import Path
+from datetime import datetime, timezone, timedelta
+
+db_path   = Path(sys.argv[1])
+stale_min = int(sys.argv[2]) if len(sys.argv) > 2 else 30
+if not db_path.exists():
+    sys.exit(0)
+
+now          = datetime.now(timezone.utc)
+stale_cutoff = now - timedelta(minutes=stale_min)
+
+con = sqlite3.connect(db_path, timeout=10)
+con.execute("PRAGMA journal_mode=WAL")
+con.execute("PRAGMA busy_timeout=10000")
+
+rows = con.execute("""
+    SELECT unit, claimed_at FROM io_queue
+    WHERE claimed_at IS NOT NULL
+""").fetchall()
+
+reclaimed = 0
+for unit_id, claimed_at_str in rows:
+    try:
+        claimed_at = datetime.fromisoformat(claimed_at_str.replace('Z', '+00:00'))
+    except Exception:
+        continue
+    if claimed_at > stale_cutoff:
+        continue  # not stale yet
+    stuck_min = int((now - claimed_at).total_seconds() / 60)
+    con.execute(
+        "UPDATE io_queue SET claimed_at=NULL, claimed_by=NULL WHERE unit=?",
+        (unit_id,)
+    )
+    print(f"⚠ Reclaimed stale audit unit {unit_id} (stuck for {stuck_min}m)")
+    reclaimed += 1
+
+if reclaimed:
+    con.commit()
+con.close()
+PYEOF
+}
+
+# Release a unit's audit claim after audit completes (success or failure).
+# Usage: release_unit_claim <unit-id>
+release_unit_claim() {
+    local unit_id="$1"
+    if [ ! -f "$REPO/$DB_FILE" ]; then
+        return 0
+    fi
+    python3 - "$REPO/$DB_FILE" "$unit_id" <<'PYEOF' 2>/dev/null || true
+import sqlite3, sys
+from pathlib import Path
+db_path = Path(sys.argv[1])
+unit_id = sys.argv[2]
+if not db_path.exists():
+    sys.exit(0)
+con = sqlite3.connect(db_path, timeout=10)
+con.execute("PRAGMA journal_mode=WAL")
+con.execute("UPDATE io_queue SET claimed_at=NULL, claimed_by=NULL WHERE unit=?", (unit_id,))
+con.commit()
+con.close()
+PYEOF
+}
+
 # ── Config token expansion ────────────────────────────────────────────────────
 # Expand {{TOKEN}} placeholders in agent .md files within a target directory.
 # Called from launch_agent_in_worktree after the worktree is created so that

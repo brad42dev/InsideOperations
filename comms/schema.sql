@@ -61,7 +61,9 @@ CREATE TABLE IF NOT EXISTS io_queue (
     catalog                    TEXT,                -- path to catalog file
     tasks_open                 TEXT DEFAULT '[]',   -- JSON array of open task IDs from last audit
     completed_at               TEXT,
-    notes                      TEXT
+    notes                      TEXT,
+    claimed_at                 TEXT,   -- ISO-8601; NULL when unit is not claimed by any audit agent
+    claimed_by                 TEXT    -- worker identifier; NULL when not claimed
 );
 
 -- Global key-value store for orchestrator-wide state.

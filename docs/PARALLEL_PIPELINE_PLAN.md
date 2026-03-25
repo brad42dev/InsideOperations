@@ -95,7 +95,7 @@ The `1` at the end sets `run_limit=1` — agent exits after one unit/task, no ch
 ---
 
 ## Wave 2 — Parallel audit: schema + claim
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: HIGH — enables Wave 3**
 
 ### What to add to `comms/schema.sql`
@@ -162,12 +162,12 @@ UPDATE io_queue SET claimed_at=NULL, claimed_by=NULL WHERE unit=?
 
 ### Acceptance criteria
 
-- [ ] `claimed_at` and `claimed_by` columns exist in `io_queue` after `--upgrade`
-- [ ] `python3 comms/migrate_to_sqlite.py --verify` passes
-- [ ] `claim_next_unit()` returns empty string when all units are claimed or ineligible
-- [ ] Two concurrent `claim_next_unit()` calls never return the same unit (SQLite WAL guarantee)
-- [ ] `reclaim_stale_units()` resets claims older than `CFG_STALE_MINUTES`
-- [ ] `release_unit_claim()` clears the claim after audit completes
+- [x] `claimed_at` and `claimed_by` columns exist in `io_queue` after `--upgrade`
+- [x] `python3 comms/migrate_to_sqlite.py --verify` passes
+- [x] `claim_next_unit()` returns empty string when all units are claimed or ineligible
+- [x] Two concurrent `claim_next_unit()` calls never return the same unit (SQLite WAL guarantee)
+- [x] `reclaim_stale_units()` resets claims older than `CFG_STALE_MINUTES`
+- [x] `release_unit_claim()` clears the claim after audit completes
 
 ---
 
