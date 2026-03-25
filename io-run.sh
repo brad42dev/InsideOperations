@@ -829,34 +829,15 @@ launch_agent_in_worktree() {
     local _rl_signal="/tmp/io-rl-${task_id}"
     rm -f "$_rl_signal" 2>/dev/null || true
 
-    # Launch agent in subshell. EXIT trap fires on crash OR clean exit.
-    # AGENT_OUTCOME starts as "failure"; reset to "success" only if claude exits 0.
-    # Redirect subshell stdout to stderr so agent output is visible in the terminal
-    # but not captured by the pid=$(...) command substitution in the caller.
-    (
-        AGENT_OUTCOME="failure"
-        _subshell_rl_signal="$_rl_signal"
-        _subshell_worktree="$_worktree_path"
-        _subshell_task_id="$_task_id"
-        trap '
-            # Before removing the worktree: check if the agent flagged rate-limiting
-            if find "$_subshell_worktree/docs/state" -name "CURRENT.md" \
-                    -exec grep -l "^rate_limited: true" {} \; 2>/dev/null | grep -q .; then
-                touch "$_subshell_rl_signal" 2>/dev/null || true
-                echo "  ⚠ Task ${_subshell_task_id}: rate limit signal detected" >&2
-            fi
-            cleanup_worktree "'"$_task_id"'" "$AGENT_OUTCOME"
-        ' EXIT
-        cd "$_worktree_path"
-        _exit=0
-        # Hard kill at 2× stale threshold so reclaim_stale_tasks has time to fire
-        # before the process is killed. CFG_STALE_MINUTES=30 → 60m hard kill.
-        _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
+    # ── Context metrics setup (outside subshell — heredocs inside (...)>&2 & inside
+    # pid=$(...) corrupt the capture pipe in bash; use temp files instead) ──────────
+    local _impl_usage_file="/tmp/io-usage-impl-${_task_id}"
+    local _impl_update_script="/tmp/io-impl-upd-${_task_id}.py"
+    rm -f "$_impl_usage_file" "$_impl_update_script" 2>/dev/null || true
 
-        # Record attempt start in io_task_attempts
-        _impl_usage_file="/tmp/io-usage-impl-${_task_id}"
-        rm -f "$_impl_usage_file" 2>/dev/null || true
-        _impl_attempt_row=$(python3 - "$REPO/$DB_FILE" "$_task_id" 2>/dev/null <<'IMPL_PYEOF'
+    # Record attempt start (runs before the subshell so row_id is available inside it)
+    local _impl_insert_script="/tmp/io-impl-ins-${_task_id}.py"
+    cat > "$_impl_insert_script" << 'IMPL_INSEOF'
 import sqlite3, sys
 db, task_id = sys.argv[1], sys.argv[2]
 try:
@@ -870,28 +851,13 @@ try:
     print(row_id)
 except Exception:
     print(0)
-IMPL_PYEOF
-)
-        # Run agent — output-format json writes final usage JSON to stderr;
-        # intermediate tool output is suppressed (use stream-json for verbosity).
-        timeout "${_timeout_min}m" \
-            claude --dangerously-skip-permissions \
-                   --agent "$agent_file" \
-                   --print "$prompt_text" \
-                   --output-format json < /dev/null \
-            2>"$_impl_usage_file" \
-            || _exit=$?
-        if [ "$_exit" -eq 0 ]; then
-            AGENT_OUTCOME="success"
-        else
-            if [ "$_exit" -eq 124 ]; then
-                echo "  ✗ Task ${_task_id}: agent timed out after ${_timeout_min}m" >&2
-            fi
-            AGENT_OUTCOME="failure"
-        fi
+IMPL_INSEOF
+    local _impl_attempt_row
+    _impl_attempt_row=$(python3 "$_impl_insert_script" "$REPO/$DB_FILE" "$_task_id" 2>/dev/null)
+    rm -f "$_impl_insert_script" 2>/dev/null || true
 
-        # Parse usage JSON and update attempt row
-        python3 - "$REPO/$DB_FILE" "$_task_id" "${_impl_attempt_row:-0}" "$_impl_usage_file" 2>/dev/null <<'IMPL_PYEOF2' || true
+    # Write UPDATE script to a temp file (called inside subshell after agent exits)
+    cat > "$_impl_update_script" << 'IMPL_UPEOF'
 import sqlite3, json, sys
 from pathlib import Path
 db, task_id, row_id_str, usage_file = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
@@ -922,7 +888,54 @@ except Exception:
 finally:
     try: Path(usage_file).unlink(missing_ok=True)
     except Exception: pass
-IMPL_PYEOF2
+IMPL_UPEOF
+
+    # Launch agent in subshell. EXIT trap fires on crash OR clean exit.
+    # AGENT_OUTCOME starts as "failure"; reset to "success" only if claude exits 0.
+    # Redirect subshell stdout to stderr so agent output is visible in the terminal
+    # but not captured by the pid=$(...) command substitution in the caller.
+    # NO heredocs inside this subshell — they corrupt the outer pid=$(...) capture.
+    (
+        AGENT_OUTCOME="failure"
+        _subshell_rl_signal="$_rl_signal"
+        _subshell_worktree="$_worktree_path"
+        _subshell_task_id="$_task_id"
+        trap '
+            # Before removing the worktree: check if the agent flagged rate-limiting
+            if find "$_subshell_worktree/docs/state" -name "CURRENT.md" \
+                    -exec grep -l "^rate_limited: true" {} \; 2>/dev/null | grep -q .; then
+                touch "$_subshell_rl_signal" 2>/dev/null || true
+                echo "  ⚠ Task ${_subshell_task_id}: rate limit signal detected" >&2
+            fi
+            cleanup_worktree "'"$_task_id"'" "$AGENT_OUTCOME"
+        ' EXIT
+        cd "$_worktree_path"
+        _exit=0
+        # Hard kill at 2× stale threshold so reclaim_stale_tasks has time to fire
+        # before the process is killed. CFG_STALE_MINUTES=30 → 60m hard kill.
+        _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
+
+        # Run agent — output-format json writes final usage JSON to stdout;
+        # redirect stdout to usage file so we can parse token counts after.
+        timeout "${_timeout_min}m" \
+            claude --dangerously-skip-permissions \
+                   --agent "$agent_file" \
+                   --print "$prompt_text" \
+                   --output-format json < /dev/null \
+            > "$_impl_usage_file" \
+            || _exit=$?
+        if [ "$_exit" -eq 0 ]; then
+            AGENT_OUTCOME="success"
+        else
+            if [ "$_exit" -eq 124 ]; then
+                echo "  ✗ Task ${_task_id}: agent timed out after ${_timeout_min}m" >&2
+            fi
+            AGENT_OUTCOME="failure"
+        fi
+
+        # Parse usage JSON and update attempt row (no heredoc — uses pre-written script)
+        python3 "$_impl_update_script" "$REPO/$DB_FILE" "$_task_id" "${_impl_attempt_row:-0}" "$_impl_usage_file" 2>/dev/null || true
+        rm -f "$_impl_update_script" 2>/dev/null || true
     ) >&2 &
     echo $!
 }
@@ -1080,47 +1093,9 @@ run_parallel_uat() {
             # Each claude session runs independently; output goes to stderr so it
             # appears in the terminal without polluting the caller's capture context.
             (
-                _uat_usage_file="/tmp/io-usage-uat-${unit_id}"
-                rm -f "$_uat_usage_file" 2>/dev/null || true
                 claude --dangerously-skip-permissions \
                        --agent "$agent_file" \
-                       --print "$uat_mode $unit_id" \
-                       --output-format json < /dev/null \
-                2>"$_uat_usage_file" || true
-                python3 - "$REPO/$DB_FILE" "$unit_id" "$_uat_usage_file" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'UAT_PYEOF' || true
-import sqlite3, json, sys
-from pathlib import Path
-import re
-db, unit_id, usage_file, uat_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-try:
-    data = json.loads(Path(usage_file).read_text())
-    u = data.get('usage', {})
-    input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
-    output_tok = u.get('output_tokens', 0)
-    ctx_win    = data.get('modelUsage', {})
-    ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
-    verdict = 'unknown'
-    try:
-        cf = Path(uat_dir) / unit_id / 'CURRENT.md'
-        m  = re.search(r'^verdict:\s*(\S+)', cf.read_text(), re.MULTILINE)
-        if m: verdict = m.group(1)
-    except Exception: pass
-    task_id = f'UAT-{unit_id}'
-    con = sqlite3.connect(db, timeout=10)
-    con.execute('PRAGMA journal_mode=WAL')
-    n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
-    con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
-        context_injection_tokens,context_final_tokens,context_utilization_pct)
-        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?)''',
-        (task_id, n, verdict, input_tok, output_tok, util_pct))
-    con.commit()
-    con.close()
-except Exception: pass
-finally:
-    try: Path(usage_file).unlink(missing_ok=True)
-    except Exception: pass
-UAT_PYEOF
+                       --print "$uat_mode $unit_id" < /dev/null || true
             ) >&2 &
             active_pids+=($!)
             active_units+=("$unit_id")
@@ -2262,49 +2237,10 @@ PYEOF
                     local _uid="${_uat_arr[$_uat_idx]}"
                     _uat_idx=$((_uat_idx + 1))
                     echo "  [uat  ] starting ${_uid} (${_uat_idx}/${#_uat_arr[@]})"
-                    local _auto_uat_dir="${CFG_UAT_DIR:-docs/uat}"
                     (
-                        _uat_usage_file="/tmp/io-usage-uat-${_uid}"
-                        rm -f "$_uat_usage_file" 2>/dev/null || true
                         claude --dangerously-skip-permissions \
                                --agent "$_AUTO_UAT_AGENT_FILE" \
-                               --print "auto ${_uid}" \
-                               --output-format json < /dev/null \
-                        2>"$_uat_usage_file" || true
-                        python3 - "$REPO/$DB_FILE" "$_uid" "$_uat_usage_file" "$_auto_uat_dir" 2>/dev/null <<'AUTO_UAT_PYEOF' || true
-import sqlite3, json, sys
-from pathlib import Path
-import re
-db, unit_id, usage_file, uat_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-try:
-    data = json.loads(Path(usage_file).read_text())
-    u = data.get('usage', {})
-    input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
-    output_tok = u.get('output_tokens', 0)
-    ctx_win    = data.get('modelUsage', {})
-    ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
-    verdict = 'unknown'
-    try:
-        cf = Path(uat_dir) / unit_id / 'CURRENT.md'
-        m  = re.search(r'^verdict:\s*(\S+)', cf.read_text(), re.MULTILINE)
-        if m: verdict = m.group(1)
-    except Exception: pass
-    task_id = f'UAT-{unit_id}'
-    con = sqlite3.connect(db, timeout=10)
-    con.execute('PRAGMA journal_mode=WAL')
-    n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
-    con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
-        context_injection_tokens,context_final_tokens,context_utilization_pct)
-        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?)''',
-        (task_id, n, verdict, input_tok, output_tok, util_pct))
-    con.commit()
-    con.close()
-except Exception: pass
-finally:
-    try: Path(usage_file).unlink(missing_ok=True)
-    except Exception: pass
-AUTO_UAT_PYEOF
+                               --print "auto ${_uid}" < /dev/null || true
                     ) >&2 &
                     local _pid=$!
                     _auto_pids+=("$_pid"); _auto_types+=("uat"); _auto_ids+=("$_uid")
