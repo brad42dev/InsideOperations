@@ -45,6 +45,8 @@ load_config() {
         CFG_FRONTEND_BUILD="cd frontend && pnpm build"
         CFG_FRONTEND_CHECK="cd frontend && npx tsc --noEmit"
         CFG_SPEC_DOCS="/home/io/spec_docs"
+        CFG_STATE_DIR="docs/state"
+        CFG_UAT_DIR="docs/uat"
         CFG_COMMS_DIR="comms"
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
         return
@@ -84,6 +86,7 @@ print(f"CFG_FRONTEND_CHECK={cmd.get('frontend_check', cmd.get('check_frontend', 
 print(f"CFG_SPEC_DOCS={p.get('spec_docs', '/home/io/spec_docs')!r}")
 print(f"CFG_COMMS_DIR={p.get('comms_dir', 'comms')!r}")
 print(f"CFG_NEEDS_INPUT_DIR={p.get('needs_input_dir', 'comms/needs_input')!r}")
+print(f"CFG_UAT_DIR={p.get('uat_dir', 'docs/uat')!r}")
 PYEOF
 )" || {
         echo "WARNING: Failed to parse io-orchestrator.config.json — using hardcoded defaults" >&2
@@ -105,6 +108,7 @@ PYEOF
         CFG_SPEC_DOCS="/home/io/spec_docs"
         CFG_COMMS_DIR="comms"
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
+        CFG_UAT_DIR="docs/uat"
     }
 }
 
@@ -416,6 +420,7 @@ expand_agent_tokens() {
             -e "s|{{SPEC_DOCS_ROOT}}|${CFG_SPEC_DOCS:-/home/io/spec_docs}|g" \
             -e "s|{{COMMS_DIR}}|${CFG_COMMS_DIR:-comms}|g" \
             -e "s|{{NEEDS_INPUT_DIR}}|${CFG_NEEDS_INPUT_DIR:-comms/needs_input}|g" \
+            -e "s|{{UAT_DIR}}|${CFG_UAT_DIR:-docs/uat}|g" \
             "$f" 2>/dev/null || true
     done
 }
@@ -680,7 +685,7 @@ fi
 # ── status ────────────────────────────────────────────────────────────────────
 if [ "$MODE" = "status" ]; then
     echo ""
-    python3 - "$DB_FILE" "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" <<'PYEOF'
+    python3 - "$DB_FILE" "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" "${CFG_STATE_DIR:-docs/state}" <<'PYEOF'
 import json, subprocess, sys, os
 from collections import defaultdict
 from pathlib import Path
@@ -688,6 +693,7 @@ from pathlib import Path
 DB_FILE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
 PROGRESS_FILE = sys.argv[2] if len(sys.argv) > 2 else "comms/AUDIT_PROGRESS.json"
 NI_DIR = sys.argv[3] if len(sys.argv) > 3 else "comms/needs_input"
+STATE_DIR = sys.argv[4] if len(sys.argv) > 4 else "docs/state"
 
 # ── load task data: SQLite preferred, JSON fallback ───────────────────────────
 use_sqlite = DB_FILE.exists()
@@ -763,7 +769,7 @@ if total_verified > 0:
 
 # ── orphaned completions ──────────────────────────────────────────────────────
 result = subprocess.run(
-    ["find", "docs/state", "-name", "CURRENT.md"],
+    ["find", STATE_DIR, "-name", "CURRENT.md"],
     capture_output=True, text=True
 )
 completed = 0
@@ -924,7 +930,7 @@ PYEOF
         fi
 
         # Read verdict from result file
-        RESULT_FILE="docs/uat/$UNIT_ID/CURRENT.md"
+        RESULT_FILE="${CFG_UAT_DIR:-docs/uat}/$UNIT_ID/CURRENT.md"
         if [ -f "$RESULT_FILE" ]; then
             VERDICT=$(grep "^verdict:" "$RESULT_FILE" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
             case "$VERDICT" in
@@ -1026,7 +1032,7 @@ PYEOF
             continue
         fi
 
-        RESULT_FILE="docs/uat/$UNIT_ID/CURRENT.md"
+        RESULT_FILE="${CFG_UAT_DIR:-docs/uat}/$UNIT_ID/CURRENT.md"
         if [ -f "$RESULT_FILE" ]; then
             VERDICT=$(grep "^verdict:" "$RESULT_FILE" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
             case "$VERDICT" in
@@ -1086,7 +1092,7 @@ if [ "$MODE" = "integration-test" ]; then
     if [ $EXIT_CODE -eq 0 ]; then
         echo "✅ All integration tests passed."
     else
-        echo "❌ Integration tests failed. See docs/uat/integration/REPORT.md"
+        echo "❌ Integration tests failed. See ${CFG_UAT_DIR:-docs/uat}/integration/REPORT.md"
     fi
     exit $EXIT_CODE
 fi

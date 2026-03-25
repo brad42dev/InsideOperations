@@ -151,10 +151,10 @@ If no seed data exists (0 rows in database), note this in the scenario and pass 
 **Write your scenario list to disk before touching the browser** — this ensures it survives a session crash. First create the output directory, then write:
 
 ```bash
-mkdir -p docs/uat/{UNIT}
+mkdir -p {{UAT_DIR}}/{UNIT}
 ```
 
-Write to `docs/uat/{UNIT}/scenarios.md`. **Each scenario must include a task ID prefix** — this is how Phase 7 maps test results back to tasks:
+Write to `{{UAT_DIR}}/{UNIT}/scenarios.md`. **Each scenario must include a task ID prefix** — this is how Phase 7 maps test results back to tasks:
 
 ```markdown
 # UAT Scenarios — {UNIT}
@@ -187,10 +187,10 @@ You will reference this file during Phase 4. Phase 7 uses the `[TASK-ID]` prefix
 
 For data-display units, check:
 ```bash
-grep -c "data flow:" docs/uat/{UNIT}/scenarios.md 2>/dev/null || echo "0"
+grep -c "data flow:" {{UAT_DIR}}/{UNIT}/scenarios.md 2>/dev/null || echo "0"
 ```
 
-**If the count is 0:** do NOT proceed to Phase 3 — go back and add a data flow scenario to `docs/uat/{UNIT}/scenarios.md` now. Append it to the appropriate section using this structured template:
+**If the count is 0:** do NOT proceed to Phase 3 — go back and add a data flow scenario to `{{UAT_DIR}}/{UNIT}/scenarios.md` now. Append it to the appropriate section using this structured template:
 
 ```
 Scenario N: [{primary-task-id}] — data flow: GET /api/v1/{resource} —
@@ -222,7 +222,7 @@ browser_navigate: http://localhost:5173
 Take a snapshot. Determine current state:
 - If login form visible: proceed to login
 - If already on app: proceed to module navigation
-- If blank/error: write `docs/uat/{UNIT}/CURRENT.md` with `verdict: skipped` and `Screenshot Notes: Frontend dev server not responding — run 'cd frontend && pnpm dev' first.` (create the directory first with `mkdir -p docs/uat/{UNIT}`). Then exit.
+- If blank/error: write `{{UAT_DIR}}/{UNIT}/CURRENT.md` with `verdict: skipped` and `Screenshot Notes: Frontend dev server not responding — run 'cd frontend && pnpm dev' first.` (create the directory first with `mkdir -p {{UAT_DIR}}/{UNIT}`). Then exit.
 
 ### Login (if needed)
 
@@ -252,7 +252,7 @@ After the 2-second wait, take a snapshot and evaluate:
 - If the snapshot still shows the login form with no error after 2 seconds: wait another 8 seconds (`browser_wait_for: time=8000`), take another snapshot, and repeat the check.
 - If still on login page after 10 total seconds: run `curl -sf --max-time 3 http://localhost:3000/health/live 2>&1 && echo "HEALTH_OK" || echo "HEALTH_FAIL"`. If output contains "HEALTH_FAIL", write CURRENT.md with `verdict: skipped` and note "backend health check failed", then exit. If "HEALTH_OK", write CURRENT.md with `verdict: skipped` and note "login failed — check admin credentials (admin/admin)", then exit.
 
-**For all early exits above:** `mkdir -p docs/uat/{UNIT}` first, then write a minimal CURRENT.md — this ensures io-run.sh always finds a result file even when testing aborts early.
+**For all early exits above:** `mkdir -p {{UAT_DIR}}/{UNIT}` first, then write a minimal CURRENT.md — this ensures io-run.sh always finds a result file even when testing aborts early.
 
 Default credentials: `admin` / `admin` unless `E2E_USERNAME` / `E2E_PASSWORD` env vars are set.
 
@@ -289,9 +289,9 @@ Check what you see in that snapshot:
 **browser_error is always ❌ fail** — never a skip. A scenario that crashed the browser is a failure of that scenario, not a skip. It counts in `scenarios_failed` and `scenarios_tested`. It triggers bug task creation in Phase 6. The only way a scenario is excluded from counts is an explicit human "Skip" in human mode.
 7. A successful scenario (not a crash) also resets `crash_streak` to 0.
 
-**Before running any scenarios:** Read `docs/uat/{UNIT}/scenarios.md` from disk into working memory. This is required even if Phase 2 just ran — if the session was resumed, working memory from Phase 2 is gone. Hold the full scenario list in memory for the duration of Phase 4.
+**Before running any scenarios:** Read `{{UAT_DIR}}/{UNIT}/scenarios.md` from disk into working memory. This is required even if Phase 2 just ran — if the session was resumed, working memory from Phase 2 is gone. Hold the full scenario list in memory for the duration of Phase 4.
 
-If the file does not exist (Phase 2 failed to write it): write `docs/uat/{UNIT}/CURRENT.md` with `verdict: skipped` and note "scenarios.md missing — Phase 2 may have failed to write it", then exit. Do not attempt to run scenarios from memory.
+If the file does not exist (Phase 2 failed to write it): write `{{UAT_DIR}}/{UNIT}/CURRENT.md` with `verdict: skipped` and note "scenarios.md missing — Phase 2 may have failed to write it", then exit. Do not attempt to run scenarios from memory.
 
 For each scenario in that list (expected results come from scenarios.md — do not improvise):
 
@@ -395,10 +395,10 @@ Fail: snapshot identical to pre-click — silent no-op (indicates a TODO stub).
 
 **Step 1 — Create the result directory first (required before writing the file):**
 ```bash
-mkdir -p docs/uat/{UNIT}
+mkdir -p {{UAT_DIR}}/{UNIT}
 ```
 
-**Step 2 — Write `docs/uat/{UNIT}/CURRENT.md`:**
+**Step 2 — Write `{{UAT_DIR}}/{UNIT}/CURRENT.md`:**
 
 ```markdown
 ---
@@ -489,7 +489,7 @@ status: pending
 priority: high
 depends-on: []
 source: uat
-uat_session: docs/uat/{UNIT}/CURRENT.md
+uat_session: {{UAT_DIR}}/{UNIT}/CURRENT.md
 ---
 
 ## What to Build
@@ -585,7 +585,7 @@ Update `docs/state/{unit-lowercase}/INDEX.md` — append one row per new bug tas
 ```
 Read the file, append the new rows after the last existing `|`-prefixed table row, write it back.
 
-Then re-read `docs/uat/{UNIT}/CURRENT.md` from disk. Find the "New Bug Tasks Created" section and replace its placeholder content with the actual task IDs and titles. Then write the complete file back — do not append, do a full rewrite. Example:
+Then re-read `{{UAT_DIR}}/{UNIT}/CURRENT.md` from disk. Find the "New Bug Tasks Created" section and replace its placeholder content with the actual task IDs and titles. Then write the complete file back — do not append, do a full rewrite. Example:
 
 ```
 ## New Bug Tasks Created
@@ -606,7 +606,7 @@ Tasks that were loaded because they were "partial" (browser crashed in a prior r
 
 For each task from the Phase 1 loaded set, locate its entry in `task_registry` and update **only the `uat_status` field** (do not touch `status`, `depends_on`, `priority`, or any other field).
 
-To determine which scenarios belong to each task: read `docs/uat/{UNIT}/scenarios.md` and group scenarios by their `[TASK-ID]` prefix. The results for all scenarios tagged `[MOD-CONSOLE-001]` determine the uat_status for task `MOD-CONSOLE-001`.
+To determine which scenarios belong to each task: read `{{UAT_DIR}}/{UNIT}/scenarios.md` and group scenarios by their `[TASK-ID]` prefix. The results for all scenarios tagged `[MOD-CONSOLE-001]` determine the uat_status for task `MOD-CONSOLE-001`.
 
 - Set `uat_status: "pass"` if all scenarios for that task ID passed
 - Set `uat_status: "fail"` if any scenario for that task ID failed
@@ -651,7 +651,7 @@ Bug tasks created:
   {TASK-ID} — {title}
   ...
 
-Results: docs/uat/{UNIT}/CURRENT.md
+Results: {{UAT_DIR}}/{UNIT}/CURRENT.md
 Registry: uat_status updated for {N} tasks
 ```
 
@@ -700,4 +700,4 @@ If the user selects **Reject**, follow up asking what's wrong (same Fail detail 
 3. **Test the actual behavior, not the code.** You are not reading source files. You are driving a browser. What the user sees is what matters.
 4. **Screenshot on failure.** Take a visual screenshot (`browser_take_screenshot`) for every ❌ failed scenario — in addition to the accessibility snapshot. Reference it in the result file under Screenshot Notes.
 5. **Login credentials:** `admin` / `admin` unless E2E_USERNAME / E2E_PASSWORD env vars are set.
-6. **Always write CURRENT.md before exiting.** `docs/uat/{UNIT}/CURRENT.md` must be written no matter how early the session terminates — dev server down, login failure, zero scenarios, browser crash after scenario 1. A missing result file is treated as "skipped" by io-run.sh, which is correct, but it also means the uat_status field never gets updated, so the task will be retested forever. Always write the file.
+6. **Always write CURRENT.md before exiting.** `{{UAT_DIR}}/{UNIT}/CURRENT.md` must be written no matter how early the session terminates — dev server down, login failure, zero scenarios, browser crash after scenario 1. A missing result file is treated as "skipped" by io-run.sh, which is correct, but it also means the uat_status field never gets updated, so the task will be retested forever. Always write the file.
