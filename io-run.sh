@@ -47,6 +47,7 @@ load_config() {
         CFG_SPEC_DOCS="/home/io/spec_docs"
         CFG_STATE_DIR="docs/state"
         CFG_UAT_DIR="docs/uat"
+        CFG_DECISIONS_DIR="docs/decisions"
         CFG_COMMS_DIR="comms"
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
         return
@@ -87,6 +88,7 @@ print(f"CFG_SPEC_DOCS={p.get('spec_docs', '/home/io/spec_docs')!r}")
 print(f"CFG_COMMS_DIR={p.get('comms_dir', 'comms')!r}")
 print(f"CFG_NEEDS_INPUT_DIR={p.get('needs_input_dir', 'comms/needs_input')!r}")
 print(f"CFG_UAT_DIR={p.get('uat_dir', 'docs/uat')!r}")
+print(f"CFG_DECISIONS_DIR={p.get('decisions_dir', 'docs/decisions')!r}")
 PYEOF
 )" || {
         echo "WARNING: Failed to parse io-orchestrator.config.json — using hardcoded defaults" >&2
@@ -109,6 +111,7 @@ PYEOF
         CFG_COMMS_DIR="comms"
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
         CFG_UAT_DIR="docs/uat"
+        CFG_DECISIONS_DIR="docs/decisions"
     }
 }
 
@@ -421,8 +424,28 @@ expand_agent_tokens() {
             -e "s|{{COMMS_DIR}}|${CFG_COMMS_DIR:-comms}|g" \
             -e "s|{{NEEDS_INPUT_DIR}}|${CFG_NEEDS_INPUT_DIR:-comms/needs_input}|g" \
             -e "s|{{UAT_DIR}}|${CFG_UAT_DIR:-docs/uat}|g" \
+            -e "s|{{DECISIONS_DIR}}|${CFG_DECISIONS_DIR:-docs/decisions}|g" \
             "$f" 2>/dev/null || true
     done
+}
+
+# Expand {{TOKEN}} placeholders in a single agent file into a temp location.
+# Returns the temp file path via stdout and the temp dir in _AGENT_TMP_DIR.
+# Caller is responsible for: rm -rf "$_AGENT_TMP_DIR" when done.
+# Usage: agent_file=$(expand_agent_to_tmp <agent-name>)
+_AGENT_TMP_DIR=""
+expand_agent_to_tmp() {
+    local name="$1"
+    local src="$REPO/.claude/agents/$name.md"
+    if [ ! -f "$src" ]; then
+        echo "ERROR: agent file not found: $src" >&2
+        return 1
+    fi
+    _AGENT_TMP_DIR=$(mktemp -d)
+    mkdir -p "$_AGENT_TMP_DIR/.claude/agents"
+    cp "$src" "$_AGENT_TMP_DIR/.claude/agents/$name.md"
+    expand_agent_tokens "$_AGENT_TMP_DIR"
+    echo "$_AGENT_TMP_DIR/.claude/agents/$name.md"
 }
 
 # ── Wave 2: Git Worktree Isolation ───────────────────────────────────────────
@@ -909,11 +932,12 @@ PYEOF
     echo ""
 
     INTERRUPTED=0
-    trap 'INTERRUPTED=1; echo ""; echo "Stopping after current unit..."' INT
-
     PASSED=0
     FAILED=0
     SKIPPED=0
+    UAT_AGENT_FILE=$(expand_agent_to_tmp "uat-agent")
+    UAT_AGENT_TMP="$_AGENT_TMP_DIR"
+    trap 'rm -rf "$UAT_AGENT_TMP" 2>/dev/null; INTERRUPTED=1; echo ""; echo "Stopping after current unit..."' INT
 
     while IFS= read -r UNIT_ID; do
         [ $INTERRUPTED -eq 1 ] && break
@@ -921,7 +945,7 @@ PYEOF
 
         echo "─── UAT: $UNIT_ID ─────────────────────────────────────────────"
         UAT_EXIT=0
-        claude --dangerously-skip-permissions --agent uat-agent --print "$UAT_MODE $UNIT_ID" < /dev/null || UAT_EXIT=$?
+        claude --dangerously-skip-permissions --agent "$UAT_AGENT_FILE" --print "$UAT_MODE $UNIT_ID" < /dev/null || UAT_EXIT=$?
         if [ "$UAT_EXIT" -ne 0 ]; then
             echo "  ⚠ $UNIT_ID — claude exited $UAT_EXIT (crash/OOM?) — treating as error"
             SKIPPED=$((SKIPPED + 1))
@@ -947,6 +971,8 @@ PYEOF
         sync_sqlite_from_json
         echo ""
     done <<< "$UNITS"
+    rm -rf "$UAT_AGENT_TMP" 2>/dev/null || true
+    trap - INT
 
     echo "═══════════════════════════════════════════"
     echo "UAT Complete"
@@ -1019,12 +1045,14 @@ PYEOF
     APPROVED=0
     REJECTED=0
     SKIPPED=0
+    REL_AGENT_FILE=$(expand_agent_to_tmp "uat-agent")
+    REL_AGENT_TMP="$_AGENT_TMP_DIR"
 
     while IFS= read -r UNIT_ID; do
         [ -z "$UNIT_ID" ] && continue
         echo "─── RELEASE: $UNIT_ID ──────────────────────────────────────"
         RELEASE_EXIT=0
-        claude --dangerously-skip-permissions --agent uat-agent --print "release $UNIT_ID" < /dev/null || RELEASE_EXIT=$?
+        claude --dangerously-skip-permissions --agent "$REL_AGENT_FILE" --print "release $UNIT_ID" < /dev/null || RELEASE_EXIT=$?
         if [ "$RELEASE_EXIT" -ne 0 ]; then
             echo "  ⚠ $UNIT_ID — claude exited $RELEASE_EXIT (crash?) — skipping"
             SKIPPED=$((SKIPPED + 1))
@@ -1048,6 +1076,7 @@ PYEOF
         sync_sqlite_from_json
         echo ""
     done <<< "$UNITS"
+    rm -rf "$REL_AGENT_TMP" 2>/dev/null || true
 
     echo "═══════════════════════════════════════════"
     echo "Release UAT Complete"
@@ -1068,7 +1097,10 @@ if [ "$MODE" = "bug" ]; then
     echo ""
     # Pass any extra args as the initial bug description; if none, agent will ask
     BUG_DESC="${ARG2:-}"
-    claude --dangerously-skip-permissions --agent bug-agent --print "$BUG_DESC" < /dev/null || true
+    BUG_AGENT_FILE=$(expand_agent_to_tmp "bug-agent")
+    BUG_AGENT_TMP="$_AGENT_TMP_DIR"
+    claude --dangerously-skip-permissions --agent "$BUG_AGENT_FILE" --print "$BUG_DESC" < /dev/null || true
+    rm -rf "$BUG_AGENT_TMP" 2>/dev/null || true
     echo ""
     exit 0
 fi
@@ -1154,6 +1186,10 @@ fi
 echo "Progress saved after every round. Ctrl+C stops between rounds."
 echo ""
 
+# Pre-expand the audit-orchestrator agent once (for audit/full modes that call it directly).
+ORCH_AGENT_FILE=$(expand_agent_to_tmp "audit-orchestrator")
+ORCH_AGENT_TMP="$_AGENT_TMP_DIR"
+
 while [ $INTERRUPTED -eq 0 ]; do
 
     # Termination: implement+SQLite stops at task limit; others stop after COUNT rounds
@@ -1167,9 +1203,10 @@ while [ $INTERRUPTED -eq 0 ]; do
     fi
 
     # Check for available work before spending a session on it
-    if ! HAS_WORK=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<PYEOF
+    if ! HAS_WORK=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_DECISIONS_DIR:-docs/decisions}" <<PYEOF
 import json, sys
 progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
+decisions_dir = sys.argv[2] if len(sys.argv) > 2 else "docs/decisions"
 try:
     with open(progress_file) as f:
         data = json.load(f)
@@ -1184,7 +1221,7 @@ mode = "$MODE"
 def wave0_recency_eligible(queue):
     """True if any decision file is newer than any unit's last_audit_date.
     Conservative check — doesn't need the full applies-to matrix."""
-    decision_files = _glob.glob("docs/decisions/*.md")
+    decision_files = _glob.glob(f"{decisions_dir}/*.md")
     if not decision_files:
         return False
     newest_decision = max(os.path.getmtime(f) for f in decision_files)
@@ -1272,7 +1309,7 @@ except Exception as e:
         run_parallel_implement "$TO_CLAIM" || ORCH_EXIT=$?
         TASKS_DONE=$((TASKS_DONE + _RPI_CLAIMED))
     else
-        claude --dangerously-skip-permissions --agent audit-orchestrator --print "$MODE 1" || ORCH_EXIT=$?
+        claude --dangerously-skip-permissions --agent "$ORCH_AGENT_FILE" --print "$MODE 1" || ORCH_EXIT=$?
     fi
 
     if [ "$ORCH_EXIT" -ne 0 ]; then
@@ -1301,12 +1338,14 @@ except: pass
         echo "⏸  $NI_COUNT task(s) need your input — pausing automated run"
         echo ""
         # Launch interactive session — orchestrator auto-detects needs_input and enters review_input
-        claude --dangerously-skip-permissions --agent audit-orchestrator
+        claude --dangerously-skip-permissions --agent "$ORCH_AGENT_FILE"
         echo ""
         echo "Answers recorded. Resuming automated run..."
         echo ""
     fi
 done
+
+rm -rf "$ORCH_AGENT_TMP" 2>/dev/null || true
 
 # ── summary ───────────────────────────────────────────────────────────────────
 echo ""

@@ -55,6 +55,36 @@ Use this to navigate to the right page for each unit:
 
 ---
 
+## STARTUP — Resolve Environment
+
+**First action before anything else.** If you see literal `{{PROJECT_ROOT}}` anywhere in these instructions, tokens were not pre-expanded. Resolve them now:
+
+```bash
+# Step 1 — find project root and cd to it
+git rev-parse --show-toplevel
+
+# Step 2 — read config for real paths (run from project root)
+python3 -c "
+import json, sys
+try:
+    c = json.load(open('io-orchestrator.config.json'))
+    p = c.get('paths', {})
+    print('PROGRESS_JSON=' + p.get('registry_file', 'comms/AUDIT_PROGRESS.json'))
+    print('STATE_DIR='     + p.get('state_dir', 'docs/state'))
+    print('TASK_DIR='      + p.get('task_dir', 'docs/tasks'))
+    print('UAT_DIR='       + p.get('uat_dir', 'docs/uat'))
+except Exception:
+    print('PROGRESS_JSON=comms/AUDIT_PROGRESS.json')
+    print('STATE_DIR=docs/state')
+    print('TASK_DIR=docs/tasks')
+    print('UAT_DIR=docs/uat')
+"
+```
+
+Use the printed values for all `{{PROGRESS_JSON}}`, `{{STATE_DIR}}`, `{{TASK_DIR}}`, and `{{UAT_DIR}}` references. If tokens already show real paths, skip this step.
+
+---
+
 ## PHASE 0 — Seed Data Pre-check
 
 Before loading tasks, check whether test data is available. This determines how to interpret "No data" during data flow scenario evaluation — without it, an empty-state UI is indistinguishable from a real zero-record response.

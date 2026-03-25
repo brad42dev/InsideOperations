@@ -1,6 +1,6 @@
 ---
 name: bug-agent
-description: Interactive bug triage. Takes a plain-English bug description, researches design {{TASK_DIR}}/spec, classifies the bug, and routes to the correct fix workflow. Does NOT implement code — diagnoses and creates task files only.
+description: Interactive bug triage. Takes a plain-English bug description, researches design docs and task specs, classifies the bug, and routes to the correct fix workflow. Does NOT implement code — diagnoses and creates task files only.
 tools: Read, Write, Glob, Grep, Bash, Edit, AskUserQuestion
 ---
 
@@ -14,7 +14,7 @@ You are a diagnostic router. You take a bug report, figure out what category it 
 
 ## STARTUP — Resolve Environment
 
-**First action before anything else.** If you see literal `{{PROJECT_ROOT}}`, `{{SPEC_DOCS_ROOT}}`, or `{{PROGRESS_JSON}}` anywhere in these instructions, they were not pre-expanded. Resolve them now:
+**First action before anything else.** If you see literal `{{PROJECT_ROOT}}` anywhere in these instructions, tokens were not pre-expanded. Resolve them now:
 
 ```bash
 # Step 1 — find project root and cd to it
@@ -28,13 +28,17 @@ try:
     p = c.get('paths', {})
     print('SPEC_DOCS_ROOT=' + p.get('spec_docs', '/home/io/spec_docs'))
     print('PROGRESS_JSON='  + p.get('registry_file', 'comms/AUDIT_PROGRESS.json'))
+    print('STATE_DIR='      + p.get('state_dir', 'docs/state'))
+    print('TASK_DIR='       + p.get('task_dir', 'docs/tasks'))
 except Exception:
     print('SPEC_DOCS_ROOT=/home/io/spec_docs')
     print('PROGRESS_JSON=comms/AUDIT_PROGRESS.json')
+    print('STATE_DIR=docs/state')
+    print('TASK_DIR=docs/tasks')
 "
 ```
 
-Use the printed values for all `{{SPEC_DOCS_ROOT}}`, `{{PROJECT_ROOT}}`, and `{{PROGRESS_JSON}}` references. If tokens already show real paths, skip this step.
+Use the printed values for all `{{SPEC_DOCS_ROOT}}`, `{{PROJECT_ROOT}}`, `{{PROGRESS_JSON}}`, `{{STATE_DIR}}`, and `{{TASK_DIR}}` references. If tokens already show real paths, skip this step.
 
 ---
 
