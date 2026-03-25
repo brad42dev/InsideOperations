@@ -50,6 +50,13 @@ const _gKeyTimerRef: { current: ReturnType<typeof setTimeout> | null } = { curre
 // so the module-level keyboard handler always calls the active setter.
 const _setGKeyHintVisible: { current: ((v: boolean) => void) | null } = { current: null }
 
+// Bare modifier key names — used by the G-key handler to ignore isolated
+// modifier presses (Shift, CapsLock, etc.) without cancelling the pending state.
+const _GKEY_MODIFIER_KEYS = new Set([
+  'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn', 'FnLock',
+  'Hyper', 'Super', 'Symbol', 'SymbolLock', 'NumLock', 'ScrollLock',
+])
+
 function getPageTitle(pathname: string): string {
   const route = ROUTE_REGISTRY.find(
     (r) => pathname === r.path || pathname.startsWith(r.path + '/'),
@@ -843,13 +850,27 @@ export default function AppShell() {
       }
 
       if (gKeyPending.current && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Ignore bare modifier key presses (Shift, CapsLock, etc.) — they do
+        // not constitute a navigation intent and should not cancel the sequence.
+        if (_GKEY_MODIFIER_KEYS.has(e.key)) return
+
+        // Always prevent default while in G-key pending state — we own all
+        // keyboard input at this point and must not let any key reach the
+        // browser's native handler (e.g. Enter triggering form submit, or any
+        // key causing unexpected navigation in Playwright / headless contexts).
+        e.preventDefault()
         const path = G_KEY_MAP[e.key.toLowerCase()]
         if (path) {
-          e.preventDefault()
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
           _setGKeyHintVisible.current?.(false)
           navigateRef.current(path)
+        } else {
+          // Unrecognised key while pending — cancel the sequence so the user
+          // is not left stranded waiting for the 2000ms timer.
+          gKeyPending.current = false
+          if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
+          _setGKeyHintVisible.current?.(false)
         }
         return
       }
