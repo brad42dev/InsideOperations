@@ -1006,16 +1006,19 @@ run_parallel_uat() {
     local total=${#units_arr[@]}
     [ "$total" -eq 0 ] && return 0
 
-    local offset=0
-    while [ $offset -lt $total ]; do
-        local batch_pids=()
-        local batch_units=()
+    echo "  UAT worker pool: up to ${max_agents} agent(s) running at a time, ${total} unit(s) total"
 
-        # Launch up to max_agents units in this batch
-        local i=$offset
-        while [ $i -lt $total ] && [ ${#batch_pids[@]} -lt "$max_agents" ]; do
-            local unit_id="${units_arr[$i]}"
-            echo "  → UAT starting: $unit_id"
+    local active_pids=()
+    local active_units=()
+    local next_idx=0
+
+    # Worker pool: fill slots as they open, never idle while work remains.
+    while [ "$next_idx" -lt "$total" ] || [ "${#active_pids[@]}" -gt 0 ]; do
+        # Fill all open slots
+        while [ "$next_idx" -lt "$total" ] && [ "${#active_pids[@]}" -lt "$max_agents" ]; do
+            local unit_id="${units_arr[$next_idx]}"
+            next_idx=$((next_idx + 1))
+            echo "  → UAT starting: $unit_id ($next_idx/$total)"
             # Each claude session runs independently; output goes to stderr so it
             # appears in the terminal without polluting the caller's capture context.
             (
@@ -1023,45 +1026,52 @@ run_parallel_uat() {
                        --agent "$agent_file" \
                        --print "$uat_mode $unit_id" < /dev/null
             ) >&2 &
-            batch_pids+=($!)
-            batch_units+=("$unit_id")
-            i=$((i + 1))
+            active_pids+=($!)
+            active_units+=("$unit_id")
         done
-        offset=$i
 
-        echo "  Running ${#batch_pids[@]} UAT agent(s) in parallel..."
+        [ "${#active_pids[@]}" -eq 0 ] && break
 
-        # Collect results for this batch
-        for idx in "${!batch_pids[@]}"; do
-            local pid="${batch_pids[$idx]}"
-            local unit_id="${batch_units[$idx]}"
-            local exit_code=0
-            wait "$pid" || exit_code=$?
+        # Wait for any active agent to finish, then immediately fill the freed slot
+        wait -n "${active_pids[@]}" 2>/dev/null || true
 
-            echo "─── UAT result: $unit_id ───────────────────────────────────"
-            if [ "$exit_code" -ne 0 ]; then
-                echo "  ⚠ $unit_id — claude exited $exit_code (crash/OOM?) — treating as error"
-                _RPU_SKIPPED=$((_RPU_SKIPPED + 1))
+        # Collect all agents that have finished (may be more than one)
+        local _new_pids=()
+        local _new_units=()
+        for i in "${!active_pids[@]}"; do
+            local pid="${active_pids[$i]}"
+            local unit_id="${active_units[$i]}"
+            if ! kill -0 "$pid" 2>/dev/null; then
+                local exit_code=0
+                wait "$pid" 2>/dev/null || exit_code=$?
+                echo "─── UAT result: $unit_id ───────────────────────────────────"
+                if [ "$exit_code" -ne 0 ]; then
+                    echo "  ⚠ $unit_id — claude exited $exit_code (crash/OOM?) — treating as error"
+                    _RPU_SKIPPED=$((_RPU_SKIPPED + 1))
+                else
+                    local result_file="${CFG_UAT_DIR:-docs/uat}/$unit_id/CURRENT.md"
+                    if [ -f "$result_file" ]; then
+                        local verdict
+                        verdict=$(grep "^verdict:" "$result_file" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
+                        case "$verdict" in
+                            pass)    _RPU_PASSED=$((_RPU_PASSED + 1));   echo "  ✅ $unit_id — pass" ;;
+                            fail)    _RPU_FAILED=$((_RPU_FAILED + 1));   echo "  ❌ $unit_id — fail (bug tasks created)" ;;
+                            partial) _RPU_FAILED=$((_RPU_FAILED + 1));   echo "  ~ $unit_id — partial" ;;
+                            *)       _RPU_SKIPPED=$((_RPU_SKIPPED + 1)); echo "  — $unit_id — skipped (verdict: $verdict)" ;;
+                        esac
+                    else
+                        _RPU_SKIPPED=$((_RPU_SKIPPED + 1))
+                        echo "  — $unit_id — no result file (agent may have crashed)"
+                    fi
+                fi
                 echo ""
-                continue
-            fi
-
-            local result_file="${CFG_UAT_DIR:-docs/uat}/$unit_id/CURRENT.md"
-            if [ -f "$result_file" ]; then
-                local verdict
-                verdict=$(grep "^verdict:" "$result_file" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
-                case "$verdict" in
-                    pass)    _RPU_PASSED=$((_RPU_PASSED + 1));   echo "  ✅ $unit_id — pass" ;;
-                    fail)    _RPU_FAILED=$((_RPU_FAILED + 1));   echo "  ❌ $unit_id — fail (bug tasks created)" ;;
-                    partial) _RPU_FAILED=$((_RPU_FAILED + 1));   echo "  ~ $unit_id — partial" ;;
-                    *)       _RPU_SKIPPED=$((_RPU_SKIPPED + 1)); echo "  — $unit_id — skipped (verdict: $verdict)" ;;
-                esac
             else
-                _RPU_SKIPPED=$((_RPU_SKIPPED + 1))
-                echo "  — $unit_id — no result file (agent may have crashed)"
+                _new_pids+=("$pid")
+                _new_units+=("$unit_id")
             fi
-            echo ""
         done
+        active_pids=("${_new_pids[@]+"${_new_pids[@]}"}")
+        active_units=("${_new_units[@]+"${_new_units[@]}"}")
     done
 }
 
@@ -1084,77 +1094,89 @@ run_parallel_audit() {
 
     reclaim_stale_units
 
-    local agent_pids=()
-    local agent_units=()
+    local active_pids=()
+    local active_units=()
+    local _exhausted=0
+    local _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
 
-    for i in $(seq 1 "$max_agents"); do
-        local unit_id
-        unit_id=$(claim_next_unit "io-audit-$$-${i}") || {
-            echo "  WARNING: claim_next_unit failed (SQLite timeout or error) — stopping agent launch" >&2
-            break
-        }
-        if [ -z "$unit_id" ]; then
-            echo "  No more units eligible for audit (claimed $((i - 1)) of ${max_agents})"
-            break
-        fi
+    # Worker pool: claim a new unit as soon as a slot opens.
+    while [ "${_exhausted}" -eq 0 ] || [ "${#active_pids[@]}" -gt 0 ]; do
+        # Fill all open slots
+        while [ "${_exhausted}" -eq 0 ] && [ "${#active_pids[@]}" -lt "$max_agents" ]; do
+            local unit_id
+            unit_id=$(claim_next_unit "io-audit-$$") || {
+                echo "  WARNING: claim_next_unit failed (SQLite timeout or error) — stopping" >&2
+                _exhausted=1
+                break
+            }
+            if [ -z "$unit_id" ]; then
+                echo "  No more units eligible for audit."
+                _exhausted=1
+                break
+            fi
 
-        echo "  Audit agent ${i}: claimed unit ${unit_id}"
-        local agent_file
-        agent_file=$(expand_agent_to_tmp "audit-orchestrator")
-        local _this_audit_tmp="$_AGENT_TMP_DIR"
-        # Capture unit_id for the subshell — subshell inherits the value at fork time
-        local _this_unit="$unit_id"
-        # Launch audit-orchestrator in main repo (no worktree — audit reads source files
-        # and writes to unit-specific docs/tasks/ and docs/catalogs/ dirs, no git commits).
-        # "audit force {unit} 1" = audit exactly this unit and exit.
-        local pid
-        pid=$(
-            (
-                _exit=0
-                _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
-                timeout "${_timeout_min}m" \
-                    claude --dangerously-skip-permissions \
-                           --agent "$agent_file" \
-                           --print "audit force ${_this_unit} 1" < /dev/null \
-                    || _exit=$?
-                if [ "$_exit" -eq 124 ]; then
-                    echo "  ✗ Audit unit ${_this_unit}: agent timed out after ${_timeout_min}m" >&2
+            echo "  Audit agent: claimed unit ${unit_id}"
+            local agent_file
+            agent_file=$(expand_agent_to_tmp "audit-orchestrator")
+            local _this_audit_tmp="$_AGENT_TMP_DIR"
+            local _this_unit="$unit_id"
+            local pid
+            pid=$(
+                (
+                    _exit=0
+                    timeout "${_timeout_min}m" \
+                        claude --dangerously-skip-permissions \
+                               --agent "$agent_file" \
+                               --print "audit force ${_this_unit} 1" < /dev/null \
+                        || _exit=$?
+                    if [ "$_exit" -eq 124 ]; then
+                        echo "  ✗ Audit unit ${_this_unit}: agent timed out after ${_timeout_min}m" >&2
+                    fi
+                    release_unit_claim "$_this_unit"
+                    rm -rf "$_this_audit_tmp" 2>/dev/null || true
+                    exit "$_exit"
+                ) >&2 &
+                echo $!
+            )
+            active_pids+=("$pid")
+            active_units+=("$unit_id")
+            _RPA_CLAIMED=$((_RPA_CLAIMED + 1))
+            echo "  Audit agent: PID ${pid} → unit ${unit_id}"
+        done
+
+        [ "${#active_pids[@]}" -eq 0 ] && break
+
+        # Wait for any active agent to finish, then immediately fill the freed slot
+        wait -n "${active_pids[@]}" 2>/dev/null || true
+
+        # Collect all agents that have finished
+        local _new_pids=()
+        local _new_units=()
+        for i in "${!active_pids[@]}"; do
+            local pid="${active_pids[$i]}"
+            local unit_id="${active_units[$i]}"
+            if ! kill -0 "$pid" 2>/dev/null; then
+                local exit_code=0
+                wait "$pid" 2>/dev/null || exit_code=$?
+                if [ "$exit_code" -eq 0 ]; then
+                    echo "  ✅ Audit agent PID ${pid} (unit ${unit_id}) — completed"
+                elif [ "$exit_code" -eq 124 ]; then
+                    echo "  ✗ Audit agent PID ${pid} (unit ${unit_id}) — timed out"
+                else
+                    echo "  ❌ Audit agent PID ${pid} (unit ${unit_id}) — failed (exit ${exit_code})"
                 fi
-                release_unit_claim "$_this_unit"
-                rm -rf "$_this_audit_tmp" 2>/dev/null || true
-                exit "$_exit"
-            ) >&2 &
-            echo $!
-        )
-        agent_pids+=("$pid")
-        agent_units+=("$unit_id")
-        echo "  Audit agent ${i}: PID ${pid}"
+            else
+                _new_pids+=("$pid")
+                _new_units+=("$unit_id")
+            fi
+        done
+        active_pids=("${_new_pids[@]+"${_new_pids[@]}"}")
+        active_units=("${_new_units[@]+"${_new_units[@]}"}")
     done
-
-    _RPA_CLAIMED=${#agent_pids[@]}
 
     if [ "$_RPA_CLAIMED" -eq 0 ]; then
         echo "  No units claimed — nothing to audit."
-        return 0
     fi
-
-    echo ""
-    echo "  Running ${#agent_pids[@]} audit agent(s) in parallel..."
-
-    for idx in "${!agent_pids[@]}"; do
-        local pid="${agent_pids[$idx]}"
-        local unit_id="${agent_units[$idx]}"
-        if wait "$pid"; then
-            echo "  ✅ Audit agent PID ${pid} (unit ${unit_id}) — completed"
-        else
-            local exit_code=$?
-            if [ "$exit_code" -eq 124 ]; then
-                echo "  ✗ Audit agent PID ${pid} (unit ${unit_id}) — timed out"
-            else
-                echo "  ❌ Audit agent PID ${pid} (unit ${unit_id}) — failed (exit ${exit_code})"
-            fi
-        fi
-    done
 }
 
 # ── Wave 3: Parallel Orchestrator ────────────────────────────────────────────
@@ -1209,64 +1231,84 @@ UNIT: ${_dunit}" > /dev/null
         fi
     fi
 
-    local agent_pids=()
-    local agent_tasks=()
+    local active_pids=()
+    local active_tasks=()
+    local agent_tasks=()  # all tasks ever launched — used for _RPI_VERIFIED query
+    local failed=0
+    local _rl_tasks=()  # rate-limited tasks — collected for a single batched sleep
+    local _exhausted=0
 
-    for i in $(seq 1 "$max_agents"); do
-        local task_id
-        task_id=$(claim_next_task "io-run-$$-${i}") || {
-            echo "  WARNING: claim_next_task failed (SQLite timeout or error) — stopping agent launch" >&2
-            break
-        }
-        if [ -z "$task_id" ]; then
-            echo "  No more tasks available (claimed $((i - 1)) of ${max_agents})"
-            break
-        fi
+    # Worker pool: claim a new task as soon as a slot opens.
+    while [ "${_exhausted}" -eq 0 ] || [ "${#active_pids[@]}" -gt 0 ]; do
+        # Fill all open slots
+        while [ "${_exhausted}" -eq 0 ] && [ "${#active_pids[@]}" -lt "$max_agents" ]; do
+            local task_id
+            task_id=$(claim_next_task "io-run-$$") || {
+                echo "  WARNING: claim_next_task failed (SQLite timeout or error) — stopping" >&2
+                _exhausted=1
+                break
+            }
+            if [ -z "$task_id" ]; then
+                echo "  No more tasks available."
+                _exhausted=1
+                break
+            fi
 
-        echo "  Agent ${i}: claimed task ${task_id}"
-        local pid
-        # "implement force {task_id} 1" — implement exactly that task (claimed via
-        # SQLite above) and exit. Without 'force', parallel agents would all compete
-        # for the same highest-priority task from JSON; the '1' caps to one task.
-        pid=$(launch_agent_in_worktree "$task_id" "audit-orchestrator" "implement force $task_id 1")
-        agent_pids+=("$pid")
-        agent_tasks+=("$task_id")
-        echo "  Agent ${i}: PID ${pid}"
+            echo "  Agent: claimed task ${task_id}"
+            local pid
+            # "implement force {task_id} 1" — implement exactly this claimed task and exit.
+            pid=$(launch_agent_in_worktree "$task_id" "audit-orchestrator" "implement force $task_id 1")
+            active_pids+=("$pid")
+            active_tasks+=("$task_id")
+            agent_tasks+=("$task_id")
+            echo "  Agent: PID ${pid} → task ${task_id}"
+        done
+
+        [ "${#active_pids[@]}" -eq 0 ] && break
+
+        # Wait for any active agent to finish, then immediately fill the freed slot
+        wait -n "${active_pids[@]}" 2>/dev/null || true
+
+        # Collect all agents that have finished
+        local _new_pids=()
+        local _new_tasks=()
+        for i in "${!active_pids[@]}"; do
+            local pid="${active_pids[$i]}"
+            local task_id="${active_tasks[$i]}"
+            if ! kill -0 "$pid" 2>/dev/null; then
+                local exit_code=0
+                wait "$pid" 2>/dev/null || exit_code=$?
+                if [ "$exit_code" -eq 0 ]; then
+                    echo "  ✅ Agent PID ${pid} (task ${task_id}) — completed"
+                    "$REPO/io-gh-mirror.sh" mirror "$task_id" "verified" "Completed by agent PID ${pid}" || true
+                else
+                    local rl_signal="/tmp/io-rl-${task_id}"
+                    if [ -f "$rl_signal" ]; then
+                        rm -f "$rl_signal" 2>/dev/null || true
+                        echo "  ⚠ Task ${task_id} rate-limited — will re-queue after backoff"
+                        _rl_tasks+=("$task_id")
+                    else
+                        echo "  ❌ Agent PID ${pid} (task ${task_id}) — failed (exit ${exit_code})"
+                        update_task_status "$task_id" "failed"
+                        "$REPO/io-gh-mirror.sh" mirror "$task_id" "failed" "Agent PID ${pid} exited ${exit_code}" || true
+                        failed=$((failed + 1))
+                    fi
+                fi
+            else
+                _new_pids+=("$pid")
+                _new_tasks+=("$task_id")
+            fi
+        done
+        active_pids=("${_new_pids[@]+"${_new_pids[@]}"}")
+        active_tasks=("${_new_tasks[@]+"${_new_tasks[@]}"}")
     done
 
-    _RPI_CLAIMED=${#agent_pids[@]}
+    _RPI_CLAIMED=${#agent_tasks[@]}
 
     if [ "$_RPI_CLAIMED" -eq 0 ]; then
         echo "  No tasks claimed — nothing to run."
         return 0
     fi
-
-    echo ""
-    echo "  Running ${#agent_pids[@]} agent(s) in parallel..."
-
-    local failed=0
-    local _rl_tasks=()  # rate-limited tasks — collected for a single batched sleep
-    for idx in "${!agent_pids[@]}"; do
-        local pid="${agent_pids[$idx]}"
-        local task_id="${agent_tasks[$idx]}"
-        if wait "$pid"; then
-            echo "  ✅ Agent PID ${pid} (task ${task_id}) — completed"
-            "$REPO/io-gh-mirror.sh" mirror "$task_id" "verified" "Completed by agent PID ${pid}" || true
-        else
-            local exit_code=$?
-            local rl_signal="/tmp/io-rl-${task_id}"
-            if [ -f "$rl_signal" ]; then
-                rm -f "$rl_signal" 2>/dev/null || true
-                echo "  ⚠ Task ${task_id} rate-limited — will re-queue after backoff"
-                _rl_tasks+=("$task_id")
-            else
-                echo "  ❌ Agent PID ${pid} (task ${task_id}) — failed (exit ${exit_code})"
-                update_task_status "$task_id" "failed"
-                "$REPO/io-gh-mirror.sh" mirror "$task_id" "failed" "Agent PID ${pid} exited ${exit_code}" || true
-                failed=$((failed + 1))
-            fi
-        fi
-    done
 
     # Re-queue rate-limited tasks with a single shared sleep (not N × sleep).
     if [ "${#_rl_tasks[@]}" -gt 0 ]; then
@@ -1997,116 +2039,246 @@ PYEOF
             break
         fi
 
-        # ── C1: Proportional slot allocation (three-way: audit + impl + UAT) ──
-        _SLOT_RESULT=$(python3 -c "
-import math
-ap = $AUTO_PARALLEL
-pa, pi, pu = $PENDING_AUDIT, $PENDING_IMPL, $PENDING_UAT
-total = pa + pi + pu
-a = max(1, math.ceil(ap * pa / total)) if pa > 0 else 0
-i = max(1, math.ceil(ap * pi / total)) if pi > 0 else 0
-u = max(1, math.ceil(ap * pu / total)) if pu > 0 else 0
-# Reduce overflow, priority: keep impl > uat > audit
-while a + i + u > ap:
-    if a > (1 if pa > 0 else 0): a -= 1
-    elif u > (1 if pu > 0 else 0): u -= 1
-    elif i > (1 if pi > 0 else 0): i -= 1
-    elif a > 0: a -= 1
-    elif u > 0: u -= 1
-    else: break
-print(a, i, u)
-" 2>/dev/null || echo "0 $AUTO_PARALLEL 0")
-        AUDIT_SLOTS=$(echo "$_SLOT_RESULT" | awk '{print $1}')
-        IMPL_SLOTS=$(echo "$_SLOT_RESULT" | awk '{print $2}')
-        UAT_SLOTS=$(echo "$_SLOT_RESULT" | awk '{print $3}')
-
-        # Apply max_audit_parallel cap (audit sessions are heavier on Claude context)
+        # ── C1: Unified worker pool — 60/40 impl/UAT ratio, audit up to cap ────
+        # Slots are assigned per-completion, not pre-committed per type.
+        # Impl targets 60% of impl+UAT slots; UAT targets 40%. Audit gets up
+        # to max_audit_parallel slots independently of the ratio.
         _MAX_AUDIT_CAP=${CFG_MAX_AUDIT_PARALLEL:-2}
-        if [ "$AUDIT_SLOTS" -gt "$_MAX_AUDIT_CAP" ]; then
-            _AUDIT_FREED=$((AUDIT_SLOTS - _MAX_AUDIT_CAP))
-            AUDIT_SLOTS=$_MAX_AUDIT_CAP
-            if [ "$PENDING_IMPL" -gt 0 ]; then
-                IMPL_SLOTS=$((IMPL_SLOTS + _AUDIT_FREED))
-            elif [ "$PENDING_UAT" -gt 0 ]; then
-                UAT_SLOTS=$((UAT_SLOTS + _AUDIT_FREED))
-            fi
-        fi
-
-        echo "  Batch ${AUTO_BATCH}: ${AUDIT_SLOTS} audit + ${IMPL_SLOTS} implement + ${UAT_SLOTS} UAT agents"
+        echo "  Batch ${AUTO_BATCH}: up to ${AUTO_PARALLEL} agent(s) — impl≈60%% / UAT≈40%% / audit≤${_MAX_AUDIT_CAP}"
         echo "  (pending: ${PENDING_AUDIT} unit(s) for audit, ${PENDING_IMPL} impl task(s), ${PENDING_UAT} UAT unit(s))"
         echo ""
 
-        # Ensure backend/frontend running before launching UAT agents
-        if [ "$UAT_SLOTS" -gt 0 ] && [ -z "$BACKEND_STARTED" ] && [ -z "$DEV_SERVER_STARTED" ]; then
-            trap 'if [ -n "$DEV_SERVER_STARTED" ]; then echo "Stopping dev server..."; kill_port 5173; fi; if [ -n "$BACKEND_STARTED" ]; then echo "Stopping backend services..."; "$REPO/dev.sh" stop > /dev/null 2>&1 || true; fi; _io_lock_cleanup' EXIT
-            ensure_backend_running "io-auto-uat-backend"
-            ensure_frontend_running "io-auto-uat-devserver"
+        # Expand UAT agent file and ensure backend running if UAT work exists
+        _AUTO_UAT_AGENT_FILE=""
+        _AUTO_UAT_AGENT_TMP=""
+        if [ "$PENDING_UAT" -gt 0 ]; then
+            if [ -z "$BACKEND_STARTED" ] && [ -z "$DEV_SERVER_STARTED" ]; then
+                trap 'if [ -n "$DEV_SERVER_STARTED" ]; then echo "Stopping dev server..."; kill_port 5173; fi; if [ -n "$BACKEND_STARTED" ]; then echo "Stopping backend services..."; "$REPO/dev.sh" stop > /dev/null 2>&1 || true; fi; _io_lock_cleanup' EXIT
+                ensure_backend_running "io-auto-uat-backend"
+                ensure_frontend_running "io-auto-uat-devserver"
+            fi
+            _AUTO_UAT_AGENT_FILE=$(expand_agent_to_tmp "uat-agent")
+            _AUTO_UAT_AGENT_TMP="$_AGENT_TMP_DIR"
         fi
 
-        # ── Launch audit, implement, and UAT agents in parallel ──────────────
-        # Results are written to temp files because subshells can't set parent vars.
-        _AUDIT_RESULT_FILE="/tmp/io-auto-audit-$$"
-        _IMPL_RESULT_FILE="/tmp/io-auto-impl-$$"
-        _UAT_RESULT_FILE="/tmp/io-auto-uat-$$"
-        echo "0" > "$_AUDIT_RESULT_FILE"    # claimed (audit units)
-        echo "0 0" > "$_IMPL_RESULT_FILE"   # claimed verified
-        echo "0 0 0" > "$_UAT_RESULT_FILE"  # passed failed skipped
+        # Load UAT units into indexed array for pool dispatching
+        local _uat_arr=()
+        if [ -n "$UAT_UNITS_ALL" ]; then
+            while IFS= read -r _u; do [ -n "$_u" ] && _uat_arr+=("$_u"); done <<< "$UAT_UNITS_ALL"
+        fi
+        local _uat_idx=0
 
-        _AUDIT_BG_PID=""
-        _IMPL_BG_PID=""
-        _UAT_BG_PID=""
-        _UAT_AGENT_TMP_AUTO=""
+        # Pool state: parallel arrays of active agent PIDs with their type and item ID
+        local _auto_pids=()
+        local _auto_types=()   # "impl" | "uat" | "audit"
+        local _auto_ids=()     # task_id (impl) or unit_id (uat/audit)
 
-        if [ "$AUDIT_SLOTS" -gt 0 ] && [ "$PENDING_AUDIT" -gt 0 ]; then
-            (
-                run_parallel_audit "$AUDIT_SLOTS" || true
-                echo "$_RPA_CLAIMED" > "$_AUDIT_RESULT_FILE"
-            ) &
-            _AUDIT_BG_PID=$!
+        # Counters
+        local _impl_launched=0 _uat_launched=0 _audit_active=0
+        local _impl_exhausted=0 _uat_exhausted=0 _audit_exhausted=0
+        [ "$PENDING_IMPL" -eq 0 ] && _impl_exhausted=1
+        [ "$PENDING_UAT" -eq 0 ]  && _uat_exhausted=1
+        [ "$PENDING_AUDIT" -eq 0 ] && _audit_exhausted=1
+
+        BATCH_AUDIT_DONE=0 BATCH_IMPL_CLAIMED=0 BATCH_IMPL_VERIFIED=0
+        BATCH_UAT_PASSED=0 BATCH_UAT_FAILED=0 BATCH_UAT_SKIPPED=0
+        local _auto_impl_tasks=()   # for DB verified-count query
+        local _auto_rl_tasks=()     # rate-limited impl tasks — re-queue after pool drains
+
+        while [ "${#_auto_pids[@]}" -gt 0 ] || \
+              [ "$_impl_exhausted" -eq 0 ] || \
+              [ "$_uat_exhausted" -eq 0 ] || \
+              [ "$_audit_exhausted" -eq 0 ]; do
+
+            # ── Fill all open slots ──────────────────────────────────────────
+            while [ "${#_auto_pids[@]}" -lt "$AUTO_PARALLEL" ]; do
+                # Choose type: audit up to cap first, then 60/40 impl/UAT
+                local _next="none"
+                if [ "$_audit_active" -lt "$_MAX_AUDIT_CAP" ] && [ "$_audit_exhausted" -eq 0 ]; then
+                    _next="audit"
+                elif [ "$_impl_exhausted" -eq 0 ] && [ "$_uat_exhausted" -eq 0 ]; then
+                    local _total_iu=$((_impl_launched + _uat_launched))
+                    local _impl_pct=0
+                    [ "$_total_iu" -gt 0 ] && _impl_pct=$((_impl_launched * 100 / _total_iu))
+                    [ "$_impl_pct" -lt 60 ] && _next="impl" || _next="uat"
+                elif [ "$_impl_exhausted" -eq 0 ]; then _next="impl"
+                elif [ "$_uat_exhausted" -eq 0 ];  then _next="uat"
+                elif [ "$_audit_exhausted" -eq 0 ]; then _next="audit"
+                else break  # nothing left to dispatch
+                fi
+
+                if [ "$_next" = "impl" ]; then
+                    local _tid
+                    _tid=$(claim_next_task "io-auto-$$") || { _impl_exhausted=1; continue; }
+                    [ -z "$_tid" ] && { _impl_exhausted=1; echo "  No more impl tasks."; continue; }
+                    echo "  [impl ] claimed task ${_tid}"
+                    local _pid
+                    _pid=$(launch_agent_in_worktree "$_tid" "audit-orchestrator" "implement force $_tid 1")
+                    _auto_pids+=("$_pid"); _auto_types+=("impl"); _auto_ids+=("$_tid")
+                    _auto_impl_tasks+=("$_tid")
+                    _impl_launched=$((_impl_launched + 1))
+                    BATCH_IMPL_CLAIMED=$((BATCH_IMPL_CLAIMED + 1))
+                    echo "  [impl ] PID ${_pid} → task ${_tid}"
+
+                elif [ "$_next" = "uat" ]; then
+                    if [ "$_uat_idx" -ge "${#_uat_arr[@]}" ]; then
+                        _uat_exhausted=1; echo "  No more UAT units."; continue
+                    fi
+                    local _uid="${_uat_arr[$_uat_idx]}"
+                    _uat_idx=$((_uat_idx + 1))
+                    echo "  [uat  ] starting ${_uid} (${_uat_idx}/${#_uat_arr[@]})"
+                    (
+                        claude --dangerously-skip-permissions \
+                               --agent "$_AUTO_UAT_AGENT_FILE" \
+                               --print "auto ${_uid}" < /dev/null
+                    ) >&2 &
+                    local _pid=$!
+                    _auto_pids+=("$_pid"); _auto_types+=("uat"); _auto_ids+=("$_uid")
+                    _uat_launched=$((_uat_launched + 1))
+                    echo "  [uat  ] PID ${_pid} → unit ${_uid}"
+
+                elif [ "$_next" = "audit" ]; then
+                    local _uid
+                    _uid=$(claim_next_unit "io-auto-audit-$$") || { _audit_exhausted=1; continue; }
+                    [ -z "$_uid" ] && { _audit_exhausted=1; echo "  No more audit units."; continue; }
+                    echo "  [audit] claimed unit ${_uid}"
+                    local _af _at _au _ato
+                    _af=$(expand_agent_to_tmp "audit-orchestrator")
+                    _at="$_AGENT_TMP_DIR"; _au="$_uid"
+                    _ato=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
+                    local _pid
+                    _pid=$(
+                        (
+                            _ex=0
+                            timeout "${_ato}m" \
+                                claude --dangerously-skip-permissions \
+                                       --agent "$_af" \
+                                       --print "audit force ${_au} 1" < /dev/null \
+                                || _ex=$?
+                            release_unit_claim "$_au"
+                            rm -rf "$_at" 2>/dev/null || true
+                            exit "$_ex"
+                        ) >&2 &
+                        echo $!
+                    )
+                    _auto_pids+=("$_pid"); _auto_types+=("audit"); _auto_ids+=("$_uid")
+                    _audit_active=$((_audit_active + 1))
+                    echo "  [audit] PID ${_pid} → unit ${_uid}"
+                fi
+            done
+
+            [ "${#_auto_pids[@]}" -eq 0 ] && break
+
+            # ── Wait for any agent to finish, then refill ────────────────────
+            wait -n "${_auto_pids[@]}" 2>/dev/null || true
+
+            # Collect all agents that finished in this tick
+            local _np=() _nt=() _ni=()
+            for _ai in "${!_auto_pids[@]}"; do
+                local _pid="${_auto_pids[$_ai]}"
+                local _type="${_auto_types[$_ai]}"
+                local _id="${_auto_ids[$_ai]}"
+                if ! kill -0 "$_pid" 2>/dev/null; then
+                    local _ec=0; wait "$_pid" 2>/dev/null || _ec=$?
+
+                    if [ "$_type" = "impl" ]; then
+                        if [ "$_ec" -eq 0 ]; then
+                            echo "  ✅ [impl ] PID ${_pid} (task ${_id}) — completed"
+                            "$REPO/io-gh-mirror.sh" mirror "$_id" "verified" "PID ${_pid}" || true
+                        else
+                            local _rl="/tmp/io-rl-${_id}"
+                            if [ -f "$_rl" ]; then
+                                rm -f "$_rl" 2>/dev/null || true
+                                echo "  ⚠ [impl ] task ${_id} rate-limited — will re-queue"
+                                _auto_rl_tasks+=("$_id")
+                                BATCH_IMPL_CLAIMED=$((BATCH_IMPL_CLAIMED - 1))
+                            else
+                                echo "  ❌ [impl ] PID ${_pid} (task ${_id}) — failed (exit ${_ec})"
+                                update_task_status "$_id" "failed"
+                                "$REPO/io-gh-mirror.sh" mirror "$_id" "failed" "PID ${_pid} exit ${_ec}" || true
+                                AUTO_ROUND_FAILED=1
+                            fi
+                        fi
+
+                    elif [ "$_type" = "uat" ]; then
+                        if [ "$_ec" -ne 0 ]; then
+                            echo "  ⚠ [uat  ] ${_id} — claude exited ${_ec} — treating as error"
+                            BATCH_UAT_SKIPPED=$((BATCH_UAT_SKIPPED + 1))
+                        else
+                            local _rf="${CFG_UAT_DIR:-docs/uat}/${_id}/CURRENT.md"
+                            if [ -f "$_rf" ]; then
+                                local _vd
+                                _vd=$(grep "^verdict:" "$_rf" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
+                                case "$_vd" in
+                                    pass)    BATCH_UAT_PASSED=$((BATCH_UAT_PASSED + 1));   echo "  ✅ [uat  ] ${_id} — pass" ;;
+                                    fail)    BATCH_UAT_FAILED=$((BATCH_UAT_FAILED + 1));   echo "  ❌ [uat  ] ${_id} — fail" ;;
+                                    partial) BATCH_UAT_FAILED=$((BATCH_UAT_FAILED + 1));   echo "  ~ [uat  ] ${_id} — partial" ;;
+                                    *)       BATCH_UAT_SKIPPED=$((BATCH_UAT_SKIPPED + 1)); echo "  — [uat  ] ${_id} — skipped (${_vd})" ;;
+                                esac
+                            else
+                                BATCH_UAT_SKIPPED=$((BATCH_UAT_SKIPPED + 1))
+                                echo "  — [uat  ] ${_id} — no result file"
+                            fi
+                        fi
+
+                    elif [ "$_type" = "audit" ]; then
+                        _audit_active=$((_audit_active - 1))
+                        if [ "$_ec" -eq 0 ]; then
+                            BATCH_AUDIT_DONE=$((BATCH_AUDIT_DONE + 1))
+                            echo "  ✅ [audit] PID ${_pid} (unit ${_id}) — completed"
+                        elif [ "$_ec" -eq 124 ]; then
+                            echo "  ✗ [audit] PID ${_pid} (unit ${_id}) — timed out"
+                        else
+                            echo "  ❌ [audit] PID ${_pid} (unit ${_id}) — failed (exit ${_ec})"
+                            AUTO_ROUND_FAILED=1
+                        fi
+                    fi
+                else
+                    _np+=("$_pid"); _nt+=("$_type"); _ni+=("$_id")
+                fi
+            done
+            _auto_pids=("${_np[@]+"${_np[@]}"}")
+            _auto_types=("${_nt[@]+"${_nt[@]}"}")
+            _auto_ids=("${_ni[@]+"${_ni[@]}"}")
+        done
+
+        rm -rf "${_AUTO_UAT_AGENT_TMP:-}" 2>/dev/null || true
+
+        # Re-queue rate-limited impl tasks (single sleep for all)
+        if [ "${#_auto_rl_tasks[@]}" -gt 0 ]; then
+            echo "  ⚠ ${#_auto_rl_tasks[@]} impl task(s) rate-limited — waiting ${CFG_RATE_LIMIT_BACKOFF_SEC:-60}s then re-queuing"
+            sleep "${CFG_RATE_LIMIT_BACKOFF_SEC:-60}"
+            for _rl_tid in "${_auto_rl_tasks[@]}"; do
+                update_task_status "$_rl_tid" "pending"
+                "$REPO/io-gh-mirror.sh" mirror "$_rl_tid" "pending" "Rate-limited — re-queued" || true
+            done
         fi
 
-        if [ "$IMPL_SLOTS" -gt 0 ]; then
-            (
-                run_parallel_implement "$IMPL_SLOTS" || true
-                echo "$_RPI_CLAIMED $_RPI_VERIFIED" > "$_IMPL_RESULT_FILE"
-            ) &
-            _IMPL_BG_PID=$!
+        # Query actually-verified impl tasks from DB (exit codes can't be trusted)
+        if [ "${#_auto_impl_tasks[@]}" -gt 0 ]; then
+            local _tl
+            _tl=$(printf "'%s'," "${_auto_impl_tasks[@]}")
+            _tl="${_tl%,}"
+            BATCH_IMPL_VERIFIED=$(python3 -c "
+import sqlite3
+try:
+    con = sqlite3.connect('$REPO/$DB_FILE', timeout=5)
+    n = con.execute(\"SELECT COUNT(*) FROM io_tasks WHERE status='verified' AND id IN ($_tl)\").fetchone()[0]
+    con.close()
+    print(n)
+except Exception:
+    print(0)
+" 2>/dev/null || echo 0)
         fi
 
-        if [ "$UAT_SLOTS" -gt 0 ] && [ "$PENDING_UAT" -gt 0 ]; then
-            # Take up to UAT_SLOTS units from the front of the sorted list
-            UAT_BATCH=$(echo "$UAT_UNITS_ALL" | head -n "$UAT_SLOTS")
-            UAT_AGENT_FILE_AUTO=$(expand_agent_to_tmp "uat-agent")
-            _UAT_AGENT_TMP_AUTO="$_AGENT_TMP_DIR"
-            (
-                run_parallel_uat "$UAT_BATCH" "$UAT_SLOTS" "$UAT_AGENT_FILE_AUTO" "auto"
-                echo "$_RPU_PASSED $_RPU_FAILED $_RPU_SKIPPED" > "$_UAT_RESULT_FILE"
-            ) &
-            _UAT_BG_PID=$!
-        fi
-
-        # Wait for all three agent sets to finish
-        if [ -n "$_AUDIT_BG_PID" ]; then
-            wait "$_AUDIT_BG_PID" || AUTO_ROUND_FAILED=1
-        fi
-        if [ -n "$_IMPL_BG_PID" ]; then
-            wait "$_IMPL_BG_PID" || AUTO_ROUND_FAILED=1
-        fi
-        if [ -n "$_UAT_BG_PID" ]; then
-            wait "$_UAT_BG_PID" || true
-            rm -rf "${_UAT_AGENT_TMP_AUTO:-}" 2>/dev/null || true
-        fi
-
-        # Read back results from temp files
-        read -r BATCH_AUDIT_DONE < "$_AUDIT_RESULT_FILE" || BATCH_AUDIT_DONE=0
-        read -r BATCH_IMPL_CLAIMED BATCH_IMPL_VERIFIED < "$_IMPL_RESULT_FILE" || { BATCH_IMPL_CLAIMED=0; BATCH_IMPL_VERIFIED=0; }
-        read -r BATCH_UAT_PASSED BATCH_UAT_FAILED BATCH_UAT_SKIPPED < "$_UAT_RESULT_FILE" || { BATCH_UAT_PASSED=0; BATCH_UAT_FAILED=0; BATCH_UAT_SKIPPED=0; }
-        rm -f "$_AUDIT_RESULT_FILE" "$_IMPL_RESULT_FILE" "$_UAT_RESULT_FILE" 2>/dev/null || true
+        merge_completed_branches || true
+        report_conflict_branches || true
 
         echo ""
-        [ "$AUDIT_SLOTS" -gt 0 ] && echo "  Audit: ${BATCH_AUDIT_DONE} unit(s) audited"
-        [ "$IMPL_SLOTS" -gt 0 ]  && echo "  Implement: ${BATCH_IMPL_CLAIMED} claimed, ${BATCH_IMPL_VERIFIED} verified"
-        [ "$UAT_SLOTS" -gt 0 ]   && echo "  UAT: ✅ ${BATCH_UAT_PASSED} pass, ❌ ${BATCH_UAT_FAILED} fail, — ${BATCH_UAT_SKIPPED} skipped"
+        [ "$BATCH_AUDIT_DONE" -gt 0 ] && echo "  Audit: ${BATCH_AUDIT_DONE} unit(s) audited"
+        [ "$BATCH_IMPL_CLAIMED" -gt 0 ] && echo "  Implement: ${BATCH_IMPL_CLAIMED} claimed, ${BATCH_IMPL_VERIFIED} verified"
+        [ "$(( BATCH_UAT_PASSED + BATCH_UAT_FAILED + BATCH_UAT_SKIPPED ))" -gt 0 ] && \
+            echo "  UAT: ✅ ${BATCH_UAT_PASSED} pass, ❌ ${BATCH_UAT_FAILED} fail, — ${BATCH_UAT_SKIPPED} skipped"
         echo ""
 
         # ── C2: Kill switch — track consecutive zero-verified batches ─────────
@@ -2158,7 +2330,7 @@ fi
 
 # ── validate implement/audit/full mode ────────────────────────────────────────
 if [[ "$MODE" != "implement" && "$MODE" != "audit" && "$MODE" != "full" ]]; then
-    echo "Usage: $0 [implement|audit|full|auto|uat|human-uat|release-uat|bug|status|restore-backup|cleanup-branches|integration-test] [N or UNIT-ID]"
+    echo "Usage: $0 implement [P [T]] | audit [P [N]] | full [P] | auto [P] | uat [P [N]] | human-uat [N] | release-uat [N] | bug | status | restore-backup | cleanup-branches | integration-test"
     exit 1
 fi
 

@@ -334,7 +334,7 @@ implement sessions on the Claude context side.
 ---
 
 ## Wave 5 — Review
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: REQUIRED — do not ship without this**
 
 Full review of all waves 1–4 against acceptance criteria in the live code.
@@ -342,16 +342,16 @@ Treat checkboxes in this plan as untrusted — read the actual code.
 
 ### Review checklist
 
-- [ ] Wave 1: `uat P N`, `human-uat N`, `release-uat P N` — all arg forms work
-- [ ] Wave 2: schema columns exist, `--verify` passes, claim functions work correctly
-- [ ] Wave 3: parallel audit launches, unit isolation confirmed, no git commits
-- [ ] Wave 4: three-way auto dispatch, decompose fire-and-forget, kill switch counts audit
-- [ ] All `bash -n io-run.sh` passes
-- [ ] `python3 comms/migrate_to_sqlite.py --verify` passes
-- [ ] `bash scripts/test-orchestrator-install.sh` passes
-- [ ] No regression in `./io-run.sh status`, `implement`, `uat`, `auto` (no-op runs)
-- [ ] Usage string in `./io-run.sh` is up to date with all new arg forms
-- [ ] Fix any blockers found before completing
+- [x] Wave 1: `uat P N`, `human-uat N`, `release-uat N` — all arg forms work
+- [x] Wave 2: schema columns exist, `--verify` passes, claim functions work correctly
+- [x] Wave 3: parallel audit launches, unit isolation confirmed, no git commits
+- [x] Wave 4: three-way auto dispatch, decompose fire-and-forget, kill switch counts audit
+- [x] All `bash -n io-run.sh` passes
+- [x] `python3 comms/migrate_to_sqlite.py --verify` passes
+- [x] `bash scripts/test-orchestrator-install.sh` passes
+- [x] No regression in `./io-run.sh status`, `implement`, `uat`, `auto` (no-op runs)
+- [x] Usage string in `./io-run.sh` is up to date with all new arg forms
+- [x] Fix any blockers found before completing
 
 ---
 
