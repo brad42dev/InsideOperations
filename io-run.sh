@@ -1762,6 +1762,7 @@ try:
             CASE WHEN task_id LIKE 'UAT-%'   THEN 'uat'
                  WHEN task_id LIKE 'AUDIT-%' THEN 'audit'
                  WHEN task_id LIKE 'BUG-%'   THEN 'bug'
+                 WHEN task_id LIKE 'SPEC-%'  THEN 'spec'
                  ELSE 'impl' END AS atype,
             COUNT(*) AS runs,
             ROUND(AVG(context_injection_tokens))  AS avg_input,
@@ -2308,6 +2309,94 @@ BUG_PYEOF
     exit 0
 fi
 
+# ── feature mode ──────────────────────────────────────────────────────────────
+# feature-agent requires multi-turn Q&A so we always launch interactively.
+# If a description is supplied it is printed prominently — type/paste it as
+# your first message when the session opens.
+# Metrics are not captured for interactive sessions (terminal UI owns stdout).
+if [ "$MODE" = "feature" ]; then
+    FEAT_DESC="${ARG2:-}"
+    FEAT_AGENT_FILE=$(expand_agent_to_tmp "feature-agent")
+    FEAT_AGENT_TMP="$_AGENT_TMP_DIR"
+    echo ""
+    echo "Feature definition — interactive Q&A; generates decision file + task files."
+    echo "Ctrl+C to cancel."
+    if [ -n "$FEAT_DESC" ]; then
+        echo ""
+        echo "  ┌─ Feature description ─────────────────────────────────────────"
+        echo "  │  $FEAT_DESC"
+        echo "  └───────────────────────────────────────────────────────────────"
+        echo "  Type or paste the above when the session starts."
+    fi
+    echo ""
+    claude --dangerously-skip-permissions --agent "$FEAT_AGENT_FILE" || true
+    rm -rf "$FEAT_AGENT_TMP" 2>/dev/null || true
+    echo ""
+    exit 0
+fi
+
+# ── spec mode ─────────────────────────────────────────────────────────────────
+# spec-scout is one-shot research: with a topic it runs non-interactively and
+# captures metrics.  Without a topic it falls back to interactive.
+if [ "$MODE" = "spec" ]; then
+    SPEC_TOPIC="${ARG2:-}"
+    SPEC_AGENT_FILE=$(expand_agent_to_tmp "spec-scout")
+    SPEC_AGENT_TMP="$_AGENT_TMP_DIR"
+    echo ""
+    if [ -n "$SPEC_TOPIC" ]; then
+        echo "Spec scout: $SPEC_TOPIC"
+        echo ""
+        _spec_usage="/tmp/io-usage-spec-$(date '+%Y%m%dT%H%M%S')"
+        rm -f "$_spec_usage" 2>/dev/null || true
+        SPEC_EXIT=0
+        claude --dangerously-skip-permissions --agent "$SPEC_AGENT_FILE" \
+            --print "$SPEC_TOPIC" --output-format json < /dev/null \
+            > "$_spec_usage" || SPEC_EXIT=$?
+        python3 - "$REPO/$DB_FILE" "$_spec_usage" 2>/dev/null <<'SPEC_PYEOF' || true
+import sqlite3, json, sys, time
+from pathlib import Path
+db, usage_file = sys.argv[1], sys.argv[2]
+try:
+    data = json.loads(Path(usage_file).read_text())
+    u = data.get('usage', {})
+    input_tok = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
+    output_tok = u.get('output_tokens', 0)
+    ctx_win = data.get('modelUsage', {})
+    ctx_win = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
+    util_pct = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    task_id = f'SPEC-{int(time.time())}'
+    con = sqlite3.connect(db, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+        try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
+        except Exception: pass
+    con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
+        context_injection_tokens,context_final_tokens,context_utilization_pct)
+        VALUES(?,1,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),'research',?,?,?)''',
+        (task_id, input_tok, output_tok, util_pct))
+    con.commit()
+    con.close()
+except Exception: pass
+finally:
+    try: Path(usage_file).unlink(missing_ok=True)
+    except Exception: pass
+SPEC_PYEOF
+        if [ "$SPEC_EXIT" -ne 0 ]; then
+            echo "  ⚠ spec-scout exited $SPEC_EXIT"
+        fi
+    else
+        echo "Spec scout — researches design, implementation status, and conflicts."
+        echo "Ctrl+C to cancel."
+        echo ""
+        # Interactive — no metrics (terminal UI owns stdout)
+        claude --dangerously-skip-permissions --agent "$SPEC_AGENT_FILE" || true
+    fi
+    rm -rf "$SPEC_AGENT_TMP" 2>/dev/null || true
+    echo ""
+    exit 0
+fi
+
 # ── integration-test mode ─────────────────────────────────────────────────────
 if [ "$MODE" = "integration-test" ]; then
     BACKEND_STARTED=""
@@ -2741,7 +2830,7 @@ fi
 
 # ── validate implement/audit/full mode ────────────────────────────────────────
 if [[ "$MODE" != "implement" && "$MODE" != "audit" && "$MODE" != "full" ]]; then
-    echo "Usage: $0 implement [P [T]] | audit [P [N]] | full [P] | auto [P] | uat [P [N]] | human-uat [N] | release-uat [N] | bug | status | restore-backup | cleanup-branches | integration-test"
+    echo "Usage: $0 implement [P [T]] | audit [P [N]] | full [P] | auto [P] | uat [P [N]] | human-uat [N] | release-uat [N] | bug [desc] | feature [desc] | spec [topic] | status | restore-backup | cleanup-branches | integration-test"
     exit 1
 fi
 
