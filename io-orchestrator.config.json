@@ -38,7 +38,7 @@
     "spec_docs":       "/home/io/spec_docs",
     "design_docs":     "design-docs",
     "comms_dir":       "comms",
-    "registry_file":   "comms/AUDIT_PROGRESS.json",
+    "registry_file_backup": "comms/AUDIT_PROGRESS.json",
     "needs_input_dir": "comms/needs_input",
     "escalated_dir":   "comms/escalated",
     "last_round_file": "comms/LAST_ROUND.json",
@@ -75,8 +75,7 @@
     "*.lock",
     ".git/",
     "node_modules/",
-    "comms/AUDIT_PROGRESS.json",
-    "comms/AUDIT_PROGRESS.json.bak",
+    "comms/context/",
     "migrations/",
     "secrets/",
     "/home/io/spec_docs/"

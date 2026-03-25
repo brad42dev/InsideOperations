@@ -353,7 +353,7 @@ Write context metrics if available (claude doesn't expose exact token counts dir
 ---
 
 ## Wave E — Context Utilization in Status + Miscellaneous Cleanup
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: LOW — polish and observability**
 
 ### E1: Status Command Context Metrics
@@ -387,11 +387,11 @@ Create `scripts/test-orchestrator-install.sh` that:
 4. Cleans up
 
 ### Wave E Completion Checklist
-- [ ] E1 context metrics in status
-- [ ] E2 AUDIT_PROGRESS.json demotion cleaned up
-- [ ] E3 merge conflict remediation instructions
-- [ ] E4 test project validation script
-- [ ] Update this file: mark Wave E complete
+- [x] E1 context metrics in status
+- [x] E2 AUDIT_PROGRESS.json demotion cleaned up
+- [x] E3 merge conflict remediation instructions
+- [x] E4 test project validation script
+- [x] Update this file: mark Wave E complete
 
 ---
 

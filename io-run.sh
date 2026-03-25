@@ -718,7 +718,10 @@ launch_agent_in_worktree() {
         ' EXIT
         cd "$_worktree_path"
         _exit=0
-        timeout "${CFG_STALE_MINUTES:-30}m" \
+        # Hard kill at 2× stale threshold so reclaim_stale_tasks has time to fire
+        # before the process is killed. CFG_STALE_MINUTES=30 → 60m hard kill.
+        _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
+        timeout "${_timeout_min}m" \
             claude --dangerously-skip-permissions \
                    --agent "$agent_file" \
                    --print "$prompt_text" < /dev/null \
@@ -727,7 +730,7 @@ launch_agent_in_worktree() {
             AGENT_OUTCOME="success"
         else
             if [ "$_exit" -eq 124 ]; then
-                echo "  ✗ Task ${_task_id}: agent timed out after ${CFG_STALE_MINUTES:-30}m" >&2
+                echo "  ✗ Task ${_task_id}: agent timed out after ${_timeout_min}m" >&2
             fi
             AGENT_OUTCOME="failure"
         fi
@@ -781,6 +784,30 @@ merge_completed_branches() {
     fi
 
     return $((conflicts > 0 ? 1 : 0))
+}
+
+# Print remediation instructions for any lingering CONFLICT-* branches.
+# Called after merge_completed_branches() so operators know what to fix manually.
+report_conflict_branches() {
+    local branches
+    branches=$(git -C "$REPO" branch --list 'io-task/CONFLICT-*' \
+               | sed 's/^[* ]*//' \
+               | grep -v '^[[:space:]]*$' || true)
+    [ -z "$branches" ] && return 0
+
+    echo ""
+    echo "━━━ Unresolved Merge Conflicts ━━━"
+    while IFS= read -r branch; do
+        [ -z "$branch" ] && continue
+        local task_id="${branch#io-task/CONFLICT-}"
+        echo "  ⚠ CONFLICT: ${branch}"
+        echo "    Resolve steps:"
+        echo "      1. git diff HEAD...${branch}"
+        echo "      2. git merge ${branch}  # triggers conflict"
+        echo "      3. Fix conflicts, then: git add -A && git commit"
+        echo "      4. git branch -d ${branch}"
+    done <<< "$branches"
+    echo ""
 }
 
 # Prune accumulated FAILED-* and CONFLICT-* branches from previous task runs.
@@ -965,22 +992,20 @@ run_parallel_implement() {
     echo "  Running ${#agent_pids[@]} agent(s) in parallel..."
 
     local failed=0
+    local _rl_tasks=()  # rate-limited tasks — collected for a single batched sleep
     for idx in "${!agent_pids[@]}"; do
         local pid="${agent_pids[$idx]}"
         local task_id="${agent_tasks[$idx]}"
         if wait "$pid"; then
             echo "  ✅ Agent PID ${pid} (task ${task_id}) — completed"
-            _RPI_VERIFIED=$((_RPI_VERIFIED + 1))
             "$REPO/io-gh-mirror.sh" mirror "$task_id" "verified" "Completed by agent PID ${pid}" || true
         else
             local exit_code=$?
             local rl_signal="/tmp/io-rl-${task_id}"
             if [ -f "$rl_signal" ]; then
                 rm -f "$rl_signal" 2>/dev/null || true
-                echo "  ⚠ Task ${task_id} rate-limited — waiting ${CFG_RATE_LIMIT_BACKOFF_SEC:-60}s then re-queuing"
-                sleep "${CFG_RATE_LIMIT_BACKOFF_SEC:-60}"
-                update_task_status "$task_id" "pending"
-                "$REPO/io-gh-mirror.sh" mirror "$task_id" "pending" "Rate-limited — re-queued" || true
+                echo "  ⚠ Task ${task_id} rate-limited — will re-queue after backoff"
+                _rl_tasks+=("$task_id")
             else
                 echo "  ❌ Agent PID ${pid} (task ${task_id}) — failed (exit ${exit_code})"
                 update_task_status "$task_id" "failed"
@@ -990,7 +1015,36 @@ run_parallel_implement() {
         fi
     done
 
+    # Re-queue rate-limited tasks with a single shared sleep (not N × sleep).
+    if [ "${#_rl_tasks[@]}" -gt 0 ]; then
+        echo "  ⚠ ${#_rl_tasks[@]} task(s) rate-limited — waiting ${CFG_RATE_LIMIT_BACKOFF_SEC:-60}s then re-queuing all"
+        sleep "${CFG_RATE_LIMIT_BACKOFF_SEC:-60}"
+        for _rl_tid in "${_rl_tasks[@]}"; do
+            update_task_status "$_rl_tid" "pending"
+            "$REPO/io-gh-mirror.sh" mirror "$_rl_tid" "pending" "Rate-limited — re-queued" || true
+        done
+    fi
+
     merge_completed_branches || true
+    report_conflict_branches || true
+
+    # Count actually-verified tasks from DB (not subshell exit codes, which can be
+    # 0 even when the agent didn't write 'verified' to the registry).
+    if [ ${#agent_tasks[@]} -gt 0 ]; then
+        local _task_list
+        _task_list=$(printf "'%s'," "${agent_tasks[@]}")
+        _task_list="${_task_list%,}"  # strip trailing comma
+        _RPI_VERIFIED=$(python3 -c "
+import sqlite3, sys
+try:
+    con = sqlite3.connect('$REPO/$DB_FILE', timeout=5)
+    n = con.execute(\"SELECT COUNT(*) FROM io_tasks WHERE status='verified' AND id IN ($_task_list)\").fetchone()[0]
+    con.close()
+    print(n)
+except Exception:
+    print(0)
+" 2>/dev/null || echo 0)
+    fi
 
     return $failed
 }
@@ -1150,11 +1204,23 @@ result = subprocess.run(
     ["find", STATE_DIR, "-name", "CURRENT.md"],
     capture_output=True, text=True
 )
+# Cross-reference with DB: skip tasks already verified so we don't show false alarms.
+try:
+    _con_oc = sqlite3.connect(DB_FILE, timeout=5)
+    _verified_ids = {r[0] for r in _con_oc.execute("SELECT id FROM io_tasks WHERE status='verified'").fetchall()}
+    _con_oc.close()
+except Exception:
+    _verified_ids = set()
 completed = 0
 for path in result.stdout.strip().split("\n"):
     if not path:
         continue
     try:
+        # path structure: {STATE_DIR}/{unit}/{task_id}/CURRENT.md
+        parts = path.replace("\\", "/").split("/")
+        task_id_candidate = parts[-2] if len(parts) >= 2 else ""
+        if task_id_candidate in _verified_ids:
+            continue  # already verified in DB — not orphaned
         with open(path) as f:
             for line in f:
                 if line.startswith("status: completed"):
@@ -1174,9 +1240,10 @@ from datetime import datetime, timezone
 
 ni_files = glob.glob(f"{NI_DIR}/*.md")
 stale_files = glob.glob(f"{NI_DIR}/stale/*.md")
-# ── context enrichment and utilization (D1/D2) ────────────────────────────────
+# ── context enrichment and utilization (D1/D2/E1) ─────────────────────────────
 try:
     con2 = sqlite3.connect(DB_FILE, timeout=5)
+    total_tasks = con2.execute("SELECT COUNT(*) FROM io_tasks").fetchone()[0]
     enriched = con2.execute(
         "SELECT COUNT(*) FROM io_tasks WHERE context_enriched_at IS NOT NULL"
     ).fetchone()[0]
@@ -1189,14 +1256,31 @@ try:
         ).fetchone()[0]
     except Exception:
         avg_util = None
+    # File overlap guard stats (E1)
+    try:
+        tasks_with_files = con2.execute(
+            "SELECT COUNT(DISTINCT task_id) FROM io_task_files WHERE status='predicted'"
+        ).fetchone()[0]
+        total_tracked = con2.execute("SELECT COUNT(*) FROM io_task_files").fetchone()[0]
+        confirmed_files = con2.execute(
+            "SELECT COUNT(*) FROM io_task_files WHERE status='confirmed'"
+        ).fetchone()[0]
+    except Exception:
+        tasks_with_files = total_tracked = confirmed_files = None
     con2.close()
     if enriched > 0 or unenriched > 0:
         print(f"")
         print(f"Context Enrichment")
-        print(f"  enriched tasks : {enriched}")
+        enrich_rate = f" ({enriched * 100 // total_tasks}%)" if total_tasks > 0 else ""
+        print(f"  enriched tasks : {enriched}{enrich_rate}")
         print(f"  pending (none) : {unenriched}")
         if avg_util is not None:
             print(f"  avg ctx util   : {avg_util:.1f}%")
+    if total_tracked is not None and total_tracked > 0:
+        print(f"")
+        print(f"File Overlap Guard")
+        print(f"  tasks with files : {tasks_with_files}")
+        print(f"  total tracked    : {total_tracked}  ({confirmed_files} confirmed)")
 except Exception:
     pass  # columns may not exist on old schema — safe no-op
 
