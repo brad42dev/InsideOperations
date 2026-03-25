@@ -1,6 +1,6 @@
 ---
 name: audit-orchestrator
-description: Drives the full spec audit and implementation queue. Supports three modes — audit, implement, full. Reads comms/AUDIT_PROGRESS.json, coordinates audit-runner, spec-repair, explore, and implement agents. Start with: claude --agent audit-orchestrator
+description: Drives the full spec audit and implementation queue. Supports three modes — audit, implement, full. Reads {{PROGRESS_JSON}}, coordinates audit-runner, spec-repair, explore, and implement agents. Start with: claude --agent audit-orchestrator
 tools: Agent(audit-runner, spec-repair, explore-agent, implement-agent, escalation-agent, decompose-agent), Read, Write, Glob, Grep, Bash, AskUserQuestion
 ---
 
@@ -11,7 +11,7 @@ tools: Agent(audit-runner, spec-repair, explore-agent, implement-agent, escalati
 This agent must run as the **main thread**, not as a subagent. Start it with:
 
 ```bash
-cd /home/io/io-dev/io
+cd {{PROJECT_ROOT}}
 claude --agent audit-orchestrator
 ```
 
@@ -74,17 +74,17 @@ Do not read the progress file or take any other action until the mode is confirm
 ## Constants
 
 ```
-REPO_ROOT:       /home/io/io-dev/io
-PROGRESS_FILE:   /home/io/io-dev/io/comms/AUDIT_PROGRESS.json
-TASK_DIR:        /home/io/io-dev/io/docs/tasks
-CATALOG_DIR:     /home/io/io-dev/io/docs/catalogs
-DECISIONS_DIR:   /home/io/io-dev/io/docs/decisions
+REPO_ROOT:       {{PROJECT_ROOT}}
+PROGRESS_FILE:   {{PROJECT_ROOT}}/{{PROGRESS_JSON}}
+TASK_DIR:        {{PROJECT_ROOT}}/docs/tasks
+CATALOG_DIR:     {{PROJECT_ROOT}}/docs/catalogs
+DECISIONS_DIR:   {{PROJECT_ROOT}}/docs/decisions
 MAX_REPAIR:      3
 MAX_IMPL:        3
 CHECKPOINT_EVERY: 3   (default run_limit when no number is provided)
 NEEDS_INPUT_STALE_HOURS: 48    (warn threshold)
 NEEDS_INPUT_ESCALATE_HOURS: 144  (auto-escalate threshold — 6 days)
-ESCALATED_DIR:   /home/io/io-dev/io/comms/escalated
+ESCALATED_DIR:   {{PROJECT_ROOT}}/comms/escalated
 ```
 
 ---
@@ -115,7 +115,7 @@ For each CURRENT.md with `status: completed`:
 2. Look up `task_id` in `task_registry`
 3. **If registry status is already `verified` or `escalated`:** skip — already reconciled
 4. **If registry status is `pending`, `failed`, or `implementing`:** this task completed but the registry was never updated. Reconcile:
-   - Run independent build verification: `cd /home/io/io-dev/io/frontend && npx tsc --noEmit` (or cargo check for Rust tasks)
+   - Run independent build verification: `cd {{PROJECT_ROOT}}/frontend && npx tsc --noEmit` (or cargo check for Rust tasks)
    - If **PASS**: write ledger entry (see Shared: Ledger Write), set registry `status: "verified"`, increment `verified_since_last_audit` on the unit. Report: `🔁 Reconciled: {task-id} — completed last session, now verified`
    - If **FAIL**: set registry `status: "failed"`, reset CURRENT.md status to `failed`. The task will be retried normally. Report: `⚠️ Reconciled: {task-id} — completed last session but build check failed, reset to failed`
 
@@ -170,8 +170,8 @@ last_heartbeat: null
 
 After implement-agent returns SUCCESS and build verification passes:
 
-1. Commit the implementation: `cd /home/io/io-dev/io && git add -A && git commit -m "verify: {task-id} — {task-title}" --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"`
-2. Get the commit hash: `cd /home/io/io-dev/io && git rev-parse --short HEAD`
+1. Commit the implementation: `cd {{PROJECT_ROOT}} && git add -A && git commit -m "verify: {task-id} — {task-title}" --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"`
+2. Get the commit hash: `cd {{PROJECT_ROOT}} && git rev-parse --short HEAD`
 3. Append to `docs/state/ledger/{unit-id}.md`:
    ```
    {task-id} | {task title} | verified {date} | commit {hash} | {verification command} | PASS
@@ -195,8 +195,31 @@ The `task_registry` in PROGRESS_FILE is the single source of truth for task sele
 - After implement FAILED (at MAX_IMPL, verdict SCOPE_TOO_LARGE) → set `status: "needs_decomposition"` — task will be split into sub-tasks by decompose-agent
 - After audit produces new tasks → add/update registry entries with current `audit_round` (see Audit Loop SUCCESS handler)
 
-**How to update:**
-Read PROGRESS_FILE, find the registry entry by `id`, update the `status` field, write PROGRESS_FILE back. One JSON read + one JSON write. Never read task files to determine current status.
+**How to update (atomic write protocol):**
+Read PROGRESS_FILE, find the registry entry by `id`, update the field(s), then write using the atomic pattern:
+```python
+import json, os
+# 1. Read current state
+with open(PROGRESS_FILE) as f:
+    data = json.load(f)
+# 2. Make updates
+# ... (find entry, update fields) ...
+# 3. Write atomically: temp file + rename (no partial write corruption)
+tmp_path = PROGRESS_FILE + ".tmp"
+with open(tmp_path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.flush()
+    os.fsync(f.fileno())
+os.replace(tmp_path, PROGRESS_FILE)
+# 4. Validate: read back and confirm the change is present
+with open(PROGRESS_FILE) as f:
+    check = json.load(f)
+# assert the updated field is in check
+# 5. Update the backup (run after every successful write, not just once per session)
+import shutil
+shutil.copy2(PROGRESS_FILE, PROGRESS_FILE + ".bak")
+```
+Never write PROGRESS_FILE directly without going through a temp file. Never read task files to determine current status. The `.bak` copy in step 5 is mandatory — it ensures the backup is never more than one write stale.
 
 **When new tasks are produced by audit:**
 After audit-runner SUCCESS, for each task ID in `TASKS_OPEN`: read that task file once to extract `title`, `priority`, `depends-on`. Add an entry to `task_registry` with `status: "pending"`. This is the only time task files are read for metadata — at write time, not at selection time.
@@ -298,8 +321,8 @@ Report to user: which units are eligible and why (smart: N units with verified t
    ```
    Agent(audit-runner):
      UNIT: <unit-id>
-     REPO_ROOT: /home/io/io-dev/io
-     PROGRESS_FILE: /home/io/io-dev/io/comms/AUDIT_PROGRESS.json
+     REPO_ROOT: {{PROJECT_ROOT}}
+     PROGRESS_FILE: {{PROJECT_ROOT}}/{{PROGRESS_JSON}}
    ```
 
 3. **If SUCCESS**: Update unit in progress file:
@@ -325,7 +348,7 @@ For `repair_attempt` 1 to `MAX_REPAIR`:
    ```
    Agent(spec-repair):
      UNIT: <unit-id>
-     REPO_ROOT: /home/io/io-dev/io
+     REPO_ROOT: {{PROJECT_ROOT}}
      FAILURE_REASON: <from audit-runner>
      FAILURE_DETAIL: <from audit-runner>
      ATTEMPT: <repair_attempt>
@@ -483,7 +506,7 @@ Track `successes_this_run = 0`.
      Agent(decompose-agent):
        TASK_ID: <task-id>
        UNIT: <unit>
-       REPO_ROOT: /home/io/io-dev/io
+       REPO_ROOT: {{PROJECT_ROOT}}
        DIAGNOSIS_FILE: comms/escalated/{task-id}.md
      ```
    - Report: `📐 {task-id} → decomposed into {new-task-ids}`
@@ -491,7 +514,16 @@ Track `successes_this_run = 0`.
    After all decompositions: re-read AUDIT_PROGRESS.json (registry was updated by decompose-agent).
    Continue to normal task selection.
 
-1d. **Blocked Task Unblock Pass**: Before selecting tasks, check if any `blocked` tasks can now proceed.
+1d. **Status Field Validator**: Before task selection, scan registry for entries with an unrecognized `status` value.
+
+   Known valid statuses: `pending`, `claimed`, `implementing`, `completed`, `verified`, `failed`, `escalated`, `needs_input`, `needs_research`, `checkpoint`, `blocked`, `needs_decomposition`.
+
+   For each entry with a status NOT in the above list:
+   - Log: `⚠ {task-id} has unrecognized status "{status}" — treating as pending`
+   - Update registry: set `status: "pending"` so the task becomes visible to the scheduler
+   - Do this before any task selection, so recovered tasks are immediately eligible
+
+1e. **Blocked Task Unblock Pass**: Before selecting tasks, check if any `blocked` tasks can now proceed.
 
    Scan registry for entries with `status: "blocked"`.
    For each:
@@ -553,7 +585,7 @@ Track `successes_this_run = 0`.
    Agent(implement-agent):
      TASK_ID: <task-id>
      UNIT: <unit-id>
-     REPO_ROOT: /home/io/io-dev/io
+     REPO_ROOT: {{PROJECT_ROOT}}
      [PRIOR_ATTEMPT_NOTES: <read from most recent attempt file if N > 1>]
      [RESEARCH_RESULTS: <if re-spawning after NEEDS_RESEARCH>]
      [ANSWERED_QUESTIONS: <if re-spawning after NEEDS_INPUT>]
@@ -565,17 +597,21 @@ Track `successes_this_run = 0`.
    **SUCCESS**:
    - Read STATE_FILE — confirm status=completed
    - Read ATTEMPT_FILE — confirm result=SUCCESS
-   - Run independent verification: `cd /home/io/io-dev/io/frontend && npx tsc --noEmit` (or cargo check for Rust)
+   - Run independent verification: `cd {{PROJECT_ROOT}}/frontend && npx tsc --noEmit` (or cargo check for Rust)
    - If verification passes:
      - Write ledger entry (see Shared: Ledger Write)
      - Update registry: set `task_registry[task_id].status = "verified"`, `task_registry[task_id].uat_status = null` in PROGRESS_FILE (see Shared: Registry Update)
+     - **UAT loop closure (uat-sourced tasks only):** If the task has `source: "uat"`, also:
+       1. For all other tasks in the same unit, reset any `uat_status: "fail"` → `null` so the unit re-queues for UAT
+       2. Increment `verified_since_last_audit` for the unit in the `queue[]` array so audit will re-examine the unit
+       - This ensures that fixing a UAT-discovered bug automatically re-triggers UAT for the whole unit, not just the task that was fixed
    - If verification fails: treat as FAILED — the agent was wrong about SUCCESS
    - Increment `successes_this_run`. Report: `✅ <task-id> — verified (UAT pending)`
    - If `successes_this_run >= run_limit` → Checkpoint
 
    **NEEDS_RESEARCH**:
    - Read STATE_FILE — confirm state was written
-   - Spawn explore-agent: `Agent(explore-agent): TOPIC: <from result> CONTEXT: <from result> REPO_ROOT: /home/io/io-dev/io`
+   - Spawn explore-agent: `Agent(explore-agent): TOPIC: <from result> CONTEXT: <from result> REPO_ROOT: {{PROJECT_ROOT}}`
    - Re-spawn implement-agent with `RESEARCH_RESULTS: <findings>` and `CHECKPOINT_FILE: <STATE_FILE>`
    - Count as same attempt (do not increment task_attempts)
 
@@ -614,14 +650,24 @@ Track `successes_this_run = 0`.
         Agent(escalation-agent):
           TASK_ID: <task-id>
           UNIT: <unit>
-          REPO_ROOT: /home/io/io-dev/io
+          REPO_ROOT: {{PROJECT_ROOT}}
         ```
      2. Read the verdict from the result:
         - `AMBIGUOUS_SPEC`: set registry status `escalated`, report: `⛔ {task-id} — spec ambiguous. Run /design-qa. See comms/escalated/{task-id}.md`
         - `MISSING_DEPENDENCY`: set registry status `blocked`, report: `🔒 {task-id} — blocked on missing dependency. See comms/escalated/{task-id}.md`
         - `SCOPE_TOO_LARGE`: set registry status `needs_decomposition`, report: `📐 {task-id} — too large for one context. Will be decomposed. See comms/escalated/{task-id}.md`
         - `IMPLEMENTATION_FAILURE`: set registry status `escalated`, report: `⛔ {task-id} — implementation failed after {N} attempts. Human review needed. See comms/escalated/{task-id}.md`
-     3. Continue to next task
+     3. **Surface the escalation verdict:** Read `comms/escalated/{task-id}.md`. Extract the first non-empty line of the diagnosis body (skip frontmatter). Then:
+        - Print one-line summary: `⛔ {task-id} — {verdict}: {first line of diagnosis}`
+        - Append the same line to `comms/ESCALATION_SUMMARY.md` (create if missing):
+          ```
+          # Escalation Summary
+          | Task | Verdict | Date | Summary |
+          |------|---------|------|---------|
+          ```
+          Add a new row: `| {task-id} | {verdict} | {today YYYY-MM-DD} | {first line of diagnosis} |`
+          Read the file first (get existing rows), append the new row, write back. If the file does not exist, create it with the header and the new row.
+     4. Continue to next task
 
 5. After handling, select next task using dependency-aware selection.
 

@@ -1,0 +1,342 @@
+{
+  "schema": "io-orchestrator/v1",
+
+  "project": {
+    "name": "io",
+    "root": "."
+  },
+
+  "commands": {
+    "build_backend":  "cargo build",
+    "test_backend":   "cargo test",
+    "lint_backend":   "cargo clippy -- -D warnings",
+    "check_backend":  "cargo check",
+    "build_frontend": "cd frontend && pnpm build",
+    "test_frontend":  "cd frontend && pnpm test",
+    "lint_frontend":  "cd frontend && pnpm lint",
+    "check_frontend": "cd frontend && npx tsc --noEmit",
+    "backend_start":  "./dev.sh start",
+    "backend_stop":   "./dev.sh stop",
+    "backend_health": "curl -sf --max-time 2 --connect-timeout 1 http://localhost:3000/health/live",
+    "frontend_dev":   "cd frontend && pnpm dev",
+    "frontend_health":"curl -s --max-time 5 http://localhost:5173",
+    "integration_test": "cd frontend && npx tsx tests/integration/runner.ts"
+  },
+
+  "ports": {
+    "backend":  3000,
+    "frontend": 5173
+  },
+
+  "paths": {
+    "task_dir":        "docs/tasks",
+    "state_dir":       "docs/state",
+    "catalog_dir":     "docs/catalogs",
+    "decisions_dir":   "docs/decisions",
+    "uat_dir":         "docs/uat",
+    "spec_manifest":   "docs/SPEC_MANIFEST.md",
+    "spec_docs":       "/home/io/spec_docs",
+    "design_docs":     "design-docs",
+    "comms_dir":       "comms",
+    "registry_file":   "comms/AUDIT_PROGRESS.json",
+    "needs_input_dir": "comms/needs_input",
+    "escalated_dir":   "comms/escalated",
+    "last_round_file": "comms/LAST_ROUND.json",
+    "ledger_dir":      "docs/state/ledger",
+    "registry_db":     "comms/tasks.db",
+    "worktree_base":   "/tmp/io-worktrees"
+  },
+
+  "task_store": {
+    "type": "sqlite",
+    "path": "comms/tasks.db",
+    "wal_mode": true
+  },
+
+  "agents": {
+    "max_parallel":             4,
+    "model_orchestrator":       "claude-opus-4-6",
+    "model_worker":             "claude-sonnet-4-6",
+    "heartbeat_interval_sec":   30,
+    "stale_task_threshold_min": 30,
+    "stale_uat_threshold_min":  15,
+    "checkpoint_every":         3,
+    "max_repair_attempts":      3,
+    "max_impl_attempts":        3,
+    "needs_input_stale_hours":  48,
+    "needs_input_escalate_hours": 144
+  },
+
+  "never_touch": [
+    ".env",
+    ".env.*",
+    "*.lock",
+    ".git/",
+    "node_modules/",
+    "comms/AUDIT_PROGRESS.json",
+    "comms/AUDIT_PROGRESS.json.bak",
+    "migrations/",
+    "secrets/",
+    "/home/io/spec_docs/"
+  ],
+
+  "units": [
+    { "id": "CX-EXPORT",         "name": "Universal Export",                    "wave": 0, "source_paths": ["frontend/src/components/export/"], "spec_doc": null },
+    { "id": "CX-POINT-CONTEXT",  "name": "Point Right-Click Context Menu",      "wave": 0, "source_paths": ["frontend/src/components/PointContextMenu.tsx"], "spec_doc": "/home/io/spec_docs/context-menu-implementation-spec.md" },
+    { "id": "CX-ENTITY-CONTEXT", "name": "Entity List Right-Click Context Menu","wave": 0, "source_paths": ["frontend/src/components/EntityContextMenu.tsx"], "spec_doc": "/home/io/spec_docs/context-menu-implementation-spec.md" },
+    { "id": "CX-CANVAS-CONTEXT", "name": "Designer Canvas Right-Click Menus",  "wave": 0, "source_paths": ["frontend/src/pages/designer/"], "spec_doc": "/home/io/spec_docs/context-menu-implementation-spec.md" },
+    { "id": "CX-POINT-DETAIL",   "name": "Point Detail Floating Panel",         "wave": 0, "source_paths": ["frontend/src/components/PointDetailPanel.tsx"], "spec_doc": null },
+    { "id": "CX-PLAYBACK",       "name": "Historical Playback Bar",             "wave": 0, "source_paths": ["frontend/src/components/PlaybackBar.tsx"], "spec_doc": null },
+    { "id": "CX-RBAC",           "name": "Per-Module RBAC Enforcement",         "wave": 0, "source_paths": ["frontend/src/hooks/usePermission.ts"], "spec_doc": null },
+    { "id": "CX-ERROR",          "name": "React Error Boundary",                "wave": 0, "source_paths": ["frontend/src/components/ErrorBoundary.tsx"], "spec_doc": null },
+    { "id": "CX-LOADING",        "name": "Module Skeleton Loading States",      "wave": 0, "source_paths": ["frontend/src/components/skeletons/"], "spec_doc": null },
+    { "id": "CX-EMPTY",          "name": "Tailored Empty States",               "wave": 0, "source_paths": ["frontend/src/components/EmptyState.tsx"], "spec_doc": null },
+    { "id": "CX-TOKENS",         "name": "Design Token Compliance",             "wave": 0, "source_paths": ["frontend/src/styles/", "frontend/tailwind.config.ts"], "spec_doc": null },
+    { "id": "CX-KIOSK",          "name": "Kiosk Mode",                          "wave": 0, "source_paths": ["frontend/src/hooks/useKiosk.ts"], "spec_doc": null },
+    {
+      "id": "GFX-CORE",
+      "name": "Graphics Scene Graph Core",
+      "wave": 1,
+      "source_paths": ["frontend/src/pages/designer/"],
+      "spec_doc": "/home/io/spec_docs/graphics-scene-graph-implementation-spec.md"
+    },
+    {
+      "id": "GFX-DISPLAY",
+      "name": "Display Elements",
+      "wave": 1,
+      "source_paths": ["frontend/src/pages/designer/"],
+      "spec_doc": "/home/io/spec_docs/display-elements-implementation-spec.md"
+    },
+    {
+      "id": "GFX-SHAPES",
+      "name": "Shape Library",
+      "wave": 1,
+      "source_paths": ["frontend/src/pages/designer/"],
+      "spec_doc": "/home/io/spec_docs/shape-library-implementation-spec.md"
+    },
+    {
+      "id": "MOD-CONSOLE",
+      "name": "Console Module",
+      "wave": 2,
+      "source_paths": ["frontend/src/pages/console/"],
+      "spec_doc": "/home/io/spec_docs/console-implementation-spec.md"
+    },
+    {
+      "id": "MOD-PROCESS",
+      "name": "Process Module",
+      "wave": 2,
+      "source_paths": ["frontend/src/pages/process/"],
+      "spec_doc": "/home/io/spec_docs/process-implementation-spec.md"
+    },
+    {
+      "id": "MOD-DESIGNER",
+      "name": "Designer Module",
+      "wave": 2,
+      "source_paths": ["frontend/src/pages/designer/"],
+      "spec_doc": "/home/io/spec_docs/designer-implementation-spec.md"
+    },
+    {
+      "id": "OPC-BACKEND",
+      "name": "OPC Backend Service",
+      "wave": 2,
+      "source_paths": ["opc-service/"],
+      "spec_doc": "/home/io/spec_docs/opc-server-protocol-spec.md"
+    },
+    {
+      "id": "DD-06",
+      "name": "App Shell (Nav, Theme, Header)",
+      "wave": 3,
+      "source_paths": ["frontend/src/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-10",
+      "name": "Dashboards Module",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/dashboards/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-11",
+      "name": "Reports Module",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/reports/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-12",
+      "name": "Forensics Module",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/forensics/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-13",
+      "name": "Log Module",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/log/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-14",
+      "name": "Rounds Module",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/rounds/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-15",
+      "name": "Settings Module",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/settings/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-16",
+      "name": "WebSocket / Real-time Data",
+      "wave": 3,
+      "source_paths": ["data-broker/", "frontend/src/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-18",
+      "name": "Auth Flows",
+      "wave": 3,
+      "source_paths": ["auth-service/", "frontend/src/pages/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-20",
+      "name": "Mobile / PWA",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/rounds/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-21",
+      "name": "Import / ETL",
+      "wave": 3,
+      "source_paths": ["import-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-22",
+      "name": "Archive / Retention",
+      "wave": 3,
+      "source_paths": ["archive-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-23",
+      "name": "Expression Builder",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/designer/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-24",
+      "name": "Alerts Module",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/alerts/", "alert-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-25",
+      "name": "Event Service",
+      "wave": 3,
+      "source_paths": ["event-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-26",
+      "name": "Parser Service",
+      "wave": 3,
+      "source_paths": ["parser-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-27",
+      "name": "Recognition Service",
+      "wave": 3,
+      "source_paths": ["recognition-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-28",
+      "name": "Email Service",
+      "wave": 3,
+      "source_paths": ["email-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-29",
+      "name": "Auth / Login Flows",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/", "auth-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-30",
+      "name": "Shifts / Access Control",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/shifts/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-31",
+      "name": "Human-Initiated Alerts",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/alerts/", "alert-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-32",
+      "name": "Shared UI Components",
+      "wave": 3,
+      "source_paths": ["frontend/src/shared/"],
+      "spec_doc": "/home/io/spec_docs/context-menu-implementation-spec.md"
+    },
+    {
+      "id": "DD-33",
+      "name": "API Gateway",
+      "wave": 3,
+      "source_paths": ["api-gateway/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-34",
+      "name": "Data Broker",
+      "wave": 3,
+      "source_paths": ["data-broker/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-36",
+      "name": "Observability",
+      "wave": 3,
+      "source_paths": ["api-gateway/", "data-broker/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-37",
+      "name": "Wire Formats / API Contracts",
+      "wave": 3,
+      "source_paths": ["api-gateway/", "frontend/src/api/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-38",
+      "name": "Profile / User Settings",
+      "wave": 3,
+      "source_paths": ["frontend/src/pages/profile/", "auth-service/"],
+      "spec_doc": null
+    },
+    {
+      "id": "DD-39",
+      "name": "EULA / Onboarding",
+      "wave": 3,
+      "source_paths": ["frontend/src/"],
+      "spec_doc": null
+    }
+  ]
+}

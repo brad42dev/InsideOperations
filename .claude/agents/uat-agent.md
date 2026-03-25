@@ -55,9 +55,34 @@ Use this to navigate to the right page for each unit:
 
 ---
 
+## PHASE 0 — Seed Data Pre-check
+
+Before loading tasks, check whether test data is available. This determines how to interpret "No data" during data flow scenario evaluation — without it, an empty-state UI is indistinguishable from a real zero-record response.
+
+Run:
+```bash
+_SEED_RAW=$(psql -U postgres -d io_dev -t -c "SELECT count(*) FROM points_metadata WHERE source_id = '11110000-0000-0000-0000-000000000000'" 2>/dev/null | tr -d ' \n')
+if echo "$_SEED_RAW" | grep -qE '^[0-9]+$'; then
+    echo "$_SEED_RAW"
+else
+    echo "UNAVAILABLE"
+fi
+```
+
+This two-step approach ensures the result is always either a number or the literal string `UNAVAILABLE` — psql auth failures, connection timeouts, missing tables, and other error messages are all coerced to `UNAVAILABLE` by the numeric check. Do not attempt to parse any other output.
+
+Interpret the result and record it — you will use this in Phase 4:
+- **Number > 0**: seed data exists. In data flow scenarios, a "No data" UI result is ❌.
+- **`0`**: no seed data. In data flow scenarios, "No data" is ✅ only if the page handles the empty state gracefully (no error boundary, no crash, shows a meaningful empty-state message). Record `⚠️ No seed data` in CURRENT.md Screenshot Notes.
+- **`UNAVAILABLE`** (psql not accessible, auth failed, or table missing): continue, but mark all data flow scenario evaluations as `⚠️ seed data status unknown` rather than pass or fail.
+
+This result does NOT abort the UAT session. It is advisory context for Phase 4 evaluation only.
+
+---
+
 ## PHASE 1 — Load Tasks
 
-Read `comms/AUDIT_PROGRESS.json`.
+Read `{{PROGRESS_JSON}}`.
 
 Find all tasks for the target unit where:
 - `status: "verified"` AND
@@ -95,6 +120,17 @@ From the acceptance criteria and verification checklists across all tasks, synth
 - If the spec is sparse (fewer than 3 browser-testable criteria), add only scenarios for universally expected interactions — a context menu should open on right-click, a dialog should have a close button, a form should have a submit button. Do not invent behavior that is specific to this feature; stick to standard UI patterns.
 
 Aim for 6–14 scenarios per unit. Smaller units (OPC-BACKEND, GFX-DISPLAY) may have 4–6; larger units (MOD-DESIGNER, MOD-CONSOLE) may need up to 16. Minimum is 3 scenarios — always include at least: (1) page renders without error, (2) primary feature interaction, (3) one edge case or empty state. If you cannot reach 3, record "insufficient spec" in Screenshot Notes and set verdict = "skipped".
+
+**Data flow scenarios (required — at least 1 per unit):** For any unit that involves data display (dashboards, reports, console, process, forensics, log, rounds) you MUST include at least one scenario that:
+1. Navigates to the relevant page
+2. Performs an action that triggers a real API call (e.g., load a dashboard, run a report, query a log)
+3. Verifies that a response shows in the UI (non-empty content, non-"Loading...", non-"No data" if seed data exists)
+
+Name these with the pattern `[TASK-ID] — data flow: {what API is called}`. Every data flow scenario MUST specify:
+- **The API endpoint called** (e.g., `GET /api/v1/dashboards`) — look at the task spec or grep the source for the actual route.
+- **The specific DOM evidence that proves data arrived** (e.g., "dashboard name visible in list", "row count > 0", "asset label present in table") — not just "content visible" or "page loads".
+
+If no seed data exists (0 rows in database), note this in the scenario and pass the "page handles empty state gracefully" variant. Do not silently accept "No data" as a passing result — explicitly check whether it's empty-state vs missing data vs real zero records.
 
 **Scenario types and how to test them:**
 
@@ -142,6 +178,36 @@ Scenario 3: [MOD-CONSOLE-002] Shape selection shows resize handles — click sha
 ```
 
 You will reference this file during Phase 4. Phase 7 uses the `[TASK-ID]` prefix to assign pass/fail results back to specific tasks. Do not keep this list only in working memory.
+
+---
+
+## PHASE 2.5 — Data Flow Scenario Enforcement
+
+**Data-display units** (DD-10, DD-11, DD-12, DD-13, DD-14, DD-16, MOD-CONSOLE, MOD-PROCESS, DD-32) MUST have at least one data flow scenario. Non-data-display units (GFX-CORE, GFX-SHAPES, GFX-DISPLAY, OPC-BACKEND, DD-06, DD-15, DD-23, DD-29, DD-30, DD-31) are exempt — skip this phase entirely for them.
+
+For data-display units, check:
+```bash
+grep -c "data flow:" docs/uat/{UNIT}/scenarios.md 2>/dev/null || echo "0"
+```
+
+**If the count is 0:** do NOT proceed to Phase 3 — go back and add a data flow scenario to `docs/uat/{UNIT}/scenarios.md` now. Append it to the appropriate section using this structured template:
+
+```
+Scenario N: [{primary-task-id}] — data flow: GET /api/v1/{resource} —
+  1. Navigate to {route}
+  2. Perform action that triggers load: {specific action — e.g., "page load", "click Load button", "submit filter form"}
+  3. Wait for response: browser_wait_for time=3000
+  4. Snapshot and check: UI must show [{specific element or text that proves data loaded}]
+     — NOT just "content visible" — name a specific field, count, label, row count, or named item
+  Pass: {named element} is present AND does not say "Loading..." or show an error boundary
+  Fail: element missing, still loading, error boundary, or "No data" when seed data exists
+```
+
+Fill in all placeholders — do not leave `{resource}`, `{route}`, or `{specific element}` as-is. Look at the task spec and the frontend route map (design-doc 38) to find the real API endpoint and the real DOM evidence. After appending, re-run the grep to confirm the count is now ≥ 1. Then proceed.
+
+**If the count is ≥ 1:** proceed to Phase 3.
+
+**Why this gate exists:** The data flow rule in Phase 2 is written but has historically been skipped in practice. This phase is a mandatory stop sign, not a suggestion.
 
 ---
 
@@ -216,9 +282,11 @@ Check what you see in that snapshot:
 1. Increment `crash_streak`
 2. Attempt recovery: `browser_navigate: http://localhost:5173/{module-route}`, then `browser_wait_for: time=2000`, then `browser_snapshot`
 3. If the snapshot shows a **login page**: re-login using credentials from Phase 3 before continuing (session expired during crash). After login, navigate to the module route again. If the re-login itself fails (wrong credentials, backend down, login page again after submit): increment `crash_streak` without resetting it, and continue to step 5.
-4. If recovery succeeds (module page loaded, or login completed and module loaded): reset `crash_streak` to 0, skip the crashed scenario (mark it "browser_error"), continue with next
-5. If recovery fails (browser still unresponsive, login failed, or login succeeded but module route still fails): leave `crash_streak` incremented
-6. If `crash_streak` reaches 3 (three crashes without any successful recovery in between): mark all remaining scenarios as "skipped (browser_crash)", proceed to Phase 5. Record `verdict: partial` with note "browser crashed after scenario N."
+4. If recovery succeeds (module page loaded, or login completed and module loaded): reset `crash_streak` to 0, mark the crashed scenario ❌ fail with note "browser_error — browser crashed during this scenario", continue with next
+5. If recovery fails (browser still unresponsive, login failed, or login succeeded but module route still fails): leave `crash_streak` incremented; mark the crashed scenario ❌ fail with note "browser_error — recovery failed"
+6. If `crash_streak` reaches 3 (three crashes without any successful recovery in between): mark all remaining untested scenarios as ❌ fail with note "browser_error — crash_streak=3, remaining scenarios untestable", proceed to Phase 5.
+
+**browser_error is always ❌ fail** — never a skip. A scenario that crashed the browser is a failure of that scenario, not a skip. It counts in `scenarios_failed` and `scenarios_tested`. It triggers bug task creation in Phase 6. The only way a scenario is excluded from counts is an explicit human "Skip" in human mode.
 7. A successful scenario (not a crash) also resets `crash_streak` to 0.
 
 **Before running any scenarios:** Read `docs/uat/{UNIT}/scenarios.md` from disk into working memory. This is required even if Phase 2 just ran — if the session was resumed, working memory from Phase 2 is gone. Hold the full scenario list in memory for the duration of Phase 4.
@@ -227,6 +295,17 @@ If the file does not exist (Phase 2 failed to write it): write `docs/uat/{UNIT}/
 
 For each scenario in that list (expected results come from scenarios.md — do not improvise):
 
+**Per-scenario reset (runs before EACH scenario, not just the first):**
+1. `browser_navigate: http://localhost:5173`
+2. `browser_wait_for: time=1000`
+3. Take a snapshot — confirm the app is responsive (any page, not an error/blank screen).
+   If the snapshot shows an error, blank screen, or login screen (session expired):
+   - Re-login using the same sequence as Phase 3 login
+   - If login fails: mark this scenario ❌ fail with note "browser_state_reset_failed — could not restore session"
+     and continue to the next scenario (do not crash-streak for a reset failure)
+4. Proceed with the scenario steps below
+
+**Scenario steps:**
 1. Set up the required state (navigate, click to select an element, etc.)
 2. **Before executing any element interaction: take a fresh `browser_snapshot` to obtain the current `ref` for the target element.** Never use a ref from a prior snapshot, a prior scenario, or working memory — refs are only valid for the snapshot immediately preceding the tool call. This applies to every click, right-click, type, drag, and hover.
 3. Execute the action using the ref just obtained
@@ -237,22 +316,41 @@ For each scenario in that list (expected results come from scenarios.md — do n
 
 **Auto mode:** compare the snapshot against your Phase 2 scenario definition — use the exact expected result you wrote (e.g., "expects [role=menu] with item 'Delete'"). Do not invent new pass criteria during evaluation.
 
-**Human mode:** after executing the action and taking a screenshot, ask:
-```
-AskUserQuestion:
-  Scenario {N}/{total} — {functional area}
-  ─────────────────────────────────────────
-  {Setup}: {what you did to prepare the test}
+**Human mode:** after executing the action and taking a screenshot, call AskUserQuestion with this structure:
 
-  {Expected}: {what should be visible or happen}
-
-  What do you see?
-  Options:
-  1. Pass — works as expected
-  2. Fail — doesn't work (describe what you see)
-  3. Skip — can't test right now
-  4. Notes — add a comment
+```json
+{
+  "questions": [{
+    "question": "Scenario {N}/{total} [{TASK-ID}] — {functional area}\n\nSetup: {what you did to prepare the test}\nExpected: {what should be visible or happen}\n\nWhat do you see?",
+    "header": "Scenario {N}",
+    "options": [
+      {"label": "Pass", "description": "Works as expected — marking this scenario ✅"},
+      {"label": "Fail", "description": "Doesn't work — you'll be asked to describe what you see"},
+      {"label": "Skip", "description": "Can't test right now — scenario recorded as skipped"},
+      {"label": "Notes only", "description": "Add a comment without affecting pass/fail result"}
+    ],
+    "multiSelect": false
+  }]
+}
 ```
+
+If the user selects **Fail**, immediately follow up with a second AskUserQuestion:
+```json
+{
+  "questions": [{
+    "question": "What did you observe? (Used to write the bug task — be specific)",
+    "header": "Fail detail",
+    "options": [
+      {"label": "Nothing happened", "description": "Click/action produced no visible change"},
+      {"label": "Wrong output", "description": "Something showed up but it was incorrect"},
+      {"label": "Error / crash", "description": "Error message, broken UI, or page crashed"},
+      {"label": "Feature missing", "description": "The element or button doesn't exist at all"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+The user's selection and any "Other" text becomes the bug task description. Combine the option label + any free-text input.
 
 **Key tests for common failure patterns:**
 
@@ -335,13 +433,21 @@ scenarios_skipped: {N}
 {any notable observations from screenshots}
 ```
 
-**Verdict rules** (skipped scenarios — browser_error or browser_crash — are excluded from all counts):
-- `pass`: scenarios_tested > 0 AND scenarios_failed == 0 AND Phase 2 did NOT record "insufficient spec"
-- `partial`: scenarios_passed > 0 AND scenarios_failed > 0 (mixed), OR scenarios_tested == 0 but some scenarios were skipped due to browser crash
-- `fail`: scenarios_passed == 0 AND scenarios_tested > 0 (nothing worked at all), OR module route is a stub (stub overrides everything — set fail regardless of scenario results)
-- `skipped`: couldn't test at all — dev server not responding, login failed, zero scenarios synthesized, OR Phase 2 recorded "insufficient spec" (fewer than 3 scenarios synthesized means the UAT coverage is too shallow to trust a pass verdict)
+**Verdict rules:**
 
-**Tie-breaking:** if both scenarios_passed and scenarios_failed are > 0, always use `partial` — never `fail` just because failures outnumber passes. `fail` is reserved for total failure.
+Counting: `scenarios_tested` = passed + failed. `scenarios_failed` includes all ❌ results — browser crashes, browser_error, wrong output, missing features. `scenarios_skipped` is only for human mode explicit "Skip" responses.
+- **Browser crashes (browser_error) are failures**, not exclusions. `scenarios_tested` includes them. `scenarios_failed` includes them. They trigger bug task creation in Phase 6.
+- The only excluded scenarios are deliberate human-mode "Skip" responses — those reduce the denominator but do not count as failures.
+- There is no "browser_error skip" — that phrasing does not exist. A browser_error is a ❌ fail.
+
+Verdicts:
+- `pass`: scenarios_tested > 0 AND scenarios_failed == 0 AND Phase 2 did NOT record "insufficient spec"
+- `release-approved`: human mode only — all scenarios passed AND user explicitly approved every scenario (no skips, no notes-only)
+- `partial`: scenarios_passed > 0 AND scenarios_failed > 0 (mixed results, but at least one thing worked)
+- `fail`: scenarios_passed == 0 AND scenarios_tested > 0 (nothing worked), OR module route is a stub (stub overrides everything)
+- `skipped`: couldn't test at all — dev server not responding, login failed, zero scenarios synthesized, OR Phase 2 recorded "insufficient spec"
+
+**Tie-breaking:** if scenarios_passed > 0 AND scenarios_failed > 0, use `partial`. `fail` is for total failure (nothing passed at all).
 
 **If scenarios_tested == 0 for any reason other than browser crashes: verdict = "skipped" — never "pass".**
 
@@ -349,9 +455,11 @@ scenarios_skipped: {N}
 
 ## PHASE 6 — Create Bug Tasks for Failures
 
-**Skip this phase entirely if scenarios_failed == 0 and no scenarios were marked browser_error.** Phase 5 already wrote "None" in New Bug Tasks Created — no further action needed. Proceed directly to Phase 7.
+**Skip this phase entirely if scenarios_failed == 0.** Phase 5 already wrote "None" in New Bug Tasks Created — no further action needed. Proceed directly to Phase 7.
 
-**Before processing any failures:** Read `comms/AUDIT_PROGRESS.json` once. Extract and hold in working memory:
+Note: browser_error scenarios are already counted in scenarios_failed (since browser_error = ❌ fail). If scenarios_failed > 0, run this phase for all failed scenarios including browser_error ones.
+
+**Before processing any failures:** Read `{{PROGRESS_JSON}}` once. Extract and hold in working memory:
 - `CURRENT_AUDIT_ROUND` = the top-level `audit_round` field value
 - `UNIT_WAVE` = the `wave` value for this unit from the `queue` array (find the entry where `id == {UNIT}`)
 - `NEXT_TASK_NUM` = (max value of the **last** hyphen-separated numeric segment across all `id` fields for this unit) + 1. The last segment is the task counter — e.g., for `DD-06-003` the last segment is `003` (3), not `06`. For `MOD-CONSOLE-013` the last segment is `013` (13). If the unit has NO existing tasks, use 1.
@@ -412,9 +520,9 @@ Spec reference: {relevant task-ids that originally implemented this}
 ```
 
 4. Write this task to the registry immediately (per-task, not batched). UAT units run sequentially — no other agent writes to AUDIT_PROGRESS.json concurrently, so a fresh read-modify-write per task is safe:
-   - Read `comms/AUDIT_PROGRESS.json` from disk (fresh read — gets latest state including any tasks written by earlier iterations of this loop)
+   - Read `{{PROGRESS_JSON}}` from disk (fresh read — gets latest state including any tasks written by earlier iterations of this loop)
    - Append this entry to `task_registry`
-   - Write the full file back
+   - Write atomically: write to `{{PROGRESS_JSON}}.tmp`, fsync, then `os.replace()` over the target — never write directly
    - Read the file back and confirm the new `{TASK-ID}` entry is present in `task_registry` — if not found: update CURRENT.md verdict to "fail" with note "registry write failed for {TASK-ID}", skip Phases 7 and 8, print error, and exit
    - Only after confirming: increment `NEXT_TASK_NUM` and move to the next failure
 
@@ -459,6 +567,16 @@ last_heartbeat:
 
 **After all bug tasks are created:**
 
+Update `{{PROGRESS_JSON}}` — increment the `verified_since_last_audit` counter for this unit in the `queue[]` array. This signals the smart audit filter that new work was found here, so the unit gets re-audited on the next audit pass:
+```python
+# In the queue[] array, find the entry where unit == UNIT_ID, then:
+entry["verified_since_last_audit"] = entry.get("verified_since_last_audit", 0) + num_bug_tasks_created
+entry["tasks_uat_added"] = entry.get("tasks_uat_added", 0) + num_bug_tasks_created
+```
+Do this as a fresh read-modify-write of AUDIT_PROGRESS.json (same pattern as Phase 6 task writes). Write atomically: write to a temp path, then rename over the target.
+
+This keeps `queue[]` and `task_registry[]` in sync: the queue entry now reflects the total number of tasks added by UAT, so status displays and wave gating can account for UAT-sourced tasks correctly.
+
 Update `docs/state/INDEX.md` — find the row for this unit and increment its `Tasks` and `Pending` counts by the number of bug tasks created. Read the file, edit the matching row, write it back. Do not modify any other rows.
 
 Update `docs/state/{unit-lowercase}/INDEX.md` — append one row per new bug task to the end of the task table (columns are `| Task | Title | Status | Attempts |`):
@@ -480,7 +598,7 @@ MOD-CONSOLE-015 — Resize handles not visible after shape selection
 
 ## PHASE 7 — Update Registry
 
-Read `comms/AUDIT_PROGRESS.json` in full — **fresh read from disk, not any cached copy from Phase 6**. Phase 6 wrote new task entries to this file; Phase 7 must start from that updated version or it will overwrite Phase 6's new tasks. Parse it as JSON.
+Read `{{PROGRESS_JSON}}` in full — **fresh read from disk, not any cached copy from Phase 6**. Phase 6 wrote new task entries to this file; Phase 7 must start from that updated version or it will overwrite Phase 6's new tasks. Parse it as JSON.
 
 Update **only the tasks that were loaded in Phase 1** — those whose `uat_status` was null, missing, or "partial" at the start of this session. **Do NOT update `uat_status` for tasks that had `uat_status: "pass"` or `"fail"` before this session began.** Overwriting a prior "pass" with "partial" (because no scenarios were run for it this session) would silently destroy valid UAT history.
 
@@ -497,7 +615,20 @@ To determine which scenarios belong to each task: read `docs/uat/{UNIT}/scenario
 
 Do NOT update `uat_status` for tasks that are `status: "pending"` or `status: "failed"` — those are not verified yet.
 
-**Critical:** You are updating a file with 300+ tasks. Preserve ALL other tasks and fields exactly as they were. Write the complete updated JSON back to `comms/AUDIT_PROGRESS.json` — not a partial update. Do not reconstruct the JSON from scratch; read it, update the specific fields, write it back.
+**Critical:** You are updating a file with 300+ tasks. Preserve ALL other tasks and fields exactly as they were. Write using the atomic pattern — write to a temp file, then rename over the target (prevents partial-write corruption):
+```python
+import json, os
+with open("{{PROGRESS_JSON}}") as f:
+    data = json.load(f)
+# ... make updates ...
+tmp = "{{PROGRESS_JSON}}.tmp"
+with open(tmp, "w") as f:
+    json.dump(data, f, indent=2)
+    f.flush()
+    os.fsync(f.fileno())
+os.replace(tmp, "{{PROGRESS_JSON}}")
+```
+Do not write directly to `{{PROGRESS_JSON}}` — always go through a temp file.
 
 Read it back immediately to confirm: check that the uat_status values you set are present and that the total task count matches what you counted at the start of Phase 7 (i.e., the count that already includes Phase 6's new bug tasks — do not compare against the count from Phase 1).
 
@@ -508,8 +639,8 @@ Read it back immediately to confirm: check that the uat_status values you set ar
 ```
 UAT COMPLETE — {UNIT}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Mode:     {auto | human}
-Verdict:  {pass | partial | fail | skipped}
+Mode:     {auto | human | release}
+Verdict:  {pass | release-approved | partial | fail | skipped}
 Tested:   {N} scenarios
 Passed:   {N}
 Failed:   {N}
@@ -523,6 +654,42 @@ Bug tasks created:
 Results: docs/uat/{UNIT}/CURRENT.md
 Registry: uat_status updated for {N} tasks
 ```
+
+---
+
+## RELEASE MODE
+
+**Input:** `release {UNIT-ID}`
+
+Release mode is identical to human mode with two differences:
+
+1. **The AskUserQuestion format adds an Approve option** as the primary choice:
+
+```json
+{
+  "questions": [{
+    "question": "Scenario {N}/{total} [{TASK-ID}] — {functional area}\n\nSetup: {what you did}\nExpected: {what should happen}\n\nIs this feature release-worthy?",
+    "header": "Release gate",
+    "options": [
+      {"label": "Approve", "description": "Ship it — feature works correctly and is ready for release"},
+      {"label": "Reject", "description": "Don't ship — you'll describe the issue and a bug task is created"},
+      {"label": "Skip", "description": "Come back to this later — not blocking release decision now"},
+      {"label": "Comment", "description": "Note something without affecting the release decision"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+If the user selects **Reject**, follow up asking what's wrong (same Fail detail question as human mode). Create a bug task exactly as in Phase 6.
+
+2. **Verdict mapping:**
+   - All scenarios Approved → `verdict: release-approved`
+   - Any scenario Rejected → `verdict: fail` (bugs block release)
+   - Mix of Approved + Skipped/Comment with no Rejects → `verdict: partial`
+   - All skipped → `verdict: skipped`
+
+3. **Registry update:** Use `uat_status: "release-approved"` instead of `"pass"` when verdict is `release-approved`. Do NOT overwrite an existing `"release-approved"` status with `"pass"` — release-approved is the higher state.
 
 ---
 

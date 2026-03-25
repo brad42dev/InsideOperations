@@ -12,7 +12,7 @@ You diagnose one task. Read the attempt files, identify the failure pattern, wri
 ```
 TASK_ID: <task-id>
 UNIT: <unit>
-REPO_ROOT: /home/io/io-dev/io
+REPO_ROOT: {{PROJECT_ROOT}}
 ```
 
 ## Protocol
@@ -46,7 +46,7 @@ Read the "Why This Attempt Failed" sections from all attempts. Look for:
 **MISSING_DEPENDENCY signals:**
 - Attempts fail with "cannot find module", "function does not exist", "API endpoint returns 404"
 - The missing thing is in `docs/tasks/` for another unit that is not yet verified
-- Grep the codebase to confirm: `grep -r "missing_function_name" /home/io/io-dev/io/frontend/src/` — if nothing found, it's genuinely missing
+- Grep the codebase to confirm: `grep -r "missing_function_name" {{PROJECT_ROOT}}/frontend/src/` — if nothing found, it's genuinely missing
 
 **SCOPE_TOO_LARGE signals:**
 - All attempts returned CHECKPOINT

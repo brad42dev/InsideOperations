@@ -15,7 +15,7 @@ You implement exactly one task per invocation. The protocol below is mandatory. 
 ```
 TASK_ID: <task-id, e.g. GFX-CORE-002>
 UNIT: <unit-id, e.g. gfx-core>
-REPO_ROOT: /home/io/io-dev/io
+REPO_ROOT: {{PROJECT_ROOT}}
 [PRIOR_ATTEMPT_NOTES: <what failed last time — read this before writing a single line>]
 [RESEARCH_RESULTS: <findings from explore-agent>]
 [ANSWERED_QUESTIONS: <user answers to a prior NEEDS_INPUT>]
@@ -32,7 +32,7 @@ ATTEMPTS_DIR: docs/state/{unit}/{task-id}/attempts/
 TASK_SPEC:   docs/tasks/{unit}/{task-id}.md  (or docs/tasks/{unit-lowercase}/{task-id}*.md)
 ```
 
-Note: `docs/state/INDEX.md` (per-unit scoreboard) and `docs/state/{unit}/INDEX.md` (static audit snapshot) are NOT used by this agent — they are not authoritative for task existence and are not updated by UAT or later audit rounds. The registry source of truth is `comms/AUDIT_PROGRESS.json`.
+Note: `docs/state/INDEX.md` (per-unit scoreboard) and `docs/state/{unit}/INDEX.md` (static audit snapshot) are NOT used by this agent — they are not authoritative for task existence and are not updated by UAT or later audit rounds. The registry source of truth is `{{PROGRESS_JSON}}`.
 
 Replace `{unit}` with the lowercase unit ID (e.g. `gfx-core`, `mod-console`).
 
@@ -42,19 +42,19 @@ Replace `{unit}` with the lowercase unit ID (e.g. `gfx-core`, `mod-console`).
 
 ### E1 — Verify task exists in registry
 
-Run: `grep -c '"id": "{TASK_ID}"' comms/AUDIT_PROGRESS.json`
+Run: `grep -c '"id": "{TASK_ID}"' {{PROGRESS_JSON}}`
 
 If the count is 0 (task not found): return immediately:
 ```
 RESULT: FAILED
 TASK_ID: <task-id>
 ATTEMPT: 0
-FAILURE_REASON: task_not_in_registry — task ID not found in comms/AUDIT_PROGRESS.json
+FAILURE_REASON: task_not_in_registry — task ID not found in {{PROGRESS_JSON}}
 STATE_FILE: none
 ATTEMPT_FILE: none
 ```
 
-Note: `docs/state/INDEX.md` is a per-unit summary scoreboard, NOT a per-task index — do not use it to gate task existence. `docs/state/{unit}/INDEX.md` is a static snapshot created at initial audit time and is not updated when new tasks are added (e.g., by UAT or later audit rounds). `comms/AUDIT_PROGRESS.json` is the authoritative task registry.
+Note: `docs/state/INDEX.md` is a per-unit summary scoreboard, NOT a per-task index — do not use it to gate task existence. `docs/state/{unit}/INDEX.md` is a static snapshot created at initial audit time and is not updated when new tasks are added (e.g., by UAT or later audit rounds). `{{PROGRESS_JSON}}` is the authoritative task registry.
 
 ### E2 — Verify state directory exists
 
@@ -124,7 +124,7 @@ Before writing anything, state this explicitly in your response:
 > "ENTRY CONFIRMED: I am claiming task {task-id} ({title from spec}), attempt {N}.
 > Prior attempts: {count}. Prior fingerprints: {list or 'none'}."
 
-Note: Cycle detection runs at X2 after the patch is computed — not here. At this stage, just list prior fingerprints for reference.
+**Pre-write cycle check (N > 1 only):** If this is attempt 2+, before modifying any files, describe in one sentence the planned approach for this attempt. Compare against the "What I Tried" notes from the prior attempt file. If the planned approach is substantially the same as a prior attempt (same files, same logic), DO NOT proceed — return NEEDS_INPUT immediately with question: "Attempts {prior} and {N} would make the same change. What should be tried differently?" This check is advisory (prose-based), not fingerprint-based. The fingerprint check at X2 is the hard gate; this is an early warning that avoids making dirty changes at all.
 
 ### E7 — Write the claim
 
@@ -142,7 +142,7 @@ last_heartbeat: {current timestamp ISO-8601}
 
 ## Prior Attempt Fingerprints
 
-{copy table from prior CURRENT.md, or write "| Attempt | Fingerprint | Before Hash | After Hash | Result |" with "(none yet)" if N=1}
+{copy table from prior CURRENT.md, or write "| Attempt | Changed Files | Before Hash | Result |" with "(none yet)" if N=1}
 
 ## Current Attempt ({N})
 
@@ -185,9 +185,27 @@ After ALL files are loaded (not after each individual read), append a single bat
 - {timestamp} — Loaded: {filepath-1}, {filepath-2}, ... (N files)
 ```
 
+**Spec-doc and contract reading (mandatory):**
+
+Check the task spec's frontmatter for `spec-doc` and `cx-contracts` fields.
+
+- **If `spec-doc` is present:** Read that file (or the relevant section if it is large). Record in Work Log: `- {timestamp} — Read spec-doc: {path}`.
+- **If `cx-contracts` is present:** For each listed contract ID, find the relevant section in `docs/SPEC_MANIFEST.md` (search for the contract ID) and read it. Record in Work Log: `- {timestamp} — Read CX contracts: {list}`.
+- **If neither field is present:** Look up the unit's module in CLAUDE.md §0 (Spec Docs table). Identify the relevant spec file for this unit's prefix (MOD-CONSOLE → `/home/io/spec_docs/console-implementation-spec.md`, MOD-DESIGNER → `/home/io/spec_docs/designer-implementation-spec.md`, etc.) and read the relevant section. Record in Work Log: `- {timestamp} — Read spec-doc (inferred): {path}`. If the unit has no matching spec file (e.g. a pure-frontend DD- unit with no module spec), record `- {timestamp} — No spec-doc: unit {unit} has no module spec file — skipped`.
+
+This step is NOT optional. Implementations that skip authority docs risk violating CX-RBAC, CX-TOKENS, CX-ERROR, and IPC contracts (doc 37) silently.
+
 Update CURRENT.md in the same write: change `status` to `implementing`, update `last_heartbeat`, and include the batch Work Log entry above — all in one Write call.
 
 Confirm the write succeeded: `grep "^status:" docs/state/{unit}/{task-id}/CURRENT.md` — must return `status: implementing`.
+
+**TypeScript baseline (TypeScript tasks only):** Capture the current TS error count before writing any code. This enables the VERIFY PHASE to distinguish pre-existing errors from regressions you introduced.
+
+```bash
+cd frontend && npx tsc --noEmit 2>&1 | grep -c "error TS" > /tmp/io-ts-baseline.txt; echo "TS baseline: $(cat /tmp/io-ts-baseline.txt) pre-existing errors"
+```
+
+If this command fails (not a TypeScript task, or frontend not set up): skip it — write `0` to `/tmp/io-ts-baseline.txt` as a fallback. Record the baseline count in the Work Log entry.
 
 ---
 
@@ -246,7 +264,16 @@ Run the full verification suite below. Record every command and its output in th
 
 **TypeScript tasks — run all six steps:**
 
-1. **Type check:** `cd frontend && npx tsc --noEmit 2>&1 | tail -20`
+1. **Type check with regression detection:**
+   ```bash
+   cd frontend && npx tsc --noEmit 2>&1 | tee /tmp/io-ts-after.txt | tail -20; \
+   AFTER=$(grep -c "error TS" /tmp/io-ts-after.txt || echo "0"); \
+   BEFORE=$(cat /tmp/io-ts-baseline.txt 2>/dev/null || echo "0"); \
+   echo "TS delta — before: $BEFORE, after: $AFTER, new errors introduced: $((AFTER - BEFORE))"
+   ```
+   - If `delta > 0` (new TS errors introduced by this task): ❌ — fix before proceeding
+   - If `delta <= 0` (same or fewer errors than baseline): ✅ — pre-existing errors are not your responsibility
+   - If `/tmp/io-ts-baseline.txt` is missing: treat any errors touching this task's files as ❌; others as ⚠️
 
 2. **Unit tests:** `cd frontend && pnpm test 2>&1 | tail -30`
    - If tests fail on files this task modified: ❌
@@ -313,6 +340,34 @@ Run the full verification suite below. Record every command and its output in th
    - `todo!()` and `unimplemented!()` compile successfully but panic at runtime — cargo check passes, users hit crashes
    - Each new instance is ❌ — fix or justify explicitly
 
+**D1 — SQLx query validation (Rust tasks only):**
+If the task touches any `.rs` file and any of those files contain `sqlx::query!`, run:
+```bash
+cd {{PROJECT_ROOT}} && cargo sqlx prepare --check 2>&1 | tail -20
+```
+- If this fails with SQL errors: ❌ — SQL queries don't match the database schema. Fix before proceeding.
+- If `cargo sqlx prepare --check` is unavailable or returns "offline mode not set up": skip with ⚠️ — do not fail.
+
+**D2 — API response shape check (new endpoints):**
+If the task creates a new HTTP handler — look for `Router::new()` or `.route(` in any new/modified Rust file, or a new `export async function` in a route file for the frontend — grep the new handler for the required response shape:
+```bash
+# Rust handler — check for io-error types and success envelope
+grep -n "status.*success\|io_error\|IoError\|AppError" {new-handler-file}
+# TypeScript route — check for success/data/trace_id envelope
+grep -n "status.*success\|trace_id\|data:" {new-route-file}
+```
+- If a new handler produces responses with no `status: "success"` envelope or no io-error crate types: ❌ — violates IPC_CONTRACTS (doc 37). Fix before proceeding.
+- If the handler only returns redirects or streams (not JSON): skip this check with ⚠️.
+
+**D3 — Circular import detection (TypeScript tasks only):**
+After the type check passes, run:
+```bash
+cd frontend && npx madge --circular src/ 2>&1 | head -20
+```
+- If madge is not installed: skip with ⚠️ — do not fail.
+- If circular imports are found: ❌ — list the cycles and fix them before proceeding.
+- If no circular imports: ✅.
+
 **If any ❌ is found:**
 Attempt to fix (maximum 2 fix cycles). After 2 cycles still failing: proceed to Exit Protocol with `RESULT: FAILED`. Do not report SUCCESS with failing checks or unresolved TODOs.
 
@@ -322,28 +377,55 @@ Attempt to fix (maximum 2 fix cycles). After 2 cycles still failing: proceed to 
 
 **Complete all steps regardless of result (SUCCESS, FAILED, NEEDS_INPUT, NEEDS_RESEARCH, CHECKPOINT, CYCLE_DETECTED).**
 
-### X1 — Compute patch fingerprint
+### X1 — Capture changed files
 
 Run as a single bash invocation:
 ```bash
 BEFORE=$(git rev-parse HEAD); \
-AFTER=$(git diff HEAD --unified=0 | grep "^[+-]" | grep -v "^[+-][+-][+-]" | sort | sha256sum | awk '{print $1}'); \
+git diff HEAD --name-only | sort > /tmp/io-changed-files.txt; \
 echo "before_state: $BEFORE"; \
-echo "after_state (diff hash): $AFTER"
+echo "changed_files:"; cat /tmp/io-changed-files.txt; \
+echo "changed_functions:"; git diff HEAD --unified=0 | grep "^+.*\bfunction\b\|^+.*const [A-Za-z][A-Za-z0-9]*\s*=" | grep -v "^+++" | head -20
 ```
 
 Record:
-- `fingerprint` = the `after_state` diff hash (used for cycle detection)
-- `before_state` = the commit hash (`git rev-parse HEAD`) — this is the base commit before changes
-- `after_state` = sha256 of the sorted diff lines — this uniquely identifies the patch
+- `before_state` = the commit hash (`git rev-parse HEAD`) — the base commit before changes
+- `changed_files` = sorted list of modified files from `/tmp/io-changed-files.txt` (used for cycle detection)
+- `changed_functions` = function/component names added in this attempt (stored in attempt file for human review — not used in automated detection)
 
-If no files were modified (e.g. NEEDS_INPUT before any implementation): fingerprint = "no-changes", before_state = git rev-parse HEAD, after_state = "no-changes".
+If no files were modified (e.g. NEEDS_INPUT before any implementation): changed_files = empty, before_state = git rev-parse HEAD.
+
+### X1b — Scope check
+
+Run: `git diff HEAD --name-only`
+
+Compare the output against the "Files to Create or Modify" section of this task's spec file. For each file in the diff:
+- **State files** (`docs/state/`, `docs/uat/`, `comms/`): always allowed — skip, do not flag.
+- **Test files** for a file that IS in scope (e.g., `*.test.ts` alongside an in-scope `.ts`): warn but allow — note in Work Log: `⚠ out-of-scope adjacent test file touched: {filename}`.
+- **Any other file not in the task spec**: ❌ out-of-scope edit — revert it immediately:
+  ```bash
+  git checkout -- {filename}
+  ```
+  Record in Work Log: `⚠ out-of-scope file reverted: {filename}`. Continue with the exit protocol — do not abort the task. The goal is to prevent accidental scope creep silently propagating into git history, not to fail the task.
+
+If no out-of-scope files were touched: record `✅ scope check passed — all modified files are in-task scope`.
 
 ### X2 — Cycle check
 
-Compare your `fingerprint` (after_state diff hash) against every fingerprint in the Prior Attempt Fingerprints table from CURRENT.md.
+Compare the `changed_files` list (from `/tmp/io-changed-files.txt`) against the `changed_files` lists recorded in prior attempt files for this task.
 
-If any fingerprint matches: your result becomes `CYCLE_DETECTED`. Record which attempt number matched.
+**CYCLE_DETECTED:** If `changed_files` is identical to a prior attempt's `changed_files` AND that prior attempt resulted in `FAILED`: your result becomes `CYCLE_DETECTED`. Record which attempt number matched. Touching the same set of files in the same failing way = a cycle — a different approach is required.
+
+**Warning (not CYCLE):** If `changed_files` overlaps with a prior attempt but is not identical (some shared files, some different): record `⚠️ OVERLAP — changed_files share {list of shared files} with attempt {M}` in the attempt file, but do NOT set CYCLE_DETECTED. A different file set means a different approach.
+
+**Empty changed_files:** If no files were modified (NEEDS_INPUT or NEEDS_RESEARCH before any implementation work): skip cycle detection — nothing to compare.
+
+**On CYCLE_DETECTED — undo dirty changes before exiting:**
+```bash
+git checkout -- .
+git clean -fd
+```
+`git checkout -- .` restores all tracked files to HEAD state. `git clean -fd` removes untracked files and directories created by this attempt (e.g., new component files, generated assets). Both are required — without `git clean -fd`, untracked files from the failed attempt remain on disk and contaminate the next attempt's working state. Run both ONLY on CYCLE_DETECTED, not on FAILED or other results.
 
 ### X3 — Determine attempt file number
 
@@ -370,10 +452,15 @@ result: {SUCCESS | FAILED | CYCLE_DETECTED | NEEDS_INPUT | NEEDS_RESEARCH | CHEC
 ## Files Modified
 {List each file and what changed. Or "None" if no files were modified.}
 
-## Patch Fingerprint
-fingerprint: {sha256 from X1}
-before_state: {hash}
-after_state: {hash}
+## Changed Files
+before_state: {git rev-parse HEAD from X1}
+changed_files:
+  - {file1}
+  - {file2}
+  (or "none" if no files were modified)
+
+changed_functions: (for human review only — not used in automated cycle detection)
+  - {function or component names extracted from diff, or "none"}
 
 ## Verification
 command: {exact command run}
@@ -384,8 +471,9 @@ output: {relevant lines, or "clean"}
 {One line per checklist item: ✅ or ❌ and description}
 
 ## Cycle Check
-{NO COLLISION — no prior fingerprint matched}
-{OR: CYCLE DETECTED — matches attempt {M}: {explain}}
+{NO COLLISION — changed_files differ from all prior attempts (or no prior attempts)}
+{OR: CYCLE DETECTED — matches attempt {M}: identical changed_files list, same failure}
+{OR: ⚠️ OVERLAP — changed_files share {files} with attempt {M} but are not identical — allowed}
 
 ## Why This Attempt {Succeeded | Failed | Stopped}
 {Honest and specific. If failed: what went wrong exactly, what error message, what was tried.}
@@ -422,8 +510,8 @@ last_heartbeat: {current timestamp}
 
 ## Prior Attempt Fingerprints
 
-| Attempt | Fingerprint | Before Hash | After Hash | Result |
-|---------|-------------|-------------|------------|--------|
+| Attempt | Changed Files | Before Hash | Result |
+|---------|---------------|-------------|--------|
 {copy prior rows, then add current attempt row}
 
 ## Current Attempt ({N}) — CLOSED

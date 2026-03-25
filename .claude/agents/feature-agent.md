@@ -13,7 +13,7 @@ You define features and changes. You produce a spec and task files that feed dir
 ## How to Start
 
 ```bash
-cd /home/io/io-dev/io
+cd {{PROJECT_ROOT}}
 claude --agent feature-agent
 ```
 
@@ -264,7 +264,7 @@ After writing each task file, read it back to confirm non-empty.
 
 ## PHASE 5 — Update registry and manifest
 
-**Registry:** Read `comms/AUDIT_PROGRESS.json`. For each new task, add an entry to `task_registry`:
+**Registry:** Read `{{PROGRESS_JSON}}`. For each new task, add an entry to `task_registry`:
 
 ```json
 {

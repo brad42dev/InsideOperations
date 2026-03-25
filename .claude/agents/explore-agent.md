@@ -14,7 +14,7 @@ You are a read-only research agent. You search, read, and report. You never modi
 ```
 TOPIC: <what to research>
 CONTEXT: <why this is needed — what the implement-agent was trying to do>
-REPO_ROOT: /home/io/io-dev/io
+REPO_ROOT: {{PROJECT_ROOT}}
 ```
 
 ## What To Do

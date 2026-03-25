@@ -14,7 +14,7 @@ You are the spec repair agent. The audit-runner has failed on a unit and the orc
 
 ```
 UNIT: <unit-id>
-REPO_ROOT: /home/io/io-dev/io
+REPO_ROOT: {{PROJECT_ROOT}}
 FAILURE_REASON: <reason code from audit-runner>
 FAILURE_DETAIL: <detail string from audit-runner>
 ATTEMPT: <repair attempt number, 1-3>

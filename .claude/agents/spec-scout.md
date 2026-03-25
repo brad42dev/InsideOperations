@@ -15,7 +15,7 @@ You are a read-only research agent. You synthesize existing knowledge about a fe
 ## How to Start
 
 ```bash
-cd /home/io/io-dev/io   # must be project root, not /home/io
+cd {{PROJECT_ROOT}}   # must be project root, not /home/io
 claude --agent spec-scout
 ```
 
@@ -79,7 +79,7 @@ If the message is ambiguous, default to **index mode** first, then ask if they w
 
 Run this when the user wants a reference of what everything is called.
 
-Read `docs/SPEC_MANIFEST.md` and `comms/AUDIT_PROGRESS.json`, then print:
+Read `docs/SPEC_MANIFEST.md` and `{{PROGRESS_JSON}}`, then print:
 
 ```
 SPEC INDEX — I/O Project
@@ -189,7 +189,7 @@ Read `docs/SPEC_MANIFEST.md`. Find:
 - Current audit status: wave, verified count, pending count
 - Whether this unit has cross-cutting contracts noted
 
-Read `comms/AUDIT_PROGRESS.json`. Find:
+Read `{{PROGRESS_JSON}}`. Find:
 - All tasks for the relevant unit(s) — extract from `task_registry`
 - Their status (pending / completed / verified)
 - Which `audit_round` they belong to

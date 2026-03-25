@@ -14,8 +14,8 @@ You are the audit runner. Your job is to execute one complete audit for the unit
 
 ```
 UNIT: <unit-id>
-REPO_ROOT: /home/io/io-dev/io
-PROGRESS_FILE: /home/io/io-dev/io/comms/AUDIT_PROGRESS.json
+REPO_ROOT: {{PROJECT_ROOT}}
+PROGRESS_FILE: {{PROJECT_ROOT}}/{{PROGRESS_JSON}}
 ```
 
 ---
@@ -35,6 +35,7 @@ If the unit's manifest entry contains `⚠️ NOT SPECCED` for its primary spec:
 ### E2 — Record starting state
 
 Note: which catalog file will be written (`docs/catalogs/<unit-id>.md`) and which task directory will be written to (`docs/tasks/<unit-id-lowercase>/`).
+**CRITICAL:** Task files go in the LOWERCASE version of the unit ID — always. `DD-10` → `docs/tasks/dd-10/`. `MOD-CONSOLE` → `docs/tasks/mod-console/`. Never use the uppercase unit ID as a directory name. This is not optional.
 
 Check if the catalog file already exists. If it does, note its current modification time — you will use this to confirm a new write occurred.
 
@@ -49,7 +50,7 @@ Execute every phase of the `/audit` skill for this unit:
 - Phase 3: Inspect code at all target code paths
 - Phase 4: Inject Wave 0 checks (if Wave 1–3 unit)
 - Phase 5: Write the catalog to `docs/catalogs/<unit-id>.md`
-- Phase 6: Write task files to `docs/tasks/<unit-id-lowercase>/`
+- Phase 6: Write task files to `docs/tasks/<unit-id-lowercase>/`  ← LOWERCASE unit ID always
 - Phase 7: Tally results
 
 Do not skip phases. Do not skim spec files. File + line evidence is required for every finding.

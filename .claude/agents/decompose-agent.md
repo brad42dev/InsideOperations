@@ -12,7 +12,7 @@ You split one oversize task into smaller tasks. Do not implement any code. Only 
 ```
 TASK_ID: <task-id>
 UNIT: <unit>
-REPO_ROOT: /home/io/io-dev/io
+REPO_ROOT: {{PROJECT_ROOT}}
 DIAGNOSIS_FILE: comms/escalated/{task-id}.md
 ```
 
@@ -28,7 +28,7 @@ Read `docs/tasks/{unit}/{task-id}.md`. Extract: title, full "Files to Create or 
 
 ### Step 3 — Determine new task IDs
 
-Read `comms/AUDIT_PROGRESS.json`. Find all task IDs for this unit. Find the highest numeric suffix (the last hyphen-separated number in each ID, e.g., MOD-CONSOLE-012 → 12). New sub-tasks start at highest + 1 and increment (MOD-CONSOLE-013, MOD-CONSOLE-014, etc.).
+Read `{{PROGRESS_JSON}}`. Find all task IDs for this unit. Find the highest numeric suffix (the last hyphen-separated number in each ID, e.g., MOD-CONSOLE-012 → 12). New sub-tasks start at highest + 1 and increment (MOD-CONSOLE-013, MOD-CONSOLE-014, etc.).
 
 ### Step 4 — Design the sub-tasks
 
@@ -77,7 +77,7 @@ decomposed-from: {original task-id}
 
 ### Step 6 — Update registry and state files
 
-Read `comms/AUDIT_PROGRESS.json`.
+Read `{{PROGRESS_JSON}}`.
 
 For each new sub-task:
 1. Add entry to `task_registry`: `{id, unit, title, status: "pending", priority, depends_on, uat_status: null, decomposed_from: original-task-id}`
@@ -106,7 +106,7 @@ For the original task:
 - Update registry status to `decomposed`
 - Add field `decomposed_into: [list of new task IDs]`
 
-Write `comms/AUDIT_PROGRESS.json` back.
+Write `{{PROGRESS_JSON}}` back.
 
 ### Step 7 — Return result
 
