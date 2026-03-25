@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { roundsApi, type RoundInstance, type RoundHistoryEntry, type RoundTemplate, type RoundSchedule } from '../../api/rounds'
 import DataTable, { type ColumnDef } from '../../shared/components/DataTable'
+import { ExportButton } from '../../shared/components/ExportDialog'
 import { useOfflineRounds } from '../../shared/hooks/useOfflineRounds'
 import { PrintDialog } from './PrintDialog'
 
@@ -220,6 +221,31 @@ const historyColumns: ColumnDef<RoundHistoryEntry>[] = [
   },
 ]
 
+// Export column definitions (used by ExportButton)
+const HISTORY_EXPORT_COLUMNS = [
+  { id: 'template_name', label: 'Template' },
+  { id: 'completed_at', label: 'Completed' },
+  { id: 'started_at', label: 'Started' },
+  { id: 'duration', label: 'Duration' },
+  { id: 'out_of_range_count', label: 'Out of Range' },
+  { id: 'response_count', label: 'Responses' },
+  { id: 'status', label: 'Status' },
+]
+
+const TEMPLATE_EXPORT_COLUMNS = [
+  { id: 'name', label: 'Name' },
+  { id: 'description', label: 'Description' },
+  { id: 'version', label: 'Version' },
+  { id: 'is_active', label: 'Active' },
+  { id: 'checkpoints', label: 'Checkpoints' },
+]
+
+const SCHEDULE_EXPORT_COLUMNS = [
+  { id: 'template_name', label: 'Template' },
+  { id: 'recurrence_type', label: 'Recurrence' },
+  { id: 'is_active', label: 'Active' },
+]
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -386,6 +412,36 @@ export default function RoundsPage() {
                 </button>
               }
             />
+            {tab === 'history' && (
+              <ExportButton
+                module="rounds"
+                entity="Round History"
+                filteredRowCount={historyEntries.length}
+                totalRowCount={historyEntries.length}
+                availableColumns={HISTORY_EXPORT_COLUMNS}
+                visibleColumns={HISTORY_EXPORT_COLUMNS.map((c) => c.id)}
+              />
+            )}
+            {tab === 'templates' && (
+              <ExportButton
+                module="rounds"
+                entity="Round Templates"
+                filteredRowCount={templates.length}
+                totalRowCount={templates.length}
+                availableColumns={TEMPLATE_EXPORT_COLUMNS}
+                visibleColumns={TEMPLATE_EXPORT_COLUMNS.map((c) => c.id)}
+              />
+            )}
+            {tab === 'schedules' && (
+              <ExportButton
+                module="rounds"
+                entity="Round Schedules"
+                filteredRowCount={schedules.length}
+                totalRowCount={schedules.length}
+                availableColumns={SCHEDULE_EXPORT_COLUMNS}
+                visibleColumns={SCHEDULE_EXPORT_COLUMNS.map((c) => c.id)}
+              />
+            )}
             {tab === 'templates' && (
               <button
                 onClick={() => navigate('/rounds/templates/new/edit')}
@@ -475,6 +531,7 @@ export default function RoundsPage() {
             loading={loadingHistory}
             emptyMessage="No completed rounds."
             onRowClick={(row) => navigate(`/rounds/${row.id}`)}
+            showExport={false}
           />
         )}
 
