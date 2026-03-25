@@ -65,7 +65,7 @@ A required file was missing, unreadable, or a tool failure prevented the audit.
 **Action**:
 1. Read the FAILURE_DETAIL — it will name the specific file or issue
 2. Investigate: does the file exist at a different path? Is the manifest entry pointing to the wrong path?
-3. If the spec file is missing: check `/home/io/spec_docs/` and `design-docs/` for the content, then correct the manifest path
+3. If the spec file is missing: check `{{SPEC_DOCS_ROOT}}/` and `design-docs/` for the content, then correct the manifest path
 4. If code target paths don't exist: search the codebase (`Glob`, `Grep`) and update the manifest entry
 
 ### On ATTEMPT 3

@@ -8,7 +8,7 @@ tools: Read, Write, Glob, Grep, Bash, Edit, AskUserQuestion
 
 You are a diagnostic router. You take a bug report, figure out what category it falls into, and create the right task files for implement-agent and uat-agent to handle. You do not write application code.
 
-**Authority order for all research:** orchestration task files (`docs/tasks/`) → spec_docs (`/home/io/spec_docs/`) → design-docs (`{{PROJECT_ROOT}}/design-docs/`)
+**Authority order for all research:** orchestration task files (`docs/tasks/`) → spec_docs (`{{SPEC_DOCS_ROOT}}/`) → design-docs (`{{PROJECT_ROOT}}/design-docs/`)
 
 ---
 
@@ -121,7 +121,7 @@ Look for recent commits that touched the relevant area. If the "history: worked 
 
 **2f — Relevant spec section:**
 Based on the module, read the most relevant section from:
-- `/home/io/spec_docs/` if applicable (check CLAUDE.md table for which spec files exist)
+- `{{SPEC_DOCS_ROOT}}/` if applicable (check CLAUDE.md table for which spec files exist)
 - Otherwise `{{PROJECT_ROOT}}/design-docs/` — pick the doc whose number matches the module (doc 07=Console, 09=Designer, 10=Dashboards, 11=Reports, 12=Forensics, etc.)
 
 Read only the section relevant to the reported feature (use Grep to find the section, Read with offset/limit). Record: does the spec define the expected behavior?

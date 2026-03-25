@@ -80,7 +80,7 @@ decomposed-from: {original task-id}
 Read `{{PROGRESS_JSON}}`.
 
 For each new sub-task:
-1. Add entry to `task_registry`: `{id, unit, title, status: "pending", priority, depends_on, uat_status: null, decomposed_from: original-task-id}`
+1. Add entry to `task_registry`: `{id, unit, wave: <same wave as original task>, title, status: "pending", priority, depends_on, audit_round: <current audit_round from original task>, uat_status: null, decomposed_from: original-task-id}`
 2. Create `docs/state/{unit}/{new-task-id}/` directory
 3. Create `docs/state/{unit}/{new-task-id}/attempts/` directory
 4. Create `docs/state/{unit}/{new-task-id}/CURRENT.md` with:

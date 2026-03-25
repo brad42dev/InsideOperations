@@ -44,6 +44,7 @@ load_config() {
         CFG_FRONTEND_TEST="cd frontend && pnpm test"
         CFG_FRONTEND_BUILD="cd frontend && pnpm build"
         CFG_FRONTEND_CHECK="cd frontend && npx tsc --noEmit"
+        CFG_SPEC_DOCS="/home/io/spec_docs"
         return
     fi
     eval "$(python3 - "$config" "$REPO" <<'PYEOF'
@@ -78,6 +79,7 @@ print(f"CFG_CHECK_COMMAND={cmd.get('check', cmd.get('check_backend', 'cargo chec
 print(f"CFG_FRONTEND_TEST={cmd.get('frontend_test', cmd.get('test_frontend', 'cd frontend && pnpm test'))!r}")
 print(f"CFG_FRONTEND_BUILD={cmd.get('frontend_build', cmd.get('build_frontend', 'cd frontend && pnpm build'))!r}")
 print(f"CFG_FRONTEND_CHECK={cmd.get('frontend_check', cmd.get('check_frontend', 'cd frontend && npx tsc --noEmit'))!r}")
+print(f"CFG_SPEC_DOCS={p.get('spec_docs', '/home/io/spec_docs')!r}")
 PYEOF
 )" || {
         echo "WARNING: Failed to parse io-orchestrator.config.json — using hardcoded defaults" >&2
@@ -96,6 +98,7 @@ PYEOF
         CFG_FRONTEND_TEST="cd frontend && pnpm test"
         CFG_FRONTEND_BUILD="cd frontend && pnpm build"
         CFG_FRONTEND_CHECK="cd frontend && npx tsc --noEmit"
+        CFG_SPEC_DOCS="/home/io/spec_docs"
     }
 }
 
@@ -398,6 +401,7 @@ expand_agent_tokens() {
             -e "s|{{FRONTEND_TEST_COMMAND}}|${CFG_FRONTEND_TEST:-cd frontend \&\& pnpm test}|g" \
             -e "s|{{FRONTEND_BUILD_COMMAND}}|${CFG_FRONTEND_BUILD:-cd frontend \&\& pnpm build}|g" \
             -e "s|{{FRONTEND_CHECK_COMMAND}}|${CFG_FRONTEND_CHECK:-cd frontend \&\& npx tsc --noEmit}|g" \
+            -e "s|{{SPEC_DOCS_ROOT}}|${CFG_SPEC_DOCS:-/home/io/spec_docs}|g" \
             "$f" 2>/dev/null || true
     done
 }
@@ -420,8 +424,11 @@ cleanup_worktree() {
 
     if [ "$outcome" = "failure" ]; then
         local failed_branch="io-task/FAILED-${task_id}"
-        git -C "$REPO" branch -m "$branch_name" "$failed_branch" 2>/dev/null || true
-        echo "  ⚠ Task ${task_id}: worktree removed, branch → ${failed_branch}"
+        if git -C "$REPO" branch -m "$branch_name" "$failed_branch" 2>/dev/null; then
+            echo "  ⚠ Task ${task_id}: worktree removed, branch → ${failed_branch}"
+        else
+            echo "  ⚠ Task ${task_id}: worktree removed (branch already renamed or missing)"
+        fi
     fi
 }
 
@@ -540,7 +547,10 @@ run_parallel_implement() {
 
     for i in $(seq 1 "$max_agents"); do
         local task_id
-        task_id=$(claim_next_task "io-run-$$-${i}")
+        task_id=$(claim_next_task "io-run-$$-${i}") || {
+            echo "  WARNING: claim_next_task failed (SQLite timeout or error) — stopping agent launch" >&2
+            break
+        }
         if [ -z "$task_id" ]; then
             echo "  No more tasks available (claimed $((i - 1)) of ${max_agents})"
             break

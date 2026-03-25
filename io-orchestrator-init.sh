@@ -38,7 +38,7 @@ HAS_GO=0
 
 [ -f "$TARGET_DIR/Cargo.toml" ]          && HAS_RUST=1   && LANG_DETECTED="rust"
 [ -f "$TARGET_DIR/package.json" ]        && HAS_NODE=1   && LANG_DETECTED="node"
-[ -f "$TARGET_DIR/pyproject.toml" ] || [ -f "$TARGET_DIR/setup.py" ] && HAS_PYTHON=1 && LANG_DETECTED="python"
+( [ -f "$TARGET_DIR/pyproject.toml" ] || [ -f "$TARGET_DIR/setup.py" ] ) && HAS_PYTHON=1 && LANG_DETECTED="python"
 [ -f "$TARGET_DIR/go.mod" ]              && HAS_GO=1     && LANG_DETECTED="go"
 
 # Polyglot: both Rust and Node (like the io project)

@@ -199,10 +199,10 @@ Read `{{PROGRESS_JSON}}`. Find:
 
 ## PHASE 2 — Design sweep
 
-Read the relevant spec doc(s) from `/home/io/spec_docs/` or `design-docs/`. Do not read full documents end-to-end — scan headings and read the sections that cover the topic area.
+Read the relevant spec doc(s) from `{{SPEC_DOCS_ROOT}}/` or `design-docs/`. Do not read full documents end-to-end — scan headings and read the sections that cover the topic area.
 
 **Priority order:**
-1. `/home/io/spec_docs/` — if a spec doc exists for this module, it overrides design-docs
+1. `{{SPEC_DOCS_ROOT}}/` — if a spec doc exists for this module, it overrides design-docs
 2. `design-docs/` — the base design
 3. `docs/decisions/` — any decision files that modify or extend the spec for this unit
 
@@ -329,7 +329,7 @@ Key files that exist / don't exist yet.>
 <Specific file paths and section headings to read before implementing anything here.
 Order by priority.>
 
-  1. /home/io/spec_docs/<spec-file>.md § <section>
+  1. {{SPEC_DOCS_ROOT}}/<spec-file>.md § <section>
   2. design-docs/<doc>.md § <section>
   3. docs/decisions/<slug>.md
   4. docs/tasks/<unit>/<task-id>.md (pending work that could conflict)

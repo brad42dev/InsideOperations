@@ -191,7 +191,7 @@ Check the task spec's frontmatter for `spec-doc` and `cx-contracts` fields.
 
 - **If `spec-doc` is present:** Read that file (or the relevant section if it is large). Record in Work Log: `- {timestamp} — Read spec-doc: {path}`.
 - **If `cx-contracts` is present:** For each listed contract ID, find the relevant section in `docs/SPEC_MANIFEST.md` (search for the contract ID) and read it. Record in Work Log: `- {timestamp} — Read CX contracts: {list}`.
-- **If neither field is present:** Look up the unit's module in CLAUDE.md §0 (Spec Docs table). Identify the relevant spec file for this unit's prefix (MOD-CONSOLE → `/home/io/spec_docs/console-implementation-spec.md`, MOD-DESIGNER → `/home/io/spec_docs/designer-implementation-spec.md`, etc.) and read the relevant section. Record in Work Log: `- {timestamp} — Read spec-doc (inferred): {path}`. If the unit has no matching spec file (e.g. a pure-frontend DD- unit with no module spec), record `- {timestamp} — No spec-doc: unit {unit} has no module spec file — skipped`.
+- **If neither field is present:** Look up the unit's module in CLAUDE.md §0 (Spec Docs table). Identify the relevant spec file for this unit's prefix (MOD-CONSOLE → `{{SPEC_DOCS_ROOT}}/console-implementation-spec.md`, MOD-DESIGNER → `{{SPEC_DOCS_ROOT}}/designer-implementation-spec.md`, etc.) and read the relevant section. Record in Work Log: `- {timestamp} — Read spec-doc (inferred): {path}`. If the unit has no matching spec file (e.g. a pure-frontend DD- unit with no module spec), record `- {timestamp} — No spec-doc: unit {unit} has no module spec file — skipped`.
 
 This step is NOT optional. Implementations that skip authority docs risk violating CX-RBAC, CX-TOKENS, CX-ERROR, and IPC contracts (doc 37) silently.
 
@@ -202,10 +202,10 @@ Confirm the write succeeded: `grep "^status:" docs/state/{unit}/{task-id}/CURREN
 **TypeScript baseline (TypeScript tasks only):** Capture the current TS error count before writing any code. This enables the VERIFY PHASE to distinguish pre-existing errors from regressions you introduced.
 
 ```bash
-cd frontend && npx tsc --noEmit 2>&1 | grep -c "error TS" > /tmp/io-ts-baseline.txt; echo "TS baseline: $(cat /tmp/io-ts-baseline.txt) pre-existing errors"
+cd frontend && npx tsc --noEmit 2>&1 | grep -c "error TS" > /tmp/io-ts-baseline-{TASK_ID}.txt; echo "TS baseline: $(cat /tmp/io-ts-baseline-{TASK_ID}.txt) pre-existing errors"
 ```
 
-If this command fails (not a TypeScript task, or frontend not set up): skip it — write `0` to `/tmp/io-ts-baseline.txt` as a fallback. Record the baseline count in the Work Log entry.
+If this command fails (not a TypeScript task, or frontend not set up): skip it — write `0` to `/tmp/io-ts-baseline-{TASK_ID}.txt` as a fallback. Record the baseline count in the Work Log entry.
 
 ---
 
@@ -266,14 +266,14 @@ Run the full verification suite below. Record every command and its output in th
 
 1. **Type check with regression detection:**
    ```bash
-   cd frontend && npx tsc --noEmit 2>&1 | tee /tmp/io-ts-after.txt | tail -20; \
-   AFTER=$(grep -c "error TS" /tmp/io-ts-after.txt || echo "0"); \
-   BEFORE=$(cat /tmp/io-ts-baseline.txt 2>/dev/null || echo "0"); \
+   cd frontend && npx tsc --noEmit 2>&1 | tee /tmp/io-ts-after-{TASK_ID}.txt | tail -20; \
+   AFTER=$(grep -c "error TS" /tmp/io-ts-after-{TASK_ID}.txt || echo "0"); \
+   BEFORE=$(cat /tmp/io-ts-baseline-{TASK_ID}.txt 2>/dev/null || echo "0"); \
    echo "TS delta — before: $BEFORE, after: $AFTER, new errors introduced: $((AFTER - BEFORE))"
    ```
    - If `delta > 0` (new TS errors introduced by this task): ❌ — fix before proceeding
    - If `delta <= 0` (same or fewer errors than baseline): ✅ — pre-existing errors are not your responsibility
-   - If `/tmp/io-ts-baseline.txt` is missing: treat any errors touching this task's files as ❌; others as ⚠️
+   - If `/tmp/io-ts-baseline-{TASK_ID}.txt` is missing: treat any errors touching this task's files as ❌; others as ⚠️
 
 2. **Unit tests:** `cd frontend && pnpm test 2>&1 | tail -30`
    - If tests fail on files this task modified: ❌

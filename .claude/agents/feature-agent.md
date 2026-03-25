@@ -136,7 +136,7 @@ Determine:
 
 Read:
 - `docs/SPEC_MANIFEST.md` — find the unit entry, note the spec file paths and any existing decision files
-- The relevant spec doc(s) from `/home/io/spec_docs/` or `design-docs/`
+- The relevant spec doc(s) from `{{SPEC_DOCS_ROOT}}/` or `design-docs/`
 - For `change` or `fix`: read the existing code in the affected area (use Glob/Grep to find it)
 - For `new`: read enough surrounding code to understand conventions and integration points
 
