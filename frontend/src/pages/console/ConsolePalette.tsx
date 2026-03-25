@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { graphicsApi } from '../../api/graphics'
 import type { WorkspaceLayout } from './types'
 import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
+import { useConsoleSectionViewMode, type SectionViewMode } from '../../shared/hooks/useConsoleSectionViewMode'
 import * as RadixContextMenu from '@radix-ui/react-context-menu'
 
 // ---------------------------------------------------------------------------
@@ -107,15 +108,123 @@ const listItem = (dragging?: boolean): React.CSSProperties => ({
 
 import React from 'react'
 
+// ---------------------------------------------------------------------------
+// View mode icon components — List, Thumbnails, Grid
+// ---------------------------------------------------------------------------
+
+function ViewModeListIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <line x1="1" y1="3" x2="11" y2="3" />
+      <line x1="1" y1="6" x2="11" y2="6" />
+      <line x1="1" y1="9" x2="11" y2="9" />
+    </svg>
+  )
+}
+
+function ViewModeThumbnailsIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="4" height="3" rx="0.5" />
+      <line x1="6.5" y1="2" x2="11" y2="2" />
+      <line x1="6.5" y1="3.5" x2="9" y2="3.5" />
+      <rect x="1" y="6" width="4" height="3" rx="0.5" />
+      <line x1="6.5" y1="7" x2="11" y2="7" />
+      <line x1="6.5" y1="8.5" x2="9" y2="8.5" />
+    </svg>
+  )
+}
+
+function ViewModeGridIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="4" height="4" rx="0.5" />
+      <rect x="7" y="1" width="4" height="4" rx="0.5" />
+      <rect x="1" y="7" width="4" height="4" rx="0.5" />
+      <rect x="7" y="7" width="4" height="4" rx="0.5" />
+    </svg>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ViewModeSelector — three icon buttons shown in accordion section header
+// ---------------------------------------------------------------------------
+
+const VIEW_MODE_BUTTONS: { mode: SectionViewMode; label: string; Icon: React.FC }[] = [
+  { mode: 'list',       label: 'List view',       Icon: ViewModeListIcon },
+  { mode: 'thumbnails', label: 'Thumbnails view',  Icon: ViewModeThumbnailsIcon },
+  { mode: 'grid',       label: 'Grid view',        Icon: ViewModeGridIcon },
+]
+
+function ViewModeSelector({
+  current,
+  onChange,
+}: {
+  current: SectionViewMode
+  onChange: (mode: SectionViewMode) => void
+}) {
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {VIEW_MODE_BUTTONS.map(({ mode, label, Icon }) => {
+        const active = current === mode
+        return (
+          <button
+            key={mode}
+            title={label}
+            onClick={(e) => { e.stopPropagation(); onChange(mode) }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 20,
+              height: 20,
+              border: 'none',
+              borderRadius: 3,
+              cursor: 'pointer',
+              padding: 0,
+              background: active ? 'var(--io-accent-subtle)' : 'transparent',
+              color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
+              transition: 'background 0.1s, color 0.1s',
+            }}
+            onMouseEnter={(e) => {
+              if (!active) {
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+                ;(e.currentTarget as HTMLElement).style.color = 'var(--io-text-primary)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!active) {
+                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                ;(e.currentTarget as HTMLElement).style.color = 'var(--io-text-muted)'
+              }
+            }}
+          >
+            <Icon />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Accordion section
+// ---------------------------------------------------------------------------
+
 interface AccordionSectionProps {
   title: string
   open: boolean
   onToggle: () => void
   badge?: number
   children: React.ReactNode
+  viewMode?: SectionViewMode
+  onViewModeChange?: (mode: SectionViewMode) => void
 }
 
-function AccordionSection({ title, open, onToggle, badge, children }: AccordionSectionProps) {
+function AccordionSection({ title, open, onToggle, badge, children, viewMode, onViewModeChange }: AccordionSectionProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div
@@ -141,6 +250,9 @@ function AccordionSection({ title, open, onToggle, badge, children }: AccordionS
           }}>
             {badge}
           </span>
+        )}
+        {viewMode !== undefined && onViewModeChange !== undefined && (
+          <ViewModeSelector current={viewMode} onChange={onViewModeChange} />
         )}
       </div>
       {open && (
@@ -397,6 +509,119 @@ const ctxMenuSeparatorStyle: React.CSSProperties = {
 }
 
 // ---------------------------------------------------------------------------
+// WorkspaceThumbnailCard — card used in thumbnails and grid view modes
+// ---------------------------------------------------------------------------
+
+function WorkspaceThumbnailCard({
+  ws,
+  isActive,
+  isFavorite,
+  onSelect,
+  onToggleFavorite,
+  gridMode,
+}: {
+  ws: WorkspaceLayout
+  isActive: boolean
+  isFavorite: boolean
+  onSelect: () => void
+  onToggleFavorite: () => void
+  gridMode: boolean
+}) {
+  const [hovering, setHovering] = useState(false)
+  // Thumbnail dimensions: 48×36 for thumbnails mode, 80×60 for grid mode
+  const thumbW = gridMode ? 80 : 48
+  const thumbH = gridMode ? 60 : 36
+
+  return (
+    <div
+      title={ws.name}
+      onClick={onSelect}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+      style={{
+        display: 'flex',
+        flexDirection: gridMode ? 'column' : 'row',
+        alignItems: gridMode ? 'center' : 'flex-start',
+        gap: gridMode ? 4 : 8,
+        padding: gridMode ? '6px 4px' : '5px 6px',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'pointer',
+        background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
+        border: isActive ? '1px solid color-mix(in srgb, var(--io-accent) 30%, transparent)' : '1px solid transparent',
+        transition: 'background 0.1s',
+        position: 'relative',
+      }}
+      onMouseOver={(e) => {
+        if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+      }}
+      onMouseOut={(e) => {
+        if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
+    >
+      {/* Mini layout preview thumbnail */}
+      <div style={{
+        width: thumbW,
+        height: thumbH,
+        flexShrink: 0,
+        background: 'var(--io-surface-sunken)',
+        borderRadius: 3,
+        border: '1px solid var(--io-border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+      }}>
+        {/* Placeholder grid pattern representing panes */}
+        <svg width={thumbW - 6} height={thumbH - 6} viewBox="0 0 40 30" fill="none">
+          <rect x="1" y="1" width="18" height="13" rx="1" fill="var(--io-border)" opacity="0.6" />
+          <rect x="21" y="1" width="18" height="13" rx="1" fill="var(--io-border)" opacity="0.6" />
+          <rect x="1" y="16" width="38" height="13" rx="1" fill="var(--io-border)" opacity="0.4" />
+        </svg>
+      </div>
+
+      {/* Name — up to 2 lines in thumbnails, 1 line in grid */}
+      <div style={{
+        flex: gridMode ? undefined : 1,
+        minWidth: 0,
+        textAlign: gridMode ? 'center' : 'left',
+        width: gridMode ? thumbW : undefined,
+      }}>
+        <span style={{
+          fontSize: 11,
+          color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
+          fontWeight: isActive ? 600 : 400,
+          display: '-webkit-box',
+          WebkitLineClamp: gridMode ? 1 : 2,
+          WebkitBoxOrient: 'vertical' as const,
+          overflow: 'hidden',
+          lineHeight: 1.3,
+          wordBreak: 'break-word',
+        }}>
+          {ws.name}
+        </span>
+      </div>
+
+      {/* Star button — appears on hover or when favorited */}
+      {!gridMode && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
+          title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 3, flexShrink: 0,
+            opacity: isFavorite || hovering ? 1 : 0,
+            transition: 'opacity 0.1s',
+          }}
+        >
+          <StarIcon filled={isFavorite} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Workspaces section — with Favorites group pinned at top
 // ---------------------------------------------------------------------------
 
@@ -409,6 +634,7 @@ function WorkspacesSection({
   onRenameWorkspace,
   onDuplicateWorkspace,
   onDeleteWorkspace,
+  viewMode,
 }: {
   workspaces: WorkspaceLayout[]
   activeWorkspaceId: string | null
@@ -418,6 +644,7 @@ function WorkspacesSection({
   onRenameWorkspace?: (id: string) => void
   onDuplicateWorkspace?: (id: string) => void
   onDeleteWorkspace?: (id: string) => void
+  viewMode: SectionViewMode
 }) {
   const [favoritesOpen, setFavoritesOpen] = useState(true)
 
@@ -428,6 +655,71 @@ function WorkspacesSection({
     return (
       <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
         No saved workspaces.
+      </div>
+    )
+  }
+
+  const isGridMode = viewMode === 'grid'
+  const isThumbnailsMode = viewMode === 'thumbnails'
+  const useCards = isThumbnailsMode || isGridMode
+
+  const renderWorkspaceList = (wsList: WorkspaceLayout[], canDeleteCheck: boolean) => {
+    if (!useCards) {
+      // List view — uses the existing WorkspaceRow component
+      return wsList.map((ws) => (
+        <WorkspaceRow
+          key={ws.id}
+          ws={ws}
+          isActive={ws.id === activeWorkspaceId}
+          isFavorite={favoriteIds.has(ws.id)}
+          onSelect={() => onSelectWorkspace?.(ws.id)}
+          onToggleFavorite={() => onToggleFavorite(ws.id)}
+          onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+          onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+          onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+          canDelete={canDeleteCheck}
+        />
+      ))
+    }
+
+    if (isGridMode) {
+      // Grid view — tiled arrangement, 2 columns
+      return (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 4,
+          padding: '4px 6px',
+        }}>
+          {wsList.map((ws) => (
+            <WorkspaceThumbnailCard
+              key={ws.id}
+              ws={ws}
+              isActive={ws.id === activeWorkspaceId}
+              isFavorite={favoriteIds.has(ws.id)}
+              onSelect={() => onSelectWorkspace?.(ws.id)}
+              onToggleFavorite={() => onToggleFavorite(ws.id)}
+              gridMode
+            />
+          ))}
+        </div>
+      )
+    }
+
+    // Thumbnails + Name view — vertical list with 48×36 thumbnails
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 6px' }}>
+        {wsList.map((ws) => (
+          <WorkspaceThumbnailCard
+            key={ws.id}
+            ws={ws}
+            isActive={ws.id === activeWorkspaceId}
+            isFavorite={favoriteIds.has(ws.id)}
+            onSelect={() => onSelectWorkspace?.(ws.id)}
+            onToggleFavorite={() => onToggleFavorite(ws.id)}
+            gridMode={false}
+          />
+        ))}
       </div>
     )
   }
@@ -472,44 +764,14 @@ function WorkspacesSection({
               {favoriteWorkspaces.length}
             </span>
           </button>
-          {favoritesOpen && (
-            <div>
-              {favoriteWorkspaces.map((ws) => (
-                <WorkspaceRow
-                  key={ws.id}
-                  ws={ws}
-                  isActive={ws.id === activeWorkspaceId}
-                  isFavorite
-                  onSelect={() => onSelectWorkspace?.(ws.id)}
-                  onToggleFavorite={() => onToggleFavorite(ws.id)}
-                  onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-                  onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-                  onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
-                  canDelete={workspaces.length > 1}
-                />
-              ))}
-            </div>
-          )}
+          {favoritesOpen && renderWorkspaceList(favoriteWorkspaces, workspaces.length > 1)}
           {/* Divider between Favorites and full list */}
           <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
         </div>
       )}
 
       {/* Full workspace list */}
-      {workspaces.map((ws) => (
-        <WorkspaceRow
-          key={ws.id}
-          ws={ws}
-          isActive={ws.id === activeWorkspaceId}
-          isFavorite={favoriteIds.has(ws.id)}
-          onSelect={() => onSelectWorkspace?.(ws.id)}
-          onToggleFavorite={() => onToggleFavorite(ws.id)}
-          onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-          onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-          onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
-          canDelete={workspaces.length > 1}
-        />
-      ))}
+      {renderWorkspaceList(workspaces, workspaces.length > 1)}
     </div>
   )
 }
@@ -518,7 +780,7 @@ function WorkspacesSection({
 // Widgets section (Trend, Point Table, Alarm List)
 // ---------------------------------------------------------------------------
 
-const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc: string; icon: React.ReactNode }[] = [
+const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc: string; icon: React.ReactNode; iconLarge: React.ReactNode }[] = [
   {
     itemType: 'trend',
     label: 'Trend',
@@ -527,6 +789,12 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-accent)" strokeWidth="1.5">
         <polyline points="1 12 4 7 7 9 10 5 15 3" />
         <line x1="1" y1="14" x2="15" y2="14" strokeOpacity="0.4" />
+      </svg>
+    ),
+    iconLarge: (
+      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="var(--io-accent)" strokeWidth="1.5">
+        <polyline points="2 17 7 10 11 13 16 7 23 4" />
+        <line x1="2" y1="19" x2="24" y2="19" strokeOpacity="0.4" />
       </svg>
     ),
   },
@@ -541,6 +809,13 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
         <line x1="6" y1="1" x2="6" y2="15" />
       </svg>
     ),
+    iconLarge: (
+      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
+        <rect x="2" y="2" width="24" height="17" rx="1" />
+        <line x1="2" y1="8" x2="26" y2="8" />
+        <line x1="11" y1="2" x2="11" y2="19" />
+      </svg>
+    ),
   },
   {
     itemType: 'alarm_list',
@@ -553,10 +828,124 @@ const WIDGET_ITEMS: { itemType: ConsoleDragItem['itemType']; label: string; desc
         <circle cx="8" cy="12" r="0.5" fill="#f59e0b" />
       </svg>
     ),
+    iconLarge: (
+      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="#f59e0b" strokeWidth="1.5">
+        <path d="M14 3L23 18H5L14 3Z" />
+        <line x1="14" y1="9" x2="14" y2="13" />
+        <circle cx="14" cy="15.5" r="0.8" fill="#f59e0b" />
+      </svg>
+    ),
   },
 ]
 
-function WidgetsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
+function WidgetsSection({
+  onQuickPlace,
+  viewMode,
+}: {
+  onQuickPlace?: (item: ConsoleDragItem) => void
+  viewMode: SectionViewMode
+}) {
+  const isGrid = viewMode === 'grid'
+  const isThumbnails = viewMode === 'thumbnails'
+
+  if (isGrid) {
+    return (
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 4,
+        padding: '6px',
+      }}>
+        {WIDGET_ITEMS.map((w) => {
+          const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+          return (
+            <div
+              key={w.itemType}
+              draggable
+              onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+                e.dataTransfer.effectAllowed = 'copy'
+              }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 4px',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'grab',
+                border: '1px solid transparent',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              <div style={{
+                width: 80, height: 60,
+                background: 'var(--io-surface-sunken)',
+                borderRadius: 3,
+                border: '1px solid var(--io-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {w.iconLarge}
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--io-text-primary)', textAlign: 'center', lineHeight: 1.2 }}>
+                {w.label}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  if (isThumbnails) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px' }}>
+        {WIDGET_ITEMS.map((w) => {
+          const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+          return (
+            <div
+              key={w.itemType}
+              draggable
+              onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+              onDragStart={(e) => {
+                e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+                e.dataTransfer.effectAllowed = 'copy'
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '4px 6px',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'grab',
+                border: '1px solid transparent',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              <div style={{
+                width: 48, height: 36, flexShrink: 0,
+                background: 'var(--io-surface-sunken)',
+                borderRadius: 3,
+                border: '1px solid var(--io-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {w.iconLarge}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--io-text-primary)', fontWeight: 500 }}>{w.label}</div>
+                <div style={{ fontSize: 10, color: 'var(--io-text-muted)', marginTop: 1 }}>{w.desc}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // List view (default)
   return (
     <div style={{ padding: '6px 4px 4px' }}>
       {WIDGET_ITEMS.map((w) => (
@@ -724,10 +1113,139 @@ function GraphicTile({ item, name, thumbUrl, onQuickPlace }: { item: ConsoleDrag
 }
 
 // ---------------------------------------------------------------------------
+// GraphicListRow — compact list-view row for a graphic item
+// ---------------------------------------------------------------------------
+
+function GraphicListRow({
+  item,
+  name,
+  onQuickPlace,
+}: {
+  item: ConsoleDragItem
+  name: string
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
+  const [dragging, setDragging] = useState(false)
+  return (
+    <div
+      draggable
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      style={listItem(dragging)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+        e.dataTransfer.effectAllowed = 'copy'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      onMouseEnter={(e) => {
+        if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M3 9h18M9 21V9" />
+      </svg>
+      <span style={{ flex: 1, fontSize: 12, color: 'var(--io-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {name}
+      </span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// GraphicThumbnailRow — 48×36 thumbnail + name, for thumbnails view
+// ---------------------------------------------------------------------------
+
+function GraphicThumbnailRow({
+  item,
+  name,
+  thumbUrl,
+  onQuickPlace,
+}: {
+  item: ConsoleDragItem
+  name: string
+  thumbUrl: string
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
+  const [dragging, setDragging] = useState(false)
+  const [thumbError, setThumbError] = useState(false)
+
+  return (
+    <div
+      draggable
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 8,
+        padding: '4px 6px',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        opacity: dragging ? 0.5 : 1,
+        border: '1px solid transparent',
+        transition: 'background 0.1s',
+      }}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+        e.dataTransfer.effectAllowed = 'copy'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+    >
+      {/* 48×36 thumbnail */}
+      <div style={{
+        width: 48, height: 36, flexShrink: 0,
+        background: 'var(--io-surface-sunken)',
+        borderRadius: 3,
+        border: '1px solid var(--io-border)',
+        overflow: 'hidden',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {!thumbError ? (
+          <img
+            src={thumbUrl}
+            alt={name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={() => setThumbError(true)}
+          />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.2" opacity={0.4}>
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+        )}
+      </div>
+      {/* Name — up to 2 lines */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span style={{
+          fontSize: 11, color: 'var(--io-text-primary)', lineHeight: 1.3,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical' as const,
+          overflow: 'hidden',
+          wordBreak: 'break-word',
+        }}>
+          {name}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Graphics section — shows available graphics as thumbnail tiles
 // ---------------------------------------------------------------------------
 
-function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragItem) => void }) {
+function GraphicsSection({
+  onQuickPlace,
+  viewMode,
+}: {
+  onQuickPlace?: (item: ConsoleDragItem) => void
+  viewMode: SectionViewMode
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ['console-palette-graphics'],
     queryFn: async () => {
@@ -756,8 +1274,32 @@ function GraphicsSection({ onQuickPlace }: { onQuickPlace?: (item: ConsoleDragIt
     )
   }
 
+  if (viewMode === 'list') {
+    return (
+      <div style={{ padding: '4px' }}>
+        {graphics.map((g) => {
+          const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+          return <GraphicListRow key={g.id} item={item} name={g.name} onQuickPlace={onQuickPlace} />
+        })}
+      </div>
+    )
+  }
+
+  if (viewMode === 'thumbnails') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 6px' }}>
+        {graphics.map((g) => {
+          const thumbUrl = graphicsApi.thumbnailUrl(g.id)
+          const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+          return <GraphicThumbnailRow key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} onQuickPlace={onQuickPlace} />
+        })}
+      </div>
+    )
+  }
+
+  // Grid view — 80×60 tiles, 2 columns
   return (
-    <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <div style={{ padding: '6px 6px 4px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
       {graphics.map((g) => {
         const thumbUrl = graphicsApi.thumbnailUrl(g.id)
         const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
@@ -794,6 +1336,11 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
   })
 
   const { favoriteIds, toggleFavorite } = useConsoleWorkspaceFavorites()
+
+  // Per-section view mode — persisted in localStorage
+  const workspacesVM = useConsoleSectionViewMode('workspaces', 'list')
+  const graphicsVM = useConsoleSectionViewMode('graphics', 'grid')
+  const widgetsVM = useConsoleSectionViewMode('widgets', 'list')
 
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -884,6 +1431,8 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           open={openSections.workspaces}
           onToggle={() => toggleSection('workspaces')}
           badge={workspaces.length}
+          viewMode={workspacesVM.viewMode}
+          onViewModeChange={workspacesVM.setViewMode}
         >
           <WorkspacesSection
             workspaces={workspaces}
@@ -894,6 +1443,7 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
             onRenameWorkspace={onRenameWorkspace}
             onDuplicateWorkspace={onDuplicateWorkspace}
             onDeleteWorkspace={onDeleteWorkspace}
+            viewMode={workspacesVM.viewMode}
           />
         </AccordionSection>
 
@@ -901,16 +1451,20 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           title="Graphics"
           open={openSections.graphics}
           onToggle={() => toggleSection('graphics')}
+          viewMode={graphicsVM.viewMode}
+          onViewModeChange={graphicsVM.setViewMode}
         >
-          <GraphicsSection onQuickPlace={onQuickPlace} />
+          <GraphicsSection onQuickPlace={onQuickPlace} viewMode={graphicsVM.viewMode} />
         </AccordionSection>
 
         <AccordionSection
           title="Widgets"
           open={openSections.widgets}
           onToggle={() => toggleSection('widgets')}
+          viewMode={widgetsVM.viewMode}
+          onViewModeChange={widgetsVM.setViewMode}
         >
-          <WidgetsSection onQuickPlace={onQuickPlace} />
+          <WidgetsSection onQuickPlace={onQuickPlace} viewMode={widgetsVM.viewMode} />
         </AccordionSection>
 
         <AccordionSection
