@@ -343,7 +343,7 @@ Run the full verification suite below. Record every command and its output in th
 **D1 — SQLx query validation (Rust tasks only):**
 If the task touches any `.rs` file and any of those files contain `sqlx::query!`, run:
 ```bash
-cd {{PROJECT_ROOT}} && cargo sqlx prepare --check 2>&1 | tail -20
+cd $(git rev-parse --show-toplevel) && cargo sqlx prepare --check 2>&1 | tail -20
 ```
 - If this fails with SQL errors: ❌ — SQL queries don't match the database schema. Fix before proceeding.
 - If `cargo sqlx prepare --check` is unavailable or returns "offline mode not set up": skip with ⚠️ — do not fail.
