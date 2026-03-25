@@ -10,11 +10,13 @@
 #   ./io-run.sh release-uat [UNIT] Human release sign-off — Approve/Reject per feature
 #   ./io-run.sh bug                Interactive bug triage — describe a bug, get a fix task
 #   ./io-run.sh status             Show task counts and UAT coverage
-#   ./io-run.sh restore-backup     Restore AUDIT_PROGRESS.json from .bak file
+#   ./io-run.sh restore-backup     Restore comms/tasks.db from .bak file
+#   ./io-run.sh cleanup-branches   Prune stale FAILED-* and CONFLICT-* git branches
+#   ./io-run.sh auto [P]           Cycle implement→UAT→implement until all done; P = parallel agents
 #   ./io-run.sh integration-test   Run automated integration journey tests
 #
 # Each implement/audit round is a fresh claude session.
-# Progress is saved to AUDIT_PROGRESS.json after every round.
+# Progress is saved to comms/tasks.db (SQLite) after every round.
 # Ctrl+C stops cleanly between rounds.
 
 set -euo pipefail
@@ -30,7 +32,6 @@ load_config() {
     local config="$REPO/io-orchestrator.config.json"
     if [ ! -f "$config" ]; then
         CFG_REGISTRY_DB="comms/tasks.db"
-        CFG_PROGRESS_JSON="comms/AUDIT_PROGRESS.json"
         CFG_TASK_DIR="docs/tasks"
         CFG_CATALOG_DIR="docs/catalogs"
         CFG_STATE_DIR="docs/state"
@@ -75,7 +76,6 @@ print(f"REPO={root!r}")
 # registry_db: prefer paths.registry_db, fall back to task_store.path
 reg_db = p.get("registry_db") or ts.get("path") or "comms/tasks.db"
 print(f"CFG_REGISTRY_DB={reg_db!r}")
-print(f"CFG_PROGRESS_JSON={p.get('registry_file', p.get('progress_json', 'comms/AUDIT_PROGRESS.json'))!r}")
 print(f"CFG_TASK_DIR={p.get('task_dir', 'docs/tasks')!r}")
 print(f"CFG_CATALOG_DIR={p.get('catalog_dir', 'docs/catalogs')!r}")
 print(f"CFG_STATE_DIR={p.get('state_dir', 'docs/state')!r}")
@@ -104,7 +104,6 @@ PYEOF
 )" || {
         echo "WARNING: Failed to parse io-orchestrator.config.json — using hardcoded defaults" >&2
         CFG_REGISTRY_DB="comms/tasks.db"
-        CFG_PROGRESS_JSON="comms/AUDIT_PROGRESS.json"
         CFG_TASK_DIR="docs/tasks"
         CFG_CATALOG_DIR="docs/catalogs"
         CFG_STATE_DIR="docs/state"
@@ -261,15 +260,21 @@ ensure_frontend_running() {
 }
 
 # ── SQLite adapter ────────────────────────────────────────────────────────────
-# These functions wrap sqlite3 for task queue operations.
-# All fall back gracefully to AUDIT_PROGRESS.json if comms/tasks.db does not exist.
+# SQLite (comms/tasks.db) is the authoritative task store.
+# Agents write directly to it — no JSON sync step is required.
 
 DB_FILE="${CFG_REGISTRY_DB:-comms/tasks.db}"
 
 # Run a SQL query against the task database. Prints results to stdout.
 # Usage: db_query <sql>
 db_query() {
-    sqlite3 "$REPO/$DB_FILE" "$1"
+    python3 -c "
+import sqlite3, sys
+con = sqlite3.connect('$REPO/$DB_FILE', timeout=10)
+for row in con.execute(sys.argv[1]).fetchall():
+    print('|'.join(str(c) for c in row))
+con.close()
+" "$1"
 }
 
 # Atomically claim the next available task. Prints task ID on success, empty on none.
@@ -351,7 +356,7 @@ PYEOF
 }
 
 # Count tasks with status in (pending, failed) — the "available work" count.
-# Prints 0 if database does not exist (callers fall back to JSON).
+# Prints 0 if database does not exist.
 get_pending_work_count() {
     if [ ! -f "$REPO/$DB_FILE" ]; then
         echo 0
@@ -360,92 +365,35 @@ get_pending_work_count() {
     db_query "SELECT COUNT(*) FROM io_tasks WHERE status IN ('pending','failed');"
 }
 
-# Sync all task statuses from AUDIT_PROGRESS.json into SQLite.
-# Bridge function for Wave 1: agents still write JSON; this keeps SQLite current.
-# Called after each implement/audit/full round and after each UAT run.
-# No-op if comms/tasks.db does not exist. Silent on errors (JSON is still authoritative).
-sync_sqlite_from_json() {
+# Run unblock pass: promote 'blocked' tasks to 'pending' when all dependencies are verified.
+# Called before parallel implement batches so get_pending_work_count sees newly-unblocked tasks.
+run_unblock_pass() {
     if [ ! -f "$REPO/$DB_FILE" ]; then
         return 0
     fi
-    python3 - "$REPO/$DB_FILE" "$REPO/${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<'PYEOF' 2>/dev/null || true
-import json, sqlite3, sys
+    python3 - "$REPO/$DB_FILE" <<'PYEOF' 2>/dev/null || true
+import sqlite3, json, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-db_path   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
-json_path = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("comms/AUDIT_PROGRESS.json")
-if not db_path.exists() or not json_path.exists():
+db_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+if not db_path.exists():
     raise SystemExit(0)
-
-with open(json_path, encoding="utf-8") as f:
-    data = json.load(f)
 
 now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 con = sqlite3.connect(db_path, timeout=10)
 con.execute("PRAGMA journal_mode=WAL")
 
-updated = 0
-for task in data.get("task_registry", []):
-    task_id    = task.get("id", "")
-    status     = task.get("status", "pending")
-    uat_status = task.get("uat_status")
-    row = con.execute("SELECT status, uat_status FROM io_tasks WHERE id=?", (task_id,)).fetchone()
-    if row is None:
-        # New task added to JSON since last migration — insert it
-        depends_on = json.dumps(task.get("depends_on") or [])
-        con.execute(
-            """INSERT OR IGNORE INTO io_tasks
-               (id, unit, wave, title, status, priority, uat_status, source, depends_on, audit_round, updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (task_id, task.get("unit",""), task.get("wave"), task.get("title",""),
-             status, task.get("priority","medium"), uat_status, task.get("source"),
-             depends_on, task.get("audit_round",0), now)
-        )
-        updated += 1
-    elif row[0] != status or row[1] != uat_status:
-        # Don't downgrade 'failed' → 'pending': update_task_status sets SQLite
-        # directly when a parallel agent exits non-zero, but the failed worktree
-        # branch is never merged, so JSON still shows the pre-run status ('pending').
-        if row[0] == 'failed' and status in ('pending', 'implementing'):
-            continue
-        con.execute(
-            "UPDATE io_tasks SET status=?, uat_status=?, updated_at=? WHERE id=?",
-            (status, uat_status, now, task_id)
-        )
-        updated += 1
-
-if updated:
-    con.commit()
-
-# Unblock pass: promote 'blocked' tasks to 'pending' when all dependencies are verified.
-# Mirrors the orchestrator's step 1e but runs here so parallel mode doesn't stall.
 verified_ids = {r[0] for r in con.execute("SELECT id FROM io_tasks WHERE status='verified'").fetchall()}
 blocked_rows = con.execute("SELECT id, depends_on FROM io_tasks WHERE status='blocked'").fetchall()
 unblocked = 0
-unblocked_in_json = []
 for row_id, deps_raw in blocked_rows:
     deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
     if all(d in verified_ids for d in deps):
         con.execute("UPDATE io_tasks SET status='pending', updated_at=? WHERE id=?", (now, row_id))
-        unblocked_in_json.append(row_id)
         unblocked += 1
 if unblocked:
     con.commit()
-    # Also update JSON so the registry stays authoritative
-    for task_id in unblocked_in_json:
-        for task in data.get("task_registry", []):
-            if task.get("id") == task_id:
-                task["status"] = "pending"
-                break
-    import os
-    tmp_path = str(json_path) + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp_path, json_path)
-
 con.close()
 PYEOF
 }
@@ -468,8 +416,7 @@ expand_agent_tokens() {
             -e "s|{{TASK_DIR}}|${CFG_TASK_DIR:-docs/tasks}|g" \
             -e "s|{{CATALOG_DIR}}|${CFG_CATALOG_DIR:-docs/catalogs}|g" \
             -e "s|{{STATE_DIR}}|${CFG_STATE_DIR:-docs/state}|g" \
-            -e "s|{{REGISTRY_DB}}|${CFG_REGISTRY_DB:-comms/tasks.db}|g" \
-            -e "s|{{PROGRESS_JSON}}|${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}|g" \
+            -e "s|{{REGISTRY_DB}}|${REPO}/${CFG_REGISTRY_DB:-comms/tasks.db}|g" \
             -e "s|{{TEST_COMMAND}}|${CFG_TEST_COMMAND:-cargo test}|g" \
             -e "s|{{BUILD_COMMAND}}|${CFG_BUILD_COMMAND:-cargo build}|g" \
             -e "s|{{LINT_COMMAND}}|${CFG_LINT_COMMAND:-cargo clippy -- -D warnings}|g" \
@@ -488,6 +435,7 @@ expand_agent_tokens() {
             -e "s|{{MODEL_WORKER}}|${CFG_MODEL_WORKER:-claude-sonnet-4-6}|g" \
             -e "s|{{NEEDS_INPUT_STALE_HOURS}}|${CFG_NI_STALE_HOURS:-48}|g" \
             -e "s|{{NEEDS_INPUT_ESCALATE_HOURS}}|${CFG_NI_ESCALATE_HOURS:-144}|g" \
+            -e "s|{{STALE_MINUTES}}|${CFG_STALE_MINUTES:-30}|g" \
             "$f" 2>/dev/null || true
     done
 }
@@ -552,15 +500,17 @@ launch_agent_in_worktree() {
     # Remove stale worktree entry if present (e.g., from a previous crashed run)
     git -C "$REPO" worktree remove --force "$worktree_path" 2>/dev/null || true
 
-    # Add worktree — resume existing branch or create a new one from HEAD
+    # Add worktree — resume existing branch or create a new one from HEAD.
+    # All output goes to stderr: this function is called via pid=$(...) so stdout
+    # must only contain the final `echo $!` — anything else corrupts $pid.
     if git -C "$REPO" show-ref --verify --quiet "refs/heads/${branch_name}" 2>/dev/null; then
-        echo "  Resuming branch ${branch_name} in worktree"
-        git -C "$REPO" worktree add "$worktree_path" "$branch_name"
+        echo "  Resuming branch ${branch_name} in worktree" >&2
+        git -C "$REPO" worktree add "$worktree_path" "$branch_name" >&2
     else
-        git -C "$REPO" worktree add "$worktree_path" -b "$branch_name"
+        git -C "$REPO" worktree add "$worktree_path" -b "$branch_name" >&2
     fi
 
-    echo "  Worktree: ${worktree_path}  Branch: ${branch_name}"
+    echo "  Worktree: ${worktree_path}  Branch: ${branch_name}" >&2
 
     # Symlink node_modules from main repo so TypeScript checks work in the worktree
     # (node_modules is git-ignored and therefore absent from the worktree checkout).
@@ -583,6 +533,8 @@ launch_agent_in_worktree() {
 
     # Launch agent in subshell. EXIT trap fires on crash OR clean exit.
     # AGENT_OUTCOME starts as "failure"; reset to "success" only if claude exits 0.
+    # Redirect subshell stdout to stderr so agent output is visible in the terminal
+    # but not captured by the pid=$(...) command substitution in the caller.
     (
         AGENT_OUTCOME="failure"
         trap 'cleanup_worktree "'"$_task_id"'" "$AGENT_OUTCOME"' EXIT
@@ -601,7 +553,7 @@ launch_agent_in_worktree() {
             fi
             AGENT_OUTCOME="failure"
         fi
-    ) &
+    ) >&2 &
     echo $!
 }
 
@@ -651,6 +603,130 @@ merge_completed_branches() {
     fi
 
     return $((conflicts > 0 ? 1 : 0))
+}
+
+# Prune accumulated FAILED-* and CONFLICT-* branches from previous task runs.
+# Keeps the branch namespace clean. Run periodically, not after every task.
+# Usage: cleanup_failed_branches [--dry-run]
+cleanup_failed_branches() {
+    local dry_run="${1:-}"
+    local pruned=0
+
+    local branches
+    branches=$(git -C "$REPO" branch --list 'io-task/FAILED-*' 'io-task/CONFLICT-*' \
+               | sed 's/^[* ]*//' \
+               | grep -v '^[[:space:]]*$' || true)
+
+    if [ -z "$branches" ]; then
+        echo "  No FAILED-* or CONFLICT-* branches to clean up."
+        return 0
+    fi
+
+    echo "  Cleaning up stale task branches..."
+    while IFS= read -r branch; do
+        [ -z "$branch" ] && continue
+        if [ "$dry_run" = "--dry-run" ]; then
+            echo "  (dry-run) would delete: ${branch}"
+        else
+            if git -C "$REPO" branch -D "$branch" 2>/dev/null; then
+                echo "  🗑 Deleted: ${branch}"
+                pruned=$((pruned + 1))
+            else
+                echo "  ⚠ Could not delete: ${branch}"
+            fi
+        fi
+    done <<< "$branches"
+
+    [ "$dry_run" != "--dry-run" ] && echo "  Pruned ${pruned} stale branch(es)."
+}
+
+# ── Parallel UAT ─────────────────────────────────────────────────────────────
+# Run UAT for multiple units in parallel. Each unit gets its own claude session.
+# human-uat is always serial (requires interactive prompts) — only auto UAT parallelizes.
+#
+# Output variables set by run_parallel_uat:
+_RPU_PASSED=0
+_RPU_FAILED=0
+_RPU_SKIPPED=0
+#
+# Usage: run_parallel_uat <units_newline_list> <max_agents> <agent_file> <uat_mode>
+run_parallel_uat() {
+    local units_list="$1"
+    local max_agents="${2:-3}"
+    local agent_file="$3"
+    local uat_mode="${4:-auto}"
+
+    _RPU_PASSED=0; _RPU_FAILED=0; _RPU_SKIPPED=0
+
+    local _hard_cap="${CFG_MAX_PARALLEL:-5}"
+    if [ "$max_agents" -gt "$_hard_cap" ]; then
+        echo "  ⚠ Capping parallel UAT agents at ${_hard_cap} (requested ${max_agents})"
+        max_agents=$_hard_cap
+    fi
+
+    # Load units into array
+    local units_arr=()
+    while IFS= read -r u; do [ -n "$u" ] && units_arr+=("$u"); done <<< "$units_list"
+    local total=${#units_arr[@]}
+    [ "$total" -eq 0 ] && return 0
+
+    local offset=0
+    while [ $offset -lt $total ]; do
+        local batch_pids=()
+        local batch_units=()
+
+        # Launch up to max_agents units in this batch
+        local i=$offset
+        while [ $i -lt $total ] && [ ${#batch_pids[@]} -lt "$max_agents" ]; do
+            local unit_id="${units_arr[$i]}"
+            echo "  → UAT starting: $unit_id"
+            # Each claude session runs independently; output goes to stderr so it
+            # appears in the terminal without polluting the caller's capture context.
+            (
+                claude --dangerously-skip-permissions \
+                       --agent "$agent_file" \
+                       --print "$uat_mode $unit_id" < /dev/null
+            ) >&2 &
+            batch_pids+=($!)
+            batch_units+=("$unit_id")
+            i=$((i + 1))
+        done
+        offset=$i
+
+        echo "  Running ${#batch_pids[@]} UAT agent(s) in parallel..."
+
+        # Collect results for this batch
+        for idx in "${!batch_pids[@]}"; do
+            local pid="${batch_pids[$idx]}"
+            local unit_id="${batch_units[$idx]}"
+            local exit_code=0
+            wait "$pid" || exit_code=$?
+
+            echo "─── UAT result: $unit_id ───────────────────────────────────"
+            if [ "$exit_code" -ne 0 ]; then
+                echo "  ⚠ $unit_id — claude exited $exit_code (crash/OOM?) — treating as error"
+                _RPU_SKIPPED=$((_RPU_SKIPPED + 1))
+                echo ""
+                continue
+            fi
+
+            local result_file="${CFG_UAT_DIR:-docs/uat}/$unit_id/CURRENT.md"
+            if [ -f "$result_file" ]; then
+                local verdict
+                verdict=$(grep "^verdict:" "$result_file" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
+                case "$verdict" in
+                    pass)    _RPU_PASSED=$((_RPU_PASSED + 1));   echo "  ✅ $unit_id — pass" ;;
+                    fail)    _RPU_FAILED=$((_RPU_FAILED + 1));   echo "  ❌ $unit_id — fail (bug tasks created)" ;;
+                    partial) _RPU_FAILED=$((_RPU_FAILED + 1));   echo "  ~ $unit_id — partial" ;;
+                    *)       _RPU_SKIPPED=$((_RPU_SKIPPED + 1)); echo "  — $unit_id — skipped (verdict: $verdict)" ;;
+                esac
+            else
+                _RPU_SKIPPED=$((_RPU_SKIPPED + 1))
+                echo "  — $unit_id — no result file (agent may have crashed)"
+            fi
+            echo ""
+        done
+    done
 }
 
 # ── Wave 3: Parallel Orchestrator ────────────────────────────────────────────
@@ -729,31 +805,45 @@ run_parallel_implement() {
 
 # Check that task files on disk match registry entries. Warns but does not abort.
 check_registry_integrity() {
-    python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_TASK_DIR:-docs/tasks}" <<'PYEOF' 2>/dev/null || true
-import json, glob, os, sys
-progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
+    if [ ! -f "$REPO/$DB_FILE" ]; then
+        return 0
+    fi
+    python3 - "$REPO/$DB_FILE" "${CFG_TASK_DIR:-docs/tasks}" <<'PYEOF' 2>/dev/null || true
+import sqlite3, glob, os, sys
+from pathlib import Path
+
+db_path  = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
 task_dir = sys.argv[2] if len(sys.argv) > 2 else "docs/tasks"
+if not db_path.exists():
+    sys.exit(0)
+
 try:
-    with open(progress_file) as f:
-        d = json.load(f)
+    con = sqlite3.connect(db_path, timeout=5)
+    rows = con.execute("SELECT id, status FROM io_tasks").fetchall()
+    con.close()
 except Exception as e:
-    print(f"  ⚠ registry integrity check: cannot read {progress_file}: {e}", file=sys.stderr)
+    print(f"  ⚠ registry integrity check: cannot read DB: {e}", file=sys.stderr)
     sys.exit(0)
 
 # Build set of IDs from task files on disk
 disk_ids = set()
 for fpath in glob.glob(f"{task_dir}/**/*.md", recursive=True):
     basename = os.path.basename(fpath)
-    parts = basename.split('-')
+    # Strip .md and split on hyphens
+    stem  = basename[:-3] if basename.endswith('.md') else basename
+    parts = stem.split('-')
     for i in range(2, len(parts)):
         if parts[i][:3].isdigit():
             disk_ids.add('-'.join(parts[:i+1]))
             break
 
-reg_ids = {t['id'] for t in d.get('task_registry', [])}
+reg_ids    = {r[0] for r in rows}
+reg_status = {r[0]: r[1] for r in rows}
+
 on_disk_not_in_reg = disk_ids - reg_ids
+# Only warn about missing files for non-verified tasks (verified tasks may have been cleaned up)
 in_reg_not_on_disk = {tid for tid in (reg_ids - disk_ids)
-                      if next((t for t in d['task_registry'] if t['id']==tid and t.get('status') not in ('verified',)), None)}
+                      if reg_status.get(tid) not in ('verified',)}
 
 if on_disk_not_in_reg or in_reg_not_on_disk:
     print(f"  ⚠ Registry integrity: {len(on_disk_not_in_reg)} task files not in registry, "
@@ -766,15 +856,16 @@ PYEOF
 
 # ── restore-backup ────────────────────────────────────────────────────────────
 if [ "$MODE" = "restore-backup" ]; then
-    MAIN="$REPO/${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}"
+    MAIN="$REPO/$DB_FILE"
     BAK="${MAIN}.bak"
     if [ ! -f "$BAK" ]; then
         echo "ERROR: No backup found at $BAK"
+        echo "  (SQLite backups are created automatically by migrate_to_sqlite.py)"
         exit 1
     fi
-    # Validate backup is valid JSON before restoring
-    if ! python3 -c "import json; json.load(open('$BAK'))" 2>/dev/null; then
-        echo "ERROR: Backup file $BAK is not valid JSON. Cannot restore."
+    # Validate backup is a valid SQLite file
+    if ! python3 -c "import sqlite3; sqlite3.connect('$BAK').execute('SELECT COUNT(*) FROM io_tasks')" > /dev/null 2>&1; then
+        echo "ERROR: Backup file $BAK is not a valid SQLite database. Cannot restore."
         exit 1
     fi
     # Save current as .pre-restore in case user wants to undo the restore
@@ -788,46 +879,35 @@ fi
 # ── status ────────────────────────────────────────────────────────────────────
 if [ "$MODE" = "status" ]; then
     echo ""
-    python3 - "$DB_FILE" "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" "${CFG_STATE_DIR:-docs/state}" <<'PYEOF'
-import json, subprocess, sys, os
+    python3 - "$REPO/$DB_FILE" "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" "${CFG_STATE_DIR:-docs/state}" <<'PYEOF'
+import sqlite3, subprocess, sys, os
 from collections import defaultdict
 from pathlib import Path
 
-DB_FILE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
-PROGRESS_FILE = sys.argv[2] if len(sys.argv) > 2 else "comms/AUDIT_PROGRESS.json"
-NI_DIR = sys.argv[3] if len(sys.argv) > 3 else "comms/needs_input"
-STATE_DIR = sys.argv[4] if len(sys.argv) > 4 else "docs/state"
+DB_FILE   = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+NI_DIR    = sys.argv[2] if len(sys.argv) > 2 else "comms/needs_input"
+STATE_DIR = sys.argv[3] if len(sys.argv) > 3 else "docs/state"
 
-# ── load task data: SQLite preferred, JSON fallback ───────────────────────────
-use_sqlite = DB_FILE.exists()
+# ── load task data from SQLite ─────────────────────────────────────────────────
+if not DB_FILE.exists():
+    print(f"ERROR: {DB_FILE} not found. Run: python3 comms/migrate_to_sqlite.py")
+    sys.exit(1)
 
-if use_sqlite:
+try:
+    con = sqlite3.connect(DB_FILE, timeout=5)
+    rows = con.execute("SELECT status, uat_status FROM io_tasks").fetchall()
+    registry = [{"status": r[0], "uat_status": r[1]} for r in rows]
+    total = con.execute("SELECT COUNT(*) FROM io_tasks").fetchone()[0]
     try:
-        import sqlite3
-        con = sqlite3.connect(DB_FILE)
-        rows = con.execute("SELECT status, uat_status FROM io_tasks").fetchall()
-        registry = [{"status": r[0], "uat_status": r[1]} for r in rows]
-        total = con.execute("SELECT COUNT(*) FROM io_tasks").fetchone()[0]
-        con.close()
-        source = f"SQLite ({DB_FILE})"
-    except Exception as e:
-        print(f"WARNING: SQLite read failed ({e}), falling back to JSON", file=sys.stderr)
-        use_sqlite = False
-
-if not use_sqlite:
-    try:
-        with open(PROGRESS_FILE) as f:
-            data = json.load(f)
-        registry = data.get("task_registry", [])
-        total = len(registry)
-        source = PROGRESS_FILE
-    except FileNotFoundError:
-        print(f"ERROR: {PROGRESS_FILE} not found and {DB_FILE} does not exist.")
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"ERROR: {PROGRESS_FILE} is malformed: {e}")
-        print("The file may have been partially written. Check it manually.")
-        sys.exit(1)
+        audit_round = con.execute("SELECT value FROM io_global WHERE key='audit_round'").fetchone()
+        audit_round = f", audit_round={audit_round[0]}" if audit_round else ""
+    except Exception:
+        audit_round = ""
+    con.close()
+    source = f"SQLite ({DB_FILE}{audit_round})"
+except Exception as e:
+    print(f"ERROR: SQLite read failed: {e}")
+    sys.exit(1)
 
 # ── status summary ────────────────────────────────────────────────────────────
 by_status = {}
@@ -972,29 +1052,26 @@ if [ "$MODE" = "uat" ] || [ "$MODE" = "human-uat" ]; then
     if [ -n "$UNIT_FILTER" ]; then
         UNITS="$UNIT_FILTER"
     else
-        if ! UNITS=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<'PYEOF'
-import json, sys
-progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
-try:
-    with open(progress_file) as f:
-        data = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"ERROR: {progress_file}: {e}", file=sys.stderr)
-    sys.exit(1)
-
-units = set()
-for t in data.get("task_registry", []):
-    # Include null (not yet tested) and "partial" (browser crash — needs retry)
-    if t.get("status") == "verified" and t.get("uat_status") in (None, "partial"):
-        units.add(t["unit"])
-
-# Order by wave
-queue = {u["id"]: u.get("wave", 99) for u in data.get("queue", []) if "id" in u}
-ordered = sorted(units, key=lambda u: (queue.get(u, 99), u))
-print("\n".join(ordered))
+        if ! UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
+import sqlite3, sys
+from pathlib import Path
+db = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+if not db.exists():
+    print("ERROR: tasks.db not found", file=sys.stderr); sys.exit(1)
+con = sqlite3.connect(db, timeout=5)
+rows = con.execute("""
+    SELECT t.unit, COALESCE(q.wave, 99) as wave
+    FROM io_tasks t
+    LEFT JOIN io_queue q ON q.unit = t.unit
+    WHERE t.status = 'verified' AND (t.uat_status IS NULL OR t.uat_status = 'partial')
+    GROUP BY t.unit
+    ORDER BY wave ASC, t.unit ASC
+""").fetchall()
+con.close()
+print("\n".join(r[0] for r in rows))
 PYEOF
         ); then
-            echo "ERROR: Failed to read UAT unit list from AUDIT_PROGRESS.json. Check the file for corruption."
+            echo "ERROR: Failed to read UAT unit list from tasks.db."
             exit 1
         fi
     fi
@@ -1010,7 +1087,11 @@ PYEOF
 
     UNIT_COUNT=$(echo "$UNITS" | grep -c "." || true)
     echo ""
-    echo "Starting $UAT_MODE UAT — $UNIT_COUNT unit(s)"
+    if [ "$UAT_MODE" = "auto" ]; then
+        echo "Starting auto UAT — $UNIT_COUNT unit(s), up to ${CFG_MAX_PARALLEL:-3} in parallel"
+    else
+        echo "Starting $UAT_MODE UAT — $UNIT_COUNT unit(s) (serial — requires human input)"
+    fi
     echo "Ctrl+C stops between units."
     echo ""
 
@@ -1020,40 +1101,46 @@ PYEOF
     SKIPPED=0
     UAT_AGENT_FILE=$(expand_agent_to_tmp "uat-agent")
     UAT_AGENT_TMP="$_AGENT_TMP_DIR"
-    trap 'rm -rf "$UAT_AGENT_TMP" 2>/dev/null; INTERRUPTED=1; echo ""; echo "Stopping after current unit..."' INT
+    trap 'rm -rf "$UAT_AGENT_TMP" 2>/dev/null; INTERRUPTED=1; echo ""; echo "Stopping after current batch..."' INT
 
-    while IFS= read -r UNIT_ID; do
-        [ $INTERRUPTED -eq 1 ] && break
-        [ -z "$UNIT_ID" ] && continue
+    if [ "$UAT_MODE" = "auto" ]; then
+        # Parallel: each unit gets its own claude session; no interactive input needed
+        run_parallel_uat "$UNITS" "${CFG_MAX_PARALLEL:-3}" "$UAT_AGENT_FILE" "auto"
+        PASSED=$_RPU_PASSED
+        FAILED=$_RPU_FAILED
+        SKIPPED=$_RPU_SKIPPED
+    else
+        # Serial: human-uat requires interactive prompts, must stay sequential
+        while IFS= read -r UNIT_ID; do
+            [ $INTERRUPTED -eq 1 ] && break
+            [ -z "$UNIT_ID" ] && continue
 
-        echo "─── UAT: $UNIT_ID ─────────────────────────────────────────────"
-        UAT_EXIT=0
-        claude --dangerously-skip-permissions --agent "$UAT_AGENT_FILE" --print "$UAT_MODE $UNIT_ID" < /dev/null || UAT_EXIT=$?
-        if [ "$UAT_EXIT" -ne 0 ]; then
-            echo "  ⚠ $UNIT_ID — claude exited $UAT_EXIT (crash/OOM?) — treating as error"
-            SKIPPED=$((SKIPPED + 1))
+            echo "─── UAT: $UNIT_ID ─────────────────────────────────────────────"
+            UAT_EXIT=0
+            claude --dangerously-skip-permissions --agent "$UAT_AGENT_FILE" --print "$UAT_MODE $UNIT_ID" < /dev/null || UAT_EXIT=$?
+            if [ "$UAT_EXIT" -ne 0 ]; then
+                echo "  ⚠ $UNIT_ID — claude exited $UAT_EXIT (crash/OOM?) — treating as error"
+                SKIPPED=$((SKIPPED + 1))
+                echo ""
+                continue
+            fi
+
+            RESULT_FILE="${CFG_UAT_DIR:-docs/uat}/$UNIT_ID/CURRENT.md"
+            if [ -f "$RESULT_FILE" ]; then
+                VERDICT=$(grep "^verdict:" "$RESULT_FILE" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
+                case "$VERDICT" in
+                    pass)    PASSED=$((PASSED + 1));  echo "  ✅ $UNIT_ID — pass" ;;
+                    fail)    FAILED=$((FAILED + 1));  echo "  ❌ $UNIT_ID — fail (bug tasks created)" ;;
+                    partial) FAILED=$((FAILED + 1));  echo "  ~ $UNIT_ID — partial" ;;
+                    *)       SKIPPED=$((SKIPPED + 1)); echo "  — $UNIT_ID — skipped (verdict: $VERDICT)" ;;
+                esac
+            else
+                SKIPPED=$((SKIPPED + 1))
+                echo "  — $UNIT_ID — no result file written (agent may have crashed)"
+            fi
             echo ""
-            continue
-        fi
-
-        # Read verdict from result file
-        RESULT_FILE="${CFG_UAT_DIR:-docs/uat}/$UNIT_ID/CURRENT.md"
-        if [ -f "$RESULT_FILE" ]; then
-            VERDICT=$(grep "^verdict:" "$RESULT_FILE" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
-            case "$VERDICT" in
-                pass)    PASSED=$((PASSED + 1));  echo "  ✅ $UNIT_ID — pass" ;;
-                fail)    FAILED=$((FAILED + 1));  echo "  ❌ $UNIT_ID — fail (bug tasks created)" ;;
-                partial) FAILED=$((FAILED + 1));  echo "  ~ $UNIT_ID — partial" ;;
-                *)       SKIPPED=$((SKIPPED + 1)); echo "  — $UNIT_ID — skipped (verdict: $VERDICT)" ;;
-            esac
-        else
-            SKIPPED=$((SKIPPED + 1))
-            echo "  — $UNIT_ID — no result file written (agent may have crashed)"
-        fi
-        # Sync uat_status updates from JSON → SQLite
-        sync_sqlite_from_json
-        echo ""
-    done <<< "$UNITS"
+        done <<< "$UNITS"
+    fi
     rm -rf "$UAT_AGENT_TMP" 2>/dev/null || true
     trap - INT
 
@@ -1087,27 +1174,26 @@ if [ "$MODE" = "release-uat" ]; then
     if [ -n "$UNIT_FILTER" ]; then
         UNITS="$UNIT_FILTER"
     else
-        if ! UNITS=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<'PYEOF'
-import json, sys
-progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
-try:
-    with open(progress_file) as f:
-        data = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"ERROR: {progress_file}: {e}", file=sys.stderr); sys.exit(1)
-
-units = set()
-for t in data.get("task_registry", []):
-    # Release-sign-off targets: verified tasks with pass or partial (not yet release-approved)
-    if t.get("status") == "verified" and t.get("uat_status") in ("pass", "partial"):
-        units.add(t["unit"])
-
-queue = {u["id"]: u.get("wave", 99) for u in data.get("queue", []) if "id" in u}
-ordered = sorted(units, key=lambda u: (queue.get(u, 99), u))
-print("\n".join(ordered))
+        if ! UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
+import sqlite3, sys
+from pathlib import Path
+db = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+if not db.exists():
+    print("ERROR: tasks.db not found", file=sys.stderr); sys.exit(1)
+con = sqlite3.connect(db, timeout=5)
+rows = con.execute("""
+    SELECT t.unit, COALESCE(q.wave, 99) as wave
+    FROM io_tasks t
+    LEFT JOIN io_queue q ON q.unit = t.unit
+    WHERE t.status = 'verified' AND t.uat_status IN ('pass', 'partial')
+    GROUP BY t.unit
+    ORDER BY wave ASC, t.unit ASC
+""").fetchall()
+con.close()
+print("\n".join(r[0] for r in rows))
 PYEOF
         ); then
-            echo "ERROR: Failed to read release unit list from AUDIT_PROGRESS.json."
+            echo "ERROR: Failed to read release unit list from tasks.db."
             exit 1
         fi
     fi
@@ -1155,8 +1241,6 @@ PYEOF
             SKIPPED=$((SKIPPED + 1))
             echo "  — $UNIT_ID — no result file (agent may have crashed)"
         fi
-        # Sync uat_status updates from JSON → SQLite
-        sync_sqlite_from_json
         echo ""
     done <<< "$UNITS"
     rm -rf "$REL_AGENT_TMP" 2>/dev/null || true
@@ -1212,9 +1296,224 @@ if [ "$MODE" = "integration-test" ]; then
     exit $EXIT_CODE
 fi
 
+# ── cleanup-branches mode ─────────────────────────────────────────────────────
+if [ "$MODE" = "cleanup-branches" ]; then
+    echo ""
+    DRY_RUN_FLAG="${ARG2:-}"
+    cleanup_failed_branches "$DRY_RUN_FLAG"
+    echo ""
+    exit 0
+fi
+
+# ── auto mode ─────────────────────────────────────────────────────────────────
+# Cycles: implement pending tasks → UAT newly-verified units → implement again
+# Repeats until no pending tasks remain and no UAT failures create new tasks.
+if [ "$MODE" = "auto" ]; then
+    AUTO_PARALLEL=${ARG2:-${CFG_MAX_PARALLEL:-3}}
+    if ! [[ "$AUTO_PARALLEL" =~ ^[0-9]+$ ]] || [ "$AUTO_PARALLEL" -lt 1 ]; then
+        echo "Parallel agent count must be a positive integer"
+        exit 1
+    fi
+    _MAX_SAFE=${CFG_MAX_PARALLEL:-5}
+    if [ "$AUTO_PARALLEL" -gt "$_MAX_SAFE" ]; then
+        echo "⚠ Capping parallel agents at ${_MAX_SAFE} (requested ${AUTO_PARALLEL})"
+        AUTO_PARALLEL=$_MAX_SAFE
+    fi
+
+    AUTO_INTERRUPTED=0
+    AUTO_ROUND_FAILED=0
+    trap 'AUTO_INTERRUPTED=1; echo ""; echo "Stopping after current phase..."' INT
+    trap '_io_lock_cleanup' EXIT
+
+    BACKEND_STARTED=""
+    DEV_SERVER_STARTED=""
+
+    echo ""
+    echo "Starting auto mode — implement → UAT → implement until complete"
+    echo "Parallel implement agents: ${AUTO_PARALLEL}"
+    echo "Ctrl+C stops between phases."
+    echo ""
+
+    AUTO_CYCLE=0
+    AUTO_STALL_COUNT=0   # consecutive cycles with no new tasks implemented
+
+    while [ $AUTO_INTERRUPTED -eq 0 ]; do
+        AUTO_CYCLE=$((AUTO_CYCLE + 1))
+        echo "══════════════════════════════════════════════════"
+        echo "  Auto cycle ${AUTO_CYCLE}"
+        echo "══════════════════════════════════════════════════"
+        echo ""
+
+        # ── Phase 1: implement all pending tasks ──────────────────────────────
+        run_unblock_pass
+        IMPL_PENDING=$(get_pending_work_count)
+        IMPL_DONE=0
+        if [ "$IMPL_PENDING" -eq 0 ]; then
+            echo "No pending tasks — skipping implement phase."
+        else
+            echo "── Implement phase: ${IMPL_PENDING} task(s) pending ─────────────────────"
+            IMPL_BATCH=0
+            while [ $AUTO_INTERRUPTED -eq 0 ]; do
+                run_unblock_pass
+                IMPL_NOW=$(get_pending_work_count)
+                [ "$IMPL_NOW" -eq 0 ] && break
+                IMPL_BATCH=$((IMPL_BATCH + 1))
+                echo "─── implement batch ${IMPL_BATCH} (${IMPL_DONE} done, ${IMPL_NOW} remaining) ───"
+                _RPI_CLAIMED=0
+                run_parallel_implement "$AUTO_PARALLEL" || AUTO_ROUND_FAILED=1
+                IMPL_DONE=$((IMPL_DONE + _RPI_CLAIMED))
+                AUTO_STALL_COUNT=0   # made progress — reset stall counter
+                if [ "$_RPI_CLAIMED" -eq 0 ]; then
+                    echo "No claimable tasks — all remaining tasks may be blocked on dependencies."
+                    break
+                fi
+                # Check needs_input — pause for human review if any
+                NI_COUNT=$(find "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ') || NI_COUNT=0
+                if [ "$NI_COUNT" -gt 0 ]; then
+                    echo ""
+                    echo "⏸  $NI_COUNT task(s) need your input — pausing"
+                    ORCH_AGENT_FILE_AUTO=$(expand_agent_to_tmp "audit-orchestrator")
+                    claude --dangerously-skip-permissions --agent "$ORCH_AGENT_FILE_AUTO" || true
+                    rm -rf "$_AGENT_TMP_DIR" 2>/dev/null || true
+                    echo "Answers recorded. Resuming..."
+                    echo ""
+                fi
+            done
+            echo ""
+            echo "Implement phase complete: ${IMPL_DONE} task(s) processed."
+            echo ""
+        fi
+
+        [ $AUTO_INTERRUPTED -eq 1 ] && break
+
+        # ── Phase 2: UAT on newly-verified units ──────────────────────────────
+        # Units where verified_since_last_audit > 0 or uat_status is NULL/partial
+        if ! UAT_UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
+import sqlite3, sys
+from pathlib import Path
+db = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+if not db.exists():
+    print("ERROR: tasks.db not found", file=sys.stderr); sys.exit(1)
+con = sqlite3.connect(db, timeout=5)
+rows = con.execute("""
+    SELECT t.unit, COALESCE(q.wave, 99) as wave
+    FROM io_tasks t
+    LEFT JOIN io_queue q ON q.unit = t.unit
+    WHERE t.status = 'verified' AND (t.uat_status IS NULL OR t.uat_status = 'partial')
+    GROUP BY t.unit
+    ORDER BY wave ASC, t.unit ASC
+""").fetchall()
+con.close()
+print("\n".join(r[0] for r in rows))
+PYEOF
+        ); then
+            echo "ERROR: Failed to read UAT unit list from tasks.db — skipping UAT phase."
+            UAT_UNITS=""
+        fi
+
+        if [ -z "$UAT_UNITS" ]; then
+            echo "No units pending UAT — checking for remaining work..."
+            # If no pending tasks either, we're fully done
+            run_unblock_pass
+            FINAL_PENDING=$(get_pending_work_count)
+            if [ "$FINAL_PENDING" -eq 0 ]; then
+                echo ""
+                echo "✅ Auto mode complete — no pending tasks and no UAT needed."
+                break
+            elif [ "$IMPL_DONE" -eq 0 ]; then
+                # No UAT needed, but tasks remain and nothing was implemented this cycle —
+                # all remaining tasks must be dep-blocked or permanently unclaimed.
+                AUTO_STALL_COUNT=$((AUTO_STALL_COUNT + 1))
+                if [ "$AUTO_STALL_COUNT" -ge 2 ]; then
+                    echo ""
+                    echo "⚠ Stalled: ${FINAL_PENDING} task(s) remaining but none are claimable for 2 consecutive cycles."
+                    echo "  All remaining tasks may be blocked on unresolved dependencies."
+                    echo "  Run ./io-run.sh status to inspect."
+                    break
+                fi
+                echo "${FINAL_PENDING} task(s) still pending — continuing to next cycle."
+                echo ""
+                continue
+            else
+                echo "${FINAL_PENDING} task(s) still pending — continuing to next cycle."
+                echo ""
+                continue
+            fi
+        fi
+
+        echo "── UAT phase ────────────────────────────────────────────────────"
+
+        # Start backend/frontend if not already running
+        if [ -z "$BACKEND_STARTED" ] && [ -z "$DEV_SERVER_STARTED" ]; then
+            trap 'if [ -n "$DEV_SERVER_STARTED" ]; then echo "Stopping dev server..."; kill_port 5173; fi; if [ -n "$BACKEND_STARTED" ]; then echo "Stopping backend services..."; "$REPO/dev.sh" stop > /dev/null 2>&1 || true; fi; _io_lock_cleanup' EXIT
+            ensure_backend_running "io-auto-uat-backend"
+            ensure_frontend_running "io-auto-uat-devserver"
+        fi
+
+        UAT_COUNT=$(echo "$UAT_UNITS" | grep -c "." || true)
+
+        AUTO_UAT_PASSED=0
+        AUTO_UAT_FAILED=0
+        AUTO_UAT_SKIPPED=0
+        UAT_AGENT_FILE_AUTO=$(expand_agent_to_tmp "uat-agent")
+        UAT_AGENT_TMP_AUTO="$_AGENT_TMP_DIR"
+
+        echo "Running UAT on ${UAT_COUNT} unit(s) — up to ${AUTO_PARALLEL} in parallel..."
+        echo ""
+        run_parallel_uat "$UAT_UNITS" "$AUTO_PARALLEL" "$UAT_AGENT_FILE_AUTO" "auto"
+        AUTO_UAT_PASSED=$_RPU_PASSED
+        AUTO_UAT_FAILED=$_RPU_FAILED
+        AUTO_UAT_SKIPPED=$_RPU_SKIPPED
+
+        rm -rf "$UAT_AGENT_TMP_AUTO" 2>/dev/null || true
+
+        echo "UAT phase: ✅ ${AUTO_UAT_PASSED} pass, ❌ ${AUTO_UAT_FAILED} fail, — ${AUTO_UAT_SKIPPED} skipped"
+        echo ""
+
+        # If no UAT failures and no pending tasks → done
+        if [ "$AUTO_UAT_FAILED" -eq 0 ] && [ $AUTO_INTERRUPTED -eq 0 ]; then
+            run_unblock_pass
+            REMAINING=$(get_pending_work_count)
+            if [ "$REMAINING" -eq 0 ]; then
+                echo "✅ Auto mode complete — all tasks implemented and all UAT passing."
+                break
+            else
+                echo "${REMAINING} task(s) still pending — continuing to next cycle."
+                echo ""
+            fi
+        elif [ "$AUTO_UAT_FAILED" -gt 0 ]; then
+            if [ "$IMPL_DONE" -eq 0 ]; then
+                AUTO_STALL_COUNT=$((AUTO_STALL_COUNT + 1))
+            fi
+            if [ "$AUTO_STALL_COUNT" -ge 2 ]; then
+                echo "⚠ Stalled: $AUTO_UAT_FAILED UAT failure(s) but no tasks were implemented for 2 consecutive cycles."
+                echo "  This usually means failing scenarios have no open tasks, or all remaining tasks are blocked."
+                echo "  Run ./io-run.sh status to inspect, or ./io-run.sh uat to re-run UAT manually."
+                break
+            fi
+            echo "${AUTO_UAT_FAILED} UAT failure(s) — looping back to implement."
+            echo ""
+        fi
+    done
+
+    echo ""
+    echo "═══════════════════════════════════════════"
+    if [ $AUTO_INTERRUPTED -eq 1 ]; then
+        echo "Auto mode stopped early (Ctrl+C). Progress saved."
+    elif [ $AUTO_ROUND_FAILED -eq 1 ]; then
+        echo "Auto mode finished — ⚠ one or more agents had failures (see above)."
+    else
+        echo "Auto mode finished."
+    fi
+    echo ""
+    "$0" status
+    echo ""
+    exit $AUTO_ROUND_FAILED
+fi
+
 # ── validate implement/audit/full mode ────────────────────────────────────────
 if [[ "$MODE" != "implement" && "$MODE" != "audit" && "$MODE" != "full" ]]; then
-    echo "Usage: $0 [implement|audit|full|uat|human-uat|release-uat|bug|status|restore-backup|integration-test] [N or UNIT-ID]"
+    echo "Usage: $0 [implement|audit|full|auto|uat|human-uat|release-uat|bug|status|restore-backup|cleanup-branches|integration-test] [N or UNIT-ID]"
     exit 1
 fi
 
@@ -1236,7 +1535,7 @@ if [ "$MODE" = "implement" ]; then
         echo "⚠ Capping parallel agents at ${_MAX_SAFE} (requested ${PARALLEL})"
         PARALLEL=$_MAX_SAFE
     fi
-    COUNT=0  # unused in implement+SQLite path; kept for non-SQLite fallback
+    COUNT=0  # unused in implement mode (SQLite claim loop runs until depleted)
 else
     COUNT=${ARG2:-${CFG_CHECKPOINT_EVERY:-5}}
     if ! [[ "$COUNT" =~ ^[0-9]+$ ]] || [ "$COUNT" -lt 1 ]; then
@@ -1260,7 +1559,7 @@ TASKS_DONE=0
 check_registry_integrity
 
 echo ""
-if [ "$MODE" = "implement" ] && [ -f "$REPO/$DB_FILE" ]; then
+if [ "$MODE" = "implement" ]; then
     LIMIT_MSG="unlimited tasks"
     [ "$TASK_LIMIT" -gt 0 ] && LIMIT_MSG="${TASK_LIMIT} task(s) total"
     echo "Starting implement — up to ${PARALLEL} agent(s) in parallel, ${LIMIT_MSG}"
@@ -1274,14 +1573,14 @@ echo ""
 ORCH_AGENT_FILE=$(expand_agent_to_tmp "audit-orchestrator")
 ORCH_AGENT_TMP="$_AGENT_TMP_DIR"
 
-# Initial sync: promote any blocked tasks whose dependencies are now verified,
+# Unblock pass: promote any blocked tasks whose dependencies are now verified,
 # so get_pending_work_count sees them before the first round check.
-sync_sqlite_from_json
+run_unblock_pass
 
 while [ $INTERRUPTED -eq 0 ]; do
 
-    # Termination: implement+SQLite stops at task limit; others stop after COUNT rounds
-    if [ "$MODE" = "implement" ] && [ -f "$REPO/$DB_FILE" ]; then
+    # Termination: implement stops at task limit; audit/full stop after COUNT rounds
+    if [ "$MODE" = "implement" ]; then
         if [ "$TASK_LIMIT" -gt 0 ] && [ "$TASKS_DONE" -ge "$TASK_LIMIT" ]; then
             echo "Task limit reached (${TASKS_DONE}/${TASK_LIMIT})."
             break
@@ -1290,10 +1589,8 @@ while [ $INTERRUPTED -eq 0 ]; do
         if [ "$ROUND" -ge "$COUNT" ]; then break; fi
     fi
 
-    # Check for available work before spending a session on it.
-    # For implement+SQLite: query SQLite directly (authoritative, avoids stale JSON).
-    # For all other modes (audit/full, or implement without SQLite): use JSON.
-    if [ "$MODE" = "implement" ] && [ -f "$REPO/$DB_FILE" ]; then
+    # Check for available work before spending a session on it. All modes use SQLite.
+    if [ "$MODE" = "implement" ]; then
         PENDING_COUNT=$(get_pending_work_count)
         if [ "$PENDING_COUNT" -eq 0 ]; then
             echo ""
@@ -1301,63 +1598,64 @@ while [ $INTERRUPTED -eq 0 ]; do
             break
         fi
         HAS_WORK=1
-    elif ! HAS_WORK=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_DECISIONS_DIR:-docs/decisions}" <<PYEOF
-import json, sys
-progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
-decisions_dir = sys.argv[2] if len(sys.argv) > 2 else "docs/decisions"
-try:
-    with open(progress_file) as f:
-        data = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"ERROR: {progress_file}: {e}", file=sys.stderr)
-    sys.exit(1)
-import os, glob as _glob
+    elif ! HAS_WORK=$(python3 - "$REPO/$DB_FILE" "${CFG_DECISIONS_DIR:-docs/decisions}" "$MODE" <<'PYEOF'
+import sqlite3, sys, os, glob as _glob
+from pathlib import Path
 from datetime import datetime, timezone
 
-mode = "$MODE"
+db_path       = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+decisions_dir = sys.argv[2] if len(sys.argv) > 2 else "docs/decisions"
+mode          = sys.argv[3] if len(sys.argv) > 3 else "audit"
 
-def wave0_recency_eligible(queue):
-    """True if any decision file is newer than any unit's last_audit_date.
-    Conservative check — doesn't need the full applies-to matrix."""
+if not db_path.exists():
+    print("ERROR: tasks.db not found", file=sys.stderr); sys.exit(1)
+
+con = sqlite3.connect(db_path, timeout=5)
+con.row_factory = sqlite3.Row
+
+def wave0_recency_eligible():
+    """True if any decision file is newer than any unit's last_audit_date."""
     decision_files = _glob.glob(f"{decisions_dir}/*.md")
     if not decision_files:
         return False
-    newest_decision = max(os.path.getmtime(f) for f in decision_files)
-    for u in queue:
-        last_audit_date = u.get("last_audit_date")
-        if not last_audit_date:
-            continue  # epoch — already eligible via last_audit_round=None
+    newest = max(os.path.getmtime(f) for f in decision_files)
+    rows = con.execute("SELECT last_audit_date FROM io_queue WHERE last_audit_date IS NOT NULL").fetchall()
+    for row in rows:
         try:
-            audit_ts = datetime.fromisoformat(last_audit_date.replace("Z", "+00:00")).timestamp()
-            if newest_decision > audit_ts:
+            ts = datetime.fromisoformat(row[0].replace("Z", "+00:00")).timestamp()
+            if newest > ts:
                 return True
         except Exception:
             pass
     return False
 
 if mode == "audit":
-    queue = data.get("queue", [])
-    eligible = [u for u in queue
-                if u.get("last_audit_round") is None or u.get("verified_since_last_audit", 0) > 0]
+    eligible = con.execute("""
+        SELECT COUNT(*) FROM io_queue
+        WHERE last_audit_round IS NULL OR verified_since_last_audit > 0
+    """).fetchone()[0]
     if not eligible:
-        eligible = [True] if wave0_recency_eligible(queue) else []
+        eligible = 1 if wave0_recency_eligible() else 0
     print(1 if eligible else 0)
 elif mode == "implement":
-    eligible = [t for t in data.get("task_registry", [])
-                if t.get("status") in ("pending", "failed")]
-    print(1 if eligible else 0)
+    n = con.execute("SELECT COUNT(*) FROM io_tasks WHERE status IN ('pending','failed')").fetchone()[0]
+    print(1 if n else 0)
 else:  # full
-    queue = data.get("queue", [])
-    has_audit = any(u.get("last_audit_round") is None or u.get("verified_since_last_audit", 0) > 0
-                    for u in queue)
+    has_audit = con.execute("""
+        SELECT COUNT(*) FROM io_queue
+        WHERE last_audit_round IS NULL OR verified_since_last_audit > 0
+    """).fetchone()[0]
     if not has_audit:
-        has_audit = wave0_recency_eligible(queue)
-    has_impl  = any(t.get("status") in ("pending", "failed")
-                    for t in data.get("task_registry", []))
+        has_audit = 1 if wave0_recency_eligible() else 0
+    has_impl = con.execute(
+        "SELECT COUNT(*) FROM io_tasks WHERE status IN ('pending','failed')"
+    ).fetchone()[0]
     print(1 if (has_audit or has_impl) else 0)
+
+con.close()
 PYEOF
     ); then
-        echo "ERROR: Failed to read AUDIT_PROGRESS.json — stopping. Check the file for corruption."
+        echo "ERROR: Failed to read tasks.db — stopping."
         break
     fi
     if [ "$HAS_WORK" = "0" ]; then
@@ -1367,7 +1665,7 @@ PYEOF
     fi
 
     ROUND=$((ROUND + 1))
-    if [ "$MODE" = "implement" ] && [ -f "$REPO/$DB_FILE" ]; then
+    if [ "$MODE" = "implement" ]; then
         echo "─── implement batch ${ROUND} (${TASKS_DONE} tasks done) ───────────────────────────"
     else
         echo "─── $MODE round $ROUND of $COUNT ───────────────────────────────"
@@ -1395,10 +1693,10 @@ except Exception as e:
     fi
 
     # Run one round with fresh context.
-    # implement+SQLite: parallel agents, respecting remaining task budget.
-    # audit/full or no-SQLite fallback: serial orchestrator.
+    # implement: parallel agents, respecting remaining task budget.
+    # audit/full: serial orchestrator (one unit at a time, coordinates sub-agents).
     ORCH_EXIT=0
-    if [ "$MODE" = "implement" ] && [ -f "$REPO/$DB_FILE" ]; then
+    if [ "$MODE" = "implement" ]; then
         TO_CLAIM="$PARALLEL"
         if [ "$TASK_LIMIT" -gt 0 ]; then
             REMAINING=$((TASK_LIMIT - TASKS_DONE))
@@ -1406,8 +1704,6 @@ except Exception as e:
         fi
         run_parallel_implement "$TO_CLAIM" || ORCH_EXIT=$?
         TASKS_DONE=$((TASKS_DONE + _RPI_CLAIMED))
-        # If nothing was claimed (all tasks blocked or already implementing),
-        # stop rather than busy-spinning on the same pending-in-JSON tasks.
         if [ "$_RPI_CLAIMED" -eq 0 ]; then
             echo "No claimable tasks — all remaining tasks may be blocked on dependencies."
             break
@@ -1432,9 +1728,6 @@ except: pass
         echo ""
     fi
 
-    # Sync task statuses from JSON → SQLite (bridge until agents write SQLite directly)
-    sync_sqlite_from_json
-
     # Check for new needs_input files
     NI_COUNT=$(find "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ') || NI_COUNT=0
     if [ "$NI_COUNT" -gt 0 ]; then
@@ -1456,7 +1749,7 @@ echo ""
 echo "═══════════════════════════════════════════"
 if [ $INTERRUPTED -eq 1 ]; then
     echo "Stopped early (Ctrl+C). Progress saved."
-elif [ "$MODE" = "implement" ] && [ -f "$REPO/$DB_FILE" ]; then
+elif [ "$MODE" = "implement" ]; then
     if [ $ROUND_FAILED -eq 1 ]; then
         echo "${TASKS_DONE} task(s) processed in ${ROUND} batch(es) — ⚠ one or more agents had failures (see above)."
     else

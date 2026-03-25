@@ -3,6 +3,7 @@
 -- WAL mode is enabled by migrate_to_sqlite.py (PRAGMA journal_mode=WAL)
 -- This file defines tables and indexes only.
 
+-- Per-task state. SQLite is the authoritative store — agents write here directly.
 CREATE TABLE IF NOT EXISTS io_tasks (
     id                         TEXT PRIMARY KEY,
     unit                       TEXT NOT NULL,
@@ -14,16 +15,19 @@ CREATE TABLE IF NOT EXISTS io_tasks (
     source                     TEXT,
     depends_on                 TEXT DEFAULT '[]',   -- JSON array of task IDs
     audit_round                INTEGER DEFAULT 0,
-    verified_since_last_audit  INTEGER DEFAULT 0,
     spec_body                  TEXT,                -- full content of task .md file
     claimed_at                 TEXT,                -- ISO-8601
     claimed_by                 TEXT,
     cycle_count                INTEGER DEFAULT 0,
-    attempt_count              INTEGER DEFAULT 0,
+    attempt_count              INTEGER DEFAULT 0,   -- total implement attempts (replaces task_attempts map)
+    answer_file                TEXT,                -- path to answers file for needs_input tasks
+    decomposed_from            TEXT,                -- parent task ID if this is a sub-task
+    decomposed_into            TEXT DEFAULT '[]',   -- JSON array of sub-task IDs (set on the original task)
     created_at                 TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at                 TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+-- Per-attempt history for implement-agent runs.
 CREATE TABLE IF NOT EXISTS io_task_attempts (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id         TEXT REFERENCES io_tasks(id),
@@ -35,6 +39,7 @@ CREATE TABLE IF NOT EXISTS io_task_attempts (
     changed_files   TEXT DEFAULT '[]'   -- JSON array
 );
 
+-- Per-unit audit queue. Tracks audit status and wave-gate state.
 CREATE TABLE IF NOT EXISTS io_queue (
     unit                       TEXT PRIMARY KEY,
     wave                       INTEGER,
@@ -44,7 +49,22 @@ CREATE TABLE IF NOT EXISTS io_queue (
     uat_status                 TEXT,
     verified_since_last_audit  INTEGER DEFAULT 0,
     last_audit_at              TEXT,
-    status                     TEXT DEFAULT 'pending'
+    last_audit_round           INTEGER,             -- audit_round value at last audit
+    last_audit_date            TEXT,                -- ISO-8601 timestamp of last audit completion
+    status                     TEXT DEFAULT 'pending',
+    attempts                   INTEGER DEFAULT 0,   -- audit attempt count for this unit
+    repair_attempts            INTEGER DEFAULT 0,   -- spec-repair attempts for current failure
+    catalog                    TEXT,                -- path to catalog file
+    tasks_open                 TEXT DEFAULT '[]',   -- JSON array of open task IDs from last audit
+    completed_at               TEXT,
+    notes                      TEXT
+);
+
+-- Global key-value store for orchestrator-wide state.
+-- Keys: audit_round, checkpoint_count, last_updated, current_unit
+CREATE TABLE IF NOT EXISTS io_global (
+    key    TEXT PRIMARY KEY,
+    value  TEXT
 );
 
 -- Indexes for common query patterns
