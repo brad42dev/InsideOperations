@@ -309,7 +309,7 @@ After writing each task file, read it back to confirm non-empty.
 
 Using `audit_round = current value` makes these tasks immediately eligible for `implement` smart mode.
 
-Write AUDIT_PROGRESS.json back. Read it back and confirm the new task IDs appear in `task_registry`.
+Write atomically: write to `{{PROGRESS_JSON}}.tmp`, fsync, then `os.replace()` over the target. Read it back and confirm the new task IDs appear in `task_registry`.
 
 **Unit queue entry:** If this unit's `verified_since_last_audit` needs updating (a change task implies something was "fixed"), increment it so smart audit will re-check this unit after implementation.
 

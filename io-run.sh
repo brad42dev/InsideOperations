@@ -141,7 +141,7 @@ ARG2=${2:-}
 ARG3=${3:-}
 
 # ── run-lock: prevent concurrent invocations ──────────────────────────────────
-# Use mode in lockfile name so 'status' never blocks 'implement'
+# Single lock for all modes except 'status' (status is read-only, never blocks).
 if [[ "$MODE" != "status" ]]; then
     LOCK_FILE="/tmp/io-run.lock"
     exec 9>"$LOCK_FILE"
@@ -411,6 +411,35 @@ for task in data.get("task_registry", []):
 
 if updated:
     con.commit()
+
+# Unblock pass: promote 'blocked' tasks to 'pending' when all dependencies are verified.
+# Mirrors the orchestrator's step 1e but runs here so parallel mode doesn't stall.
+verified_ids = {r[0] for r in con.execute("SELECT id FROM io_tasks WHERE status='verified'").fetchall()}
+blocked_rows = con.execute("SELECT id, depends_on FROM io_tasks WHERE status='blocked'").fetchall()
+unblocked = 0
+unblocked_in_json = []
+for row_id, deps_raw in blocked_rows:
+    deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
+    if all(d in verified_ids for d in deps):
+        con.execute("UPDATE io_tasks SET status='pending', updated_at=? WHERE id=?", (now, row_id))
+        unblocked_in_json.append(row_id)
+        unblocked += 1
+if unblocked:
+    con.commit()
+    # Also update JSON so the registry stays authoritative
+    for task_id in unblocked_in_json:
+        for task in data.get("task_registry", []):
+            if task.get("id") == task_id:
+                task["status"] = "pending"
+                break
+    import os
+    tmp_path = str(json_path) + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, json_path)
+
 con.close()
 PYEOF
 }
@@ -796,10 +825,13 @@ for t in registry:
 
 print(f"Task Status Summary  [{source}]")
 print("=" * 40)
-order = ["verified", "implementing", "needs_input", "pending", "failed", "escalated"]
+order = ["verified", "implementing", "needs_input", "pending", "failed", "escalated",
+         "blocked", "needs_decomposition", "decomposed"]
+icons = {"verified":"✅","implementing":"🔄","needs_input":"⏸ ","pending":"·","failed":"❌",
+         "escalated":"⛔","blocked":"🔒","needs_decomposition":"📐","decomposed":"✂️ "}
 for s in order:
     if s in by_status:
-        icon = {"verified":"✅","implementing":"🔄","needs_input":"⏸ ","pending":"·","failed":"❌","escalated":"⛔"}.get(s, " ")
+        icon = icons.get(s, " ")
         print(f"  {icon} {s:20s} {by_status[s]:4d}")
 other = {k:v for k,v in by_status.items() if k not in order}
 for s,n in other.items():
@@ -1229,6 +1261,10 @@ echo ""
 # Pre-expand the audit-orchestrator agent once (for audit/full modes that call it directly).
 ORCH_AGENT_FILE=$(expand_agent_to_tmp "audit-orchestrator")
 ORCH_AGENT_TMP="$_AGENT_TMP_DIR"
+
+# Initial sync: promote any blocked tasks whose dependencies are now verified,
+# so get_pending_work_count sees them before the first round check.
+sync_sqlite_from_json
 
 while [ $INTERRUPTED -eq 0 ]; do
 

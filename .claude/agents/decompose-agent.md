@@ -106,7 +106,7 @@ For the original task:
 - Update registry status to `decomposed`
 - Add field `decomposed_into: [list of new task IDs]`
 
-Write `{{PROGRESS_JSON}}` back.
+Write atomically: write to `{{PROGRESS_JSON}}.tmp`, fsync, then `os.replace()` over the target. Read it back and confirm the original task has `status: "decomposed"` and the new sub-tasks appear in `task_registry`.
 
 ### Step 7 — Return result
 
