@@ -44,7 +44,7 @@ const TYPE_LABELS: Record<SearchResult['type'], string> = {
 
 // ─── Prefix scope parsing ────────────────────────────────────────────────────
 
-type PrefixScope = 'commands' | 'users' | 'routes' | 'tags' | null
+type PrefixScope = 'commands' | 'points' | 'graphics' | 'entities' | null
 
 interface ParsedQuery {
   scope: PrefixScope
@@ -53,30 +53,31 @@ interface ParsedQuery {
 }
 
 function parseQuery(raw: string): ParsedQuery {
-  if (raw.startsWith('>')) return { scope: 'commands', term: raw.slice(1).trimStart(), prefix: '>' }
-  if (raw.startsWith('@')) return { scope: 'users',    term: raw.slice(1).trimStart(), prefix: '@' }
-  if (raw.startsWith('/')) return { scope: 'routes',   term: raw.slice(1).trimStart(), prefix: '/' }
-  if (raw.startsWith('#')) return { scope: 'tags',     term: raw.slice(1).trimStart(), prefix: '#' }
+  if (raw.startsWith('>')) return { scope: 'commands',  term: raw.slice(1).trimStart(), prefix: '>' }
+  if (raw.startsWith('@')) return { scope: 'points',    term: raw.slice(1).trimStart(), prefix: '@' }
+  if (raw.startsWith('/')) return { scope: 'graphics',  term: raw.slice(1).trimStart(), prefix: '/' }
+  if (raw.startsWith('#')) return { scope: 'entities',  term: raw.slice(1).trimStart(), prefix: '#' }
   return { scope: null, term: raw, prefix: '' }
 }
 
 const SCOPE_PLACEHOLDER: Record<NonNullable<PrefixScope>, string> = {
   commands: 'Search navigation commands…',
-  users:    'Search users and operators…',
-  routes:   'Jump to a route…',
-  tags:     'Search points and equipment by tag…',
+  points:   'Search point tagnames and descriptions…',
+  graphics: 'Search graphics and process views…',
+  entities: 'Search dashboards, reports, workspaces, templates…',
 }
 
 const SCOPE_TYPES: Partial<Record<NonNullable<PrefixScope>, string[]>> = {
-  users: ['user'],
-  tags:  ['point', 'equipment'],
+  points:   ['point'],
+  graphics: ['graphic'],
+  entities: ['dashboard', 'report'],
 }
 
 const SCOPE_HINTS: Array<{ prefix: string; label: string }> = [
   { prefix: '>', label: 'commands' },
-  { prefix: '@', label: 'users' },
-  { prefix: '/', label: 'routes' },
-  { prefix: '#', label: 'tags' },
+  { prefix: '@', label: 'points' },
+  { prefix: '/', label: 'graphics' },
+  { prefix: '#', label: 'entities' },
 ]
 
 interface CommandPaletteProps {
@@ -127,7 +128,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
   const { scope, term } = parseQuery(query)
 
   // Whether to show nav commands for this scope
-  const showNavCommands = scope === null || scope === 'commands' || scope === 'routes'
+  const showNavCommands = scope === null || scope === 'commands'
 
   // Filtered navigation commands
   const filteredCommands = showNavCommands
@@ -162,8 +163,8 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     }
   }, [open])
 
-  // Debounced API search — skipped for command/route scopes (nav-only)
-  const apiSearchEnabled = scope !== 'commands' && scope !== 'routes'
+  // Debounced API search — skipped for command scope (nav-only)
+  const apiSearchEnabled = scope !== 'commands'
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -354,7 +355,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                     padding: '4px 12px 2px',
                   }}
                 >
-                  {scope === 'users' ? 'Users' : scope === 'tags' ? 'Points & Equipment' : 'Search Results'}
+                  {scope === 'points' ? 'Points' : scope === 'graphics' ? 'Graphics' : scope === 'entities' ? 'Entities' : 'Search Results'}
                 </div>
                 {searchResults.map((result, i) => {
                   const globalIdx = i
