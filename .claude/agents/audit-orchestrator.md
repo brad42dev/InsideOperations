@@ -118,7 +118,7 @@ For each CURRENT.md with `status: completed`:
 2. Look up `task_id` in `task_registry`
 3. **If registry status is already `verified` or `escalated`:** skip — already reconciled
 4. **If registry status is `pending`, `failed`, or `implementing`:** this task completed but the registry was never updated. Reconcile:
-   - Run independent build verification: `cd {{PROJECT_ROOT}}/frontend && npx tsc --noEmit` (or cargo check for Rust tasks)
+   - Run independent build verification: `cd $(git rev-parse --show-toplevel)/frontend && npx tsc --noEmit` (or `cargo check` for Rust tasks). Note: use `git rev-parse --show-toplevel` — NOT `{{PROJECT_ROOT}}` — so the check targets the current repo root (worktree or main), not always the main repo.
    - If **PASS**: write ledger entry (see Shared: Ledger Write), set registry `status: "verified"`, increment `verified_since_last_audit` on the unit. Report: `🔁 Reconciled: {task-id} — completed last session, now verified`
    - If **FAIL**: set registry `status: "failed"`, reset CURRENT.md status to `failed`. The task will be retried normally. Report: `⚠️ Reconciled: {task-id} — completed last session but build check failed, reset to failed`
 
@@ -173,8 +173,8 @@ last_heartbeat: null
 
 After implement-agent returns SUCCESS and build verification passes:
 
-1. Commit the implementation: `cd {{PROJECT_ROOT}} && git add -A && git commit -m "verify: {task-id} — {task-title}" --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"`
-2. Get the commit hash: `cd {{PROJECT_ROOT}} && git rev-parse --short HEAD`
+1. Commit the implementation: `cd $(git rev-parse --show-toplevel) && git add -A && git commit -m "verify: {task-id} — {task-title}" --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"`. Use `git rev-parse --show-toplevel` — NOT `{{PROJECT_ROOT}}` — so the commit lands in the current repo (worktree branch in parallel mode, main branch in serial mode).
+2. Get the commit hash: `cd $(git rev-parse --show-toplevel) && git rev-parse --short HEAD`
 3. Append to `{{STATE_DIR}}/ledger/{unit-id}.md`:
    ```
    {task-id} | {task title} | verified {date} | commit {hash} | {verification command} | PASS
@@ -527,7 +527,7 @@ Track `successes_this_run = 0`.
 
 1d. **Status Field Validator**: Before task selection, scan registry for entries with an unrecognized `status` value.
 
-   Known valid statuses: `pending`, `claimed`, `implementing`, `completed`, `verified`, `failed`, `escalated`, `needs_input`, `needs_research`, `checkpoint`, `blocked`, `needs_decomposition`.
+   Known valid statuses: `pending`, `claimed`, `implementing`, `completed`, `verified`, `failed`, `escalated`, `needs_input`, `needs_research`, `checkpoint`, `blocked`, `needs_decomposition`, `decomposed`.
 
    For each entry with a status NOT in the above list:
    - Log: `⚠ {task-id} has unrecognized status "{status}" — treating as pending`
@@ -608,7 +608,7 @@ Track `successes_this_run = 0`.
    **SUCCESS**:
    - Read STATE_FILE — confirm status=completed
    - Read ATTEMPT_FILE — confirm result=SUCCESS
-   - Run independent verification: `cd {{PROJECT_ROOT}}/frontend && npx tsc --noEmit` (or cargo check for Rust)
+   - Run independent verification: `cd $(git rev-parse --show-toplevel)/frontend && npx tsc --noEmit` (or `cargo check` for Rust). Use `git rev-parse --show-toplevel` so this targets the current repo root (worktree in parallel mode, main repo in serial mode).
    - If verification passes:
      - Write ledger entry (see Shared: Ledger Write)
      - Update registry: set `task_registry[task_id].status = "verified"`, `task_registry[task_id].uat_status = null` in PROGRESS_FILE (see Shared: Registry Update)

@@ -527,6 +527,12 @@ launch_agent_in_worktree() {
 
     echo "  Worktree: ${worktree_path}  Branch: ${branch_name}"
 
+    # Symlink node_modules from main repo so TypeScript checks work in the worktree
+    # (node_modules is git-ignored and therefore absent from the worktree checkout).
+    if [ -d "$REPO/frontend/node_modules" ]; then
+        ln -sfn "$REPO/frontend/node_modules" "$worktree_path/frontend/node_modules" 2>/dev/null || true
+    fi
+
     # Expand config tokens in agent files within the worktree so agents see
     # real paths (e.g. {{PROJECT_ROOT}} → /home/io/io-dev/io) at runtime.
     expand_agent_tokens "$worktree_path"
