@@ -144,9 +144,14 @@ load_config
 # Derive LAST_ROUND.json from the configured comms directory
 CFG_LAST_ROUND_JSON="${CFG_COMMS_DIR:-comms}/LAST_ROUND.json"
 
+# ── Timestamp helper ───────────────────────────────────────────────────────────
+ts() { date '+[%Y-%m-%dT%H:%M:%S]'; }
+
 MODE=${1:-implement}
 ARG2=${2:-}
 ARG3=${3:-}
+
+echo "$(ts) io-run.sh started — mode: $MODE" >&2
 
 # ── run-lock: prevent concurrent invocations ──────────────────────────────────
 # Single lock for all modes except 'status' (status is read-only, never blocks).
@@ -804,7 +809,7 @@ launch_agent_in_worktree() {
         git -C "$REPO" worktree add "$worktree_path" -b "$branch_name" >&2
     fi
 
-    echo "  Worktree: ${worktree_path}  Branch: ${branch_name}" >&2
+    echo "$(ts) impl agent launching: ${task_id}  worktree: ${worktree_path}" >&2
 
     # Symlink node_modules from main repo so TypeScript checks work in the worktree
     # (node_modules is git-ignored and therefore absent from the worktree checkout).
@@ -1089,13 +1094,17 @@ run_parallel_uat() {
         while [ "$next_idx" -lt "$total" ] && [ "${#active_pids[@]}" -lt "$max_agents" ]; do
             local unit_id="${units_arr[$next_idx]}"
             next_idx=$((next_idx + 1))
-            echo "  → UAT starting: $unit_id ($next_idx/$total)"
-            # Each claude session runs independently; output goes to stderr so it
-            # appears in the terminal without polluting the caller's capture context.
+            local _uat_log="/tmp/io-uat-${unit_id}-$(date '+%Y%m%dT%H%M%S').log"
+            echo "$(ts) UAT agent launching: $unit_id ($next_idx/$total) — log: $_uat_log"
+            # Each claude session runs independently. Output is tee'd to a per-agent
+            # log file so crashes/early-exits leave a readable trace.
             (
+                echo "$(ts) UAT $unit_id starting" | tee "$_uat_log"
                 claude --dangerously-skip-permissions \
                        --agent "$agent_file" \
-                       --print "$uat_mode $unit_id" < /dev/null || true
+                       --print "$uat_mode $unit_id" < /dev/null \
+                2>&1 | tee -a "$_uat_log" || true
+                echo "$(ts) UAT $unit_id finished" | tee -a "$_uat_log"
             ) >&2 &
             active_pids+=($!)
             active_units+=("$unit_id")
@@ -1115,7 +1124,7 @@ run_parallel_uat() {
             if ! kill -0 "$pid" 2>/dev/null; then
                 local exit_code=0
                 wait "$pid" 2>/dev/null || exit_code=$?
-                echo "─── UAT result: $unit_id ───────────────────────────────────"
+                echo "$(ts) ─── UAT result: $unit_id ───────────────────────────────"
                 if [ "$exit_code" -ne 0 ]; then
                     echo "  ⚠ $unit_id — claude exited $exit_code (crash/OOM?) — treating as error"
                     _RPU_SKIPPED=$((_RPU_SKIPPED + 1))
@@ -1186,7 +1195,7 @@ run_parallel_audit() {
                 break
             fi
 
-            echo "  Audit agent: claimed unit ${unit_id}"
+            echo "$(ts) audit agent launching: ${unit_id}"
             local agent_file
             agent_file=$(expand_agent_to_tmp "audit-orchestrator")
             local _this_audit_tmp="$_AGENT_TMP_DIR"
@@ -1325,7 +1334,7 @@ UNIT: ${_dunit}" > /dev/null
                 break
             fi
 
-            echo "  Agent: claimed task ${task_id}"
+            echo "$(ts) impl agent claimed: ${task_id}"
             local pid
             # "implement force {task_id} 1" — implement exactly this claimed task and exit.
             pid=$(launch_agent_in_worktree "$task_id" "audit-orchestrator" "implement force $task_id 1")
@@ -2236,11 +2245,15 @@ PYEOF
                     fi
                     local _uid="${_uat_arr[$_uat_idx]}"
                     _uat_idx=$((_uat_idx + 1))
-                    echo "  [uat  ] starting ${_uid} (${_uat_idx}/${#_uat_arr[@]})"
+                    local _auto_uat_log="/tmp/io-uat-${_uid}-$(date '+%Y%m%dT%H%M%S').log"
+                    echo "$(ts) [uat  ] agent launching: ${_uid} (${_uat_idx}/${#_uat_arr[@]}) — log: $_auto_uat_log"
                     (
+                        echo "$(ts) UAT ${_uid} starting" | tee "$_auto_uat_log"
                         claude --dangerously-skip-permissions \
                                --agent "$_AUTO_UAT_AGENT_FILE" \
-                               --print "auto ${_uid}" < /dev/null || true
+                               --print "auto ${_uid}" < /dev/null \
+                        2>&1 | tee -a "$_auto_uat_log" || true
+                        echo "$(ts) UAT ${_uid} finished" | tee -a "$_auto_uat_log"
                     ) >&2 &
                     local _pid=$!
                     _auto_pids+=("$_pid"); _auto_types+=("uat"); _auto_ids+=("$_uid")
