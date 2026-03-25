@@ -3560,6 +3560,10 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   // state so DesignerContextMenuContent re-renders with the correct nodeId.
   // The ref is kept in sync so callbacks inside the menu can read it
   // synchronously without stale-closure issues.
+  //
+  // In test mode: the edit-mode Radix context menu is suppressed entirely.
+  // Right-clicking a point-bound DisplayElement opens the PointContextMenu.
+  // Right-clicking an unbound element or canvas area shows nothing.
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     const rect = getRect()
     if (!rect) { ctxNodeIdRef.current = null; setCtxNodeId(null); return }
@@ -3567,13 +3571,42 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
     const cx = (e.clientX - rect.left - vp.panX) / vp.zoom
     const cy = (e.clientY - rect.top  - vp.panY) / vp.zoom
     const hitId = hitTest(cx, cy)
+
+    // ── Test mode: suppress edit-mode menu; show PointContextMenu for bound elements ──
+    if (testMode) {
+      e.preventDefault()
+      if (hitId && docRef.current) {
+        // Recursively search the scene graph for the hit node (may be nested)
+        function findNode(nodes: SceneNode[], id: NodeId): SceneNode | null {
+          for (const n of nodes) {
+            if (n.id === id) return n
+            if ('children' in n && Array.isArray((n as Group).children)) {
+              const found = findNode((n as Group).children as SceneNode[], id)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        const hitNode = findNode(docRef.current.children, hitId)
+        if (hitNode?.type === 'display_element') {
+          const de = hitNode as DisplayElement
+          const pointId = de.binding.pointId
+          if (pointId) {
+            setPointCtxMenu({ pointId, tagName: pointId, x: e.clientX, y: e.clientY })
+          }
+        }
+      }
+      // Do not set ctxNodeId — keeps the Radix edit-mode context menu from opening
+      return
+    }
+
     if (hitId && !selectedIdsRef.current.has(hitId)) {
       selectedIdsRef.current = new Set([hitId])
       useUiStore.getState().setSelectedNodes([hitId])
     }
     ctxNodeIdRef.current = hitId
     setCtxNodeId(hitId)
-  }, [])
+  }, [testMode, setPointCtxMenu])
 
   // -------------------------------------------------------------------------
   // Handle drop from left palette
