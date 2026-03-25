@@ -54,7 +54,8 @@ claude --dangerously-skip-permissions --agent audit-orchestrator "implement forc
 | `audit force-all <N>` | Re-audit every unit, stop after N |
 | `implement` | Smart implement, stop after CHECKPOINT_EVERY tasks |
 | `implement <N>` | Smart implement, stop after N tasks |
-| `implement force <task-id>` | Force implement one specific task |
+| `implement force <task-id>` | Force implement one specific task, stop after CHECKPOINT_EVERY |
+| `implement force <task-id> <N>` | Force implement one specific task, stop after N (use N=1 for single-task parallel agents) |
 | `implement force-all` | All pending tasks, stop at CHECKPOINT_EVERY |
 | `implement force-all <N>` | All pending tasks, stop after N |
 | `full` | Smart audit then smart implement, per unit |
@@ -341,7 +342,7 @@ Report to user: which units are eligible and why (smart: N units with verified t
    - `last_audit_date: "{ISO timestamp of now}"` (used by Wave 0 recency check in smart filter; units with no `last_audit_date` are treated as epoch — always eligible for re-audit)
    - `verified_since_last_audit: 0` (reset — unit just re-audited)
    - Set `current_unit: null`
-   - For each task ID in `TASKS_OPEN`: read the task file once, add/update entry in `task_registry` with `audit_round: current audit_round`, `status: "pending"` (preserve `"verified"` status if already set)
+   - For each task ID in `TASKS_OPEN`: read the task file once, add/update entry in `task_registry` with `audit_round: current audit_round`, `status: "pending"` (preserve existing status if already `"verified"`, `"decomposed"`, or `"needs_decomposition"` — do not downgrade these terminal/in-progress states)
    - Increment `successes_this_run`
    - Report: `✅ <unit-id> — <OVERALL> — <N> tasks`
    - If `successes_this_run >= run_limit`: → **Checkpoint**

@@ -640,7 +640,10 @@ run_parallel_implement() {
 
         echo "  Agent ${i}: claimed task ${task_id}"
         local pid
-        pid=$(launch_agent_in_worktree "$task_id" "audit-orchestrator" "implement 1 TASK_ID=$task_id")
+        # "implement force {task_id} 1" — implement exactly that task (claimed via
+        # SQLite above) and exit. Without 'force', parallel agents would all compete
+        # for the same highest-priority task from JSON; the '1' caps to one task.
+        pid=$(launch_agent_in_worktree "$task_id" "audit-orchestrator" "implement force $task_id 1")
         agent_pids+=("$pid")
         agent_tasks+=("$task_id")
         echo "  Agent ${i}: PID ${pid}"
