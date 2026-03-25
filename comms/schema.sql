@@ -40,7 +40,11 @@ CREATE TABLE IF NOT EXISTS io_task_attempts (
     changed_files   TEXT DEFAULT '[]',  -- JSON array
     context_injection_tokens  INTEGER,  -- approx tokens at session start (D2)
     context_final_tokens      INTEGER,  -- approx tokens at session end (D2)
-    context_utilization_pct   REAL      -- final/max * 100 (D2)
+    context_utilization_pct   REAL,     -- final/max * 100 (D2)
+    task_file_bytes           INTEGER,  -- byte size of task spec (spec_body) at launch time
+    linked_impl_avg_util_pct  REAL,     -- UAT only: avg context util of preceding verified impl attempts for this unit
+    linked_impl_max_util_pct  REAL,     -- UAT only: max context util (worst-case impl for this unit)
+    linked_impl_task_count    INTEGER   -- UAT only: number of tasks linked (denominator for avg)
 );
 
 -- Per-unit audit queue. Tracks audit status and wave-gate state.
