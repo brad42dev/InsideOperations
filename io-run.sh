@@ -274,19 +274,24 @@ con.execute("PRAGMA journal_mode=WAL")
 try:
     # BEGIN IMMEDIATE acquires a write lock immediately — prevents race conditions
     con.execute("BEGIN IMMEDIATE")
-    row = con.execute("""
-        SELECT id FROM io_tasks
+    # Build set of verified task IDs for dependency checking
+    verified_ids = {r[0] for r in con.execute("SELECT id FROM io_tasks WHERE status='verified'").fetchall()}
+    candidates = con.execute("""
+        SELECT id, depends_on FROM io_tasks
         WHERE status IN ('pending', 'failed')
-          AND (depends_on = '[]' OR depends_on IS NULL OR depends_on = '')
         ORDER BY wave ASC,
                  CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
                  id ASC
-        LIMIT 1
-    """).fetchone()
-    if row is None:
+    """).fetchall()
+    task_id = None
+    for row_id, deps_raw in candidates:
+        deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
+        if all(d in verified_ids for d in deps):
+            task_id = row_id
+            break
+    if task_id is None:
         con.execute("ROLLBACK")
         sys.exit(0)
-    task_id = row[0]
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     con.execute(

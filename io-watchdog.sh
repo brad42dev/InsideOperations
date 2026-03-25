@@ -15,8 +15,25 @@
 set -euo pipefail
 
 REPO="$(git -C "$(cd "$(dirname "$0")" && pwd)" rev-parse --show-toplevel 2>/dev/null || echo "/home/io/io-dev/io")"
-DB_FILE="$REPO/comms/tasks.db"
-STALE_MINUTES=30
+
+# Read config for DB path and stale threshold (fall back to defaults if absent)
+if [ -f "$REPO/io-orchestrator.config.json" ]; then
+    DB_FILE="$REPO/$(python3 -c "
+import json, sys
+c = json.load(open('$REPO/io-orchestrator.config.json'))
+p = c.get('paths', {}); ag = c.get('agents', {})
+db = p.get('registry_db') or c.get('task_store',{}).get('path') or 'comms/tasks.db'
+print(db)
+" 2>/dev/null || echo "comms/tasks.db")"
+    STALE_MINUTES="$(python3 -c "
+import json
+c = json.load(open('$REPO/io-orchestrator.config.json'))
+print(c.get('agents',{}).get('stale_task_threshold_min', 30))
+" 2>/dev/null || echo "30")"
+else
+    DB_FILE="$REPO/comms/tasks.db"
+    STALE_MINUTES=30
+fi
 
 DRY_RUN=0
 if [[ "${1:-}" = "--dry-run" ]]; then
