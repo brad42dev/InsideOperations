@@ -255,7 +255,7 @@ that aborts parallel audit if there are uncommitted changes that could create co
 ---
 
 ## Wave 4 — Auto mode: three-way proportional dispatch + decompose
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: MEDIUM — depends on Wave 3**
 
 ### Current auto allocation (two-way):
@@ -323,13 +323,13 @@ implement sessions on the Claude context side.
 
 ### Acceptance criteria
 
-- [ ] `./io-run.sh auto 4` allocates slots across audit + impl + UAT proportionally
-- [ ] Batch summary line shows three-way allocation
-- [ ] Pending audit work shows in batch count
-- [ ] `needs_decomposition` tasks trigger background decompose agents
-- [ ] C2 kill switch counts audit completions in progress
-- [ ] `auto` with no pending audit still works correctly (audit_slots = 0)
-- [ ] `bash -n io-run.sh` passes clean
+- [x] `./io-run.sh auto 4` allocates slots across audit + impl + UAT proportionally
+- [x] Batch summary line shows three-way allocation
+- [x] Pending audit work shows in batch count
+- [x] `needs_decomposition` tasks trigger background decompose agents
+- [x] C2 kill switch counts audit completions in progress
+- [x] `auto` with no pending audit still works correctly (audit_slots = 0)
+- [x] `bash -n io-run.sh` passes clean
 
 ---
 

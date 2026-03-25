@@ -38,6 +38,7 @@ load_config() {
         CFG_UAT_DIR="docs/uat"
         CFG_DECISIONS_DIR="docs/decisions"
         CFG_MAX_PARALLEL=3
+        CFG_MAX_AUDIT_PARALLEL=2
         CFG_STALE_MINUTES=30
         CFG_CHECKPOINT_EVERY=3
         CFG_MAX_IMPL_ATTEMPTS=3
@@ -82,6 +83,7 @@ print(f"CFG_TASK_DIR={p.get('task_dir', 'docs/tasks')!r}")
 print(f"CFG_CATALOG_DIR={p.get('catalog_dir', 'docs/catalogs')!r}")
 print(f"CFG_STATE_DIR={p.get('state_dir', 'docs/state')!r}")
 print(f"CFG_MAX_PARALLEL={ag.get('max_parallel', 3)!r}")
+print(f"CFG_MAX_AUDIT_PARALLEL={ag.get('max_audit_parallel', min(2, ag.get('max_parallel', 3)))!r}")
 print(f"CFG_STALE_MINUTES={ag.get('stale_task_threshold_min', 30)!r}")
 print(f"CFG_CHECKPOINT_EVERY={ag.get('checkpoint_every', 3)!r}")
 print(f"CFG_MAX_IMPL_ATTEMPTS={ag.get('max_impl_attempts', 3)!r}")
@@ -112,6 +114,7 @@ PYEOF
         CFG_CATALOG_DIR="docs/catalogs"
         CFG_STATE_DIR="docs/state"
         CFG_MAX_PARALLEL=3
+        CFG_MAX_AUDIT_PARALLEL=2
         CFG_STALE_MINUTES=30
         CFG_CHECKPOINT_EVERY=3
         CFG_MAX_IMPL_ATTEMPTS=3
@@ -1176,6 +1179,36 @@ run_parallel_implement() {
         max_agents=$_hard_cap
     fi
 
+    # Decompose fire-and-forget: dispatch needs_decomposition tasks alongside implement agents
+    if [ -f "$REPO/.claude/agents/decompose-agent.md" ] && [ -f "$REPO/$DB_FILE" ]; then
+        local _decomp_tasks
+        _decomp_tasks=$(python3 - "$REPO/$DB_FILE" "$max_agents" <<'PYEOF' 2>/dev/null
+import sqlite3, sys
+from pathlib import Path
+db = Path(sys.argv[1])
+limit = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+con = sqlite3.connect(str(db), timeout=5)
+rows = con.execute(
+    "SELECT id, unit FROM io_tasks WHERE status='needs_decomposition' LIMIT ?", (limit,)
+).fetchall()
+con.close()
+for tid, unit in rows:
+    print(f"{tid} {unit}")
+PYEOF
+) || _decomp_tasks=""
+        if [ -n "$_decomp_tasks" ]; then
+            local _decomp_n=0
+            while IFS=' ' read -r _dtid _dunit; do
+                [ -z "$_dtid" ] && continue
+                launch_agent_in_worktree "$_dtid" "decompose-agent" \
+                    "TASK_ID: ${_dtid}
+UNIT: ${_dunit}" > /dev/null
+                _decomp_n=$((_decomp_n + 1))
+            done <<< "$_decomp_tasks"
+            [ "$_decomp_n" -gt 0 ] && echo "  🔧 Launched ${_decomp_n} decompose agent(s) in background"
+        fi
+    fi
+
     local agent_pids=()
     local agent_tasks=()
 
@@ -1847,8 +1880,8 @@ if [ "$MODE" = "cleanup-branches" ]; then
 fi
 
 # ── auto mode ─────────────────────────────────────────────────────────────────
-# Dispatches implement + UAT agents proportionally based on pending work ratio.
-# Both agent types run in parallel within each batch.
+# Dispatches audit + implement + UAT agents proportionally based on pending work ratio.
+# All three agent types run in parallel within each batch.
 # Repeats until no pending tasks remain and no UAT failures create new tasks.
 # C2 kill switch: exits after CFG_MAX_ZERO_WAVES consecutive zero-progress batches.
 if [ "$MODE" = "auto" ]; then
@@ -1899,8 +1932,9 @@ if [ "$MODE" = "auto" ]; then
         echo "══════════════════════════════════════════════════"
         echo ""
 
-        # Reclaim stale tasks before counting pending work
+        # Reclaim stale tasks and unit claims before counting pending work
         reclaim_stale_tasks
+        reclaim_stale_units
         run_unblock_pass
 
         # D1: Fire-and-forget catcher agents for unenriched pending tasks
@@ -1908,8 +1942,26 @@ if [ "$MODE" = "auto" ]; then
             launch_catchers "$AUTO_PARALLEL" "$CATCHER_AGENT_FILE" || true
         fi
 
-        # ── C1: Count pending work for both types ─────────────────────────────
+        # ── C1: Count pending work for all three types ────────────────────────
         PENDING_IMPL=$(get_pending_work_count)
+
+        PENDING_AUDIT=0
+        if [ -f "$REPO/$DB_FILE" ]; then
+            PENDING_AUDIT=$(python3 - "$REPO/$DB_FILE" <<'PYEOF' 2>/dev/null || echo 0
+import sqlite3, sys
+from pathlib import Path
+db = Path(sys.argv[1])
+if not db.exists(): print(0); sys.exit(0)
+con = sqlite3.connect(str(db), timeout=5)
+n = con.execute("""
+    SELECT COUNT(*) FROM io_queue
+    WHERE last_audit_round IS NULL OR verified_since_last_audit > 0
+""").fetchone()[0]
+con.close()
+print(n)
+PYEOF
+)
+        fi
 
         UAT_UNITS_ALL=""
         if ! UAT_UNITS_ALL=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
@@ -1938,28 +1990,50 @@ PYEOF
         PENDING_UAT=$(echo "$UAT_UNITS_ALL" | grep -c "." 2>/dev/null || echo 0)
         [ -z "$UAT_UNITS_ALL" ] && PENDING_UAT=0
 
-        TOTAL_WORK=$((PENDING_IMPL + PENDING_UAT))
+        TOTAL_WORK=$((PENDING_AUDIT + PENDING_IMPL + PENDING_UAT))
 
         if [ "$TOTAL_WORK" -eq 0 ]; then
-            echo "✅ Auto mode complete — no pending tasks and no UAT needed."
+            echo "✅ Auto mode complete — no pending audit, no pending tasks, and no UAT needed."
             break
         fi
 
-        # ── C1: Proportional slot allocation ──────────────────────────────────
-        if [ "$PENDING_UAT" -eq 0 ]; then
-            IMPL_SLOTS=$AUTO_PARALLEL
-            UAT_SLOTS=0
-        elif [ "$PENDING_IMPL" -eq 0 ]; then
-            IMPL_SLOTS=0
-            UAT_SLOTS=$AUTO_PARALLEL
-        else
-            # ceil(AUTO_PARALLEL * pending_impl / total_work), clamped to [1, AUTO_PARALLEL-1]
-            IMPL_SLOTS=$(python3 -c "import math; v=math.ceil($AUTO_PARALLEL * $PENDING_IMPL / $TOTAL_WORK); print(max(1, min($AUTO_PARALLEL - 1, v)))")
-            UAT_SLOTS=$((AUTO_PARALLEL - IMPL_SLOTS))
+        # ── C1: Proportional slot allocation (three-way: audit + impl + UAT) ──
+        _SLOT_RESULT=$(python3 -c "
+import math
+ap = $AUTO_PARALLEL
+pa, pi, pu = $PENDING_AUDIT, $PENDING_IMPL, $PENDING_UAT
+total = pa + pi + pu
+a = max(1, math.ceil(ap * pa / total)) if pa > 0 else 0
+i = max(1, math.ceil(ap * pi / total)) if pi > 0 else 0
+u = max(1, math.ceil(ap * pu / total)) if pu > 0 else 0
+# Reduce overflow, priority: keep impl > uat > audit
+while a + i + u > ap:
+    if a > (1 if pa > 0 else 0): a -= 1
+    elif u > (1 if pu > 0 else 0): u -= 1
+    elif i > (1 if pi > 0 else 0): i -= 1
+    elif a > 0: a -= 1
+    elif u > 0: u -= 1
+    else: break
+print(a, i, u)
+" 2>/dev/null || echo "0 $AUTO_PARALLEL 0")
+        AUDIT_SLOTS=$(echo "$_SLOT_RESULT" | awk '{print $1}')
+        IMPL_SLOTS=$(echo "$_SLOT_RESULT" | awk '{print $2}')
+        UAT_SLOTS=$(echo "$_SLOT_RESULT" | awk '{print $3}')
+
+        # Apply max_audit_parallel cap (audit sessions are heavier on Claude context)
+        _MAX_AUDIT_CAP=${CFG_MAX_AUDIT_PARALLEL:-2}
+        if [ "$AUDIT_SLOTS" -gt "$_MAX_AUDIT_CAP" ]; then
+            _AUDIT_FREED=$((AUDIT_SLOTS - _MAX_AUDIT_CAP))
+            AUDIT_SLOTS=$_MAX_AUDIT_CAP
+            if [ "$PENDING_IMPL" -gt 0 ]; then
+                IMPL_SLOTS=$((IMPL_SLOTS + _AUDIT_FREED))
+            elif [ "$PENDING_UAT" -gt 0 ]; then
+                UAT_SLOTS=$((UAT_SLOTS + _AUDIT_FREED))
+            fi
         fi
 
-        echo "  Batch ${AUTO_BATCH}: ${IMPL_SLOTS} implement + ${UAT_SLOTS} UAT agents"
-        echo "  (pending: ${PENDING_IMPL} impl task(s), ${PENDING_UAT} UAT unit(s))"
+        echo "  Batch ${AUTO_BATCH}: ${AUDIT_SLOTS} audit + ${IMPL_SLOTS} implement + ${UAT_SLOTS} UAT agents"
+        echo "  (pending: ${PENDING_AUDIT} unit(s) for audit, ${PENDING_IMPL} impl task(s), ${PENDING_UAT} UAT unit(s))"
         echo ""
 
         # Ensure backend/frontend running before launching UAT agents
@@ -1969,16 +2043,27 @@ PYEOF
             ensure_frontend_running "io-auto-uat-devserver"
         fi
 
-        # ── Launch implement and UAT agents in parallel ───────────────────────
+        # ── Launch audit, implement, and UAT agents in parallel ──────────────
         # Results are written to temp files because subshells can't set parent vars.
+        _AUDIT_RESULT_FILE="/tmp/io-auto-audit-$$"
         _IMPL_RESULT_FILE="/tmp/io-auto-impl-$$"
         _UAT_RESULT_FILE="/tmp/io-auto-uat-$$"
+        echo "0" > "$_AUDIT_RESULT_FILE"    # claimed (audit units)
         echo "0 0" > "$_IMPL_RESULT_FILE"   # claimed verified
         echo "0 0 0" > "$_UAT_RESULT_FILE"  # passed failed skipped
 
+        _AUDIT_BG_PID=""
         _IMPL_BG_PID=""
         _UAT_BG_PID=""
         _UAT_AGENT_TMP_AUTO=""
+
+        if [ "$AUDIT_SLOTS" -gt 0 ] && [ "$PENDING_AUDIT" -gt 0 ]; then
+            (
+                run_parallel_audit "$AUDIT_SLOTS" || true
+                echo "$_RPA_CLAIMED" > "$_AUDIT_RESULT_FILE"
+            ) &
+            _AUDIT_BG_PID=$!
+        fi
 
         if [ "$IMPL_SLOTS" -gt 0 ]; then
             (
@@ -2000,7 +2085,10 @@ PYEOF
             _UAT_BG_PID=$!
         fi
 
-        # Wait for both agent sets to finish
+        # Wait for all three agent sets to finish
+        if [ -n "$_AUDIT_BG_PID" ]; then
+            wait "$_AUDIT_BG_PID" || AUTO_ROUND_FAILED=1
+        fi
         if [ -n "$_IMPL_BG_PID" ]; then
             wait "$_IMPL_BG_PID" || AUTO_ROUND_FAILED=1
         fi
@@ -2010,17 +2098,19 @@ PYEOF
         fi
 
         # Read back results from temp files
+        read -r BATCH_AUDIT_DONE < "$_AUDIT_RESULT_FILE" || BATCH_AUDIT_DONE=0
         read -r BATCH_IMPL_CLAIMED BATCH_IMPL_VERIFIED < "$_IMPL_RESULT_FILE" || { BATCH_IMPL_CLAIMED=0; BATCH_IMPL_VERIFIED=0; }
         read -r BATCH_UAT_PASSED BATCH_UAT_FAILED BATCH_UAT_SKIPPED < "$_UAT_RESULT_FILE" || { BATCH_UAT_PASSED=0; BATCH_UAT_FAILED=0; BATCH_UAT_SKIPPED=0; }
-        rm -f "$_IMPL_RESULT_FILE" "$_UAT_RESULT_FILE" 2>/dev/null || true
+        rm -f "$_AUDIT_RESULT_FILE" "$_IMPL_RESULT_FILE" "$_UAT_RESULT_FILE" 2>/dev/null || true
 
         echo ""
-        [ "$IMPL_SLOTS" -gt 0 ] && echo "  Implement: ${BATCH_IMPL_CLAIMED} claimed, ${BATCH_IMPL_VERIFIED} verified"
-        [ "$UAT_SLOTS" -gt 0 ]  && echo "  UAT: ✅ ${BATCH_UAT_PASSED} pass, ❌ ${BATCH_UAT_FAILED} fail, — ${BATCH_UAT_SKIPPED} skipped"
+        [ "$AUDIT_SLOTS" -gt 0 ] && echo "  Audit: ${BATCH_AUDIT_DONE} unit(s) audited"
+        [ "$IMPL_SLOTS" -gt 0 ]  && echo "  Implement: ${BATCH_IMPL_CLAIMED} claimed, ${BATCH_IMPL_VERIFIED} verified"
+        [ "$UAT_SLOTS" -gt 0 ]   && echo "  UAT: ✅ ${BATCH_UAT_PASSED} pass, ❌ ${BATCH_UAT_FAILED} fail, — ${BATCH_UAT_SKIPPED} skipped"
         echo ""
 
         # ── C2: Kill switch — track consecutive zero-verified batches ─────────
-        BATCH_PROGRESS=$((BATCH_IMPL_VERIFIED + BATCH_UAT_PASSED))
+        BATCH_PROGRESS=$((BATCH_AUDIT_DONE + BATCH_IMPL_VERIFIED + BATCH_UAT_PASSED))
         if [ "$BATCH_PROGRESS" -gt 0 ]; then
             CONSECUTIVE_ZERO_VERIFIED=0
         else

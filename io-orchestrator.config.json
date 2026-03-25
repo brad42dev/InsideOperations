@@ -55,6 +55,7 @@
 
   "agents": {
     "max_parallel":             4,
+    "max_audit_parallel":       2,
     "model_orchestrator":       "claude-opus-4-6",
     "model_worker":             "claude-sonnet-4-6",
     "heartbeat_interval_sec":   30,
