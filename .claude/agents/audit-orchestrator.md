@@ -109,7 +109,7 @@ Load:
 Scan for tasks whose local state and registry are out of sync — caused by compaction or session death between implement-agent completing and the orchestrator writing the registry update.
 
 ```bash
-find docs/state -name "CURRENT.md" | xargs grep -l "^status: completed"
+find {{STATE_DIR}} -name "CURRENT.md" | xargs grep -l "^status: completed"
 ```
 
 For each CURRENT.md with `status: completed`:
@@ -252,7 +252,7 @@ Increment `audit_round` by 1. Write updated value to PROGRESS_FILE before proces
   # Convert ISO timestamp (e.g. "2026-03-23T14:30:00Z") to YYYYMMDDhhmm for touch -t:
   TOUCH_TIME=$(date -d "{last_audit_date}" +%Y%m%d%H%M 2>/dev/null || echo "197001010000")
   touch -t "$TOUCH_TIME" /tmp/io-audit-ref-{unit-id}
-  find docs/decisions/ -name "{contract-slug}.md" -newer /tmp/io-audit-ref-{unit-id} 2>/dev/null
+  find {{DECISIONS_DIR}}/ -name "{contract-slug}.md" -newer /tmp/io-audit-ref-{unit-id} 2>/dev/null
   # If any output: unit is eligible for re-audit
   ```
 
@@ -268,7 +268,7 @@ Report to user: which units are eligible and why (smart: N units with verified t
 
 **For each eligible unit:**
 
-0. **Wave 0 Pre-Audit Gate** (skip this step when mode is `force` or `force-all`): Before auditing this unit, verify all applicable Wave 0 contracts have decision files in `docs/decisions/`.
+0. **Wave 0 Pre-Audit Gate** (skip this step when mode is `force` or `force-all`): Before auditing this unit, verify all applicable Wave 0 contracts have decision files in `{{DECISIONS_DIR}}/`.
 
    Contract slug convention: lowercase contract ID with hyphens (e.g., CX-EXPORT → `cx-export`).
 
@@ -314,9 +314,9 @@ Report to user: which units are eligible and why (smart: N units with verified t
 
    For each applicable contract slug for this unit:
    ```bash
-   ls docs/decisions/{contract-slug}.md 2>/dev/null && echo EXISTS || echo MISSING
+   ls {{DECISIONS_DIR}}/{contract-slug}.md 2>/dev/null && echo EXISTS || echo MISSING
    ```
-   (If `docs/decisions/` does not exist yet: treat all contracts as MISSING — `ls` will return non-zero, MISSING is the correct result, no bash error propagates.)
+   (If `{{DECISIONS_DIR}}/` does not exist yet: treat all contracts as MISSING — `ls` will return non-zero, MISSING is the correct result, no bash error propagates.)
 
    **If ANY contract file is MISSING:**
    - Skip this unit entirely (do not update status, do not spawn audit-runner)
@@ -827,7 +827,7 @@ Update this whenever an implement-agent attempt completes (success or failure).
 
 ## Rules
 
-- **Wave 0 contracts must have decision files before their applicable units are audited.** A missing `docs/decisions/{contract-slug}.md` blocks audit for that unit — it does NOT block implement for existing tasks on that unit. Run `/design-qa {contract-slug}` to generate the missing decision file. Force modes (`force`, `force-all`) bypass this gate.
+- **Wave 0 contracts must have decision files before their applicable units are audited.** A missing `{{DECISIONS_DIR}}/{contract-slug}.md` blocks audit for that unit — it does NOT block implement for existing tasks on that unit. Run `/design-qa {contract-slug}` to generate the missing decision file. Force modes (`force`, `force-all`) bypass this gate.
 - **One task at a time in implement mode.** Never spawn two implement-agents concurrently.
 - **Always write PROGRESS_FILE before and after spawning any sub-agent.** Crash recovery depends on this.
 - **Gaps found during audit are not failures.** A unit with 15 task files is a successful audit.

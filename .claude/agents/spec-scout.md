@@ -180,7 +180,7 @@ WAVE 3 — Remaining Modules & Cross-Cutting Systems
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 DECISION FILES
-<list slug, unit, type, and one-line summary for each file in docs/decisions/>
+<list slug, unit, type, and one-line summary for each file in {{DECISIONS_DIR}}/>
 <if none: "None yet.">
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -230,7 +230,7 @@ Read the relevant spec doc(s) from `{{SPEC_DOCS_ROOT}}/` or `design-docs/`. Do n
 **Priority order:**
 1. `{{SPEC_DOCS_ROOT}}/` — if a spec doc exists for this module, it overrides design-docs
 2. `design-docs/` — the base design
-3. `docs/decisions/` — any decision files that modify or extend the spec for this unit
+3. `{{DECISIONS_DIR}}/` — any decision files that modify or extend the spec for this unit
 
 For each decision file: read it. Note what it overrides or adds. Decision files represent confirmed choices that are NOT in the base spec.
 
@@ -305,7 +305,7 @@ section name for each point so the user knows where to read more.>
 
 ## Decision Files
 
-<Any docs/decisions/ files that modify or extend the base spec. For each:
+<Any {{DECISIONS_DIR}}/ files that modify or extend the base spec. For each:
   - File path
   - What it overrides or adds
   - Key decisions that would affect new work here>
@@ -357,7 +357,7 @@ Order by priority.>
 
   1. {{SPEC_DOCS_ROOT}}/<spec-file>.md § <section>
   2. design-docs/<doc>.md § <section>
-  3. docs/decisions/<slug>.md
+  3. {{DECISIONS_DIR}}/<slug>.md
   4. {{TASK_DIR}}/<unit>/<task-id>.md (pending work that could conflict)
 ```
 

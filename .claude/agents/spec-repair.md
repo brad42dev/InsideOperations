@@ -68,7 +68,7 @@ Read `~/.claude/skills/design-qa/SKILL.md` for the complete workflow:
 - Phase 1: Inventory all current implementations across the codebase
 - Phase 2: Produce cross-module comparison table
 - Phase 3: Generate targeted design questions — **present them to the user and wait for answers**
-- Phase 4: Write `docs/decisions/<slug>.md` with the answers
+- Phase 4: Write `{{DECISIONS_DIR}}/<slug>.md` with the answers
 - Phase 5: Update manifest to remove `⚠️ NOT SPECCED`, add decision file reference
 
 ### Reason: `unit_not_in_manifest`
@@ -106,7 +106,7 @@ Be more aggressive:
 For each file you modified or created, use the Read tool to confirm:
 
 **Decision file** (if `requires_design_qa`):
-- Read `docs/decisions/<slug>.md`
+- Read `{{DECISIONS_DIR}}/<slug>.md`
 - Confirm it is non-empty and contains the Q&A content
 
 **Manifest update** (any reason code):
@@ -125,7 +125,7 @@ If any read-back fails or shows the old content: retry the write once.
 RESULT: SUCCESS
 UNIT: <unit-id>
 REPAIR_TYPE: design_qa_completed | manifest_entry_added | id_alias_corrected | path_corrected | file_located
-DECISION_FILE: docs/decisions/<slug>.md  (only if design_qa_completed)
+DECISION_FILE: {{DECISIONS_DIR}}/<slug>.md  (only if design_qa_completed)
 DETAIL: <what was fixed — specific enough for the orchestrator to log>
 ```
 

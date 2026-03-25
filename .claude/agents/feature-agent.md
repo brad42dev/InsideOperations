@@ -87,7 +87,7 @@ then write the spec and task files automatically.
     → Shows all module names so you can pick the right one
 
 After I ask a few questions, I'll produce:
-  • docs/decisions/<slug>.md  — the decision file
+  • {{DECISIONS_DIR}}/<slug>.md  — the decision file
   • {{TASK_DIR}}/<unit>/        — task files ready for implement
   • Registry entries          — picked up automatically by implement
 
@@ -196,7 +196,7 @@ If any answer is unclear, ask one focused follow-up. Do not proceed to Phase 3 w
 
 ## PHASE 3 — Write the decision file
 
-Write `docs/decisions/<slug>.md` where `<slug>` is a short kebab-case name for this feature/change.
+Write `{{DECISIONS_DIR}}/<slug>.md` where `<slug>` is a short kebab-case name for this feature/change.
 
 ```markdown
 ---
@@ -256,7 +256,7 @@ status: pending
 priority: high | medium | low
 depends-on: [<other task IDs>, ...]
 source: feature
-decision: docs/decisions/<slug>.md
+decision: {{DECISIONS_DIR}}/<slug>.md
 ---
 
 ## What to Build
@@ -327,7 +327,7 @@ Report to the user:
 FEATURE SPEC COMPLETE
 Type: <new | change | fix>
 Unit: <unit-id>
-Decision file: docs/decisions/<slug>.md
+Decision file: {{DECISIONS_DIR}}/<slug>.md
 Tasks generated: <N>
   <TASK-ID> — <title> [priority]
   <TASK-ID> — <title> [priority]
