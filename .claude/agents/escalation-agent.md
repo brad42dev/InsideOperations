@@ -61,12 +61,12 @@ Read the "Why This Attempt Failed" sections from all attempts. Look for:
 
 ### Step 5 — Write diagnosis file
 
-Create `comms/escalated/` directory if it doesn't exist:
+Create `{{COMMS_DIR}}/escalated/` directory if it doesn't exist:
 ```bash
-mkdir -p comms/escalated
+mkdir -p {{COMMS_DIR}}/escalated
 ```
 
-Write `comms/escalated/{task-id}.md`:
+Write `{{COMMS_DIR}}/escalated/{task-id}.md`:
 
 ```markdown
 ---
@@ -100,6 +100,6 @@ diagnosed_at: {ISO timestamp}
 ```
 VERDICT: {AMBIGUOUS_SPEC | MISSING_DEPENDENCY | SCOPE_TOO_LARGE | IMPLEMENTATION_FAILURE}
 TASK_ID: {task-id}
-DIAGNOSIS_FILE: comms/escalated/{task-id}.md
+DIAGNOSIS_FILE: {{COMMS_DIR}}/escalated/{task-id}.md
 SUMMARY: {one sentence describing the root cause}
 ```

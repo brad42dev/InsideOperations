@@ -13,7 +13,7 @@ You split one oversize task into smaller tasks. Do not implement any code. Only 
 TASK_ID: <task-id>
 UNIT: <unit>
 REPO_ROOT: {{PROJECT_ROOT}}
-DIAGNOSIS_FILE: comms/escalated/{task-id}.md
+DIAGNOSIS_FILE: {{COMMS_DIR}}/escalated/{task-id}.md
 ```
 
 ## Protocol

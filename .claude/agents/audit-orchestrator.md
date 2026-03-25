@@ -64,7 +64,7 @@ claude --dangerously-skip-permissions --agent audit-orchestrator "implement forc
 
 **run_limit == 1 behavior:** Skip the YES/NO checkpoint prompt entirely — print a one-line summary and exit. This is the bash-script-driven mode where the caller re-invokes per task.
 
-**If no mode given:** Check for files in `comms/needs_input/`. If any exist, auto-enter `review_input` mode. If none exist, use `AskUserQuestion`:
+**If no mode given:** Check for files in `{{NEEDS_INPUT_DIR}}/`. If any exist, auto-enter `review_input` mode. If none exist, use `AskUserQuestion`:
 > Which mode? `audit [N]` / `implement [N]` / `full` / `review_input` — add a number to set how many units/tasks to run before stopping.
 
 Do not read the progress file or take any other action until the mode is confirmed.
@@ -84,7 +84,7 @@ MAX_IMPL:        3
 CHECKPOINT_EVERY: 3   (default run_limit when no number is provided)
 NEEDS_INPUT_STALE_HOURS: 48    (warn threshold)
 NEEDS_INPUT_ESCALATE_HOURS: 144  (auto-escalate threshold — 6 days)
-ESCALATED_DIR:   {{PROJECT_ROOT}}/comms/escalated
+ESCALATED_DIR:   {{PROJECT_ROOT}}/{{COMMS_DIR}}/escalated
 ```
 
 > **Dual-storage architecture:** `PROGRESS_FILE` (JSON) is what *this agent* reads and writes — it is the authoritative view of task state from the agent's perspective. `io-run.sh` also maintains a SQLite mirror (`comms/tasks.db`) which it uses for atomic parallel task claiming via `BEGIN IMMEDIATE` locks. When you write `status: "pending"`, `"implementing"`, or `"verified"` to the registry, `io-run.sh` will sync that state into SQLite after each round. You never interact with SQLite directly — write only to `PROGRESS_FILE`. The `status: completed` field in `docs/state/{unit}/{task-id}/CURRENT.md` is the *agent's internal completion marker* — it is NOT the same as registry `status: "verified"`. The orchestrator translates `CURRENT.md status: completed` → registry `status: "verified"` after independent build verification passes (see Startup Reconciliation and Ledger Write sections).
@@ -190,7 +190,7 @@ The `task_registry` in PROGRESS_FILE is the single source of truth for task sele
 **When to update:**
 - Before spawning implement-agent → set `status: "implementing"` (durable in-flight marker; enables startup reconciliation)
 - After implement SUCCESS + independent verification passes → set `status: "verified"`; increment `verified_since_last_audit` on the unit's queue entry
-- After implement NEEDS_INPUT → set `status: "needs_input"`, store `answer_file: "comms/answers/{task-id}.md"` on the registry entry
+- After implement NEEDS_INPUT → set `status: "needs_input"`, store `answer_file: "{{COMMS_DIR}}/answers/{task-id}.md"` on the registry entry
 - After review_input answers written → reset `status: "pending"` (answer_file remains on the entry)
 - After implement FAILED (at MAX_IMPL, verdict AMBIGUOUS_SPEC or IMPLEMENTATION_FAILURE) → set `status: "escalated"`
 - After implement FAILED (at MAX_IMPL, verdict MISSING_DEPENDENCY) → set `status: "blocked"` — task is waiting on another unit's output to be implemented
@@ -380,12 +380,12 @@ For `repair_attempt` 1 to `MAX_REPAIR`:
 Update `PROGRESS_FILE`: increment `checkpoint_count`, set `last_updated`, `current_unit: null`.
 
 Report to user:
-**If `run_limit == 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"audit","work_done":{successes_this_run}}`, print one-line summary, exit.
+**If `run_limit == 1`:** Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"audit","work_done":{successes_this_run}}`, print one-line summary, exit.
 ```
 ✓ audit round complete — {N} unit(s) processed. Progress saved.
 ```
 
-**If `run_limit > 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"audit","work_done":{successes_this_run}}`, then print full checkpoint and ask:
+**If `run_limit > 1`:** Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"audit","work_done":{successes_this_run}}`, then print full checkpoint and ask:
 ```
 === AUDIT CHECKPOINT ===
 Completed this run: <unit IDs>
@@ -402,7 +402,7 @@ Wait for response.
 
 ### Audit Complete
 
-Write `comms/LAST_ROUND.json` with `{"mode":"audit","work_done":0}`. Report full summary and exit.
+Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"audit","work_done":0}`. Report full summary and exit.
 
 ---
 
@@ -433,7 +433,7 @@ Skip these statuses — do not re-select them here:
 Filter to **unblocked** tasks: every ID in `depends_on` must have `status: "verified"` in the registry (or `depends_on` is empty).
 
 **If no candidates exist** (all tasks are verified, escalated, or blocked):
-- Write `comms/LAST_ROUND.json` with `{"mode":"implement","work_done":0}`
+- Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"implement","work_done":0}`
 - Report: "No pending tasks remaining. Run `audit` to re-audit units with verified tasks and check for new gaps."
 - Stop.
 
@@ -458,7 +458,7 @@ Track `successes_this_run = 0`.
 
 1b. **NEEDS_INPUT Staleness Scan**: Before selecting the next task, scan for stale needs_input files.
 
-   Run: `ls comms/needs_input/*.md 2>/dev/null`
+   Run: `ls {{NEEDS_INPUT_DIR}}/*.md 2>/dev/null`
    If no files: skip this step.
 
    For each needs_input file found:
@@ -466,12 +466,12 @@ Track `successes_this_run = 0`.
    b. Calculate elapsed hours: (current time - created timestamp) in hours
    c. If elapsed >= NEEDS_INPUT_ESCALATE_HOURS (144h):
       - Update registry: set task status to `escalated`, clear `answer_file` field (set to `null`) — prevents a future manual reset from passing a non-existent answer file to implement-agent
-      - Move file: `mv comms/needs_input/{task-id}.md comms/needs_input/stale/{task-id}.md` (create stale/ dir if needed: `mkdir -p comms/needs_input/stale`)
-      - Report: `⛔ {task-id} — NEEDS_INPUT unanswered for {N} days, auto-escalated. See comms/needs_input/stale/{task-id}.md`
+      - Move file: `mv {{NEEDS_INPUT_DIR}}/{task-id}.md {{NEEDS_INPUT_DIR}}/stale/{task-id}.md` (create stale/ dir if needed: `mkdir -p {{NEEDS_INPUT_DIR}}/stale`)
+      - Report: `⛔ {task-id} — NEEDS_INPUT unanswered for {N} days, auto-escalated. See {{NEEDS_INPUT_DIR}}/stale/{task-id}.md`
    d. If elapsed >= NEEDS_INPUT_STALE_HOURS (48h) but < NEEDS_INPUT_ESCALATE_HOURS:
       - Report: `⚠️  {task-id} — waiting {N}h for answer. Question: {first line of question}`
 
-   Graceful handling: if `comms/needs_input/` does not exist, `ls` returns non-zero and no files are found — treat as empty, skip this step (no crash). If a file is malformed or `created` field is missing/unparseable, report elapsed time as "unknown" and continue (do not crash).
+   Graceful handling: if `{{NEEDS_INPUT_DIR}}/` does not exist, `ls` returns non-zero and no files are found — treat as empty, skip this step (no crash). If a file is malformed or `created` field is missing/unparseable, report elapsed time as "unknown" and continue (do not crash).
 
    After scanning all files, if any were reported (stale or escalated): prompt user:
    ```
@@ -483,13 +483,13 @@ Track `successes_this_run = 0`.
 
    Scan registry for entries with `status: "needs_decomposition"`.
    For each:
-   - Check that `comms/escalated/{task-id}.md` exists (diagnosis file from escalation-agent or proactive gate).
+   - Check that `{{COMMS_DIR}}/escalated/{task-id}.md` exists (diagnosis file from escalation-agent or proactive gate).
      If the file is MISSING (deleted or never written due to a crash):
      - Recreate a minimal diagnosis file:
        ```bash
-       mkdir -p comms/escalated
+       mkdir -p {{COMMS_DIR}}/escalated
        ```
-       Write `comms/escalated/{task-id}.md`:
+       Write `{{COMMS_DIR}}/escalated/{task-id}.md`:
        ```markdown
        ---
        task_id: {task-id}
@@ -517,7 +517,7 @@ Track `successes_this_run = 0`.
        TASK_ID: <task-id>
        UNIT: <unit>
        REPO_ROOT: {{PROJECT_ROOT}}
-       DIAGNOSIS_FILE: comms/escalated/{task-id}.md
+       DIAGNOSIS_FILE: {{COMMS_DIR}}/escalated/{task-id}.md
      ```
    - Report: `📐 {task-id} → decomposed into {new-task-ids}`
 
@@ -558,7 +558,7 @@ Track `successes_this_run = 0`.
 
    If file count > 12:
    - Update registry: set status `needs_decomposition`
-   - Write `comms/escalated/{task-id}.md`:
+   - Write `{{COMMS_DIR}}/escalated/{task-id}.md`:
      ```markdown
      ---
      task_id: {task-id}
@@ -627,9 +627,9 @@ Track `successes_this_run = 0`.
 
    **NEEDS_INPUT**:
    - Read STATE_FILE — confirm state was written
-   - Write `comms/needs_input/{task-id}.md` (see Shared: Needs Input File Format below)
-   - Update registry: set `status: "needs_input"`, set `answer_file: "comms/answers/{task-id}.md"`
-   - Report: `⏸  {task-id} — question deferred to comms/needs_input/{task-id}.md`
+   - Write `{{NEEDS_INPUT_DIR}}/{task-id}.md` (see Shared: Needs Input File Format below)
+   - Update registry: set `status: "needs_input"`, set `answer_file: "{{COMMS_DIR}}/answers/{task-id}.md"`
+   - Report: `⏸  {task-id} — question deferred to {{NEEDS_INPUT_DIR}}/{task-id}.md`
    - Do NOT wait for input. Select next task and continue.
    - Count as same attempt (do not increment task_attempts)
 
@@ -663,13 +663,13 @@ Track `successes_this_run = 0`.
           REPO_ROOT: {{PROJECT_ROOT}}
         ```
      2. Read the verdict from the result:
-        - `AMBIGUOUS_SPEC`: set registry status `escalated`, report: `⛔ {task-id} — spec ambiguous. Run /design-qa. See comms/escalated/{task-id}.md`
-        - `MISSING_DEPENDENCY`: set registry status `blocked`, report: `🔒 {task-id} — blocked on missing dependency. See comms/escalated/{task-id}.md`
-        - `SCOPE_TOO_LARGE`: set registry status `needs_decomposition`, report: `📐 {task-id} — too large for one context. Will be decomposed. See comms/escalated/{task-id}.md`
-        - `IMPLEMENTATION_FAILURE`: set registry status `escalated`, report: `⛔ {task-id} — implementation failed after {N} attempts. Human review needed. See comms/escalated/{task-id}.md`
-     3. **Surface the escalation verdict:** Read `comms/escalated/{task-id}.md`. Extract the first non-empty line of the diagnosis body (skip frontmatter). Then:
+        - `AMBIGUOUS_SPEC`: set registry status `escalated`, report: `⛔ {task-id} — spec ambiguous. Run /design-qa. See {{COMMS_DIR}}/escalated/{task-id}.md`
+        - `MISSING_DEPENDENCY`: set registry status `blocked`, report: `🔒 {task-id} — blocked on missing dependency. See {{COMMS_DIR}}/escalated/{task-id}.md`
+        - `SCOPE_TOO_LARGE`: set registry status `needs_decomposition`, report: `📐 {task-id} — too large for one context. Will be decomposed. See {{COMMS_DIR}}/escalated/{task-id}.md`
+        - `IMPLEMENTATION_FAILURE`: set registry status `escalated`, report: `⛔ {task-id} — implementation failed after {N} attempts. Human review needed. See {{COMMS_DIR}}/escalated/{task-id}.md`
+     3. **Surface the escalation verdict:** Read `{{COMMS_DIR}}/escalated/{task-id}.md`. Extract the first non-empty line of the diagnosis body (skip frontmatter). Then:
         - Print one-line summary: `⛔ {task-id} — {verdict}: {first line of diagnosis}`
-        - Append the same line to `comms/ESCALATION_SUMMARY.md` (create if missing):
+        - Append the same line to `{{COMMS_DIR}}/ESCALATION_SUMMARY.md` (create if missing):
           ```
           # Escalation Summary
           | Task | Verdict | Date | Summary |
@@ -683,12 +683,12 @@ Track `successes_this_run = 0`.
 
 ### Implement Checkpoint
 
-**If `run_limit == 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"implement","work_done":{successes_this_run}}`, print one-line summary, exit.
+**If `run_limit == 1`:** Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"implement","work_done":{successes_this_run}}`, print one-line summary, exit.
 ```
 ✓ implement round complete — {task-id} verified. Progress saved.
 ```
 
-**If `run_limit > 1`:** Write `comms/LAST_ROUND.json` with `{"mode":"implement","work_done":{successes_this_run}}`, then same structure as audit checkpoint. Report tasks completed this run, ask YES/NO/SKIP.
+**If `run_limit > 1`:** Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"implement","work_done":{successes_this_run}}`, then same structure as audit checkpoint. Report tasks completed this run, ask YES/NO/SKIP.
 
 ---
 
@@ -720,13 +720,13 @@ Checkpoint after every 3 successful completions (audit or task, combined count).
 
 Write this file when implement-agent returns NEEDS_INPUT:
 
-`comms/needs_input/{task-id}.md`:
+`{{NEEDS_INPUT_DIR}}/{task-id}.md`:
 ```markdown
 ---
 task_id: {task-id}
 unit: {unit}
 checkpoint_file: docs/state/{unit}/{task-id}/CURRENT.md
-answer_file: comms/answers/{task-id}.md
+answer_file: {{COMMS_DIR}}/answers/{task-id}.md
 attempt: {N}
 created: {ISO timestamp}
 ---
@@ -744,7 +744,7 @@ created: {ISO timestamp}
 {What the agent would do if forced to guess. User can reply "go with default."}
 ```
 
-`comms/answers/{task-id}.md` (written by review_input mode, appended for multiple rounds):
+`{{COMMS_DIR}}/answers/{task-id}.md` (written by review_input mode, appended for multiple rounds):
 ```markdown
 ---
 task_id: {task-id}
@@ -761,11 +761,11 @@ task_id: {task-id}
 
 Entered when:
 - User types `review_input`
-- No mode given AND `comms/needs_input/*.md` files exist (auto-detect)
+- No mode given AND `{{NEEDS_INPUT_DIR}}/*.md` files exist (auto-detect)
 
 ### Review Loop
 
-1. Glob `comms/needs_input/*.md`. If none found: report "No pending questions." and exit.
+1. Glob `{{NEEDS_INPUT_DIR}}/*.md`. If none found: report "No pending questions." and exit.
 
 2. Report to user how many tasks need answers:
    ```
@@ -787,9 +787,9 @@ Entered when:
       Your answer (or press enter to use default):
       ```
    c. If user presses enter / says "default" / says "go with default": use the default answer
-   d. Ensure the answers directory exists, then append to `comms/answers/{task-id}.md` (create if not exists):
+   d. Ensure the answers directory exists, then append to `{{COMMS_DIR}}/answers/{task-id}.md` (create if not exists):
       ```bash
-      mkdir -p comms/answers
+      mkdir -p {{COMMS_DIR}}/answers
       ```
       ```
       ## Round {N}
@@ -797,7 +797,7 @@ Entered when:
       **Answer:** {answer or default}
       ```
    e. Update registry: set `status: "pending"` for this task (answer_file already set)
-   f. Delete `comms/needs_input/{task-id}.md`
+   f. Delete `{{NEEDS_INPUT_DIR}}/{task-id}.md`
    g. Report: `✅ {task-id} — answered, reset to pending`
 
 4. After all questions answered, report:

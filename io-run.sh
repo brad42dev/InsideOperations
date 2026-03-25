@@ -45,6 +45,8 @@ load_config() {
         CFG_FRONTEND_BUILD="cd frontend && pnpm build"
         CFG_FRONTEND_CHECK="cd frontend && npx tsc --noEmit"
         CFG_SPEC_DOCS="/home/io/spec_docs"
+        CFG_COMMS_DIR="comms"
+        CFG_NEEDS_INPUT_DIR="comms/needs_input"
         return
     fi
     eval "$(python3 - "$config" "$REPO" <<'PYEOF'
@@ -80,6 +82,8 @@ print(f"CFG_FRONTEND_TEST={cmd.get('frontend_test', cmd.get('test_frontend', 'cd
 print(f"CFG_FRONTEND_BUILD={cmd.get('frontend_build', cmd.get('build_frontend', 'cd frontend && pnpm build'))!r}")
 print(f"CFG_FRONTEND_CHECK={cmd.get('frontend_check', cmd.get('check_frontend', 'cd frontend && npx tsc --noEmit'))!r}")
 print(f"CFG_SPEC_DOCS={p.get('spec_docs', '/home/io/spec_docs')!r}")
+print(f"CFG_COMMS_DIR={p.get('comms_dir', 'comms')!r}")
+print(f"CFG_NEEDS_INPUT_DIR={p.get('needs_input_dir', 'comms/needs_input')!r}")
 PYEOF
 )" || {
         echo "WARNING: Failed to parse io-orchestrator.config.json — using hardcoded defaults" >&2
@@ -99,10 +103,14 @@ PYEOF
         CFG_FRONTEND_BUILD="cd frontend && pnpm build"
         CFG_FRONTEND_CHECK="cd frontend && npx tsc --noEmit"
         CFG_SPEC_DOCS="/home/io/spec_docs"
+        CFG_COMMS_DIR="comms"
+        CFG_NEEDS_INPUT_DIR="comms/needs_input"
     }
 }
 
 load_config
+# Derive LAST_ROUND.json from the configured comms directory
+CFG_LAST_ROUND_JSON="${CFG_COMMS_DIR:-comms}/LAST_ROUND.json"
 
 MODE=${1:-implement}
 ARG2=${2:-}
@@ -406,6 +414,8 @@ expand_agent_tokens() {
             -e "s|{{FRONTEND_BUILD_COMMAND}}|${CFG_FRONTEND_BUILD:-cd frontend \&\& pnpm build}|g" \
             -e "s|{{FRONTEND_CHECK_COMMAND}}|${CFG_FRONTEND_CHECK:-cd frontend \&\& npx tsc --noEmit}|g" \
             -e "s|{{SPEC_DOCS_ROOT}}|${CFG_SPEC_DOCS:-/home/io/spec_docs}|g" \
+            -e "s|{{COMMS_DIR}}|${CFG_COMMS_DIR:-comms}|g" \
+            -e "s|{{NEEDS_INPUT_DIR}}|${CFG_NEEDS_INPUT_DIR:-comms/needs_input}|g" \
             "$f" 2>/dev/null || true
     done
 }
@@ -474,17 +484,20 @@ launch_agent_in_worktree() {
         AGENT_OUTCOME="failure"
         trap 'cleanup_worktree "'"$_task_id"'" "$AGENT_OUTCOME"' EXIT
         cd "$worktree_path"
+        _exit=0
         timeout "${CFG_STALE_MINUTES:-30}m" \
             claude --dangerously-skip-permissions \
                    --agent "$agent_file" \
                    --print "$prompt_text" < /dev/null \
-            && AGENT_OUTCOME="success" || {
-            local _exit=$?
+            || _exit=$?
+        if [ "$_exit" -eq 0 ]; then
+            AGENT_OUTCOME="success"
+        else
             if [ "$_exit" -eq 124 ]; then
                 echo "  ✗ Task ${_task_id}: agent timed out after ${CFG_STALE_MINUTES:-30}m" >&2
             fi
             AGENT_OUTCOME="failure"
-        }
+        fi
     ) &
     echo $!
 }
@@ -608,18 +621,20 @@ run_parallel_implement() {
 
 # Check that task files on disk match registry entries. Warns but does not abort.
 check_registry_integrity() {
-    python3 - <<'PYEOF' 2>/dev/null || true
+    python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_TASK_DIR:-docs/tasks}" <<'PYEOF' 2>/dev/null || true
 import json, glob, os, sys
+progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
+task_dir = sys.argv[2] if len(sys.argv) > 2 else "docs/tasks"
 try:
-    with open("comms/AUDIT_PROGRESS.json") as f:
+    with open(progress_file) as f:
         d = json.load(f)
 except Exception as e:
-    print(f"  ⚠ registry integrity check: cannot read AUDIT_PROGRESS.json: {e}", file=sys.stderr)
+    print(f"  ⚠ registry integrity check: cannot read {progress_file}: {e}", file=sys.stderr)
     sys.exit(0)
 
 # Build set of IDs from task files on disk
 disk_ids = set()
-for fpath in glob.glob("docs/tasks/**/*.md", recursive=True):
+for fpath in glob.glob(f"{task_dir}/**/*.md", recursive=True):
     basename = os.path.basename(fpath)
     parts = basename.split('-')
     for i in range(2, len(parts)):
@@ -643,8 +658,8 @@ PYEOF
 
 # ── restore-backup ────────────────────────────────────────────────────────────
 if [ "$MODE" = "restore-backup" ]; then
-    BAK="$REPO/comms/AUDIT_PROGRESS.json.bak"
-    MAIN="$REPO/comms/AUDIT_PROGRESS.json"
+    MAIN="$REPO/${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}"
+    BAK="${MAIN}.bak"
     if [ ! -f "$BAK" ]; then
         echo "ERROR: No backup found at $BAK"
         exit 1
@@ -665,12 +680,14 @@ fi
 # ── status ────────────────────────────────────────────────────────────────────
 if [ "$MODE" = "status" ]; then
     echo ""
-    python3 - <<'PYEOF'
+    python3 - "$DB_FILE" "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" <<'PYEOF'
 import json, subprocess, sys, os
 from collections import defaultdict
 from pathlib import Path
 
-DB_FILE = Path("comms/tasks.db")
+DB_FILE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
+PROGRESS_FILE = sys.argv[2] if len(sys.argv) > 2 else "comms/AUDIT_PROGRESS.json"
+NI_DIR = sys.argv[3] if len(sys.argv) > 3 else "comms/needs_input"
 
 # ── load task data: SQLite preferred, JSON fallback ───────────────────────────
 use_sqlite = DB_FILE.exists()
@@ -690,16 +707,16 @@ if use_sqlite:
 
 if not use_sqlite:
     try:
-        with open("comms/AUDIT_PROGRESS.json") as f:
+        with open(PROGRESS_FILE) as f:
             data = json.load(f)
         registry = data.get("task_registry", [])
         total = len(registry)
-        source = "AUDIT_PROGRESS.json"
+        source = PROGRESS_FILE
     except FileNotFoundError:
-        print("ERROR: comms/AUDIT_PROGRESS.json not found and comms/tasks.db does not exist.")
+        print(f"ERROR: {PROGRESS_FILE} not found and {DB_FILE} does not exist.")
         sys.exit(1)
     except json.JSONDecodeError as e:
-        print(f"ERROR: comms/AUDIT_PROGRESS.json is malformed: {e}")
+        print(f"ERROR: {PROGRESS_FILE} is malformed: {e}")
         print("The file may have been partially written. Check it manually.")
         sys.exit(1)
 
@@ -771,8 +788,8 @@ if completed > 0:
 import glob
 from datetime import datetime, timezone
 
-ni_files = glob.glob("comms/needs_input/*.md")
-stale_files = glob.glob("comms/needs_input/stale/*.md")
+ni_files = glob.glob(f"{NI_DIR}/*.md")
+stale_files = glob.glob(f"{NI_DIR}/stale/*.md")
 if ni_files or stale_files:
     print(f"")
     print(f"  Pending Questions ({len(ni_files)} active, {len(stale_files)} auto-escalated)")
@@ -955,13 +972,14 @@ if [ "$MODE" = "release-uat" ]; then
     if [ -n "$UNIT_FILTER" ]; then
         UNITS="$UNIT_FILTER"
     else
-        if ! UNITS=$(python3 - <<'PYEOF'
+        if ! UNITS=$(python3 - "${CFG_PROGRESS_JSON:-comms/AUDIT_PROGRESS.json}" <<'PYEOF'
 import json, sys
+progress_file = sys.argv[1] if len(sys.argv) > 1 else "comms/AUDIT_PROGRESS.json"
 try:
-    with open("comms/AUDIT_PROGRESS.json") as f:
+    with open(progress_file) as f:
         data = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError) as e:
-    print(f"ERROR: {e}", file=sys.stderr); sys.exit(1)
+    print(f"ERROR: {progress_file}: {e}", file=sys.stderr); sys.exit(1)
 
 units = set()
 for t in data.get("task_registry", []):
@@ -1218,20 +1236,21 @@ PYEOF
     if ! python3 -c "
 import json, os, sys
 data = {'mode': '$MODE', 'rounds_completed': $ROUND, 'rounds_total': $COUNT, 'started_at': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'}
-tmp = 'comms/LAST_ROUND.json.tmp'
+last_round_json = '${CFG_LAST_ROUND_JSON}'
+tmp = last_round_json + '.tmp'
 try:
     with open(tmp, 'w') as f:
         json.dump(data, f)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, 'comms/LAST_ROUND.json')
+    os.replace(tmp, last_round_json)
 except Exception as e:
-    print(f'ERROR writing LAST_ROUND.json: {e}', file=sys.stderr)
+    print(f'ERROR writing {last_round_json}: {e}', file=sys.stderr)
     try: os.unlink(tmp)
     except: pass
     sys.exit(1)
 " 2>&1; then
-        echo "⚠ WARNING: Failed to write LAST_ROUND.json — round progress not persisted"
+        echo "⚠ WARNING: Failed to write ${CFG_LAST_ROUND_JSON} — round progress not persisted"
     fi
 
     # Run one round with fresh context.
@@ -1253,11 +1272,11 @@ except Exception as e:
     if [ "$ORCH_EXIT" -ne 0 ]; then
         ROUND_FAILED=1
         echo ""
-        echo "⚠ audit-orchestrator exited $ORCH_EXIT — checking LAST_ROUND.json for partial work..."
+        echo "⚠ audit-orchestrator exited $ORCH_EXIT — checking ${CFG_LAST_ROUND_JSON} for partial work..."
         python3 -c "
 import json, sys
 try:
-    with open('comms/LAST_ROUND.json') as f:
+    with open('${CFG_LAST_ROUND_JSON}') as f:
         r = json.load(f)
     print(f'  Last round: mode={r.get(\"mode\")}, work_done={r.get(\"work_done\")}')
 except: pass
@@ -1270,7 +1289,7 @@ except: pass
     sync_sqlite_from_json
 
     # Check for new needs_input files
-    NI_COUNT=$(find comms/needs_input -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ') || NI_COUNT=0
+    NI_COUNT=$(find "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ') || NI_COUNT=0
     if [ "$NI_COUNT" -gt 0 ]; then
         echo ""
         echo "⏸  $NI_COUNT task(s) need your input — pausing automated run"
