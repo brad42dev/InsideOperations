@@ -28,3 +28,9 @@ MOD-CONSOLE-018 | Pane context menu missing "Open in New Window" item for detach
 MOD-CONSOLE-019 | No right-click context menu on workspace rows in left nav | verified 2026-03-24 | commit 5630d49 | npx tsc --noEmit | PASS
 MOD-CONSOLE-020 | Kiosk mode does not hide Console ASSETS/left panel | verified 2026-03-24 | commit e674eff | npx tsc --noEmit | PASS
 MOD-CONSOLE-021 | Workspace list items missing right-click context menu | verified 2026-03-24 | commit 88620cf | npx tsc --noEmit | PASS
+MOD-CONSOLE-024 | Search/filter input missing from left nav section panels | verified 2026-03-25 | commit de30ad3 | npx tsc --noEmit | PASS
+MOD-CONSOLE-022 | Favorites group missing from Workspaces section in left nav | verified 2026-03-25 | commit dec549d | npx tsc --noEmit | PASS
+MOD-CONSOLE-025 | Detached console route /detached/console/:id is a Phase 7 stub | verified 2026-03-25 | commit 80a3953 | npx tsc --noEmit | PASS
+MOD-CONSOLE-024 | Search/filter input missing from left nav section panels | verified 2026-03-25 | commit c309546 | npx tsc --noEmit | PASS
+MOD-CONSOLE-024 | Search/filter input missing from left nav section panels | verified 2026-03-25 | commit c312a44 | npx tsc --noEmit | PASS
+MOD-CONSOLE-023 | View-mode selector buttons missing from left nav section headers | verified 2026-03-25 | commit fd25ac0 | npx tsc --noEmit | PASS
