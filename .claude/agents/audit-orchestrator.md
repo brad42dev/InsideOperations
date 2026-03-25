@@ -76,14 +76,14 @@ Do not read the progress file or take any other action until the mode is confirm
 ```
 REPO_ROOT:       {{PROJECT_ROOT}}
 PROGRESS_FILE:   {{PROJECT_ROOT}}/{{PROGRESS_JSON}}
-TASK_DIR:        {{PROJECT_ROOT}}/docs/tasks
-CATALOG_DIR:     {{PROJECT_ROOT}}/docs/catalogs
-DECISIONS_DIR:   {{PROJECT_ROOT}}/docs/decisions
+TASK_DIR:        {{PROJECT_ROOT}}/{{TASK_DIR}}
+CATALOG_DIR:     {{PROJECT_ROOT}}/{{CATALOG_DIR}}
+DECISIONS_DIR:   {{PROJECT_ROOT}}/{{DECISIONS_DIR}}
 MAX_REPAIR:      3
-MAX_IMPL:        3
-CHECKPOINT_EVERY: 3   (default run_limit when no number is provided)
-NEEDS_INPUT_STALE_HOURS: 48    (warn threshold)
-NEEDS_INPUT_ESCALATE_HOURS: 144  (auto-escalate threshold — 6 days)
+MAX_IMPL:        {{MAX_IMPL_ATTEMPTS}}
+CHECKPOINT_EVERY: {{CHECKPOINT_EVERY}}   (default run_limit when no number is provided)
+NEEDS_INPUT_STALE_HOURS: {{NEEDS_INPUT_STALE_HOURS}}    (warn threshold)
+NEEDS_INPUT_ESCALATE_HOURS: {{NEEDS_INPUT_ESCALATE_HOURS}}  (auto-escalate threshold)
 ESCALATED_DIR:   {{PROJECT_ROOT}}/{{COMMS_DIR}}/escalated
 ```
 

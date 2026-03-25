@@ -34,8 +34,16 @@ load_config() {
         CFG_TASK_DIR="docs/tasks"
         CFG_CATALOG_DIR="docs/catalogs"
         CFG_STATE_DIR="docs/state"
+        CFG_UAT_DIR="docs/uat"
+        CFG_DECISIONS_DIR="docs/decisions"
         CFG_MAX_PARALLEL=3
         CFG_STALE_MINUTES=30
+        CFG_CHECKPOINT_EVERY=3
+        CFG_MAX_IMPL_ATTEMPTS=3
+        CFG_MODEL_ORCHESTRATOR="claude-opus-4-6"
+        CFG_MODEL_WORKER="claude-sonnet-4-6"
+        CFG_NI_STALE_HOURS=48
+        CFG_NI_ESCALATE_HOURS=144
         CFG_WORKTREE_BASE="/tmp/io-worktrees"
         CFG_TEST_COMMAND="cargo test"
         CFG_BUILD_COMMAND="cargo build"
@@ -45,9 +53,6 @@ load_config() {
         CFG_FRONTEND_BUILD="cd frontend && pnpm build"
         CFG_FRONTEND_CHECK="cd frontend && npx tsc --noEmit"
         CFG_SPEC_DOCS="/home/io/spec_docs"
-        CFG_STATE_DIR="docs/state"
-        CFG_UAT_DIR="docs/uat"
-        CFG_DECISIONS_DIR="docs/decisions"
         CFG_COMMS_DIR="comms"
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
         return
@@ -76,6 +81,12 @@ print(f"CFG_CATALOG_DIR={p.get('catalog_dir', 'docs/catalogs')!r}")
 print(f"CFG_STATE_DIR={p.get('state_dir', 'docs/state')!r}")
 print(f"CFG_MAX_PARALLEL={ag.get('max_parallel', 3)!r}")
 print(f"CFG_STALE_MINUTES={ag.get('stale_task_threshold_min', 30)!r}")
+print(f"CFG_CHECKPOINT_EVERY={ag.get('checkpoint_every', 3)!r}")
+print(f"CFG_MAX_IMPL_ATTEMPTS={ag.get('max_impl_attempts', 3)!r}")
+print(f"CFG_MODEL_ORCHESTRATOR={ag.get('model_orchestrator', 'claude-opus-4-6')!r}")
+print(f"CFG_MODEL_WORKER={ag.get('model_worker', 'claude-sonnet-4-6')!r}")
+print(f"CFG_NI_STALE_HOURS={ag.get('needs_input_stale_hours', 48)!r}")
+print(f"CFG_NI_ESCALATE_HOURS={ag.get('needs_input_escalate_hours', 144)!r}")
 print(f"CFG_WORKTREE_BASE={p.get('worktree_base', '/tmp/io-worktrees')!r}")
 print(f"CFG_TEST_COMMAND={cmd.get('test', cmd.get('test_backend', 'cargo test'))!r}")
 print(f"CFG_BUILD_COMMAND={cmd.get('build', cmd.get('build_backend', 'cargo build'))!r}")
@@ -99,6 +110,12 @@ PYEOF
         CFG_STATE_DIR="docs/state"
         CFG_MAX_PARALLEL=3
         CFG_STALE_MINUTES=30
+        CFG_CHECKPOINT_EVERY=3
+        CFG_MAX_IMPL_ATTEMPTS=3
+        CFG_MODEL_ORCHESTRATOR="claude-opus-4-6"
+        CFG_MODEL_WORKER="claude-sonnet-4-6"
+        CFG_NI_STALE_HOURS=48
+        CFG_NI_ESCALATE_HOURS=144
         CFG_WORKTREE_BASE="/tmp/io-worktrees"
         CFG_TEST_COMMAND="cargo test"
         CFG_BUILD_COMMAND="cargo build"
@@ -430,6 +447,12 @@ expand_agent_tokens() {
             -e "s|{{NEEDS_INPUT_DIR}}|${CFG_NEEDS_INPUT_DIR:-comms/needs_input}|g" \
             -e "s|{{UAT_DIR}}|${CFG_UAT_DIR:-docs/uat}|g" \
             -e "s|{{DECISIONS_DIR}}|${CFG_DECISIONS_DIR:-docs/decisions}|g" \
+            -e "s|{{CHECKPOINT_EVERY}}|${CFG_CHECKPOINT_EVERY:-3}|g" \
+            -e "s|{{MAX_IMPL_ATTEMPTS}}|${CFG_MAX_IMPL_ATTEMPTS:-3}|g" \
+            -e "s|{{MODEL_ORCHESTRATOR}}|${CFG_MODEL_ORCHESTRATOR:-claude-opus-4-6}|g" \
+            -e "s|{{MODEL_WORKER}}|${CFG_MODEL_WORKER:-claude-sonnet-4-6}|g" \
+            -e "s|{{NEEDS_INPUT_STALE_HOURS}}|${CFG_NI_STALE_HOURS:-48}|g" \
+            -e "s|{{NEEDS_INPUT_ESCALATE_HOURS}}|${CFG_NI_ESCALATE_HOURS:-144}|g" \
             "$f" 2>/dev/null || true
     done
 }
@@ -1136,14 +1159,14 @@ fi
 
 # ── validate implement/audit/full mode ────────────────────────────────────────
 if [[ "$MODE" != "implement" && "$MODE" != "audit" && "$MODE" != "full" ]]; then
-    echo "Usage: $0 [implement|audit|full|uat|human-uat|status] [N or UNIT-ID]"
+    echo "Usage: $0 [implement|audit|full|uat|human-uat|release-uat|bug|status|restore-backup|integration-test] [N or UNIT-ID]"
     exit 1
 fi
 
 # implement: P = parallel agents, T = task limit (0 = unlimited)
 # audit/full: ARG2 = number of rounds
 if [ "$MODE" = "implement" ]; then
-    PARALLEL=${ARG2:-3}
+    PARALLEL=${ARG2:-${CFG_MAX_PARALLEL:-3}}
     TASK_LIMIT=${ARG3:-0}
     if ! [[ "$PARALLEL" =~ ^[0-9]+$ ]] || [ "$PARALLEL" -lt 1 ]; then
         echo "Parallel agent count must be a positive integer"
@@ -1153,13 +1176,14 @@ if [ "$MODE" = "implement" ]; then
         echo "Task limit must be a non-negative integer (0 = unlimited)"
         exit 1
     fi
-    if [ "$PARALLEL" -gt 5 ]; then
-        echo "⚠ Capping parallel agents at 5 (requested ${PARALLEL})"
-        PARALLEL=5
+    _MAX_SAFE=${CFG_MAX_PARALLEL:-5}
+    if [ "$PARALLEL" -gt "$_MAX_SAFE" ]; then
+        echo "⚠ Capping parallel agents at ${_MAX_SAFE} (requested ${PARALLEL})"
+        PARALLEL=$_MAX_SAFE
     fi
     COUNT=0  # unused in implement+SQLite path; kept for non-SQLite fallback
 else
-    COUNT=${ARG2:-5}
+    COUNT=${ARG2:-${CFG_CHECKPOINT_EVERY:-5}}
     if ! [[ "$COUNT" =~ ^[0-9]+$ ]] || [ "$COUNT" -lt 1 ]; then
         echo "Count must be a positive integer"
         exit 1

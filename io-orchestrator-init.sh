@@ -225,12 +225,14 @@ FEOF
     "wal_mode": true
   },
   "agents": {
-    "max_parallel":             3,
-    "model_orchestrator":       "claude-opus-4-6",
-    "model_worker":             "claude-sonnet-4-6",
-    "stale_task_threshold_min": 30,
-    "checkpoint_every":         3,
-    "max_impl_attempts":        3
+    "max_parallel":              3,
+    "model_orchestrator":        "claude-opus-4-6",
+    "model_worker":              "claude-sonnet-4-6",
+    "stale_task_threshold_min":  30,
+    "checkpoint_every":          3,
+    "max_impl_attempts":         3,
+    "needs_input_stale_hours":   48,
+    "needs_input_escalate_hours": 144
   },
   "never_touch": [
     ".env",

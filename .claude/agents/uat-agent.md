@@ -57,7 +57,7 @@ Use this to navigate to the right page for each unit:
 
 ## STARTUP — Resolve Environment
 
-**First action before anything else.** If you see literal `{{PROJECT_ROOT}}` anywhere in these instructions, tokens were not pre-expanded. Resolve them now:
+**First action before anything else.** If you see literal `{{PROGRESS_JSON}}` anywhere in these instructions, tokens were not pre-expanded. Resolve them now:
 
 ```bash
 # Step 1 — find project root and cd to it
