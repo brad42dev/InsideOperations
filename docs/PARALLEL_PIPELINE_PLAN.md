@@ -47,7 +47,7 @@ The `1` at the end sets `run_limit=1` — agent exits after one unit/task, no ch
 ---
 
 ## Wave 1 — UAT parallel CLI args
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: HIGH — simplest change, immediate value**
 
 `run_parallel_uat()` already exists and works. The only gap: the CLI ignores any P/N args.
@@ -82,15 +82,15 @@ The `1` at the end sets `run_limit=1` — agent exits after one unit/task, no ch
 
 ### Acceptance criteria
 
-- [ ] `./io-run.sh uat 2 3` runs at most 2 agents in parallel, processes at most 3 units
-- [ ] `./io-run.sh uat 1` runs 1 agent (serial), unlimited units — backwards compatible
-- [ ] `./io-run.sh uat` (no args) behaves identically to current behavior
-- [ ] `./io-run.sh human-uat 2` processes at most 2 units serially, then stops
-- [ ] `./io-run.sh release-uat 5` processes at most 5 units serially, then stops
-- [ ] `./io-run.sh human-uat` and `./io-run.sh release-uat` (no args) behave identically to current
-- [ ] P is capped at `CFG_MAX_PARALLEL` with a warning if exceeded
-- [ ] N=0 means unlimited (backwards compatible)
-- [ ] `bash -n io-run.sh` passes clean
+- [x] `./io-run.sh uat 2 3` runs at most 2 agents in parallel, processes at most 3 units
+- [x] `./io-run.sh uat 1` runs 1 agent (serial), unlimited units — backwards compatible
+- [x] `./io-run.sh uat` (no args) behaves identically to current behavior
+- [x] `./io-run.sh human-uat 2` processes at most 2 units serially, then stops
+- [x] `./io-run.sh release-uat 5` processes at most 5 units serially, then stops
+- [x] `./io-run.sh human-uat` and `./io-run.sh release-uat` (no args) behave identically to current
+- [x] P is capped at `CFG_MAX_PARALLEL` with a warning if exceeded
+- [x] N=0 means unlimited (backwards compatible)
+- [x] `bash -n io-run.sh` passes clean
 
 ---
 

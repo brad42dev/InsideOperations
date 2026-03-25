@@ -5,9 +5,9 @@
 #   ./io-run.sh implement [P [T]]  P = max parallel agents (default 3, max 5); T = total tasks to complete (default unlimited)
 #   ./io-run.sh audit [N]          Run N audit rounds
 #   ./io-run.sh full [N]           Run N full (audit+implement) rounds
-#   ./io-run.sh uat [UNIT]         Automated Playwright UAT — all pending units, or one unit
-#   ./io-run.sh human-uat [UNIT]   Human UAT with interactive pass/fail prompts
-#   ./io-run.sh release-uat [UNIT] Human release sign-off — Approve/Reject per feature
+#   ./io-run.sh uat [P [N]]        Automated Playwright UAT; P = parallel agents (default: CFG_MAX_PARALLEL), N = unit limit (0 = all)
+#   ./io-run.sh human-uat [N]      Human UAT with interactive pass/fail prompts; N = unit limit (always serial)
+#   ./io-run.sh release-uat [N]    Human release sign-off — Approve/Reject per feature; N = unit limit (always serial)
 #   ./io-run.sh bug                Interactive bug triage — describe a bug, get a fix task
 #   ./io-run.sh status             Show task counts and UAT coverage
 #   ./io-run.sh restore-backup     Restore comms/tasks.db from .bak file
@@ -1335,7 +1335,23 @@ fi
 if [ "$MODE" = "uat" ] || [ "$MODE" = "human-uat" ]; then
     UAT_MODE="auto"
     [ "$MODE" = "human-uat" ] && UAT_MODE="human"
-    UNIT_FILTER="$ARG2"
+
+    # Parse CLI args
+    # uat [P [N]]: P = parallel agents (default CFG_MAX_PARALLEL), N = unit limit (0 = all)
+    # human-uat [N]: N = unit limit only — always serial, no P arg
+    if [ "$MODE" = "uat" ]; then
+        UAT_PARALLEL="${ARG2:-${CFG_MAX_PARALLEL:-3}}"
+        UAT_LIMIT="${ARG3:-0}"
+        _max_p="${CFG_MAX_PARALLEL:-5}"
+        if [ "$UAT_PARALLEL" -gt "$_max_p" ] 2>/dev/null; then
+            echo "  ⚠ Capping parallel UAT agents at ${_max_p} (requested ${UAT_PARALLEL})"
+            UAT_PARALLEL=$_max_p
+        fi
+    else
+        # human-uat: always serial — only a unit limit applies
+        UAT_LIMIT="${ARG2:-0}"
+        UAT_PARALLEL=1
+    fi
 
     # ── ensure backend and frontend are running ───────────────────────────────
     BACKEND_STARTED=""
@@ -1351,10 +1367,7 @@ if [ "$MODE" = "uat" ] || [ "$MODE" = "human-uat" ]; then
     ensure_frontend_running "io-uat-devserver"
 
     # Get units to test
-    if [ -n "$UNIT_FILTER" ]; then
-        UNITS="$UNIT_FILTER"
-    else
-        if ! UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
+    if ! UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
 import sqlite3, sys
 from pathlib import Path
 db = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
@@ -1372,10 +1385,14 @@ rows = con.execute("""
 con.close()
 print("\n".join(r[0] for r in rows))
 PYEOF
-        ); then
-            echo "ERROR: Failed to read UAT unit list from tasks.db."
-            exit 1
-        fi
+    ); then
+        echo "ERROR: Failed to read UAT unit list from tasks.db."
+        exit 1
+    fi
+
+    # Apply unit limit if set
+    if [ "${UAT_LIMIT:-0}" -gt 0 ] 2>/dev/null; then
+        UNITS=$(echo "$UNITS" | head -n "$UAT_LIMIT")
     fi
 
     if [ -z "$UNITS" ]; then
@@ -1390,7 +1407,7 @@ PYEOF
     UNIT_COUNT=$(echo "$UNITS" | grep -c "." || true)
     echo ""
     if [ "$UAT_MODE" = "auto" ]; then
-        echo "Starting auto UAT — $UNIT_COUNT unit(s), up to ${CFG_MAX_PARALLEL:-3} in parallel"
+        echo "Starting auto UAT — $UNIT_COUNT unit(s), up to ${UAT_PARALLEL} in parallel"
     else
         echo "Starting $UAT_MODE UAT — $UNIT_COUNT unit(s) (serial — requires human input)"
     fi
@@ -1407,7 +1424,7 @@ PYEOF
 
     if [ "$UAT_MODE" = "auto" ]; then
         # Parallel: each unit gets its own claude session; no interactive input needed
-        run_parallel_uat "$UNITS" "${CFG_MAX_PARALLEL:-3}" "$UAT_AGENT_FILE" "auto"
+        run_parallel_uat "$UNITS" "${UAT_PARALLEL}" "$UAT_AGENT_FILE" "auto"
         PASSED=$_RPU_PASSED
         FAILED=$_RPU_FAILED
         SKIPPED=$_RPU_SKIPPED
@@ -1463,7 +1480,8 @@ fi
 
 # ── release-uat mode ──────────────────────────────────────────────────────────
 if [ "$MODE" = "release-uat" ]; then
-    UNIT_FILTER="$ARG2"
+    # release-uat [N]: N = unit limit only — always serial (human approve/reject per feature)
+    RELEASE_LIMIT="${ARG2:-0}"
 
     BACKEND_STARTED=""
     DEV_SERVER_STARTED=""
@@ -1473,10 +1491,7 @@ if [ "$MODE" = "release-uat" ]; then
     ensure_frontend_running "io-release-uat-devserver"
 
     # Determine units to release-sign-off
-    if [ -n "$UNIT_FILTER" ]; then
-        UNITS="$UNIT_FILTER"
-    else
-        if ! UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
+    if ! UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
 import sqlite3, sys
 from pathlib import Path
 db = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
@@ -1494,10 +1509,14 @@ rows = con.execute("""
 con.close()
 print("\n".join(r[0] for r in rows))
 PYEOF
-        ); then
-            echo "ERROR: Failed to read release unit list from tasks.db."
-            exit 1
-        fi
+    ); then
+        echo "ERROR: Failed to read release unit list from tasks.db."
+        exit 1
+    fi
+
+    # Apply unit limit if set
+    if [ "${RELEASE_LIMIT:-0}" -gt 0 ] 2>/dev/null; then
+        UNITS=$(echo "$UNITS" | head -n "$RELEASE_LIMIT")
     fi
 
     if [ -z "$UNITS" ]; then
