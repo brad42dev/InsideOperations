@@ -215,7 +215,7 @@ for f in changed:
 ---
 
 ## Wave C — Queue-Aware Auto Mode + Wave Kill Switch
-**Status: [ ] not started**
+**Status: [x] COMPLETE — 2026-03-25**
 **Priority: MEDIUM — auto mode is functional but not optimal**
 
 ### C1: Queue-Aware Agent Allocation in `auto` Mode
@@ -242,10 +242,10 @@ Replace the current "implement all → UAT all" sequential cycle with a work-awa
 This eliminates the artificial implement-then-UAT sequencing and uses all agents efficiently at all times.
 
 **Acceptance criteria:**
-- [ ] `auto` mode computes impl_slots and uat_slots before each batch
-- [ ] Both implement and UAT agents can run simultaneously in the same batch
-- [ ] Slot allocation prints: "  Batch N: {impl_slots} implement + {uat_slots} UAT agents"
-- [ ] Proportional allocation tested: when 75% impl work, ~75% of agents do implement
+- [x] `auto` mode computes impl_slots and uat_slots before each batch
+- [x] Both implement and UAT agents can run simultaneously in the same batch
+- [x] Slot allocation prints: "  Batch N: {impl_slots} implement + {uat_slots} UAT agents"
+- [x] Proportional allocation tested: when 75% impl work, ~75% of agents do implement
 
 ---
 
@@ -263,18 +263,18 @@ Track `CONSECUTIVE_ZERO_IMPL` counter:
 Add `CFG_MAX_ZERO_WAVES=3` to config and both load_config fallback blocks.
 
 **Acceptance criteria:**
-- [ ] `CFG_MAX_ZERO_WAVES` config field loaded
-- [ ] Counter tracks consecutive zero-verified batches
-- [ ] After N consecutive zero batches: alert printed + loop exits with failure
-- [ ] Counter resets correctly when work is done
+- [x] `CFG_MAX_ZERO_WAVES` config field loaded
+- [x] Counter tracks consecutive zero-verified batches
+- [x] After N consecutive zero batches: alert printed + loop exits with failure
+- [x] Counter resets correctly when work is done
 
 ---
 
 ### Wave C Completion Checklist
-- [ ] C1 queue-aware allocation implemented
-- [ ] C2 kill switch implemented
-- [ ] `bash -n io-run.sh` passes clean
-- [ ] Update this file: mark Wave C complete
+- [x] C1 queue-aware allocation implemented
+- [x] C2 kill switch implemented
+- [x] `bash -n io-run.sh` passes clean
+- [x] Update this file: mark Wave C complete
 
 ---
 

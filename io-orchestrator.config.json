@@ -65,7 +65,8 @@
     "max_impl_attempts":        3,
     "needs_input_stale_hours":  48,
     "needs_input_escalate_hours": 144,
-    "rate_limit_backoff_sec":   60
+    "rate_limit_backoff_sec":   60,
+    "max_zero_waves":           3
   },
 
   "never_touch": [

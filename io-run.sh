@@ -57,6 +57,7 @@ load_config() {
         CFG_COMMS_DIR="comms"
         CFG_NEEDS_INPUT_DIR="comms/needs_input"
         CFG_RATE_LIMIT_BACKOFF_SEC=60
+        CFG_MAX_ZERO_WAVES=3
         return
     fi
     eval "$(python3 - "$config" "$REPO" <<'PYEOF'
@@ -102,6 +103,7 @@ print(f"CFG_NEEDS_INPUT_DIR={p.get('needs_input_dir', 'comms/needs_input')!r}")
 print(f"CFG_UAT_DIR={p.get('uat_dir', 'docs/uat')!r}")
 print(f"CFG_DECISIONS_DIR={p.get('decisions_dir', 'docs/decisions')!r}")
 print(f"CFG_RATE_LIMIT_BACKOFF_SEC={ag.get('rate_limit_backoff_sec', 60)!r}")
+print(f"CFG_MAX_ZERO_WAVES={ag.get('max_zero_waves', 3)!r}")
 PYEOF
 )" || {
         echo "WARNING: Failed to parse io-orchestrator.config.json — using hardcoded defaults" >&2
@@ -131,6 +133,7 @@ PYEOF
         CFG_UAT_DIR="docs/uat"
         CFG_DECISIONS_DIR="docs/decisions"
         CFG_RATE_LIMIT_BACKOFF_SEC=60
+        CFG_MAX_ZERO_WAVES=3
     }
 }
 
@@ -847,8 +850,11 @@ run_parallel_uat() {
 }
 
 # ── Wave 3: Parallel Orchestrator ────────────────────────────────────────────
-# Output variable set by run_parallel_implement — number of tasks claimed this call.
+# Output variables set by run_parallel_implement:
+#   _RPI_CLAIMED  — number of tasks claimed (launched) this call
+#   _RPI_VERIFIED — number of tasks that completed with status 'verified'
 _RPI_CLAIMED=0
+_RPI_VERIFIED=0
 
 # Launch up to N agents in parallel, each claiming an independent task from SQLite.
 # Waits for all agents, merges all completed branches, and returns the count of
@@ -856,6 +862,7 @@ _RPI_CLAIMED=0
 # Usage: run_parallel_implement <N>
 run_parallel_implement() {
     _RPI_CLAIMED=0
+    _RPI_VERIFIED=0
     local max_agents="${1:-3}"
     # Caller already enforces CFG_MAX_PARALLEL; this guard is a last-resort safety belt
     local _hard_cap="${CFG_MAX_PARALLEL:-5}"
@@ -905,6 +912,7 @@ run_parallel_implement() {
         local task_id="${agent_tasks[$idx]}"
         if wait "$pid"; then
             echo "  ✅ Agent PID ${pid} (task ${task_id}) — completed"
+            _RPI_VERIFIED=$((_RPI_VERIFIED + 1))
             "$REPO/io-gh-mirror.sh" mirror "$task_id" "verified" "Completed by agent PID ${pid}" || true
         else
             local exit_code=$?
@@ -1432,8 +1440,10 @@ if [ "$MODE" = "cleanup-branches" ]; then
 fi
 
 # ── auto mode ─────────────────────────────────────────────────────────────────
-# Cycles: implement pending tasks → UAT newly-verified units → implement again
+# Dispatches implement + UAT agents proportionally based on pending work ratio.
+# Both agent types run in parallel within each batch.
 # Repeats until no pending tasks remain and no UAT failures create new tasks.
+# C2 kill switch: exits after CFG_MAX_ZERO_WAVES consecutive zero-progress batches.
 if [ "$MODE" = "auto" ]; then
     AUTO_PARALLEL=${ARG2:-${CFG_MAX_PARALLEL:-3}}
     if ! [[ "$AUTO_PARALLEL" =~ ^[0-9]+$ ]] || [ "$AUTO_PARALLEL" -lt 1 ]; then
@@ -1448,76 +1458,40 @@ if [ "$MODE" = "auto" ]; then
 
     AUTO_INTERRUPTED=0
     AUTO_ROUND_FAILED=0
-    trap 'AUTO_INTERRUPTED=1; echo ""; echo "Stopping after current phase..."' INT
+    trap 'AUTO_INTERRUPTED=1; echo ""; echo "Stopping after current batch..."' INT
     trap '_io_lock_cleanup' EXIT
 
     BACKEND_STARTED=""
     DEV_SERVER_STARTED=""
 
+    # C2: kill switch counter — consecutive batches with zero verified progress
+    CONSECUTIVE_ZERO_VERIFIED=0
+    _MAX_ZERO_WAVES=${CFG_MAX_ZERO_WAVES:-3}
+
     echo ""
-    echo "Starting auto mode — implement → UAT → implement until complete"
-    echo "Parallel implement agents: ${AUTO_PARALLEL}"
-    echo "Ctrl+C stops between phases."
+    echo "Starting auto mode — proportional implement+UAT dispatch until complete"
+    echo "Max parallel agents: ${AUTO_PARALLEL}  |  kill switch after ${_MAX_ZERO_WAVES} consecutive zero batches"
+    echo "Ctrl+C stops between batches."
     echo ""
 
-    AUTO_CYCLE=0
-    AUTO_STALL_COUNT=0   # consecutive cycles with no new tasks implemented
+    AUTO_BATCH=0
 
     while [ $AUTO_INTERRUPTED -eq 0 ]; do
-        AUTO_CYCLE=$((AUTO_CYCLE + 1))
+        AUTO_BATCH=$((AUTO_BATCH + 1))
         echo "══════════════════════════════════════════════════"
-        echo "  Auto cycle ${AUTO_CYCLE}"
+        echo "  Auto batch ${AUTO_BATCH}"
         echo "══════════════════════════════════════════════════"
         echo ""
 
-        # Reclaim stale tasks before checking pending work
+        # Reclaim stale tasks before counting pending work
         reclaim_stale_tasks
-
-        # ── Phase 1: implement all pending tasks ──────────────────────────────
         run_unblock_pass
-        IMPL_PENDING=$(get_pending_work_count)
-        IMPL_DONE=0
-        if [ "$IMPL_PENDING" -eq 0 ]; then
-            echo "No pending tasks — skipping implement phase."
-        else
-            echo "── Implement phase: ${IMPL_PENDING} task(s) pending ─────────────────────"
-            IMPL_BATCH=0
-            while [ $AUTO_INTERRUPTED -eq 0 ]; do
-                run_unblock_pass
-                IMPL_NOW=$(get_pending_work_count)
-                [ "$IMPL_NOW" -eq 0 ] && break
-                IMPL_BATCH=$((IMPL_BATCH + 1))
-                echo "─── implement batch ${IMPL_BATCH} (${IMPL_DONE} done, ${IMPL_NOW} remaining) ───"
-                _RPI_CLAIMED=0
-                run_parallel_implement "$AUTO_PARALLEL" || AUTO_ROUND_FAILED=1
-                IMPL_DONE=$((IMPL_DONE + _RPI_CLAIMED))
-                AUTO_STALL_COUNT=0   # made progress — reset stall counter
-                if [ "$_RPI_CLAIMED" -eq 0 ]; then
-                    echo "No claimable tasks — all remaining tasks may be blocked on dependencies."
-                    break
-                fi
-                # Check needs_input — pause for human review if any
-                NI_COUNT=$(find "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ') || NI_COUNT=0
-                if [ "$NI_COUNT" -gt 0 ]; then
-                    echo ""
-                    echo "⏸  $NI_COUNT task(s) need your input — pausing"
-                    ORCH_AGENT_FILE_AUTO=$(expand_agent_to_tmp "audit-orchestrator")
-                    claude --dangerously-skip-permissions --agent "$ORCH_AGENT_FILE_AUTO" || true
-                    rm -rf "$_AGENT_TMP_DIR" 2>/dev/null || true
-                    echo "Answers recorded. Resuming..."
-                    echo ""
-                fi
-            done
-            echo ""
-            echo "Implement phase complete: ${IMPL_DONE} task(s) processed."
-            echo ""
-        fi
 
-        [ $AUTO_INTERRUPTED -eq 1 ] && break
+        # ── C1: Count pending work for both types ─────────────────────────────
+        PENDING_IMPL=$(get_pending_work_count)
 
-        # ── Phase 2: UAT on newly-verified units ──────────────────────────────
-        # Units where verified_since_last_audit > 0 or uat_status is NULL/partial
-        if ! UAT_UNITS=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
+        UAT_UNITS_ALL=""
+        if ! UAT_UNITS_ALL=$(python3 - "$REPO/$DB_FILE" <<'PYEOF'
 import sqlite3, sys
 from pathlib import Path
 db = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("comms/tasks.db")
@@ -1536,91 +1510,120 @@ con.close()
 print("\n".join(r[0] for r in rows))
 PYEOF
         ); then
-            echo "ERROR: Failed to read UAT unit list from tasks.db — skipping UAT phase."
-            UAT_UNITS=""
+            echo "ERROR: Failed to read UAT unit list from tasks.db — treating as 0 UAT units."
+            UAT_UNITS_ALL=""
         fi
 
-        if [ -z "$UAT_UNITS" ]; then
-            echo "No units pending UAT — checking for remaining work..."
-            # If no pending tasks either, we're fully done
-            run_unblock_pass
-            FINAL_PENDING=$(get_pending_work_count)
-            if [ "$FINAL_PENDING" -eq 0 ]; then
-                echo ""
-                echo "✅ Auto mode complete — no pending tasks and no UAT needed."
-                break
-            elif [ "$IMPL_DONE" -eq 0 ]; then
-                # No UAT needed, but tasks remain and nothing was implemented this cycle —
-                # all remaining tasks must be dep-blocked or permanently unclaimed.
-                AUTO_STALL_COUNT=$((AUTO_STALL_COUNT + 1))
-                if [ "$AUTO_STALL_COUNT" -ge 2 ]; then
-                    echo ""
-                    echo "⚠ Stalled: ${FINAL_PENDING} task(s) remaining but none are claimable for 2 consecutive cycles."
-                    echo "  All remaining tasks may be blocked on unresolved dependencies."
-                    echo "  Run ./io-run.sh status to inspect."
-                    break
-                fi
-                echo "${FINAL_PENDING} task(s) still pending — continuing to next cycle."
-                echo ""
-                continue
-            else
-                echo "${FINAL_PENDING} task(s) still pending — continuing to next cycle."
-                echo ""
-                continue
-            fi
+        PENDING_UAT=$(echo "$UAT_UNITS_ALL" | grep -c "." 2>/dev/null || echo 0)
+        [ -z "$UAT_UNITS_ALL" ] && PENDING_UAT=0
+
+        TOTAL_WORK=$((PENDING_IMPL + PENDING_UAT))
+
+        if [ "$TOTAL_WORK" -eq 0 ]; then
+            echo "✅ Auto mode complete — no pending tasks and no UAT needed."
+            break
         fi
 
-        echo "── UAT phase ────────────────────────────────────────────────────"
+        # ── C1: Proportional slot allocation ──────────────────────────────────
+        if [ "$PENDING_UAT" -eq 0 ]; then
+            IMPL_SLOTS=$AUTO_PARALLEL
+            UAT_SLOTS=0
+        elif [ "$PENDING_IMPL" -eq 0 ]; then
+            IMPL_SLOTS=0
+            UAT_SLOTS=$AUTO_PARALLEL
+        else
+            # ceil(AUTO_PARALLEL * pending_impl / total_work), clamped to [1, AUTO_PARALLEL-1]
+            IMPL_SLOTS=$(python3 -c "import math; v=math.ceil($AUTO_PARALLEL * $PENDING_IMPL / $TOTAL_WORK); print(max(1, min($AUTO_PARALLEL - 1, v)))")
+            UAT_SLOTS=$((AUTO_PARALLEL - IMPL_SLOTS))
+        fi
 
-        # Start backend/frontend if not already running
-        if [ -z "$BACKEND_STARTED" ] && [ -z "$DEV_SERVER_STARTED" ]; then
+        echo "  Batch ${AUTO_BATCH}: ${IMPL_SLOTS} implement + ${UAT_SLOTS} UAT agents"
+        echo "  (pending: ${PENDING_IMPL} impl task(s), ${PENDING_UAT} UAT unit(s))"
+        echo ""
+
+        # Ensure backend/frontend running before launching UAT agents
+        if [ "$UAT_SLOTS" -gt 0 ] && [ -z "$BACKEND_STARTED" ] && [ -z "$DEV_SERVER_STARTED" ]; then
             trap 'if [ -n "$DEV_SERVER_STARTED" ]; then echo "Stopping dev server..."; kill_port 5173; fi; if [ -n "$BACKEND_STARTED" ]; then echo "Stopping backend services..."; "$REPO/dev.sh" stop > /dev/null 2>&1 || true; fi; _io_lock_cleanup' EXIT
             ensure_backend_running "io-auto-uat-backend"
             ensure_frontend_running "io-auto-uat-devserver"
         fi
 
-        UAT_COUNT=$(echo "$UAT_UNITS" | grep -c "." || true)
+        # ── Launch implement and UAT agents in parallel ───────────────────────
+        # Results are written to temp files because subshells can't set parent vars.
+        _IMPL_RESULT_FILE="/tmp/io-auto-impl-$$"
+        _UAT_RESULT_FILE="/tmp/io-auto-uat-$$"
+        echo "0 0" > "$_IMPL_RESULT_FILE"   # claimed verified
+        echo "0 0 0" > "$_UAT_RESULT_FILE"  # passed failed skipped
 
-        AUTO_UAT_PASSED=0
-        AUTO_UAT_FAILED=0
-        AUTO_UAT_SKIPPED=0
-        UAT_AGENT_FILE_AUTO=$(expand_agent_to_tmp "uat-agent")
-        UAT_AGENT_TMP_AUTO="$_AGENT_TMP_DIR"
+        _IMPL_BG_PID=""
+        _UAT_BG_PID=""
+        _UAT_AGENT_TMP_AUTO=""
 
-        echo "Running UAT on ${UAT_COUNT} unit(s) — up to ${AUTO_PARALLEL} in parallel..."
+        if [ "$IMPL_SLOTS" -gt 0 ]; then
+            (
+                run_parallel_implement "$IMPL_SLOTS" || true
+                echo "$_RPI_CLAIMED $_RPI_VERIFIED" > "$_IMPL_RESULT_FILE"
+            ) &
+            _IMPL_BG_PID=$!
+        fi
+
+        if [ "$UAT_SLOTS" -gt 0 ] && [ "$PENDING_UAT" -gt 0 ]; then
+            # Take up to UAT_SLOTS units from the front of the sorted list
+            UAT_BATCH=$(echo "$UAT_UNITS_ALL" | head -n "$UAT_SLOTS")
+            UAT_AGENT_FILE_AUTO=$(expand_agent_to_tmp "uat-agent")
+            _UAT_AGENT_TMP_AUTO="$_AGENT_TMP_DIR"
+            (
+                run_parallel_uat "$UAT_BATCH" "$UAT_SLOTS" "$UAT_AGENT_FILE_AUTO" "auto"
+                echo "$_RPU_PASSED $_RPU_FAILED $_RPU_SKIPPED" > "$_UAT_RESULT_FILE"
+            ) &
+            _UAT_BG_PID=$!
+        fi
+
+        # Wait for both agent sets to finish
+        if [ -n "$_IMPL_BG_PID" ]; then
+            wait "$_IMPL_BG_PID" || AUTO_ROUND_FAILED=1
+        fi
+        if [ -n "$_UAT_BG_PID" ]; then
+            wait "$_UAT_BG_PID" || true
+            rm -rf "${_UAT_AGENT_TMP_AUTO:-}" 2>/dev/null || true
+        fi
+
+        # Read back results from temp files
+        read -r BATCH_IMPL_CLAIMED BATCH_IMPL_VERIFIED < "$_IMPL_RESULT_FILE" || { BATCH_IMPL_CLAIMED=0; BATCH_IMPL_VERIFIED=0; }
+        read -r BATCH_UAT_PASSED BATCH_UAT_FAILED BATCH_UAT_SKIPPED < "$_UAT_RESULT_FILE" || { BATCH_UAT_PASSED=0; BATCH_UAT_FAILED=0; BATCH_UAT_SKIPPED=0; }
+        rm -f "$_IMPL_RESULT_FILE" "$_UAT_RESULT_FILE" 2>/dev/null || true
+
         echo ""
-        run_parallel_uat "$UAT_UNITS" "$AUTO_PARALLEL" "$UAT_AGENT_FILE_AUTO" "auto"
-        AUTO_UAT_PASSED=$_RPU_PASSED
-        AUTO_UAT_FAILED=$_RPU_FAILED
-        AUTO_UAT_SKIPPED=$_RPU_SKIPPED
-
-        rm -rf "$UAT_AGENT_TMP_AUTO" 2>/dev/null || true
-
-        echo "UAT phase: ✅ ${AUTO_UAT_PASSED} pass, ❌ ${AUTO_UAT_FAILED} fail, — ${AUTO_UAT_SKIPPED} skipped"
+        [ "$IMPL_SLOTS" -gt 0 ] && echo "  Implement: ${BATCH_IMPL_CLAIMED} claimed, ${BATCH_IMPL_VERIFIED} verified"
+        [ "$UAT_SLOTS" -gt 0 ]  && echo "  UAT: ✅ ${BATCH_UAT_PASSED} pass, ❌ ${BATCH_UAT_FAILED} fail, — ${BATCH_UAT_SKIPPED} skipped"
         echo ""
 
-        # If no UAT failures and no pending tasks → done
-        if [ "$AUTO_UAT_FAILED" -eq 0 ] && [ $AUTO_INTERRUPTED -eq 0 ]; then
-            run_unblock_pass
-            REMAINING=$(get_pending_work_count)
-            if [ "$REMAINING" -eq 0 ]; then
-                echo "✅ Auto mode complete — all tasks implemented and all UAT passing."
-                break
-            else
-                echo "${REMAINING} task(s) still pending — continuing to next cycle."
+        # ── C2: Kill switch — track consecutive zero-verified batches ─────────
+        BATCH_PROGRESS=$((BATCH_IMPL_VERIFIED + BATCH_UAT_PASSED))
+        if [ "$BATCH_PROGRESS" -gt 0 ]; then
+            CONSECUTIVE_ZERO_VERIFIED=0
+        else
+            CONSECUTIVE_ZERO_VERIFIED=$((CONSECUTIVE_ZERO_VERIFIED + 1))
+            echo "  ⚠ Zero verified progress in this batch (${CONSECUTIVE_ZERO_VERIFIED}/${_MAX_ZERO_WAVES} consecutive)"
+            if [ "$CONSECUTIVE_ZERO_VERIFIED" -ge "$_MAX_ZERO_WAVES" ]; then
                 echo ""
-            fi
-        elif [ "$AUTO_UAT_FAILED" -gt 0 ]; then
-            if [ "$IMPL_DONE" -eq 0 ]; then
-                AUTO_STALL_COUNT=$((AUTO_STALL_COUNT + 1))
-            fi
-            if [ "$AUTO_STALL_COUNT" -ge 2 ]; then
-                echo "⚠ Stalled: $AUTO_UAT_FAILED UAT failure(s) but no tasks were implemented for 2 consecutive cycles."
-                echo "  This usually means failing scenarios have no open tasks, or all remaining tasks are blocked."
-                echo "  Run ./io-run.sh status to inspect, or ./io-run.sh uat to re-run UAT manually."
+                echo "⚠ Kill switch triggered: ${CONSECUTIVE_ZERO_VERIFIED} consecutive batches with no verified progress."
+                echo "  All remaining tasks may be blocked or failing repeatedly."
+                echo "  Run ./io-run.sh status to inspect."
+                AUTO_ROUND_FAILED=1
                 break
             fi
-            echo "${AUTO_UAT_FAILED} UAT failure(s) — looping back to implement."
+        fi
+
+        # Pause for needs_input if any appeared
+        NI_COUNT=$(find "${CFG_NEEDS_INPUT_DIR:-comms/needs_input}" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ') || NI_COUNT=0
+        if [ "$NI_COUNT" -gt 0 ]; then
+            echo ""
+            echo "⏸  $NI_COUNT task(s) need your input — pausing"
+            ORCH_AGENT_FILE_AUTO=$(expand_agent_to_tmp "audit-orchestrator")
+            claude --dangerously-skip-permissions --agent "$ORCH_AGENT_FILE_AUTO" || true
+            rm -rf "$_AGENT_TMP_DIR" 2>/dev/null || true
+            echo "Answers recorded. Resuming..."
             echo ""
         fi
     done
