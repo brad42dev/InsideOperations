@@ -800,8 +800,9 @@ launch_agent_in_worktree() {
     git -C "$REPO" worktree remove --force "$worktree_path" 2>/dev/null || true
 
     # Add worktree — resume existing branch or create a new one from HEAD.
-    # All output goes to stderr: this function is called via pid=$(...) so stdout
-    # must only contain the final `echo $!` — anything else corrupts $pid.
+    # All output goes to stderr. Callers read _LAUNCH_PID after calling this
+    # function directly (no $() wrapper) so the background process stays a
+    # direct child of the calling shell and wait() works correctly.
     if git -C "$REPO" show-ref --verify --quiet "refs/heads/${branch_name}" 2>/dev/null; then
         echo "  Resuming branch ${branch_name} in worktree" >&2
         git -C "$REPO" worktree add "$worktree_path" "$branch_name" >&2
@@ -909,9 +910,10 @@ IMPL_UPEOF
 
     # Launch agent in subshell. EXIT trap fires on crash OR clean exit.
     # AGENT_OUTCOME starts as "failure"; reset to "success" only if claude exits 0.
-    # Redirect subshell stdout to stderr so agent output is visible in the terminal
-    # but not captured by the pid=$(...) command substitution in the caller.
-    # NO heredocs inside this subshell — they corrupt the outer pid=$(...) capture.
+    # Redirect subshell stdout to stderr so agent output is visible in the terminal.
+    # _LAUNCH_PID is set to $! after the subshell starts; callers must NOT wrap
+    # this function in $() or the background process becomes a grandchild and
+    # wait() will always return 127 (not a direct child of the calling shell).
     (
         AGENT_OUTCOME="failure"
         _subshell_rl_signal="$_rl_signal"
@@ -957,7 +959,10 @@ IMPL_UPEOF
         python3 "$_impl_update_script" "$REPO/$DB_FILE" "$_task_id" "${_impl_attempt_row:-0}" "$_impl_usage_file" 2>/dev/null || true
         rm -f "$_impl_update_script" 2>/dev/null || true
     ) >&2 &
-    echo $!
+    # Expose PID via global — callers must NOT wrap this function in $() because
+    # that would make the background subshell a grandchild of the calling shell,
+    # causing wait() to return 127 for what appears to be a non-child process.
+    _LAUNCH_PID=$!
 }
 
 # Merge all io-task/* branches (except FAILED-* and CONFLICT-*) back into the
@@ -1318,29 +1323,29 @@ finally:
     except Exception: pass
 AUDIT_INS_EOF
             local pid
-            pid=$(
-                (
-                    _exit=0
-                    timeout "${_timeout_min}m" \
-                        claude --dangerously-skip-permissions \
-                               --agent "$agent_file" \
-                               --print "audit force ${_this_unit} 1" \
-                               --output-format stream-json --verbose < /dev/null \
-                        > "$_audit_stream" \
-                        || _exit=$?
-                    python3 "$REPO/comms/stream_proc.py" < "$_audit_stream" > "$_audit_usage" 2>/dev/null || true
-                    rm -f "$_audit_stream" 2>/dev/null || true
-                    if [ "$_exit" -eq 124 ]; then
-                        echo "  ✗ Audit unit ${_this_unit}: agent timed out after ${_timeout_min}m" >&2
-                    fi
-                    python3 "$_audit_ins" "$REPO/$DB_FILE" "$_this_unit" "$_audit_usage" 2>/dev/null || true
-                    rm -f "$_audit_ins" 2>/dev/null || true
-                    release_unit_claim "$_this_unit"
-                    rm -rf "$_this_audit_tmp" 2>/dev/null || true
-                    exit "$_exit"
-                ) >&2 &
-                echo $!
-            )
+            # Start background subshell directly (no $() wrapper) so it is a direct
+            # child of this shell and wait() returns the real exit code, not 127.
+            (
+                _exit=0
+                timeout "${_timeout_min}m" \
+                    claude --dangerously-skip-permissions \
+                           --agent "$agent_file" \
+                           --print "audit force ${_this_unit} 1" \
+                           --output-format stream-json --verbose < /dev/null \
+                    > "$_audit_stream" \
+                    || _exit=$?
+                python3 "$REPO/comms/stream_proc.py" < "$_audit_stream" > "$_audit_usage" 2>/dev/null || true
+                rm -f "$_audit_stream" 2>/dev/null || true
+                if [ "$_exit" -eq 124 ]; then
+                    echo "  ✗ Audit unit ${_this_unit}: agent timed out after ${_timeout_min}m" >&2
+                fi
+                python3 "$_audit_ins" "$REPO/$DB_FILE" "$_this_unit" "$_audit_usage" 2>/dev/null || true
+                rm -f "$_audit_ins" 2>/dev/null || true
+                release_unit_claim "$_this_unit"
+                rm -rf "$_this_audit_tmp" 2>/dev/null || true
+                exit "$_exit"
+            ) >&2 &
+            pid=$!
             active_pids+=("$pid")
             active_units+=("$unit_id")
             _RPA_CLAIMED=$((_RPA_CLAIMED + 1))
@@ -1460,7 +1465,9 @@ UNIT: ${_dunit}" > /dev/null
             echo "$(ts) impl agent claimed: ${task_id}"
             local pid
             # "implement force {task_id} 1" — implement exactly this claimed task and exit.
-            pid=$(launch_agent_in_worktree "$task_id" "audit-orchestrator" "implement force $task_id 1")
+            # Must NOT use $() here — see launch_agent_in_worktree comment about _LAUNCH_PID.
+            launch_agent_in_worktree "$task_id" "audit-orchestrator" "implement force $task_id 1"
+            pid=$_LAUNCH_PID
             active_pids+=("$pid")
             active_tasks+=("$task_id")
             agent_tasks+=("$task_id")
@@ -2643,7 +2650,9 @@ PYEOF
                     [ -z "$_tid" ] && { _impl_exhausted=1; echo "  No more impl tasks."; continue; }
                     echo "  [impl ] claimed task ${_tid}"
                     local _pid
-                    _pid=$(launch_agent_in_worktree "$_tid" "audit-orchestrator" "implement force $_tid 1")
+                    # Must NOT use $() here — see launch_agent_in_worktree comment about _LAUNCH_PID.
+                    launch_agent_in_worktree "$_tid" "audit-orchestrator" "implement force $_tid 1"
+                    _pid=$_LAUNCH_PID
                     _auto_pids+=("$_pid"); _auto_types+=("impl"); _auto_ids+=("$_tid")
                     _auto_impl_tasks+=("$_tid")
                     _impl_launched=$((_impl_launched + 1))
