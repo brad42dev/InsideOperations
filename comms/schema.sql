@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS io_task_attempts (
     task_file_bytes           INTEGER,  -- byte size of task spec (spec_body) at launch time
     linked_impl_avg_util_pct  REAL,     -- UAT only: avg context util of preceding verified impl attempts for this unit
     linked_impl_max_util_pct  REAL,     -- UAT only: max context util (worst-case impl for this unit)
-    linked_impl_task_count    INTEGER   -- UAT only: number of tasks linked (denominator for avg)
+    linked_impl_task_count    INTEGER,  -- UAT only: number of tasks linked (denominator for avg)
+    compaction_count          INTEGER,  -- number of context compactions that occurred during the session
+    num_turns                 INTEGER   -- total turns (tool-call rounds) in the session
 );
 
 -- Per-unit audit queue. Tracks audit status and wave-gate state.

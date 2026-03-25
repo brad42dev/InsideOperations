@@ -837,8 +837,9 @@ launch_agent_in_worktree() {
     # ── Context metrics setup (outside subshell — heredocs inside (...)>&2 & inside
     # pid=$(...) corrupt the capture pipe in bash; use temp files instead) ──────────
     local _impl_usage_file="/tmp/io-usage-impl-${_task_id}"
+    local _impl_stream_file="/tmp/io-stream-impl-${_task_id}"
     local _impl_update_script="/tmp/io-impl-upd-${_task_id}.py"
-    rm -f "$_impl_usage_file" "$_impl_update_script" 2>/dev/null || true
+    rm -f "$_impl_usage_file" "$_impl_stream_file" "$_impl_update_script" 2>/dev/null || true
 
     # Record attempt start (runs before the subshell so row_id is available inside it)
     local _impl_insert_script="/tmp/io-impl-ins-${_task_id}.py"
@@ -850,7 +851,8 @@ try:
     con.execute('PRAGMA journal_mode=WAL')
     # Migrate: add columns introduced after initial schema (idempotent; fails silently if already present)
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
     n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
@@ -883,6 +885,8 @@ try:
     ctx_win    = data.get('modelUsage', {})
     ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
     util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
     task_row = con.execute('SELECT status FROM io_tasks WHERE id=?', (task_id,)).fetchone()
@@ -891,8 +895,9 @@ try:
         con.execute('''UPDATE io_task_attempts
                        SET finished_at=strftime('%Y-%m-%dT%H:%M:%SZ','now'),
                            result=?,context_injection_tokens=?,
-                           context_final_tokens=?,context_utilization_pct=?
-                       WHERE id=?''', (result, input_tok, output_tok, util_pct, row_id))
+                           context_final_tokens=?,context_utilization_pct=?,
+                           compaction_count=?,num_turns=?
+                       WHERE id=?''', (result, input_tok, output_tok, util_pct, compactions, num_turns, row_id))
         con.commit()
     con.close()
 except Exception:
@@ -927,15 +932,18 @@ IMPL_UPEOF
         # before the process is killed. CFG_STALE_MINUTES=30 → 60m hard kill.
         _timeout_min=$(( (${CFG_STALE_MINUTES:-30}) * 2 ))
 
-        # Run agent — output-format json writes final usage JSON to stdout;
-        # redirect stdout to usage file so we can parse token counts after.
+        # Run agent — stream-json captures per-event data including compaction events;
+        # stream_proc.py normalises it to the same JSON shape as --output-format json
+        # plus compaction_count and num_turns.
         timeout "${_timeout_min}m" \
             claude --dangerously-skip-permissions \
                    --agent "$agent_file" \
                    --print "$prompt_text" \
-                   --output-format json < /dev/null \
-            > "$_impl_usage_file" \
+                   --output-format stream-json --verbose < /dev/null \
+            > "$_impl_stream_file" \
             || _exit=$?
+        python3 "$REPO/comms/stream_proc.py" < "$_impl_stream_file" > "$_impl_usage_file" 2>/dev/null || true
+        rm -f "$_impl_stream_file" 2>/dev/null || true
         if [ "$_exit" -eq 0 ]; then
             AGENT_OUTCOME="success"
         else
@@ -1103,17 +1111,19 @@ run_parallel_uat() {
             next_idx=$((next_idx + 1))
             local _uat_log="/tmp/io-uat-${unit_id}-$(date '+%Y%m%dT%H%M%S').log"
             local _uat_usage_file="/tmp/io-usage-uat-${unit_id}"
-            rm -f "$_uat_usage_file" 2>/dev/null || true
+            local _uat_stream_file="/tmp/io-stream-uat-${unit_id}"
+            rm -f "$_uat_usage_file" "$_uat_stream_file" 2>/dev/null || true
             echo "$(ts) UAT agent launching: $unit_id ($next_idx/$total) — log: $_uat_log"
             (
                 echo "$(ts) UAT $unit_id starting" | tee "$_uat_log"
-                # --output-format json writes final usage JSON to stdout → usage file;
-                # stderr (errors) appended to log. Heredocs safe here — no pid=$(...) capture.
+                # stream-json captures compaction events; stream_proc.py normalises to usage JSON.
                 claude --dangerously-skip-permissions \
                        --agent "$agent_file" \
                        --print "$uat_mode $unit_id" \
-                       --output-format json < /dev/null \
-                > "$_uat_usage_file" 2>>"$_uat_log" || true
+                       --output-format stream-json --verbose < /dev/null \
+                > "$_uat_stream_file" 2>>"$_uat_log" || true
+                python3 "$REPO/comms/stream_proc.py" < "$_uat_stream_file" > "$_uat_usage_file" 2>>"$_uat_log" || true
+                rm -f "$_uat_stream_file" 2>/dev/null || true
                 echo "$(ts) UAT $unit_id finished" | tee -a "$_uat_log"
                 python3 - "$REPO/$DB_FILE" "$unit_id" "$_uat_usage_file" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'UAT_PYEOF' || true
 import sqlite3, json, sys
@@ -1139,7 +1149,8 @@ try:
     con.execute('PRAGMA journal_mode=WAL')
     # Migrate: add columns introduced after initial schema (idempotent)
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
     # Sum spec_body bytes across all tasks in this unit (= total task spec the UAT agent covers)
@@ -1157,11 +1168,14 @@ try:
     impl_max = round(max(util_vals), 1) if util_vals else None
     impl_cnt = len(util_vals)
     n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
         context_injection_tokens,context_final_tokens,context_utilization_pct,
-        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count)
-        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?)''',
-        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt))
+        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count,
+        compaction_count,num_turns)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt, compactions, num_turns))
     con.commit()
     con.close()
 except Exception: pass
@@ -1266,8 +1280,9 @@ run_parallel_audit() {
             local _this_unit="$unit_id"
             # Context metrics setup — temp files outside pid=() to avoid heredoc/pipe corruption
             local _audit_usage="/tmp/io-usage-audit-${unit_id}"
+            local _audit_stream="/tmp/io-stream-audit-${unit_id}"
             local _audit_ins="/tmp/io-audit-ins-${unit_id}.py"
-            rm -f "$_audit_usage" "$_audit_ins" 2>/dev/null || true
+            rm -f "$_audit_usage" "$_audit_stream" "$_audit_ins" 2>/dev/null || true
             cat > "$_audit_ins" << 'AUDIT_INS_EOF'
 import sqlite3, json, sys
 from pathlib import Path
@@ -1280,18 +1295,21 @@ try:
     ctx_win = data.get('modelUsage', {})
     ctx_win = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
     util_pct = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     task_id = f'AUDIT-{unit_id}'
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
     n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?', (task_id,)).fetchone()[0]
     con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
-        context_injection_tokens,context_final_tokens,context_utilization_pct)
-        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),'audit',?,?,?)''',
-        (task_id, n, input_tok, output_tok, util_pct))
+        context_injection_tokens,context_final_tokens,context_utilization_pct,compaction_count,num_turns)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),'audit',?,?,?,?,?)''',
+        (task_id, n, input_tok, output_tok, util_pct, compactions, num_turns))
     con.commit()
     con.close()
 except Exception: pass
@@ -1307,9 +1325,11 @@ AUDIT_INS_EOF
                         claude --dangerously-skip-permissions \
                                --agent "$agent_file" \
                                --print "audit force ${_this_unit} 1" \
-                               --output-format json < /dev/null \
-                        > "$_audit_usage" \
+                               --output-format stream-json --verbose < /dev/null \
+                        > "$_audit_stream" \
                         || _exit=$?
+                    python3 "$REPO/comms/stream_proc.py" < "$_audit_stream" > "$_audit_usage" 2>/dev/null || true
+                    rm -f "$_audit_stream" 2>/dev/null || true
                     if [ "$_exit" -eq 124 ]; then
                         echo "  ✗ Audit unit ${_this_unit}: agent timed out after ${_timeout_min}m" >&2
                     fi
@@ -1767,7 +1787,9 @@ try:
             COUNT(*) AS runs,
             ROUND(AVG(context_injection_tokens))  AS avg_input,
             ROUND(AVG(context_utilization_pct),1) AS avg_util,
-            SUM(CASE WHEN result IN ('verified','pass','audit','triage') THEN 1 ELSE 0 END) AS successes
+            SUM(CASE WHEN result IN ('verified','pass','audit','triage') THEN 1 ELSE 0 END) AS successes,
+            SUM(COALESCE(compaction_count,0)) AS total_compactions,
+            ROUND(AVG(num_turns),1) AS avg_turns
         FROM io_task_attempts
         WHERE context_injection_tokens IS NOT NULL
         GROUP BY atype
@@ -1776,11 +1798,13 @@ try:
     if type_rows:
         print(f"")
         print(f"Agent Context Usage")
-        for atype, runs, avg_input, avg_util, successes in type_rows:
+        for atype, runs, avg_input, avg_util, successes, total_compactions, avg_turns in type_rows:
             avg_k   = f"{int(avg_input)//1000}K" if avg_input else "?"
             util_s  = f"  avg_ctx={avg_util:.1f}%" if avg_util is not None else ""
             pass_rt = f"  pass_rate={int(successes*100//runs)}%" if runs else ""
-            print(f"  {atype:6s}  runs={runs}  avg_input={avg_k} tokens{util_s}{pass_rt}")
+            cmp_s   = f"  compactions={int(total_compactions)}" if total_compactions else ""
+            trn_s   = f"  avg_turns={avg_turns}" if avg_turns else ""
+            print(f"  {atype:6s}  runs={runs}  avg_input={avg_k} tokens{util_s}{pass_rt}{cmp_s}{trn_s}")
 
     # UAT failure rate by context band
     band_rows = con3.execute("""
@@ -2010,10 +2034,13 @@ PYEOF
             echo "─── UAT: $UNIT_ID ─────────────────────────────────────────────"
             UAT_EXIT=0
             _human_uat_usage="/tmp/io-usage-uat-${UNIT_ID}"
-            rm -f "$_human_uat_usage" 2>/dev/null || true
+            _human_uat_stream="/tmp/io-stream-uat-${UNIT_ID}"
+            rm -f "$_human_uat_usage" "$_human_uat_stream" 2>/dev/null || true
             claude --dangerously-skip-permissions --agent "uat-agent" \
-                --print "$UAT_MODE $UNIT_ID" --output-format json < /dev/null \
-                > "$_human_uat_usage" || UAT_EXIT=$?
+                --print "$UAT_MODE $UNIT_ID" --output-format stream-json --verbose < /dev/null \
+                > "$_human_uat_stream" || UAT_EXIT=$?
+            python3 "$REPO/comms/stream_proc.py" < "$_human_uat_stream" > "$_human_uat_usage" 2>/dev/null || true
+            rm -f "$_human_uat_stream" 2>/dev/null || true
             python3 - "$REPO/$DB_FILE" "$UNIT_ID" "$_human_uat_usage" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'HUMAN_UAT_PYEOF' || true
 import sqlite3, json, sys
 from pathlib import Path
@@ -2037,7 +2064,8 @@ try:
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
     tasks = con.execute("SELECT id, spec_body FROM io_tasks WHERE unit=?", (unit_id,)).fetchall()
@@ -2053,11 +2081,14 @@ try:
     impl_max = round(max(util_vals), 1) if util_vals else None
     impl_cnt = len(util_vals)
     n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
         context_injection_tokens,context_final_tokens,context_utilization_pct,
-        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count)
-        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?)''',
-        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt))
+        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count,
+        compaction_count,num_turns)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt, compactions, num_turns))
     con.commit()
     con.close()
 except Exception: pass
@@ -2170,10 +2201,13 @@ PYEOF
         echo "─── RELEASE: $UNIT_ID ──────────────────────────────────────"
         RELEASE_EXIT=0
         _rel_usage="/tmp/io-usage-rel-${UNIT_ID}"
-        rm -f "$_rel_usage" 2>/dev/null || true
+        _rel_stream="/tmp/io-stream-rel-${UNIT_ID}"
+        rm -f "$_rel_usage" "$_rel_stream" 2>/dev/null || true
         claude --dangerously-skip-permissions --agent "$REL_AGENT_FILE" \
-            --print "release $UNIT_ID" --output-format json < /dev/null \
-            > "$_rel_usage" || RELEASE_EXIT=$?
+            --print "release $UNIT_ID" --output-format stream-json --verbose < /dev/null \
+            > "$_rel_stream" || RELEASE_EXIT=$?
+        python3 "$REPO/comms/stream_proc.py" < "$_rel_stream" > "$_rel_usage" 2>/dev/null || true
+        rm -f "$_rel_stream" 2>/dev/null || true
         python3 - "$REPO/$DB_FILE" "$UNIT_ID" "$_rel_usage" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'REL_UAT_PYEOF' || true
 import sqlite3, json, sys
 from pathlib import Path
@@ -2197,7 +2231,8 @@ try:
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
     tasks = con.execute("SELECT id, spec_body FROM io_tasks WHERE unit=?", (unit_id,)).fetchall()
@@ -2213,11 +2248,14 @@ try:
     impl_max = round(max(util_vals), 1) if util_vals else None
     impl_cnt = len(util_vals)
     n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
         context_injection_tokens,context_final_tokens,context_utilization_pct,
-        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count)
-        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?)''',
-        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt))
+        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count,
+        compaction_count,num_turns)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt, compactions, num_turns))
     con.commit()
     con.close()
 except Exception: pass
@@ -2270,10 +2308,13 @@ if [ "$MODE" = "bug" ]; then
     BUG_AGENT_FILE=$(expand_agent_to_tmp "bug-agent")
     BUG_AGENT_TMP="$_AGENT_TMP_DIR"
     _bug_usage="/tmp/io-usage-bug-$(date '+%Y%m%dT%H%M%S')"
-    rm -f "$_bug_usage" 2>/dev/null || true
+    _bug_stream="/tmp/io-stream-bug-$$"
+    rm -f "$_bug_usage" "$_bug_stream" 2>/dev/null || true
     claude --dangerously-skip-permissions --agent "$BUG_AGENT_FILE" \
-        --print "$BUG_DESC" --output-format json < /dev/null \
-        > "$_bug_usage" || true
+        --print "$BUG_DESC" --output-format stream-json --verbose < /dev/null \
+        > "$_bug_stream" || true
+    python3 "$REPO/comms/stream_proc.py" < "$_bug_stream" > "$_bug_usage" 2>/dev/null || true
+    rm -f "$_bug_stream" 2>/dev/null || true
     python3 - "$REPO/$DB_FILE" "$_bug_usage" 2>/dev/null <<'BUG_PYEOF' || true
 import sqlite3, json, sys, time
 from pathlib import Path
@@ -2290,13 +2331,16 @@ try:
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
-        context_injection_tokens,context_final_tokens,context_utilization_pct)
-        VALUES(?,1,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),'triage',?,?,?)''',
-        (task_id, input_tok, output_tok, util_pct))
+        context_injection_tokens,context_final_tokens,context_utilization_pct,compaction_count,num_turns)
+        VALUES(?,1,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),'triage',?,?,?,?,?)''',
+        (task_id, input_tok, output_tok, util_pct, compactions, num_turns))
     con.commit()
     con.close()
 except Exception: pass
@@ -2349,9 +2393,13 @@ if [ "$MODE" = "spec" ]; then
         _spec_usage="/tmp/io-usage-spec-$(date '+%Y%m%dT%H%M%S')"
         rm -f "$_spec_usage" 2>/dev/null || true
         SPEC_EXIT=0
+        _spec_stream="/tmp/io-stream-spec-$$"
+        rm -f "$_spec_stream" 2>/dev/null || true
         claude --dangerously-skip-permissions --agent "$SPEC_AGENT_FILE" \
-            --print "$SPEC_TOPIC" --output-format json < /dev/null \
-            > "$_spec_usage" || SPEC_EXIT=$?
+            --print "$SPEC_TOPIC" --output-format stream-json --verbose < /dev/null \
+            > "$_spec_stream" || SPEC_EXIT=$?
+        python3 "$REPO/comms/stream_proc.py" < "$_spec_stream" > "$_spec_usage" 2>/dev/null || true
+        rm -f "$_spec_stream" 2>/dev/null || true
         python3 - "$REPO/$DB_FILE" "$_spec_usage" 2>/dev/null <<'SPEC_PYEOF' || true
 import sqlite3, json, sys, time
 from pathlib import Path
@@ -2368,13 +2416,16 @@ try:
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
-        context_injection_tokens,context_final_tokens,context_utilization_pct)
-        VALUES(?,1,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),'research',?,?,?)''',
-        (task_id, input_tok, output_tok, util_pct))
+        context_injection_tokens,context_final_tokens,context_utilization_pct,compaction_count,num_turns)
+        VALUES(?,1,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),'research',?,?,?,?,?)''',
+        (task_id, input_tok, output_tok, util_pct, compactions, num_turns))
     con.commit()
     con.close()
 except Exception: pass
@@ -2611,11 +2662,15 @@ PYEOF
                     echo "$(ts) [uat  ] agent launching: ${_uid} (${_uat_idx}/${#_uat_arr[@]}) — log: $_auto_uat_log"
                     (
                         echo "$(ts) UAT ${_uid} starting" | tee "$_auto_uat_log"
+                        _auto_uat_stream="/tmp/io-stream-auto-${_uid}"
+                        rm -f "$_auto_uat_stream" 2>/dev/null || true
                         claude --dangerously-skip-permissions \
                                --agent "uat-agent" \
                                --print "auto ${_uid}" \
-                               --output-format json < /dev/null \
-                        > "$_auto_uat_usage" 2>>"$_auto_uat_log" || true
+                               --output-format stream-json --verbose < /dev/null \
+                        > "$_auto_uat_stream" 2>>"$_auto_uat_log" || true
+                        python3 "$REPO/comms/stream_proc.py" < "$_auto_uat_stream" > "$_auto_uat_usage" 2>>"$_auto_uat_log" || true
+                        rm -f "$_auto_uat_stream" 2>/dev/null || true
                         echo "$(ts) UAT ${_uid} finished" | tee -a "$_auto_uat_log"
                         python3 - "$REPO/$DB_FILE" "$_uid" "$_auto_uat_usage" "${CFG_UAT_DIR:-docs/uat}" 2>/dev/null <<'AUTO_UAT_PYEOF' || true
 import sqlite3, json, sys
@@ -2641,7 +2696,8 @@ try:
     con.execute('PRAGMA journal_mode=WAL')
     # Migrate: add columns introduced after initial schema (idempotent)
     for col, typ in [('task_file_bytes','INTEGER'),('linked_impl_avg_util_pct','REAL'),
-                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER')]:
+                     ('linked_impl_max_util_pct','REAL'),('linked_impl_task_count','INTEGER'),
+                     ('compaction_count','INTEGER'),('num_turns','INTEGER')]:
         try: con.execute(f'ALTER TABLE io_task_attempts ADD COLUMN {col} {typ}')
         except Exception: pass
     # Sum spec_body bytes across all tasks in this unit
@@ -2659,11 +2715,14 @@ try:
     impl_max = round(max(util_vals), 1) if util_vals else None
     impl_cnt = len(util_vals)
     n = con.execute('SELECT COUNT(*)+1 FROM io_task_attempts WHERE task_id=?',(task_id,)).fetchone()[0]
+    compactions = data.get('compaction_count', 0)
+    num_turns   = data.get('num_turns', 0)
     con.execute('''INSERT INTO io_task_attempts(task_id,attempt_number,started_at,finished_at,result,
         context_injection_tokens,context_final_tokens,context_utilization_pct,
-        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count)
-        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?)''',
-        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt))
+        task_file_bytes,linked_impl_avg_util_pct,linked_impl_max_util_pct,linked_impl_task_count,
+        compaction_count,num_turns)
+        VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?,?,?)''',
+        (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt, compactions, num_turns))
     con.commit()
     con.close()
 except Exception: pass
