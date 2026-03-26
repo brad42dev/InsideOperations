@@ -5,6 +5,7 @@ import { graphicsApi } from '../../api/graphics'
 import type { WorkspaceLayout } from './types'
 import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
 import { useConsoleFavorites, CONSOLE_FAVORITES_KEYS } from '../../shared/hooks/useConsoleFavorites'
+import { useConsoleSectionViewMode, type SectionViewMode } from '../../shared/hooks/useConsoleSectionViewMode'
 import * as RadixContextMenu from '@radix-ui/react-context-menu'
 
 // ---------------------------------------------------------------------------
@@ -153,42 +154,110 @@ const listItem = (dragging?: boolean): React.CSSProperties => ({
 import React from 'react'
 
 // ---------------------------------------------------------------------------
-// View-mode icon SVGs — List, Thumbnails, Grid
+// View mode icon components — List, Thumbnails, Grid
 // ---------------------------------------------------------------------------
 
-function ListModeIcon() {
+function ViewModeListIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <line x1="2" y1="4" x2="14" y2="4" />
-      <line x1="2" y1="8" x2="14" y2="8" />
-      <line x1="2" y1="12" x2="14" y2="12" />
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <line x1="1" y1="3" x2="11" y2="3" />
+      <line x1="1" y1="6" x2="11" y2="6" />
+      <line x1="1" y1="9" x2="11" y2="9" />
     </svg>
   )
 }
 
-function ThumbnailsModeIcon() {
+function ViewModeThumbnailsIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <rect x="1" y="2" width="5" height="4" rx="1" />
-      <line x1="8" y1="3" x2="15" y2="3" />
-      <line x1="8" y1="5.5" x2="13" y2="5.5" />
-      <rect x="1" y="10" width="5" height="4" rx="1" />
-      <line x1="8" y1="11" x2="15" y2="11" />
-      <line x1="8" y1="13.5" x2="13" y2="13.5" />
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="4" height="3" rx="0.5" />
+      <line x1="6.5" y1="2" x2="11" y2="2" />
+      <line x1="6.5" y1="3.5" x2="9" y2="3.5" />
+      <rect x="1" y="6" width="4" height="3" rx="0.5" />
+      <line x1="6.5" y1="7" x2="11" y2="7" />
+      <line x1="6.5" y1="8.5" x2="9" y2="8.5" />
     </svg>
   )
 }
 
-function GridModeIcon() {
+function ViewModeGridIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <rect x="1" y="1" width="6" height="6" rx="1" />
-      <rect x="9" y="1" width="6" height="6" rx="1" />
-      <rect x="1" y="9" width="6" height="6" rx="1" />
-      <rect x="9" y="9" width="6" height="6" rx="1" />
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="4" height="4" rx="0.5" />
+      <rect x="7" y="1" width="4" height="4" rx="0.5" />
+      <rect x="1" y="7" width="4" height="4" rx="0.5" />
+      <rect x="7" y="7" width="4" height="4" rx="0.5" />
     </svg>
   )
 }
+
+// ---------------------------------------------------------------------------
+// ViewModeSelector — three icon buttons shown in accordion section header
+// ---------------------------------------------------------------------------
+
+const VIEW_MODE_BUTTONS: { mode: SectionViewMode; label: string; Icon: React.FC }[] = [
+  { mode: 'list',       label: 'List view',       Icon: ViewModeListIcon },
+  { mode: 'thumbnails', label: 'Thumbnails view',  Icon: ViewModeThumbnailsIcon },
+  { mode: 'grid',       label: 'Grid view',        Icon: ViewModeGridIcon },
+]
+
+function ViewModeSelector({
+  current,
+  onChange,
+}: {
+  current: SectionViewMode
+  onChange: (mode: SectionViewMode) => void
+}) {
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {VIEW_MODE_BUTTONS.map(({ mode, label, Icon }) => {
+        const active = current === mode
+        return (
+          <button
+            key={mode}
+            title={label}
+            onClick={(e) => { e.stopPropagation(); onChange(mode) }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 20,
+              height: 20,
+              border: 'none',
+              borderRadius: 3,
+              cursor: 'pointer',
+              padding: 0,
+              background: active ? 'var(--io-accent-subtle)' : 'transparent',
+              color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
+              transition: 'background 0.1s, color 0.1s',
+            }}
+            onMouseEnter={(e) => {
+              if (!active) {
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+                ;(e.currentTarget as HTMLElement).style.color = 'var(--io-text-primary)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!active) {
+                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                ;(e.currentTarget as HTMLElement).style.color = 'var(--io-text-muted)'
+              }
+            }}
+          >
+            <Icon />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Accordion section
+// ---------------------------------------------------------------------------
 
 interface AccordionSectionProps {
   title: string
@@ -198,11 +267,9 @@ interface AccordionSectionProps {
   children: React.ReactNode
   viewMode?: SectionViewMode
   onViewModeChange?: (mode: SectionViewMode) => void
-  /** If false, only List mode is available (Points section) */
-  allowAllViewModes?: boolean
 }
 
-function AccordionSection({ title, open, onToggle, badge, children, viewMode, onViewModeChange, allowAllViewModes = true }: AccordionSectionProps) {
+function AccordionSection({ title, open, onToggle, badge, children, viewMode, onViewModeChange }: AccordionSectionProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div
@@ -229,41 +296,8 @@ function AccordionSection({ title, open, onToggle, badge, children, viewMode, on
             {badge}
           </span>
         )}
-        {/* View mode buttons — stop propagation so clicks don't toggle section */}
-        {onViewModeChange && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ display: 'flex', alignItems: 'center', gap: 1, marginLeft: 2 }}
-          >
-            <ViewModeButton
-              mode="list"
-              active={viewMode === 'list'}
-              title="List view"
-              onClick={() => onViewModeChange('list')}
-            >
-              <ListModeIcon />
-            </ViewModeButton>
-            {allowAllViewModes && (
-              <>
-                <ViewModeButton
-                  mode="thumbnails"
-                  active={viewMode === 'thumbnails'}
-                  title="Thumbnails view"
-                  onClick={() => onViewModeChange('thumbnails')}
-                >
-                  <ThumbnailsModeIcon />
-                </ViewModeButton>
-                <ViewModeButton
-                  mode="grid"
-                  active={viewMode === 'grid'}
-                  title="Grid view"
-                  onClick={() => onViewModeChange('grid')}
-                >
-                  <GridModeIcon />
-                </ViewModeButton>
-              </>
-            )}
-          </div>
+        {viewMode !== undefined && onViewModeChange !== undefined && (
+          <ViewModeSelector current={viewMode} onChange={onViewModeChange} />
         )}
       </div>
       {open && (
@@ -928,6 +962,12 @@ const WIDGET_ITEMS: { id: string; itemType: ConsoleDragItem['itemType']; label: 
         <line x1="1" y1="14" x2="15" y2="14" strokeOpacity="0.4" />
       </svg>
     ),
+    iconLarge: (
+      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="var(--io-accent)" strokeWidth="1.5">
+        <polyline points="2 17 7 10 11 13 16 7 23 4" />
+        <line x1="2" y1="19" x2="24" y2="19" strokeOpacity="0.4" />
+      </svg>
+    ),
   },
   {
     id: 'point_table',
@@ -941,6 +981,13 @@ const WIDGET_ITEMS: { id: string; itemType: ConsoleDragItem['itemType']; label: 
         <line x1="6" y1="1" x2="6" y2="15" />
       </svg>
     ),
+    iconLarge: (
+      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
+        <rect x="2" y="2" width="24" height="17" rx="1" />
+        <line x1="2" y1="8" x2="26" y2="8" />
+        <line x1="11" y1="2" x2="11" y2="19" />
+      </svg>
+    ),
   },
   {
     id: 'alarm_list',
@@ -952,6 +999,13 @@ const WIDGET_ITEMS: { id: string; itemType: ConsoleDragItem['itemType']; label: 
         <path d="M8 2L14 13H2L8 2Z" />
         <line x1="8" y1="7" x2="8" y2="10" />
         <circle cx="8" cy="12" r="0.5" fill="#f59e0b" />
+      </svg>
+    ),
+    iconLarge: (
+      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="#f59e0b" strokeWidth="1.5">
+        <path d="M14 3L23 18H5L14 3Z" />
+        <line x1="14" y1="9" x2="14" y2="13" />
+        <circle cx="14" cy="15.5" r="0.8" fill="#f59e0b" />
       </svg>
     ),
   },
@@ -1474,6 +1528,129 @@ function GraphicTile({
 }
 
 // ---------------------------------------------------------------------------
+// GraphicListRow — compact list-view row for a graphic item
+// ---------------------------------------------------------------------------
+
+function GraphicListRow({
+  item,
+  name,
+  onQuickPlace,
+}: {
+  item: ConsoleDragItem
+  name: string
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
+  const [dragging, setDragging] = useState(false)
+  return (
+    <div
+      draggable
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      style={listItem(dragging)}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+        e.dataTransfer.effectAllowed = 'copy'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      onMouseEnter={(e) => {
+        if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+      }}
+      onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M3 9h18M9 21V9" />
+      </svg>
+      <span style={{ flex: 1, fontSize: 12, color: 'var(--io-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {name}
+      </span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// GraphicThumbnailRow — 48×36 thumbnail + name, for thumbnails view
+// ---------------------------------------------------------------------------
+
+function GraphicThumbnailRow({
+  item,
+  name,
+  thumbUrl,
+  onQuickPlace,
+}: {
+  item: ConsoleDragItem
+  name: string
+  thumbUrl: string
+  onQuickPlace?: (item: ConsoleDragItem) => void
+}) {
+  const [dragging, setDragging] = useState(false)
+  const [thumbError, setThumbError] = useState(false)
+
+  return (
+    <div
+      draggable
+      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 8,
+        padding: '4px 6px',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        opacity: dragging ? 0.5 : 1,
+        border: '1px solid transparent',
+        transition: 'background 0.1s',
+      }}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
+        e.dataTransfer.effectAllowed = 'copy'
+        setDragging(true)
+      }}
+      onDragEnd={() => setDragging(false)}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+    >
+      {/* 48×36 thumbnail */}
+      <div style={{
+        width: 48, height: 36, flexShrink: 0,
+        background: 'var(--io-surface-sunken)',
+        borderRadius: 3,
+        border: '1px solid var(--io-border)',
+        overflow: 'hidden',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {!thumbError ? (
+          <img
+            src={thumbUrl}
+            alt={name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={() => setThumbError(true)}
+          />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.2" opacity={0.4}>
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+        )}
+      </div>
+      {/* Name — up to 2 lines */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span style={{
+          fontSize: 11, color: 'var(--io-text-primary)', lineHeight: 1.3,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical' as const,
+          overflow: 'hidden',
+          wordBreak: 'break-word',
+        }}>
+          {name}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Graphics section — shows available graphics as thumbnail tiles
 // ---------------------------------------------------------------------------
 
@@ -1614,6 +1791,30 @@ function GraphicsSection({
     )
   }
 
+  if (viewMode === 'list') {
+    return (
+      <div style={{ padding: '4px' }}>
+        {graphics.map((g) => {
+          const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+          return <GraphicListRow key={g.id} item={item} name={g.name} onQuickPlace={onQuickPlace} />
+        })}
+      </div>
+    )
+  }
+
+  if (viewMode === 'thumbnails') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 6px' }}>
+        {graphics.map((g) => {
+          const thumbUrl = graphicsApi.thumbnailUrl(g.id)
+          const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+          return <GraphicThumbnailRow key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} onQuickPlace={onQuickPlace} />
+        })}
+      </div>
+    )
+  }
+
+  // Grid view — 80×60 tiles, 2 columns
   return (
     <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <div style={{ padding: '0 0 4px' }}>
@@ -1760,6 +1961,11 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
   const { viewMode: workspacesViewMode, setViewMode: setWorkspacesViewMode } = useConsoleSectionViewMode('workspaces', 'list')
   const { viewMode: graphicsViewMode, setViewMode: setGraphicsViewMode } = useConsoleSectionViewMode('graphics', 'thumbnails')
   const { viewMode: widgetsViewMode, setViewMode: setWidgetsViewMode } = useConsoleSectionViewMode('widgets', 'list')
+
+  // Per-section view mode — persisted in localStorage
+  const workspacesVM = useConsoleSectionViewMode('workspaces', 'list')
+  const graphicsVM = useConsoleSectionViewMode('graphics', 'grid')
+  const widgetsVM = useConsoleSectionViewMode('widgets', 'list')
 
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
