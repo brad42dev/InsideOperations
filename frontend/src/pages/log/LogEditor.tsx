@@ -14,6 +14,7 @@ import Color from '@tiptap/extension-color'
 import { logsApi, type LogAttachment, type LogSegment, type LogTemplate } from '../../api/logs'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
 import { SkeletonBlock } from '../../shared/components/Skeleton'
+import PointContextMenu from '../../shared/components/PointContextMenu'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -445,14 +446,22 @@ function PointDataSegment({ pointIds }: { pointIds?: string[] }) {
           {ids.map((pid, idx) => {
             const pv = values.get(pid)
             return (
-              <tr key={pid} style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--io-surface-secondary)' }}>
-                <td style={{ padding: '7px 12px', color: 'var(--io-text-secondary)', fontFamily: 'var(--io-font-mono, monospace)', fontSize: '12px', borderBottom: idx < ids.length - 1 ? '1px solid var(--io-border)' : 'none' }}>
-                  {pid}
-                </td>
-                <td style={{ padding: '7px 12px', textAlign: 'right', color: pv ? 'var(--io-text-primary)' : 'var(--io-text-muted)', fontWeight: pv ? 600 : 400, borderBottom: idx < ids.length - 1 ? '1px solid var(--io-border)' : 'none' }}>
-                  {pv ? String(pv.value) : '—'}
-                </td>
-              </tr>
+              <PointContextMenu
+                key={pid}
+                pointId={pid}
+                tagName={pid}
+                isAlarm={false}
+                isAlarmElement={false}
+              >
+                <tr style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--io-surface-secondary)' }}>
+                  <td style={{ padding: '7px 12px', color: 'var(--io-text-secondary)', fontFamily: 'var(--io-font-mono, monospace)', fontSize: '12px', borderBottom: idx < ids.length - 1 ? '1px solid var(--io-border)' : 'none' }}>
+                    {pid}
+                  </td>
+                  <td style={{ padding: '7px 12px', textAlign: 'right', color: pv ? 'var(--io-text-primary)' : 'var(--io-text-muted)', fontWeight: pv ? 600 : 400, borderBottom: idx < ids.length - 1 ? '1px solid var(--io-border)' : 'none' }}>
+                    {pv ? String(pv.value) : '—'}
+                  </td>
+                </tr>
+              </PointContextMenu>
             )
           })}
         </tbody>

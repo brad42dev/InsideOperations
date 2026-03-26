@@ -211,7 +211,10 @@
     "MOD-PROCESS-015": 2,
     "MOD-PROCESS-020": 0,
     "MOD-PROCESS-018": 1,
-    "DD-27-017": 1
+    "DD-27-017": 1,
+    "DD-32-020": 0,
+    "DD-06-026": 0,
+    "DD-13-016": 0
   },
   "queue": [
     {
@@ -5981,7 +5984,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "DD-32-018",
@@ -5992,7 +5995,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "DD-32-019",
@@ -6096,7 +6099,7 @@
       "wave": 3,
       "title": "No success toast shown after workspace creation (Done button)",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6108,7 +6111,7 @@
       "wave": 3,
       "title": "Error toasts auto-dismiss instead of persisting until manually dismissed",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6268,6 +6271,35 @@
       "priority": "high",
       "depends_on": [],
       "status": "verified",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-06-026",
+      "unit": "DD-06",
+      "title": "Replace command palette with cmdk library and command-score fuzzy matching",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "implementing",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-13-016",
+      "unit": "DD-13",
+      "title": "Add Tiptap paste-from-office and font-family extensions to WYSIWYG editor",
+      "priority": "medium",
+      "status": "implementing",
+      "depends_on": [],
+      "audit_round": 9,
+      "answer_file": null,
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-018",
+      "unit": "DD-13",
+      "title": "Wire PointContextMenu onto point rows in PointDataSegment (CX-POINT-CONTEXT)",
+      "status": "implementing",
+      "priority": "medium",
+      "depends_on": [],
       "audit_round": 9
     }
   ],

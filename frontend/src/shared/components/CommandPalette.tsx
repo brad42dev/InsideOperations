@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
+import { Command, defaultFilter } from 'cmdk'
 import { useNavigate } from 'react-router-dom'
 import { searchApi, type SearchResult } from '../../api/search'
 
@@ -80,49 +80,20 @@ const SCOPE_HINTS: Array<{ prefix: string; label: string }> = [
   { prefix: '#', label: 'entities' },
 ]
 
+// Prefix used in cmdk item values to mark server-side search results
+// so the custom filter can always show them (they're already ranked by the server).
+const RESULT_VALUE_PREFIX = '__result__'
+
 interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-function highlight(text: string, query: string): React.ReactNode {
-  if (!query.trim()) return text
-  const idx = text.toLowerCase().indexOf(query.toLowerCase())
-  if (idx === -1) return text
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark
-        style={{
-          background: 'var(--io-accent-subtle)',
-          color: 'var(--io-accent)',
-          borderRadius: '2px',
-          padding: '0 1px',
-        }}
-      >
-        {text.slice(idx, idx + query.length)}
-      </mark>
-      {text.slice(idx + query.length)}
-    </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Unified list item types
-// ---------------------------------------------------------------------------
-
-type ListItem =
-  | { kind: 'command'; cmd: PaletteCommand }
-  | { kind: 'result'; result: SearchResult }
-
 export default function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
-  const [selectedIndex, setSelectedIndex] = useState(0)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const listRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { scope, term } = parseQuery(query)
@@ -130,36 +101,11 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
   // Whether to show nav commands for this scope
   const showNavCommands = scope === null || scope === 'commands'
 
-  // Filtered navigation commands
-  const filteredCommands = showNavCommands
-    ? COMMANDS.filter((cmd) => {
-        if (!term.trim()) return true
-        const q = term.toLowerCase()
-        return (
-          cmd.label.toLowerCase().includes(q) ||
-          cmd.description.toLowerCase().includes(q) ||
-          cmd.keywords.some((k) => k.includes(q))
-        )
-      })
-    : []
-
-  // Build unified list: search results first (when query >= 3 chars), then nav commands
-  const items: ListItem[] = [
-    ...searchResults.map((r): ListItem => ({ kind: 'result', result: r })),
-    ...filteredCommands.map((c): ListItem => ({ kind: 'command', cmd: c })),
-  ]
-
-  // Reset selection when query or open state changes
-  useEffect(() => {
-    setSelectedIndex(0)
-  }, [query, open])
-
-  // Focus input when opened
+  // Reset state when opened
   useEffect(() => {
     if (open) {
       setQuery('')
       setSearchResults([])
-      setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [open])
 
@@ -196,339 +142,305 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     }
   }, [query, term, scope, apiSearchEnabled])
 
-  const handleSelectItem = useCallback(
-    (item: ListItem) => {
+  const handleSelectResult = useCallback(
+    (result: SearchResult) => {
       onOpenChange(false)
-      if (item.kind === 'command') {
-        navigate(item.cmd.path)
-      } else {
-        navigate(item.result.href)
-      }
+      navigate(result.href)
     },
     [navigate, onOpenChange],
   )
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedIndex((i) => Math.min(i + 1, items.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedIndex((i) => Math.max(i - 1, 0))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      const item = items[selectedIndex]
-      if (item) handleSelectItem(item)
-    }
-  }
+  const handleSelectCommand = useCallback(
+    (cmd: PaletteCommand) => {
+      onOpenChange(false)
+      navigate(cmd.path)
+    },
+    [navigate, onOpenChange],
+  )
 
-  // Scroll selected item into view
-  useEffect(() => {
-    const list = listRef.current
-    if (!list) return
-    const item = list.children[selectedIndex] as HTMLElement | undefined
-    item?.scrollIntoView({ block: 'nearest' })
-  }, [selectedIndex])
+  // Custom filter: server results are always shown (ranked by server);
+  // nav commands use command-score fuzzy matching.
+  const customFilter = useCallback(
+    (value: string, search: string, keywords?: string[]) => {
+      if (value.startsWith(RESULT_VALUE_PREFIX)) return 1
+      return defaultFilter(value, search, keywords)
+    },
+    [],
+  )
 
-  // Derive section boundaries for rendering section headers
+  const sectionLabel =
+    scope === 'points' ? 'Points' :
+    scope === 'graphics' ? 'Graphics' :
+    scope === 'entities' ? 'Entities' :
+    'Search Results'
+
   const hasSearchResults = searchResults.length > 0
-  const hasNavCommands = filteredCommands.length > 0
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay
+    <Command.Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      label="Command Palette"
+      filter={customFilter}
+      loop
+      style={
+        // Command.Dialog renders as a Radix Dialog — set overlay and content
+        // z-index via CSS custom properties injected on the cmdk elements.
+        // The overlay and content styles are applied via the style tag below.
+        undefined
+      }
+    >
+      {/*
+        cmdk's Command.Dialog renders:
+          <RadixDialog.Portal>
+            <RadixDialog.Overlay cmdk-overlay />
+            <RadixDialog.Content cmdk-dialog>
+              <Command (the root) />
+            </RadixDialog.Content>
+          </RadixDialog.Portal>
+
+        We target these elements via [cmdk-overlay] and [cmdk-dialog] attribute
+        selectors injected via a <style> tag scoped to this component.
+      */}
+      <style>{`
+        [cmdk-overlay] {
+          position: fixed;
+          inset: 0;
+          z-index: 3000;
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(4px);
+        }
+        [cmdk-dialog] {
+          position: fixed;
+          top: 20%;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 3001;
+          width: 560px;
+          max-width: calc(100vw - 32px);
+          background: var(--io-surface-elevated);
+          border: 1px solid var(--io-border);
+          border-radius: 10px;
+          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+          overflow: hidden;
+        }
+      `}</style>
+
+      {/* Search input row */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--io-border)',
+        }}
+      >
+        <span style={{ color: 'var(--io-text-muted)', fontSize: '16px', flexShrink: 0 }}>
+          {isSearching ? '⟳' : '⌕'}
+        </span>
+        <Command.Input
+          value={query}
+          onValueChange={setQuery}
+          placeholder={scope ? SCOPE_PLACEHOLDER[scope] : 'Search pages, points, equipment…'}
           style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 3000,
-            background: 'rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(4px)',
+            flex: 1,
+            background: 'none',
+            border: 'none',
+            outline: 'none',
+            color: 'var(--io-text-primary)',
+            fontSize: '15px',
           }}
         />
-        <Dialog.Content
-          aria-label="Command palette"
-          aria-describedby={undefined}
+        <kbd
           style={{
-            position: 'fixed',
-            top: '20%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 3001,
-            width: '560px',
-            maxWidth: 'calc(100vw - 32px)',
-            background: 'var(--io-surface-elevated)',
+            fontSize: '11px',
+            color: 'var(--io-text-muted)',
+            background: 'var(--io-surface-secondary)',
             border: '1px solid var(--io-border)',
-            borderRadius: '10px',
-            boxShadow: '0 24px 64px rgba(0, 0, 0, 0.5)',
-            overflow: 'hidden',
+            borderRadius: '4px',
+            padding: '2px 6px',
+            flexShrink: 0,
           }}
-          onKeyDown={handleKeyDown}
         >
-          {/* Visually-hidden title for screen readers */}
-          <Dialog.Title style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}>
-            Command Palette
-          </Dialog.Title>
-          {/* Search input row */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '12px 16px',
-              borderBottom: '1px solid var(--io-border)',
-            }}
-          >
-            <span style={{ color: 'var(--io-text-muted)', fontSize: '16px', flexShrink: 0 }}>
-              {isSearching ? '⟳' : '⌕'}
-            </span>
-            <input
-              ref={inputRef}
-              role="combobox"
-              aria-expanded="true"
-              aria-controls="cmd-results"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={scope ? SCOPE_PLACEHOLDER[scope] : 'Search pages, points, equipment…'}
-              style={{
-                flex: 1,
-                background: 'none',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--io-text-primary)',
-                fontSize: '15px',
-              }}
-            />
-            <kbd
-              style={{
-                fontSize: '11px',
-                color: 'var(--io-text-muted)',
-                background: 'var(--io-surface-secondary)',
-                border: '1px solid var(--io-border)',
-                borderRadius: '4px',
-                padding: '2px 6px',
-                flexShrink: 0,
-              }}
-            >
-              Esc
-            </kbd>
-          </div>
+          Esc
+        </kbd>
+      </div>
 
-          {/* Results list */}
-          <div
-            ref={listRef}
-            role="listbox"
-            id="cmd-results"
+      {/* Results list */}
+      <Command.List
+        style={{
+          maxHeight: '400px',
+          overflowY: 'auto',
+          padding: '6px',
+        }}
+      >
+        <Command.Empty
+          style={{
+            padding: '24px',
+            textAlign: 'center',
+            color: 'var(--io-text-muted)',
+            fontSize: '13px',
+          }}
+        >
+          {term.trim()
+            ? <>No results for &ldquo;{term}&rdquo;</>
+            : scope
+              ? `Type to search ${SCOPE_PLACEHOLDER[scope].toLowerCase().replace('…', '')}`
+              : 'No commands found'}
+        </Command.Empty>
+
+        {/* Server search results section — always shown when present */}
+        {hasSearchResults && (
+          <Command.Group
+            heading={sectionLabel}
             style={{
-              maxHeight: '400px',
-              overflowY: 'auto',
-              padding: '6px',
+              // Group heading style
             }}
           >
-            {items.length === 0 && !isSearching && (
-              <div
+            {searchResults.map((result) => (
+              <Command.Item
+                key={`result-${result.id}`}
+                value={`${RESULT_VALUE_PREFIX}${result.id}`}
+                onSelect={() => handleSelectResult(result)}
                 style={{
-                  padding: '24px',
-                  textAlign: 'center',
-                  color: 'var(--io-text-muted)',
-                  fontSize: '13px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  gap: '2px',
                 }}
               >
-                {term.trim()
-                  ? <>No results for &ldquo;{term}&rdquo;</>
-                  : scope
-                    ? `Type to search ${SCOPE_PLACEHOLDER[scope].toLowerCase().replace('…', '')}`
-                    : 'No commands found'}
-              </div>
-            )}
-
-            {/* Search results section */}
-            {hasSearchResults && (
-              <>
-                <div
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: 'var(--io-text-muted)',
-                    padding: '4px 12px 2px',
-                  }}
-                >
-                  {scope === 'points' ? 'Points' : scope === 'graphics' ? 'Graphics' : scope === 'entities' ? 'Entities' : 'Search Results'}
-                </div>
-                {searchResults.map((result, i) => {
-                  const globalIdx = i
-                  const isSelected = globalIdx === selectedIndex
-                  return (
-                    <button
-                      key={`result-${result.id}`}
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => handleSelectItem({ kind: 'result', result })}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: isSelected ? 'var(--io-accent-subtle)' : 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        gap: '2px',
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={() => setSelectedIndex(globalIdx)}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span
-                          style={{
-                            fontSize: '10px',
-                            fontWeight: 600,
-                            letterSpacing: '0.04em',
-                            textTransform: 'uppercase',
-                            color: 'var(--io-accent)',
-                            background: 'var(--io-accent-subtle)',
-                            border: '1px solid var(--io-accent-subtle)',
-                            borderRadius: '3px',
-                            padding: '0 4px',
-                          }}
-                        >
-                          {TYPE_LABELS[result.type] ?? result.type}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: 500,
-                            color: isSelected ? 'var(--io-accent)' : 'var(--io-text-primary)',
-                          }}
-                        >
-                          {highlight(result.name, term)}
-                        </span>
-                      </div>
-                      {result.description && (
-                        <span style={{ fontSize: '12px', color: 'var(--io-text-muted)', paddingLeft: 2 }}>
-                          {highlight(result.description, term)}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-              </>
-            )}
-
-            {/* Navigation commands section */}
-            {hasNavCommands && (
-              <>
-                {hasSearchResults && (
-                  <div
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span
                     style={{
                       fontSize: '10px',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
+                      fontWeight: 600,
+                      letterSpacing: '0.04em',
                       textTransform: 'uppercase',
-                      color: 'var(--io-text-muted)',
-                      padding: '8px 12px 2px',
+                      color: 'var(--io-accent)',
+                      background: 'var(--io-accent-subtle)',
+                      border: '1px solid var(--io-accent-subtle)',
+                      borderRadius: '3px',
+                      padding: '0 4px',
                     }}
                   >
-                    Navigation
-                  </div>
-                )}
-                {filteredCommands.map((cmd, i) => {
-                  const globalIdx = searchResults.length + i
-                  const isSelected = globalIdx === selectedIndex
-                  return (
-                    <button
-                      key={cmd.id}
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => handleSelectItem({ kind: 'command', cmd })}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        width: '100%',
-                        padding: '9px 12px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: isSelected ? 'var(--io-accent-subtle)' : 'transparent',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        gap: '2px',
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={() => setSelectedIndex(globalIdx)}
-                    >
-                      <span
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 500,
-                          color: isSelected ? 'var(--io-accent)' : 'var(--io-text-primary)',
-                        }}
-                      >
-                        {highlight(cmd.label, term)}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: '12px',
-                          color: 'var(--io-text-muted)',
-                        }}
-                      >
-                        {highlight(cmd.description, term)}
-                      </span>
-                    </button>
-                  )
-                })}
-              </>
-            )}
-          </div>
-
-          {/* Footer hint */}
-          <div
-            style={{
-              padding: '8px 16px',
-              borderTop: '1px solid var(--io-border)',
-              display: 'flex',
-              gap: '16px',
-              fontSize: '11px',
-              color: 'var(--io-text-muted)',
-              flexWrap: 'wrap',
-            }}
-          >
-            <span><kbd style={{ fontFamily: 'inherit' }}>↑↓</kbd> navigate</span>
-            <span><kbd style={{ fontFamily: 'inherit' }}>↵</kbd> open</span>
-            <span><kbd style={{ fontFamily: 'inherit' }}>Esc</kbd> close</span>
-            {!scope && (
-              <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                {SCOPE_HINTS.map(({ prefix, label }) => (
-                  <span key={prefix}>
-                    <kbd
-                      style={{
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        background: 'var(--io-surface-secondary)',
-                        border: '1px solid var(--io-border)',
-                        borderRadius: 3,
-                        padding: '0 4px',
-                      }}
-                    >
-                      {prefix}
-                    </kbd>{' '}
-                    {label}
+                    {TYPE_LABELS[result.type] ?? result.type}
                   </span>
-                ))}
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      color: 'var(--io-text-primary)',
+                    }}
+                  >
+                    {result.name}
+                  </span>
+                </div>
+                {result.description && (
+                  <span style={{ fontSize: '12px', color: 'var(--io-text-muted)', paddingLeft: 2 }}>
+                    {result.description}
+                  </span>
+                )}
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+
+        {/* Navigation commands section — fuzzy-matched by cmdk */}
+        {showNavCommands && (
+          <Command.Group
+            heading={hasSearchResults ? 'Navigation' : undefined}
+          >
+            {COMMANDS.map((cmd) => (
+              <Command.Item
+                key={cmd.id}
+                value={`${cmd.label} ${cmd.description}`}
+                keywords={cmd.keywords}
+                onSelect={() => handleSelectCommand(cmd)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  gap: '2px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: 'var(--io-text-primary)',
+                  }}
+                >
+                  {cmd.label}
+                </span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--io-text-muted)',
+                  }}
+                >
+                  {cmd.description}
+                </span>
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+      </Command.List>
+
+      {/* Footer hint */}
+      <div
+        style={{
+          padding: '8px 16px',
+          borderTop: '1px solid var(--io-border)',
+          display: 'flex',
+          gap: '16px',
+          fontSize: '11px',
+          color: 'var(--io-text-muted)',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span><kbd style={{ fontFamily: 'inherit' }}>↑↓</kbd> navigate</span>
+        <span><kbd style={{ fontFamily: 'inherit' }}>↵</kbd> open</span>
+        <span><kbd style={{ fontFamily: 'inherit' }}>Esc</kbd> close</span>
+        {!scope && (
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {SCOPE_HINTS.map(({ prefix, label }) => (
+              <span key={prefix}>
+                <kbd
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    background: 'var(--io-surface-secondary)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 3,
+                    padding: '0 4px',
+                  }}
+                >
+                  {prefix}
+                </kbd>{' '}
+                {label}
               </span>
-            )}
-            {scope && apiSearchEnabled && term.length >= 2 && (
-              <span style={{ marginLeft: 'auto' }}>
-                {isSearching ? 'Searching…' : `${searchResults.length} results`}
-              </span>
-            )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+            ))}
+          </span>
+        )}
+        {scope && apiSearchEnabled && term.length >= 2 && (
+          <span style={{ marginLeft: 'auto' }}>
+            {isSearching ? 'Searching…' : `${searchResults.length} results`}
+          </span>
+        )}
+      </div>
+    </Command.Dialog>
   )
 }

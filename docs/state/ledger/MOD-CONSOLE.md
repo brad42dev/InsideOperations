@@ -37,3 +37,5 @@ MOD-CONSOLE-023 | View-mode selector buttons missing from left nav section heade
 MOD-CONSOLE-022 | Favorites group missing from Workspaces section in left nav | verified 2026-03-26 | commit f5b7104 | npx tsc --noEmit | PASS
 MOD-CONSOLE-026 | Kiosk mode corner dwell exit trigger not implemented | verified 2026-03-26 | commit f717ebf | npx tsc --noEmit | PASS
 MOD-CONSOLE-022 | Favorites group missing from Workspaces section in left nav | verified 2026-03-26 | commit 1e1136b | npx tsc --noEmit | PASS
+MOD-CONSOLE-027 | Workspaces section Favorites group missing when no favorites are set | verified 2026-03-26 | commit 04e7ad7 | npx tsc --noEmit | PASS
+MOD-CONSOLE-029 | Workspace save feedback missing dirty indicator and persistent failure banner | verified 2026-03-26 | commit d01a6d6 | npx tsc --noEmit | PASS

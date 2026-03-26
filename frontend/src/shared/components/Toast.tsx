@@ -113,9 +113,14 @@ function ToastItem({ toast }: { toast: ToastItem }) {
     return () => clearTimeout(timer)
   }, [toast.id, toast.variant, toast.duration, dismiss])
 
+  // For error toasts, pass Infinity to Radix so its internal timer never fires.
+  // The custom useEffect above already handles auto-dismiss for other variants.
+  const radixDuration = toast.variant === 'error' ? Infinity : undefined
+
   return (
     <ToastPrimitive.Root
       open
+      duration={radixDuration}
       onOpenChange={(open) => {
         if (!open) dismiss(toast.id)
       }}

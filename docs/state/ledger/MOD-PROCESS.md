@@ -13,3 +13,5 @@ MOD-PROCESS-015 | Add Name/Description dialog when creating a viewport bookmark 
 MOD-PROCESS-017 | Persist minimap collapsed state to user preferences | verified 2026-03-26 | commit 236b5cb | npx tsc --noEmit | PASS
 MOD-PROCESS-018 | Replace hardcoded hex colors with design tokens in Process module | verified 2026-03-26 | commit 92a99e8 | npx tsc --noEmit | PASS
 MOD-PROCESS-016 | Implement detached window route /detached/process/:viewId | verified 2026-03-26 | commit 447e2b1 | npx tsc --noEmit | PASS
+MOD-PROCESS-019 | Hide breadcrumb nav bar and view toolbar in kiosk mode | verified 2026-03-26 | commit b99999a | npx tsc --noEmit | PASS
+MOD-PROCESS-020 | Pass isAlarm prop to PointContextMenu in Process module | verified 2026-03-26 | commit ca9accb | npx tsc --noEmit | PASS
