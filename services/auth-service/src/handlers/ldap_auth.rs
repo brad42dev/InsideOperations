@@ -404,6 +404,78 @@ async fn ldap_login_inner(
 }
 
 // ---------------------------------------------------------------------------
+// Background sync: re-sync LDAP group memberships for a single user
+// ---------------------------------------------------------------------------
+
+/// Connect to an LDAP provider as the service account, search for `username`,
+/// extract group memberships, and apply group→role mappings.
+///
+/// On any LDAP connection or query failure the function returns an error so the
+/// caller can log it and preserve existing role assignments unchanged.
+pub async fn sync_ldap_user_groups(
+    db: &io_db::DbPool,
+    server_url: &str,
+    bind_dn: &str,
+    bind_password: &str,
+    search_base: &str,
+    user_filter_template: &str,
+    username_attribute: &str,
+    group_attribute: &str,
+    provider_config_id: Uuid,
+    user_id: Uuid,
+    username: &str,
+) -> Result<(), io_error::IoError> {
+    let escaped_username = ldap_escape_filter(username);
+    let user_filter = user_filter_template.replace("{username}", &escaped_username);
+
+    let (conn, mut ldap) = LdapConnAsync::new(server_url)
+        .await
+        .map_err(|e| io_error::IoError::ServiceUnavailable(format!("LDAP sync connect: {e}")))?;
+
+    ldap3::drive!(conn);
+
+    ldap.simple_bind(bind_dn, bind_password)
+        .await
+        .map_err(|e| io_error::IoError::ServiceUnavailable(format!("LDAP sync bind: {e}")))?
+        .success()
+        .map_err(|e| io_error::IoError::Internal(format!("LDAP sync bind rejected: {e}")))?;
+
+    let search_attrs = vec![username_attribute, group_attribute];
+
+    let (entries, _res) = ldap
+        .search(search_base, Scope::Subtree, &user_filter, search_attrs)
+        .await
+        .map_err(|e| io_error::IoError::Internal(format!("LDAP sync search: {e}")))?
+        .success()
+        .map_err(|e| io_error::IoError::Internal(format!("LDAP sync search failed: {e}")))?;
+
+    ldap.unbind().await.ok();
+
+    let raw_entry = match entries.into_iter().next() {
+        Some(e) => e,
+        None => {
+            return Err(io_error::IoError::NotFound(format!(
+                "LDAP sync: user '{username}' not found in directory"
+            )));
+        }
+    };
+
+    let entry = SearchEntry::construct(raw_entry);
+
+    let groups: Vec<String> = entry
+        .attrs
+        .get(group_attribute)
+        .cloned()
+        .unwrap_or_default();
+
+    if !groups.is_empty() {
+        apply_group_role_mappings(db, provider_config_id, user_id, &groups).await?;
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Helper: escape special characters in an LDAP filter value (RFC 4515)
 // ---------------------------------------------------------------------------
 

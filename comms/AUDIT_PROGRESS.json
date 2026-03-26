@@ -5921,11 +5921,11 @@
     {
       "id": "DD-29-018",
       "unit": "DD-29",
-      "title": "Lock screen does not display PIN entry option when user has a PIN set",
-      "status": "verified",
+      "title": "Implement LDAP hourly background group-membership sync",
+      "status": "implementing",
       "priority": "high",
       "depends_on": [],
-      "source": "uat",
+      "source": "audit",
       "audit_round": 9,
       "uat_status": null
     },

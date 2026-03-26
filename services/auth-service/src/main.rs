@@ -64,6 +64,150 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Background task: hourly LDAP group-membership sync
+    // Runs on a configurable interval (AUTH_LDAP_SYNC_INTERVAL_SEC, default 3600 s).
+    // On LDAP failure, existing role assignments are preserved (errors are logged, not propagated).
+    {
+        use sqlx::Row as _;
+        let db = state.db.clone();
+        let interval_secs = cfg.ldap_sync_interval_secs;
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(
+                std::time::Duration::from_secs(interval_secs),
+            );
+            // Skip the immediate first tick — avoid hammering LDAP on service restart.
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+
+                // Fetch all enabled LDAP provider configs
+                let providers_result = sqlx::query(
+                    "SELECT id, config \
+                     FROM auth_provider_configs \
+                     WHERE provider_type = 'ldap' AND enabled = true",
+                )
+                .fetch_all(&db)
+                .await;
+
+                let providers = match providers_result {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::error!(error = %e, "LDAP sync: failed to fetch provider configs");
+                        continue;
+                    }
+                };
+
+                for provider_row in &providers {
+                    let provider_id: uuid::Uuid = provider_row.get("id");
+                    let config_json: serde_json::Value = provider_row.get("config");
+
+                    let server_url = match config_json["server_url"].as_str().map(str::to_string) {
+                        Some(v) => v,
+                        None => {
+                            tracing::warn!(provider_id = %provider_id, "LDAP sync: provider missing server_url, skipping");
+                            continue;
+                        }
+                    };
+                    let bind_dn = match config_json["bind_dn"].as_str().map(str::to_string) {
+                        Some(v) => v,
+                        None => {
+                            tracing::warn!(provider_id = %provider_id, "LDAP sync: provider missing bind_dn, skipping");
+                            continue;
+                        }
+                    };
+                    let bind_password = match config_json["bind_password"].as_str().map(str::to_string) {
+                        Some(v) => v,
+                        None => {
+                            tracing::warn!(provider_id = %provider_id, "LDAP sync: provider missing bind_password, skipping");
+                            continue;
+                        }
+                    };
+                    let search_base = match config_json["search_base"].as_str().map(str::to_string) {
+                        Some(v) => v,
+                        None => {
+                            tracing::warn!(provider_id = %provider_id, "LDAP sync: provider missing search_base, skipping");
+                            continue;
+                        }
+                    };
+                    let user_filter_template = config_json["user_filter"]
+                        .as_str()
+                        .unwrap_or("(&(sAMAccountName={username})(objectClass=user))")
+                        .to_string();
+                    let username_attribute = config_json["username_attribute"]
+                        .as_str()
+                        .unwrap_or("sAMAccountName")
+                        .to_string();
+                    let group_attribute = config_json["group_attribute"]
+                        .as_str()
+                        .unwrap_or("memberOf")
+                        .to_string();
+
+                    // Fetch all LDAP users for this provider whose roles are IdP-managed
+                    let users_result = sqlx::query(
+                        "SELECT id, username \
+                         FROM users \
+                         WHERE auth_provider = 'ldap' \
+                           AND auth_provider_config_id = $1 \
+                           AND role_source IN ('idp', 'both') \
+                           AND enabled = true \
+                           AND deleted_at IS NULL",
+                    )
+                    .bind(provider_id)
+                    .fetch_all(&db)
+                    .await;
+
+                    let users = match users_result {
+                        Ok(u) => u,
+                        Err(e) => {
+                            tracing::error!(
+                                error = %e,
+                                provider_id = %provider_id,
+                                "LDAP sync: failed to fetch users for provider"
+                            );
+                            continue;
+                        }
+                    };
+
+                    let user_count = users.len();
+                    for user_row in users {
+                        let user_id: uuid::Uuid = user_row.get("id");
+                        let username: String = user_row.get("username");
+                        if let Err(e) = handlers::ldap_auth::sync_ldap_user_groups(
+                            &db,
+                            &server_url,
+                            &bind_dn,
+                            &bind_password,
+                            &search_base,
+                            &user_filter_template,
+                            &username_attribute,
+                            &group_attribute,
+                            provider_id,
+                            user_id,
+                            &username,
+                        )
+                        .await
+                        {
+                            // Log and continue — do NOT clear existing role assignments on failure
+                            tracing::warn!(
+                                error = %e,
+                                user_id = %user_id,
+                                provider_id = %provider_id,
+                                "LDAP sync: failed for user '{}', preserving existing roles",
+                                username
+                            );
+                        }
+                    }
+
+                    tracing::debug!(
+                        provider_id = %provider_id,
+                        user_count,
+                        "LDAP background sync complete for provider"
+                    );
+                }
+            }
+        });
+    }
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_headers(Any)

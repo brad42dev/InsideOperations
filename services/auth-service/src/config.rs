@@ -18,6 +18,8 @@ pub struct Config {
     pub email_service_url: String,
     /// Base URL of the data-broker for publishing typed WebSocket events.
     pub data_broker_url: String,
+    /// Interval in seconds for the LDAP background group-membership sync (default: 3600).
+    pub ldap_sync_interval_secs: u64,
 }
 
 impl Config {
@@ -49,6 +51,10 @@ impl Config {
                 .unwrap_or_else(|_| "http://127.0.0.1:3008".to_string()),
             data_broker_url: std::env::var("DATA_BROKER_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:3001".to_string()),
+            ldap_sync_interval_secs: std::env::var("AUTH_LDAP_SYNC_INTERVAL_SEC")
+                .unwrap_or_else(|_| "3600".to_string())
+                .parse()
+                .unwrap_or(3600),
         })
     }
 }

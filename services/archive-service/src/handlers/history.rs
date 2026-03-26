@@ -83,6 +83,8 @@ pub struct HistoryRow {
     pub max: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sum: Option<f64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -273,13 +275,14 @@ pub async fn get_point_history(
                         min: None,
                         max: None,
                         count: None,
+                        sum: None,
                     }
                 })
                 .collect::<Vec<_>>()
         }
         "1m" => {
             let agg_rows = sqlx::query(
-                "SELECT bucket AS timestamp, avg, min, max, count \
+                "SELECT bucket AS timestamp, avg, min, max, count, sum \
                  FROM points_history_1m \
                  WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                  ORDER BY bucket \
@@ -304,13 +307,14 @@ pub async fn get_point_history(
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
+                        sum: r.get("sum"),
                     }
                 })
                 .collect::<Vec<_>>()
         }
         "5m" => {
             let agg_rows = sqlx::query(
-                "SELECT bucket AS timestamp, avg, min, max, count \
+                "SELECT bucket AS timestamp, avg, min, max, count, sum \
                  FROM points_history_5m \
                  WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                  ORDER BY bucket \
@@ -335,13 +339,14 @@ pub async fn get_point_history(
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
+                        sum: r.get("sum"),
                     }
                 })
                 .collect::<Vec<_>>()
         }
         "1h" => {
             let agg_rows = sqlx::query(
-                "SELECT bucket AS timestamp, avg, min, max, count \
+                "SELECT bucket AS timestamp, avg, min, max, count, sum \
                  FROM points_history_1h \
                  WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                  ORDER BY bucket \
@@ -366,13 +371,14 @@ pub async fn get_point_history(
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
+                        sum: r.get("sum"),
                     }
                 })
                 .collect::<Vec<_>>()
         }
         "15m" => {
             let agg_rows = sqlx::query(
-                "SELECT bucket AS timestamp, avg, min, max, count \
+                "SELECT bucket AS timestamp, avg, min, max, count, sum \
                  FROM points_history_15m \
                  WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                  ORDER BY bucket \
@@ -397,13 +403,14 @@ pub async fn get_point_history(
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
+                        sum: r.get("sum"),
                     }
                 })
                 .collect::<Vec<_>>()
         }
         "1d" => {
             let agg_rows = sqlx::query(
-                "SELECT bucket AS timestamp, avg, min, max, count \
+                "SELECT bucket AS timestamp, avg, min, max, count, sum \
                  FROM points_history_1d \
                  WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                  ORDER BY bucket \
@@ -428,6 +435,7 @@ pub async fn get_point_history(
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
+                        sum: r.get("sum"),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -563,13 +571,14 @@ pub async fn get_batch_history(
                             min: None,
                             max: None,
                             count: None,
+                            sum: None,
                         }
                     })
                     .collect::<Vec<_>>()
             }
             "1m" => {
                 let agg_rows = sqlx::query(
-                    "SELECT bucket AS timestamp, avg, min, max, count \
+                    "SELECT bucket AS timestamp, avg, min, max, count, sum \
                      FROM points_history_1m \
                      WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                      ORDER BY bucket \
@@ -593,13 +602,14 @@ pub async fn get_batch_history(
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
+                            sum: r.get("sum"),
                         }
                     })
                     .collect::<Vec<_>>()
             }
             "5m" => {
                 let agg_rows = sqlx::query(
-                    "SELECT bucket AS timestamp, avg, min, max, count \
+                    "SELECT bucket AS timestamp, avg, min, max, count, sum \
                      FROM points_history_5m \
                      WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                      ORDER BY bucket \
@@ -623,13 +633,14 @@ pub async fn get_batch_history(
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
+                            sum: r.get("sum"),
                         }
                     })
                     .collect::<Vec<_>>()
             }
             "1h" => {
                 let agg_rows = sqlx::query(
-                    "SELECT bucket AS timestamp, avg, min, max, count \
+                    "SELECT bucket AS timestamp, avg, min, max, count, sum \
                      FROM points_history_1h \
                      WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                      ORDER BY bucket \
@@ -653,13 +664,14 @@ pub async fn get_batch_history(
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
+                            sum: r.get("sum"),
                         }
                     })
                     .collect::<Vec<_>>()
             }
             "15m" => {
                 let agg_rows = sqlx::query(
-                    "SELECT bucket AS timestamp, avg, min, max, count \
+                    "SELECT bucket AS timestamp, avg, min, max, count, sum \
                      FROM points_history_15m \
                      WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                      ORDER BY bucket \
@@ -683,13 +695,14 @@ pub async fn get_batch_history(
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
+                            sum: r.get("sum"),
                         }
                     })
                     .collect::<Vec<_>>()
             }
             "1d" => {
                 let agg_rows = sqlx::query(
-                    "SELECT bucket AS timestamp, avg, min, max, count \
+                    "SELECT bucket AS timestamp, avg, min, max, count, sum \
                      FROM points_history_1d \
                      WHERE point_id = $1 AND bucket BETWEEN $2 AND $3 \
                      ORDER BY bucket \
@@ -713,6 +726,7 @@ pub async fn get_batch_history(
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
+                            sum: r.get("sum"),
                         }
                     })
                     .collect::<Vec<_>>()
