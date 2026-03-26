@@ -155,11 +155,25 @@ function useUnacknowledgedAlertCount(): number {
   return data ?? 0
 }
 
-/** Fetch active (in-progress) rounds count for sidebar badge.
- *  Disabled until the Rounds module backend is implemented (Phase 13). */
+/** Fetch active (in-progress) rounds count for sidebar badge. */
 function useActiveRoundsCount(): number {
-  // TODO: enable when /api/v1/rounds is implemented
-  return 0
+  // TODO(DD-06-024): rounds count wired to GET /api/v1/rounds?status=in_progress
+  const { data } = useQuery<number>({
+    queryKey: ['rounds-active-count'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/rounds?status=in_progress&limit=1', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
+      })
+      if (!res.ok) return 0
+      const json = await res.json()
+      if (typeof json?.total === 'number') return json.total
+      if (Array.isArray(json?.data)) return json.data.length
+      return 0
+    },
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+  })
+  return data ?? 0
 }
 
 // Severity sort order for alert dropdown panel
