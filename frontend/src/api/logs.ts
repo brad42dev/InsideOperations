@@ -1,4 +1,4 @@
-import { api, queryString, type ApiResult } from './client'
+import { api, queryString, type ApiResult, type PaginatedResult } from './client'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,8 +77,8 @@ export interface LogSchedule {
 // ---------------------------------------------------------------------------
 
 export const logsApi = {
-  listTemplates: (params?: { is_active?: boolean }): Promise<ApiResult<LogTemplate[]>> =>
-    api.get<LogTemplate[]>(`/api/logs/templates${queryString(params)}`),
+  listTemplates: (params?: { is_active?: boolean }): Promise<ApiResult<PaginatedResult<LogTemplate>>> =>
+    api.get<PaginatedResult<LogTemplate>>(`/api/logs/templates${queryString(params)}`),
 
   createTemplate: (data: {
     name: string

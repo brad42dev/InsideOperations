@@ -26,19 +26,28 @@ let refreshPromise: Promise<string | null> | null = null
 
 async function doRefresh(): Promise<string | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    })
-    if (!res.ok) return null
-    const json = (await res.json()) as { data?: { access_token?: string }; access_token?: string }
-    const token = json.data?.access_token ?? (json as { access_token?: string }).access_token
-    if (token) {
-      localStorage.setItem(TOKEN_KEY, token)
-      return token
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+      })
+      clearTimeout(timeoutId)
+      if (!res.ok) return null
+      const json = (await res.json()) as { data?: { access_token?: string }; access_token?: string }
+      const token = json.data?.access_token ?? (json as { access_token?: string }).access_token
+      if (token) {
+        localStorage.setItem(TOKEN_KEY, token)
+        return token
+      }
+      return null
+    } catch (err) {
+      clearTimeout(timeoutId)
+      throw err
     }
-    return null
   } catch {
     return null
   }
@@ -60,12 +69,21 @@ async function request<T>(
 
   let res: Response
   try {
-    res = await fetch(`${API_BASE}${path}`, {
-      method,
-      headers,
-      credentials: 'include',
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    try {
+      res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers,
+        credentials: 'include',
+        signal: controller.signal,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      })
+      clearTimeout(timeoutId)
+    } catch (err) {
+      clearTimeout(timeoutId)
+      throw err
+    }
   } catch (err) {
     return {
       success: false,
@@ -155,12 +173,21 @@ async function requestForm<T>(method: string, path: string, form: FormData, isRe
 
   let res: Response
   try {
-    res = await fetch(`${API_BASE}${path}`, {
-      method,
-      headers,
-      credentials: 'include',
-      body: form,
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout for file uploads
+    try {
+      res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers,
+        credentials: 'include',
+        signal: controller.signal,
+        body: form,
+      })
+      clearTimeout(timeoutId)
+    } catch (err) {
+      clearTimeout(timeoutId)
+      throw err
+    }
   } catch {
     return {
       success: false,

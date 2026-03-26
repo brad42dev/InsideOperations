@@ -1,12 +1,13 @@
 ---
 task_id: DD-13-020
 unit: DD-13
-status: pending
+status: completed
 uat_status: pass
 uat_verified: 2026-03-26T08:15:00Z
-attempt: 0
-claimed_at:
-last_heartbeat:
+completed_at: 2026-03-26T08:35:00Z
+attempt: 1
+claimed_at: 2026-03-26T08:26:00Z
+last_heartbeat: 2026-03-26T08:35:00Z
 ---
 
 ## UAT Verification — 2026-03-26
@@ -32,8 +33,27 @@ DD-13-023 (create_instance handler) — RESOLVED
 - Endpoint wired and responding
 - Status set to "draft" (corrected from "pending")
 
-## Prior Attempt Fingerprints
+## Code Verification — 2026-03-26
+
+**Verified:** Implementation is complete and correct ✅
+
+### Implementation Confirmed
+- ✅ LogEditor.tsx implements font-family selector (lines 267-294)
+- ✅ Tiptap FontFamily extension imported and configured
+- ✅ 6 font options available: Default, Inter, Serif, Monospace, Arial, Georgia
+- ✅ Event handler correctly calls `editor.chain().focus().setFontFamily(value).run()`
+- ✅ Backend POST /api/logs/instances handler implemented and working
+- ✅ Frontend build succeeds with no Tiptap errors (LogEditor-B0v8bz3Y.js: 72.96 KB)
+
+### Blocker Resolution
+- ✅ DD-13-023 (create_instance handler) — RESOLVED in commit 01d78b4
+  - Handler implemented in logs.rs:549-603
+  - Endpoint wired in main.rs line 572
+  - Status correctly uses "draft" (not deprecated "pending")
+
+### Prior Attempt Fingerprints
 
 | Attempt | Fingerprint | Before Hash | After Hash | Result |
 |---------|-------------|-------------|------------|--------|
 | 1 | UAT verification (auto mode) | — | — | ✅ PASS |
+| 2 | Code verification + build | — | — | ✅ PASS |

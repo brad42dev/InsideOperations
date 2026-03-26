@@ -1,10 +1,10 @@
 ---
 task_id: DD-13-019
 unit: DD-13
-status: pending
-attempt: 0
-claimed_at:
-last_heartbeat:
+status: completed
+attempt: 1
+claimed_at: 2026-03-26
+last_heartbeat: 2026-03-26
 ---
 
 ## Prior Attempt Fingerprints

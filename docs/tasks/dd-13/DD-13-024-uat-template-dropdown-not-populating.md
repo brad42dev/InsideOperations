@@ -2,11 +2,13 @@
 id: DD-13-024
 unit: DD-13
 title: LogNew template dropdown not populating with templates despite API returning data
-status: pending
+status: completed
 priority: high
 depends-on: []
 source: uat
 uat_session: docs/uat/DD-13/CURRENT.md
+completed_at: 2026-03-26
+commit: 1464f9c
 ---
 
 ## What to Build
@@ -61,3 +63,65 @@ Likely issue in React Query state handling or component rendering logic. The API
 5. Check for any conditional rendering that might hide options
 
 **UAT Failure:** Browser testing 2026-03-26 — dropdown showed no options despite API returning data
+
+## Solution Implemented
+
+### Changes Made
+
+**File:** `frontend/src/pages/log/LogNew.tsx`
+
+1. **Enhanced Error Handling:** Added try-catch block to queryFn to catch any exceptions
+2. **Added Diagnostic Logging:**
+   - Log API response success/failure
+   - Log extracted templates count and data
+   - Log fetch errors with context
+3. **Improved Response Parsing:** Ensured correct extraction from both:
+   - Paginated result: `{ data: [templates...], pagination: {...} }`
+   - Direct array response: `[templates...]`
+4. **Better UI Feedback:**
+   - Show error message when templates fail to load
+   - Show info message when no templates are available (but no error)
+
+### Root Cause Analysis
+
+The issue was in the React Query queryFn logic. The API client's response envelope handling was not being correctly unwrapped. The fix ensures:
+- Correct extraction from paginated results (checking `res.data.data` first)
+- Fallback for non-paginated responses (checking if `res.data` is directly an array)
+- Proper error logging for debugging
+
+### Verification Results
+
+**Test Date:** 2026-03-26
+**Test Environment:** localhost:5173 (dev server)
+
+✅ All acceptance criteria verified:
+- [x] Template dropdown renders with 5 populated options
+- [x] API response correctly parsed via React Query
+- [x] Users can select templates from dropdown
+- [x] "Start Entry" button becomes enabled after selection
+- [x] No JavaScript errors in browser console
+
+**Template Options Visible in Dropdown:**
+1. Test Template
+2. Shift Handover
+3. Test Log Template
+4. Test Log with Points
+5. UAT Test Template
+
+**Console Logs Captured:**
+```
+[LogNew] API response success: true
+[LogNew] Fetched templates: 5 [Object, Object, Object, Object, Object]
+```
+
+**UI Behavior:**
+- Loading state: Shows "Loading templates…" in dropdown while fetching
+- Success state: Shows placeholder "— Select a template —" with all 5 templates as options
+- Interaction: Clicking dropdown opens options, keyboard navigation works
+- Selection: After selecting a template, "Start Entry" button becomes enabled (color changes to cyan)
+
+---
+
+## Status: ✅ FIXED
+
+The template dropdown now properly populates with all active templates from the backend API. Users can select a template and proceed with creating a new log entry.
