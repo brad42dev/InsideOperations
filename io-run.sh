@@ -1490,6 +1490,24 @@ UNIT: ${_dunit}" > /dev/null
                 wait "$pid" 2>/dev/null || exit_code=$?
                 if [ "$exit_code" -eq 0 ]; then
                     echo "  ✅ Agent PID ${pid} (task ${task_id}) — completed"
+                    # If the agent did not update the DB itself, mark verified now.
+                    # Only overrides 'implementing' — preserves needs_input, escalated, etc.
+                    python3 - "$REPO/$DB_FILE" "$task_id" <<'_VERIFY_PY' 2>/dev/null || true
+import sqlite3, sys
+from datetime import datetime, timezone
+db, tid = sys.argv[1], sys.argv[2]
+now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+con = sqlite3.connect(db, timeout=10)
+con.execute("PRAGMA journal_mode=WAL")
+row = con.execute("SELECT unit FROM io_tasks WHERE id=? AND status='implementing'", (tid,)).fetchone()
+if row:
+    con.execute("UPDATE io_tasks SET status='verified', claimed_at=NULL, claimed_by=NULL, updated_at=? WHERE id=?", (now, tid))
+    unit = row[0]
+    if unit:
+        con.execute("UPDATE io_queue SET verified_since_last_audit=verified_since_last_audit+1 WHERE unit=?", (unit,))
+    con.commit()
+con.close()
+_VERIFY_PY
                     "$REPO/io-gh-mirror.sh" mirror "$task_id" "verified" "Completed by agent PID ${pid}" || true
                 else
                     local rl_signal="/tmp/io-rl-${task_id}"
@@ -2765,6 +2783,22 @@ AUTO_UAT_PYEOF
                     if [ "$_type" = "impl" ]; then
                         if [ "$_ec" -eq 0 ]; then
                             echo "  ✅ [impl ] PID ${_pid} (task ${_id}) — completed"
+                            python3 - "$REPO/$DB_FILE" "$_id" <<'_VERIFY_PY' 2>/dev/null || true
+import sqlite3, sys
+from datetime import datetime, timezone
+db, tid = sys.argv[1], sys.argv[2]
+now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+con = sqlite3.connect(db, timeout=10)
+con.execute("PRAGMA journal_mode=WAL")
+row = con.execute("SELECT unit FROM io_tasks WHERE id=? AND status='implementing'", (tid,)).fetchone()
+if row:
+    con.execute("UPDATE io_tasks SET status='verified', claimed_at=NULL, claimed_by=NULL, updated_at=? WHERE id=?", (now, tid))
+    unit = row[0]
+    if unit:
+        con.execute("UPDATE io_queue SET verified_since_last_audit=verified_since_last_audit+1 WHERE unit=?", (unit,))
+    con.commit()
+con.close()
+_VERIFY_PY
                             "$REPO/io-gh-mirror.sh" mirror "$_id" "verified" "PID ${_pid}" || true
                         else
                             local _rl="/tmp/io-rl-${_id}"
