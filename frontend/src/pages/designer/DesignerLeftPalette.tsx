@@ -279,6 +279,15 @@ function ShapeTile({
   const shape = useLibraryStore(s => s.cache.get(item.id) ?? null)
   const loadShape = useLibraryStore(s => s.loadShape)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [isFavorited, setIsFavorited] = useState(() => {
+    try {
+      const raw = localStorage.getItem('io:palette-favorites') ?? '{}'
+      const favs = JSON.parse(raw) as Record<string, string[]>
+      return (favs['equipment'] ?? []).includes(item.id)
+    } catch {
+      return false
+    }
+  })
 
   // Determine tile type from source field
   const isLibrary = item.source === 'library' || item.source === undefined
@@ -345,7 +354,7 @@ function ShapeTile({
     document.addEventListener('mouseup', onUp, true)
   }, [item.id, item.label])
 
-  function handleAddToCanvas() {
+  function handlePlaceAtCenter() {
     const canvasEl = document.querySelector('[data-designer-canvas="true"]')
     const rect = canvasEl?.getBoundingClientRect()
     const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
@@ -353,6 +362,26 @@ function ShapeTile({
     document.dispatchEvent(new CustomEvent('io:shape-drop', {
       detail: { shapeId: item.id, x: cx, y: cy },
     }))
+  }
+
+  function handleToggleFavorite() {
+    try {
+      const raw = localStorage.getItem('io:palette-favorites') ?? '{}'
+      const favs = JSON.parse(raw) as Record<string, string[]>
+      if (!favs['equipment']) favs['equipment'] = []
+      if (isFavorited) {
+        favs['equipment'] = favs['equipment'].filter(id => id !== item.id)
+        setIsFavorited(false)
+      } else {
+        if (!favs['equipment'].includes(item.id)) {
+          favs['equipment'].push(item.id)
+        }
+        setIsFavorited(true)
+      }
+      localStorage.setItem('io:palette-favorites', JSON.stringify(favs))
+    } catch {
+      // localStorage may be blocked — silently ignore
+    }
   }
 
   function handleExportSvg() {
@@ -400,77 +429,15 @@ function ShapeTile({
     console.warn('[ShapeTile] Delete shape: API not yet implemented for shape', item.id)
   }
 
-  const tileDivCollapsed = (
-    <div
-      onMouseDown={handleMouseDown}
-      title={item.label}
-      style={{
-        width: 32,
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab',
-        overflow: 'hidden',
-        userSelect: 'none',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-    >
-      {shape?.svg
-        ? <SvgThumbnail svgText={shape.svg} size={26} />
-        : <span style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{item.label.slice(0, 2).toUpperCase()}</span>
-      }
-    </div>
-  )
-
-  const tileDivExpanded = (
-    <div
-      onMouseDown={handleMouseDown}
-      title={item.label}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 3,
-        width: 64,
-        height: 64,
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab',
-        overflow: 'hidden',
-        userSelect: 'none',
-        padding: 4,
-        textAlign: 'center',
-        flexShrink: 0,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-    >
-      {shape?.svg
-        ? <SvgThumbnail svgText={shape.svg} size={36} />
-        : <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.25 }}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect x="2" y="5" width="16" height="10" rx="1" stroke="#808080" strokeWidth="1.5" fill="none"/>
-            </svg>
-          </div>
-      }
-      <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
-        {item.label.length > 12 ? item.label.slice(0, 11) + '…' : item.label}
-      </div>
-    </div>
-  )
 
   const contextMenuContent = (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content style={cmContentStyle}>
-        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleAddToCanvas}>
-          Add to Canvas
+        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handlePlaceAtCenter}>
+          Place at Center
+        </ContextMenuPrimitive.Item>
+        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleToggleFavorite}>
+          {isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}
         </ContextMenuPrimitive.Item>
         <ContextMenuPrimitive.Separator style={cmSepStyle} />
         {isLibrary && (
@@ -512,8 +479,29 @@ function ShapeTile({
       <>
         <ContextMenuPrimitive.Root>
           <ContextMenuPrimitive.Trigger asChild>
-            <div>
-              {tileDivCollapsed}
+            <div
+              onMouseDown={handleMouseDown}
+              title={item.label}
+              style={{
+                width: 32,
+                height: 32,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'grab',
+                overflow: 'hidden',
+                userSelect: 'none',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+            >
+              {shape?.svg
+                ? <SvgThumbnail svgText={shape.svg} size={26} />
+                : <span style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{item.label.slice(0, 2).toUpperCase()}</span>
+              }
             </div>
           </ContextMenuPrimitive.Trigger>
           {contextMenuContent}
@@ -534,8 +522,41 @@ function ShapeTile({
     <>
       <ContextMenuPrimitive.Root>
         <ContextMenuPrimitive.Trigger asChild>
-          <div>
-            {tileDivExpanded}
+          <div
+            onMouseDown={handleMouseDown}
+            title={item.label}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 3,
+              width: 64,
+              height: 64,
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              cursor: 'grab',
+              overflow: 'hidden',
+              userSelect: 'none',
+              padding: 4,
+              textAlign: 'center',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+          >
+            {shape?.svg
+              ? <SvgThumbnail svgText={shape.svg} size={36} />
+              : <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.25 }}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="2" y="5" width="16" height="10" rx="1" stroke="#808080" strokeWidth="1.5" fill="none"/>
+                  </svg>
+                </div>
+            }
+            <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
+              {item.label.length > 12 ? item.label.slice(0, 11) + '…' : item.label}
+            </div>
           </div>
         </ContextMenuPrimitive.Trigger>
         {contextMenuContent}
@@ -646,6 +667,16 @@ function DisplayElementTile({
   label: string
   collapsed: boolean
 }) {
+  const [isFavorited, setIsFavorited] = useState(() => {
+    try {
+      const raw = localStorage.getItem('io:palette-favorites') ?? '{}'
+      const favs = JSON.parse(raw) as Record<string, string[]>
+      return (favs['display-elements'] ?? []).includes(type)
+    } catch {
+      return false
+    }
+  })
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Only handle left-click drags; right-clicks go to the context menu
     if (e.button !== 0) return
@@ -702,99 +733,110 @@ function DisplayElementTile({
     }))
   }
 
-  function handleAddToFavorites() {
-    // Persist to localStorage under the display-elements favorites key
+  function handleToggleFavorite() {
     try {
       const raw = localStorage.getItem('io:palette-favorites') ?? '{}'
       const favs = JSON.parse(raw) as Record<string, string[]>
       if (!favs['display-elements']) favs['display-elements'] = []
-      if (!favs['display-elements'].includes(type)) {
-        favs['display-elements'].push(type)
-        localStorage.setItem('io:palette-favorites', JSON.stringify(favs))
+      if (isFavorited) {
+        favs['display-elements'] = favs['display-elements'].filter(t => t !== type)
+        setIsFavorited(false)
+      } else {
+        if (!favs['display-elements'].includes(type)) {
+          favs['display-elements'].push(type)
+        }
+        setIsFavorited(true)
       }
+      localStorage.setItem('io:palette-favorites', JSON.stringify(favs))
     } catch {
       // localStorage may be blocked — silently ignore
     }
   }
 
-  const tileCollapsed = (
-    <div
-      onMouseDown={handleMouseDown}
-      title={label}
-      style={{
-        width: 32,
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab',
-        overflow: 'hidden',
-        userSelect: 'none',
-        flexShrink: 0,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-    >
-      <DisplayElementPreview type={type} size={26} />
-    </div>
-  )
-
-  const tileExpanded = (
-    <div
-      onMouseDown={handleMouseDown}
-      title={label}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        width: 72,
-        height: 64,
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab',
-        overflow: 'hidden',
-        userSelect: 'none',
-        padding: 4,
-        textAlign: 'center',
-        flexShrink: 0,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-    >
-      <DisplayElementPreview type={type} size={40} />
-      <span style={{ fontSize: 9, color: 'var(--io-text-muted)', lineHeight: 1.2, textAlign: 'center' }}>
-        {label.length > 12 ? label.slice(0, 11) + '…' : label}
-      </span>
-    </div>
-  )
-
-  const menuContent = (
-    <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Content style={cmContentStyle}>
-        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handlePlaceAtCenter}>
-          Place at Center
-        </ContextMenuPrimitive.Item>
-        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleAddToFavorites}>
-          Add to Favorites
-        </ContextMenuPrimitive.Item>
-      </ContextMenuPrimitive.Content>
-    </ContextMenuPrimitive.Portal>
-  )
+  if (collapsed) {
+    return (
+      <ContextMenuPrimitive.Root>
+        <ContextMenuPrimitive.Trigger asChild>
+          <div
+            onMouseDown={handleMouseDown}
+            title={label}
+            style={{
+              width: 32,
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              cursor: 'grab',
+              overflow: 'hidden',
+              userSelect: 'none',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+          >
+            <DisplayElementPreview type={type} size={26} />
+          </div>
+        </ContextMenuPrimitive.Trigger>
+        <ContextMenuPrimitive.Portal>
+          <ContextMenuPrimitive.Content style={cmContentStyle}>
+            <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handlePlaceAtCenter}>
+              Place at Center
+            </ContextMenuPrimitive.Item>
+            <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleToggleFavorite}>
+              {isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}
+            </ContextMenuPrimitive.Item>
+          </ContextMenuPrimitive.Content>
+        </ContextMenuPrimitive.Portal>
+      </ContextMenuPrimitive.Root>
+    )
+  }
 
   return (
     <ContextMenuPrimitive.Root>
       <ContextMenuPrimitive.Trigger asChild>
-        <div>
-          {collapsed ? tileCollapsed : tileExpanded}
+        <div
+          onMouseDown={handleMouseDown}
+          title={label}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            width: 72,
+            height: 64,
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            cursor: 'grab',
+            overflow: 'hidden',
+            userSelect: 'none',
+            padding: 4,
+            textAlign: 'center',
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+        >
+          <DisplayElementPreview type={type} size={40} />
+          <span style={{ fontSize: 9, color: 'var(--io-text-muted)', lineHeight: 1.2, textAlign: 'center' }}>
+            {label.length > 12 ? label.slice(0, 11) + '…' : label}
+          </span>
         </div>
       </ContextMenuPrimitive.Trigger>
-      {menuContent}
+      <ContextMenuPrimitive.Portal>
+        <ContextMenuPrimitive.Content style={cmContentStyle}>
+          <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handlePlaceAtCenter}>
+            Place at Center
+          </ContextMenuPrimitive.Item>
+          <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleToggleFavorite}>
+            {isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}
+          </ContextMenuPrimitive.Item>
+        </ContextMenuPrimitive.Content>
+      </ContextMenuPrimitive.Portal>
     </ContextMenuPrimitive.Root>
   )
 }
@@ -1012,48 +1054,42 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
     }))
   }
 
-  const tileDiv = (
-    <div
-      onMouseDown={handleMouseDown}
-      title={item.name}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 3,
-        width: 64,
-        height: 64,
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab',
-        overflow: 'hidden',
-        userSelect: 'none',
-        padding: 4,
-        textAlign: 'center',
-        flexShrink: 0,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-    >
-      <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="6" width="18" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" fill="none" />
-          <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-      </div>
-      <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
-        {item.name.length > 12 ? item.name.slice(0, 11) + '…' : item.name}
-      </div>
-    </div>
-  )
-
   return (
     <ContextMenuPrimitive.Root>
       <ContextMenuPrimitive.Trigger asChild>
-        <div>
-          {tileDiv}
+        <div
+          onMouseDown={handleMouseDown}
+          title={item.name}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 3,
+            width: 64,
+            height: 64,
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            cursor: 'grab',
+            overflow: 'hidden',
+            userSelect: 'none',
+            padding: 4,
+            textAlign: 'center',
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+        >
+          <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="6" width="18" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" fill="none" />
+              <path d="M8 12h8M12 8v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', maxWidth: '100%', color: 'var(--io-text-muted)' }}>
+            {item.name.length > 12 ? item.name.slice(0, 11) + '…' : item.name}
+          </div>
         </div>
       </ContextMenuPrimitive.Trigger>
       <ContextMenuPrimitive.Portal>
