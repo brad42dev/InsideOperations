@@ -14,6 +14,7 @@ import {
   type NotificationChannel,
   type SendNotificationPayload,
   type CreateTemplatePayload,
+  type UpdateTemplatePayload,
   type CreateGroupPayload,
   type UpdateGroupPayload,
   type TemplateVariable,
@@ -1224,6 +1225,9 @@ function TemplatesPanel() {
   const [varDefs, setVarDefs] = useState<TemplateVariable[]>([])
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [testSendPendingId, setTestSendPendingId] = useState<string | null>(null)
+  const [editTemplateId, setEditTemplateId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<Partial<UpdateTemplatePayload>>({})
+  const [editVarDefs, setEditVarDefs] = useState<TemplateVariable[]>([])
 
   const { data: result, isLoading } = useQuery({
     queryKey: ['notification-templates'],
@@ -1241,6 +1245,19 @@ function TemplatesPanel() {
         setShowCreate(false)
         setCreateForm({})
         setVarDefs([])
+      }
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateTemplatePayload }) =>
+      notificationsApi.updateTemplate(id, payload),
+    onSuccess: (res) => {
+      if (res.success) {
+        qc.invalidateQueries({ queryKey: ['notification-templates'] })
+        setEditTemplateId(null)
+        setEditForm({})
+        setEditVarDefs([])
       }
     },
   })
@@ -1448,6 +1465,141 @@ function TemplatesPanel() {
         </div>
       )}
 
+      {editTemplateId && (
+        <div
+          style={{
+            background: 'var(--io-surface-secondary)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 8,
+            padding: 16,
+            marginBottom: 16,
+          }}
+        >
+          <h4 style={{ margin: '0 0 12px', fontSize: 14 }}>Edit Template</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <input
+              placeholder="Template name *"
+              value={editForm.name ?? ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+              style={inputStyle}
+            />
+            <select
+              value={editForm.severity ?? 'info'}
+              onChange={(e) => setEditForm((f) => ({ ...f, severity: e.target.value as NotificationSeverity }))}
+              style={inputStyle}
+            >
+              <option value="emergency">Emergency</option>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+            <input
+              placeholder="Title template (use {{variable}})"
+              value={editForm.title_template ?? ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, title_template: e.target.value }))}
+              style={{ ...inputStyle, gridColumn: '1 / -1' }}
+            />
+            <textarea
+              placeholder="Body template (use {{variable}})"
+              value={editForm.body_template ?? ''}
+              onChange={(e) => setEditForm((f) => ({ ...f, body_template: e.target.value }))}
+              rows={3}
+              style={{ ...inputStyle, gridColumn: '1 / -1', resize: 'vertical' }}
+            />
+          </div>
+          {/* Variable definitions */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              Variables
+            </div>
+            {editVarDefs.map((vd, idx) => (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                <input
+                  placeholder="name (e.g. location)"
+                  value={vd.name}
+                  onChange={(e) => setEditVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                  style={inputStyle}
+                />
+                <input
+                  placeholder="label (e.g. Location)"
+                  value={vd.label}
+                  onChange={(e) => setEditVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
+                  style={inputStyle}
+                />
+                <input
+                  placeholder="default"
+                  value={vd.default_value ?? ''}
+                  onChange={(e) => setEditVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, default_value: e.target.value || undefined } : x))}
+                  style={{ ...inputStyle, width: 90 }}
+                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--io-text)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={vd.required}
+                    onChange={(e) => setEditVarDefs((prev) => prev.map((x, i) => i === idx ? { ...x, required: e.target.checked } : x))}
+                  />
+                  Required
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEditVarDefs((prev) => prev.filter((_, i) => i !== idx))}
+                  style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--io-border)', background: 'transparent', color: '#ef4444', fontSize: 12, cursor: 'pointer' }}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setEditVarDefs((prev) => [...prev, { name: '', label: '', required: false }])}
+              style={{ padding: '4px 10px', borderRadius: 4, border: '1px dashed var(--io-border)', background: 'transparent', color: 'var(--io-text-muted)', fontSize: 12, cursor: 'pointer' }}
+            >
+              + Add Variable
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => {
+                if (editForm.name && editForm.title_template && editForm.body_template) {
+                  updateMutation.mutate({
+                    id: editTemplateId,
+                    payload: { ...(editForm as UpdateTemplatePayload), variables: editVarDefs.filter(v => v.name.trim()) },
+                  })
+                }
+              }}
+              disabled={updateMutation.isPending}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: 'none',
+                background: 'var(--io-accent, #4a9eff)',
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              {updateMutation.isPending ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setEditTemplateId(null); setEditForm({}); setEditVarDefs([]) }}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 6,
+                border: '1px solid var(--io-border)',
+                background: 'transparent',
+                color: 'var(--io-text)',
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {deleteTarget && (
         <ConfirmDeleteDialog
           title={`Delete template "${deleteTarget.name}"?`}
@@ -1542,7 +1694,18 @@ function TemplatesPanel() {
                   {/* Primary: Edit */}
                   <ContextMenuPrimitive.Item
                     style={ctxMenuItemStyle}
-                    onSelect={() => setShowCreate(true)}
+                    onSelect={() => {
+                      setShowCreate(false)
+                      setEditTemplateId(tpl.id)
+                      setEditForm({
+                        name: tpl.name,
+                        severity: tpl.severity,
+                        title_template: tpl.title_template,
+                        body_template: tpl.body_template,
+                        channels: tpl.channels,
+                      })
+                      setEditVarDefs(tpl.variables ?? [])
+                    }}
                   >
                     Edit
                   </ContextMenuPrimitive.Item>
