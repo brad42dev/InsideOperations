@@ -140,14 +140,27 @@ function useUnacknowledgedAlertCount(): number {
   const { data } = useQuery<number>({
     queryKey: ['alerts-unacknowledged-count'],
     queryFn: async () => {
-      const res = await fetch('/api/alarms/active?unacknowledged=true', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
-      })
-      if (!res.ok) return 0
-      const json = await res.json()
-      if (typeof json?.count === 'number') return json.count
-      if (Array.isArray(json?.data)) return json.data.length
-      return 0
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+        try {
+          const res = await fetch('/api/alarms/active?unacknowledged=true', {
+            signal: controller.signal,
+            headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
+          })
+          clearTimeout(timeoutId)
+          if (!res.ok) return 0
+          const json = await res.json()
+          if (typeof json?.count === 'number') return json.count
+          if (Array.isArray(json?.data)) return json.data.length
+          return 0
+        } catch (err) {
+          clearTimeout(timeoutId)
+          throw err
+        }
+      } catch {
+        return 0
+      }
     },
     refetchInterval: 30_000,
     staleTime: 25_000,
@@ -161,14 +174,27 @@ function useActiveRoundsCount(): number {
   const { data } = useQuery<number>({
     queryKey: ['rounds-active-count'],
     queryFn: async () => {
-      const res = await fetch('/api/v1/rounds?status=in_progress&limit=1', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
-      })
-      if (!res.ok) return 0
-      const json = await res.json()
-      if (typeof json?.total === 'number') return json.total
-      if (Array.isArray(json?.data)) return json.data.length
-      return 0
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+        try {
+          const res = await fetch('/api/v1/rounds?status=in_progress&limit=1', {
+            signal: controller.signal,
+            headers: { Authorization: `Bearer ${localStorage.getItem('io_access_token') ?? ''}` },
+          })
+          clearTimeout(timeoutId)
+          if (!res.ok) return 0
+          const json = await res.json()
+          if (typeof json?.total === 'number') return json.total
+          if (Array.isArray(json?.data)) return json.data.length
+          return 0
+        } catch (err) {
+          clearTimeout(timeoutId)
+          throw err
+        }
+      } catch {
+        return 0
+      }
     },
     refetchInterval: 60_000,
     staleTime: 55_000,
