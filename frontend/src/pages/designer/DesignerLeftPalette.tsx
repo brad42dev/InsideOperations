@@ -512,7 +512,9 @@ function ShapeTile({
       <>
         <ContextMenuPrimitive.Root>
           <ContextMenuPrimitive.Trigger asChild>
-            {tileDivCollapsed}
+            <div>
+              {tileDivCollapsed}
+            </div>
           </ContextMenuPrimitive.Trigger>
           {contextMenuContent}
         </ContextMenuPrimitive.Root>
@@ -532,7 +534,9 @@ function ShapeTile({
     <>
       <ContextMenuPrimitive.Root>
         <ContextMenuPrimitive.Trigger asChild>
-          {tileDivExpanded}
+          <div>
+            {tileDivExpanded}
+          </div>
         </ContextMenuPrimitive.Trigger>
         {contextMenuContent}
       </ContextMenuPrimitive.Root>
@@ -786,7 +790,9 @@ function DisplayElementTile({
   return (
     <ContextMenuPrimitive.Root>
       <ContextMenuPrimitive.Trigger asChild>
-        {collapsed ? tileCollapsed : tileExpanded}
+        <div>
+          {collapsed ? tileCollapsed : tileExpanded}
+        </div>
       </ContextMenuPrimitive.Trigger>
       {menuContent}
     </ContextMenuPrimitive.Root>
@@ -1046,7 +1052,9 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
   return (
     <ContextMenuPrimitive.Root>
       <ContextMenuPrimitive.Trigger asChild>
-        {tileDiv}
+        <div>
+          {tileDiv}
+        </div>
       </ContextMenuPrimitive.Trigger>
       <ContextMenuPrimitive.Portal>
         <ContextMenuPrimitive.Content style={cmContentStyle}>
@@ -1626,14 +1634,26 @@ function ReportElementTile({ elementType, label, collapsed }: ReportElementDef &
     if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
-      padding: 4px 8px; background: var(--io-accent); color: #09090b;
-      border-radius: 4px; font-size: 11px; font-weight: 600;
-      transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
-    `
-    ghost.textContent = label
+    ghost.id = 'io-canvas-drag-ghost'
     ghost.setAttribute('data-drag-ghost', 'true')
+    ghost.style.cssText = [
+      'position:fixed',
+      'pointer-events:none',
+      'z-index:9999',
+      'opacity:0.7',
+      'padding:4px 8px',
+      'background:var(--io-accent)',
+      'color:#09090b',
+      'border-radius:4px',
+      'font-size:11px',
+      'font-weight:600',
+      'transform:translate(-50%,-50%)',
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      'display:block',
+      'visibility:visible',
+    ].join(';')
+    ghost.textContent = label
     document.body.appendChild(ghost)
     const onMove = (ev: MouseEvent) => {
       ghost.style.left = `${ev.clientX}px`
@@ -1647,8 +1667,8 @@ function ReportElementTile({ elementType, label, collapsed }: ReportElementDef &
         detail: { elementType, x: ev.clientX, y: ev.clientY },
       }))
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('mousemove', onMove, true)
+    document.addEventListener('mouseup', onUp, true)
   }, [elementType, label])
 
   function handlePlaceAtCenter() {
