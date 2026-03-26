@@ -65,12 +65,13 @@ fn err_response(status: StatusCode, message: &str) -> axum::response::Response {
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AlertChannel_ {
-    pub id: Uuid,
     pub channel_type: String,
     pub display_name: String,
     pub enabled: bool,
     pub config: Option<serde_json::Value>,
-    pub created_at: DateTime<Utc>,
+    pub last_tested_at: Option<DateTime<Utc>>,
+    pub last_test_ok: Option<bool>,
+    pub last_test_error: Option<String>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -94,7 +95,8 @@ pub struct EnableChannelBody {
 /// Secret fields are masked in the response.
 pub async fn list_channels(State(state): State<AppState>) -> impl IntoResponse {
     let rows = sqlx::query_as::<_, AlertChannel_>(
-        "SELECT id, channel_type, display_name, enabled, config, created_at, updated_at
+        "SELECT channel_type, display_name, enabled, config,
+                last_tested_at, last_test_ok, last_test_error, updated_at
          FROM alert_channels
          ORDER BY channel_type",
     )
@@ -124,7 +126,7 @@ pub async fn update_channel(
 ) -> impl IntoResponse {
     // Load existing config.
     let existing = sqlx::query(
-        "SELECT id, config FROM alert_channels WHERE channel_type = $1",
+        "SELECT config FROM alert_channels WHERE channel_type = $1",
     )
     .bind(&channel_type)
     .fetch_optional(&state.db)
