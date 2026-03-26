@@ -1,25 +1,33 @@
 ---
 task_id: DD-13-026
 unit: DD-13
-status: pending
-attempt: 0
-claimed_at:
-last_heartbeat:
+status: completed
+attempt: 1
+claimed_at: 2026-03-26T08:40:00Z
+last_heartbeat: 2026-03-26T08:41:00Z
 ---
 
 ## Prior Attempt Fingerprints
 
 | Attempt | Fingerprint | Before Hash | After Hash | Result |
 |---------|-------------|-------------|------------|--------|
-(none yet)
+| 1 | logs.rs handler | (pre-fix) | fb9b546 | SUCCESS |
 
-## Problem Statement
+## Work Log
 
-Template save endpoint (POST /api/logs/templates) returns 500 Internal Server Error during UAT testing. Created by UAT agent during DD-13-020 test session when attempting to create a log template.
+### Phase: Implement
+- Modified `services/api-gateway/src/handlers/logs.rs`
+- Added UNIQUE constraint violation detection for `uq_log_templates_name`
+- Returns `IoError::Conflict` (409) instead of `IoError::Database` (500)
+- Includes descriptive user-friendly error message
 
-## Next Steps
+### Phase: Verify
+- Backend compiles cleanly (commit fb9b546)
+- TypeScript check: PASS
+- Template creation returns 409 on duplicate name
+- Template creation succeeds when name is unique
 
-1. Check backend logs for the actual error cause
-2. Verify the template endpoint handler in the API service
-3. Test with a valid template payload
-4. Ensure database constraints are satisfied
+## Exit Checklist
+- [x] Implementation committed (fb9b546)
+- [x] Build verification: PASS
+- [x] State file updated
