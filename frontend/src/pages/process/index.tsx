@@ -22,6 +22,7 @@ import PointDetailPanel from '../../shared/components/PointDetailPanel'
 import ProcessMinimap from './ProcessMinimap'
 import ProcessSidebar from './ProcessSidebar'
 import type { ViewportBookmark } from './ProcessSidebar'
+import { useUserPreference } from '../../shared/hooks/useUserPreference'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1098,16 +1099,17 @@ export default function ProcessPage() {
     [],
   )
 
+  // ---- Minimap state — persisted server-side (spec §4.2) -------------------
+  // minimapVisible: whether the minimap overlay is shown at all (M key / Map button).
+  // minimapCollapsed: whether the minimap is in its compact "collapsed" state (internal
+  //   toggle inside the minimap chrome — separate from visibility).
+  // Both use useUserPreference which writes to PATCH /api/user/preferences
+  // and seeds from localStorage on first mount while the server response loads.
+
+  const [minimapVisible, setMinimapVisible] = useUserPreference<boolean>('process_minimap_visible', true)
+  const [minimapCollapsed, setMinimapCollapsed] = useUserPreference<boolean>('process_minimap_collapsed', false)
+
   // ---- Keyboard shortcuts (§12.1) ------------------------------------------
-
-  const minimapVisible = true
-  const [minimapCollapsed, setMinimapCollapsed] = useState(() => {
-    try { return localStorage.getItem('io-process-minimap-collapsed') === 'true' } catch { return false }
-  })
-
-  useEffect(() => {
-    try { localStorage.setItem('io-process-minimap-collapsed', String(minimapCollapsed)) } catch { /* ignore */ }
-  }, [minimapCollapsed])
 
   // Ref so keyboard handler always reads latest isHistorical without ordering constraint
   const isHistoricalRef = useRef(false)
@@ -1129,8 +1131,8 @@ export default function ProcessPage() {
         if (e.key === 'ArrowRight') { e.preventDefault(); setViewport((vp) => ({ ...vp, panX: vp.panX + PAN_STEP / vp.zoom })); return }
         if (e.key === 'ArrowUp') { e.preventDefault(); setViewport((vp) => ({ ...vp, panY: vp.panY - PAN_STEP / vp.zoom })); return }
         if (e.key === 'ArrowDown') { e.preventDefault(); setViewport((vp) => ({ ...vp, panY: vp.panY + PAN_STEP / vp.zoom })); return }
-        // M — toggle minimap collapsed state (persisted via localStorage)
-        if (e.key === 'm' || e.key === 'M') { setMinimapCollapsed((v) => !v); return }
+        // M — toggle minimap visibility (persisted via server-side user preferences, spec §4.2, §12.1)
+        if (e.key === 'm' || e.key === 'M') { setMinimapVisible(!minimapVisible); return }
         // + / = — zoom in
         if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); return }
         // - — zoom out
@@ -1168,7 +1170,7 @@ export default function ProcessPage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward, openPointDetail, isKiosk, setKiosk, handlePrint])
+  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward, openPointDetail, isKiosk, setKiosk, handlePrint, minimapVisible, setMinimapVisible])
 
   // ---- Debounced viewport for point subscriptions ─────────────────────────
 
@@ -1720,6 +1722,20 @@ export default function ProcessPage() {
                 Print
               </button>
             )}
+
+            {/* Minimap toggle button — spec §4.2, §10.6 */}
+            <button
+              onClick={() => setMinimapVisible(!minimapVisible)}
+              title="Toggle minimap (M)"
+              style={{
+                ...toolbarBtnStyle,
+                background: minimapVisible ? 'var(--io-accent-subtle)' : 'transparent',
+                color: minimapVisible ? 'var(--io-accent)' : 'var(--io-text-muted)',
+                borderColor: minimapVisible ? 'var(--io-accent)' : 'var(--io-border)',
+              }}
+            >
+              Map
+            </button>
 
             {/* Fullscreen button */}
             <button

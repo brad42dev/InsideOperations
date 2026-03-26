@@ -1,10 +1,10 @@
 ---
 task_id: MOD-PROCESS-023
 unit: MOD-PROCESS
-status: claimed
-attempt: 1
-claimed_at: 2026-03-26T10:00:00Z
-last_heartbeat: 2026-03-26T10:00:00Z
+status: pending
+attempt: 2
+claimed_at: null
+last_heartbeat: null
 rate_limited: false
 ---
 
@@ -12,21 +12,15 @@ rate_limited: false
 
 | Attempt | Changed Files | Before Hash | Result |
 |---------|---------------|-------------|--------|
-| (none yet) | | | |
+| 1 | (none) | (none) | ZOMBIE — recovered 2026-03-26T13:19:36Z |
 
-## Current Attempt (1)
+## Current Attempt (2)
 
 ### Phase
-CLAIM
-
-### Files Loaded
-- [x] docs/state/MOD-PROCESS/MOD-PROCESS-023/CURRENT.md
-- [x] docs/tasks/mod-process/MOD-PROCESS-023-uat-minimap-toggle-missing.md
-- [ ] frontend/src/pages/Process/ProcessView.tsx (or similar)
-- [ ] frontend/src/pages/Process/ (directory)
+(not started)
 
 ### Work Log
-- 2026-03-26T10:00:00Z — Claimed task MOD-PROCESS-023, attempt 1
+(none)
 
 ### Exit Checklist
 - [ ] Attempt file written
