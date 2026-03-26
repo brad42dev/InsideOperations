@@ -127,9 +127,16 @@ function buildBreadcrumbs(pathname: string): Crumb[] {
   }))
 }
 
-/** Fetch unacknowledged alert count for sidebar badge */
+/** Fetch unacknowledged alert count for sidebar badge.
+ *
+ * Strategy (spec: "Real-time count updates via WebSocket subscription"):
+ * 1. Bootstrap the initial count via REST on mount.
+ * 2. Subscribe to WS alarm events so the count updates within 1-2 seconds
+ *    of a new alarm arriving or an existing one being acknowledged.
+ * 3. No polling interval — the badge is kept current by the WS subscription.
+ */
 function useUnacknowledgedAlertCount(): number {
-  const { data } = useQuery<number>({
+  const { data: bootstrapCount } = useQuery<number>({
     queryKey: ['alerts-unacknowledged-count'],
     queryFn: async () => {
       try {
@@ -154,10 +161,54 @@ function useUnacknowledgedAlertCount(): number {
         return 0
       }
     },
-    refetchInterval: 30_000,
-    staleTime: 25_000,
+    // No refetchInterval — WS subscription keeps the count current.
+    staleTime: Infinity,
   })
-  return data ?? 0
+
+  // Live count is seeded from the REST bootstrap and then updated by WS events.
+  const [liveCount, setLiveCount] = useState<number | undefined>(undefined)
+
+  // Seed liveCount from the REST response on first successful fetch.
+  useEffect(() => {
+    if (bootstrapCount !== undefined && liveCount === undefined) {
+      setLiveCount(bootstrapCount)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bootstrapCount])
+
+  // Subscribe to WS alarm events and update the count in real time.
+  useEffect(() => {
+    // alarm_count_update carries an absolute count — use it directly.
+    const offCount = wsManager.onAlarmCountUpdate((event) => {
+      setLiveCount(event.unacknowledged)
+    })
+
+    // alarm_created: broker may include the new absolute count, or we increment.
+    const offCreated = wsManager.onAlarmCreated((event) => {
+      if (typeof event.unacknowledged_count === 'number') {
+        setLiveCount(event.unacknowledged_count)
+      } else {
+        setLiveCount((prev) => (prev ?? 0) + 1)
+      }
+    })
+
+    // alarm_acknowledged: broker may include the new absolute count, or we decrement.
+    const offAcknowledged = wsManager.onAlarmAcknowledged((event) => {
+      if (typeof event.unacknowledged_count === 'number') {
+        setLiveCount(event.unacknowledged_count)
+      } else {
+        setLiveCount((prev) => Math.max(0, (prev ?? 0) - 1))
+      }
+    })
+
+    return () => {
+      offCount()
+      offCreated()
+      offAcknowledged()
+    }
+  }, [])
+
+  return liveCount ?? bootstrapCount ?? 0
 }
 
 /** Fetch active (in-progress) rounds count for sidebar badge. */
@@ -304,8 +355,8 @@ function AlertBell() {
               right: '2px',
               minWidth: '14px',
               height: '14px',
-              background: '#ef4444',
-              color: '#fff',
+              background: 'var(--io-alarm-critical)',
+              color: 'var(--io-text-inverse)',
               borderRadius: '7px',
               fontSize: '9px',
               fontWeight: 700,
@@ -629,8 +680,9 @@ export default function AppShell() {
   const preKioskSidebarRef = useRef<'expanded' | 'collapsed' | 'hidden'>('expanded')
   const preKioskTopbarRef = useRef(false)
 
-  // Browser fullscreen tracking — driven by fullscreenchange listener
-  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false)
+  // Browser fullscreen tracking — driven by fullscreenchange listener.
+  // Used to auto-dismiss the fullscreen prompt and drive Escape two-step logic.
+  const isBrowserFullscreenRef = useRef(false)
   // When kiosk is entered but browser fullscreen was denied, show the prompt
   const [needsFullscreenPrompt, setNeedsFullscreenPrompt] = useState(false)
 
@@ -851,7 +903,7 @@ export default function AppShell() {
   useEffect(() => {
     function onFullscreenChange() {
       const isFs = !!document.fullscreenElement
-      setIsBrowserFullscreen(isFs)
+      isBrowserFullscreenRef.current = isFs
       // Auto-dismiss the fullscreen prompt once fullscreen becomes active
       if (isFs) {
         setNeedsFullscreenPrompt(false)
