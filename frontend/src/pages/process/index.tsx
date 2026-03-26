@@ -1316,6 +1316,7 @@ export default function ProcessPage() {
             <PointContextMenu
               pointId={pointCtxMenu.pointId}
               tagName={pointCtxMenu.pointId}
+              isAlarm={pointCtxMenu.isAlarmElement}
               isAlarmElement={pointCtxMenu.isAlarmElement}
               open={true}
               onOpenChange={(open) => { if (!open) setPointCtxMenu(null) }}
