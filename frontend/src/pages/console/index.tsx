@@ -350,7 +350,14 @@ export default function ConsolePage() {
       const isCreate = pendingCreateIdsRef.current.has(ws.id)
       if (isCreate) {
         pendingCreateIdsRef.current.delete(ws.id)
-        showToast({ title: 'Workspace created', variant: 'success' })
+        // If the user is still configuring in edit mode, defer the toast until they
+        // click Done — otherwise it auto-dismisses before they ever look at it.
+        // If edit mode is already exited (fast backend or slow user), show immediately.
+        if (useWorkspaceStore.getState().editMode) {
+          confirmedCreateIdsRef.current.add(ws.id)
+        } else {
+          showToast({ title: 'Workspace created', variant: 'success' })
+        }
       }
       const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id)
       if (isDuplicate) {
@@ -525,6 +532,10 @@ export default function ConsolePage() {
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
   const pendingCreateIdsRef = useRef<Set<string>>(new Set())
+  // Track workspace IDs where the backend confirmed creation success but the user is still in edit
+  // mode. The success toast is deferred until Done is clicked so the user actually sees it rather
+  // than it auto-dismissing silently while they are still configuring the workspace.
+  const confirmedCreateIdsRef = useRef<Set<string>>(new Set())
   // Track workspace IDs that are being duplicated so we can show specific toasts
   const pendingDuplicateIdsRef = useRef<Set<string>>(new Set())
   // Track workspace IDs that are being renamed so we can show specific toasts
@@ -640,7 +651,16 @@ export default function ConsolePage() {
     [activeId, updateGridItems, scheduleSave],
   )
 
-  const saveEdit = () => setEditMode(false)
+  const saveEdit = () => {
+    // Flush any deferred create-success toast. The toast was held in confirmedCreateIdsRef
+    // while the user was in edit mode so it fires at Done-click time — the moment the user
+    // finishes creating the workspace — rather than silently auto-dismissing before they look.
+    if (activeId && confirmedCreateIdsRef.current.has(activeId)) {
+      confirmedCreateIdsRef.current.delete(activeId)
+      showToast({ title: 'Workspace created', variant: 'success' })
+    }
+    setEditMode(false)
+  }
 
   // ---- Keyboard shortcuts -------------------------------------------------
 
