@@ -1207,39 +1207,6 @@ function WidgetsSection({
 // Points section
 // ---------------------------------------------------------------------------
 
-<<<<<<< HEAD
-// Stored shape for a favorited point (we need to persist tag + description)
-interface FavoritePoint {
-  id: string
-  tagname: string
-  description?: string
-}
-
-const LS_FAVORITE_POINTS_KEY = CONSOLE_FAVORITES_KEYS.points
-const LS_FAVORITE_POINTS_DATA_KEY = 'io-console-points-favorites-data'
-
-function loadFavoritePointsData(): FavoritePoint[] {
-  try {
-    const raw = localStorage.getItem(LS_FAVORITE_POINTS_DATA_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) return parsed as FavoritePoint[]
-    return []
-  } catch {
-    return []
-  }
-}
-
-function saveFavoritePointsData(points: FavoritePoint[]): void {
-  try {
-    localStorage.setItem(LS_FAVORITE_POINTS_DATA_KEY, JSON.stringify(points))
-  } catch {
-    // ignore quota errors
-  }
-}
-
-function PointsSection() {
-=======
 function PointsSection({
   favoriteIds,
   onToggleFavorite,
@@ -1247,23 +1214,10 @@ function PointsSection({
   favoriteIds: Set<string>
   onToggleFavorite: (id: string) => void
 }) {
->>>>>>> io-task/CONFLICT-MOD-CONSOLE-022
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const [favoritesOpen, setFavoritesOpen] = useState(true)
-
-  // Favorites state for points — stored with their metadata so they appear even without searching
-  const [favoritePointIds, setFavoritePointIds] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem(LS_FAVORITE_POINTS_KEY)
-      if (!raw) return new Set()
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return new Set<string>(parsed as string[])
-      return new Set()
-    } catch { return new Set() }
-  })
-  const [favoritePointsData, setFavoritePointsData] = useState<FavoritePoint[]>(() => loadFavoritePointsData())
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
@@ -1367,47 +1321,7 @@ function PointsSection({
     <PointRow key={`fav-${pt.id}`} pt={pt} inFavGroup />
   ))
 
-  const togglePointFavorite = useCallback((pt: Point) => {
-    setFavoritePointIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(pt.id)) {
-        next.delete(pt.id)
-        setFavoritePointsData((prevData) => {
-          const updated = prevData.filter((p) => p.id !== pt.id)
-          saveFavoritePointsData(updated)
-          return updated
-        })
-      } else {
-        next.add(pt.id)
-        setFavoritePointsData((prevData) => {
-          const updated = prevData.filter((p) => p.id !== pt.id).concat({
-            id: pt.id,
-            tagname: pt.tagname,
-            description: pt.description,
-          })
-          saveFavoritePointsData(updated)
-          return updated
-        })
-      }
-      try {
-        localStorage.setItem(LS_FAVORITE_POINTS_KEY, JSON.stringify([...next]))
-      } catch { /* ignore */ }
-      return next
-    })
-  }, [])
-
-  const hasFavorites = favoritePointIds.size > 0
-
-  // Point icon — shared SVG
-  const PointIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5" style={{ flexShrink: 0 }}>
-      <circle cx="8" cy="8" r="3" />
-      <line x1="8" y1="1" x2="8" y2="4" />
-      <line x1="8" y1="12" x2="8" y2="15" />
-      <line x1="1" y1="8" x2="4" y2="8" />
-      <line x1="12" y1="8" x2="15" y2="8" />
-    </svg>
-  )
+  const hasFavorites = favoriteIds.size > 0
 
   return (
     <div style={{ padding: '4px 0' }}>
@@ -1424,75 +1338,6 @@ function PointsSection({
           style={searchInput}
         />
       </div>
-
-      {/* Favorites group — pinned at top, shows starred points without searching */}
-      {hasFavorites && (
-        <div style={{ marginBottom: 4 }}>
-          <button
-            onClick={() => setFavoritesOpen((v) => !v)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              width: '100%', padding: '3px 10px', border: 'none',
-              background: 'transparent', cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <svg
-              style={{
-                width: 10, height: 10, color: 'var(--io-text-muted)',
-                transition: 'transform 0.15s',
-                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                flexShrink: 0,
-              }}
-              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
-            >
-              <polyline points="6 4 10 8 6 12" />
-            </svg>
-            <StarIcon filled />
-            <span style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
-            }}>
-              Favorites
-            </span>
-            <span style={{
-              fontSize: 9, fontWeight: 700,
-              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
-              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
-            }}>
-              {favoritePointIds.size}
-            </span>
-          </button>
-          {favoritesOpen && favoritePointsData.map((pt) => (
-            <div key={pt.id} style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
-              <DraggableItem item={{ itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }}>
-                <PointIcon />
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pt.tagname}
-                  </div>
-                  {pt.description && (
-                    <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {pt.description}
-                    </div>
-                  )}
-                </div>
-              </DraggableItem>
-              <button
-                onClick={(e) => { e.stopPropagation(); togglePointFavorite(pt as Point) }}
-                title="Remove from Favorites"
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderRadius: 3, flexShrink: 0,
-                }}
-              >
-                <StarIcon filled />
-              </button>
-            </div>
-          ))}
-          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
-        </div>
-      )}
 
       {search.length > 0 && search.length < 2 && (
         <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
@@ -1514,7 +1359,6 @@ function PointsSection({
           Search to browse points. Drag a point onto a Trend or Table pane to add it.
         </div>
       )}
-<<<<<<< HEAD
       {debouncedSearch.length < 2 && !isLoading && hasFavorites && (
         <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
           Search to browse more points.
@@ -1522,46 +1366,9 @@ function PointsSection({
       )}
 
       {/* Search results */}
-      {points.map((pt) => {
-        const isFav = favoritePointIds.has(pt.id)
-        return (
-          <div key={pt.id} style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
-            <DraggableItem item={{ itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }}>
-              <PointIcon />
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {pt.tagname}
-                </div>
-                {pt.description && (
-                  <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pt.description}
-                  </div>
-                )}
-              </div>
-            </DraggableItem>
-            <button
-              onClick={(e) => { e.stopPropagation(); togglePointFavorite(pt) }}
-              title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRadius: 3, flexShrink: 0,
-                opacity: isFav ? 1 : 0,
-                transition: 'opacity 0.1s',
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = isFav ? '1' : '0' }}
-            >
-              <StarIcon filled={isFav} />
-            </button>
-          </div>
-        )
-      })}
-=======
       {points.map((pt) => (
         <PointRow key={pt.id} pt={pt} />
       ))}
->>>>>>> io-task/CONFLICT-MOD-CONSOLE-022
     </div>
   )
 }
@@ -1670,7 +1477,6 @@ function GraphicTile({
 // Graphics section — shows available graphics as thumbnail tiles
 // ---------------------------------------------------------------------------
 
-<<<<<<< HEAD
 // ---------------------------------------------------------------------------
 // Graphic list row — for list view mode
 // ---------------------------------------------------------------------------
@@ -1722,18 +1528,6 @@ function GraphicsSection({
 }) {
   const [search, setSearch] = useState('')
   const [favoritesOpen, setFavoritesOpen] = useState(true)
-
-=======
-function GraphicsSection({
-  favoriteIds,
-  onToggleFavorite,
-  onQuickPlace,
-}: {
-  favoriteIds: Set<string>
-  onToggleFavorite: (id: string) => void
-  onQuickPlace?: (item: ConsoleDragItem) => void
-}) {
->>>>>>> io-task/CONFLICT-MOD-CONSOLE-022
   const { data, isLoading } = useQuery({
     queryKey: ['console-palette-graphics'],
     queryFn: async () => {
@@ -1745,16 +1539,12 @@ function GraphicsSection({
   })
 
   const graphics = data ?? []
-<<<<<<< HEAD
   const filteredGraphics = search
     ? graphics.filter((g) => g.name.toLowerCase().includes(search.toLowerCase()))
     : graphics
 
   const favoriteGraphics = filteredGraphics.filter((g) => favoriteIds.has(g.id))
   const hasFavorites = favoriteGraphics.length > 0
-=======
-  const favoriteGraphics = graphics.filter((g) => favoriteIds.has(g.id))
->>>>>>> io-task/CONFLICT-MOD-CONSOLE-022
 
   if (isLoading) {
     return (
@@ -1825,7 +1615,6 @@ function GraphicsSection({
   }
 
   return (
-<<<<<<< HEAD
     <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <div style={{ padding: '0 0 4px' }}>
         <input
@@ -1931,28 +1720,6 @@ function GraphicsSection({
           })}
         </div>
       )}
-=======
-    <div style={{ padding: '4px 0' }}>
-      {/* Favorites group always visible */}
-      <FavoritesSubGroup items={favoriteItems} />
-      <div style={{ padding: '2px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {graphics.map((g) => {
-          const thumbUrl = graphicsApi.thumbnailUrl(g.id)
-          const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
-          return (
-            <GraphicTile
-              key={g.id}
-              item={item}
-              name={g.name}
-              thumbUrl={thumbUrl}
-              isFavorite={favoriteIds.has(g.id)}
-              onToggleFavorite={() => onToggleFavorite(g.id)}
-              onQuickPlace={onQuickPlace}
-            />
-          )
-        })}
-      </div>
->>>>>>> io-task/CONFLICT-MOD-CONSOLE-022
     </div>
   )
 }
@@ -1984,16 +1751,10 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
   // Workspace favorites — uses legacy hook for backward-compat with existing LS key
   const { favoriteIds: workspaceFavoriteIds, toggleFavorite: toggleWorkspaceFavorite } = useConsoleWorkspaceFavorites()
 
-  // Graphic, widget, and point favorites — new generic hook
+  // Graphic, widget, and point favorites — generic hook
   const { favoriteIds: graphicFavoriteIds, toggleFavorite: toggleGraphicFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.graphics)
   const { favoriteIds: widgetFavoriteIds, toggleFavorite: toggleWidgetFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.widgets)
   const { favoriteIds: pointFavoriteIds, toggleFavorite: togglePointFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.points)
-
-  // Favorites for Graphics and Widgets sections
-  const { favoriteIds: graphicsFavoriteIds, toggleFavorite: toggleGraphicFavorite } =
-    useConsoleSectionFavorites(CONSOLE_FAVORITES_KEYS.graphics)
-  const { favoriteIds: widgetsFavoriteIds, toggleFavorite: toggleWidgetFavorite } =
-    useConsoleSectionFavorites(CONSOLE_FAVORITES_KEYS.widgets)
 
   // Per-section view modes — persisted in localStorage
   const { viewMode: workspacesViewMode, setViewMode: setWorkspacesViewMode } = useConsoleSectionViewMode('workspaces', 'list')
@@ -2113,16 +1874,10 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           onViewModeChange={setGraphicsViewMode}
         >
           <GraphicsSection
-<<<<<<< HEAD
             onQuickPlace={onQuickPlace}
             viewMode={graphicsViewMode}
-            favoriteIds={graphicsFavoriteIds}
-            onToggleFavorite={toggleGraphicFavorite}
-=======
             favoriteIds={graphicFavoriteIds}
             onToggleFavorite={toggleGraphicFavorite}
-            onQuickPlace={onQuickPlace}
->>>>>>> io-task/CONFLICT-MOD-CONSOLE-022
           />
         </AccordionSection>
 
@@ -2134,16 +1889,10 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           onViewModeChange={setWidgetsViewMode}
         >
           <WidgetsSection
-<<<<<<< HEAD
             onQuickPlace={onQuickPlace}
             viewMode={widgetsViewMode}
-            favoriteIds={widgetsFavoriteIds}
-            onToggleFavorite={toggleWidgetFavorite}
-=======
             favoriteIds={widgetFavoriteIds}
             onToggleFavorite={toggleWidgetFavorite}
-            onQuickPlace={onQuickPlace}
->>>>>>> io-task/CONFLICT-MOD-CONSOLE-022
           />
         </AccordionSection>
 
