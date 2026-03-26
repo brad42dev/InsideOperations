@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi } from '../../api/logs'
+import type { LogTemplate } from '../../api/logs'
 
 export default function LogTemplates() {
   const navigate = useNavigate()
@@ -8,7 +9,13 @@ export default function LogTemplates() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['log', 'templates', 'all'],
-    queryFn: () => logsApi.listTemplates(),
+    queryFn: async () => {
+      const res = await logsApi.listTemplates()
+      if (!res.success) return [] as LogTemplate[]
+      // listTemplates returns PaginatedResult<LogTemplate> — res.data has a .data array
+      const rows = Array.isArray(res.data) ? res.data : (res.data as { data: LogTemplate[] })?.data ?? []
+      return rows
+    },
   })
 
   const deleteMutation = useMutation({
@@ -16,7 +23,7 @@ export default function LogTemplates() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['log', 'templates'] }),
   })
 
-  const templates = data?.success && Array.isArray(data.data) ? data.data : []
+  const templates = data ?? []
 
   const btnStyle = (primary?: boolean): React.CSSProperties => ({
     padding: '6px 14px',
