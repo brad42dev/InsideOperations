@@ -1627,6 +1627,77 @@ if on_disk_not_in_reg or in_reg_not_on_disk:
 PYEOF
 }
 
+# Ingest task files from disk into io_tasks that are not yet registered.
+# Called at the start of each auto batch and at the start of implement mode so
+# that task files written by UAT agents are visible to claim_next_task.
+ingest_task_files() {
+    [ -f "$REPO/$DB_FILE" ] || return 0
+    python3 - "$REPO/$DB_FILE" "${CFG_TASK_DIR:-docs/tasks}" <<'PYEOF' 2>/dev/null || true
+import sqlite3, glob, os, sys, re
+from pathlib import Path
+
+db_path  = Path(sys.argv[1])
+task_dir = sys.argv[2] if len(sys.argv) > 2 else "docs/tasks"
+if not db_path.exists():
+    sys.exit(0)
+
+def parse_frontmatter(text):
+    """Return dict of YAML-like frontmatter fields (simple key: value only)."""
+    fm = {}
+    if not text.startswith('---'):
+        return fm
+    end = text.find('\n---', 3)
+    if end == -1:
+        return fm
+    block = text[3:end]
+    for line in block.splitlines():
+        m = re.match(r'^(\w[\w-]*):\s*(.*)', line)
+        if m:
+            key, val = m.group(1).strip(), m.group(2).strip()
+            # strip surrounding quotes
+            if len(val) >= 2 and val[0] in ('"', "'") and val[-1] == val[0]:
+                val = val[1:-1]
+            fm[key] = val
+    return fm
+
+try:
+    con = sqlite3.connect(db_path, timeout=10)
+    con.execute('PRAGMA journal_mode=WAL')
+    existing = {r[0] for r in con.execute('SELECT id FROM io_tasks').fetchall()}
+    # Fetch wave lookup from io_queue
+    wave_map = {r[0]: r[1] for r in con.execute('SELECT unit, wave FROM io_queue').fetchall()}
+    now = __import__('datetime').datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    ingested = 0
+    for fpath in sorted(glob.glob(f"{task_dir}/**/*.md", recursive=True)):
+        text = Path(fpath).read_text(encoding='utf-8', errors='replace')
+        fm = parse_frontmatter(text)
+        task_id = fm.get('id', '').strip()
+        if not task_id or task_id in existing:
+            continue
+        unit     = fm.get('unit', '').strip()
+        title    = fm.get('title', os.path.basename(fpath)).strip()
+        status   = fm.get('status', 'pending').strip()
+        priority = fm.get('priority', 'medium').strip()
+        source   = fm.get('source', 'uat').strip()
+        depends  = fm.get('depends-on', '').strip()
+        wave     = wave_map.get(unit)
+        con.execute(
+            '''INSERT OR IGNORE INTO io_tasks
+               (id, unit, wave, title, status, priority, source, depends_on, spec_body, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+            (task_id, unit, wave, title, status, priority, source, depends or None, text, now, now)
+        )
+        existing.add(task_id)
+        ingested += 1
+    con.commit()
+    con.close()
+    if ingested:
+        print(f"  ingest: registered {ingested} new task file(s) from disk into io_tasks")
+except Exception as e:
+    print(f"  ingest: error — {e}", file=sys.stderr)
+PYEOF
+}
+
 # ── restore-backup ────────────────────────────────────────────────────────────
 if [ "$MODE" = "restore-backup" ]; then
     MAIN="$REPO/$DB_FILE"
@@ -2572,6 +2643,9 @@ if [ "$MODE" = "auto" ]; then
         reclaim_stale_units
         run_unblock_pass
 
+        # Ingest any task files written by UAT agents during the previous batch
+        ingest_task_files
+
         # D1: Fire-and-forget catcher agents for unenriched pending tasks
         if [ -n "$CATCHER_AGENT_FILE" ]; then
             launch_catchers "$AUTO_PARALLEL" "$CATCHER_AGENT_FILE" || true
@@ -3044,6 +3118,7 @@ while [ $INTERRUPTED -eq 0 ]; do
     # Reclaim any tasks stuck in 'implementing' with a stale claim
     if [ "$MODE" = "implement" ]; then
         reclaim_stale_tasks
+        ingest_task_files
     fi
 
     # Check for available work before spending a session on it. All modes use SQLite.

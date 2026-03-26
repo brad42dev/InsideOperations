@@ -36,14 +36,41 @@ fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
 // Variable helpers
 // ---------------------------------------------------------------------------
 
-/// Convert a TEXT[] variable-name list from the database into the structured
-/// TemplateVariable objects the frontend expects:
-///   ["location"] → [{"name":"location","label":"location","required":false}]
-fn var_names_to_objects(names: Vec<String>) -> Vec<JsonValue> {
-    names
-        .into_iter()
-        .map(|n| json!({"name": n, "label": n, "required": false}))
-        .collect()
+/// Ensure variables are in the structured format expected by the frontend.
+/// Handles both the old TEXT[] format (legacy) and new JSONB format:
+///   "location"                                          → {"name":"location","label":"location","required":false}
+///   ["location"]                                        → [{"name":"location","label":"location","required":false}]
+///   {"name":"location","label":"...","required":true}  → (unchanged, already structured)
+///   [{"name":"location","label":"...","required":true}]→ (unchanged, already structured)
+fn normalize_variables(raw: JsonValue) -> Vec<JsonValue> {
+    match raw {
+        JsonValue::Array(arr) => {
+            // Array format — could be TEXT[] converted to JSON or already structured JSONB
+            arr.into_iter()
+                .filter_map(|item| {
+                    if let Some(s) = item.as_str() {
+                        // Plain string → convert to structured object
+                        Some(json!({"name": s, "label": s, "required": false}))
+                    } else if item.is_object() {
+                        // Already structured object → return as-is
+                        Some(item)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        }
+        JsonValue::String(s) => {
+            // Single string → convert to structured object
+            vec![json!({"name": s, "label": s, "required": false})]
+        }
+        JsonValue::Object(_) => {
+            // Single object → wrap in array
+            vec![raw]
+        }
+        JsonValue::Null => vec![],
+        _ => vec![],
+    }
 }
 
 /// Extract the variable `name` string from either a plain string value or a
@@ -91,9 +118,8 @@ pub struct NotificationTemplateRow {
     pub title_template: String,
     pub body_template: String,
     pub channels: Vec<String>,
-    /// Serialised as structured TemplateVariable objects so the frontend
-    /// receives [{name, label, required, default_value?}] instead of ["name"].
-    /// The database still stores TEXT[] — we convert on read.
+    /// Structured TemplateVariable objects: [{name, label, required, default_value}].
+    /// The database stores JSONB; we normalize on read to ensure consistent format.
     pub variables: Vec<JsonValue>,
     pub is_system: bool,
     pub enabled: bool,
@@ -668,7 +694,7 @@ pub async fn list_templates(
                     title_template: r.get("title_template"),
                     body_template: r.get("body_template"),
                     channels: r.get("channels"),
-                    variables: var_names_to_objects(r.get("variables")),
+                    variables: normalize_variables(r.get::<JsonValue, _>("variables")),
                     is_system: r.get("is_system"),
                     enabled: r.get("enabled"),
                     created_at: r.get("created_at"),
@@ -704,14 +730,15 @@ pub async fn create_template(
     let severity = body.severity.unwrap_or_else(|| "info".to_string());
     let channels = body.channels.unwrap_or_else(|| vec!["websocket".to_string()]);
     // Accept either plain string names or structured TemplateVariable objects from the frontend.
-    let variables: Vec<String> = body
-        .variables
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|v| extract_var_name(v))
-        .collect();
+    // Normalize to structured format and store as JSONB.
+    let variables_json: JsonValue = match body.variables {
+        Some(vars) => {
+            let normalized = normalize_variables(JsonValue::Array(vars));
+            JsonValue::Array(normalized)
+        }
+        None => json!([]),
+    };
     let channels_ref: Vec<&str> = channels.iter().map(|s| s.as_str()).collect();
-    let vars_ref: Vec<&str> = variables.iter().map(|s| s.as_str()).collect();
 
     let row = sqlx::query(
         r#"
@@ -728,7 +755,7 @@ pub async fn create_template(
     .bind(&body.title_template)
     .bind(&body.body_template)
     .bind(&channels_ref)
-    .bind(&vars_ref)
+    .bind(&variables_json)
     .bind(creator_id)
     .fetch_one(&state.db)
     .await;
@@ -742,7 +769,7 @@ pub async fn create_template(
             title_template: r.get("title_template"),
             body_template: r.get("body_template"),
             channels: r.get("channels"),
-            variables: var_names_to_objects(r.get("variables")),
+            variables: normalize_variables(r.get::<JsonValue, _>("variables")),
             is_system: r.get("is_system"),
             enabled: r.get("enabled"),
             created_at: r.get("created_at"),
@@ -794,7 +821,7 @@ pub async fn get_template(
             title_template: r.get("title_template"),
             body_template: r.get("body_template"),
             channels: r.get("channels"),
-            variables: var_names_to_objects(r.get("variables")),
+            variables: normalize_variables(r.get::<JsonValue, _>("variables")),
             is_system: r.get("is_system"),
             enabled: r.get("enabled"),
             created_at: r.get("created_at"),
@@ -886,7 +913,7 @@ pub async fn update_template(
                     title_template: r.get("title_template"),
                     body_template: r.get("body_template"),
                     channels: r.get("channels"),
-                    variables: var_names_to_objects(r.get("variables")),
+                    variables: normalize_variables(r.get::<JsonValue, _>("variables")),
                     is_system: r.get("is_system"),
                     enabled: r.get("enabled"),
                     created_at: r.get("created_at"),
@@ -907,11 +934,12 @@ pub async fn update_template(
     // User-defined template — update any provided fields
     let channels_owned: Option<Vec<String>> = body.channels.clone();
     // Accept either plain string names or structured TemplateVariable objects from the frontend.
-    let vars_owned: Option<Vec<String>> = body.variables.as_ref().map(|list| {
-        list.iter().filter_map(|v| extract_var_name(v)).collect()
+    // Normalize to structured format and store as JSONB.
+    let variables_json: Option<JsonValue> = body.variables.as_ref().map(|vars| {
+        let normalized = normalize_variables(JsonValue::Array(vars.clone()));
+        JsonValue::Array(normalized)
     });
     let channels_ref: Option<Vec<&str>> = channels_owned.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
-    let vars_ref: Option<Vec<&str>> = vars_owned.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
 
     let row = sqlx::query(
         r#"
@@ -936,7 +964,7 @@ pub async fn update_template(
     .bind(body.title_template.as_deref())
     .bind(body.body_template.as_deref())
     .bind(channels_ref)
-    .bind(vars_ref)
+    .bind(variables_json)
     .bind(body.enabled)
     .bind(id)
     .fetch_one(&state.db)
@@ -951,7 +979,7 @@ pub async fn update_template(
             title_template: r.get("title_template"),
             body_template: r.get("body_template"),
             channels: r.get("channels"),
-            variables: var_names_to_objects(r.get("variables")),
+            variables: normalize_variables(r.get::<JsonValue, _>("variables")),
             is_system: r.get("is_system"),
             enabled: r.get("enabled"),
             created_at: r.get("created_at"),
@@ -1684,52 +1712,3 @@ pub async fn get_enabled_channels(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Route builder (called from main.rs)
-// ---------------------------------------------------------------------------
-
-pub fn notifications_routes() -> axum::Router<AppState> {
-    use axum::routing::{delete, get, post};
-
-    axum::Router::new()
-        // Static routes first
-        .route("/api/notifications/channels/enabled", get(get_enabled_channels))
-        .route("/api/notifications/active", get(get_active_notifications))
-        .route(
-            "/api/notifications/messages",
-            get(list_messages),
-        )
-        .route("/api/notifications/send", post(send_notification))
-        .route("/api/notifications/messages/:id", get(get_message))
-        .route(
-            "/api/notifications/templates",
-            get(list_templates).post(create_template),
-        )
-        .route(
-            "/api/notifications/templates/:id",
-            get(get_template)
-                .put(update_template)
-                .delete(delete_template),
-        )
-        .route(
-            "/api/notifications/groups",
-            get(list_groups).post(create_group),
-        )
-        .route(
-            "/api/notifications/groups/:id",
-            get(get_group).put(update_group).delete(delete_group),
-        )
-        .route(
-            "/api/notifications/groups/:id/members",
-            post(add_group_member),
-        )
-        .route(
-            "/api/notifications/groups/:id/members/:user_id",
-            delete(remove_group_member),
-        )
-        .route("/api/notifications/muster/:message_id", get(get_muster_status))
-        .route(
-            "/api/notifications/muster/:message_id/mark",
-            post(mark_muster),
-        )
-}

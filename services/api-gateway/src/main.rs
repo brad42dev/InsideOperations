@@ -682,7 +682,46 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/sms-providers", get(proxy_auth).post(proxy_auth))
         .route("/api/auth/sms-providers/:id", delete(proxy_auth))
         // Notifications (Alerts Module — human-initiated, Phase 14)
-        .merge(handlers::notifications::notifications_routes())
+        // IMPORTANT: static routes (channels/enabled) registered BEFORE parameterized routes (:id)
+        // to ensure they have highest priority and are matched on cold start (Axum route precedence)
+        .route("/api/notifications/channels/enabled", get(handlers::notifications::get_enabled_channels))
+        .route("/api/notifications/active", get(handlers::notifications::get_active_notifications))
+        .route("/api/notifications/messages", get(handlers::notifications::list_messages))
+        .route("/api/notifications/send", post(handlers::notifications::send_notification))
+        .route("/api/notifications/messages/:id", get(handlers::notifications::get_message))
+        .route(
+            "/api/notifications/templates",
+            get(handlers::notifications::list_templates).post(handlers::notifications::create_template),
+        )
+        .route(
+            "/api/notifications/templates/:id",
+            get(handlers::notifications::get_template)
+                .put(handlers::notifications::update_template)
+                .delete(handlers::notifications::delete_template),
+        )
+        .route(
+            "/api/notifications/groups",
+            get(handlers::notifications::list_groups).post(handlers::notifications::create_group),
+        )
+        .route(
+            "/api/notifications/groups/:id",
+            get(handlers::notifications::get_group)
+                .put(handlers::notifications::update_group)
+                .delete(handlers::notifications::delete_group),
+        )
+        .route(
+            "/api/notifications/groups/:id/members",
+            post(handlers::notifications::add_group_member),
+        )
+        .route(
+            "/api/notifications/groups/:id/members/:user_id",
+            delete(handlers::notifications::remove_group_member),
+        )
+        .route("/api/notifications/muster/:message_id", get(handlers::notifications::get_muster_status))
+        .route(
+            "/api/notifications/muster/:message_id/mark",
+            post(handlers::notifications::mark_muster),
+        )
         // Shifts / Access Control (Phase 15)
         .merge(handlers::shifts::shifts_routes())
         // Mobile endpoints (Phase 13 — doc 20)

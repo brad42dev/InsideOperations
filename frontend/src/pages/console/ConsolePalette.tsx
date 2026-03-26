@@ -815,36 +815,36 @@ function WorkspacesSection({
         </div>
       )}
 
-      {/* Favorites group — pinned at top, only shown when there are favorites */}
-      {hasFavorites && (
-        <div style={{ marginBottom: 2 }}>
-          {/* Favorites sub-header */}
-          <button
-            onClick={() => setFavoritesOpen((v) => !v)}
+      {/* Favorites group — pinned at top, always visible (shows "No favorites yet" when empty) */}
+      <div style={{ marginBottom: 2 }}>
+        {/* Favorites sub-header */}
+        <button
+          onClick={() => setFavoritesOpen((v) => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            width: '100%', padding: '3px 10px', border: 'none',
+            background: 'transparent', cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <svg
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              width: '100%', padding: '3px 10px', border: 'none',
-              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+              width: 10, height: 10, color: 'var(--io-text-muted)',
+              transition: 'transform 0.15s',
+              transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              flexShrink: 0,
             }}
+            viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
           >
-            <svg
-              style={{
-                width: 10, height: 10, color: 'var(--io-text-muted)',
-                transition: 'transform 0.15s',
-                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                flexShrink: 0,
-              }}
-              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
-            >
-              <polyline points="6 4 10 8 6 12" />
-            </svg>
-            <StarIcon filled />
-            <span style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
-            }}>
-              Favorites
-            </span>
+            <polyline points="6 4 10 8 6 12" />
+          </svg>
+          <StarIcon filled />
+          <span style={{
+            fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.06em', color: 'var(--io-text-muted)',
+          }}>
+            Favorites
+          </span>
+          {hasFavorites && (
             <span style={{
               fontSize: 9, fontWeight: 700,
               background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
@@ -852,12 +852,25 @@ function WorkspacesSection({
             }}>
               {favoriteWorkspaces.length}
             </span>
-          </button>
-          {favoritesOpen && renderWorkspaceList(favoriteWorkspaces, workspaces.length > 1)}
-          {/* Divider between Favorites and full list */}
-          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
-        </div>
-      )}
+          )}
+        </button>
+        {favoritesOpen && (
+          hasFavorites
+            ? renderWorkspaceList(favoriteWorkspaces, workspaces.length > 1)
+            : (
+              <div style={{
+                padding: '4px 10px 6px 26px',
+                fontSize: 11,
+                color: 'var(--io-text-muted)',
+                fontStyle: 'italic',
+              }}>
+                No favorites yet
+              </div>
+            )
+        )}
+        {/* Divider between Favorites and full list */}
+        <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+      </div>
 
       {/* Full workspace list */}
       {renderWorkspaceList(filteredWorkspaces, workspaces.length > 1)}

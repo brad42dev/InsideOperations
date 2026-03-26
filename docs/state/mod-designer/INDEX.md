@@ -43,3 +43,8 @@
 | MOD-DESIGNER-039 | TextBlock node context menu text-specific items need manual verification | pending | 0 |
 | MOD-DESIGNER-040 | Shape palette tile right-click places element instead of showing context menu | pending | 0 |
 | MOD-DESIGNER-041 | PointContextMenu does not fire in test mode for point-bound display elements | pending | 0 |
+| MOD-DESIGNER-042 | Annotation node right-click: Change Style missing from context menu | pending | 0 |
+| MOD-DESIGNER-043 | Palette tile right-click shows no context menu (no Place at Center / Favorites) | pending | 0 |
+| MOD-DESIGNER-044 | Drag ghost not visible during palette-to-canvas drag | pending | 0 |
+| MOD-DESIGNER-045 | Test mode: right-click on display element shows no context menu | pending | 0 |
+| MOD-DESIGNER-046 | Group "Open in Tab" missing; Ctrl+G does not create group node | pending | 0 |

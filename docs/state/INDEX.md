@@ -9,7 +9,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | GFX-SHAPES | 1 | 6 | 3 | 3 | 0 | GFX-SHAPES-003 |
 | MOD-CONSOLE | 2 | 24 | 2 | 22 | 0 | MOD-CONSOLE-018 |
 | MOD-PROCESS | 2 | 10 | 0 | 10 | 0 | MOD-PROCESS-001 |
-| MOD-DESIGNER | 2 | 19 | 1 | 18 | 0 | MOD-DESIGNER-002 |
+| MOD-DESIGNER | 2 | 46 | 1 | 45 | 0 | MOD-DESIGNER-002 |
 | OPC-BACKEND | 2 | 3 | 0 | 3 | 0 | OPC-BACKEND-001 |
 | DD-06 | 4 | 19 | 1 | 17 | 0 | DD-06-001 |
 | DD-10 | 7 | 20 | 0 | 16 | 0 | DD-10-001 |

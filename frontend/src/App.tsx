@@ -674,7 +674,7 @@ function AppRoutes() {
         <Route
           path="log/templates"
           element={
-            <PermissionGuard permission="log:template_manage">
+            <PermissionGuard permission="log:admin">
               <ErrorBoundary module="Log">
                 <LogTemplates />
               </ErrorBoundary>
@@ -684,7 +684,7 @@ function AppRoutes() {
         <Route
           path="log/schedules"
           element={
-            <PermissionGuard permission="log:schedule_manage">
+            <PermissionGuard permission="log:admin">
               <ErrorBoundary module="Log">
                 <LogSchedules />
               </ErrorBoundary>

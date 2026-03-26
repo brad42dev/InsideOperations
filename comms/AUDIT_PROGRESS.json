@@ -201,7 +201,8 @@
     "DD-32-018": 0,
     "DD-31-020": 1,
     "DD-32-019": 0,
-    "DD-14-011": 2
+    "DD-14-011": 2,
+    "MOD-CONSOLE-028": 1
   },
   "queue": [
     {
@@ -346,7 +347,8 @@
       "completed_at": "2026-03-21",
       "notes": "Re-audited round 3. 10 gaps found. Wave 0 findings: CX-CANVAS-CONTEXT, CX-POINT-CONTEXT, CX-ERROR, CX-LOADING, CX-TOKENS. Round 6: 15 feature tasks added (resize completeness, canvas size controls, cross-mode palette parity, group management/tabs, promote group to shape).",
       "last_audit_round": 3,
-      "verified_since_last_audit": 5
+      "verified_since_last_audit": 10,
+      "tasks_uat_added": 5
     },
     {
       "unit": "OPC-BACKEND",
@@ -1422,7 +1424,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-003",
@@ -1442,7 +1444,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-005",
@@ -1454,7 +1456,7 @@
       ],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-006",
@@ -1466,7 +1468,7 @@
       ],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-007",
@@ -1476,7 +1478,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-008",
@@ -4211,7 +4213,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-010",
@@ -4396,7 +4398,7 @@
       "depends_on": [],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-024",
@@ -4411,7 +4413,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-025",
@@ -5073,7 +5075,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-018",
@@ -5337,7 +5339,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-13-014",
@@ -5421,7 +5423,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-034",
@@ -5783,7 +5785,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-026",
@@ -5815,7 +5817,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-038",
@@ -5825,7 +5827,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": null,
+      "uat_status": "pass",
       "source": "uat"
     },
     {
@@ -5837,7 +5839,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-06-021",
@@ -6002,7 +6004,8 @@
       "priority": "medium",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-025",
@@ -6024,7 +6027,7 @@
       "wave": 2,
       "title": "Workspaces section Favorites group missing when no favorites are set",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6036,7 +6039,7 @@
       "wave": 2,
       "title": "Detached console route /detached/console/:id still renders Phase 7 stub",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6048,7 +6051,7 @@
       "wave": 2,
       "title": "Workspace save feedback missing dirty indicator and persistent failure banner",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6095,6 +6098,66 @@
       "unit": "DD-32",
       "wave": 3,
       "title": "Error toasts auto-dismiss instead of persisting until manually dismissed",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-042",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Annotation node right-click: Change Style missing from context menu",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-043",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Palette tile right-click shows no context menu (no Place at Center / Favorites)",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-044",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Drag ghost not visible during palette-to-canvas drag",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-045",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Test mode: right-click on display element shows no context menu",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-046",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Group \"Open in Tab\" missing; Ctrl+G does not create group node",
       "priority": "high",
       "status": "pending",
       "depends_on": [],
