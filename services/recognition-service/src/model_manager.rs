@@ -69,14 +69,34 @@ impl Default for PreprocessingConfig {
 /// Holds everything needed to run inference for a single recognition domain
 /// (P&ID or DCS).
 ///
-/// The `session` field is `Option` because session creation is deferred to
-/// Phase 2 — uploading a model populates metadata and class_map immediately,
-/// but the ONNX runtime session is only constructed when `activate()` is
-/// called (not yet implemented).
+/// The `session` field uses a double-Arc pattern for wait-free hot-swap:
+/// the outer `Arc<RwLock<...>>` is shared across threads; the inner
+/// `Option<Arc<ort::session::Session>>` is swapped atomically by acquiring
+/// only a write lock for the pointer exchange (milliseconds), not for the
+/// entire inference duration.  In-flight requests hold a clone of the
+/// inner Arc and complete naturally even after a swap.
+///
+/// `session` is `None` inside the lock until an ONNX session is wired up
+/// in Phase 2.  The surrounding `Arc<RwLock<...>>` is always present from
+/// construction so that `swap_domain()` can be called at any time.
 #[derive(Debug)]
 pub struct DomainSlot {
-    /// Live ONNX session. `None` until `activate()` is called in Phase 2.
-    pub session: Option<Arc<RwLock<Arc<ort::session::Session>>>>,
+    /// Hot-swap ONNX session handle.
+    ///
+    /// Outer `Arc<RwLock<...>>` — shared handle to the lock.
+    /// Inner `Option<Arc<ort::session::Session>>` — the current session pointer.
+    ///
+    /// To perform a hot-swap:
+    ///   1. Acquire write lock on the outer RwLock.
+    ///   2. Replace the inner Option with `Some(new_arc)`.
+    ///   3. Release the write lock — the old Arc is dropped when its last
+    ///      in-flight clone is released.
+    ///
+    /// To read during inference:
+    ///   1. Acquire read lock on the outer RwLock.
+    ///   2. Clone the inner `Option<Arc<...>>`.
+    ///   3. Release the read lock immediately — hold only the cloned Arc.
+    pub session: Arc<RwLock<Option<Arc<ort::session::Session>>>>,
     /// Metadata derived from the loaded .iomodel manifest.
     pub metadata: Arc<RwLock<ModelMetadata>>,
     /// Maps ONNX class index → human-readable class label.
@@ -89,21 +109,24 @@ pub struct DomainSlot {
 
 impl DomainSlot {
     /// Construct a slot from a `ModelInfo` record.
-    /// `session` is always `None` at construction; call `activate()` to load
-    /// the ONNX runtime session (Phase 2).
+    ///
+    /// The session lock is initialised with `None`; call `swap_domain()` on the
+    /// owning `ModelManager` to install an ONNX session (Phase 2).
     pub fn from_model_info(info: &ModelInfo) -> Self {
         let metadata = ModelMetadata::from(info);
         Self {
-            session: None,
+            session: Arc::new(RwLock::new(None)),
             metadata: Arc::new(RwLock::new(metadata)),
             class_map: Arc::new(HashMap::new()),
             preprocessing: Arc::new(PreprocessingConfig::default()),
         }
     }
 
-    /// Returns `true` if an active ONNX session is present.
-    pub fn is_active(&self) -> bool {
-        self.session.is_some()
+    /// Returns `true` if an active ONNX session is installed in this slot.
+    ///
+    /// This acquires a brief read lock to inspect the inner Option.
+    pub async fn is_active(&self) -> bool {
+        self.session.read().await.is_some()
     }
 }
 
@@ -223,12 +246,86 @@ impl ModelManager {
         false
     }
 
+    /// Atomically swap the ONNX session for the named domain.
+    #[allow(dead_code)]
+    ///
+    /// This is the hot-swap operation:
+    /// 1. Resolve the target `DomainSlot` (pid or dcs only — the other domain
+    ///    is never touched).
+    /// 2. Acquire a write lock on `DomainSlot.session` — this is held only
+    ///    for the pointer exchange, not for inference.
+    /// 3. Replace the inner `Option<Arc<ort::session::Session>>` with the new
+    ///    session.
+    /// 4. Release the write lock — callers holding a prior clone of the inner
+    ///    Arc complete their in-flight requests naturally; the old session drops
+    ///    when the last such clone is released.
+    ///
+    /// Returns `Err` if `domain` is not `"pid"` or `"dcs"`, or if the domain
+    /// slot has not been initialised yet (i.e. no model is loaded for that
+    /// domain).
+    pub async fn swap_domain(
+        &self,
+        domain: &str,
+        new_session: Arc<ort::session::Session>,
+    ) -> anyhow::Result<()> {
+        let slot = match domain {
+            "pid" => self.pid_domain.as_ref(),
+            "dcs" => self.dcs_domain.as_ref(),
+            other => {
+                return Err(anyhow::anyhow!(
+                    "swap_domain: unknown domain '{}' — must be 'pid' or 'dcs'",
+                    other
+                ));
+            }
+        };
+        let slot = slot.ok_or_else(|| {
+            anyhow::anyhow!(
+                "swap_domain: no slot initialised for domain '{}' — call load() first",
+                domain
+            )
+        })?;
+
+        // Write lock is held only for the pointer swap — sub-millisecond.
+        *slot.session.write().await = Some(new_session);
+
+        tracing::info!(domain = %domain, "Hot-swapped ONNX session for domain");
+        Ok(())
+    }
+
+    /// Retrieve a cloned handle to the current session for the named domain,
+    /// suitable for use in inference without holding the write lock.
+    ///
+    /// Acquires a read lock, clones the inner `Arc`, then releases the lock
+    /// immediately.  In-flight requests hold only the cloned Arc — a
+    /// concurrent `swap_domain()` write-lock can proceed without waiting.
+    ///
+    /// Returns `None` if no slot exists for the domain or no session has been
+    /// installed yet.
+    pub async fn session_for_domain(
+        &self,
+        domain: &str,
+    ) -> Option<Arc<ort::session::Session>> {
+        let slot = match domain {
+            "pid" => self.pid_domain.as_ref(),
+            "dcs" => self.dcs_domain.as_ref(),
+            _ => return None,
+        }?;
+        // Acquire read lock, clone inner Arc, release lock before returning.
+        slot.session.read().await.clone()
+    }
+
     /// Returns `true` if the named domain has an active (session-bearing) slot.
     #[allow(dead_code)]
-    pub fn domain_is_loaded(&self, domain: &str) -> bool {
+    pub async fn domain_is_loaded(&self, domain: &str) -> bool {
         match domain {
-            "pid" => self.pid_domain.as_ref().map_or(false, |s| s.is_active()),
-            "dcs" => self.dcs_domain.as_ref().map_or(false, |s| s.is_active()),
+            "pid" => match &self.pid_domain {
+                Some(s) => s.is_active().await,
+                None => false,
+            },
+            "dcs" => match &self.dcs_domain {
+                Some(s) => s.is_active().await,
+                None => false,
+            },
             _ => false,
         }
     }
@@ -257,7 +354,7 @@ async fn model_info_from_slot(slot: &DomainSlot) -> ModelInfo {
         version: meta.version.clone(),
         filename: meta.filename.clone(),
         class_count: meta.class_count,
-        loaded: slot.is_active(),
+        loaded: slot.is_active().await,
         uploaded_at: meta.uploaded_at,
         file_size_bytes: meta.file_size_bytes,
     }

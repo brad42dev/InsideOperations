@@ -388,8 +388,22 @@ async fn run_inference(
         }
     };
 
+    // Acquire a read lock on the domain's session Arc, clone the inner handle,
+    // then release the read lock immediately.  This allows a concurrent
+    // swap_domain() write-lock to proceed without waiting for inference to finish.
+    // In Phase 1 the session is always None; the clone pattern is in place for
+    // Phase 2 when real ONNX sessions are installed via swap_domain().
+    let _session_handle = state
+        .model_manager
+        .read()
+        .await
+        .session_for_domain(&resolved_domain)
+        .await;
+    // _session_handle is Option<Arc<ort::session::Session>>.
+    // Phase 2 will match on Some(session) to run ONNX inference here.
+
     // Stub: return placeholder result.
-    // In production: load session from DomainSlot, preprocess image, run ONNX, NMS.
+    // In production: preprocess image, run ONNX on _session_handle, NMS.
     let result = RecognitionResult {
         job_id: Uuid::new_v4().to_string(),
         status: "stub".to_string(),
@@ -429,20 +443,60 @@ async fn import_gap_report(
 // GET /recognition/status — service status
 async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
     let manager = state.model_manager.read().await;
-    let pid_loaded = manager.domain_has_model("pid");
-    let dcs_loaded = manager.domain_has_model("dcs");
+
+    // Build per-domain status including model version and session state.
+    // Model version is read from the slot's metadata (updated on each hot-swap
+    // via ModelManager::load()).  Session active state reflects whether an ONNX
+    // session has been installed via swap_domain() (Phase 2).
+    let pid_info = match &manager.pid_domain {
+        Some(slot) => {
+            let meta = slot.metadata.read().await;
+            let session_active = slot.session.read().await.is_some();
+            serde_json::json!({
+                "model_loaded": true,
+                "model_version": meta.version,
+                "model_id": meta.id,
+                "session_active": session_active,
+                "hardware": "cpu",
+                "mode": if session_active { "cpu" } else { "metadata_only" }
+            })
+        }
+        None => serde_json::json!({
+            "model_loaded": false,
+            "model_version": null,
+            "model_id": null,
+            "session_active": false,
+            "hardware": "cpu",
+            "mode": "disabled"
+        }),
+    };
+    let dcs_info = match &manager.dcs_domain {
+        Some(slot) => {
+            let meta = slot.metadata.read().await;
+            let session_active = slot.session.read().await.is_some();
+            serde_json::json!({
+                "model_loaded": true,
+                "model_version": meta.version,
+                "model_id": meta.id,
+                "session_active": session_active,
+                "hardware": "cpu",
+                "mode": if session_active { "cpu" } else { "metadata_only" }
+            })
+        }
+        None => serde_json::json!({
+            "model_loaded": false,
+            "model_version": null,
+            "model_id": null,
+            "session_active": false,
+            "hardware": "cpu",
+            "mode": "disabled"
+        }),
+    };
+
     let status = serde_json::json!({
         "domains": {
-            "pid": {
-                "model_loaded": pid_loaded,
-                "hardware": "cpu",  // stub: "cpu" until ort CUDA detection is wired
-                "mode": if pid_loaded { "cpu" } else { "disabled" }
-            },
-            "dcs": {
-                "model_loaded": dcs_loaded,
-                "hardware": "cpu",
-                "mode": if dcs_loaded { "cpu" } else { "disabled" }
-            }
+            "pid": pid_info,
+            "dcs": dcs_info
         }
     });
     Json(ApiResponse::ok(status)).into_response()
