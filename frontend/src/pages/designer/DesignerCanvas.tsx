@@ -3877,6 +3877,48 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   }, [snap])
 
   // -------------------------------------------------------------------------
+  // Test fixture: programmatic TextBlock placement (io:test-add-text-block)
+  // Allows automated tests and UAT scripts to place a TextBlock node on the
+  // canvas without requiring canvas pointer drag interaction. The canvas
+  // receives a CustomEvent with optional {x, y, content} in detail.
+  // Example: document.dispatchEvent(new CustomEvent('io:test-add-text-block',
+  //   { detail: { x: 200, y: 150, content: 'Test label' } }))
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    function onTestAddTextBlock(e: Event) {
+      const ce = e as CustomEvent<{ x?: number; y?: number; content?: string }>
+      if (!docRef.current) return
+      const newNode: TextBlock = {
+        id: crypto.randomUUID(),
+        type: 'text_block',
+        name: 'Text',
+        transform: {
+          position: { x: ce.detail?.x ?? 100, y: ce.detail?.y ?? 100 },
+          rotation: 0,
+          scale: { x: 1, y: 1 },
+          mirror: 'none',
+        },
+        visible: true,
+        locked: false,
+        opacity: 1,
+        content: ce.detail?.content ?? 'Text',
+        fontFamily: 'Inter',
+        fontSize: 14,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        textAnchor: 'start',
+        fill: '#ffffff',
+      }
+      executeCmd(new AddNodeCommand(newNode, null))
+      selectedIdsRef.current = new Set([newNode.id])
+      useUiStore.getState().setSelectedNodes([newNode.id])
+    }
+
+    document.addEventListener('io:test-add-text-block', onTestAddTextBlock)
+    return () => document.removeEventListener('io:test-add-text-block', onTestAddTextBlock)
+  }, [])
+
+  // -------------------------------------------------------------------------
   // Cursor style based on active tool
   // -------------------------------------------------------------------------
 
