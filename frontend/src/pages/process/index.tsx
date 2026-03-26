@@ -1105,10 +1105,10 @@ export default function ProcessPage() {
   const viewName = selectedId ? (graphicsList?.find((g) => g.id === selectedId)?.name ?? '') : ''
 
   const connectedDot = connectionState === 'connected'
-    ? { color: '#22C55E', label: 'Connected' }
+    ? { color: 'var(--io-success)', label: 'Connected' }
     : connectionState === 'connecting'
-      ? { color: '#EAB308', label: 'Connecting' }
-      : { color: '#EF4444', label: 'Disconnected' }
+      ? { color: 'var(--io-warning)', label: 'Connecting' }
+      : { color: 'var(--io-danger)', label: 'Disconnected' }
 
   // ---- Render --------------------------------------------------------------
 
@@ -1332,11 +1332,11 @@ export default function ProcessPage() {
                 <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 11, color: 'var(--io-text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                   {tooltip.pointId}
                 </div>
-                <div style={{ fontSize: 15, fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
+                <div style={{ fontSize: 15, fontFamily: 'var(--io-font-mono)', fontWeight: 600 }}>
                   {tooltip.value}
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10, color: 'var(--io-text-muted)' }}>
-                  <span style={{ color: tooltip.quality === 'good' ? '#22C55E' : tooltip.quality === 'bad' ? '#EF4444' : '#F59E0B' }}>
+                  <span style={{ color: tooltip.quality === 'good' ? 'var(--io-success)' : tooltip.quality === 'bad' ? 'var(--io-danger)' : 'var(--io-warning)' }}>
                     {tooltip.quality}
                   </span>
                   <span>{tooltip.timestamp}</span>
@@ -1457,9 +1457,9 @@ export default function ProcessPage() {
               onClick={() => setPlaybackMode('historical')}
               style={{
                 ...toolbarBtnStyle,
-                background: isHistorical ? '#78350f22' : undefined,
-                color: isHistorical ? '#F59E0B' : 'var(--io-text-muted)',
-                borderColor: isHistorical ? '#F59E0B' : 'var(--io-border)',
+                background: isHistorical ? 'var(--io-warning-subtle)' : undefined,
+                color: isHistorical ? 'var(--io-warning)' : 'var(--io-text-muted)',
+                borderColor: isHistorical ? 'var(--io-warning)' : 'var(--io-border)',
               }}
             >
               ◷ Historical

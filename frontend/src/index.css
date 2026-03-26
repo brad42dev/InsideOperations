@@ -203,6 +203,9 @@
   --io-duration-fast: 150ms;
   --io-duration-medium: 250ms;
   --io-duration-slow: 350ms;
+
+  /* Typography — font stacks (static, all themes) */
+  --io-font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
 }
 
 /* ---- Light theme ------------------------------------------- */

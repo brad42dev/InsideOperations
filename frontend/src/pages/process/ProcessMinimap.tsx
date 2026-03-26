@@ -116,8 +116,9 @@ export default function ProcessMinimap({
     canvas.width = mmW
     canvas.height = mmH
 
-    // Background
-    ctx.fillStyle = '#1a1f2e'
+    // Background — resolve via CSS custom property so it follows the active theme
+    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--io-surface-primary').trim() || '#09090B'
+    ctx.fillStyle = bgColor
     ctx.fillRect(0, 0, mmW, mmH)
 
     // Draw scene nodes as colored rects
