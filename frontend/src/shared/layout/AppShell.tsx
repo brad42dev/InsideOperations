@@ -629,9 +629,16 @@ export default function AppShell() {
   const preKioskSidebarRef = useRef<'expanded' | 'collapsed' | 'hidden'>('expanded')
   const preKioskTopbarRef = useRef(false)
 
+  // Browser fullscreen tracking — driven by fullscreenchange listener
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false)
+  // When kiosk is entered but browser fullscreen was denied, show the prompt
+  const [needsFullscreenPrompt, setNeedsFullscreenPrompt] = useState(false)
+
   // Refs to hold kiosk helpers — avoids stale closures in the keyboard effect
   const isKioskRef = useRef(isKiosk)
   isKioskRef.current = isKiosk
+  const isBrowserFullscreenRef = useRef(isBrowserFullscreen)
+  isBrowserFullscreenRef.current = isBrowserFullscreen
 
   // Persist sidebar state to localStorage whenever it changes.
   // Kiosk mode forces 'hidden' — we do not persist that transient state
@@ -657,9 +664,19 @@ export default function AppShell() {
     params.set('mode', 'kiosk')
     setSearchParams(params, { replace: true })
     showToast({ title: 'Kiosk mode active. Press Escape to exit.', variant: 'info', duration: 2000 })
+    // Attempt to enter browser fullscreen.
+    // Keyboard shortcut (Ctrl+Shift+K) counts as a user gesture so requestFullscreen
+    // is likely to succeed. URL-param and UI-button paths may not have a gesture;
+    // we attempt anyway and fall back to the in-content prompt if rejected.
+    // On success, the fullscreenchange listener fires and needsFullscreenPrompt
+    // stays false (or is reset to false). On rejection, show the prompt.
+    document.documentElement.requestFullscreen().catch(() => {
+      setNeedsFullscreenPrompt(true)
+    })
   }
 
   function exitKiosk() {
+    setNeedsFullscreenPrompt(false)
     setKiosk(false)
     setSidebarState(preKioskSidebarRef.current)
     setTopbarHidden(preKioskTopbarRef.current)
@@ -667,6 +684,10 @@ export default function AppShell() {
     const params = new URLSearchParams(searchParams)
     params.delete('mode')
     setSearchParams(params, { replace: true })
+    // Exit browser fullscreen if it is currently active
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined)
+    }
   }
 
   // Stable refs so the keyboard handler effect never needs these in its dep array
@@ -683,6 +704,11 @@ export default function AppShell() {
       setKiosk(true)
       setSidebarState('hidden')
       setTopbarHidden(true)
+      // Attempt fullscreen on URL/session restore — may lack a user gesture so
+      // show the in-content prompt if rejected.
+      document.documentElement.requestFullscreen().catch(() => {
+        setNeedsFullscreenPrompt(true)
+      })
     }
     // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -822,6 +848,23 @@ export default function AppShell() {
     }
   }, [unlock, resetIdleTimer])
 
+  // Track browser fullscreen state via fullscreenchange event.
+  // This drives the Escape two-step logic and auto-dismisses the fullscreen prompt.
+  useEffect(() => {
+    function onFullscreenChange() {
+      const isFs = !!document.fullscreenElement
+      setIsBrowserFullscreen(isFs)
+      // Auto-dismiss the fullscreen prompt once fullscreen becomes active
+      if (isFs) {
+        setNeedsFullscreenPrompt(false)
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+    }
+  }, [])
+
   // G-key hint visibility state — backed by module-level ref to survive React
   // Strict Mode's double-mount cycle (useRef resets on remount; module vars do not).
   const [gKeyHintVisible, setGKeyHintVisible] = useState(false)
@@ -849,7 +892,8 @@ export default function AppShell() {
         return
       }
 
-      // Escape — dismiss G-key hint if visible, then exit kiosk if active.
+      // Escape — dismiss G-key hint if visible, then handle kiosk exit with
+      // two-step fullscreen sequence.
       // IMPORTANT: When the lock overlay is visible it handles Escape in capture
       // phase (dismiss overlay only, no unlock). We must not also exit kiosk here.
       // Check isLocked so AppShell's handler is a no-op while the overlay is up.
@@ -866,7 +910,15 @@ export default function AppShell() {
         }
         if (isKioskRef.current && !isLockedRef.current) {
           e.preventDefault()
-          exitKioskRef.current()
+          // Two-step Escape sequence:
+          // - If browser is in fullscreen: first Escape exits fullscreen only;
+          //   kiosk chrome stays hidden. Second Escape exits kiosk fully.
+          // - If not in fullscreen: single Escape exits kiosk directly.
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => undefined)
+          } else {
+            exitKioskRef.current()
+          }
           return
         }
       }
@@ -1870,6 +1922,69 @@ export default function AppShell() {
         {/* Popup blocked banner — below top bar, above content, pushes layout down.
             Not shown in kiosk mode (top bar is hidden in kiosk). */}
         {!isKiosk && <PopupBlockedBanner state={popupBlockedState} />}
+
+        {/* Kiosk fullscreen prompt — shown when kiosk is active but browser fullscreen
+            was denied (e.g. no user gesture during URL-param or UI-button entry).
+            Rendered as a non-blocking ribbon at the top of the content area.
+            Does NOT block module content. Pointer-events enabled even when locked
+            so the user can still click "Enter fullscreen" or "Skip". */}
+        {isKiosk && needsFullscreenPrompt && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 9000,
+              background: 'var(--io-surface-elevated, #1e1e2e)',
+              borderBottom: '1px solid var(--io-border, rgba(255,255,255,0.1))',
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              fontSize: '13px',
+              color: 'var(--io-text-primary)',
+            }}
+            data-testid="kiosk-fullscreen-prompt"
+          >
+            <span style={{ flex: 1 }}>
+              For the best experience, click to enter fullscreen.
+            </span>
+            <button
+              onClick={() => {
+                document.documentElement.requestFullscreen().catch(() => undefined)
+              }}
+              style={{
+                padding: '5px 12px',
+                background: 'var(--io-accent)',
+                color: 'var(--io-accent-foreground, #fff)',
+                border: 'none',
+                borderRadius: 'var(--io-radius, 4px)',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+              data-testid="kiosk-fullscreen-enter-btn"
+            >
+              Enter fullscreen
+            </button>
+            <button
+              onClick={() => setNeedsFullscreenPrompt(false)}
+              style={{
+                padding: '5px 10px',
+                background: 'transparent',
+                color: 'var(--io-text-secondary)',
+                border: '1px solid var(--io-border, rgba(255,255,255,0.15))',
+                borderRadius: 'var(--io-radius, 4px)',
+                fontSize: '13px',
+                cursor: 'pointer',
+              }}
+              data-testid="kiosk-fullscreen-skip-btn"
+            >
+              Skip
+            </button>
+          </div>
+        )}
 
         {/* Content — pointer-events disabled when locked so data renders but interaction is blocked */}
         <main

@@ -19,6 +19,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
 mod config;
+mod model_manager;
 mod state;
 
 use state::AppState;
@@ -90,7 +91,7 @@ async fn validate_service_secret(
 
 // GET /recognition/models — list loaded models
 async fn list_models(State(state): State<AppState>) -> impl IntoResponse {
-    let models = state.models.read().await.clone();
+    let models = state.model_manager.read().await.all_models().await;
     Json(ApiResponse::ok(models)).into_response()
 }
 
@@ -99,9 +100,8 @@ async fn get_model(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let models = state.models.read().await;
-    match models.iter().find(|m| m.id == id) {
-        Some(m) => Json(ApiResponse::ok(m.clone())).into_response(),
+    match state.model_manager.read().await.find_by_id(&id).await {
+        Some(m) => Json(ApiResponse::ok(m)).into_response(),
         None => IoError::NotFound(format!("Model {} not found", id)).into_response(),
     }
 }
@@ -231,12 +231,15 @@ async fn upload_model(
         file_size_bytes: file_size,
     };
 
-    state.models.write().await.push(model.clone());
+    if let Err(e) = state.model_manager.write().await.load(&domain, &model) {
+        tracing::error!("Failed to register model in ModelManager: {}", e);
+        return IoError::Internal("Failed to register model".to_string()).into_response();
+    }
     tracing::info!(
         domain = %domain,
         version = %version,
         filename = %filename,
-        "Model uploaded and integrity verified"
+        "Model uploaded and registered in ModelManager"
     );
 
     Json(ApiResponse::ok(model)).into_response()
@@ -306,10 +309,8 @@ async fn delete_model(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let mut models = state.models.write().await;
-    let before = models.len();
-    models.retain(|m| m.id != id);
-    if models.len() == before {
+    let removed = state.model_manager.write().await.remove_by_id(&id).await;
+    if !removed {
         return IoError::NotFound(format!("Model {} not found", id)).into_response();
     }
     Json(ApiResponse::ok(serde_json::json!({"deleted": true}))).into_response()
@@ -318,7 +319,7 @@ async fn delete_model(
 // POST /recognition/detect — run inference on an image (multipart/form-data)
 // Expected fields: image (File), options (optional JSON string)
 async fn run_inference(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut image_filename: Option<String> = None;
@@ -354,12 +355,45 @@ async fn run_inference(
 
     let inference_start = std::time::Instant::now();
 
+    // Resolve which domain to use for inference.
+    // "auto" picks pid if available, then dcs, then returns 200 with no detections.
+    let resolved_domain = {
+        let mgr = state.model_manager.read().await;
+        match domain.as_str() {
+            "pid" => {
+                if mgr.domain_has_model("pid") {
+                    "pid".to_string()
+                } else {
+                    tracing::warn!("Inference requested for pid domain but no model is loaded");
+                    "pid".to_string()  // return stub 200; no model loaded is acceptable per spec
+                }
+            }
+            "dcs" => {
+                if mgr.domain_has_model("dcs") {
+                    "dcs".to_string()
+                } else {
+                    tracing::warn!("Inference requested for dcs domain but no model is loaded");
+                    "dcs".to_string()
+                }
+            }
+            "auto" | _ => {
+                if mgr.domain_has_model("pid") {
+                    "pid".to_string()
+                } else if mgr.domain_has_model("dcs") {
+                    "dcs".to_string()
+                } else {
+                    "auto".to_string()
+                }
+            }
+        }
+    };
+
     // Stub: return placeholder result.
-    // In production: load model for domain, preprocess image, run ONNX session, NMS.
+    // In production: load session from DomainSlot, preprocess image, run ONNX, NMS.
     let result = RecognitionResult {
         job_id: Uuid::new_v4().to_string(),
         status: "stub".to_string(),
-        domain,
+        domain: resolved_domain,
         detections: vec![],
         ocr_results: vec![],
         line_results: None,
@@ -394,9 +428,9 @@ async fn import_gap_report(
 
 // GET /recognition/status — service status
 async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
-    let models = state.models.read().await;
-    let pid_loaded = models.iter().any(|m| m.domain == "pid" && m.loaded);
-    let dcs_loaded = models.iter().any(|m| m.domain == "dcs" && m.loaded);
+    let manager = state.model_manager.read().await;
+    let pid_loaded = manager.domain_has_model("pid");
+    let dcs_loaded = manager.domain_has_model("dcs");
     let status = serde_json::json!({
         "domains": {
             "pid": {
