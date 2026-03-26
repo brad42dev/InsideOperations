@@ -288,7 +288,11 @@ export function getNodeBounds(node: SceneNode): { x: number; y: number; w: numbe
   }
   if (node.type === 'text_block') {
     const tb = node as TextBlock
-    return { x, y, w: tb.maxWidth ?? 120, h: tb.fontSize ? tb.fontSize * 2 : 20 }
+    // Ensure minimum hit target size (40x20) for reliable right-click detection on small text
+    const minW = 40, minH = 20
+    const w = Math.max(tb.maxWidth ?? 120, minW)
+    const h = Math.max(tb.fontSize ? tb.fontSize * 2 : 20, minH)
+    return { x, y, w, h }
   }
   if (node.type === 'image') {
     const img = node as ImageNode
@@ -337,7 +341,11 @@ export function getNodeBounds(node: SceneNode): { x: number; y: number; w: numbe
   }
   if (node.type === 'annotation') {
     const an = node as import('../../shared/types/graphics').Annotation
-    return { x, y, w: an.width, h: an.height }
+    // Ensure minimum hit target size (32x32) for reliable right-click detection
+    const minSize = 32
+    const w = Math.max(an.width || minSize, minSize)
+    const h = Math.max(an.height || minSize, minSize)
+    return { x, y, w, h }
   }
   if (node.type === 'group') {
     const grp = node as Group
@@ -515,14 +523,13 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
   const cfg = node.config
   const de = node
 
-  // Shared right-click handler for test mode — only fires when setter is available and node has a binding
+  // Shared right-click handler for test mode — only fires when setter is available
   const handleContextMenu = useCallback((e: React.MouseEvent<SVGGElement>) => {
     if (!pointCtxMenuSetter) return
-    const pid = de.binding.pointId
-    if (!pid) return
     e.preventDefault()
     e.stopPropagation()
-    pointCtxMenuSetter({ pointId: pid, tagName: pid, x: e.clientX, y: e.clientY })
+    const pointId = de.binding.pointId || ''
+    pointCtxMenuSetter({ pointId, tagName: pointId, x: e.clientX, y: e.clientY })
   }, [pointCtxMenuSetter, de.binding.pointId])
 
   // ── Live rendering (test mode has a value) ────────────────────────────────
@@ -3286,7 +3293,17 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
         // Filter out pipe nodes per task spec — only group non-pipe nodes
         const eligible = ids.filter(id => d.children.find(n => n.id === id)?.type !== 'pipe')
         if (eligible.length > 1) {
-          setGroupPrompt({ defaultName: nextGroupName(d), pendingIds: eligible })
+          // Group immediately without prompting for a name — spec §6.2 says GroupCommand, no dialog
+          const preIds = new Set(d.children.map(n => n.id))
+          executeCmd(new GroupNodesCommand(eligible, nextGroupName(d)))
+          const postDoc = docRef.current
+          if (postDoc) {
+            const newGroup = postDoc.children.find(n => !preIds.has(n.id) && n.type === 'group')
+            if (newGroup) {
+              selectedIdsRef.current = new Set([newGroup.id])
+              useUiStore.getState().setSelectedNodes([newGroup.id])
+            }
+          }
         }
       }
       return
@@ -3531,7 +3548,17 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
       if (ids.length < 2) return
       const eligible = ids.filter(id => d.children.find(n => n.id === id)?.type !== 'pipe')
       if (eligible.length >= 2) {
-        setGroupPrompt({ defaultName: nextGroupName(d), pendingIds: eligible })
+        // Group immediately without name dialog — spec §6.2 says GroupCommand, no dialog
+        const preIds = new Set(d.children.map(n => n.id))
+        executeCmd(new GroupNodesCommand(eligible, nextGroupName(d)))
+        const postDoc = docRef.current
+        if (postDoc) {
+          const newGroup = postDoc.children.find(n => !preIds.has(n.id) && n.type === 'group')
+          if (newGroup) {
+            selectedIdsRef.current = new Set([newGroup.id])
+            useUiStore.getState().setSelectedNodes([newGroup.id])
+          }
+        }
       }
     }
 
@@ -5292,7 +5319,19 @@ function DesignerContextMenuContent({
                     onSelect={() => {
                       if (!doc) return
                       const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
-                      if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
+                      if (ids.length > 1) {
+                        // Group immediately without name dialog — spec §6.2 says GroupCommand, no dialog
+                        const preIds = new Set(doc.children.map(n => n.id))
+                        executeCmd(new GroupNodesCommand(ids, nextGroupName(doc)))
+                        const postDoc = docRef.current
+                        if (postDoc) {
+                          const newGroup = postDoc.children.find(n => !preIds.has(n.id) && n.type === 'group')
+                          if (newGroup) {
+                            selectedIdsRef.current = new Set([newGroup.id])
+                            useUiStore.getState().setSelectedNodes([newGroup.id])
+                          }
+                        }
+                      }
                     }}>
                     Group Selection… (Ctrl+G)
                   </ContextMenuPrimitive.Item>
@@ -5306,7 +5345,19 @@ function DesignerContextMenuContent({
               onSelect={() => {
                 if (!doc) return
                 const ids = Array.from(selectedIds).filter(id => doc.children.find(n => n.id === id)?.type !== 'pipe')
-                if (ids.length > 1) setGroupPrompt({ defaultName: nextGroupName(doc), pendingIds: ids })
+                if (ids.length > 1) {
+                  // Group immediately without name dialog — spec §6.2 says GroupCommand, no dialog
+                  const preIds = new Set(doc.children.map(n => n.id))
+                  executeCmd(new GroupNodesCommand(ids, nextGroupName(doc)))
+                  const postDoc = docRef.current
+                  if (postDoc) {
+                    const newGroup = postDoc.children.find(n => !preIds.has(n.id) && n.type === 'group')
+                    if (newGroup) {
+                      selectedIdsRef.current = new Set([newGroup.id])
+                      useUiStore.getState().setSelectedNodes([newGroup.id])
+                    }
+                  }
+                }
               }}>
               Group
             </ContextMenuPrimitive.Item>
