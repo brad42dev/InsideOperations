@@ -2671,11 +2671,9 @@ PYEOF
                 fi
 
                 if [ "$_next" = "impl" ]; then
-                    _tid
                     _tid=$(claim_next_task "io-auto-$$") || { _impl_exhausted=1; continue; }
                     [ -z "$_tid" ] && { _impl_exhausted=1; echo "  No more impl tasks."; continue; }
                     echo "  [impl ] claimed task ${_tid}"
-                    _pid
                     # Must NOT use $() here — see launch_agent_in_worktree comment about _LAUNCH_PID.
                     launch_agent_in_worktree "$_tid" "audit-orchestrator" "implement force $_tid 1"
                     _pid=$_LAUNCH_PID
@@ -2831,7 +2829,6 @@ _VERIFY_PY
                         else
                             _rf="${CFG_UAT_DIR:-docs/uat}/${_id}/CURRENT.md"
                             if [ -f "$_rf" ]; then
-                                _vd
                                 _vd=$(grep "^verdict:" "$_rf" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
                                 case "$_vd" in
                                     pass)    BATCH_UAT_PASSED=$((BATCH_UAT_PASSED + 1));   echo "  ✅ [uat  ] ${_id} — pass" ;;
@@ -2868,7 +2865,6 @@ _VERIFY_PY
 
         # Query actually-verified impl tasks from DB (exit codes can't be trusted)
         if [ "${#_auto_impl_tasks[@]}" -gt 0 ]; then
-            _tl
             _tl=$(printf "'%s'," "${_auto_impl_tasks[@]}")
             _tl="${_tl%,}"
             BATCH_IMPL_VERIFIED=$(python3 -c "
