@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { graphicsApi } from '../../api/graphics'
 import type { WorkspaceLayout } from './types'
 import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
+import { useConsoleSectionFavorites, CONSOLE_FAVORITES_KEYS } from '../../shared/hooks/useConsoleSectionFavorites'
 import * as RadixContextMenu from '@radix-ui/react-context-menu'
 
 // ---------------------------------------------------------------------------
@@ -992,16 +993,64 @@ function WidgetThumbnailCard({
   )
 }
 
-function WidgetsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: ConsoleDragItem) => void; viewMode: SectionViewMode }) {
+function WidgetsSection({
+  onQuickPlace,
+  viewMode,
+  favoriteIds,
+  onToggleFavorite,
+}: {
+  onQuickPlace?: (item: ConsoleDragItem) => void
+  viewMode: SectionViewMode
+  favoriteIds: Set<string>
+  onToggleFavorite: (id: string) => void
+}) {
   const [search, setSearch] = useState('')
+  const [favoritesOpen, setFavoritesOpen] = useState(true)
 
   const filteredWidgets = search
     ? WIDGET_ITEMS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()))
     : WIDGET_ITEMS
 
+  const favoriteWidgets = filteredWidgets.filter((w) => favoriteIds.has(w.itemType))
+  const hasFavorites = favoriteWidgets.length > 0
+
   const thumbW = viewMode === 'grid' ? 80 : 48
   const thumbH = viewMode === 'grid' ? 60 : 36
   const isGrid = viewMode === 'grid'
+
+  // Helper: render a widget in list mode with a star toggle button
+  function WidgetListRow({ w }: { w: typeof WIDGET_ITEMS[number] }) {
+    const [hovering, setHovering] = useState(false)
+    const fav = favoriteIds.has(w.itemType)
+    return (
+      <div
+        style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+      >
+        <DraggableItem item={{ itemType: w.itemType, label: w.label }} onQuickPlace={onQuickPlace}>
+          {w.icon}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12 }}>{w.label}</div>
+            <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{w.desc}</div>
+          </div>
+        </DraggableItem>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(w.itemType) }}
+          title={fav ? 'Remove from Favorites' : 'Add to Favorites'}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 3, flexShrink: 0,
+            opacity: fav || hovering ? 1 : 0,
+            transition: 'opacity 0.1s',
+          }}
+        >
+          <StarIcon filled={fav} />
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: '6px 4px 4px' }}>
@@ -1014,21 +1063,77 @@ function WidgetsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: Cons
           style={searchInput}
         />
       </div>
+
       {filteredWidgets.length === 0 && (
         <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
           No matching widgets
         </div>
       )}
+
+      {/* Favorites group — pinned at top, only shown when there are favorites */}
+      {hasFavorites && (
+        <div style={{ marginBottom: 2 }}>
+          <button
+            onClick={() => setFavoritesOpen((v) => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              width: '100%', padding: '3px 10px', border: 'none',
+              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <svg
+              style={{
+                width: 10, height: 10, color: 'var(--io-text-muted)',
+                transition: 'transform 0.15s',
+                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                flexShrink: 0,
+              }}
+              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+            >
+              <polyline points="6 4 10 8 6 12" />
+            </svg>
+            <StarIcon filled />
+            <span style={{
+              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
+            }}>
+              Favorites
+            </span>
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
+              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
+            }}>
+              {favoriteWidgets.length}
+            </span>
+          </button>
+          {favoritesOpen && (
+            viewMode === 'list' ? (
+              <div>
+                {favoriteWidgets.map((w) => <WidgetListRow key={w.itemType} w={w} />)}
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 4,
+                padding: isGrid ? '4px 6px' : '4px 8px',
+              }}>
+                {favoriteWidgets.map((w) => (
+                  <WidgetThumbnailCard
+                    key={w.itemType} w={w}
+                    thumbW={thumbW} thumbH={thumbH} singleLine={isGrid}
+                    onQuickPlace={onQuickPlace}
+                  />
+                ))}
+              </div>
+            )
+          )}
+          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+        </div>
+      )}
+
+      {/* Full widget list */}
       {viewMode === 'list' ? (
-        filteredWidgets.map((w) => (
-          <DraggableItem key={w.itemType} item={{ itemType: w.itemType, label: w.label }} onQuickPlace={onQuickPlace}>
-            {w.icon}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12 }}>{w.label}</div>
-              <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{w.desc}</div>
-            </div>
-          </DraggableItem>
-        ))
+        filteredWidgets.map((w) => <WidgetListRow key={w.itemType} w={w} />)
       ) : (
         <div style={{
           display: 'flex',
@@ -1056,10 +1161,53 @@ function WidgetsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: Cons
 // Points section
 // ---------------------------------------------------------------------------
 
+// Stored shape for a favorited point (we need to persist tag + description)
+interface FavoritePoint {
+  id: string
+  tagname: string
+  description?: string
+}
+
+const LS_FAVORITE_POINTS_KEY = CONSOLE_FAVORITES_KEYS.points
+const LS_FAVORITE_POINTS_DATA_KEY = 'io-console-points-favorites-data'
+
+function loadFavoritePointsData(): FavoritePoint[] {
+  try {
+    const raw = localStorage.getItem(LS_FAVORITE_POINTS_DATA_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) return parsed as FavoritePoint[]
+    return []
+  } catch {
+    return []
+  }
+}
+
+function saveFavoritePointsData(points: FavoritePoint[]): void {
+  try {
+    localStorage.setItem(LS_FAVORITE_POINTS_DATA_KEY, JSON.stringify(points))
+  } catch {
+    // ignore quota errors
+  }
+}
+
 function PointsSection() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [favoritesOpen, setFavoritesOpen] = useState(true)
+
+  // Favorites state for points — stored with their metadata so they appear even without searching
+  const [favoritePointIds, setFavoritePointIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(LS_FAVORITE_POINTS_KEY)
+      if (!raw) return new Set()
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return new Set<string>(parsed as string[])
+      return new Set()
+    } catch { return new Set() }
+  })
+  const [favoritePointsData, setFavoritePointsData] = useState<FavoritePoint[]>(() => loadFavoritePointsData())
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
@@ -1081,6 +1229,48 @@ function PointsSection() {
 
   const points = data ?? []
 
+  const togglePointFavorite = useCallback((pt: Point) => {
+    setFavoritePointIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(pt.id)) {
+        next.delete(pt.id)
+        setFavoritePointsData((prevData) => {
+          const updated = prevData.filter((p) => p.id !== pt.id)
+          saveFavoritePointsData(updated)
+          return updated
+        })
+      } else {
+        next.add(pt.id)
+        setFavoritePointsData((prevData) => {
+          const updated = prevData.filter((p) => p.id !== pt.id).concat({
+            id: pt.id,
+            tagname: pt.tagname,
+            description: pt.description,
+          })
+          saveFavoritePointsData(updated)
+          return updated
+        })
+      }
+      try {
+        localStorage.setItem(LS_FAVORITE_POINTS_KEY, JSON.stringify([...next]))
+      } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
+  const hasFavorites = favoritePointIds.size > 0
+
+  // Point icon — shared SVG
+  const PointIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5" style={{ flexShrink: 0 }}>
+      <circle cx="8" cy="8" r="3" />
+      <line x1="8" y1="1" x2="8" y2="4" />
+      <line x1="8" y1="12" x2="8" y2="15" />
+      <line x1="1" y1="8" x2="4" y2="8" />
+      <line x1="12" y1="8" x2="15" y2="8" />
+    </svg>
+  )
+
   return (
     <div style={{ padding: '6px 4px 4px' }}>
       <div style={{ padding: '0 6px 6px' }}>
@@ -1092,6 +1282,76 @@ function PointsSection() {
           style={searchInput}
         />
       </div>
+
+      {/* Favorites group — pinned at top, shows starred points without searching */}
+      {hasFavorites && (
+        <div style={{ marginBottom: 4 }}>
+          <button
+            onClick={() => setFavoritesOpen((v) => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              width: '100%', padding: '3px 10px', border: 'none',
+              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <svg
+              style={{
+                width: 10, height: 10, color: 'var(--io-text-muted)',
+                transition: 'transform 0.15s',
+                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                flexShrink: 0,
+              }}
+              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+            >
+              <polyline points="6 4 10 8 6 12" />
+            </svg>
+            <StarIcon filled />
+            <span style={{
+              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
+            }}>
+              Favorites
+            </span>
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
+              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
+            }}>
+              {favoritePointIds.size}
+            </span>
+          </button>
+          {favoritesOpen && favoritePointsData.map((pt) => (
+            <div key={pt.id} style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
+              <DraggableItem item={{ itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }}>
+                <PointIcon />
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pt.tagname}
+                  </div>
+                  {pt.description && (
+                    <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {pt.description}
+                    </div>
+                  )}
+                </div>
+              </DraggableItem>
+              <button
+                onClick={(e) => { e.stopPropagation(); togglePointFavorite(pt as Point) }}
+                title="Remove from Favorites"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 3, flexShrink: 0,
+                }}
+              >
+                <StarIcon filled />
+              </button>
+            </div>
+          ))}
+          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+        </div>
+      )}
+
       {search.length > 0 && search.length < 2 && (
         <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
           Type at least 2 characters
@@ -1107,35 +1367,53 @@ function PointsSection() {
           No points found
         </div>
       )}
-      {debouncedSearch.length < 2 && !isLoading && (
+      {debouncedSearch.length < 2 && !isLoading && !hasFavorites && (
         <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
           Search to browse points. Drag a point onto a Trend or Table pane to add it.
         </div>
       )}
-      {points.map((pt) => (
-        <DraggableItem
-          key={pt.id}
-          item={{ itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
-            <circle cx="8" cy="8" r="3" />
-            <line x1="8" y1="1" x2="8" y2="4" />
-            <line x1="8" y1="12" x2="8" y2="15" />
-            <line x1="1" y1="8" x2="4" y2="8" />
-            <line x1="12" y1="8" x2="15" y2="8" />
-          </svg>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {pt.tagname}
-            </div>
-            {pt.description && (
-              <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {pt.description}
+      {debouncedSearch.length < 2 && !isLoading && hasFavorites && (
+        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+          Search to browse more points.
+        </div>
+      )}
+
+      {/* Search results */}
+      {points.map((pt) => {
+        const isFav = favoritePointIds.has(pt.id)
+        return (
+          <div key={pt.id} style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
+            <DraggableItem item={{ itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }}>
+              <PointIcon />
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {pt.tagname}
+                </div>
+                {pt.description && (
+                  <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {pt.description}
+                  </div>
+                )}
               </div>
-            )}
+            </DraggableItem>
+            <button
+              onClick={(e) => { e.stopPropagation(); togglePointFavorite(pt) }}
+              title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 3, flexShrink: 0,
+                opacity: isFav ? 1 : 0,
+                transition: 'opacity 0.1s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = isFav ? '1' : '0' }}
+            >
+              <StarIcon filled={isFav} />
+            </button>
           </div>
-        </DraggableItem>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -1245,8 +1523,19 @@ function GraphicListRow({ g, onQuickPlace }: { g: { id: string; name: string }; 
   )
 }
 
-function GraphicsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: ConsoleDragItem) => void; viewMode: SectionViewMode }) {
+function GraphicsSection({
+  onQuickPlace,
+  viewMode,
+  favoriteIds,
+  onToggleFavorite,
+}: {
+  onQuickPlace?: (item: ConsoleDragItem) => void
+  viewMode: SectionViewMode
+  favoriteIds: Set<string>
+  onToggleFavorite: (id: string) => void
+}) {
   const [search, setSearch] = useState('')
+  const [favoritesOpen, setFavoritesOpen] = useState(true)
 
   const { data, isLoading } = useQuery({
     queryKey: ['console-palette-graphics'],
@@ -1262,6 +1551,9 @@ function GraphicsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: Con
   const filteredGraphics = search
     ? graphics.filter((g) => g.name.toLowerCase().includes(search.toLowerCase()))
     : graphics
+
+  const favoriteGraphics = filteredGraphics.filter((g) => favoriteIds.has(g.id))
+  const hasFavorites = favoriteGraphics.length > 0
 
   if (isLoading) {
     return (
@@ -1281,6 +1573,34 @@ function GraphicsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: Con
 
   const isGrid = viewMode === 'grid'
 
+  // Render a single graphic in list mode with an inline star toggle
+  function GraphicListRowWithStar({ g }: { g: { id: string; name: string } }) {
+    const [hovering, setHovering] = useState(false)
+    const fav = favoriteIds.has(g.id)
+    return (
+      <div
+        style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+      >
+        <GraphicListRow g={g} onQuickPlace={onQuickPlace} />
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(g.id) }}
+          title={fav ? 'Remove from Favorites' : 'Add to Favorites'}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 3, flexShrink: 0,
+            opacity: fav || hovering ? 1 : 0,
+            transition: 'opacity 0.1s',
+          }}
+        >
+          <StarIcon filled={fav} />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
       <div style={{ padding: '0 0 4px' }}>
@@ -1297,11 +1617,76 @@ function GraphicsSection({ onQuickPlace, viewMode }: { onQuickPlace?: (item: Con
           No matching graphics
         </div>
       )}
+
+      {/* Favorites group — pinned at top, only shown when there are favorites */}
+      {hasFavorites && (
+        <div style={{ marginBottom: 2 }}>
+          <button
+            onClick={() => setFavoritesOpen((v) => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              width: '100%', padding: '3px 4px', border: 'none',
+              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <svg
+              style={{
+                width: 10, height: 10, color: 'var(--io-text-muted)',
+                transition: 'transform 0.15s',
+                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                flexShrink: 0,
+              }}
+              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+            >
+              <polyline points="6 4 10 8 6 12" />
+            </svg>
+            <StarIcon filled />
+            <span style={{
+              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
+            }}>
+              Favorites
+            </span>
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
+              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
+            }}>
+              {favoriteGraphics.length}
+            </span>
+          </button>
+          {favoritesOpen && (
+            viewMode === 'list' ? (
+              <div style={{ padding: '0 0 2px' }}>
+                {favoriteGraphics.map((g) => <GraphicListRowWithStar key={g.id} g={g} />)}
+              </div>
+            ) : (
+              <div style={{
+                display: isGrid ? 'grid' : 'flex',
+                gridTemplateColumns: isGrid ? 'repeat(auto-fill, minmax(88px, 1fr))' : undefined,
+                flexDirection: isGrid ? undefined : 'column',
+                gap: isGrid ? 6 : 3,
+                padding: '0 0 2px',
+              }}>
+                {favoriteGraphics.map((g) => {
+                  const thumbUrl = graphicsApi.thumbnailUrl(g.id)
+                  const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+                  return (
+                    <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} onQuickPlace={onQuickPlace} />
+                  )
+                })}
+              </div>
+            )
+          )}
+          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 4px' }} />
+        </div>
+      )}
+
+      {/* Full graphics list */}
       {viewMode === 'list' ? (
-        // List view: use compact GraphicListRow (no thumbnail)
         <div style={{ padding: '0 0 2px' }}>
           {filteredGraphics.map((g) => (
-            <GraphicListRow key={g.id} g={g} onQuickPlace={onQuickPlace} />
+            <GraphicListRowWithStar key={g.id} g={g} />
           ))}
         </div>
       ) : (
@@ -1351,6 +1736,12 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
   })
 
   const { favoriteIds, toggleFavorite } = useConsoleWorkspaceFavorites()
+
+  // Favorites for Graphics and Widgets sections
+  const { favoriteIds: graphicsFavoriteIds, toggleFavorite: toggleGraphicFavorite } =
+    useConsoleSectionFavorites(CONSOLE_FAVORITES_KEYS.graphics)
+  const { favoriteIds: widgetsFavoriteIds, toggleFavorite: toggleWidgetFavorite } =
+    useConsoleSectionFavorites(CONSOLE_FAVORITES_KEYS.widgets)
 
   // Per-section view modes — persisted in localStorage
   const { viewMode: workspacesViewMode, setViewMode: setWorkspacesViewMode } = useConsoleSectionViewMode('workspaces', 'list')
@@ -1469,7 +1860,12 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           viewMode={graphicsViewMode}
           onViewModeChange={setGraphicsViewMode}
         >
-          <GraphicsSection onQuickPlace={onQuickPlace} viewMode={graphicsViewMode} />
+          <GraphicsSection
+            onQuickPlace={onQuickPlace}
+            viewMode={graphicsViewMode}
+            favoriteIds={graphicsFavoriteIds}
+            onToggleFavorite={toggleGraphicFavorite}
+          />
         </AccordionSection>
 
         <AccordionSection
@@ -1479,7 +1875,12 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           viewMode={widgetsViewMode}
           onViewModeChange={setWidgetsViewMode}
         >
-          <WidgetsSection onQuickPlace={onQuickPlace} viewMode={widgetsViewMode} />
+          <WidgetsSection
+            onQuickPlace={onQuickPlace}
+            viewMode={widgetsViewMode}
+            favoriteIds={widgetsFavoriteIds}
+            onToggleFavorite={toggleWidgetFavorite}
+          />
         </AccordionSection>
 
         <AccordionSection
