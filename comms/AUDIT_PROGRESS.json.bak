@@ -202,7 +202,15 @@
     "DD-31-020": 1,
     "DD-32-019": 0,
     "DD-14-011": 2,
-    "MOD-CONSOLE-028": 1
+    "MOD-CONSOLE-028": 1,
+    "MOD-PROCESS-011": 1,
+    "MOD-CONSOLE-027": 1,
+    "MOD-CONSOLE-029": 1,
+    "MOD-PROCESS-014": 0,
+    "MOD-PROCESS-016": 0,
+    "MOD-PROCESS-015": 2,
+    "MOD-PROCESS-020": 0,
+    "MOD-PROCESS-018": 1
   },
   "queue": [
     {
@@ -1192,7 +1200,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 8,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -1202,7 +1210,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-CONSOLE-003",
@@ -1468,7 +1476,7 @@
       ],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": "fail"
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-007",
@@ -1478,7 +1486,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": "fail"
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-008",
@@ -4213,7 +4221,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": "fail"
+      "uat_status": "partial"
     },
     {
       "id": "MOD-DESIGNER-010",
@@ -4413,7 +4421,7 @@
       ],
       "audit_round": 6,
       "source": "feature",
-      "uat_status": "fail"
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-025",
@@ -5339,7 +5347,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": "fail"
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-014",
@@ -5763,7 +5771,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-CONSOLE-025",
@@ -5774,7 +5782,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-DESIGNER-037",
@@ -5817,7 +5825,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-038",
@@ -5839,7 +5847,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-021",
@@ -6027,7 +6035,7 @@
       "wave": 2,
       "title": "Workspaces section Favorites group missing when no favorites are set",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6051,7 +6059,7 @@
       "wave": 2,
       "title": "Workspace save feedback missing dirty indicator and persistent failure banner",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6164,6 +6172,83 @@
       "audit_round": 9,
       "source": "uat",
       "uat_status": null
+    },
+    {
+      "id": "MOD-PROCESS-011",
+      "unit": "MOD-PROCESS",
+      "title": "Fix tablet zoom range to 5%\u2013800% (TransformWrapper limits 50%\u2013500%)",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified"
+    },
+    {
+      "id": "MOD-PROCESS-014",
+      "unit": "MOD-PROCESS",
+      "title": "Add Print button to view toolbar (gated by process:export)",
+      "status": "verified",
+      "priority": "medium",
+      "depends_on": [],
+      "audit_round": 9
+    },
+    {
+      "id": "MOD-PROCESS-015",
+      "unit": "MOD-PROCESS",
+      "title": "Add Name/Description dialog when creating a viewport bookmark",
+      "status": "verified",
+      "priority": "medium",
+      "depends_on": [],
+      "audit_round": 9,
+      "uat_status": null
+    },
+    {
+      "id": "MOD-PROCESS-016",
+      "unit": "MOD-PROCESS",
+      "title": "Implement detached window route /detached/process/:viewId",
+      "status": "verified",
+      "priority": "medium",
+      "depends_on": [],
+      "audit_round": 9,
+      "verified_at": "2026-03-26",
+      "commit": "447e2b1"
+    },
+    {
+      "id": "MOD-PROCESS-017",
+      "unit": "MOD-PROCESS",
+      "wave": 2,
+      "title": "Persist minimap collapsed state to user preferences",
+      "priority": "low",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9
+    },
+    {
+      "id": "MOD-PROCESS-018",
+      "unit": "MOD-PROCESS",
+      "title": "Replace hardcoded hex colors with design tokens in Process module",
+      "priority": "low",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 9,
+      "commit": "92a99e8",
+      "verified_at": "2026-03-26"
+    },
+    {
+      "id": "MOD-PROCESS-019",
+      "unit": "MOD-PROCESS",
+      "title": "Hide breadcrumb nav bar and view toolbar in kiosk mode",
+      "status": "implementing",
+      "priority": "low",
+      "depends_on": [],
+      "audit_round": 9
+    },
+    {
+      "id": "MOD-PROCESS-020",
+      "unit": "MOD-PROCESS",
+      "title": "Pass isAlarm prop to PointContextMenu in Process module",
+      "priority": "low",
+      "depends_on": [],
+      "status": "implementing",
+      "audit_round": 9
     }
   ],
   "audit_round": 9,

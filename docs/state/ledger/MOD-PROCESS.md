@@ -8,3 +8,8 @@ MOD-PROCESS-007 | Wire up kiosk mode (?kiosk=true) in Process module | verified 
 MOD-PROCESS-008 | Replace loading spinner with module-shaped skeleton state | verified 2026-03-23 | commit 206d5dd | npx tsc --noEmit | PASS
 MOD-PROCESS-009 | Process module fails to load due to dynamic import error | verified 2026-03-23 | commit 9cb5782 | npx tsc --noEmit | PASS
 MOD-PROCESS-010 | React Query graphic data returns undefined instead of null on graphic load | verified 2026-03-24 | commit e748c8c | npx tsc --noEmit | PASS
+MOD-PROCESS-014 | Add Print button to view toolbar (gated by process:export) | verified 2026-03-26 | commit 7de3a16 | npx tsc --noEmit | PASS
+MOD-PROCESS-015 | Add Name/Description dialog when creating a viewport bookmark | verified 2026-03-26 | commit a5cb3b3 | npx tsc --noEmit | PASS
+MOD-PROCESS-017 | Persist minimap collapsed state to user preferences | verified 2026-03-26 | commit 236b5cb | npx tsc --noEmit | PASS
+MOD-PROCESS-018 | Replace hardcoded hex colors with design tokens in Process module | verified 2026-03-26 | commit 92a99e8 | npx tsc --noEmit | PASS
+MOD-PROCESS-016 | Implement detached window route /detached/process/:viewId | verified 2026-03-26 | commit 447e2b1 | npx tsc --noEmit | PASS
