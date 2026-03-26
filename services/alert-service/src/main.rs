@@ -157,10 +157,17 @@ async fn main() -> anyhow::Result<()> {
             "/alerts/webhooks/twilio/voice",
             post(handlers::webhooks::twilio_voice),
         )
+        .with_state(state.clone());
+
+    // Enriched health endpoint — active alert count, pending escalations, channel status.
+    // NOT behind the service-secret middleware so load balancers can reach it.
+    let health_routes = Router::new()
+        .route("/health", get(handlers::health::health_handler))
         .with_state(state);
 
     let app = api
         .merge(webhook_routes)
+        .merge(health_routes)
         .merge(health.into_router())
         .merge(obs.metrics_router())
         .layer(CatchPanicLayer::new());
