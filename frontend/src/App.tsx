@@ -242,7 +242,9 @@ function AppRoutes() {
         element={
           <PermissionGuard permission={null}>
             <EulaGate>
-              <AppShell />
+              <ErrorBoundary module="App Shell">
+                <AppShell />
+              </ErrorBoundary>
             </EulaGate>
           </PermissionGuard>
         }
