@@ -1362,23 +1362,21 @@ export default function ConsolePage() {
               )}
 
               {/* Delete workspace */}
-              {workspaces.length > 1 && (
-                <button
-                  onClick={deleteActiveWorkspace}
-                  title="Delete workspace"
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid var(--io-border)',
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    color: 'var(--io-danger)',
-                  }}
-                >
-                  Delete
-                </button>
-              )}
+              <button
+                onClick={deleteActiveWorkspace}
+                title="Delete workspace"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  color: 'var(--io-danger)',
+                }}
+              >
+                Delete
+              </button>
 
               {/* Save / Done button */}
               <button
@@ -1890,7 +1888,6 @@ export default function ConsolePage() {
               {
                 label: 'Delete',
                 divider: true,
-                disabled: workspaces.length <= 1,
                 onClick: () => {
                   const nextWorkspaces = workspaces.filter((w) => w.id !== ws.id)
                   setWorkspaces(nextWorkspaces)
