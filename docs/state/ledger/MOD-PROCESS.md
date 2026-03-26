@@ -18,3 +18,4 @@ MOD-PROCESS-020 | Pass isAlarm prop to PointContextMenu in Process module | veri
 MOD-PROCESS-021 | Bookmark ★ button does not open Name/Description dialog | verified 2026-03-26 | commit fb1c638 | npx tsc --noEmit | PASS
 MOD-PROCESS-022 | Kiosk mode leaves breadcrumb nav bar visible | verified 2026-03-26 | commit 3146a81 | npx tsc --noEmit | PASS
 MOD-PROCESS-023 | No minimap toggle button in main Process view toolbar | verified 2026-03-26 | commit 3101cf0 | npx tsc --noEmit | PASS
+MOD-PROCESS-024 | Kiosk mode breadcrumb nav bar ("Process" heading) still visible at /process?kiosk=true | verified 2026-03-26 | commit ed3190f | npx tsc --noEmit | PASS

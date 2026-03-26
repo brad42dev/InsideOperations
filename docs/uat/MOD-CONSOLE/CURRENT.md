@@ -2,39 +2,42 @@
 unit: MOD-CONSOLE
 date: 2026-03-26
 uat_mode: auto
-verdict: pass
-scenarios_tested: 10
-scenarios_passed: 10
-scenarios_failed: 0
+verdict: partial
+scenarios_tested: 12
+scenarios_passed: 11
+scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /console loads real implementation (Console module with left nav Workspaces/Graphics/Widgets/Points sections, pane grid, status bar visible)
+✅ pass: Navigating to /console loads real implementation — app shell, left nav, workspace panes visible. No stub or blank page.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Console Page | [MOD-CONSOLE-001] Console page renders without error | ✅ pass | Page loaded, left nav present, no error boundary |
-| 2 | Console Page | [MOD-CONSOLE-001] data flow: GET /api/v1/workspaces | ✅ pass | "Workspaces 1" section visible with "Reactor Overview" item ⚠️ seed data unknown |
-| 3 | Left Nav — Favorites | [MOD-CONSOLE-001] Favorites group in left nav | ✅ pass | `button "Favorites"` with "No favorites yet" present at top of Workspaces section |
-| 4 | Left Nav — View Mode | [MOD-CONSOLE-001] View-mode selector buttons visible | ✅ pass | List/Thumbnails/Grid view buttons present in Workspaces, Graphics, Widgets section headers |
-| 5 | Left Nav — Search | [MOD-CONSOLE-001] Section search/filter input present | ✅ pass | "Filter workspaces…" and "Filter graphics…" searchboxes visible |
-| 6 | Left Nav — Resize | [MOD-CONSOLE-030] Left nav panel width resize handle present | ✅ pass | `separator "Resize assets palette width"` present at right edge of left nav panel |
-| 7 | Left Nav — Resize | [MOD-CONSOLE-030] Section height resize handles present | ✅ pass | `separator "Resize Workspaces section height"` and `separator "Resize Graphics section height"` both visible |
-| 8 | Detached Route | [MOD-CONSOLE-031] Detached route does NOT show Phase 7 text | ✅ pass | /detached/console/test-id shows minimal shell with "Workspace not found" — no "Phase 7" text |
-| 9 | Detached Route | [MOD-CONSOLE-031] Detached route minimal shell, no sidebar | ✅ pass | Thin header bar only (Connected + ID + time + fullscreen button); no sidebar nav, no module switcher, no left nav accordion |
-| 10 | Detached Route | [MOD-CONSOLE-031] Detached route handles nonexistent ID gracefully | ✅ pass | Shows "Workspace not found" + "ID: test-id" — graceful, no crash, no blank page, no "Phase 7" |
+| 1 | Page Load | [MOD-CONSOLE-022] Console page renders without error | ✅ pass | App shell, nav, panes all visible. No error boundary. |
+| 2 | Data Flow | [MOD-CONSOLE-022] data flow: GET /api/v1/workspaces — workspace list renders | ✅ pass | "Workspace 2" and "Reactor Overview" visible in left nav Workspaces section |
+| 3 | Favorites | [MOD-CONSOLE-027] Favorites group visible when no favorites set | ✅ pass | "Favorites" group + "No favorites yet" visible in Workspaces section on fresh load |
+| 4 | Favorites | [MOD-CONSOLE-022] Favoriting a workspace adds it to Favorites group | ✅ pass | Clicked "Add to Favorites" → "Workspace 2" appeared under Favorites group, count updated to 1 |
+| 5 | View Mode | [MOD-CONSOLE-023] View-mode selector buttons in Workspaces section header | ✅ pass | List/Thumbnails/Grid icon buttons present in WORKSPACES section header |
+| 6 | View Mode | [MOD-CONSOLE-023] Clicking view-mode button changes layout | ✅ pass | Clicked "Thumbnails view" → button became [active], item layout changed to thumbnail cards |
+| 7 | Search | [MOD-CONSOLE-024] Search/filter input in Workspaces section | ✅ pass | "Filter workspaces…" searchbox present inside Workspaces accordion |
+| 8 | Search | [MOD-CONSOLE-024] Search/filter input in Graphics section | ✅ pass | "Filter graphics…" searchbox present inside Graphics accordion |
+| 9 | Detached | [MOD-CONSOLE-031] Detached console route has no Phase 7 stub | ✅ pass | /detached/console/test-id shows minimal shell (Connected status, clock) + "Workspace not found" for invalid ID. No "Phase 7" text. |
+| 10 | Kiosk | [MOD-CONSOLE-026] Kiosk corner dwell exit trigger | ✅ pass | /console?kiosk=true: simulated mousemove to (0,0) → after 2s "Exit Kiosk" button appeared |
+| 11 | Save Feedback | [MOD-CONSOLE-029] Dirty indicator on workspace tab after layout change | ❌ fail | After layout change (JS-triggered 2×2→1×1), tab innerHTML = "Workspace 2" only — no dot, asterisk, badge, or child span. No dirty indicator. |
+| 12 | Resize | [MOD-CONSOLE-030] Left nav panel resize handle exists | ✅ pass | separator "Resize assets palette width" visible in accessibility tree at panel edge; also section-height separators present |
 
 ## New Bug Tasks Created
 
-None
+MOD-CONSOLE-032 — Workspace tab dirty indicator missing after layout change in edit mode
 
 ## Screenshot Notes
 
-- ⚠️ seed data status unknown (psql UNAVAILABLE — backend not running, API 404s for non-static endpoints)
-- All left nav features verified from accessibility snapshot on first page load
-- Detached route (`/detached/console/test-id`) confirmed working: minimal shell, workspace-not-found state, no Phase 7 stub
-- Console errors are all 404s for thumbnail images and API endpoints — backend not running; UI handled gracefully
+- Seed data: UNAVAILABLE (psql not accessible — docker container was stopped, restarted during session)
+- Thumbnail 404 errors in console are expected — graphics thumbnails not yet generated; does not affect core functionality
+- fail-s11-no-dirty-indicator.png: screenshot shows "Workspace 2" tab with no dirty indicator after layout change; edit mode was exited, but the tab showed no indicator during the edit mode layout change either
+- S10 (kiosk corner dwell): tested via JS mousemove event dispatch to (0,0); "Exit Kiosk" button confirmed present after 2s dwell
+- S9 (detached console): MOD-CONSOLE-025, MOD-CONSOLE-028, MOD-CONSOLE-031 all describe the same underlying bug (Phase 7 stub on /detached/console/:id); the route now works correctly

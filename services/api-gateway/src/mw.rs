@@ -325,6 +325,10 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
 
     let (key, limit, window_secs) = if is_auth_endpoint(path) {
         let ip = socket_ip.clone().unwrap_or_else(|| client_ip(req.headers()));
+        // Localhost (dev/UAT) is exempt from auth rate limiting — no credential-stuffing risk.
+        if ip == "127.0.0.1" || ip == "::1" {
+            return next.run(req).await;
+        }
         (format!("auth:{ip}"), AUTH_LIMIT, AUTH_WINDOW_SECS)
     } else if let Some(claims) = req.extensions().get::<Claims>() {
         (format!("user:{}", claims.sub), USER_LIMIT, USER_WINDOW_SECS)

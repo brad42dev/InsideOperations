@@ -15,3 +15,4 @@
 | MOD-PROCESS-021 | Bookmark ★ button does not open Name/Description dialog | pending | 0 |
 | MOD-PROCESS-022 | Kiosk mode leaves breadcrumb nav bar visible | pending | 0 |
 | MOD-PROCESS-023 | No minimap toggle button in main Process view toolbar | pending | 0 |
+| MOD-PROCESS-024 | Kiosk mode breadcrumb nav bar ("Process" heading) still visible at /process?kiosk=true | pending | 0 |

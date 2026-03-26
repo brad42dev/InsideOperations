@@ -28,3 +28,7 @@
 | MOD-CONSOLE-029 | Workspace save feedback missing dirty indicator and persistent failure banner | pending | 0 |
 | MOD-CONSOLE-030 | Left nav panel width resize handle missing | pending | 0 |
 | MOD-CONSOLE-031 | Detached console route /detached/console/:id still renders Phase 7 stub | pending | 0 |
+| MOD-CONSOLE-032 | Workspace tab dirty indicator missing after layout change in edit mode | pending | 0 |
+| MOD-CONSOLE-033 | Bug: shape library shapes appear in Console and Process graphics pickers | pending | 0 |
+| MOD-CONSOLE-034 | Bug: workspace right-click context menu missing Rename/Duplicate/Delete in thumbnail and grid views | pending | 0 |
+| MOD-CONSOLE-035 | Remove guard blocking deletion of the last workspace | pending | 0 |

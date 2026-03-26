@@ -5901,6 +5901,37 @@ function DesignerContextMenuContent({
                   Change Font…
                 </ContextMenuPrimitive.Item>
                 <ContextMenuPrimitive.Sub>
+                  <ContextMenuPrimitive.SubTrigger style={itemStyle}>Change Style</ContextMenuPrimitive.SubTrigger>
+                  <ContextMenuPrimitive.Portal>
+                    <ContextMenuPrimitive.SubContent style={subContentStyle}>
+                      {([
+                        { label: 'Normal',     fontSize: 14, fontWeight: 400 as const, fontStyle: 'normal' as const },
+                        { label: 'Heading',    fontSize: 20, fontWeight: 600 as const, fontStyle: 'normal' as const },
+                        { label: 'Subheading', fontSize: 16, fontWeight: 500 as const, fontStyle: 'normal' as const },
+                        { label: 'Label',      fontSize: 12, fontWeight: 500 as const, fontStyle: 'normal' as const },
+                        { label: 'Caption',    fontSize: 11, fontWeight: 400 as const, fontStyle: 'italic' as const },
+                      ]).map(preset => {
+                        const isActive = textBlockNode.fontSize === preset.fontSize &&
+                          textBlockNode.fontWeight === preset.fontWeight &&
+                          textBlockNode.fontStyle === preset.fontStyle
+                        return (
+                          <ContextMenuPrimitive.Item key={preset.label} style={itemStyle}
+                            onSelect={() => {
+                              if (!nodeId || !textBlockNode) return
+                              executeCmd(new CompoundCommand('Change Style', [
+                                new ChangePropertyCommand(nodeId, 'fontSize', preset.fontSize, textBlockNode.fontSize),
+                                new ChangePropertyCommand(nodeId, 'fontWeight', preset.fontWeight, textBlockNode.fontWeight),
+                                new ChangePropertyCommand(nodeId, 'fontStyle', preset.fontStyle, textBlockNode.fontStyle),
+                              ]))
+                            }}>
+                            {isActive ? `\u2713 ${preset.label}` : preset.label}
+                          </ContextMenuPrimitive.Item>
+                        )
+                      })}
+                    </ContextMenuPrimitive.SubContent>
+                  </ContextMenuPrimitive.Portal>
+                </ContextMenuPrimitive.Sub>
+                <ContextMenuPrimitive.Sub>
                   <ContextMenuPrimitive.SubTrigger style={itemStyle}>Text Alignment</ContextMenuPrimitive.SubTrigger>
                   <ContextMenuPrimitive.Portal>
                     <ContextMenuPrimitive.SubContent style={subContentStyle}>

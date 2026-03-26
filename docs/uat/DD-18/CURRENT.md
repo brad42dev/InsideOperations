@@ -24,7 +24,7 @@ pass: Navigating to /settings/archive loads real implementation — "Archive & T
 | 5 | Form Fields | [DD-18-009] Retention period inputs visible | ✅ pass | "Retention period (days)" spinbutton with value "90" visible |
 | 6 | Form Fields | [DD-18-010] Compression toggle/input present | ✅ pass | "Compress chunks older than (days)" spinbutton with value "7" visible |
 | 7 | Form Fields | [DD-18-010] Continuous aggregate settings present | ✅ pass | 1m/5m/15m/1h/1d aggregate retention spinbuttons all visible |
-| 8 | Save Action | [DD-18-011] Save Settings shows success indicator | ✅ pass | "Archive settings saved." alert appeared after click; not a silent no-op |
+| 8 | Save Action | [DD-18-011] Save Settings shows success indicator | ✅ pass | "Archive settings saved." alert appeared immediately after click; Dismiss button present; not a silent no-op |
 
 ## New Bug Tasks Created
 
@@ -32,7 +32,7 @@ None
 
 ## Screenshot Notes
 
-- Initial navigation to /settings/archive showed "Loading archive settings…" with a 429 Too Many Requests on /api/archive/settings — resolved via retry within ~4 seconds
-- After loading, all form sections visible: Raw Data Retention, Continuous Aggregate Retention (5 tiers), Compression, Maintenance Schedule
-- Save Settings produced inline alert "Archive settings saved." with Dismiss button — confirms PUT /api/archive/settings is wired up
+- Archive service was not running at session start — started manually (`cargo build -p archive-service` + run with dev env vars) before testing
+- Form loaded cleanly with all expected fields: Raw Data Retention, Continuous Aggregate Retention (5 tiers), Compression, Maintenance Schedule
+- Scenario 8 (re-run of prior browser_error): clicking "Save Settings" (ref=e227) produced inline alert "Archive settings saved." with Dismiss button — PUT /api/archive/settings confirmed working
 - Seed data status: UNAVAILABLE (psql not accessible) — data flow scenario marked with ⚠️

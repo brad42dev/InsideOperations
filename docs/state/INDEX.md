@@ -7,15 +7,15 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | GFX-CORE | 1 | 5 | 1 | 4 | 0 | GFX-CORE-002 |
 | GFX-DISPLAY | 1 | 9 | 0 | 9 | 0 | GFX-DISPLAY-001 |
 | GFX-SHAPES | 1 | 6 | 3 | 3 | 0 | GFX-SHAPES-003 |
-| MOD-CONSOLE | 2 | 26 | 2 | 24 | 0 | MOD-CONSOLE-018 |
-| MOD-PROCESS | 5 | 10 | 0 | 10 | 3 | MOD-PROCESS-001 |
-| MOD-DESIGNER | 2 | 50 | 4 | 46 | 0 | MOD-DESIGNER-002 |
+| MOD-CONSOLE | 2 | 30 | 2 | 28 | 0 | MOD-CONSOLE-018 |
+| MOD-PROCESS | 5 | 11 | 0 | 11 | 3 | MOD-PROCESS-001 |
+| MOD-DESIGNER | 2 | 55 | 4 | 51 | 0 | MOD-DESIGNER-002 |
 | OPC-BACKEND | 2 | 3 | 0 | 3 | 0 | OPC-BACKEND-001 |
-| DD-06 | 4 | 19 | 1 | 17 | 0 | DD-06-001 |
+| DD-06 | 4 | 21 | 1 | 19 | 0 | DD-06-001 |
 | DD-10 | 7 | 20 | 0 | 16 | 0 | DD-10-001 |
 | DD-11 | 3 | 9 | 0 | 9 | 0 | DD-11-001 |
 | DD-12 | 3 | 13 | 0 | 13 | 0 | DD-12-001 |
-| DD-13 | 3 | 19 | 1 | 18 | 0 | DD-13-001 |
+| DD-13 | 3 | 21 | 3 | 18 | 0 | DD-13-001 |
 | DD-14 | 4 | 9 | 0 | 8 | 0 | DD-14-001 |
 | DD-15 | 3 | 15 | 0 | 15 | 0 | DD-15-001 |
 | DD-16 | 3 | 6 | 0 | 6 | 0 | DD-16-001 |
@@ -40,7 +40,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | DD-38 | 3 | 7 | 0 | 7 | 0 | DD-38-001 |
 | DD-39 | 4 | 13 | 1 | 11 | 0 | DD-39-001 |
 
-**Total: 309 tasks | 7 verified | 302 pending | 0 escalated**
+**Total: 314 tasks | 7 verified | 307 pending | 0 escalated**
 
 ## Zombie Tasks
 None detected.

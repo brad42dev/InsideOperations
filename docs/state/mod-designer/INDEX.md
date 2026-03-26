@@ -52,3 +52,8 @@
 | MOD-DESIGNER-047 | Canvas drag-to-move element position could not be confirmed in UAT | pending | 0 |
 | MOD-DESIGNER-048 | Escape key cancel of in-progress canvas drag not verifiable | pending | 0 |
 | MOD-DESIGNER-049 | Canvas drag-to-move creates duplicate elements — mousedown misrouted to palette drop handler | pending | 0 |
+| MOD-DESIGNER-050 | Annotation node right-click "Change Style" still absent after MOD-DESIGNER-042 fix | pending | 0 |
+| MOD-DESIGNER-051 | Canvas drag-to-move still broken after MOD-DESIGNER-047 fix | pending | 0 |
+| MOD-DESIGNER-052 | Escape key drag-cancel untestable — depends on broken canvas drag-to-move (MOD-DESIGNER-051) | pending | 0 |
+| MOD-DESIGNER-053 | Palette-to-canvas drag ghost #io-canvas-drag-ghost still absent after MOD-DESIGNER-044 fix | pending | 0 |
+| MOD-DESIGNER-054 | Designer Home missing Graphics hub card (Browse + New buttons absent) | pending | 0 |

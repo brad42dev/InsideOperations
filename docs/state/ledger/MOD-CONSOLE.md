@@ -40,3 +40,5 @@ MOD-CONSOLE-022 | Favorites group missing from Workspaces section in left nav | 
 MOD-CONSOLE-027 | Workspaces section Favorites group missing when no favorites are set | verified 2026-03-26 | commit 04e7ad7 | npx tsc --noEmit | PASS
 MOD-CONSOLE-029 | Workspace save feedback missing dirty indicator and persistent failure banner | verified 2026-03-26 | commit d01a6d6 | npx tsc --noEmit | PASS
 MOD-CONSOLE-031 | Detached console route /detached/console/:id still renders Phase 7 stub | verified 2026-03-26 | commit f9591d7 | npx tsc --noEmit | PASS
+MOD-CONSOLE-032 | Workspace tab dirty indicator missing after layout change in edit mode | verified 2026-03-26 | commit 41c9d7e | npx tsc --noEmit | PASS
+MOD-CONSOLE-033 | Bug: shape library shapes appear in Console and Process graphics pickers | verified 2026-03-26 | commit a03f64c | npx tsc --noEmit | PASS
