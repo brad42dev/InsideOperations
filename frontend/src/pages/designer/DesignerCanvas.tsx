@@ -1870,6 +1870,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   const canvasDragActiveRef = useRef(false)
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false)
 
+  // Refs to document-level drag listeners so the Escape handler can remove them mid-drag.
+  // These are set when a canvas drag begins and cleared when it ends (commit or cancel).
+  const canvasDragMoveFnRef = useRef<((e: MouseEvent) => void) | null>(null)
+  const canvasDragUpFnRef   = useRef<((e: MouseEvent) => void) | null>(null)
+
   // Point context menu (test mode only) — tracks trigger position + point identity
   const [pointCtxMenu, setPointCtxMenu] = useState<PointCtxMenuTrigger | null>(null)
 
@@ -2327,6 +2332,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
         const dragUpFn = (me: MouseEvent) => {
           document.removeEventListener('mousemove', dragMoveFn)
           document.removeEventListener('mouseup', dragUpFn, true)
+          canvasDragMoveFnRef.current = null
+          canvasDragUpFnRef.current   = null
           canvasDragActiveRef.current = false
           setIsDraggingCanvas(false)
 
@@ -2387,6 +2394,9 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
           setAlignGuides([])
         }
 
+        // Store refs so the Escape key handler can remove these listeners mid-drag.
+        canvasDragMoveFnRef.current = dragMoveFn
+        canvasDragUpFnRef.current   = dragUpFn
         document.addEventListener('mousemove', dragMoveFn)
         document.addEventListener('mouseup', dragUpFn, true)
       } else {
@@ -3463,9 +3473,24 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
     }
 
     if (e.key === 'Escape') {
-      // Cancel active drag — reset DOM ghost transforms to original positions
+      // Cancel active drag — reset DOM ghost transforms to original positions.
+      // Do NOT commit a MoveNodesCommand; the element must return silently so
+      // the undo stack has no "Move" entry after an Escape-cancelled drag.
       const inter = interactionRef.current
       if (inter.type === 'drag') {
+        // Remove document-level listeners immediately so no further drag events fire.
+        if (canvasDragMoveFnRef.current) {
+          document.removeEventListener('mousemove', canvasDragMoveFnRef.current)
+          canvasDragMoveFnRef.current = null
+        }
+        if (canvasDragUpFnRef.current) {
+          document.removeEventListener('mouseup', canvasDragUpFnRef.current, true)
+          canvasDragUpFnRef.current = null
+        }
+        canvasDragActiveRef.current = false
+        setIsDraggingCanvas(false)
+
+        // Restore each dragged element to its original position in the DOM.
         const svgEl = containerRef.current?.querySelector('svg')
         if (svgEl) {
           for (const [id, orig] of inter.originalPositions) {
@@ -3481,6 +3506,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
           canvasDragGhostRef.current.remove()
           canvasDragGhostRef.current = null
         }
+        // Transition interaction state back to idle without committing any command.
+        // Selection is intentionally preserved — the element stays selected after cancel.
         inter.type = 'none'
         endDrag()
         setAlignGuides([])
