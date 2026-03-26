@@ -75,12 +75,14 @@ function ToastItem({ toast }: { toast: ToastItem }) {
   const { dismiss } = useToastStore()
 
   useEffect(() => {
-    const duration = toast.duration ?? 5000
+    // Error toasts persist until manually dismissed — no auto-dismiss timer
+    const defaultDuration = toast.variant === 'error' ? 0 : 5000
+    const duration = toast.duration ?? defaultDuration
     // duration === 0 means "persist until manually dismissed" — no auto-dismiss timer
     if (duration === 0) return
     const timer = setTimeout(() => dismiss(toast.id), duration)
     return () => clearTimeout(timer)
-  }, [toast.id, toast.duration, dismiss])
+  }, [toast.id, toast.variant, toast.duration, dismiss])
 
   return (
     <ToastPrimitive.Root
