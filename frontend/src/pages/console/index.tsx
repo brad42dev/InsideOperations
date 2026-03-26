@@ -571,10 +571,10 @@ export default function ConsolePage() {
     setWorkspaces([...currentWorkspaces, ws])
     setActiveId(ws.id)
     setEditMode(true)
-    // Mark as a new creation so saveMutation can show a toast on success/failure
-    if (useApi) {
-      pendingCreateIdsRef.current.add(ws.id)
-    }
+    // Mark as a new creation so saveMutation (API path) or saveEdit (local path)
+    // can show a toast on success. Always track, regardless of useApi, so the
+    // local-storage path also shows a success toast when Done is clicked.
+    pendingCreateIdsRef.current.add(ws.id)
     persistWorkspace(ws)
     if (useApi) {
       queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
@@ -655,9 +655,23 @@ export default function ConsolePage() {
     // Flush any deferred create-success toast. The toast was held in confirmedCreateIdsRef
     // while the user was in edit mode so it fires at Done-click time — the moment the user
     // finishes creating the workspace — rather than silently auto-dismissing before they look.
-    if (activeId && confirmedCreateIdsRef.current.has(activeId)) {
-      confirmedCreateIdsRef.current.delete(activeId)
-      showToast({ title: 'Workspace created', variant: 'success' })
+    if (activeId) {
+      if (confirmedCreateIdsRef.current.has(activeId)) {
+        // API path: backend already confirmed success while user was still in edit mode.
+        // Fire the toast now that they have clicked Done and will actually see it.
+        confirmedCreateIdsRef.current.delete(activeId)
+        showToast({ title: 'Workspace created', variant: 'success' })
+      } else if (!useApi && pendingCreateIdsRef.current.has(activeId)) {
+        // Local-storage path: persistWorkspace called saveWorkspacesLocal synchronously,
+        // so the save is already complete. Show the success toast now.
+        pendingCreateIdsRef.current.delete(activeId)
+        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+        showToast({
+          title: 'Workspace created',
+          description: ws?.name ? `"${ws.name}" was saved locally.` : undefined,
+          variant: 'success',
+        })
+      }
     }
     setEditMode(false)
   }
