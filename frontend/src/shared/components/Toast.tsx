@@ -75,7 +75,7 @@ function ToastItem({ toast }: { toast: ToastItem }) {
   const { dismiss } = useToastStore()
 
   useEffect(() => {
-    // Error toasts are persistent — they must not auto-dismiss (spec DD-32-007)
+    // Error toasts persist until manually dismissed — no auto-dismiss timer
     // duration === 0 means "persist until manually dismissed" — no auto-dismiss timer
     const defaultDuration = toast.variant === 'error' ? 0 : 5000
     const duration = toast.duration ?? defaultDuration
