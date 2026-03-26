@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
+import { flushSync } from 'react-dom'
 import { NavLink, Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -1066,8 +1067,16 @@ export default function AppShell() {
         if (path) {
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
-          _setGKeyHintVisible.current?.(false)
-          _navigateRef.current?.(path)
+          // Use flushSync so the navigate() call commits the URL change
+          // synchronously — bypassing React Router's v7_startTransition wrapping
+          // which would defer navigation as a low-priority transition.  Without
+          // flushSync, the URL change may not be observable within 500ms in
+          // Playwright / headless test environments where the test checks the URL
+          // immediately after dispatching the keydown event.
+          flushSync(() => {
+            _setGKeyHintVisible.current?.(false)
+            _navigateRef.current?.(path)
+          })
         } else {
           // Unrecognised key while pending — cancel the sequence so the user
           // is not left stranded waiting for the 2000ms timer.

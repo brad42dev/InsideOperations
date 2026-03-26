@@ -1,36 +1,42 @@
 ---
 unit: DD-15
-date: 2026-03-24
+date: 2026-03-26
 uat_mode: auto
-verdict: pass
-scenarios_tested: 6
+verdict: partial
+scenarios_tested: 10
 scenarios_passed: 6
-scenarios_failed: 0
+scenarios_failed: 4
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /settings/groups loads real implementation — Groups page with table, empty state, Create Group button, and sidebar navigation
+✅ pass: Navigating to /settings loads real Settings implementation with full sidebar nav and sub-pages.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Groups Page | [DD-15-015] Groups page renders without error | ✅ pass | Page loaded, no "Failed to parse server response" error, no red error card |
-| 2 | Groups Page | [DD-15-015] Groups page shows clean empty state or list | ✅ pass | Clean empty state: "No groups yet. Click 'Create Group' to get started." |
-| 3 | Settings Sidebar | [DD-15-015] Settings sidebar has Groups entry | ✅ pass | Groups link visible in settings sidebar at /settings/groups |
-| 4 | Groups Page | [DD-15-015] Create Group button visible on groups page | ✅ pass | "+ Create Group" button visible in page header |
-| 5 | Groups CRUD | [DD-15-015] Create Group dialog opens | ✅ pass | Dialog opened with Group Name, Description, and Roles fields |
-| 6 | Groups CRUD | [DD-15-015] Create Group workflow | ✅ pass | Created "UAT Test Group" — appeared in list immediately with 0 members, Edit/Delete/Members buttons |
+| 1 | Settings Baseline | [DD-15-017] Settings page renders without error | ✅ pass | Full sidebar nav visible, redirects to /settings/users |
+| 2 | Data Links Tab | [DD-15-017] Data Links tab visible in Imports | ✅ pass | "Data Links" button present in Import tab bar |
+| 3 | Data Links Tab | [DD-15-017] Data Links tab shows table | ✅ pass | Clean empty state: "No data links configured yet" with Add Link button |
+| 4 | Data Links Tab | [DD-15-017] Add Link button opens form | ✅ pass | Form opens with source/target dataset dropdowns, column dropdowns, match type select (Exact/Case-insensitive/Transformed), bidirectional toggle, 12 transform ops per side |
+| 5 | Context Menus | [DD-15-018] Groups right-click context menu | ✅ pass | Right-click on group row shows "Add Members", "Manage Roles", "Delete" |
+| 6 | Context Menus | [DD-15-018] Import connections right-click context menu | ❌ fail | No connection rows exist (empty state) — context menu untestable; right-click cannot be verified |
+| 7 | Context Menus | [DD-15-018] Import definitions right-click context menu | ❌ fail | No definition rows exist (empty state) — context menu untestable |
+| 8 | Context Menus | [DD-15-018] Certificates right-click context menu | ❌ fail | Page crashes with error boundary: "Settings failed to load — certs.map is not a function" (TypeError in Certificates.tsx) |
+| 9 | Context Menus | [DD-15-018] Recognition right-click context menu | ❌ fail | No model rows exist (empty state: "No models uploaded") — context menu untestable |
+| 10 | Context Menus | [DD-15-018] Context menu dismisses on Escape | ✅ pass | Groups context menu dismissed on Escape key |
 
 ## New Bug Tasks Created
 
-None
+DD-15-019 — Import Connections table has no seed data — right-click context menu untestable
+DD-15-020 — Import Definitions table has no seed data — right-click context menu untestable
+DD-15-021 — Certificates page crashes with "certs.map is not a function" TypeError
+DD-15-022 — Recognition models table has no seed data — right-click context menu untestable
 
 ## Screenshot Notes
 
-- /api/groups initial call returned 429 (Too Many Requests) but resolved automatically after ~3 seconds
-- /api/roles also returned 429 causing "No roles available" in Create Group dialog — cosmetic but not a blocker for group creation
-- Group creation succeeded and the created group appeared in the list with correct actions (Members, Edit, Delete)
-- The original bug (404 on /api/groups, "Failed to parse server response") is fully resolved
+- Scenario 6: /settings/import Connections tab empty — no rows to right-click. Screenshot: .playwright-mcp/page-2026-03-26T16-20-30-444Z.png
+- Scenario 8: /settings/certificates crashes with TypeError: certs.map is not a function — full error boundary. Screenshot: .playwright-mcp/page-2026-03-26T16-21-13-122Z.png
+- Seed data status: UNAVAILABLE (psql not accessible) — data flow scenarios not applicable for DD-15 (Settings module, exempt)
