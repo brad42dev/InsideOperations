@@ -2243,6 +2243,11 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
         inter.originalPositions = positions
         startDrag(cx, cy, positions)
 
+        // Focus the canvas container so that keyboard events (especially Escape to cancel
+        // the drag) reach the onKeyDown handler. Without this, clicking an SVG child element
+        // does not automatically focus the container div, so keydown events are lost.
+        containerRef.current?.focus({ preventScroll: true })
+
         // Create canvas-drag ghost overlay (mirrors palette-drag ghost in DesignerLeftPalette).
         // A position:fixed DIV with opacity < 1 is appended to document.body so that
         // MutationObserver-based UAT can detect ghostDetected=true during canvas drag.
