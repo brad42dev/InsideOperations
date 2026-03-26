@@ -63,10 +63,13 @@ export const consoleApi = {
         overflowPanes: ws.overflowPanes,
         published: ws.published,
       },
+      id: ws.id,
     }
-    const result = ws.id
-      ? await api.put<WorkspaceSummary>(`/api/console/workspaces/${ws.id}`, body)
-      : await api.post<WorkspaceSummary>('/api/console/workspaces', body)
+    // Always use POST. The backend will handle both creation (new workspace)
+    // and updates (existing workspace) using UPSERT logic (INSERT ... ON CONFLICT DO UPDATE).
+    // This allows the frontend to always send the same request format, and the backend
+    // handles whether to insert or update based on whether the ID already exists.
+    const result = await api.post<WorkspaceSummary>('/api/console/workspaces', body)
     if (!result.success) return result
     return { success: true, data: normalizeWorkspace(result.data) }
   },

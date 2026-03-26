@@ -30,6 +30,7 @@ pub struct WorkspaceSummary {
 pub struct CreateWorkspaceBody {
     pub name: String,
     pub metadata: Option<JsonValue>,
+    pub id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -141,7 +142,7 @@ pub async fn create_workspace(
         Err(_) => return IoError::Unauthorized.into_response(),
     };
 
-    let id = Uuid::new_v4();
+    let id = body.id.unwrap_or_else(Uuid::new_v4);
     let metadata = body
         .metadata
         .unwrap_or_else(|| JsonValue::Object(serde_json::Map::new()));
@@ -152,6 +153,9 @@ pub async fn create_workspace(
             (id, name, type, svg_data, bindings, metadata, parent_id, created_by)
         VALUES ($1, $2, 'console_workspace', NULL,
                 '{}'::jsonb, $3, NULL, $4)
+        ON CONFLICT(id) DO UPDATE SET
+            name = EXCLUDED.name,
+            metadata = EXCLUDED.metadata
         RETURNING id, name, metadata, created_at
         "#,
     )
@@ -164,7 +168,7 @@ pub async fn create_workspace(
     {
         Ok(r) => r,
         Err(e) => {
-            tracing::error!(error = %e, "create_workspace insert failed");
+            tracing::error!(error = %e, "create_workspace insert/update failed");
             return IoError::Database(e).into_response();
         }
     };
