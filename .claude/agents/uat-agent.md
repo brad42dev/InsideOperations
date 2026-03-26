@@ -57,10 +57,10 @@ Use this to navigate to the right page for each unit:
 
 ## STARTUP — Resolve Environment
 
-**First action before anything else.** If you see literal `{{PROGRESS_JSON}}` anywhere in these instructions, tokens were not pre-expanded. Resolve them now:
+**First action before anything else.** Resolve template tokens now:
 
 ```bash
-# Step 1 — find project root and cd to it
+# Step 1 — find project root
 git rev-parse --show-toplevel
 
 # Step 2 — read config for real paths (run from project root)
@@ -69,19 +69,19 @@ import json, sys
 try:
     c = json.load(open('io-orchestrator.config.json'))
     p = c.get('paths', {})
-    print('PROGRESS_JSON=' + p.get('registry_file', 'comms/AUDIT_PROGRESS.json'))
-    print('STATE_DIR='     + p.get('state_dir', 'docs/state'))
-    print('TASK_DIR='      + p.get('task_dir', 'docs/tasks'))
-    print('UAT_DIR='       + p.get('uat_dir', 'docs/uat'))
+    print('STATE_DIR='    + p.get('state_dir',    'docs/state'))
+    print('TASK_DIR='     + p.get('task_dir',     'docs/tasks'))
+    print('UAT_DIR='      + p.get('uat_dir',      'docs/uat'))
+    print('REGISTRY_DB='  + p.get('registry_db',  'comms/tasks.db'))
 except Exception:
-    print('PROGRESS_JSON=comms/AUDIT_PROGRESS.json')
     print('STATE_DIR=docs/state')
     print('TASK_DIR=docs/tasks')
     print('UAT_DIR=docs/uat')
+    print('REGISTRY_DB=comms/tasks.db')
 "
 ```
 
-Use the printed values for all `{{PROGRESS_JSON}}`, `{{STATE_DIR}}`, `{{TASK_DIR}}`, and `{{UAT_DIR}}` references. If tokens already show real paths, skip this step.
+Use the printed values for all `{{STATE_DIR}}`, `{{TASK_DIR}}`, `{{UAT_DIR}}`, and `{{REGISTRY_DB}}` references. If tokens already show real paths, skip this step.
 
 ---
 
@@ -112,15 +112,27 @@ This result does NOT abort the UAT session. It is advisory context for Phase 4 e
 
 ## PHASE 1 — Load Tasks
 
-Read `{{PROGRESS_JSON}}`.
+Query `{{REGISTRY_DB}}` for tasks to UAT:
 
-Find all tasks for the target unit where:
-- `status: "verified"` AND
-- `uat_status` is null, missing, or `"partial"` (partial = browser crashed mid-session; must be retested)
+```python
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+rows = con.execute("""
+    SELECT id, title, status, uat_status, depends_on
+    FROM io_tasks
+    WHERE unit=? AND status='verified'
+      AND (uat_status IS NULL OR uat_status='partial')
+    ORDER BY id
+""", (UNIT,)).fetchall()
+con.close()
+```
 
-If no tasks match (all have `uat_status: "pass"` or `"fail"`): report "All tasks for {UNIT} already have uat_status set." and exit.
+Where `UNIT` is the unit ID passed as input (e.g., `MOD-CONSOLE`).
 
-**Note on casing:** The `unit` field in AUDIT_PROGRESS.json is uppercase (e.g., `"MOD-CONSOLE"`). File system paths use lowercase (e.g., `{{TASK_DIR}}/mod-console/`). Convert to lowercase for all file paths: `{unit-lowercase}` = `{UNIT}` lowercased. The `title` field is also present in each task_registry entry — use it when the spec file is missing.
+If no rows are returned (all tasks have `uat_status='pass'` or `'fail'`): report "All tasks for {UNIT} already have uat_status set." and exit.
+
+**Note on casing:** Unit IDs in the DB are uppercase (e.g., `MOD-CONSOLE`). File system paths use lowercase (e.g., `{{TASK_DIR}}/mod-console/`). Convert to lowercase for all file paths: `{unit-lowercase}` = `{UNIT}` lowercased. The `title` column is present in each row — use it when the spec file is missing.
 
 **Load spec criteria efficiently — use one Bash call instead of N Read calls:**
 
@@ -131,7 +143,7 @@ grep -rn "^- \[ \]\|^## Acceptance Criteria\|^## Verification Checklist\|^title:
 
 This extracts all acceptance criteria and checklist items from all task spec files in a single call. The output includes the filename (which encodes the task ID) and matching lines. Parse the output to group criteria by task ID.
 
-If the `{{TASK_DIR}}/{unit-lowercase}/` directory is empty or doesn't exist, synthesize scenarios from task titles alone (titles are available in AUDIT_PROGRESS.json from Phase 1). When synthesizing from a title, tag every derived scenario with that task's ID prefix — e.g., if MOD-CONSOLE-003's title is "Right-click context menu on workspace row", all scenarios synthesized from that title carry `[MOD-CONSOLE-003]`.
+If the `{{TASK_DIR}}/{unit-lowercase}/` directory is empty or doesn't exist, synthesize scenarios from task titles alone (titles are available from the Phase 1 DB query). When synthesizing from a title, tag every derived scenario with that task's ID prefix — e.g., if MOD-CONSOLE-003's title is "Right-click context menu on workspace row", all scenarios synthesized from that title carry `[MOD-CONSOLE-003]`.
 
 For any task where the spec file appears to have no acceptance criteria in the grep output, synthesize scenarios from its title only using the same tagging rule above.
 
@@ -489,12 +501,34 @@ Verdicts:
 
 Note: browser_error scenarios are already counted in scenarios_failed (since browser_error = ❌ fail). If scenarios_failed > 0, run this phase for all failed scenarios including browser_error ones.
 
-**Before processing any failures:** Read `{{PROGRESS_JSON}}` once. Extract and hold in working memory:
-- `CURRENT_AUDIT_ROUND` = the top-level `audit_round` field value
-- `UNIT_WAVE` = the `wave` value for this unit from the `queue` array (find the entry where `id == {UNIT}`)
-- `NEXT_TASK_NUM` = (max value of the **last** hyphen-separated numeric segment across all `id` fields for this unit) + 1. The last segment is the task counter — e.g., for `DD-06-003` the last segment is `003` (3), not `06`. For `MOD-CONSOLE-013` the last segment is `013` (13). If the unit has NO existing tasks, use 1.
+**Before processing any failures:** Query `{{REGISTRY_DB}}` once and hold in working memory:
 
-**Do not re-read AUDIT_PROGRESS.json to recalculate these values mid-phase.** Maintain `NEXT_TASK_NUM` as a counter in working memory only. After writing each task to the registry, increment `NEXT_TASK_NUM += 1` before moving to the next failure. If creating 3 bug tasks starting at 14: first task = 014, second task = 015, third task = 016.
+```python
+import sqlite3, json
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+
+# CURRENT_AUDIT_ROUND
+row = con.execute("SELECT value FROM io_global WHERE key='audit_round'").fetchone()
+CURRENT_AUDIT_ROUND = int(row[0]) if row else 1
+
+# UNIT_WAVE
+row = con.execute("SELECT wave FROM io_queue WHERE unit=?", (UNIT,)).fetchone()
+UNIT_WAVE = row[0] if row else 1
+
+# NEXT_TASK_NUM = max numeric suffix across all tasks for this unit + 1
+rows = con.execute("SELECT id FROM io_tasks WHERE unit=? ORDER BY id DESC", (UNIT,)).fetchall()
+max_num = 0
+for (tid,) in rows:
+    seg = tid.split('-')[-1]
+    if seg.isdigit():
+        max_num = max(max_num, int(seg))
+NEXT_TASK_NUM = max_num + 1
+
+con.close()
+```
+
+**Do not re-query the DB to recalculate these values mid-phase.** Maintain `NEXT_TASK_NUM` as a counter in working memory only. After writing each task, increment `NEXT_TASK_NUM += 1` before moving to the next failure. If creating 3 bug tasks starting at 14: first task = 014, second task = 015, third task = 016.
 
 For each **failed** scenario AND each scenario marked **"browser_error"** (crashed before it could be evaluated):
 
@@ -549,27 +583,26 @@ UAT failure from {date}: {what was observed in the browser}
 Spec reference: {relevant task-ids that originally implemented this}
 ```
 
-4. Write this task to the registry immediately (per-task, not batched). UAT units run sequentially — no other agent writes to AUDIT_PROGRESS.json concurrently, so a fresh read-modify-write per task is safe:
-   - Read `{{PROGRESS_JSON}}` from disk (fresh read — gets latest state including any tasks written by earlier iterations of this loop)
-   - Append this entry to `task_registry`
-   - Write atomically: write to `{{PROGRESS_JSON}}.tmp`, fsync, then `os.replace()` over the target — never write directly
-   - Read the file back and confirm the new `{TASK-ID}` entry is present in `task_registry` — if not found: update CURRENT.md verdict to "fail" with note "registry write failed for {TASK-ID}", skip Phases 7 and 8, print error, and exit
-   - Only after confirming: increment `NEXT_TASK_NUM` and move to the next failure
+4. Register this task in `{{REGISTRY_DB}}` immediately (per-task, not batched):
 
-```json
-{
-  "id": "{TASK-ID}",
-  "unit": "{UNIT}",
-  "wave": {UNIT_WAVE recorded at the start of Phase 6},
-  "title": "{title}",
-  "priority": "high",
-  "status": "pending",
-  "depends_on": [],
-  "audit_round": {CURRENT_AUDIT_ROUND from above},
-  "source": "uat",
-  "uat_status": null
-}
+```python
+import sqlite3, json
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+con.execute("""
+    INSERT OR IGNORE INTO io_tasks
+        (id, unit, wave, title, status, priority, depends_on, audit_round, source, uat_status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, 'pending', 'high', '[]', ?, 'uat', NULL,
+            strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+            strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+""", (TASK_ID, UNIT, UNIT_WAVE, title, CURRENT_AUDIT_ROUND))
+con.commit()
+# Confirm the row exists
+row = con.execute("SELECT id FROM io_tasks WHERE id=?", (TASK_ID,)).fetchone()
+con.close()
 ```
+
+If `row` is None after commit: update CURRENT.md verdict to "fail" with note "registry write failed for {TASK-ID}", skip Phases 7 and 8, print error, and exit. Only after confirming: increment `NEXT_TASK_NUM` and move to the next failure.
 
 Run bash to create state directories (required before writing):
 ```bash
@@ -597,15 +630,20 @@ last_heartbeat:
 
 **After all bug tasks are created:**
 
-Update `{{PROGRESS_JSON}}` — increment the `verified_since_last_audit` counter for this unit in the `queue[]` array. This signals the smart audit filter that new work was found here, so the unit gets re-audited on the next audit pass:
-```python
-# In the queue[] array, find the entry where unit == UNIT_ID, then:
-entry["verified_since_last_audit"] = entry.get("verified_since_last_audit", 0) + num_bug_tasks_created
-entry["tasks_uat_added"] = entry.get("tasks_uat_added", 0) + num_bug_tasks_created
-```
-Do this as a fresh read-modify-write of AUDIT_PROGRESS.json (same pattern as Phase 6 task writes). Write atomically: write to a temp path, then rename over the target.
+Update `{{REGISTRY_DB}}` — increment `verified_since_last_audit` for this unit in `io_queue`. This signals the smart audit filter that new work was found here, so the unit gets re-audited on the next audit pass:
 
-This keeps `queue[]` and `task_registry[]` in sync: the queue entry now reflects the total number of tasks added by UAT, so status displays and wave gating can account for UAT-sourced tasks correctly.
+```python
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+con.execute("""
+    UPDATE io_queue
+    SET verified_since_last_audit = verified_since_last_audit + ?
+    WHERE unit = ?
+""", (num_bug_tasks_created, UNIT))
+con.commit()
+con.close()
+```
 
 Update `{{STATE_DIR}}/INDEX.md` — find the row for this unit and increment its `Tasks` and `Pending` counts by the number of bug tasks created. Read the file, edit the matching row, write it back. Do not modify any other rows.
 
@@ -628,39 +666,40 @@ MOD-CONSOLE-015 — Resize handles not visible after shape selection
 
 ## PHASE 7 — Update Registry
 
-Read `{{PROGRESS_JSON}}` in full — **fresh read from disk, not any cached copy from Phase 6**. Phase 6 wrote new task entries to this file; Phase 7 must start from that updated version or it will overwrite Phase 6's new tasks. Parse it as JSON.
+Update `uat_status` for **only the tasks that were loaded in Phase 1** — those whose `uat_status` was NULL or `'partial'` at the start of this session. **Do NOT update tasks that had `uat_status='pass'` or `'fail'` before this session.** Overwriting a prior "pass" with "partial" would silently destroy valid UAT history.
 
-Update **only the tasks that were loaded in Phase 1** — those whose `uat_status` was null, missing, or "partial" at the start of this session. **Do NOT update `uat_status` for tasks that had `uat_status: "pass"` or `"fail"` before this session began.** Overwriting a prior "pass" with "partial" (because no scenarios were run for it this session) would silently destroy valid UAT history.
-
-Tasks that were loaded because they were "partial" (browser crashed in a prior run) can be promoted to "pass" or "fail" now — this is intentional. The goal is to eventually resolve all "partial" statuses.
-
-For each task from the Phase 1 loaded set, locate its entry in `task_registry` and update **only the `uat_status` field** (do not touch `status`, `depends_on`, `priority`, or any other field).
+Tasks loaded because they were "partial" (browser crashed in a prior run) can be promoted to "pass" or "fail" now — this is intentional.
 
 To determine which scenarios belong to each task: read `{{UAT_DIR}}/{UNIT}/scenarios.md` and group scenarios by their `[TASK-ID]` prefix. The results for all scenarios tagged `[MOD-CONSOLE-001]` determine the uat_status for task `MOD-CONSOLE-001`.
 
-- Set `uat_status: "pass"` if all scenarios for that task ID passed
-- Set `uat_status: "fail"` if any scenario for that task ID failed
-- Set `uat_status: "partial"` if mixed results, or if no scenarios in scenarios.md are tagged with that task ID (cannot attribute — when in doubt, use "partial")
-- Set `uat_status: "partial"` if ALL scenarios for that task were skipped due to browser crash (mark partial so it gets retested)
+- Set `uat_status = 'pass'` if all scenarios for that task ID passed
+- Set `uat_status = 'fail'` if any scenario for that task ID failed
+- Set `uat_status = 'partial'` if mixed results, or if no scenarios in scenarios.md are tagged with that task ID (cannot attribute — when in doubt, use "partial")
+- Set `uat_status = 'partial'` if ALL scenarios for that task were skipped due to browser crash (mark partial so it gets retested)
 
-Do NOT update `uat_status` for tasks that are `status: "pending"` or `status: "failed"` — those are not verified yet.
+Do NOT update tasks with `status = 'pending'` or `status = 'failed'` — those are not verified yet.
 
-**Critical:** You are updating a file with 300+ tasks. Preserve ALL other tasks and fields exactly as they were. Write using the atomic pattern — write to a temp file, then rename over the target (prevents partial-write corruption):
+Write directly to `{{REGISTRY_DB}}` — one UPDATE per task from the Phase 1 loaded set:
+
 ```python
-import json, os
-with open("{{PROGRESS_JSON}}") as f:
-    data = json.load(f)
-# ... make updates ...
-tmp = "{{PROGRESS_JSON}}.tmp"
-with open(tmp, "w") as f:
-    json.dump(data, f, indent=2)
-    f.flush()
-    os.fsync(f.fileno())
-os.replace(tmp, "{{PROGRESS_JSON}}")
-```
-Do not write directly to `{{PROGRESS_JSON}}` — always go through a temp file.
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+for task_id, new_uat_status in updates.items():
+    con.execute("""
+        UPDATE io_tasks
+        SET uat_status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now')
+        WHERE id = ? AND status = 'verified'
+    """, (new_uat_status, task_id))
+con.commit()
 
-Read it back immediately to confirm: check that the uat_status values you set are present and that the total task count matches what you counted at the start of Phase 7 (i.e., the count that already includes Phase 6's new bug tasks — do not compare against the count from Phase 1).
+# Confirm: read back and verify each task_id has the expected uat_status
+for task_id, expected in updates.items():
+    row = con.execute("SELECT uat_status FROM io_tasks WHERE id=?", (task_id,)).fetchone()
+    if not row or row[0] != expected:
+        print(f"WARNING: uat_status write failed for {task_id} (got {row})")
+con.close()
+```
 
 ---
 

@@ -14,7 +14,7 @@ You are a read-only research agent. You synthesize existing knowledge about a fe
 
 ## STARTUP — Resolve Environment
 
-**First action before anything else.** If you see literal `{{PROJECT_ROOT}}`, `{{SPEC_DOCS_ROOT}}`, or `{{PROGRESS_JSON}}` anywhere in these instructions, they were not pre-expanded (you were invoked directly, not through io-run.sh). Resolve them now:
+**First action before anything else.** If you see literal `{{PROJECT_ROOT}}`, `{{SPEC_DOCS_ROOT}}`, or `{{REGISTRY_DB}}` anywhere in these instructions, they were not pre-expanded (you were invoked directly, not through io-run.sh). Resolve them now:
 
 ```bash
 # Step 1 — find project root and cd to it
@@ -27,14 +27,14 @@ try:
     c = json.load(open('io-orchestrator.config.json'))
     p = c.get('paths', {})
     print('SPEC_DOCS_ROOT=' + p.get('spec_docs', '/home/io/spec_docs'))
-    print('PROGRESS_JSON='  + p.get('registry_file', 'comms/AUDIT_PROGRESS.json'))
+    print('REGISTRY_DB='    + p.get('registry_db', 'comms/tasks.db'))
 except Exception:
     print('SPEC_DOCS_ROOT=/home/io/spec_docs')
-    print('PROGRESS_JSON=comms/AUDIT_PROGRESS.json')
+    print('REGISTRY_DB=comms/tasks.db')
 "
 ```
 
-Use the printed values for all `{{SPEC_DOCS_ROOT}}` and `{{PROGRESS_JSON}}` references. If tokens already show real paths, skip this step.
+Use the printed values for all `{{SPEC_DOCS_ROOT}}` and `{{REGISTRY_DB}}` references. If tokens already show real paths, skip this step.
 
 ---
 
@@ -76,7 +76,7 @@ SPEC SCOUT — What can I research?
     "what's pending in the expression builder"
 
   Get a full unit listing with task counts:
-    "index"  →  reads AUDIT_PROGRESS.json and prints all units
+    "index"  →  queries comms/tasks.db and prints all units
 
   Pre-feature research (run before feature-agent):
     "What exists for workspace saving in Console?"
@@ -105,7 +105,22 @@ If the message is ambiguous, default to **index mode** first, then ask if they w
 
 Run this when the user wants a reference of what everything is called.
 
-Read `docs/SPEC_MANIFEST.md` and `{{PROGRESS_JSON}}`, then print:
+Read `docs/SPEC_MANIFEST.md`. Query `{{REGISTRY_DB}}` for task counts per unit:
+
+```python
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+rows = con.execute("""
+    SELECT unit,
+           count(*) as total,
+           sum(case when status='verified' then 1 else 0 end) as verified,
+           sum(case when status='pending' then 1 else 0 end) as pending
+    FROM io_tasks GROUP BY unit ORDER BY unit
+""").fetchall()
+con.close()
+```
+
+Then print:
 
 ```
 SPEC INDEX — I/O Project
@@ -215,11 +230,27 @@ Read `docs/SPEC_MANIFEST.md`. Find:
 - Current audit status: wave, verified count, pending count
 - Whether this unit has cross-cutting contracts noted
 
-Read `{{PROGRESS_JSON}}`. Find:
-- All tasks for the relevant unit(s) — extract from `task_registry`
-- Their status (pending / completed / verified)
-- Which `audit_round` they belong to
-- The unit's `verified_since_last_audit` and `last_audit_round`
+Query `{{REGISTRY_DB}}` for task and queue data:
+
+```python
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+# Tasks for the relevant unit(s)
+tasks = con.execute("""
+    SELECT id, title, status, uat_status, audit_round
+    FROM io_tasks WHERE unit=? ORDER BY id
+""", (UNIT,)).fetchall()
+# Queue entry for verified_since_last_audit and last_audit_round
+queue = con.execute("""
+    SELECT verified_since_last_audit, last_audit_round
+    FROM io_queue WHERE unit=?
+""", (UNIT,)).fetchone()
+con.close()
+```
+
+Extract:
+- All tasks for the relevant unit(s) — status (pending / completed / verified), audit_round
+- The unit's `verified_since_last_audit` and `last_audit_round` from io_queue
 
 ---
 

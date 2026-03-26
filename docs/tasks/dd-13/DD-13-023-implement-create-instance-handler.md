@@ -37,6 +37,8 @@ Without this endpoint:
 - Changed initial status from "draft" to "pending" to match database schema constraint
 - Database migration defines status CHECK constraint: IN ('pending', 'in_progress', 'completed')
 - This fix resolves the HTTP 500 "A database error occurred" error reported in UAT Scenario 4
+- Verified in logs.rs:594 that status is now "pending" (not "draft")
+- Build verified: cargo build -p api-gateway succeeds
 
 **Frontend Call:**
 ```typescript

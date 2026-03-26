@@ -2,7 +2,7 @@
 
 **Goal:** Remove all AUDIT_PROGRESS.json read/write calls from agents and io-run.sh. SQLite (`comms/tasks.db`) becomes the sole authoritative store.
 
-**Status:** In progress (2026-03-26)
+**Status:** Priorities 1–4 complete (2026-03-26). Priorities 5–7 deferred (audit-orchestrator not blocking auto mode).
 
 ---
 

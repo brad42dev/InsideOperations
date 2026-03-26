@@ -15,4 +15,5 @@ MOD-PROCESS-018 | Replace hardcoded hex colors with design tokens in Process mod
 MOD-PROCESS-016 | Implement detached window route /detached/process/:viewId | verified 2026-03-26 | commit 447e2b1 | npx tsc --noEmit | PASS
 MOD-PROCESS-019 | Hide breadcrumb nav bar and view toolbar in kiosk mode | verified 2026-03-26 | commit b99999a | npx tsc --noEmit | PASS
 MOD-PROCESS-020 | Pass isAlarm prop to PointContextMenu in Process module | verified 2026-03-26 | commit ca9accb | npx tsc --noEmit | PASS
+MOD-PROCESS-021 | Bookmark ★ button does not open Name/Description dialog | verified 2026-03-26 | commit fb1c638 | npx tsc --noEmit | PASS
 MOD-PROCESS-022 | Kiosk mode leaves breadcrumb nav bar visible | verified 2026-03-26 | commit 3146a81 | npx tsc --noEmit | PASS

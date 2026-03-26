@@ -1,6 +1,6 @@
 ---
 name: audit-orchestrator
-description: Drives the full spec audit and implementation queue. Supports three modes — audit, implement, full. Reads {{PROGRESS_JSON}}, coordinates audit-runner, spec-repair, explore, and implement agents. Start with: claude --agent audit-orchestrator
+description: Drives the full spec audit and implementation queue. Supports three modes — audit, implement, full. Reads comms/tasks.db (SQLite), coordinates audit-runner, spec-repair, explore, and implement agents. Start with: claude --agent audit-orchestrator
 tools: Agent(audit-runner, spec-repair, explore-agent, implement-agent, escalation-agent, decompose-agent), Read, Write, Glob, Grep, Bash, AskUserQuestion
 ---
 
@@ -76,7 +76,7 @@ Do not read the progress file or take any other action until the mode is confirm
 
 ```
 REPO_ROOT:       {{PROJECT_ROOT}}
-PROGRESS_FILE:   {{PROJECT_ROOT}}/{{PROGRESS_JSON}}
+REGISTRY_DB:     {{PROJECT_ROOT}}/comms/tasks.db
 TASK_DIR:        {{PROJECT_ROOT}}/{{TASK_DIR}}
 CATALOG_DIR:     {{PROJECT_ROOT}}/{{CATALOG_DIR}}
 DECISIONS_DIR:   {{PROJECT_ROOT}}/{{DECISIONS_DIR}}
@@ -88,18 +88,29 @@ NEEDS_INPUT_ESCALATE_HOURS: {{NEEDS_INPUT_ESCALATE_HOURS}}  (auto-escalate thres
 ESCALATED_DIR:   {{PROJECT_ROOT}}/{{COMMS_DIR}}/escalated
 ```
 
-> **Dual-storage architecture:** `PROGRESS_FILE` (JSON) is what *this agent* reads and writes — it is the authoritative view of task state from the agent's perspective. `io-run.sh` also maintains a SQLite mirror (`comms/tasks.db`) which it uses for atomic parallel task claiming via `BEGIN IMMEDIATE` locks. When you write `status: "pending"`, `"implementing"`, or `"verified"` to the registry, `io-run.sh` will sync that state into SQLite after each round. You never interact with SQLite directly — write only to `PROGRESS_FILE`. The `status: completed` field in `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md` is the *agent's internal completion marker* — it is NOT the same as registry `status: "verified"`. The orchestrator translates `CURRENT.md status: completed` → registry `status: "verified"` after independent build verification passes (see Startup Reconciliation and Ledger Write sections).
+> **Storage:** `REGISTRY_DB` (`comms/tasks.db`, SQLite) is the single authoritative store. All reads and writes go through SQLite — no JSON registry file. SQLite WAL mode + `BEGIN IMMEDIATE` provides atomic concurrent writes. The `status: completed` field in `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md` is the *agent's internal completion marker* — it is NOT the same as `io_tasks.status = 'verified'`. The orchestrator translates `CURRENT.md status: completed` → `io_tasks.status = 'verified'` after independent build verification passes (see Startup Reconciliation and Ledger Write sections).
 
 ---
 
 ## Shared: Load State
 
-Read `PROGRESS_FILE`. Parse JSON.
+Query `REGISTRY_DB`:
 
-Load:
-- `task_attempts` map (task ID → integer). If missing, initialize as `{}`.
-- `audit_round` (integer). If missing, initialize as `1`.
-- `task_registry` array. If missing, initialize as `[]`.
+```python
+import sqlite3, json
+con = sqlite3.connect('{{PROJECT_ROOT}}/comms/tasks.db', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+
+# audit_round
+row = con.execute("SELECT value FROM io_global WHERE key='audit_round'").fetchone()
+audit_round = int(row[0]) if row else 1
+
+# task attempts (attempt_count per task)
+# queried on demand per task: con.execute("SELECT attempt_count FROM io_tasks WHERE id=?", (task_id,))
+
+# task registry loaded on demand via SELECT — not cached as a list
+con.close()
+```
 
 `audit_round` is the global counter. It increments each time an audit run starts (not per unit — per run). The current value is the most recently completed audit round.
 
@@ -115,12 +126,12 @@ find {{STATE_DIR}} -name "CURRENT.md" | xargs grep -l "^status: completed"
 
 For each CURRENT.md with `status: completed`:
 1. Read the file — extract `task_id`, `unit`, `attempt`
-2. Look up `task_id` in `task_registry`
-3. **If registry status is already `verified` or `escalated`:** skip — already reconciled
-4. **If registry status is `pending`, `failed`, or `implementing`:** this task completed but the registry was never updated. Reconcile:
+2. Look up `task_id` in `io_tasks`: `SELECT status FROM io_tasks WHERE id=?`
+3. **If status is already `verified` or `escalated`:** skip — already reconciled
+4. **If status is `pending`, `failed`, or `implementing`:** this task completed but the registry was never updated. Reconcile:
    - Run independent build verification: `cd $(git rev-parse --show-toplevel)/frontend && npx tsc --noEmit` (or `cargo check` for Rust tasks). Note: use `git rev-parse --show-toplevel` — NOT `{{PROJECT_ROOT}}` — so the check targets the current repo root (worktree or main), not always the main repo.
-   - If **PASS**: write ledger entry (see Shared: Ledger Write), set registry `status: "verified"`, increment `verified_since_last_audit` on the unit. Report: `🔁 Reconciled: {task-id} — completed last session, now verified`
-   - If **FAIL**: set registry `status: "failed"`, reset CURRENT.md status to `failed`. The task will be retried normally. Report: `⚠️ Reconciled: {task-id} — completed last session but build check failed, reset to failed`
+   - If **PASS**: write ledger entry (see Shared: Ledger Write), set `UPDATE io_tasks SET status='verified'`, `UPDATE io_queue SET verified_since_last_audit=verified_since_last_audit+1 WHERE unit=?`. Report: `🔁 Reconciled: {task-id} — completed last session, now verified`
+   - If **FAIL**: `UPDATE io_tasks SET status='failed'`, reset CURRENT.md status to `failed`. The task will be retried normally. Report: `⚠️ Reconciled: {task-id} — completed last session but build check failed, reset to failed`
 
 After reconciliation, continue to zombie detection.
 
@@ -186,54 +197,40 @@ After implement-agent returns SUCCESS and build verification passes:
 
 ## Shared: Registry Update
 
-The `task_registry` in PROGRESS_FILE is the single source of truth for task selection. Update it whenever a task status changes — do not rely on re-reading task files.
+`io_tasks` in `REGISTRY_DB` is the single source of truth for task selection. Update it whenever a task status changes — do not rely on re-reading task files.
 
 **When to update:**
-- Before spawning implement-agent → set `status: "implementing"` (durable in-flight marker; enables startup reconciliation)
-- After implement SUCCESS + independent verification passes → set `status: "verified"`; increment `verified_since_last_audit` on the unit's queue entry
-- After implement NEEDS_INPUT → set `status: "needs_input"`, store `answer_file: "{{COMMS_DIR}}/answers/{task-id}.md"` on the registry entry
-- After review_input answers written → reset `status: "pending"` (answer_file remains on the entry)
-- After implement FAILED (at MAX_IMPL, verdict AMBIGUOUS_SPEC or IMPLEMENTATION_FAILURE) → set `status: "escalated"`
-- After implement FAILED (at MAX_IMPL, verdict MISSING_DEPENDENCY) → set `status: "blocked"` — task is waiting on another unit's output to be implemented
-- After implement FAILED (at MAX_IMPL, verdict SCOPE_TOO_LARGE) → set `status: "needs_decomposition"` — task will be split into sub-tasks by decompose-agent
-- After audit produces new tasks → add/update registry entries with current `audit_round` (see Audit Loop SUCCESS handler)
+- Before spawning implement-agent → set `status='implementing'` (durable in-flight marker; enables startup reconciliation)
+- After implement SUCCESS + independent verification passes → set `status='verified'`; `UPDATE io_queue SET verified_since_last_audit=verified_since_last_audit+1 WHERE unit=?`
+- After implement NEEDS_INPUT → set `status='needs_input'`, set `answer_file='{{COMMS_DIR}}/answers/{task-id}.md'`
+- After review_input answers written → reset `status='pending'` (answer_file remains)
+- After implement FAILED (at MAX_IMPL, verdict AMBIGUOUS_SPEC or IMPLEMENTATION_FAILURE) → set `status='escalated'`
+- After implement FAILED (at MAX_IMPL, verdict MISSING_DEPENDENCY) → set `status='blocked'`
+- After implement FAILED (at MAX_IMPL, verdict SCOPE_TOO_LARGE) → set `status='needs_decomposition'`
+- After audit produces new tasks → INSERT OR IGNORE into `io_tasks` (see Audit Loop SUCCESS handler)
 
-**How to update (atomic write protocol):**
-Read PROGRESS_FILE, find the registry entry by `id`, update the field(s), then write using the atomic pattern:
+**How to update:**
+SQLite WAL mode + `BEGIN IMMEDIATE` handles concurrency — no flock needed:
+
 ```python
-import json, os, fcntl
-# 1. Acquire exclusive lock via a sidecar lock file (not the JSON itself)
-lock_path = PROGRESS_FILE + ".lock"
-lock_fd = open(lock_path, "w")
-fcntl.flock(lock_fd, fcntl.LOCK_EX)  # blocks until all other writers release
-try:
-    # 2. Read current state (inside the lock — guaranteed fresh)
-    with open(PROGRESS_FILE) as f:
-        data = json.load(f)
-    # 3. Make updates
-    # ... (find entry, update fields) ...
-    # 4. Write atomically: temp file + rename (no partial write corruption)
-    tmp_path = PROGRESS_FILE + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp_path, PROGRESS_FILE)
-    # 5. Validate: read back and confirm the change is present
-    with open(PROGRESS_FILE) as f:
-        check = json.load(f)
-    # assert the updated field is in check
-    # 6. Update the backup (run after every successful write, not just once per session)
-    import shutil
-    shutil.copy2(PROGRESS_FILE, PROGRESS_FILE + ".bak")
-finally:
-    fcntl.flock(lock_fd, fcntl.LOCK_UN)
-    lock_fd.close()
+import sqlite3, json
+con = sqlite3.connect('{{PROJECT_ROOT}}/comms/tasks.db', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+con.execute("""
+    UPDATE io_tasks SET status=?, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
+    WHERE id=?
+""", (new_status, task_id))
+con.commit()
+# Validate
+row = con.execute("SELECT status FROM io_tasks WHERE id=?", (task_id,)).fetchone()
+assert row and row[0] == new_status, f"registry update failed for {task_id}"
+con.close()
 ```
-Never write PROGRESS_FILE directly without going through a temp file. Never read task files to determine current status. The `.bak` copy in step 6 is mandatory — it ensures the backup is never more than one write stale. The flock prevents lost-update races when parallel agents write simultaneously (common during multi-agent implement rounds).
+
+Never read task files to determine current status — always query `io_tasks`.
 
 **When new tasks are produced by audit:**
-After audit-runner SUCCESS, for each task ID in `TASKS_OPEN`: read that task file once to extract `title`, `priority`, `depends-on`. Add an entry to `task_registry` with `status: "pending"`. This is the only time task files are read for metadata — at write time, not at selection time.
+After audit-runner SUCCESS, for each task ID in `TASKS_OPEN`: read that task file once to extract `title`, `priority`, `depends-on`. Then INSERT into `io_tasks`. This is the only time task files are read for metadata — at write time, not at selection time.
 
 ---
 
@@ -241,9 +238,23 @@ After audit-runner SUCCESS, for each task ID in `TASKS_OPEN`: read that task fil
 
 ### Audit Loop
 
-Increment `audit_round` by 1. Write updated value to PROGRESS_FILE before processing any units.
+Increment `audit_round` by 1. Write updated value to `io_global` before processing any units:
+```python
+con.execute("INSERT OR REPLACE INTO io_global (key, value) VALUES ('audit_round', ?)", (str(audit_round),))
+con.commit()
+```
 
-**Smart filter (default `audit` mode):** Select units where:
+**Smart filter (default `audit` mode):** Query `io_queue` for eligible units:
+```python
+rows = con.execute("""
+    SELECT unit, last_audit_round, verified_since_last_audit, last_audit_date
+    FROM io_queue
+    WHERE last_audit_round IS NULL
+       OR verified_since_last_audit > 0
+    ORDER BY wave, unit
+""").fetchall()
+```
+Also include units where any applicable Wave 0 decision file is newer than `last_audit_date` (see below). Select units where:
 - `last_audit_round` is null (never audited), OR
 - `verified_since_last_audit > 0` (at least one task was implemented since the last audit), OR
 - Any Wave 0 contract that applies to this unit has a decision file with modification time newer than this unit's `last_audit_date` (decision updated after last audit — unit needs re-audit with new constraints):
@@ -326,23 +337,42 @@ Report to user: which units are eligible and why (smart: N units with verified t
 
    **If ALL contract files EXIST (or unit has no applicable contracts):** proceed to step 1.
 
-1. Update `PROGRESS_FILE`: set unit `status: "in_progress"`, `current_unit` to unit ID.
+1. Update `io_queue`: set `status='in_progress'`; update `io_global` key `current_unit`:
+   ```python
+   con.execute("UPDATE io_queue SET status='in_progress' WHERE unit=?", (unit_id,))
+   con.execute("INSERT OR REPLACE INTO io_global (key,value) VALUES ('current_unit',?)", (unit_id,))
+   con.commit()
+   ```
 
 2. Spawn audit-runner:
    ```
    Agent(audit-runner):
      UNIT: <unit-id>
      REPO_ROOT: {{PROJECT_ROOT}}
-     PROGRESS_FILE: {{PROJECT_ROOT}}/{{PROGRESS_JSON}}
    ```
 
-3. **If SUCCESS**: Update unit in progress file:
-   - `status: "completed"`, `attempts: +1`, `catalog`, `tasks_open`, `completed_at`, `notes`
-   - `last_audit_round: current audit_round`
-   - `last_audit_date: "{ISO timestamp of now}"` (used by Wave 0 recency check in smart filter; units with no `last_audit_date` are treated as epoch — always eligible for re-audit)
-   - `verified_since_last_audit: 0` (reset — unit just re-audited)
-   - Set `current_unit: null`
-   - For each task ID in `TASKS_OPEN`: read the task file once, add/update entry in `task_registry` with `audit_round: current audit_round`, `status: "pending"` (preserve existing status if already `"verified"`, `"decomposed"`, or `"needs_decomposition"` — do not downgrade these terminal/in-progress states)
+3. **If SUCCESS**: Update `io_queue` and insert new tasks into `io_tasks`:
+   ```python
+   now = "strftime('%Y-%m-%dT%H:%M:%SZ','now')"
+   con.execute("""
+       UPDATE io_queue SET status='completed', attempts=attempts+1,
+           last_audit_round=?, last_audit_date=strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+           verified_since_last_audit=0, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
+       WHERE unit=?
+   """, (audit_round, unit_id))
+   con.execute("INSERT OR REPLACE INTO io_global (key,value) VALUES ('current_unit', NULL)")
+   # For each task in TASKS_OPEN: read task file for title/priority/depends-on, then:
+   con.execute("""
+       INSERT OR IGNORE INTO io_tasks (id,unit,wave,title,status,priority,depends_on,audit_round,source,created_at,updated_at)
+       VALUES (?,?,?,?,'pending',?,?,?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+   """, (task_id, unit_id, wave, title, priority, json.dumps(depends_on), audit_round, 'audit'))
+   # Reset existing non-terminal tasks to pending with updated audit_round:
+   con.execute("""
+       UPDATE io_tasks SET status='pending', audit_round=?, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
+       WHERE id=? AND status NOT IN ('verified','decomposed','needs_decomposition','escalated')
+   """, (audit_round, task_id))
+   con.commit()
+   ```
    - Increment `successes_this_run`
    - Report: `✅ <unit-id> — <OVERALL> — <N> tasks`
    - If `successes_this_run >= run_limit`: → **Checkpoint**
@@ -353,7 +383,7 @@ Report to user: which units are eligible and why (smart: N units with verified t
 
 For `repair_attempt` 1 to `MAX_REPAIR`:
 
-1. Update unit: `status: "repair_in_progress"`, `repair_attempts: N`
+1. Update unit: `UPDATE io_queue SET status='repair_in_progress', repair_attempts=? WHERE unit=?`
 
 2. Spawn spec-repair:
    ```
@@ -365,20 +395,20 @@ For `repair_attempt` 1 to `MAX_REPAIR`:
      ATTEMPT: <repair_attempt>
    ```
 
-3. If repair SUCCESS → reset unit to `status: "pending"`, re-run audit-runner
+3. If repair SUCCESS → `UPDATE io_queue SET status='pending' WHERE unit=?`, re-run audit-runner
    - If audit now succeeds → treat as normal success
    - If audit fails again → continue repair loop
 
 4. If repair FAILED and attempts remain → continue loop
 
 5. If repair FAILED on attempt 3, OR audit still fails after 3 repairs:
-   - Set unit `status: "escalated"`, add to top-level `escalated` array
+   - `UPDATE io_queue SET status='escalated' WHERE unit=?`
    - Report: `⛔ <unit-id> ESCALATED — <last failure detail>`
    - Continue to next unit
 
 ### Audit Checkpoint
 
-Update `PROGRESS_FILE`: increment `checkpoint_count`, set `last_updated`, `current_unit: null`.
+Update `io_global`: increment `checkpoint_count`, set `last_updated`, set `current_unit=NULL`.
 
 Report to user:
 **If `run_limit == 1`:** Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"audit","work_done":{successes_this_run}}`, print one-line summary, exit.
@@ -411,27 +441,40 @@ Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"audit","work_done":0}`. Rep
 
 ### Task Selection (Dependency-Aware)
 
-**Read `PROGRESS_FILE` once.** Use the `task_registry` array — do NOT read individual task files for selection.
+**Query `io_tasks` directly** — do NOT read individual task files for selection.
 
-**Smart filter (default `implement` mode):** Consider all tasks with status `pending` or `failed`, regardless of which audit round produced them. Staleness is managed on the audit side — smart audit only re-audits units where `verified_since_last_audit > 0`, so unimplemented tasks remain valid until something in that unit changes.
+```python
+import sqlite3, json
+con = sqlite3.connect('{{PROJECT_ROOT}}/comms/tasks.db', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+candidates = con.execute("""
+    SELECT id, unit, wave, title, priority, depends_on, answer_file, attempt_count
+    FROM io_tasks
+    WHERE status IN ('pending', 'failed')
+    ORDER BY
+        CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+        wave, id
+""").fetchall()
+con.close()
+```
 
-**Force override (`implement force <task-id>`):** Process one specific task directly, bypassing all filters.
+**Smart filter (default `implement` mode):** All tasks with status `'pending'` or `'failed'`, regardless of audit round. Staleness is managed on the audit side.
 
-**Force-all override (`implement force-all`):** Same as smart mode now — retained for explicitness and for overriding any future filters.
+**Force override (`implement force <task-id>`):** SELECT one specific task directly, bypassing all filters.
 
-From the filtered set, build candidate list: entries where `status` is `"pending"` or `"failed"`.
+**Force-all override (`implement force-all`):** Same as smart mode — retained for explicitness.
 
-Skip these statuses — do not re-select them here:
-- `"implementing"` — handled by startup reconciliation
-- `"needs_input"` — deferred pending answers; handled by `review_input` mode
-- `"verified"` / `"escalated"` — terminal states
-- `"blocked"` — waiting on a missing dependency to be implemented in another unit
-- `"needs_decomposition"` — will be split into sub-tasks by decompose-agent; not directly implementable
-- `"decomposed"` — replaced by sub-tasks; the original task is no longer directly implementable
+Skip these statuses (already excluded by the WHERE clause above):
+- `'implementing'` — handled by startup reconciliation
+- `'needs_input'` — deferred pending answers; handled by `review_input` mode
+- `'verified'` / `'escalated'` — terminal states
+- `'blocked'` — waiting on a missing dependency
+- `'needs_decomposition'` — will be split into sub-tasks by decompose-agent
+- `'decomposed'` — replaced by sub-tasks
 
-**If a pending task has an `answer_file` field set:** pass `ANSWERED_QUESTIONS: {answer_file}` when spawning implement-agent. This means a prior NEEDS_INPUT was answered and the task is ready to resume with those answers.
+**If a task has an `answer_file` field set:** pass `ANSWERED_QUESTIONS: {answer_file}` when spawning implement-agent.
 
-Filter to **unblocked** tasks: every ID in `depends_on` must have `status: "verified"` in the registry (or `depends_on` is empty).
+Filter to **unblocked** tasks: every ID in `depends_on` must have `status='verified'` in `io_tasks` (or `depends_on` is empty / `'[]'`).
 
 **If no candidates exist** (all tasks are verified, escalated, or blocked):
 - Write `{{COMMS_DIR}}/LAST_ROUND.json` with `{"mode":"implement","work_done":0}`
@@ -522,8 +565,7 @@ Track `successes_this_run = 0`.
      ```
    - Report: `📐 {task-id} → decomposed into {new-task-ids}`
 
-   After all decompositions: re-read AUDIT_PROGRESS.json (registry was updated by decompose-agent).
-   Continue to normal task selection.
+   After all decompositions: proceed to normal task selection (SQLite is always current — no re-read needed).
 
 1d. **Status Field Validator**: Before task selection, scan registry for entries with an unrecognized `status` value.
 
@@ -543,8 +585,7 @@ Track `successes_this_run = 0`.
    - If ALL dependencies are verified: update registry — set `status: "pending"`, report: `🔓 {task-id} — dependency verified, unblocked and reset to pending`
    - If any dependency is still not verified: leave as `blocked` (no change)
 
-   After scanning: re-read AUDIT_PROGRESS.json if any tasks were unblocked.
-   Continue to normal task selection.
+   After scanning: continue to normal task selection (SQLite is always current — no re-read needed).
 
 2. Run state file initialization for this task (see Shared: State File Initialization above).
 
@@ -587,9 +628,9 @@ Track `successes_this_run = 0`.
 
 3. Read `{{STATE_DIR}}/{unit}/{task-id}/CURRENT.md`. Determine current attempt number (N = prior attempts + 1).
 
-4. Check `task_attempts[task_id]` in PROGRESS_FILE. If N > MAX_IMPL already: skip to escalation.
+4. Query `SELECT attempt_count FROM io_tasks WHERE id=?`. If attempt_count >= MAX_IMPL already: skip to escalation.
 
-4a. **Write registry status to `"implementing"` in PROGRESS_FILE before spawning.** This creates a durable record that this task is in-flight. If the session dies after the agent completes but before the registry is updated to `verified`, startup reconciliation will catch it via the CURRENT.md status.
+4a. **Set `status='implementing'` in `io_tasks` before spawning.** This creates a durable record that this task is in-flight. If the session dies after the agent completes but before the registry is updated to `'verified'`, startup reconciliation will catch it via the CURRENT.md status.
 
 5. Spawn implement-agent:
    ```
@@ -611,10 +652,10 @@ Track `successes_this_run = 0`.
    - Run independent verification: `cd $(git rev-parse --show-toplevel)/frontend && npx tsc --noEmit` (or `cargo check` for Rust). Use `git rev-parse --show-toplevel` so this targets the current repo root (worktree in parallel mode, main repo in serial mode).
    - If verification passes:
      - Write ledger entry (see Shared: Ledger Write)
-     - Update registry: set `task_registry[task_id].status = "verified"`, `task_registry[task_id].uat_status = null` in PROGRESS_FILE (see Shared: Registry Update)
+     - Update registry: `UPDATE io_tasks SET status='verified', uat_status=NULL WHERE id=?` (see Shared: Registry Update)
      - **UAT loop closure (uat-sourced tasks only):** If the task has `source: "uat"`, also:
        1. For all other tasks in the same unit, reset any `uat_status: "fail"` → `null` so the unit re-queues for UAT
-       2. Increment `verified_since_last_audit` for the unit in the `queue[]` array so audit will re-examine the unit
+       2. `UPDATE io_queue SET verified_since_last_audit=verified_since_last_audit+1 WHERE unit=?` so audit will re-examine the unit
        - This ensures that fixing a UAT-discovered bug automatically re-triggers UAT for the whole unit, not just the task that was fixed
    - If verification fails: treat as FAILED — the agent was wrong about SUCCESS
    - Increment `successes_this_run`. Report: `✅ <task-id> — verified (UAT pending)`
@@ -651,7 +692,7 @@ Track `successes_this_run = 0`.
 
    **FAILED**:
    - Read STATE_FILE and ATTEMPT_FILE — confirm state was written
-   - Increment `task_attempts[task_id]`. Update PROGRESS_FILE.
+   - `UPDATE io_tasks SET attempt_count=attempt_count+1 WHERE id=?`
    - Read FAILURE_REASON from result.
    - If attempts < MAX_IMPL: re-spawn with `PRIOR_ATTEMPT_NOTES: <FAILURE_REASON from attempt file>`. Fresh agent, not continuation.
    - If STATE_FILE or ATTEMPT_FILE missing or empty: note "agent failed to write exit state" in PRIOR_ATTEMPT_NOTES.
@@ -807,7 +848,7 @@ Entered when:
       **Question:** {question}
       **Answer:** {answer or default}
       ```
-   e. Update registry: set `status: "pending"` for this task (answer_file already set)
+   e. `UPDATE io_tasks SET status='pending' WHERE id=?` (answer_file already set in prior NEEDS_INPUT step)
    f. Delete `{{NEEDS_INPUT_DIR}}/{task-id}.md`
    g. Report: `✅ {task-id} — answered, reset to pending`
 
@@ -819,20 +860,21 @@ Entered when:
 
 ---
 
-## Progress File: task_attempts
+## Task Attempt Tracking
 
-The `task_attempts` field is a flat map at the top level of `AUDIT_PROGRESS.json`:
+Attempt counts are stored in `io_tasks.attempt_count`. Query and update directly:
 
-```json
-{
-  "task_attempts": {
-    "GFX-CORE-002": 1,
-    "GFX-CORE-003": 0
-  }
-}
+```python
+# Read
+row = con.execute("SELECT attempt_count FROM io_tasks WHERE id=?", (task_id,)).fetchone()
+attempts = row[0] if row else 0
+
+# Increment after a FAILED result
+con.execute("UPDATE io_tasks SET attempt_count=attempt_count+1 WHERE id=?", (task_id,))
+con.commit()
 ```
 
-Update this whenever an implement-agent attempt completes (success or failure).
+Update whenever an implement-agent attempt completes with FAILED (not NEEDS_RESEARCH, NEEDS_INPUT, or CHECKPOINT — those do not increment).
 
 ---
 
@@ -840,7 +882,7 @@ Update this whenever an implement-agent attempt completes (success or failure).
 
 - **Wave 0 contracts must have decision files before their applicable units are audited.** A missing `{{DECISIONS_DIR}}/{contract-slug}.md` blocks audit for that unit — it does NOT block implement for existing tasks on that unit. Run `/design-qa {contract-slug}` to generate the missing decision file. Force modes (`force`, `force-all`) bypass this gate.
 - **One task at a time in implement mode.** Never spawn two implement-agents concurrently.
-- **Always write PROGRESS_FILE before and after spawning any sub-agent.** Crash recovery depends on this.
+- **Always update `io_tasks` status before and after spawning any sub-agent.** Crash recovery depends on this — `status='implementing'` before spawn, then `status='verified'`/`'failed'`/etc. after.
 - **Gaps found during audit are not failures.** A unit with 15 task files is a successful audit.
 - **Wave order is a hard gate for audit.** Wave 2 units cannot start while any Wave 1 unit is pending/in_progress.
 - **Dependency order is enforced in implement.** Never implement a task whose dependencies are not verified.

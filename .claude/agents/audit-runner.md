@@ -15,7 +15,6 @@ You are the audit runner. Your job is to execute one complete audit for the unit
 ```
 UNIT: <unit-id>
 REPO_ROOT: {{PROJECT_ROOT}}
-PROGRESS_FILE: {{PROJECT_ROOT}}/{{PROGRESS_JSON}}
 ```
 
 ---

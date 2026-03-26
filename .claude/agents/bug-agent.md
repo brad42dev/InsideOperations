@@ -27,18 +27,18 @@ try:
     c = json.load(open('io-orchestrator.config.json'))
     p = c.get('paths', {})
     print('SPEC_DOCS_ROOT=' + p.get('spec_docs', '/home/io/spec_docs'))
-    print('PROGRESS_JSON='  + p.get('registry_file', 'comms/AUDIT_PROGRESS.json'))
+    print('REGISTRY_DB='    + p.get('registry_db', 'comms/tasks.db'))
     print('STATE_DIR='      + p.get('state_dir', 'docs/state'))
     print('TASK_DIR='       + p.get('task_dir', 'docs/tasks'))
 except Exception:
     print('SPEC_DOCS_ROOT=/home/io/spec_docs')
-    print('PROGRESS_JSON=comms/AUDIT_PROGRESS.json')
+    print('REGISTRY_DB=comms/tasks.db')
     print('STATE_DIR=docs/state')
     print('TASK_DIR=docs/tasks')
 "
 ```
 
-Use the printed values for all `{{SPEC_DOCS_ROOT}}`, `{{PROJECT_ROOT}}`, `{{PROGRESS_JSON}}`, `{{STATE_DIR}}`, and `{{TASK_DIR}}` references. If tokens already show real paths, skip this step.
+Use the printed values for all `{{SPEC_DOCS_ROOT}}`, `{{PROJECT_ROOT}}`, `{{REGISTRY_DB}}`, `{{STATE_DIR}}`, and `{{TASK_DIR}}` references. If tokens already show real paths, skip this step.
 
 ---
 
@@ -113,18 +113,16 @@ Does the bug description match any known false-DONE pattern? Record: YES (with l
 **2b — Task registry search:**
 ```bash
 python3 -c "
-import json
-with open('{{PROJECT_ROOT}}/{{PROGRESS_JSON}}') as f:
-    d = json.load(f)
-query = '''QUERY'''.lower()
-matches = []
-for t in d.get('task_registry', []):
-    title = t.get('title','').lower()
-    unit = t.get('unit','').lower()
-    if any(w in title or w in unit for w in query.split()[:4]):
-        matches.append(t)
-for m in matches[:10]:
-    print(m.get('id'), m.get('status'), m.get('uat_status'), '—', m.get('title'))
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+query = 'QUERY'.lower()
+words = query.split()[:4]
+like_clauses = ' OR '.join(['lower(title) LIKE ?' for _ in words] + ['lower(unit) LIKE ?' for _ in words])
+params = ['%'+w+'%' for w in words] + ['%'+w+'%' for w in words]
+rows = con.execute(f'SELECT id, status, uat_status, title FROM io_tasks WHERE {like_clauses} LIMIT 10', params).fetchall()
+for r in rows:
+    print(r[0], r[1], r[2], '—', r[3])
+con.close()
 "
 ```
 Replace QUERY with the bug description. Record: any matching tasks, their status and uat_status.
@@ -270,19 +268,17 @@ If the bug description is vague (no clear acceptance criterion), ask:
 
 ```bash
 python3 -c "
-import json
-with open('{{PROJECT_ROOT}}/{{PROGRESS_JSON}}') as f:
-    d = json.load(f)
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
 unit = 'UNIT_ID'
-ids = [t['id'] for t in d.get('task_registry',[]) if t.get('unit')==unit]
-if not ids:
-    print('001')
-else:
-    nums = []
-    for i in ids:
-        try: nums.append(int(i.split('-')[-1]))
-        except: pass
-    print(str(max(nums)+1).zfill(3))
+rows = con.execute('SELECT id FROM io_tasks WHERE unit=? ORDER BY id DESC', (unit,)).fetchall()
+con.close()
+max_num = 0
+for (tid,) in rows:
+    seg = tid.split('-')[-1]
+    if seg.isdigit():
+        max_num = max(max_num, int(seg))
+print(str(max_num + 1).zfill(3))
 "
 ```
 
@@ -365,24 +361,29 @@ last_heartbeat:
 
 **4d — Register task:**
 
-Read `{{PROGRESS_JSON}}`, append to `task_registry`:
+Insert directly into `{{REGISTRY_DB}}`:
 
-```json
-{
-  "id": "{TASK-ID}",
-  "unit": "{UNIT}",
-  "wave": {unit's wave from the queue array},
-  "title": "{title}",
-  "priority": "{high|medium|low}",
-  "status": "pending",
-  "depends_on": [],
-  "audit_round": {current audit_round value},
-  "source": "bug",
-  "uat_status": null
-}
+```python
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+# Look up wave for this unit
+row = con.execute("SELECT wave FROM io_queue WHERE unit=?", (UNIT,)).fetchone()
+unit_wave = row[0] if row else 1
+row = con.execute("SELECT value FROM io_global WHERE key='audit_round'").fetchone()
+audit_round = int(row[0]) if row else 1
+con.execute("""
+    INSERT OR IGNORE INTO io_tasks
+        (id, unit, wave, title, status, priority, depends_on, audit_round, source, uat_status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, 'pending', ?, '[]', ?, 'bug', NULL,
+            strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+            strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+""", (TASK_ID, UNIT, unit_wave, title, priority, audit_round))
+con.commit()
+row = con.execute("SELECT id FROM io_tasks WHERE id=?", (TASK_ID,)).fetchone()
+con.close()
+assert row, f"registry write failed for {TASK_ID}"
 ```
-
-Write atomically: write to `{{PROGRESS_JSON}}.tmp`, fsync, then `os.replace()` over the target. Read the updated file back and confirm the task ID is present in `task_registry`.
 
 **4e — Update state indexes:**
 
@@ -405,7 +406,7 @@ Title:    {title}
 
 Task file:  {{TASK_DIR}}/{unit-lowercase}/{TASK-ID}-bug-{slug}.md
 State file: {{STATE_DIR}}/{unit-lowercase}/{TASK-ID}/CURRENT.md
-Registry:   {{PROGRESS_JSON}} (task appended)
+Registry:   {{REGISTRY_DB}} (task inserted)
 
 Next step: ./io-run.sh implement
            (or ./io-run.sh implement 1 to run one round)

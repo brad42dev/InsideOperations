@@ -12,7 +12,7 @@ You define features and changes. You produce a spec and task files that feed dir
 
 ## STARTUP — Resolve Environment
 
-**First action before anything else.** If you see literal `{{PROJECT_ROOT}}`, `{{SPEC_DOCS_ROOT}}`, or `{{PROGRESS_JSON}}` anywhere in these instructions, they were not pre-expanded (you were invoked directly, not through io-run.sh). Resolve them now:
+**First action before anything else.** If you see literal `{{PROJECT_ROOT}}`, `{{SPEC_DOCS_ROOT}}`, or `{{REGISTRY_DB}}` anywhere in these instructions, they were not pre-expanded (you were invoked directly, not through io-run.sh). Resolve them now:
 
 ```bash
 # Step 1 — find project root and cd to it
@@ -25,14 +25,14 @@ try:
     c = json.load(open('io-orchestrator.config.json'))
     p = c.get('paths', {})
     print('SPEC_DOCS_ROOT=' + p.get('spec_docs', '/home/io/spec_docs'))
-    print('PROGRESS_JSON='  + p.get('registry_file', 'comms/AUDIT_PROGRESS.json'))
+    print('REGISTRY_DB='    + p.get('registry_db', 'comms/tasks.db'))
 except Exception:
     print('SPEC_DOCS_ROOT=/home/io/spec_docs')
-    print('PROGRESS_JSON=comms/AUDIT_PROGRESS.json')
+    print('REGISTRY_DB=comms/tasks.db')
 "
 ```
 
-Use the printed values for all `{{SPEC_DOCS_ROOT}}` and `{{PROGRESS_JSON}}` references. PROJECT_ROOT is the git root from step 1. If tokens already show real paths, skip this step.
+Use the printed values for all `{{SPEC_DOCS_ROOT}}` and `{{REGISTRY_DB}}` references. PROJECT_ROOT is the git root from step 1. If tokens already show real paths, skip this step.
 
 ---
 
@@ -290,26 +290,33 @@ After writing each task file, read it back to confirm non-empty.
 
 ## PHASE 5 — Update registry and manifest
 
-**Registry:** Read `{{PROGRESS_JSON}}`. For each new task, add an entry to `task_registry`:
+**Registry:** Insert each new task into `{{REGISTRY_DB}}`:
 
-```json
-{
-  "id": "<TASK-ID>",
-  "unit": "<unit-id>",
-  "wave": <wave number from unit's queue entry>,
-  "title": "<task title>",
-  "priority": "<priority>",
-  "status": "pending",
-  "depends_on": [],
-  "audit_round": <current audit_round value>,
-  "source": "feature",
-  "uat_status": null
-}
+```python
+import sqlite3
+con = sqlite3.connect('{{REGISTRY_DB}}', timeout=10)
+con.execute('PRAGMA journal_mode=WAL')
+row = con.execute("SELECT value FROM io_global WHERE key='audit_round'").fetchone()
+audit_round = int(row[0]) if row else 1
+for task in new_tasks:
+    row = con.execute("SELECT wave FROM io_queue WHERE unit=?", (task['unit'],)).fetchone()
+    wave = row[0] if row else 1
+    con.execute("""
+        INSERT OR IGNORE INTO io_tasks
+            (id, unit, wave, title, status, priority, depends_on, audit_round, source, uat_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'pending', ?, '[]', ?, 'feature', NULL,
+                strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+                strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    """, (task['id'], task['unit'], wave, task['title'], task['priority'], audit_round))
+con.commit()
+# Confirm all task IDs are present
+for task in new_tasks:
+    assert con.execute("SELECT id FROM io_tasks WHERE id=?", (task['id'],)).fetchone(), \
+        f"registry write failed for {task['id']}"
+con.close()
 ```
 
 Using `audit_round = current value` makes these tasks immediately eligible for `implement` smart mode.
-
-Write atomically: write to `{{PROGRESS_JSON}}.tmp`, fsync, then `os.replace()` over the target. Read it back and confirm the new task IDs appear in `task_registry`.
 
 **Unit queue entry:** If this unit's `verified_since_last_audit` needs updating (a change task implies something was "fixed"), increment it so smart audit will re-check this unit after implementation.
 

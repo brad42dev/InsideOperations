@@ -1,10 +1,10 @@
 ---
 task_id: MOD-DESIGNER-049
 unit: MOD-DESIGNER
-status: claimed
-attempt: 1
-claimed_at: 2026-03-26T10:00:00Z
-last_heartbeat: 2026-03-26T10:00:00Z
+status: pending
+attempt: 2
+claimed_at: null
+last_heartbeat: null
 rate_limited: false
 ---
 
