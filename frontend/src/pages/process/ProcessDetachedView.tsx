@@ -310,6 +310,7 @@ export default function ProcessDetachedView() {
   // ---- Minimap -------------------------------------------------------------
 
   const [minimapVisible, setMinimapVisible] = useState(true)
+  const [minimapCollapsed, setMinimapCollapsed] = useState(false)
 
   const handleMinimapViewportChange = useCallback((panX: number, panY: number) => {
     setViewport((vp) => ({ ...vp, panX, panY }))
@@ -640,6 +641,8 @@ export default function ProcessDetachedView() {
             onViewportChange={handleMinimapViewportChange}
             sceneData={graphic.scene_data}
             visible={minimapVisible}
+            collapsed={minimapCollapsed}
+            onCollapsedChange={setMinimapCollapsed}
           />
         )}
       </div>

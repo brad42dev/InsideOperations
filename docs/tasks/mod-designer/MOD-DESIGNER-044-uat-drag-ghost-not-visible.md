@@ -2,7 +2,7 @@
 id: MOD-DESIGNER-044
 unit: MOD-DESIGNER
 title: Drag ghost not visible during palette-to-canvas drag
-status: pending
+status: completed
 priority: high
 depends-on: []
 source: uat
