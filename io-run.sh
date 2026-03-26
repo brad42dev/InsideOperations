@@ -2630,27 +2630,27 @@ PYEOF
         fi
 
         # Load UAT units into indexed array for pool dispatching
-        local _uat_arr=()
+        _uat_arr=()
         if [ -n "$UAT_UNITS_ALL" ]; then
             while IFS= read -r _u; do [ -n "$_u" ] && _uat_arr+=("$_u"); done <<< "$UAT_UNITS_ALL"
         fi
-        local _uat_idx=0
+        _uat_idx=0
 
         # Pool state: parallel arrays of active agent PIDs with their type and item ID
-        local _auto_pids=()
-        local _auto_types=()   # "impl" | "uat"
-        local _auto_ids=()     # task_id (impl) or unit_id (uat)
+        _auto_pids=()
+        _auto_types=()   # "impl" | "uat"
+        _auto_ids=()     # task_id (impl) or unit_id (uat)
 
         # Counters
-        local _impl_launched=0 _uat_launched=0
-        local _impl_exhausted=0 _uat_exhausted=0
+        _impl_launched=0 _uat_launched=0
+        _impl_exhausted=0 _uat_exhausted=0
         [ "$PENDING_IMPL" -eq 0 ] && _impl_exhausted=1
         [ "$PENDING_UAT" -eq 0 ]  && _uat_exhausted=1
 
         BATCH_IMPL_CLAIMED=0 BATCH_IMPL_VERIFIED=0
         BATCH_UAT_PASSED=0 BATCH_UAT_FAILED=0 BATCH_UAT_SKIPPED=0
-        local _auto_impl_tasks=()   # for DB verified-count query
-        local _auto_rl_tasks=()     # rate-limited impl tasks — re-queue after pool drains
+        _auto_impl_tasks=()   # for DB verified-count query
+        _auto_rl_tasks=()     # rate-limited impl tasks — re-queue after pool drains
 
         while [ "${#_auto_pids[@]}" -gt 0 ] || \
               [ "$_impl_exhausted" -eq 0 ] || \
@@ -2659,10 +2659,10 @@ PYEOF
             # ── Fill all open slots ──────────────────────────────────────────
             while [ "${#_auto_pids[@]}" -lt "$AUTO_PARALLEL" ]; do
                 # Choose type: 60/40 impl/UAT ratio
-                local _next="none"
+                _next="none"
                 if [ "$_impl_exhausted" -eq 0 ] && [ "$_uat_exhausted" -eq 0 ]; then
-                    local _total_iu=$((_impl_launched + _uat_launched))
-                    local _impl_pct=0
+                    _total_iu=$((_impl_launched + _uat_launched))
+                    _impl_pct=0
                     [ "$_total_iu" -gt 0 ] && _impl_pct=$((_impl_launched * 100 / _total_iu))
                     [ "$_impl_pct" -lt 60 ] && _next="impl" || _next="uat"
                 elif [ "$_impl_exhausted" -eq 0 ]; then _next="impl"
@@ -2671,11 +2671,11 @@ PYEOF
                 fi
 
                 if [ "$_next" = "impl" ]; then
-                    local _tid
+                    _tid
                     _tid=$(claim_next_task "io-auto-$$") || { _impl_exhausted=1; continue; }
                     [ -z "$_tid" ] && { _impl_exhausted=1; echo "  No more impl tasks."; continue; }
                     echo "  [impl ] claimed task ${_tid}"
-                    local _pid
+                    _pid
                     # Must NOT use $() here — see launch_agent_in_worktree comment about _LAUNCH_PID.
                     launch_agent_in_worktree "$_tid" "audit-orchestrator" "implement force $_tid 1"
                     _pid=$_LAUNCH_PID
@@ -2689,10 +2689,10 @@ PYEOF
                     if [ "$_uat_idx" -ge "${#_uat_arr[@]}" ]; then
                         _uat_exhausted=1; echo "  No more UAT units."; continue
                     fi
-                    local _uid="${_uat_arr[$_uat_idx]}"
+                    _uid="${_uat_arr[$_uat_idx]}"
                     _uat_idx=$((_uat_idx + 1))
-                    local _auto_uat_log="/tmp/io-uat-${_uid}-$(date '+%Y%m%dT%H%M%S').log"
-                    local _auto_uat_usage="/tmp/io-usage-uat-${_uid}"
+                    _auto_uat_log="/tmp/io-uat-${_uid}-$(date '+%Y%m%dT%H%M%S').log"
+                    _auto_uat_usage="/tmp/io-usage-uat-${_uid}"
                     rm -f "$_auto_uat_usage" 2>/dev/null || true
                     echo "$(ts) [uat  ] agent launching: ${_uid} (${_uat_idx}/${#_uat_arr[@]}) — log: $_auto_uat_log"
                     (
@@ -2767,7 +2767,7 @@ finally:
     except Exception: pass
 AUTO_UAT_PYEOF
                     ) >&2 &
-                    local _pid=$!
+                    _pid=$!
                     _auto_pids+=("$_pid"); _auto_types+=("uat"); _auto_ids+=("$_uid")
                     _uat_launched=$((_uat_launched + 1))
                     echo "  [uat  ] PID ${_pid} → unit ${_uid}"
@@ -2781,13 +2781,13 @@ AUTO_UAT_PYEOF
             wait -n "${_auto_pids[@]}" 2>/dev/null || true
 
             # Collect all agents that finished in this tick
-            local _np=() _nt=() _ni=()
+            _np=() _nt=() _ni=()
             for _ai in "${!_auto_pids[@]}"; do
-                local _pid="${_auto_pids[$_ai]}"
-                local _type="${_auto_types[$_ai]}"
-                local _id="${_auto_ids[$_ai]}"
+                _pid="${_auto_pids[$_ai]}"
+                _type="${_auto_types[$_ai]}"
+                _id="${_auto_ids[$_ai]}"
                 if ! kill -0 "$_pid" 2>/dev/null; then
-                    local _ec=0; wait "$_pid" 2>/dev/null || _ec=$?
+                    _ec=0; wait "$_pid" 2>/dev/null || _ec=$?
 
                     if [ "$_type" = "impl" ]; then
                         if [ "$_ec" -eq 0 ]; then
@@ -2810,7 +2810,7 @@ con.close()
 _VERIFY_PY
                             "$REPO/io-gh-mirror.sh" mirror "$_id" "verified" "PID ${_pid}" || true
                         else
-                            local _rl="/tmp/io-rl-${_id}"
+                            _rl="/tmp/io-rl-${_id}"
                             if [ -f "$_rl" ]; then
                                 rm -f "$_rl" 2>/dev/null || true
                                 echo "  ⚠ [impl ] task ${_id} rate-limited — will re-queue"
@@ -2829,9 +2829,9 @@ _VERIFY_PY
                             echo "  ⚠ [uat  ] ${_id} — claude exited ${_ec} — treating as error"
                             BATCH_UAT_SKIPPED=$((BATCH_UAT_SKIPPED + 1))
                         else
-                            local _rf="${CFG_UAT_DIR:-docs/uat}/${_id}/CURRENT.md"
+                            _rf="${CFG_UAT_DIR:-docs/uat}/${_id}/CURRENT.md"
                             if [ -f "$_rf" ]; then
-                                local _vd
+                                _vd
                                 _vd=$(grep "^verdict:" "$_rf" 2>/dev/null | sed 's/verdict:[[:space:]]*//' | awk '{print $1}' || echo "unknown")
                                 case "$_vd" in
                                     pass)    BATCH_UAT_PASSED=$((BATCH_UAT_PASSED + 1));   echo "  ✅ [uat  ] ${_id} — pass" ;;
@@ -2868,7 +2868,7 @@ _VERIFY_PY
 
         # Query actually-verified impl tasks from DB (exit codes can't be trusted)
         if [ "${#_auto_impl_tasks[@]}" -gt 0 ]; then
-            local _tl
+            _tl
             _tl=$(printf "'%s'," "${_auto_impl_tasks[@]}")
             _tl="${_tl%,}"
             BATCH_IMPL_VERIFIED=$(python3 -c "
