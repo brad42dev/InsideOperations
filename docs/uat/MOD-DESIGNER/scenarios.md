@@ -15,3 +15,7 @@ Scenario 7: [MOD-DESIGNER-036] Context menu contains View Alerts item — right-
 Scenario 8: [MOD-DESIGNER-036] Context menu contains Trend This Point — right-click display element → menu contains "Trend This Point" or "Open Trend"
 Scenario 9: [MOD-DESIGNER-036] Context menu contains Point Detail — right-click display element → menu contains "Point Detail" or "View Detail"
 Scenario 10: [MOD-DESIGNER-036] Context menu contains Bind Point — right-click display element → menu contains "Bind Point…" or equivalent binding option
+
+## TextBlock Context Menu (MOD-DESIGNER-006)
+Scenario 11: [MOD-DESIGNER-039] TextBlock can be placed programmatically — dispatch CustomEvent('io:test-add-text-block', { detail: { x: 200, y: 150, content: 'Test label' } }) on document → a text_block node appears in the scene graph (sceneStore doc.children contains type==='text_block')
+Scenario 12: [MOD-DESIGNER-039] TextBlock context menu shows text-specific items — place TextBlock via io:test-add-text-block, right-click it → context menu contains "Edit Text", "Change Font…", and "Text Alignment"; these items must NOT appear when right-clicking a non-text node (display element)
