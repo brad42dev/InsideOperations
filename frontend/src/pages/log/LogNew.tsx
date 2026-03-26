@@ -9,12 +9,15 @@ export default function LogNew() {
   const [teamName, setTeamName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const { data: templatesResult, isLoading } = useQuery({
+  const { data: templates, isLoading } = useQuery({
     queryKey: ['log', 'templates', 'active'],
-    queryFn: () => logsApi.listTemplates({ is_active: true }),
+    queryFn: async () => {
+      const res = await logsApi.listTemplates({ is_active: true })
+      if (!res.success) return []
+      // Handle pagination wrapper from PagedResponse
+      return Array.isArray(res.data) ? res.data : (res.data as { data: unknown[] }).data ?? []
+    },
   })
-
-  const templates = templatesResult?.success && Array.isArray(templatesResult.data) ? templatesResult.data : []
 
   const createMutation = useMutation({
     mutationFn: () =>

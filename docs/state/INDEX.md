@@ -9,13 +9,13 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | GFX-SHAPES | 1 | 6 | 3 | 3 | 0 | GFX-SHAPES-003 |
 | MOD-CONSOLE | 2 | 26 | 2 | 24 | 0 | MOD-CONSOLE-018 |
 | MOD-PROCESS | 5 | 10 | 0 | 10 | 3 | MOD-PROCESS-001 |
-| MOD-DESIGNER | 2 | 49 | 3 | 46 | 0 | MOD-DESIGNER-002 |
+| MOD-DESIGNER | 2 | 50 | 4 | 46 | 0 | MOD-DESIGNER-002 |
 | OPC-BACKEND | 2 | 3 | 0 | 3 | 0 | OPC-BACKEND-001 |
 | DD-06 | 4 | 19 | 1 | 17 | 0 | DD-06-001 |
 | DD-10 | 7 | 20 | 0 | 16 | 0 | DD-10-001 |
 | DD-11 | 3 | 9 | 0 | 9 | 0 | DD-11-001 |
 | DD-12 | 3 | 13 | 0 | 13 | 0 | DD-12-001 |
-| DD-13 | 3 | 15 | 1 | 14 | 0 | DD-13-001 |
+| DD-13 | 3 | 18 | 1 | 17 | 0 | DD-13-001 |
 | DD-14 | 4 | 9 | 0 | 8 | 0 | DD-14-001 |
 | DD-15 | 3 | 15 | 0 | 15 | 0 | DD-15-001 |
 | DD-16 | 3 | 6 | 0 | 6 | 0 | DD-16-001 |
@@ -32,7 +32,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | DD-29 | 4 | 17 | 4 | 12 | 0 | DD-29-001 |
 | DD-30 | 3 | 7 | 0 | 7 | 0 | DD-30-001 |
 | DD-31 | 4 | 21 | 2 | 18 | 0 | DD-31-001 |
-| DD-32 | 7 | 18 | 1 | 13 | 0 | DD-32-001 |
+| DD-32 | 7 | 20 | 3 | 13 | 0 | DD-32-001 |
 | DD-33 | 3 | 7 | 0 | 7 | 0 | DD-33-001 |
 | DD-34 | 4 | 7 | 0 | 6 | 0 | DD-34-001 |
 | DD-36 | 3 | 8 | 0 | 8 | 0 | DD-36-001 |

@@ -1,54 +1,34 @@
 # UAT Scenarios — MOD-PROCESS
 
-Tasks to UAT: MOD-PROCESS-002, MOD-PROCESS-011, MOD-PROCESS-014, MOD-PROCESS-015,
-              MOD-PROCESS-016, MOD-PROCESS-017, MOD-PROCESS-018, MOD-PROCESS-019, MOD-PROCESS-020
+Tasks under test: MOD-PROCESS-011, MOD-PROCESS-020
+Both had uat_status=partial (prior session crashed) — full retest required.
 
-Seed data status: UNAVAILABLE (advisory — mark data-flow results ⚠️ seed data status unknown)
+Seed data status: UNAVAILABLE (psql not accessible)
 
----
+## Page Load & Module Health
 
-## Page Load & Data Flow
+Scenario 1: [MOD-PROCESS-011] Process page renders without error — navigate to /process → page loads, no error boundary ("Something went wrong"), no blank page, module content visible
 
-Scenario 1: [MOD-PROCESS-002] — data flow: GET /api/graphics — navigate to /process → page renders without error boundary, shows either graphic list in sidebar or empty-state message (no crash, no "Something went wrong")
+Scenario 2: [MOD-PROCESS-011] — data flow: GET /api/v1/process/graphics — navigate to /process, wait 3s, snapshot → UI shows either a graphic view, a graphic selection list, or an empty-state message. Must NOT show error boundary or loading spinner stuck indefinitely.
 
-Scenario 2: [MOD-PROCESS-002] Process module renders sidebar navigation — navigate to /process → left sidebar visible with "Views" or navigation section, no spinner stuck indefinitely
+## Zoom Controls (MOD-PROCESS-011)
 
-## Toolbar Buttons
+Scenario 3: [MOD-PROCESS-011] Zoom status bar is present — navigate to /process, snapshot → zoom percentage readout visible in status bar or toolbar area
 
-Scenario 3: [MOD-PROCESS-014] Print button visible in toolbar — navigate to /process, check toolbar area → "Print" button visible to the right of Export button (admin has process:export permission)
+Scenario 4: [MOD-PROCESS-011] Zoom controls visible in toolbar — navigate to /process, snapshot → zoom-in, zoom-out, or zoom-to-fit button visible in view toolbar
 
-Scenario 4: [MOD-PROCESS-014] Print button consistent styling — compare Print button appearance with adjacent Export/Fullscreen buttons → all toolbar buttons share consistent visual style
+Scenario 5: [MOD-PROCESS-011] Zoom max is not capped at 500% — navigate to /process, click zoom-in repeatedly, snapshot → zoom indicator shows value above 500% possible, or no hard 500% cap label visible. Note: pinch-to-zoom cannot be simulated in auto mode without touch hardware.
 
-Scenario 5: [MOD-PROCESS-005] Export button visible in toolbar — navigate to /process → "Export" or "Export ▾" split button visible in view toolbar
+## PointContextMenu (MOD-PROCESS-020)
 
-## Bookmark Creation Dialog
+Scenario 6: [MOD-PROCESS-020] Right-click on canvas area is stable — navigate to /process, right-click on canvas, snapshot → page remains stable (no crash, no error boundary)
 
-Scenario 6: [MOD-PROCESS-015] Bookmark star button visible in toolbar — navigate to /process → "★" or bookmark button visible in view toolbar
+Scenario 7: [MOD-PROCESS-020] PointContextMenu renders with required items when bound element right-clicked — if graphic loaded with bound elements, right-click → menu has "Point Detail" and "Copy Tag Name". Pass if visible; skip-note if no graphic loaded.
 
-Scenario 7: [MOD-PROCESS-015] Clicking bookmark button shows dialog — click bookmark (★) button → dialog/modal opens with Name input field and optional Description field
+Scenario 8: [MOD-PROCESS-020] Investigate Alarm absent for non-alarm elements — right-click non-alarm element → "Investigate Alarm" is NOT present in menu (isAlarm defaults false for non-alarm elements).
 
-## Kiosk Mode
+## Edge Cases
 
-Scenario 8: [MOD-PROCESS-019] Kiosk mode hides breadcrumb nav bar — navigate to /process?kiosk=true → breadcrumb navigation bar NOT visible
+Scenario 9: [MOD-PROCESS-011] Process module sidebar/graphic list visible — navigate to /process, snapshot → sidebar or graphic selection panel present
 
-Scenario 9: [MOD-PROCESS-019] Kiosk mode hides view toolbar — navigate to /process?kiosk=true → view toolbar (zoom controls, Live/Historical, Export, Print buttons) NOT visible
-
-Scenario 10: [MOD-PROCESS-007] Kiosk mode hides sidebar — navigate to /process?kiosk=true → left sidebar NOT visible
-
-Scenario 11: [MOD-PROCESS-007] Escape exits kiosk mode — navigate to /process?kiosk=true, press Escape → UI chrome returns (top bar, sidebar visible again)
-
-## Detached Window Route
-
-Scenario 12: [MOD-PROCESS-016] Detached process route renders — navigate to /detached/process/test-view-id → page loads (not 404, not blank, not error boundary)
-
-Scenario 13: [MOD-PROCESS-016] Detached route has no sidebar/top bar — on /detached/process/test-view-id → module switcher sidebar and application top bar NOT present
-
-## Minimap Toggle Persistence
-
-Scenario 14: [MOD-PROCESS-017] Minimap toggle button visible — navigate to /process → minimap toggle button visible in process view
-
-Scenario 15: [MOD-PROCESS-017] Minimap state persists across reload — toggle minimap collapsed, reload page → minimap remains in same collapsed/expanded state after reload
-
-## Design Token Colors (Theme Check)
-
-Scenario 16: [MOD-PROCESS-018] Process module renders without obvious color artifacts — navigate to /process in dark theme → no jarring hardcoded hex colors visible, status indicators use theme-appropriate colors
+Scenario 10: [MOD-PROCESS-011] Kiosk mode hides chrome — navigate to /process?kiosk=true, snapshot → no top navigation bar, canvas fills viewport or empty-state without chrome

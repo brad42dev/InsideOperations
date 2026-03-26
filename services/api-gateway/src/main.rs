@@ -569,7 +569,7 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::logs::list_segments).post(handlers::logs::create_segment),
         )
         .route("/api/logs/search", get(handlers::logs::search_logs))
-        .route("/api/logs/instances", get(handlers::logs::list_instances))
+        .route("/api/logs/instances", get(handlers::logs::list_instances).post(handlers::logs::create_instance))
         .route(
             "/api/logs/instances/:id/submit",
             post(handlers::logs::submit_instance),

@@ -51,3 +51,4 @@
 | MOD-DESIGNER-047 | Drag ghost not cancelled when Escape pressed during palette drag | pending | 0 |
 | MOD-DESIGNER-047 | Canvas drag-to-move element position could not be confirmed in UAT | pending | 0 |
 | MOD-DESIGNER-048 | Escape key cancel of in-progress canvas drag not verifiable | pending | 0 |
+| MOD-DESIGNER-049 | Canvas drag-to-move creates duplicate elements — mousedown misrouted to palette drop handler | pending | 0 |

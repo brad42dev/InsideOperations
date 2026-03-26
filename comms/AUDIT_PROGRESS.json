@@ -1009,8 +1009,8 @@
     {
       "id": "MOD-DESIGNER",
       "wave": 2,
-      "verified_since_last_audit": 5,
-      "tasks_uat_added": 2
+      "verified_since_last_audit": 6,
+      "tasks_uat_added": 3
     }
   ],
   "escalated": [],
@@ -1216,7 +1216,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -1448,7 +1448,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-003",
@@ -5798,7 +5798,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-037",
@@ -6067,7 +6067,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-029",
@@ -6139,7 +6139,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-043",
@@ -6151,7 +6151,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-044",
@@ -6163,7 +6163,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-045",
@@ -6175,7 +6175,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-046",
@@ -6187,7 +6187,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-011",
@@ -6196,7 +6196,7 @@
       "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-014",
@@ -6271,7 +6271,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-017",
@@ -6334,7 +6334,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-031",
@@ -6346,7 +6346,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-047",
@@ -6358,7 +6358,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-048",
@@ -6432,7 +6432,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-021",
@@ -6468,6 +6468,18 @@
       "depends_on": [
         "DD-32-022"
       ],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-049",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Canvas drag-to-move creates duplicate elements \u2014 mousedown misrouted to palette drop handler",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
       "audit_round": 9,
       "source": "uat",
       "uat_status": null

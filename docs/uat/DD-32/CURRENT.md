@@ -3,9 +3,9 @@ unit: DD-32
 date: 2026-03-26
 uat_mode: auto
 verdict: partial
-scenarios_tested: 10
-scenarios_passed: 8
-scenarios_failed: 2
+scenarios_tested: 9
+scenarios_passed: 5
+scenarios_failed: 4
 scenarios_skipped: 0
 ---
 
@@ -17,28 +17,26 @@ pass: Navigating to /console loads real implementation — workspace list, graph
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Renders | [DD-32-007] Console renders without error | ✅ pass | No error boundary; full workspace UI visible |
-| 2 | Notifications | [DD-32-019] Notifications (F8) label visible | ✅ pass | `region "Notifications (F8)"` present in accessibility tree on login page and /console |
-| 3 | Notifications | [DD-32-019] F8 key opens Notifications panel | ✅ pass | Pressing F8 opens `dialog "Notifications (F8)"` with "No notifications" empty state and timestamp |
-| 4 | Notifications | [DD-32-019] Escape closes Notifications panel | ✅ pass | Dialog gone from snapshot after Escape |
-| 5 | Toast — Success | [DD-32-017] Success toast on workspace creation | ❌ fail | Clicked "+" then "Done" — no success toast appeared in Notifications region; list remained empty |
-| 6 | Data Flow | [DD-32-017] GET /api/v1/workspaces — workspace list loads | ✅ pass | "Reactor Overview" workspace visible in tab bar and sidebar on page load |
-| 7 | Toast — Error Persist | [DD-32-018] Error toast does not auto-dismiss | ❌ fail | Error toast "Failed to create workspace" appeared, then auto-dismissed within ~3 seconds without user action |
-| 8 | Toast Region | [DD-32-007] Toast area present and functional | ✅ pass | Notification region exists; error toast appeared with dismiss (×) button |
-| 9 | Toast Max | [DD-32-007] Toast stack ≤ 3 visible at once | ✅ pass | Only 1 toast visible at a time (due to auto-dismiss bug, full overflow test not possible; no overflow observed) |
-| 10 | Toast History | [DD-32-010] F8 history shows past toasts | ✅ pass | F8 panel showed "Failed to create workspace" with timestamp after toast had auto-dismissed |
+| 1 | Page Renders | [DD-32-017][DD-32-020] Console renders without error | ✅ pass | No error boundary; full workspace UI visible |
+| 2 | Data Flow | [DD-32-017] GET /api/v1/workspaces | ✅ pass | "Reactor Overview" workspace visible in sidebar and tab bar on page load |
+| 3 | Toast — Success | [DD-32-017][DD-32-020] Success toast fires on Done click | ❌ fail | Clicked "+" then "Done" — no success toast appeared; Notifications region empty. Backend 404s on workspace creation, blocking success path |
+| 4 | Toast — Success | [DD-32-017][DD-32-020] Success toast message is descriptive | ❌ fail | No toast appeared at all — cannot verify message content |
+| 5 | Toast — Success | [DD-32-020] Success toast auto-dismisses after ~5s | ❌ fail | No success toast appeared to observe auto-dismiss behavior |
+| 6 | Toast — F8 History | [DD-32-020] F8 opens notification history panel | ✅ pass | F8 opens `dialog "Notifications (F8)"` showing past error toast with timestamp; Escape closes it |
+| 7 | Toast — Error Persist | [DD-32-018][DD-32-021] Error toast persists after 11s | ✅ pass | "Failed to create workspace" error toast still visible in Notifications region after 11 seconds |
+| 8 | Toast — Error Persist | [DD-32-018][DD-32-021] Error toast manually dismissable | ✅ pass | Clicking × on error toast removed it immediately; Notifications list empty after dismiss |
+| 9 | Toast — Regression | [DD-32-018][DD-32-021] Success toast auto-dismisses (regression) | ❌ fail | Backend unavailable — cannot trigger success toast; success auto-dismiss regression untestable |
 
 ## New Bug Tasks Created
 
-DD-32-020 — No success toast shown after workspace creation (Done button)
-DD-32-021 — Error toasts auto-dismiss instead of persisting until manually dismissed
+DD-32-022 — Success toast on workspace creation untestable — Done click silent; success path blocked by backend 404
+DD-32-023 — Success toast auto-dismiss regression unverifiable — backend returns 404 on workspace creation
 
 ## Screenshot Notes
 
 - ⚠️ Seed data status unknown (psql unavailable)
-- Backend API returns 404 for workspace creation (new UUID workspaces not found) — triggers error toast instead of success
-- Error toasts appear immediately on "+" click (before Done), then auto-dismiss within ~3 seconds
-- Clicking "Done" produces no toast at all (silent)
-- F8 history panel correctly persists notification history even after toasts auto-dismiss
-- "Clear all" button visible in F8 history panel header
-- Screenshot: dd32-scenario7-error-toast-dismissed.png (shows console after error toast auto-dismissed, notifications region empty)
+- Backend API returns 404 for all workspace creation calls (POST /api/v1/workspaces) — error toast fires correctly on "+" click, but "Done" click is silent
+- Error toast persistence now works correctly: "Failed to create workspace" persisted for 11+ seconds, dismissed only on manual × click (DD-32-018/021 ✅ FIXED)
+- F8 notification history panel works correctly: opens on F8, shows past error toast with timestamp and "Error" label, closes on Escape (DD-32-020 F8 path ✅)
+- Success path (workspace creation succeeds → success toast) cannot be verified without a working backend
+- Screenshots: fail-s3-no-success-toast-done.png, pass-s6-f8-history-panel.png

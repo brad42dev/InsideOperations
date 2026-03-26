@@ -120,6 +120,12 @@ pub struct EntryUpdate {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CreateInstanceRequest {
+    pub template_id: Uuid,
+    pub team_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct UpdateInstanceRequest {
     pub status: Option<String>,
     pub content_updates: Option<Vec<EntryUpdate>>,
@@ -536,6 +542,62 @@ pub async fn list_instances(
                 })
                 .collect();
             Json(PagedResponse::new(instances, pg, limit, total as u64)).into_response()
+        }
+    }
+}
+
+pub async fn create_instance(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateInstanceRequest>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "log:write") {
+        return IoError::Forbidden("log:write permission required".into()).into_response();
+    }
+
+    // Verify that the template exists
+    let template_exists: bool = match sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM log_templates WHERE id = $1 AND deleted_at IS NULL)",
+    )
+    .bind(body.template_id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(exists) => exists,
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    if !template_exists {
+        return IoError::NotFound(format!("Template {} not found", body.template_id)).into_response();
+    }
+
+    // Insert the new instance
+    let row = sqlx::query(
+        r#"
+        INSERT INTO log_instances (template_id, team_name, status)
+        VALUES ($1, $2, $3)
+        RETURNING id, template_id, status, team_name, created_at, completed_at
+        "#,
+    )
+    .bind(body.template_id)
+    .bind(&body.team_name)
+    .bind("pending")
+    .fetch_one(&state.db)
+    .await;
+
+    match row {
+        Err(e) => IoError::Database(e).into_response(),
+        Ok(r) => {
+            let instance = LogInstanceRow {
+                id: r.get("id"),
+                template_id: r.get("template_id"),
+                template_name: None,
+                status: r.get("status"),
+                team_name: r.get("team_name"),
+                created_at: r.get("created_at"),
+                completed_at: r.get("completed_at"),
+            };
+            (StatusCode::CREATED, Json(ApiResponse::ok(instance))).into_response()
         }
     }
 }

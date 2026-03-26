@@ -6,6 +6,8 @@ import type { WorkspaceLayout } from './types'
 import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
 import { useConsoleFavorites, CONSOLE_FAVORITES_KEYS } from '../../shared/hooks/useConsoleFavorites'
 import { useConsoleSectionViewMode, type SectionViewMode } from '../../shared/hooks/useConsoleSectionViewMode'
+import { useConsolePanelResize } from '../../shared/hooks/useConsolePanelResize'
+import { useConsoleSectionHeight } from '../../shared/hooks/useConsoleSectionHeight'
 import * as RadixContextMenu from '@radix-ui/react-context-menu'
 
 // ---------------------------------------------------------------------------
@@ -223,9 +225,26 @@ interface AccordionSectionProps {
   children: React.ReactNode
   viewMode?: SectionViewMode
   onViewModeChange?: (mode: SectionViewMode) => void
+  /** Controlled height for the content area when open; undefined = natural height */
+  sectionHeight?: number
+  /** Called on mousedown of the bottom resize handle */
+  onHeightResizeMouseDown?: (e: React.MouseEvent) => void
+  /** Whether a height resize is currently in progress */
+  isHeightResizing?: boolean
 }
 
-function AccordionSection({ title, open, onToggle, badge, children, viewMode, onViewModeChange }: AccordionSectionProps) {
+function AccordionSection({
+  title,
+  open,
+  onToggle,
+  badge,
+  children,
+  viewMode,
+  onViewModeChange,
+  sectionHeight,
+  onHeightResizeMouseDown,
+  isHeightResizing,
+}: AccordionSectionProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div
@@ -257,8 +276,45 @@ function AccordionSection({ title, open, onToggle, badge, children, viewMode, on
         )}
       </div>
       {open && (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {children}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: sectionHeight !== undefined ? 'hidden' : undefined,
+            height: sectionHeight,
+            minHeight: sectionHeight !== undefined ? sectionHeight : undefined,
+          }}
+        >
+          <div style={{ flex: 1, overflowY: sectionHeight !== undefined ? 'auto' : undefined }}>
+            {children}
+          </div>
+          {/* Bottom edge resize handle — drag to adjust section height */}
+          <div
+            role="separator"
+            aria-label={`Resize ${title} section height`}
+            onMouseDown={onHeightResizeMouseDown}
+            style={{
+              height: 5,
+              cursor: 'ns-resize',
+              flexShrink: 0,
+              background: isHeightResizing
+                ? 'var(--io-accent)'
+                : 'transparent',
+              borderTop: '1px solid var(--io-border)',
+              transition: 'background 0.1s',
+              userSelect: 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (!isHeightResizing) {
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isHeightResizing) {
+                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+              }
+            }}
+          />
         </div>
       )}
     </div>
@@ -1717,6 +1773,15 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
     points: false,
   })
 
+  // Panel width resize — right-edge drag handle, clamped 200–400px, persisted
+  const { panelWidth, onResizeHandleMouseDown: onPanelResizeMouseDown, isResizing: isPanelResizing } = useConsolePanelResize()
+
+  // Per-section height resize — bottom-edge drag handle, persisted
+  const { sectionHeight: workspacesHeight, onResizeHandleMouseDown: onWorkspacesHeightMouseDown, isResizing: isWorkspacesResizing } = useConsoleSectionHeight('workspaces', 200)
+  const { sectionHeight: graphicsHeight, onResizeHandleMouseDown: onGraphicsHeightMouseDown, isResizing: isGraphicsResizing } = useConsoleSectionHeight('graphics', 240)
+  const { sectionHeight: widgetsHeight, onResizeHandleMouseDown: onWidgetsHeightMouseDown, isResizing: isWidgetsResizing } = useConsoleSectionHeight('widgets', 160)
+  const { sectionHeight: pointsHeight, onResizeHandleMouseDown: onPointsHeightMouseDown, isResizing: isPointsResizing } = useConsoleSectionHeight('points', 200)
+
   // Workspace favorites — uses legacy hook for backward-compat with existing LS key
   const { favoriteIds: workspaceFavoriteIds, toggleFavorite: toggleWorkspaceFavorite } = useConsoleWorkspaceFavorites()
 
@@ -1775,7 +1840,15 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
   }
 
   return (
-    <div style={panel}>
+    <div
+      style={{
+        ...panel,
+        width: panelWidth,
+        minWidth: panelWidth,
+        position: 'relative',
+        cursor: isPanelResizing ? 'col-resize' : undefined,
+      }}
+    >
       {/* Panel header */}
       <div
         style={{
@@ -1821,6 +1894,9 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           badge={workspaces.length}
           viewMode={workspacesViewMode}
           onViewModeChange={setWorkspacesViewMode}
+          sectionHeight={workspacesHeight}
+          onHeightResizeMouseDown={onWorkspacesHeightMouseDown}
+          isHeightResizing={isWorkspacesResizing}
         >
           <WorkspacesSection
             workspaces={workspaces}
@@ -1841,6 +1917,9 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           onToggle={() => toggleSection('graphics')}
           viewMode={graphicsViewMode}
           onViewModeChange={setGraphicsViewMode}
+          sectionHeight={graphicsHeight}
+          onHeightResizeMouseDown={onGraphicsHeightMouseDown}
+          isHeightResizing={isGraphicsResizing}
         >
           <GraphicsSection
             onQuickPlace={onQuickPlace}
@@ -1856,6 +1935,9 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           onToggle={() => toggleSection('widgets')}
           viewMode={widgetsViewMode}
           onViewModeChange={setWidgetsViewMode}
+          sectionHeight={widgetsHeight}
+          onHeightResizeMouseDown={onWidgetsHeightMouseDown}
+          isHeightResizing={isWidgetsResizing}
         >
           <WidgetsSection
             onQuickPlace={onQuickPlace}
@@ -1869,6 +1951,9 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           title="Points"
           open={openSections.points}
           onToggle={() => toggleSection('points')}
+          sectionHeight={pointsHeight}
+          onHeightResizeMouseDown={onPointsHeightMouseDown}
+          isHeightResizing={isPointsResizing}
         >
           <PointsSection
             favoriteIds={pointFavoriteIds}
@@ -1890,6 +1975,35 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
       >
         Drag items onto panes to assign them
       </div>
+
+      {/* Right-edge resize handle — drag to adjust panel width (200–400px) */}
+      <div
+        role="separator"
+        aria-label="Resize assets palette width"
+        onMouseDown={onPanelResizeMouseDown}
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: 5,
+          height: '100%',
+          cursor: 'col-resize',
+          background: isPanelResizing ? 'var(--io-accent)' : 'transparent',
+          transition: 'background 0.1s',
+          zIndex: 10,
+          userSelect: 'none',
+        }}
+        onMouseEnter={(e) => {
+          if (!isPanelResizing) {
+            ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isPanelResizing) {
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }
+        }}
+      />
     </div>
   )
 }

@@ -1,0 +1,171 @@
+===============================================================================
+UAT SCENARIO 9 — Font Family Control in WYSIWYG Toolbar
+===============================================================================
+
+Unit:     DD-13
+Scenario: 9 [DD-13-016]
+Date:     2026-03-26
+Mode:     Human-Assisted (UAT Agent)
+Verdict:  FAIL
+
+===============================================================================
+CRITICAL BUG IDENTIFIED
+===============================================================================
+
+The Log module is completely non-functional due to a database constraint 
+mismatch that prevents template and instance creation.
+
+BUG DETAILS:
+  File: services/api-gateway/src/handlers/logs.rs
+  Line: 584
+  Issue: .bind("pending") violates the new database CHECK constraint
+  
+CURRENT CODE (BROKEN):
+  .bind("pending")
+  
+REQUIRED FIX:
+  .bind("draft")
+
+ROOT CAUSE:
+  Migration 20260322000002_log_instance_status_states.up.sql changed the
+  log_instances.status constraint from:
+    ('pending', 'in_progress', 'completed')
+  to:
+    ('draft', 'in_progress', 'submitted', 'reviewed')
+  
+  But the handler code was not updated to use the new status values.
+
+IMPACT:
+  - Cannot create log templates (INSERT fails)
+  - Cannot create log instances (INSERT fails)
+  - Cannot access LogEditor
+  - Cannot test font-family control
+  - All DD-13 scenarios are blocked
+
+===============================================================================
+TEST EXECUTION
+===============================================================================
+
+The test proceeded through the following steps:
+
+1. Navigate to /log ............................ PASS
+   - Module loads successfully
+   - All UI elements present
+   
+2. Click Templates tab ......................... PASS
+   - Tab switches correctly
+   - Shows "No templates yet"
+   
+3. Click "New Template" ........................ PASS
+   - Template editor form opens
+   - All form fields present
+   
+4. Enter template name ......................... PASS
+   - Field accepts text input
+   
+5. Click "+ New Segment" ....................... PASS
+   - Segment editor dialog appears
+   - Type dropdown shows options
+   
+6. Select WYSIWYG type ......................... PASS
+   - Type pre-selected (good UX)
+   
+7. Enter segment name .......................... PASS
+   - Field accepts text input
+   
+8. Click "Create Segment" ....................... PASS
+   - Segment added to list with UUID
+   
+9. Click "Save Template" ....................... FAIL
+   - Database INSERT fails
+   - Error: INTERNAL_ERROR (constraint violation)
+   - User receives no error notification (silent failure)
+   
+10. Verify template persisted .................. FAIL
+    - Templates tab still shows "No templates yet"
+    - Template was not saved to database
+
+===============================================================================
+FRONTEND ANALYSIS
+===============================================================================
+
+LogEditor.tsx (Font-Family Control) — ✅ CORRECT
+
+Location:  frontend/src/pages/log/LogEditor.tsx (lines 267-294)
+Component: Select dropdown with 6 font options
+Extension: Tiptap FontFamily (correctly imported at line 14)
+Handler:   editor.chain().focus().setFontFamily(value).run()
+Status:    Code complete and correct
+
+The frontend implementation is perfect. The bug is purely backend-side.
+
+===============================================================================
+RECOMMENDATIONS
+===============================================================================
+
+IMMEDIATE (Critical - 1 minute fix):
+  1. Edit: services/api-gateway/src/handlers/logs.rs line 584
+  2. Change: .bind("pending") → .bind("draft")
+  3. Rebuild: cargo build -p io-api-gateway
+  4. Test: npm run test (if available) or manual verification
+
+VERIFICATION AFTER FIX:
+  1. Create template: /log → Templates → New Template → Save
+  2. Create instance: /log → Active Logs → Create Entry
+  3. Open LogEditor: Should load without errors
+  4. Test font control: Select different fonts, verify text changes
+  5. Browser console: Check for any JavaScript errors
+
+POST-FIX TESTING:
+  Re-run: uat human DD-13
+  Expected: All scenarios should pass
+
+===============================================================================
+RELATED ISSUES
+===============================================================================
+
+Recommend also checking for similar status value issues in other handlers:
+
+  grep -r '"pending"\|"completed"' services/api-gateway/src/handlers/
+
+Found in:
+  - exports.rs:609 (checks status != "completed")
+  - reports.rs:202 (creates JSON with "status": "completed")
+  - reports.rs:359 (checks status != "completed")
+  - rounds.rs:725 (checks status == "completed" || "missed")
+  - opc_certs.rs:71 (uses "pending" for new certs)
+  - mobile.rs:126 (checks status == "completed" || "missed")
+
+Most of these appear to be checking different tables with different
+constraints, so they may be safe. However, recommend verification.
+
+===============================================================================
+DESIGN DOC NOTES
+===============================================================================
+
+The design-docs/04_DATABASE_DESIGN.md (lines 2501-2502) still shows the
+OLD constraint values:
+
+  status VARCHAR(20) NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'in_progress', 'completed')),
+
+This should be updated to match the migration:
+
+  status VARCHAR(20) NOT NULL DEFAULT 'draft'
+      CHECK (status IN ('draft', 'in_progress', 'submitted', 'reviewed')),
+
+This ensures documentation matches the actual database schema.
+
+===============================================================================
+Test Environment:
+  - OS: Linux 6.8.0-106-generic
+  - Frontend: Vite dev server on port 5173
+  - Backend: Rust API Gateway on port 3000
+  - Database: PostgreSQL 16 + TimescaleDB 2.13
+  - User: admin (full permissions)
+
+Test Duration: ~30 minutes
+Test Status: Blocked by critical bug
+Severity: CRITICAL
+
+===============================================================================
