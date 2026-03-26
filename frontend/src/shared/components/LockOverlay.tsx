@@ -121,7 +121,7 @@ async function extractRetryAfter(err: unknown): Promise<number> {
 // ---------------------------------------------------------------------------
 
 export default function LockOverlay() {
-  const { isLocked, lockMeta, lockImmediate, unlock, clearLockImmediate } = useUiStore()
+  const { isLocked, lockMeta, lockImmediate, unlock, clearLockImmediate, setLockMeta } = useUiStore()
   const { user, logout } = useAuthStore()
 
   const { authProvider, authProviderName, hasPin } = lockMeta
@@ -169,6 +169,10 @@ export default function LockOverlay() {
   // Sync kiosk ref on each render
   isKioskRef.current = useUiStore.getState().isKiosk
 
+  // Track the previous isLocked value so the lock-state effect can distinguish
+  // a fresh lock transition from a re-run caused by hasPin updating mid-lock.
+  const prevIsLockedRef = useRef(isLocked)
+
   // ---------------------------------------------------------------------------
   // Overlay visibility helpers
   // ---------------------------------------------------------------------------
@@ -201,8 +205,14 @@ export default function LockOverlay() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
+    const wasLocked = prevIsLockedRef.current
+    prevIsLockedRef.current = isLocked
+
     if (isLocked) {
-      // Determine initial unlock mode from auth provider and hasPin
+      // Determine unlock mode from auth provider and hasPin.
+      // This also runs when hasPin changes mid-lock (after the re-fetch effect
+      // updates lockMeta), but we guard phase changes so the overlay is not
+      // accidentally hidden on those secondary runs.
       if (authProvider !== 'local') {
         // SSO account: show PIN if they have one, otherwise SSO button directly
         setUnlockMode(hasPin ? 'pin' : 'sso')
@@ -210,27 +220,34 @@ export default function LockOverlay() {
         // Local account: PIN takes priority over password if set
         setUnlockMode(hasPin ? 'pin' : 'password')
       }
-      // Reset card state
-      setInputValue('')
-      setErrorMsg('')
-      setInputDisabled(false)
-      setCountdown(0)
-      setPinFailures(0)
-      setForcedSignout(false)
-      setSsoPopupBlocked(false)
-      setIsSubmitting(false)
-      // Clean up any running countdown
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
 
-      if (lockImmediate) {
-        // Manual lock (e.g. lock button click) — show overlay immediately
-        clearLockImmediate()
-        setPhase('entering')
-        setTimeout(() => setPhase('visible'), FADE_IN_MS)
-        autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS)
-      } else {
-        // Passive lock (idle timeout, WS event) — overlay stays hidden until interaction
-        setPhase('hidden')
+      // Only reset card state and update phase on a fresh lock transition.
+      // When the effect re-runs solely because hasPin changed (mid-lock),
+      // wasLocked is already true — skip the reset to avoid wiping user input
+      // and to avoid incorrectly setting phase to 'hidden'.
+      if (!wasLocked) {
+        // Reset card state
+        setInputValue('')
+        setErrorMsg('')
+        setInputDisabled(false)
+        setCountdown(0)
+        setPinFailures(0)
+        setForcedSignout(false)
+        setSsoPopupBlocked(false)
+        setIsSubmitting(false)
+        // Clean up any running countdown
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+
+        if (lockImmediate) {
+          // Manual lock (e.g. lock button click) — show overlay immediately
+          clearLockImmediate()
+          setPhase('entering')
+          setTimeout(() => setPhase('visible'), FADE_IN_MS)
+          autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS)
+        } else {
+          // Passive lock (idle timeout, WS event) — overlay stays hidden until interaction
+          setPhase('hidden')
+        }
       }
     } else {
       // Unlocked — clean up all timers and hide overlay
@@ -245,6 +262,41 @@ export default function LockOverlay() {
       setPhase('hidden')
     }
   }, [isLocked, authProvider, hasPin, lockImmediate, clearLockImmediate, dismissOverlay])
+
+  // ---------------------------------------------------------------------------
+  // Re-fetch has_pin when the session is locked.
+  // The boot-time session check may have cached has_pin=false before the user
+  // set their PIN. Re-fetching on every lock ensures the overlay shows the
+  // correct input (PIN vs. password) even if PIN was set after app load.
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!isLocked) return
+    let cancelled = false
+    async function refreshHasPin() {
+      try {
+        const result = await authApi.sessionCheck()
+        if (cancelled) return
+        if (!result.success) return
+        const session = result.data
+        // Update the store so subsequent renders and other components see the
+        // correct has_pin value (e.g. if PIN was set after app load).
+        // The lock-state effect above depends on hasPin and will re-run to
+        // update unlockMode; the wasLocked guard in that effect ensures it does
+        // NOT reset card state or overlay phase on this secondary run.
+        setLockMeta({
+          authProvider: session.auth_provider,
+          authProviderName: session.auth_provider_name ?? '',
+          hasPin: session.has_pin,
+        })
+      } catch {
+        // Best-effort — lock overlay already visible; keep existing lockMeta.
+      }
+    }
+    void refreshHasPin()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocked])
 
   // ---------------------------------------------------------------------------
   // Interaction listeners — click and keypress trigger overlay.
