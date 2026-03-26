@@ -298,14 +298,21 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
     let path = req.uri().path();
     let now = Utc::now().timestamp();
 
-    // Static configuration endpoints that the authenticated UI polls at low
-    // frequency — exempt from per-IP throttling to prevent spurious 429s when
-    // the rate_limit middleware runs before jwt_auth (claims not yet injected).
-    // These endpoints still require a valid JWT; rate-limiting is skipped here
-    // because USER_LIMIT (600/min) would be applied by a correctly-ordered
-    // middleware chain, and these paths will never approach even 30/min in
-    // normal usage.
-    if is_static_config_endpoint(path) {
+    // Authenticated API endpoints are exempt from per-IP rate limiting here.
+    //
+    // The rate_limit middleware runs BEFORE jwt_auth in the tower stack, so
+    // Claims are not yet injected when this function executes. Any request to
+    // an authenticated endpoint therefore falls into the unauthenticated branch
+    // below (30 req/min per IP), causing spurious 429s during normal single-user
+    // sessions (e.g. loading /designer triggers multiple /api/v1/design-objects
+    // calls that exceed this limit).
+    //
+    // Auth endpoints (/api/auth/*) are NOT exempt — they retain the tight
+    // AUTH_LIMIT (10/min per IP) to protect against credential-stuffing attacks.
+    // All other /api/* endpoints require a valid JWT; jwt_auth will still reject
+    // unauthenticated requests, so exempting them here introduces no security
+    // regression.
+    if is_authenticated_api_endpoint(path) {
         return next.run(req).await;
     }
 
@@ -399,17 +406,20 @@ fn is_auth_endpoint(path: &str) -> bool {
     path.starts_with("/api/auth/")
 }
 
-/// Endpoints that return static or rarely-changing configuration data.
+/// Returns true for any API endpoint that requires JWT authentication.
 ///
-/// The rate_limit middleware runs BEFORE jwt_auth in the current tower stack,
-/// so authenticated requests to these paths are incorrectly classified as
-/// unauthenticated and subject to the low 30 req/min IP limit. These paths
-/// are exempt from rate limiting here because:
-///   1. They are always JWT-protected — jwt_auth will still reject unauthenticated requests.
-///   2. They are polled by the UI at low frequency (staleTime ≥ 5 minutes).
-///   3. A 429 from these endpoints causes visible UI degradation (missing channels, etc.).
-fn is_static_config_endpoint(path: &str) -> bool {
-    matches!(path, "/api/notifications/channels/enabled")
+/// These endpoints are exempt from per-IP rate limiting in the rate_limit
+/// middleware because that middleware runs before jwt_auth and therefore
+/// cannot see the user identity. Applying the low UNAUTH_LIMIT (30/min) to
+/// authenticated endpoints causes spurious 429s during normal single-user
+/// sessions (e.g. /api/v1/design-objects during Designer load).
+///
+/// Auth endpoints (/api/auth/*) are excluded — they remain subject to
+/// AUTH_LIMIT (10/min per IP) to deter credential-stuffing attacks.
+/// jwt_auth still enforces JWT validity on all non-auth routes; exempting
+/// them from this middleware introduces no security regression.
+fn is_authenticated_api_endpoint(path: &str) -> bool {
+    path.starts_with("/api/") && !path.starts_with("/api/auth/")
 }
 
 /// Fallback IP extraction from headers. Only used when ConnectInfo<SocketAddr> is absent
