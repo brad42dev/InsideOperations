@@ -880,12 +880,14 @@ row_id = int(row_id_str)
 try:
     data = json.loads(Path(usage_file).read_text())
     u = data.get('usage', {})
-    # Total context = fresh input + cache hits; cache_creation = initial injection
+    # input_tok = cumulative session total (stored for cost tracking, NOT context fill)
     input_tok  = u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0) + u.get('cache_creation_input_tokens', 0)
     output_tok = u.get('output_tokens', 0)
     ctx_win    = data.get('modelUsage', {})
     ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    # util_pct uses final-turn input (actual context fill), not cumulative session total
+    last_turn  = data.get('last_turn_input_tokens') or 0
+    util_pct   = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     compactions = data.get('compaction_count', 0)
     num_turns   = data.get('num_turns', 0)
     con = sqlite3.connect(db, timeout=10)
@@ -1142,7 +1144,8 @@ try:
     output_tok = u.get('output_tokens', 0)
     ctx_win    = data.get('modelUsage', {})
     ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    last_turn  = data.get('last_turn_input_tokens') or 0
+    util_pct   = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     verdict = 'unknown'
     try:
         cf = Path(uat_dir) / unit_id / 'CURRENT.md'
@@ -1299,7 +1302,8 @@ try:
     output_tok = u.get('output_tokens', 0)
     ctx_win = data.get('modelUsage', {})
     ctx_win = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    last_turn = data.get('last_turn_input_tokens') or 0
+    util_pct = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     compactions = data.get('compaction_count', 0)
     num_turns   = data.get('num_turns', 0)
     task_id = f'AUDIT-{unit_id}'
@@ -1810,8 +1814,8 @@ try:
                  WHEN task_id LIKE 'SPEC-%'  THEN 'spec'
                  ELSE 'impl' END AS atype,
             COUNT(*) AS runs,
-            ROUND(AVG(context_injection_tokens))  AS avg_input,
-            ROUND(AVG(context_utilization_pct),1) AS avg_util,
+            ROUND(AVG(context_injection_tokens))  AS avg_session_tokens,
+            ROUND(AVG(context_utilization_pct),1) AS avg_ctx_fill_pct,
             SUM(CASE WHEN result IN ('verified','pass','audit','triage') THEN 1 ELSE 0 END) AS successes,
             SUM(COALESCE(compaction_count,0)) AS total_compactions,
             ROUND(AVG(num_turns),1) AS avg_turns
@@ -1823,13 +1827,13 @@ try:
     if type_rows:
         print(f"")
         print(f"Agent Context Usage")
-        for atype, runs, avg_input, avg_util, successes, total_compactions, avg_turns in type_rows:
-            avg_k   = f"{int(avg_input)//1000}K" if avg_input else "?"
-            util_s  = f"  avg_ctx={avg_util:.1f}%" if avg_util is not None else ""
+        for atype, runs, avg_session_tokens, avg_ctx_fill_pct, successes, total_compactions, avg_turns in type_rows:
+            avg_k   = f"{int(avg_session_tokens)//1000}K" if avg_session_tokens else "?"
+            ctx_s   = f"  ctx_fill={avg_ctx_fill_pct:.1f}%" if avg_ctx_fill_pct is not None else ""
             pass_rt = f"  pass_rate={int(successes*100//runs)}%" if runs else ""
             cmp_s   = f"  compactions={int(total_compactions)}" if total_compactions else ""
             trn_s   = f"  avg_turns={avg_turns}" if avg_turns else ""
-            print(f"  {atype:6s}  runs={runs}  avg_input={avg_k} tokens{util_s}{pass_rt}{cmp_s}{trn_s}")
+            print(f"  {atype:6s}  runs={runs}  session_tokens={avg_k}{ctx_s}{pass_rt}{cmp_s}{trn_s}")
 
     # UAT failure rate by context band
     band_rows = con3.execute("""
@@ -2078,7 +2082,8 @@ try:
     output_tok = u.get('output_tokens', 0)
     ctx_win    = data.get('modelUsage', {})
     ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    last_turn  = data.get('last_turn_input_tokens') or 0
+    util_pct   = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     verdict = 'unknown'
     try:
         cf = Path(uat_dir) / unit_id / 'CURRENT.md'
@@ -2245,7 +2250,8 @@ try:
     output_tok = u.get('output_tokens', 0)
     ctx_win    = data.get('modelUsage', {})
     ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    last_turn  = data.get('last_turn_input_tokens') or 0
+    util_pct   = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     verdict = 'unknown'
     try:
         cf = Path(uat_dir) / unit_id / 'CURRENT.md'
@@ -2351,7 +2357,8 @@ try:
     output_tok = u.get('output_tokens', 0)
     ctx_win = data.get('modelUsage', {})
     ctx_win = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    last_turn = data.get('last_turn_input_tokens') or 0
+    util_pct = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     task_id = f'BUG-{int(time.time())}'
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
@@ -2436,7 +2443,8 @@ try:
     output_tok = u.get('output_tokens', 0)
     ctx_win = data.get('modelUsage', {})
     ctx_win = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    last_turn = data.get('last_turn_input_tokens') or 0
+    util_pct = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     task_id = f'SPEC-{int(time.time())}'
     con = sqlite3.connect(db, timeout=10)
     con.execute('PRAGMA journal_mode=WAL')
@@ -2711,7 +2719,8 @@ try:
     output_tok = u.get('output_tokens', 0)
     ctx_win    = data.get('modelUsage', {})
     ctx_win    = next(iter(ctx_win.values()), {}).get('contextWindow', 200000) if ctx_win else 200000
-    util_pct   = round(input_tok / ctx_win * 100, 1) if input_tok > 0 else None
+    last_turn  = data.get('last_turn_input_tokens') or 0
+    util_pct   = round(last_turn / ctx_win * 100, 1) if last_turn > 0 else None
     verdict = 'unknown'
     try:
         cf = Path(uat_dir) / unit_id / 'CURRENT.md'
