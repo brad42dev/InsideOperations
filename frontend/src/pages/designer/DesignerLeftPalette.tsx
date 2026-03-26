@@ -299,25 +299,27 @@ function ShapeTile({
     el.setAttribute('data-dragging', 'true')
 
     const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed;
-      pointer-events: none;
-      z-index: 9999;
-      opacity: 0.7;
-      padding: 4px 8px;
-      background: var(--io-accent);
-      color: #09090b;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-      transform: translate(-50%, -50%);
-      left: ${e.clientX}px;
-      top: ${e.clientY}px;
-    `
-    ghost.textContent = item.label
-    ghost.id = 'io-drag-ghost'
+    ghost.id = 'io-canvas-drag-ghost'
     ghost.setAttribute('data-drag-ghost', 'true')
+    ghost.style.cssText = [
+      'position:fixed',
+      'pointer-events:none',
+      'z-index:9999',
+      'opacity:0.7',
+      'padding:4px 8px',
+      'background:var(--io-accent)',
+      'color:#09090b',
+      'border-radius:4px',
+      'font-size:11px',
+      'font-weight:600',
+      'white-space:nowrap',
+      'transform:translate(-50%,-50%)',
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      'display:block',
+      'visibility:visible',
+    ].join(';')
+    ghost.textContent = item.label
     document.body.appendChild(ghost)
 
     const onMove = (ev: MouseEvent) => {
@@ -339,8 +341,8 @@ function ShapeTile({
       }))
     }
 
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('mousemove', onMove, true)
+    document.addEventListener('mouseup', onUp, true)
   }, [item.id, item.label])
 
   function handleAddToCanvas() {
@@ -645,14 +647,26 @@ function DisplayElementTile({
     if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
-      padding: 4px 8px; background: var(--io-accent); color: #09090b;
-      border-radius: 4px; font-size: 11px; font-weight: 600;
-      transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
-    `
-    ghost.textContent = label
+    ghost.id = 'io-canvas-drag-ghost'
     ghost.setAttribute('data-drag-ghost', 'true')
+    ghost.style.cssText = [
+      'position:fixed',
+      'pointer-events:none',
+      'z-index:9999',
+      'opacity:0.7',
+      'padding:4px 8px',
+      'background:var(--io-accent)',
+      'color:#09090b',
+      'border-radius:4px',
+      'font-size:11px',
+      'font-weight:600',
+      'transform:translate(-50%,-50%)',
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      'display:block',
+      'visibility:visible',
+    ].join(';')
+    ghost.textContent = label
     document.body.appendChild(ghost)
 
     const onMove = (ev: MouseEvent) => {
@@ -670,8 +684,8 @@ function DisplayElementTile({
         detail: { elementType: type, x: ev.clientX, y: ev.clientY },
       }))
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('mousemove', onMove, true)
+    document.addEventListener('mouseup', onUp, true)
   }, [type, label])
 
   function handlePlaceAtCenter() {
@@ -937,23 +951,27 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
     el.setAttribute('data-dragging', 'true')
 
     const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999;
-      opacity: 0.7;
-      padding: 4px 8px;
-      background: var(--io-accent);
-      color: #09090b;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-      transform: translate(-50%, -50%);
-      left: ${e.clientX}px;
-      top: ${e.clientY}px;
-    `
-    ghost.textContent = item.name
-    ghost.id = 'io-drag-ghost'
+    ghost.id = 'io-canvas-drag-ghost'
     ghost.setAttribute('data-drag-ghost', 'true')
+    ghost.style.cssText = [
+      'position:fixed',
+      'pointer-events:none',
+      'z-index:9999',
+      'opacity:0.7',
+      'padding:4px 8px',
+      'background:var(--io-accent)',
+      'color:#09090b',
+      'border-radius:4px',
+      'font-size:11px',
+      'font-weight:600',
+      'white-space:nowrap',
+      'transform:translate(-50%,-50%)',
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      'display:block',
+      'visibility:visible',
+    ].join(';')
+    ghost.textContent = item.name
     document.body.appendChild(ghost)
 
     const onMove = (ev: MouseEvent) => {
@@ -974,8 +992,8 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
       }))
     }
 
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('mousemove', onMove, true)
+    document.addEventListener('mouseup', onUp, true)
   }, [item.shape_id, item.name])
 
   function handleAddToCanvas() {
@@ -1188,14 +1206,26 @@ function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolea
     if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
-      padding: 4px 8px; background: var(--io-accent); color: #09090b;
-      border-radius: 4px; font-size: 11px; font-weight: 600;
-      transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
-    `
-    ghost.textContent = item.name
+    ghost.id = 'io-canvas-drag-ghost'
     ghost.setAttribute('data-drag-ghost', 'true')
+    ghost.style.cssText = [
+      'position:fixed',
+      'pointer-events:none',
+      'z-index:9999',
+      'opacity:0.7',
+      'padding:4px 8px',
+      'background:var(--io-accent)',
+      'color:#09090b',
+      'border-radius:4px',
+      'font-size:11px',
+      'font-weight:600',
+      'transform:translate(-50%,-50%)',
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      'display:block',
+      'visibility:visible',
+    ].join(';')
+    ghost.textContent = item.name
     document.body.appendChild(ghost)
     const onMove = (ev: MouseEvent) => {
       ghost.style.left = `${ev.clientX}px`
@@ -1209,8 +1239,8 @@ function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolea
         detail: { stencilId: item.id, x: ev.clientX, y: ev.clientY },
       }))
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('mousemove', onMove, true)
+    document.addEventListener('mouseup', onUp, true)
   }, [item.id, item.name])
 
   function handleExportSvg() {
@@ -1393,14 +1423,26 @@ function WidgetTile({
     if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.7;
-      padding: 4px 8px; background: var(--io-accent); color: #09090b;
-      border-radius: 4px; font-size: 11px; font-weight: 600;
-      transform: translate(-50%,-50%); left:${e.clientX}px; top:${e.clientY}px;
-    `
-    ghost.textContent = label
+    ghost.id = 'io-canvas-drag-ghost'
     ghost.setAttribute('data-drag-ghost', 'true')
+    ghost.style.cssText = [
+      'position:fixed',
+      'pointer-events:none',
+      'z-index:9999',
+      'opacity:0.7',
+      'padding:4px 8px',
+      'background:var(--io-accent)',
+      'color:#09090b',
+      'border-radius:4px',
+      'font-size:11px',
+      'font-weight:600',
+      'transform:translate(-50%,-50%)',
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      'display:block',
+      'visibility:visible',
+    ].join(';')
+    ghost.textContent = label
     document.body.appendChild(ghost)
     const onMove = (ev: MouseEvent) => {
       ghost.style.left = `${ev.clientX}px`
@@ -1414,8 +1456,8 @@ function WidgetTile({
         detail: { widgetType: type, x: ev.clientX, y: ev.clientY },
       }))
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('mousemove', onMove, true)
+    document.addEventListener('mouseup', onUp, true)
   }, [type, label])
 
   function handlePlaceAtCenter() {

@@ -6288,7 +6288,7 @@
       "unit": "DD-13",
       "title": "Add Tiptap paste-from-office and font-family extensions to WYSIWYG editor",
       "priority": "medium",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "answer_file": null,

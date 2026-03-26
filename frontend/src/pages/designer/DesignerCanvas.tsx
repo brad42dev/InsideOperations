@@ -3579,7 +3579,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
     const cy = (e.clientY - rect.top  - vp.panY) / vp.zoom
     const hitId = hitTest(cx, cy)
 
-    // ── Test mode: suppress edit-mode menu; show PointContextMenu for bound elements ──
+    // ── Test mode: suppress edit-mode menu; show PointContextMenu for display elements ──
     if (testMode) {
       e.preventDefault()
       if (hitId && docRef.current) {
@@ -3597,10 +3597,8 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
         const hitNode = findNode(docRef.current.children, hitId)
         if (hitNode?.type === 'display_element') {
           const de = hitNode as DisplayElement
-          const pointId = de.binding.pointId
-          if (pointId) {
-            setPointCtxMenu({ pointId, tagName: pointId, x: e.clientX, y: e.clientY })
-          }
+          const pointId = de.binding.pointId || ''
+          setPointCtxMenu({ pointId, tagName: pointId, x: e.clientX, y: e.clientY })
         }
       }
       // Do not set ctxNodeId — keeps the Radix edit-mode context menu from opening
