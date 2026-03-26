@@ -18,20 +18,49 @@ export interface ToastItem {
   duration?: number
 }
 
+export interface ToastHistoryItem extends Omit<ToastItem, 'action' | 'duration'> {
+  firedAt: number // Date.now() when the toast was shown
+}
+
+// Maximum number of history entries to retain
+const HISTORY_MAX = 50
+
 interface ToastState {
   toasts: ToastItem[]
+  history: ToastHistoryItem[]
+  notifPanelOpen: boolean
   show: (item: Omit<ToastItem, 'id'>) => void
   dismiss: (id: string) => void
+  openNotifPanel: () => void
+  closeNotifPanel: () => void
+  toggleNotifPanel: () => void
+  clearHistory: () => void
 }
 
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
+  history: [],
+  notifPanelOpen: false,
   show: (item) => {
     const id = uuidv4()
-    set((s) => ({ toasts: [...s.toasts, { ...item, id }] }))
+    const historyEntry: ToastHistoryItem = {
+      id,
+      title: item.title,
+      description: item.description,
+      variant: item.variant,
+      firedAt: Date.now(),
+    }
+    set((s) => ({
+      toasts: [...s.toasts, { ...item, id }],
+      history: [historyEntry, ...s.history].slice(0, HISTORY_MAX),
+    }))
   },
   dismiss: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  openNotifPanel: () => set({ notifPanelOpen: true }),
+  closeNotifPanel: () => set({ notifPanelOpen: false }),
+  toggleNotifPanel: () => set((s) => ({ notifPanelOpen: !s.notifPanelOpen })),
+  clearHistory: () => set({ history: [] }),
 }))
 
 export function showToast(item: Omit<ToastItem, 'id'>) {
