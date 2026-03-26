@@ -1219,6 +1219,7 @@ function HistoryPanel() {
 function TemplatesPanel() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const canManageTemplates = usePermission('alerts:manage_templates')
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<Partial<CreateTemplatePayload>>({})
   const [varDefs, setVarDefs] = useState<TemplateVariable[]>([])
@@ -1299,21 +1300,23 @@ function TemplatesPanel() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 15 }}>Notification Templates</h3>
-        <button
-          onClick={() => setShowCreate(true)}
-          style={{
-            padding: '6px 14px',
-            borderRadius: 6,
-            border: '1px solid var(--io-accent)',
-            background: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
-            color: 'var(--io-accent, #4a9eff)',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          + New Template
-        </button>
+        {canManageTemplates && (
+          <button
+            onClick={() => setShowCreate(true)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 6,
+              border: '1px solid var(--io-accent)',
+              background: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
+              color: 'var(--io-accent, #4a9eff)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            + New Template
+          </button>
+        )}
       </div>
 
       {showCreate && (
@@ -1539,23 +1542,27 @@ function TemplatesPanel() {
                     }
                   `}</style>
 
-                  {/* Primary: Edit */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemStyle}
-                    onSelect={() => setShowCreate(true)}
-                  >
-                    Edit
-                  </ContextMenuPrimitive.Item>
+                  {/* Primary: Edit — manage_templates only */}
+                  {canManageTemplates && (
+                    <ContextMenuPrimitive.Item
+                      style={ctxMenuItemStyle}
+                      onSelect={() => setShowCreate(true)}
+                    >
+                      Edit
+                    </ContextMenuPrimitive.Item>
+                  )}
 
-                  {/* Secondary: Duplicate */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemStyle}
-                    onSelect={() => duplicateMutation.mutate(tpl)}
-                  >
-                    Duplicate
-                  </ContextMenuPrimitive.Item>
+                  {/* Secondary: Duplicate — manage_templates only */}
+                  {canManageTemplates && (
+                    <ContextMenuPrimitive.Item
+                      style={ctxMenuItemStyle}
+                      onSelect={() => duplicateMutation.mutate(tpl)}
+                    >
+                      Duplicate
+                    </ContextMenuPrimitive.Item>
+                  )}
 
-                  {/* Secondary: Send Alert from Template */}
+                  {/* Secondary: Send Alert from Template — always visible (alerts:send) */}
                   <ContextMenuPrimitive.Item
                     style={ctxMenuItemStyle}
                     onSelect={() => navigate(`/alerts?template=${tpl.id}`)}
@@ -1563,7 +1570,7 @@ function TemplatesPanel() {
                     Send Alert from Template
                   </ContextMenuPrimitive.Item>
 
-                  {/* Secondary: Test Send */}
+                  {/* Secondary: Test Send — always visible (alerts:send) */}
                   <ContextMenuPrimitive.Item
                     style={ctxMenuItemStyle}
                     onSelect={() => {
@@ -1575,20 +1582,22 @@ function TemplatesPanel() {
                     {testSendPendingId === tpl.id ? 'Sending…' : 'Test Send (to self)'}
                   </ContextMenuPrimitive.Item>
 
-                  {/* Separator */}
-                  <ContextMenuPrimitive.Separator style={ctxMenuSeparatorStyle} />
-
-                  {/* Destructive: Delete */}
-                  <ContextMenuPrimitive.Item
-                    style={tpl.is_system ? ctxMenuItemDisabledStyle : ctxMenuItemDestructiveStyle}
-                    onSelect={() => {
-                      if (!tpl.is_system) setDeleteConfirmId(tpl.id)
-                    }}
-                    disabled={tpl.is_system}
-                    title={tpl.is_system ? 'System templates cannot be deleted' : undefined}
-                  >
-                    Delete{tpl.is_system ? ' (built-in)' : ''}
-                  </ContextMenuPrimitive.Item>
+                  {/* Separator + Destructive: Delete — manage_templates only */}
+                  {canManageTemplates && (
+                    <>
+                      <ContextMenuPrimitive.Separator style={ctxMenuSeparatorStyle} />
+                      <ContextMenuPrimitive.Item
+                        style={tpl.is_system ? ctxMenuItemDisabledStyle : ctxMenuItemDestructiveStyle}
+                        onSelect={() => {
+                          if (!tpl.is_system) setDeleteConfirmId(tpl.id)
+                        }}
+                        disabled={tpl.is_system}
+                        title={tpl.is_system ? 'System templates cannot be deleted' : undefined}
+                      >
+                        Delete{tpl.is_system ? ' (built-in)' : ''}
+                      </ContextMenuPrimitive.Item>
+                    </>
+                  )}
                 </ContextMenuPrimitive.Content>
               </ContextMenuPrimitive.Portal>
             </ContextMenuPrimitive.Root>
@@ -1605,6 +1614,7 @@ function TemplatesPanel() {
 
 function GroupsPanel() {
   const qc = useQueryClient()
+  const canManageGroups = usePermission('alerts:manage_groups')
   const [showCreate, setShowCreate] = useState(false)
   const [createName, setCreateName] = useState('')
   const [createDesc, setCreateDesc] = useState('')
@@ -1677,21 +1687,23 @@ function GroupsPanel() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 15 }}>Notification Groups</h3>
-        <button
-          onClick={() => setShowCreate(true)}
-          style={{
-            padding: '6px 14px',
-            borderRadius: 6,
-            border: '1px solid var(--io-accent)',
-            background: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
-            color: 'var(--io-accent, #4a9eff)',
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          + New Group
-        </button>
+        {canManageGroups && (
+          <button
+            onClick={() => setShowCreate(true)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 6,
+              border: '1px solid var(--io-accent)',
+              background: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
+              color: 'var(--io-accent, #4a9eff)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            + New Group
+          </button>
+        )}
       </div>
 
       {showCreate && (
@@ -1980,46 +1992,52 @@ function GroupsPanel() {
                   <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
                     {g.member_count ?? 0} members
                   </span>
-                  <button
-                    onClick={() => setDeleteGroupId(g.id)}
-                    style={{
-                      fontSize: 11,
-                      padding: '3px 8px',
-                      borderRadius: 4,
-                      border: '1px solid var(--io-border)',
-                      background: 'transparent',
-                      color: '#ef4444',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Delete
-                  </button>
+                  {canManageGroups && (
+                    <button
+                      onClick={() => setDeleteGroupId(g.id)}
+                      style={{
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        borderRadius: 4,
+                        border: '1px solid var(--io-border)',
+                        background: 'transparent',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </ContextMenuPrimitive.Trigger>
 
               <ContextMenuPrimitive.Portal>
                 <ContextMenuPrimitive.Content style={ctxMenuContentStyle}>
-                  {/* Primary: Edit */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemStyle}
-                    onSelect={() => {
-                      setEditGroupId(g.id)
-                      setEditName(g.name)
-                      setEditDesc(g.description ?? '')
-                    }}
-                  >
-                    Edit
-                  </ContextMenuPrimitive.Item>
+                  {/* Primary: Edit — manage_groups only */}
+                  {canManageGroups && (
+                    <ContextMenuPrimitive.Item
+                      style={ctxMenuItemStyle}
+                      onSelect={() => {
+                        setEditGroupId(g.id)
+                        setEditName(g.name)
+                        setEditDesc(g.description ?? '')
+                      }}
+                    >
+                      Edit
+                    </ContextMenuPrimitive.Item>
+                  )}
 
-                  {/* Secondary: Add Members */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemStyle}
-                    onSelect={() => setShowCreate(true)}
-                  >
-                    Add Members
-                  </ContextMenuPrimitive.Item>
+                  {/* Secondary: Add Members — manage_groups only */}
+                  {canManageGroups && (
+                    <ContextMenuPrimitive.Item
+                      style={ctxMenuItemStyle}
+                      onSelect={() => setShowCreate(true)}
+                    >
+                      Add Members
+                    </ContextMenuPrimitive.Item>
+                  )}
 
-                  {/* Secondary: View Members */}
+                  {/* Secondary: View Members — always visible (alerts:read) */}
                   <ContextMenuPrimitive.Item
                     style={ctxMenuItemStyle}
                     onSelect={() => setViewMembersGroupId(g.id)}
@@ -2027,16 +2045,18 @@ function GroupsPanel() {
                     View Members
                   </ContextMenuPrimitive.Item>
 
-                  {/* Separator */}
-                  <ContextMenuPrimitive.Separator style={ctxMenuSeparatorStyle} />
-
-                  {/* Destructive: Delete */}
-                  <ContextMenuPrimitive.Item
-                    style={ctxMenuItemDestructiveStyle}
-                    onSelect={() => setDeleteGroupId(g.id)}
-                  >
-                    Delete
-                  </ContextMenuPrimitive.Item>
+                  {/* Separator + Destructive: Delete — manage_groups only */}
+                  {canManageGroups && (
+                    <>
+                      <ContextMenuPrimitive.Separator style={ctxMenuSeparatorStyle} />
+                      <ContextMenuPrimitive.Item
+                        style={ctxMenuItemDestructiveStyle}
+                        onSelect={() => setDeleteGroupId(g.id)}
+                      >
+                        Delete
+                      </ContextMenuPrimitive.Item>
+                    </>
+                  )}
                 </ContextMenuPrimitive.Content>
               </ContextMenuPrimitive.Portal>
             </ContextMenuPrimitive.Root>
