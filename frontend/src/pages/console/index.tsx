@@ -261,8 +261,20 @@ export default function ConsolePage() {
   useEffect(() => {
     if (useApi && apiWorkspaces) {
       setWorkspaces(apiWorkspaces)
-      if (apiWorkspaces.length > 0 && (activeId === null || !apiWorkspaces.find((w) => w.id === activeId))) {
-        setActiveId(apiWorkspaces[0].id)
+      const newActiveId =
+        apiWorkspaces.length > 0 && (activeId === null || !apiWorkspaces.find((w) => w.id === activeId))
+          ? apiWorkspaces[0].id
+          : activeId
+      if (newActiveId !== activeId) {
+        setActiveId(newActiveId)
+      }
+      // Seed the saved snapshot from the freshly loaded server data so the
+      // dirty detector starts in a clean state after load.
+      const targetId = newActiveId ?? activeId
+      const activeWs = apiWorkspaces.find((w) => w.id === targetId)
+      if (activeWs) {
+        lastSavedSnapshotRef.current = JSON.stringify(activeWs)
+        setIsDirty(false)
       }
     }
   }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId])
@@ -273,7 +285,12 @@ export default function ConsolePage() {
     if (!useApi && !localWorkspacesLoaded) {
       const local = loadWorkspacesLocal()
       setWorkspaces(local)
-      if (local.length > 0) setActiveId(local[0].id)
+      if (local.length > 0) {
+        setActiveId(local[0].id)
+        // Seed the saved snapshot from localStorage so we start clean.
+        lastSavedSnapshotRef.current = JSON.stringify(local[0])
+        setIsDirty(false)
+      }
       setLocalWorkspacesLoaded(true)
     }
   }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId])
@@ -366,6 +383,12 @@ export default function ConsolePage() {
       }
       saveFailCountRef.current = 0
       setShowSaveBanner(false)
+      // Update the saved snapshot so the subscription-based dirty detector
+      // knows this workspace is now clean.  Only update the snapshot for the
+      // workspace that was just saved — not for a different active workspace.
+      if (ws.id === useWorkspaceStore.getState().activeId) {
+        lastSavedSnapshotRef.current = JSON.stringify(ws)
+      }
       setIsDirty(false)
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current)
@@ -464,6 +487,10 @@ export default function ConsolePage() {
         const exists = current.find((w) => w.id === ws.id)
         const updated = exists ? current.map((w) => (w.id === ws.id ? ws : w)) : [...current, ws]
         saveWorkspacesLocal(updated)
+        // localStorage saves are synchronous — update snapshot immediately so the
+        // dirty indicator clears right away (no async success callback on this path).
+        lastSavedSnapshotRef.current = JSON.stringify(ws)
+        setIsDirty(false)
       }
     },
     [useApi, saveMutation],
@@ -525,6 +552,56 @@ export default function ConsolePage() {
   const [isDirty, setIsDirty] = useState(false)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ---- Dirty detection via store subscription ----------------------------
+  //
+  // Rather than relying solely on event-handler callbacks to call setIsDirty,
+  // we track a JSON snapshot of the last-saved workspace state and subscribe
+  // to the Zustand workspace store.  Any change to the active workspace (from
+  // any code path including programmatic Zustand mutations or direct DOM
+  // manipulation via test tooling) will be detected within one render cycle.
+  //
+  // The snapshot is updated when:
+  //   • the API save mutation succeeds (onSuccess)
+  //   • the localStorage synchronous save completes (persistWorkspace)
+  //   • the active workspace changes (reset to the new workspace's current state)
+  const lastSavedSnapshotRef = useRef<string | null>(null)
+
+  // Subscribe to workspace store: recompute isDirty whenever the active
+  // workspace content changes compared to the last-saved snapshot.
+  // This catches programmatic store mutations (e.g. from test tooling or
+  // Zustand actions that bypass the UI onChange handlers).
+  useEffect(() => {
+    const unsub = useWorkspaceStore.subscribe((state) => {
+      const ws = state.workspaces.find((w) => w.id === state.activeId)
+      if (!ws) {
+        setIsDirty(false)
+        return
+      }
+      const snap = lastSavedSnapshotRef.current
+      if (snap === null) {
+        // No saved snapshot yet — treat as clean (happens on initial load)
+        return
+      }
+      const current = JSON.stringify(ws)
+      setIsDirty(current !== snap)
+    })
+    return unsub
+  }, [])
+
+  // When the active workspace changes, reset the saved snapshot so the new
+  // workspace starts in a clean state.  Also clear any pending debounce so
+  // stale saves from the previous workspace don't fire against the new one.
+  useEffect(() => {
+    if (saveDebounceRef.current) {
+      clearTimeout(saveDebounceRef.current)
+      saveDebounceRef.current = null
+    }
+    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+    lastSavedSnapshotRef.current = ws ? JSON.stringify(ws) : null
+    setIsDirty(false)
+  }, [activeId])
+
   // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
   const pendingCreateIdsRef = useRef<Set<string>>(new Set())
   // Track workspace IDs where the backend confirmed creation success but the user is still in edit
