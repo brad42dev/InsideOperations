@@ -1764,6 +1764,7 @@ export function ExpressionBuilder({
   const [benchmarkResult, setBenchmarkResult] = useState<number | null | 'timeout'>(null)
   const [benchmarkWarnings, setBenchmarkWarnings] = useState<string[]>([])
   const benchmarkWorkerRef = useRef<Worker | null>(null)
+  const workspaceRef = useRef<HTMLDivElement>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -1806,6 +1807,39 @@ export function ExpressionBuilder({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Arrow key cursor navigation for the workspace.
+  // This handler is attached to the workspace `role="application"` div so that
+  // ArrowLeft / ArrowRight keydown events originating from focused tiles (or the
+  // workspace itself) are intercepted before they can bubble past the dialog and
+  // accidentally trigger app-shell keyboard shortcuts or native ARIA focus
+  // movement to sidebar links.
+  const handleWorkspaceKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault()
+      e.stopPropagation()
+      const arr = state.cursorParentId === null
+        ? state.tiles
+        : (getChildArray(state.tiles, state.cursorParentId) ?? state.tiles)
+      if (e.key === 'ArrowLeft') {
+        const newIndex = Math.max(0, state.cursorIndex - 1)
+        dispatch({ type: 'SET_CURSOR', parentId: state.cursorParentId, index: newIndex })
+      } else {
+        const newIndex = Math.min(arr.length, state.cursorIndex + 1)
+        dispatch({ type: 'SET_CURSOR', parentId: state.cursorParentId, index: newIndex })
+      }
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      // Prevent arrow keys from escaping the dialog entirely even if we have
+      // no vertical cursor movement to implement yet.
+      e.preventDefault()
+      e.stopPropagation()
+    } else if (e.key === 'Tab') {
+      // Allow Tab to cycle within the dialog naturally (Radix Dialog manages
+      // the focus trap), but stop it propagating past this element to avoid
+      // triggering any window-level Tab handlers on the app shell.
+      e.stopPropagation()
+    }
+  }, [state.cursorParentId, state.cursorIndex, state.tiles, dispatch])
 
   function handleAddFromPalette(type: TileType) {
     // Enforce nesting depth limit for container tiles
@@ -2338,8 +2372,10 @@ export function ExpressionBuilder({
 
       {/* Workspace */}
         <div
+          ref={workspaceRef}
           role="application"
           aria-label="Equation workspace"
+          tabIndex={0}
           style={{
             flex: 1,
             minHeight: '100px',
@@ -2349,11 +2385,14 @@ export function ExpressionBuilder({
             border: '1px solid var(--io-border)',
             borderRadius: 'var(--io-radius)',
             padding: '10px',
+            outline: 'none',
           }}
           onClick={() => {
             dispatch({ type: 'SELECT', ids: [], additive: false })
             dispatch({ type: 'SET_CURSOR', parentId: null, index: state.tiles.length })
+            workspaceRef.current?.focus()
           }}
+          onKeyDown={handleWorkspaceKeyDown}
         >
           <DropZoneRow
             tiles={state.tiles}
