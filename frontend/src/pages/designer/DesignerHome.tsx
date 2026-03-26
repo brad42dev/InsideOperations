@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { reportsApi, type ReportTemplate } from '../../api/reports'
 import { dashboardsApi, type Dashboard } from '../../api/dashboards'
+import { graphicsApi, type DesignObjectSummary } from '../../api/graphics'
 import { useDesignerPermissions } from '../../shared/hooks/usePermission'
 import { RecognitionWizardTrigger } from './components/RecognitionWizard'
 
@@ -181,16 +182,27 @@ export default function DesignerHome() {
     },
   })
 
+  const graphicsQuery = useQuery({
+    queryKey: ['design-objects', { mode: 'graphic' }],
+    queryFn: async () => {
+      const r = await graphicsApi.list({ mode: 'graphic' })
+      if (!r.success) throw new Error(r.error.message)
+      return r.data.data
+    },
+  })
+
   const reports: ReportTemplate[] = reportsQuery.data ?? []
   const dashboards: Dashboard[] = dashboardsQuery.data ?? []
+  const graphics: DesignObjectSummary[] = graphicsQuery.data ?? []
 
-  // Recent items: combine and sort by created_at desc, take top 8
-  type RecentEntry = { type: 'dashboard' | 'report'; id: string; name: string; created_at: string }
+  // Recent items: combine and sort by updated_at desc, take top 8
+  type RecentEntry = { type: 'graphic' | 'dashboard' | 'report'; id: string; name: string; updated_at: string }
   const recentItems: RecentEntry[] = [
-    ...dashboards.map((d): RecentEntry => ({ type: 'dashboard', id: d.id, name: d.name, created_at: d.created_at })),
-    ...reports.map((r): RecentEntry => ({ type: 'report', id: r.id, name: r.name, created_at: r.created_at })),
+    ...graphics.map((g): RecentEntry => ({ type: 'graphic', id: g.id, name: g.name, updated_at: g.updatedAt })),
+    ...dashboards.map((d): RecentEntry => ({ type: 'dashboard', id: d.id, name: d.name, updated_at: d.updated_at })),
+    ...reports.map((r): RecentEntry => ({ type: 'report', id: r.id, name: r.name, updated_at: r.updated_at })),
   ]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 8)
 
   const typeIcon: Record<string, string> = {
@@ -248,6 +260,15 @@ export default function DesignerHome() {
           }}
         >
           <HubCard
+            icon="🖼"
+            title="Graphics"
+            count={graphics.length}
+            description="Process graphics for Console and Process views"
+            browseHref="/designer/graphics"
+            newHref="/designer/graphics/new"
+            isLoading={graphicsQuery.isLoading}
+          />
+          <HubCard
             icon="▦"
             title="Dashboards"
             count={dashboards.length}
@@ -302,7 +323,7 @@ export default function DesignerHome() {
             Recently Modified
           </div>
 
-          {recentItems.length === 0 && !dashboardsQuery.isLoading && !reportsQuery.isLoading && (
+          {recentItems.length === 0 && !graphicsQuery.isLoading && !dashboardsQuery.isLoading && !reportsQuery.isLoading && (
             <div
               style={{
                 padding: '24px',
