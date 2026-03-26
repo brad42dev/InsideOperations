@@ -259,7 +259,17 @@ pub async fn create_template(
     .await;
 
     match row {
-        Err(e) => IoError::Database(e).into_response(),
+        Err(e) => {
+            // Check for unique constraint violation on template name
+            if let sqlx::Error::Database(db_err) = &e {
+                if db_err.message().contains("uq_log_templates_name") {
+                    return IoError::Conflict(
+                        format!("Template with name '{}' already exists", body.name)
+                    ).into_response();
+                }
+            }
+            IoError::Database(e).into_response()
+        }
         Ok(r) => {
             let template = LogTemplateRow {
                 id: r.get("id"),
@@ -581,7 +591,7 @@ pub async fn create_instance(
     )
     .bind(body.template_id)
     .bind(&body.team_name)
-    .bind("pending")
+    .bind("draft")
     .fetch_one(&state.db)
     .await;
 
