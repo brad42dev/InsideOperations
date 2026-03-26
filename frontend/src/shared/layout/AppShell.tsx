@@ -637,8 +637,6 @@ export default function AppShell() {
   // Refs to hold kiosk helpers — avoids stale closures in the keyboard effect
   const isKioskRef = useRef(isKiosk)
   isKioskRef.current = isKiosk
-  const isBrowserFullscreenRef = useRef(isBrowserFullscreen)
-  isBrowserFullscreenRef.current = isBrowserFullscreen
 
   // Persist sidebar state to localStorage whenever it changes.
   // Kiosk mode forces 'hidden' — we do not persist that transient state
