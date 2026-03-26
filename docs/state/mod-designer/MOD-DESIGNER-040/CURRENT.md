@@ -2,9 +2,9 @@
 task_id: MOD-DESIGNER-040
 unit: MOD-DESIGNER
 status: completed
-attempt: 1
-claimed_at: 2026-03-26T00:40:00Z
-last_heartbeat: 2026-03-26T00:43:00Z
+attempt: 2
+claimed_at: 2026-03-26T01:00:00Z
+last_heartbeat: 2026-03-26T01:05:00Z
 rate_limited: false
 ---
 
@@ -13,21 +13,26 @@ rate_limited: false
 | Attempt | Changed Files | Before Hash | Result |
 |---------|---------------|-------------|--------|
 | 1 | none | 7897d77 | SUCCESS |
+| 2 | none | fe1b8c1 | SUCCESS |
 
-## Current Attempt (1) — CLOSED
+## Current Attempt (2) — CLOSED
 
 ### Phase
 CLOSED
 
 ### Work Log
-- 2026-03-26T00:40:00Z — Claimed task MOD-DESIGNER-040, attempt 1
-- 2026-03-26T00:41:00Z — Loaded: frontend/src/pages/designer/DesignerLeftPalette.tsx (1 file)
-- 2026-03-26T00:41:30Z — Verified prior implementation is merged (commit 802563b). DesignerLeftPalette.tsx already contains ContextMenuPrimitive wrappers for DisplayElementTile, WidgetTile, and shape tiles. onMouseDown guarded with `if (e.button !== 0) return` to prevent placement on right-click.
-- 2026-03-26T00:42:00Z — Build check: SKIPPED — node_modules symlink is circular (pre-existing env issue, ELOOP on pnpm). Not introduced by this task.
-- 2026-03-26T00:43:00Z — Verification complete. All acceptance criteria met. No files modified.
+- 2026-03-26T01:00:00Z — Claimed task MOD-DESIGNER-040, attempt 2
+- 2026-03-26T01:01:00Z — Loaded: frontend/src/pages/designer/DesignerLeftPalette.tsx (1 file)
+- 2026-03-26T01:02:00Z — Verified: import * as ContextMenuPrimitive present at line 13
+- 2026-03-26T01:02:00Z — Verified: if (e.button !== 0) return guards at lines 295, 645, 934, 1188, 1393, 1584
+- 2026-03-26T01:02:00Z — Verified: ContextMenuPrimitive.Root/Trigger wrapping at lines 511-536, 773-778, 1029-1040, 1263-1319, 1481-1495, 1672-1686
+- 2026-03-26T01:02:00Z — Verified: "Place at Center" and "Add to Favorites" items at lines 763-766, 1488-1492, 1679-1683
+- 2026-03-26T01:03:00Z — TypeScript check: PASS (no errors)
+- 2026-03-26T01:04:00Z — Build check: PASS (BUILD_EXIT:0)
+- 2026-03-26T01:05:00Z — All acceptance criteria confirmed present. No modifications required.
 
 ### Exit Checklist
-- [x] Attempt file written: attempts/001.md
+- [x] Attempt file written: attempts/002.md
 - [x] Attempt file read back and verified non-empty
 - [x] CURRENT.md updated with final status and fingerprints
 - [x] CURRENT.md read back — status field confirmed
