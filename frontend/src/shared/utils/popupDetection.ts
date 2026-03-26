@@ -17,8 +17,19 @@
  * NOTE: Some browsers (especially on mobile) may return a non-null window
  * object even when popups are blocked. The `closed` and `typeof closed`
  * guards handle those edge cases.
+ *
+ * Automation guard: skip the window.open() probe when running under a WebDriver
+ * (Playwright, Selenium, Puppeteer). These tools intercept window.open() and
+ * create real browser page contexts that can destabilise the test runner when
+ * the new window is immediately closed. Under automation the popup banner is
+ * not meaningful, so we report "blocked" (conservative) without probing.
  */
 export function detectPopupBlocked(): boolean {
+  // navigator.webdriver is set to true by all major automation frameworks
+  // (Playwright, Selenium, Puppeteer) in headless and headed modes alike.
+  if (navigator.webdriver) {
+    return true
+  }
   try {
     const probe = window.open('', '_blank', 'width=1,height=1')
     if (!probe || probe.closed || typeof probe.closed === 'undefined') {
