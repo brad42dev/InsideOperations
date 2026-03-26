@@ -1560,14 +1560,14 @@ export default function AppShell() {
             Hidden when: kiosk mode is active (isKiosk) OR user has manually hidden the topbar. */}
         <header
           style={{
-            height: (isKiosk || topbarHidden) ? 0 : 'var(--io-topbar-height)',
+            height: topbarHidden ? 0 : 'var(--io-topbar-height)',
             overflow: 'hidden',
             background: 'var(--io-surface-secondary)',
-            borderBottom: (isKiosk || topbarHidden) ? 'none' : '1px solid var(--io-border)',
-            display: 'flex',
+            borderBottom: topbarHidden ? 'none' : '1px solid var(--io-border)',
+            display: isKiosk ? 'none' : 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: (isKiosk || topbarHidden) ? 0 : '0 20px',
+            padding: topbarHidden ? 0 : '0 20px',
             flexShrink: 0,
             position: 'relative',
             zIndex: 3000,
