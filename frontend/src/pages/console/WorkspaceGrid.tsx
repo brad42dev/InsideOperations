@@ -1,7 +1,9 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { GridLayout, noCompactor, type LayoutItem } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
+import './WorkspaceGrid.css'
 import PaneWrapper from './PaneWrapper'
 import { ErrorBoundary } from '../../shared/components/ErrorBoundary'
 import type { ConsoleDragItem } from './ConsolePalette'
@@ -166,37 +168,66 @@ export default function WorkspaceGrid({
   // ── Swap target visual indicator ─────────────────────────────────────────
   const [swapTargetId, setSwapTargetId] = useState<string | null>(null)
 
-  // ── Fullscreen state ─────────────────────────────────────────────────────
+  // ── Fullscreen state (spec §5.11) ────────────────────────────────────────
+  // Active fullscreen pane ID, or null when not in fullscreen.
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null)
+  // When true, the exit animation is playing (portal is still mounted, fading out).
+  const [fsExiting, setFsExiting] = useState(false)
+  const fsExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const toggleFullscreen = useCallback((paneId: string) => {
-    setFullscreenPaneId((prev) => (prev === paneId ? null : paneId))
+  // exitFullscreen — plays the 200ms exit animation then clears state.
+  const exitFullscreen = useCallback(() => {
+    setFsExiting(true)
+    if (fsExitTimerRef.current) clearTimeout(fsExitTimerRef.current)
+    fsExitTimerRef.current = setTimeout(() => {
+      setFullscreenPaneId(null)
+      setFsExiting(false)
+    }, 210) // 210ms > 200ms animation so the frame completes before unmount
   }, [])
 
-  // F11 keyboard shortcut: toggle fullscreen on single selected pane
+  const toggleFullscreen = useCallback(
+    (paneId: string) => {
+      if (fullscreenPaneId === paneId || (fullscreenPaneId !== null && fsExiting)) {
+        exitFullscreen()
+      } else {
+        // Cancel any in-progress exit and enter the new pane immediately.
+        if (fsExitTimerRef.current) {
+          clearTimeout(fsExitTimerRef.current)
+          fsExitTimerRef.current = null
+        }
+        setFsExiting(false)
+        setFullscreenPaneId(paneId)
+      }
+    },
+    [fullscreenPaneId, fsExiting, exitFullscreen],
+  )
+
+  // Clean up exit timer on unmount.
+  useEffect(() => () => {
+    if (fsExitTimerRef.current) clearTimeout(fsExitTimerRef.current)
+  }, [])
+
+  // F11 keyboard shortcut: toggle fullscreen on single selected pane (spec §5.11)
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'F11') {
         e.preventDefault()
-        // If already fullscreen, exit
         if (fullscreenPaneId !== null) {
-          setFullscreenPaneId(null)
+          exitFullscreen()
           return
         }
-        // If exactly one pane is selected, enter fullscreen on it
         if (selectedPaneIds && selectedPaneIds.size === 1) {
           const [paneId] = selectedPaneIds
           setFullscreenPaneId(paneId)
         }
       }
-      // Escape exits fullscreen
       if (e.key === 'Escape' && fullscreenPaneId !== null) {
-        setFullscreenPaneId(null)
+        exitFullscreen()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [fullscreenPaneId, selectedPaneIds])
+  }, [fullscreenPaneId, selectedPaneIds, exitFullscreen])
 
   useEffect(() => {
     const el = containerRef.current
@@ -637,9 +668,9 @@ export default function WorkspaceGrid({
         {layoutWithConstraints.map((item) => {
           const pane = paneById.get(item.i)
           if (!pane) return null
-          const isPaneFullscreen = fullscreenPaneId === pane.id
-          // When another pane is fullscreen, hide this one
-          const isHidden = fullscreenPaneId !== null && !isPaneFullscreen
+          // Hide ALL grid items while any pane is fullscreen — the fullscreen pane
+          // is rendered via a portal outside the RGL transform ancestor (spec §5.11).
+          const isHiddenForFullscreen = fullscreenPaneId !== null
           const isSwapTarget = swapTargetId === pane.id
           const retryCount = paneRetryCounters.get(pane.id) ?? 0
           return (
@@ -649,7 +680,7 @@ export default function WorkspaceGrid({
               data-swap-target={isSwapTarget ? 'true' : undefined}
               style={{
                 overflow: 'hidden',
-                display: isHidden ? 'none' : undefined,
+                display: isHiddenForFullscreen ? 'none' : undefined,
                 outline: isSwapTarget ? '2px dashed var(--io-accent)' : undefined,
                 outlineOffset: isSwapTarget ? '-2px' : undefined,
               }}
@@ -692,7 +723,7 @@ export default function WorkspaceGrid({
                   config={pane}
                   editMode={editMode}
                   isSelected={selectedPaneIds?.has(pane.id) ?? false}
-                  isFullscreen={isPaneFullscreen}
+                  isFullscreen={false}
                   onToggleFullscreen={() => toggleFullscreen(pane.id)}
                   onConfigure={onConfigurePane}
                   onRemove={onRemovePane}
@@ -710,6 +741,77 @@ export default function WorkspaceGrid({
           )
         })}
       </GridLayout>
+
+      {/* Fullscreen portal (spec §5.11) ─────────────────────────────────────
+          Rendered OUTSIDE GridLayout so `position:absolute` is relative to the
+          workspace container (position:relative) rather than the RGL item's
+          `transform:translate()` ancestor, which would trap a `position:fixed`
+          child inside its bounding box.                                        */}
+      {fullscreenPaneId !== null && containerRef.current && (() => {
+        const fsPane = paneById.get(fullscreenPaneId)
+        if (!fsPane) return null
+        const retryCount = paneRetryCounters.get(fsPane.id) ?? 0
+        return createPortal(
+          <div
+            className={`io-pane-fullscreen-portal${fsExiting ? ' io-pane-fullscreen-exiting' : ''}`}
+            style={{ position: 'absolute', inset: 0, zIndex: 500 }}
+          >
+            <ErrorBoundary
+              key={`${fsPane.id}-${retryCount}-fs`}
+              module={`Pane ${fsPane.id.slice(0, 8)}`}
+              fallback={
+                <div style={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  color: 'var(--io-text-muted)',
+                  fontSize: 13,
+                  background: 'var(--io-surface-secondary)',
+                  padding: '16px',
+                }}>
+                  <div>Pane failed to render.</div>
+                  <button
+                    onClick={() => retryPane(fsPane.id)}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 'var(--io-radius)',
+                      border: '1px solid var(--io-border)',
+                      background: 'var(--io-surface)',
+                      color: 'var(--io-text-primary)',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              }
+            >
+              <PaneWrapper
+                config={fsPane}
+                editMode={false}
+                isSelected={selectedPaneIds?.has(fsPane.id) ?? false}
+                isFullscreen={true}
+                onToggleFullscreen={exitFullscreen}
+                onConfigure={onConfigurePane}
+                onRemove={onRemovePane}
+                onSelect={onSelectPane}
+                onPaletteDrop={onPaletteDrop}
+                preserveAspectRatio={preserveAspectRatio}
+                swapModeSourceId={swapModeSourceId}
+                onSwapWith={onSwapWith}
+                onSwapComplete={onSwapComplete}
+                onReplace={onReplace}
+                workspaceId={workspace.id}
+              />
+            </ErrorBoundary>
+          </div>,
+          containerRef.current,
+        )
+      })()}
 
       {/* Box selection rect */}
       {boxRect && editMode && (

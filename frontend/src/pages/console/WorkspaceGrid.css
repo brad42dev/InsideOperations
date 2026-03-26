@@ -1,0 +1,31 @@
+/* WorkspaceGrid — fullscreen pane portal animations (spec §5.11) */
+
+@keyframes io-pane-fullscreen-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes io-pane-fullscreen-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+.io-pane-fullscreen-portal {
+  animation: io-pane-fullscreen-enter 200ms ease forwards;
+}
+
+.io-pane-fullscreen-portal.io-pane-fullscreen-exiting {
+  animation: io-pane-fullscreen-exit 200ms ease forwards;
+}

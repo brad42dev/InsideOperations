@@ -210,18 +210,21 @@ export default function PaneWrapper({
     onSelect?.(config.id, e.ctrlKey || e.metaKey || e.shiftKey)
   }
 
-  // Fullscreen wrapper style — fixed overlay when fullscreen
-  const fullscreenStyle: React.CSSProperties = isFullscreen
-    ? {
-        position: 'fixed',
-        inset: 0,
-        zIndex: 500,
-        transition: 'all 200ms ease',
-      }
-    : {
-        height: '100%',
-        transition: 'all 200ms ease',
-      }
+  // When isFullscreen=true, this component is rendered inside a portal overlay
+  // div (position:absolute;inset:0) that already escapes the RGL transform
+  // ancestor — so we just fill height:100% in both modes.
+  // The 200ms CSS transition is owned by the portal wrapper in WorkspaceGrid.
+  const fullscreenStyle: React.CSSProperties = { height: '100%' }
+
+  // Double-click on the pane background activates fullscreen (spec §5.11).
+  // Guards: not in edit mode, not on a point-bound element, not on a button.
+  function handleDoubleClick(e: React.MouseEvent) {
+    if (editMode) return
+    const target = e.target as HTMLElement
+    if (target.closest('[data-point-id]')) return // point-bound → Point Detail, not fullscreen
+    if (target.closest('button, [role="menu"]')) return
+    onToggleFullscreen?.()
+  }
 
   return (
     <div
@@ -229,6 +232,7 @@ export default function PaneWrapper({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={handlePaneClick}
+      onDoubleClick={handleDoubleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onContextMenu={(e) => {
