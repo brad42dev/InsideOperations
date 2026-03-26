@@ -6236,7 +6236,7 @@
       "id": "MOD-PROCESS-019",
       "unit": "MOD-PROCESS",
       "title": "Hide breadcrumb nav bar and view toolbar in kiosk mode",
-      "status": "implementing",
+      "status": "verified",
       "priority": "low",
       "depends_on": [],
       "audit_round": 9
@@ -6248,6 +6248,15 @@
       "priority": "low",
       "depends_on": [],
       "status": "implementing",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-13-017",
+      "unit": "DD-13",
+      "title": "Fix wrong RBAC permission names on /log/templates and /log/schedules routes",
+      "status": "implementing",
+      "priority": "high",
+      "depends_on": [],
       "audit_round": 9
     }
   ],
