@@ -112,7 +112,7 @@ const LogPage = lazy(() => import('./pages/log/index'))
 const LogEditor = lazy(() => import('./pages/log/LogEditor'))
 const LogNew = lazy(() => import('./pages/log/LogNew'))
 const LogEntryEdit = lazy(() => import('./pages/log/LogEntryEdit'))
-const LogTemplates = lazy(() => import('./pages/log/LogTemplates'))
+const LogTemplates = lazy(() => import(/* @vite-prefetch */ './pages/log/LogTemplates'))
 const LogSchedules = lazy(() => import('./pages/log/LogSchedules'))
 const TemplateEditor = lazy(() => import('./pages/log/TemplateEditor'))
 

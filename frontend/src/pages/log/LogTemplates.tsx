@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi } from '../../api/logs'
@@ -6,6 +7,9 @@ import type { LogTemplate } from '../../api/logs'
 export default function LogTemplates() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // React-state confirmation instead of window.confirm — avoids native dialogs
+  // that crash Playwright and are blocked in some browser security contexts.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['log', 'templates', 'all'],
@@ -20,7 +24,10 @@ export default function LogTemplates() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => logsApi.deleteTemplate(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['log', 'templates'] }),
+    onSuccess: () => {
+      setConfirmDeleteId(null)
+      queryClient.invalidateQueries({ queryKey: ['log', 'templates'] })
+    },
   })
 
   const templates = data ?? []
@@ -80,14 +87,28 @@ export default function LogTemplates() {
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button style={btnStyle()} onClick={() => navigate(`/log/templates/${t.id}/edit`)}>Edit</button>
-                <button
-                  style={{ ...btnStyle(), color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
-                  onClick={() => {
-                    if (confirm(`Delete template "${t.name}"?`)) deleteMutation.mutate(t.id)
-                  }}
-                >
-                  Delete
-                </button>
+                {confirmDeleteId === t.id ? (
+                  <span style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>Delete?</span>
+                    <button
+                      style={{ ...btnStyle(), color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                      onClick={() => deleteMutation.mutate(t.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      {deleteMutation.isPending ? '…' : 'Yes'}
+                    </button>
+                    <button style={btnStyle()} onClick={() => setConfirmDeleteId(null)}>
+                      No
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    style={{ ...btnStyle(), color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                    onClick={() => setConfirmDeleteId(t.id)}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
