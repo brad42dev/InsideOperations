@@ -1,9 +1,11 @@
 use axum::{
     extract::State,
+    http::HeaderMap,
     Json,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use tracing::warn;
 
 use io_error::{IoError, IoResult};
 use io_models::ApiResponse;
@@ -35,12 +37,30 @@ pub struct ArchiveSettingsPayload {
 }
 
 // ---------------------------------------------------------------------------
+// Service-secret guard
+// ---------------------------------------------------------------------------
+
+fn check_service_secret(headers: &HeaderMap, expected: &str) -> IoResult<()> {
+    let provided = headers
+        .get("x-io-service-secret")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if provided != expected {
+        warn!("settings endpoint called with invalid or missing x-io-service-secret");
+        return Err(IoError::Forbidden("Invalid service secret".to_string()));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // GET /settings — return current archive configuration
 // ---------------------------------------------------------------------------
 
 pub async fn get_settings(
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> IoResult<Json<ApiResponse<ArchiveSettingsPayload>>> {
+    check_service_secret(&headers, &state.config.service_secret)?;
     let cfg = &state.config;
 
     // Start with env-based defaults.
@@ -96,8 +116,10 @@ pub async fn get_settings(
 
 pub async fn put_settings(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<ArchiveSettingsPayload>,
 ) -> IoResult<Json<ApiResponse<ArchiveSettingsPayload>>> {
+    check_service_secret(&headers, &state.config.service_secret)?;
     // Validate retention bounds: 1 to 36500 days (100 years max).
     let i64_fields: &[(&str, i64)] = &[
         ("retention_raw_days", body.retention_raw_days),
