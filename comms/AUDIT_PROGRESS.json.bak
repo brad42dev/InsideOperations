@@ -5954,7 +5954,7 @@
       "id": "DD-32-017",
       "unit": "DD-32",
       "title": "No success toast shown on workspace creation (silent success)",
-      "status": "implementing",
+      "status": "verified",
       "priority": "high",
       "depends_on": [],
       "source": "uat",
