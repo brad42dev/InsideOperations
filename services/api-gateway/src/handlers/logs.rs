@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use tracing::error;
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
@@ -581,7 +582,7 @@ pub async fn create_instance(
         return IoError::NotFound(format!("Template {} not found", body.template_id)).into_response();
     }
 
-    // Insert the new instance
+    // Insert the new instance — status must be 'draft' per the log_instances_status_check constraint
     let row = sqlx::query(
         r#"
         INSERT INTO log_instances (template_id, team_name, status)
@@ -591,12 +592,19 @@ pub async fn create_instance(
     )
     .bind(body.template_id)
     .bind(&body.team_name)
-    .bind("pending")
+    .bind("draft")
     .fetch_one(&state.db)
     .await;
 
     match row {
-        Err(e) => IoError::Database(e).into_response(),
+        Err(e) => {
+            error!(
+                template_id = %body.template_id,
+                error = %e,
+                "Failed to insert log instance"
+            );
+            IoError::Database(e).into_response()
+        }
         Ok(r) => {
             let instance = LogInstanceRow {
                 id: r.get("id"),
