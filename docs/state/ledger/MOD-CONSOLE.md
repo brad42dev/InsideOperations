@@ -42,3 +42,6 @@ MOD-CONSOLE-029 | Workspace save feedback missing dirty indicator and persistent
 MOD-CONSOLE-031 | Detached console route /detached/console/:id still renders Phase 7 stub | verified 2026-03-26 | commit f9591d7 | npx tsc --noEmit | PASS
 MOD-CONSOLE-032 | Workspace tab dirty indicator missing after layout change in edit mode | verified 2026-03-26 | commit 41c9d7e | npx tsc --noEmit | PASS
 MOD-CONSOLE-033 | Bug: shape library shapes appear in Console and Process graphics pickers | verified 2026-03-26 | commit a03f64c | npx tsc --noEmit | PASS
+MOD-CONSOLE-034 | Bug: workspace right-click context menu missing Rename/Duplicate/Delete in thumbnail and grid views | verified 2026-03-26 | commit 5968fc0 | npx tsc --noEmit | PASS
+MOD-CONSOLE-035 | Remove guard blocking deletion of the last workspace | verified 2026-03-26 | commit 1c85150 | npx tsc --noEmit | PASS
+MOD-CONSOLE-037 | Drag in workspace edit mode displaces and hides non-dragged panes | verified 2026-03-26 | commit e0dbe0f | npx tsc --noEmit | PASS

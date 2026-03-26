@@ -32,3 +32,5 @@
 | MOD-CONSOLE-033 | Bug: shape library shapes appear in Console and Process graphics pickers | pending | 0 |
 | MOD-CONSOLE-034 | Bug: workspace right-click context menu missing Rename/Duplicate/Delete in thumbnail and grid views | pending | 0 |
 | MOD-CONSOLE-035 | Remove guard blocking deletion of the last workspace | pending | 0 |
+| MOD-CONSOLE-036 | Pane resize broken in edit mode — no onResizeStop handler, no neighbor adjustment | pending | 0 |
+| MOD-CONSOLE-037 | Drag in workspace edit mode displaces and hides non-dragged panes | pending | 0 |

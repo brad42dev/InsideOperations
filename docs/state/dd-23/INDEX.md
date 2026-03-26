@@ -4,3 +4,4 @@
 |------|-------|--------|----------|
 | DD-23-022 | Drag-and-drop from palette into group container interior still does not work | pending | 0 |
 | DD-23-023 | Breadcrumb trail still not shown above workspace when cursor is inside a nested container | pending | 0 |
+| DD-23-025 | Expression builder dialog crashes on open — Invalid hook call (duplicate React instance) | pending | 0 |

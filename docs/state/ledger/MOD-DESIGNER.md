@@ -43,3 +43,5 @@ MOD-DESIGNER-043 | Palette tile right-click shows no context menu (no Place at C
 MOD-DESIGNER-046 | Group Ctrl+G does not create group node; Open in Tab missing from group context menu | verified 2026-03-26 | commit 8a504f3 | npx tsc --noEmit | PASS
 MOD-DESIGNER-047 | Canvas drag-to-move testability attributes | verified 2026-03-26 | commit 3eddc6a | npx tsc --noEmit | PASS
 MOD-DESIGNER-049 | Canvas drag-to-move creates duplicate elements — mousedown misrouted to palette drop handler | verified 2026-03-26 | commit 6f3f364 | npx tsc --noEmit | PASS
+MOD-DESIGNER-050 | Annotation node right-click Change Style still absent after MOD-DESIGNER-042 fix | verified 2026-03-26 | commit 928c636 | cd frontend && npx tsc --noEmit | PASS
+MOD-DESIGNER-051 | Canvas drag-to-move still broken after MOD-DESIGNER-047 fix | verified 2026-03-26 | commit 282d03c | npx tsc --noEmit | PASS
