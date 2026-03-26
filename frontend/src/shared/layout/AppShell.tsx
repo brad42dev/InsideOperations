@@ -55,14 +55,6 @@ const _setGKeyHintVisible: { current: ((v: boolean) => void) | null } = { curren
 // capturing a stale component-level useRef in a closed-over effect.
 // Updated directly in the render body so it is never null when a keydown fires.
 const _navigateRef: { current: ((path: string) => void) | null } = { current: null }
-// Navigation target setter ref — used by the keyboard handler to trigger navigation
-// via a React state update rather than calling navigate() directly from a native
-// event closure.  Calling navigate() from a module-level stale closure can silently
-// no-op in React 18 concurrent mode (startTransition wrapping by react-router v7
-// future flags).  Setting state from the handler and navigating inside a useEffect
-// is the same pattern used by _setGKeyHintVisible and is guaranteed to use the live
-// navigate function that was bound at render time.
-const _setGKeyNavTarget: { current: ((path: string | null) => void) | null } = { current: null }
 
 // Bare modifier key names — used by the G-key handler to ignore isolated
 // modifier presses (Shift, CapsLock, etc.) without cancelling the pending state.
@@ -830,35 +822,19 @@ export default function AppShell() {
     }
   }, [unlock, resetIdleTimer])
 
-  // G-key navigation state — backed by module-level refs to survive React Strict
-  // Mode's double-mount cycle (useRef resets on remount; module vars do not).
+  // G-key hint visibility state — backed by module-level ref to survive React
+  // Strict Mode's double-mount cycle (useRef resets on remount; module vars do not).
   const [gKeyHintVisible, setGKeyHintVisible] = useState(false)
-  // Pending G-key navigation target — set by the keyboard handler, consumed by
-  // a useEffect so navigate() is called from within the React render lifecycle
-  // with the live navigate function rather than from a potentially stale closure.
-  const [gKeyNavTarget, setGKeyNavTarget] = useState<string | null>(null)
 
-  // Keep the module-level setter refs pointing at the live setters on every render.
-  // Assigned directly in render (same pattern as _navigateRef.current = navigate)
-  // so they are never null when the keyboard handler fires — a useEffect would leave
-  // them null between Strict Mode's simulated unmount and the second mount's effect.
+  // Keep the module-level setter ref pointing at the live setter on every render.
+  // Assigned directly in render body so it is never null when the keyboard handler
+  // fires — a useEffect would leave it null between Strict Mode's simulated
+  // unmount and the second mount's effect execution.
   _setGKeyHintVisible.current = setGKeyHintVisible
-  _setGKeyNavTarget.current = setGKeyNavTarget
 
   // Aliases so the handler below reads identically to the original.
   const gKeyPending = _gKeyPending
   const gKeyTimerRef = _gKeyTimerRef
-
-  // G-key navigation effect — fires when the keyboard handler sets gKeyNavTarget.
-  // Using navigate() inside a useEffect guarantees it is called with the live
-  // navigate function from the current render cycle, not a potentially stale
-  // closure captured when the keydown listener was registered.
-  useEffect(() => {
-    if (gKeyNavTarget) {
-      navigate(gKeyNavTarget)
-      setGKeyNavTarget(null)
-    }
-  }, [gKeyNavTarget, navigate])
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -989,7 +965,7 @@ export default function AppShell() {
           gKeyPending.current = false
           if (gKeyTimerRef.current) clearTimeout(gKeyTimerRef.current)
           _setGKeyHintVisible.current?.(false)
-          _setGKeyNavTarget.current?.(path)
+          _navigateRef.current?.(path)
         } else {
           // Unrecognised key while pending — cancel the sequence so the user
           // is not left stranded waiting for the 2000ms timer.
