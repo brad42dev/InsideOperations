@@ -14,6 +14,11 @@ import {
 } from '../../api/import'
 import { showToast } from '../../shared/components/Toast'
 import { usePermission } from '../../shared/hooks/usePermission'
+import {
+  dataLinksApi,
+  type DataLink,
+  type LinkTransform,
+} from '../../api/dataLinks'
 
 // ---------------------------------------------------------------------------
 // Data categories (shared with OPC Sources)
@@ -2626,16 +2631,821 @@ function PointDetailTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Data Links Tab
+// ---------------------------------------------------------------------------
+
+const TRANSFORM_OPS: Array<{ op: LinkTransform['op']; label: string; hasParams: boolean; paramKeys?: string[] }> = [
+  { op: 'uppercase',         label: 'Uppercase',              hasParams: false },
+  { op: 'lowercase',         label: 'Lowercase',              hasParams: false },
+  { op: 'trim',              label: 'Trim whitespace',        hasParams: false },
+  { op: 'remove_dashes',     label: 'Remove dashes',          hasParams: false },
+  { op: 'remove_spaces',     label: 'Remove spaces',          hasParams: false },
+  { op: 'remove_underscores',label: 'Remove underscores',     hasParams: false },
+  { op: 'leading_zeros',     label: 'Add leading zeros',      hasParams: true,  paramKeys: ['length'] },
+  { op: 'strip_prefix',      label: 'Strip prefix',           hasParams: true,  paramKeys: ['prefix'] },
+  { op: 'strip_suffix',      label: 'Strip suffix',           hasParams: true,  paramKeys: ['suffix'] },
+  { op: 'replace',           label: 'Replace text',           hasParams: true,  paramKeys: ['from', 'to'] },
+  { op: 'regex_extract',     label: 'Regex extract',          hasParams: true,  paramKeys: ['pattern', 'group'] },
+  { op: 'substring',         label: 'Substring',              hasParams: true,  paramKeys: ['start', 'end'] },
+]
+
+function applyTransforms(value: string, transforms: LinkTransform[]): string {
+  let v = value
+  for (const t of transforms) {
+    try {
+      switch (t.op) {
+        case 'uppercase':          v = v.toUpperCase(); break
+        case 'lowercase':          v = v.toLowerCase(); break
+        case 'trim':               v = v.trim(); break
+        case 'remove_dashes':      v = v.replace(/-/g, ''); break
+        case 'remove_spaces':      v = v.replace(/ /g, ''); break
+        case 'remove_underscores': v = v.replace(/_/g, ''); break
+        case 'leading_zeros': {
+          const len = parseInt(t.params?.length ?? '6', 10)
+          v = v.padStart(len, '0')
+          break
+        }
+        case 'strip_prefix': {
+          const p = t.params?.prefix ?? ''
+          if (v.startsWith(p)) v = v.slice(p.length)
+          break
+        }
+        case 'strip_suffix': {
+          const s = t.params?.suffix ?? ''
+          if (v.endsWith(s)) v = v.slice(0, -s.length)
+          break
+        }
+        case 'replace':
+          v = v.split(t.params?.from ?? '').join(t.params?.to ?? '')
+          break
+        case 'regex_extract': {
+          const m = v.match(new RegExp(t.params?.pattern ?? ''))
+          const g = parseInt(t.params?.group ?? '0', 10)
+          v = m ? (m[g] ?? '') : ''
+          break
+        }
+        case 'substring': {
+          const st = parseInt(t.params?.start ?? '0', 10)
+          const en = t.params?.end !== undefined ? parseInt(t.params.end, 10) : undefined
+          v = v.slice(st, en)
+          break
+        }
+      }
+    } catch { /* ignore invalid transforms in preview */ }
+  }
+  return v
+}
+
+function transformLabel(t: LinkTransform): string {
+  const def = TRANSFORM_OPS.find((o) => o.op === t.op)
+  if (!def) return t.op
+  if (!def.hasParams) return def.label
+  const paramStr = Object.entries(t.params ?? {})
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(', ')
+  return paramStr ? `${def.label} (${paramStr})` : def.label
+}
+
+interface TransformPipelineProps {
+  transforms: LinkTransform[]
+  sampleValue: string
+  onChange: (transforms: LinkTransform[]) => void
+  label: string
+}
+
+function TransformPipeline({ transforms, sampleValue, onChange, label }: TransformPipelineProps) {
+  const [editingParams, setEditingParams] = useState<{ index: number; params: Record<string, string> } | null>(null)
+
+  function addTransform(op: LinkTransform['op']) {
+    const def = TRANSFORM_OPS.find((o) => o.op === op)
+    if (!def) return
+    const newT: LinkTransform = {
+      op,
+      params: def.hasParams && def.paramKeys
+        ? Object.fromEntries(def.paramKeys.map((k) => [k, '']))
+        : undefined,
+    }
+    const next = [...transforms, newT]
+    onChange(next)
+    if (def.hasParams) {
+      setEditingParams({ index: next.length - 1, params: { ...(newT.params ?? {}) } })
+    }
+  }
+
+  function removeTransform(i: number) {
+    onChange(transforms.filter((_, idx) => idx !== i))
+  }
+
+  function moveUp(i: number) {
+    if (i === 0) return
+    const next = [...transforms]
+    ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
+    onChange(next)
+  }
+
+  function moveDown(i: number) {
+    if (i === transforms.length - 1) return
+    const next = [...transforms]
+    ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
+    onChange(next)
+  }
+
+  function saveParams() {
+    if (!editingParams) return
+    const next = transforms.map((t, i) =>
+      i === editingParams.index ? { ...t, params: editingParams.params } : t
+    )
+    onChange(next)
+    setEditingParams(null)
+  }
+
+  const preview = applyTransforms(sampleValue, transforms)
+
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </div>
+
+      {/* Chip stack */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px', minHeight: '28px' }}>
+        {transforms.map((t, i) => (
+          <span
+            key={i}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '3px 8px',
+              background: 'var(--io-surface-secondary)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '999px',
+              fontSize: '12px',
+              color: 'var(--io-text-primary)',
+              cursor: 'default',
+            }}
+          >
+            <button
+              onClick={() => moveUp(i)}
+              title="Move up"
+              style={{ background: 'none', border: 'none', padding: '0 1px', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '10px', lineHeight: 1 }}
+            >▲</button>
+            <button
+              onClick={() => moveDown(i)}
+              title="Move down"
+              style={{ background: 'none', border: 'none', padding: '0 1px', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '10px', lineHeight: 1 }}
+            >▼</button>
+            <span
+              onClick={() => {
+                const def = TRANSFORM_OPS.find((o) => o.op === t.op)
+                if (def?.hasParams) setEditingParams({ index: i, params: { ...(t.params ?? {}) } })
+              }}
+              style={{ cursor: TRANSFORM_OPS.find((o) => o.op === t.op)?.hasParams ? 'pointer' : 'default' }}
+            >
+              {transformLabel(t)}
+            </span>
+            <button
+              onClick={() => removeTransform(i)}
+              title="Remove"
+              style={{ background: 'none', border: 'none', padding: '0 1px', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '12px', lineHeight: 1 }}
+            >×</button>
+          </span>
+        ))}
+        {transforms.length === 0 && (
+          <span style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+            No transforms (pass-through)
+          </span>
+        )}
+      </div>
+
+      {/* Add transform */}
+      <select
+        value=""
+        onChange={(e) => { if (e.target.value) addTransform(e.target.value as LinkTransform['op']) }}
+        style={{
+          fontSize: '12px',
+          padding: '4px 8px',
+          background: 'var(--io-surface-secondary)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          color: 'var(--io-text-primary)',
+          cursor: 'pointer',
+          marginBottom: '6px',
+        }}
+      >
+        <option value="">+ Add transform</option>
+        {TRANSFORM_OPS.map((o) => (
+          <option key={o.op} value={o.op}>{o.label}</option>
+        ))}
+      </select>
+
+      {/* Param editor */}
+      {editingParams !== null && (() => {
+        const def = TRANSFORM_OPS.find((o) => o.op === transforms[editingParams.index]?.op)
+        if (!def?.hasParams || !def.paramKeys) return null
+        return (
+          <div style={{
+            background: 'var(--io-surface-tertiary)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 'var(--io-radius)',
+            padding: '8px',
+            marginBottom: '6px',
+          }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+              Configure: {def.label}
+            </div>
+            {def.paramKeys.map((k) => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                <label style={{ fontSize: '12px', width: '64px', color: 'var(--io-text-muted)' }}>{k}:</label>
+                <input
+                  type="text"
+                  value={editingParams.params[k] ?? ''}
+                  onChange={(e) => setEditingParams((prev) => prev ? { ...prev, params: { ...prev.params, [k]: e.target.value } } : null)}
+                  style={{
+                    fontSize: '12px',
+                    padding: '3px 6px',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    background: 'var(--io-surface)',
+                    color: 'var(--io-text-primary)',
+                    flex: 1,
+                  }}
+                />
+              </div>
+            ))}
+            <button
+              onClick={saveParams}
+              style={{
+                fontSize: '12px',
+                padding: '3px 10px',
+                background: 'var(--io-accent)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'pointer',
+                marginRight: '4px',
+              }}
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setEditingParams(null)}
+              style={{
+                fontSize: '12px',
+                padding: '3px 10px',
+                background: 'var(--io-surface-secondary)',
+                color: 'var(--io-text-secondary)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )
+      })()}
+
+      {/* Live preview */}
+      {sampleValue && (
+        <div style={{
+          fontSize: '12px',
+          color: 'var(--io-text-muted)',
+          background: 'var(--io-surface-tertiary)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius)',
+          padding: '4px 8px',
+          fontFamily: 'monospace',
+        }}>
+          Preview: <span style={{ color: 'var(--io-text-primary)' }}>{`"${sampleValue}"`}</span>
+          {' → '}
+          <span style={{ color: 'var(--io-accent)' }}>{`"${preview}"`}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const EMPTY_LINK: Omit<DataLink, 'id' | 'valid' | 'validation_reason'> = {
+  source_dataset_id: '',
+  source_column: '',
+  target_dataset_id: '',
+  target_column: '',
+  match_type: 'exact',
+  bidirectional: false,
+  enabled: true,
+  source_transforms: [],
+  target_transforms: [],
+}
+
+function DataLinksTab() {
+  const canManage = usePermission('system:data_link_config')
+  const qc = useQueryClient()
+
+  // Datasets from definitions
+  const { data: defsResult } = useQuery({
+    queryKey: ['import-definitions'],
+    queryFn: () => importApi.listDefinitions(),
+  })
+  const definitions: Array<{ id: string; name: string; target_table: string }> =
+    defsResult?.success ? defsResult.data : []
+
+  // Data links list
+  const { data: linksResult, isLoading } = useQuery({
+    queryKey: ['data-links'],
+    queryFn: () => dataLinksApi.list(),
+    enabled: canManage,
+  })
+  const links: DataLink[] = linksResult?.success ? linksResult.data : []
+
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingLink, setEditingLink] = useState<DataLink | null>(null)
+  const [form, setForm] = useState<Omit<DataLink, 'id' | 'valid' | 'validation_reason'>>(EMPTY_LINK)
+  const [saving, setSaving] = useState(false)
+  const [validationWarnings, setValidationWarnings] = useState<Record<string, string>>({})
+
+  function openAdd() {
+    setEditingLink(null)
+    setForm({ ...EMPTY_LINK })
+    setDialogOpen(true)
+  }
+
+  function openEdit(link: DataLink) {
+    setEditingLink(link)
+    setForm({
+      source_dataset_id: link.source_dataset_id,
+      source_column: link.source_column,
+      target_dataset_id: link.target_dataset_id,
+      target_column: link.target_column,
+      match_type: link.match_type,
+      bidirectional: link.bidirectional,
+      enabled: link.enabled,
+      source_transforms: [...link.source_transforms],
+      target_transforms: [...link.target_transforms],
+    })
+    setDialogOpen(true)
+  }
+
+  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
+  async function handleSave() {
+    if (!form.source_dataset_id || !form.source_column || !form.target_dataset_id || !form.target_column) return
+    setSaving(true)
+    try {
+      let result: { success: true; data: DataLink } | { success: false; error: { message: string; code: string } }
+      if (editingLink) {
+        result = await dataLinksApi.update(editingLink.id, form)
+      } else {
+        result = await dataLinksApi.create(form)
+      }
+      if (result.success) {
+        const saved = result.data
+        if (saved.valid === false && saved.validation_reason) {
+          setValidationWarnings((prev) => ({ ...prev, [saved.id]: saved.validation_reason! }))
+        } else {
+          setValidationWarnings((prev) => {
+            const next = { ...prev }
+            delete next[saved.id]
+            return next
+          })
+        }
+        qc.invalidateQueries({ queryKey: ['data-links'] })
+        setDialogOpen(false)
+        showToast({ title: editingLink ? 'Link updated' : 'Link created', variant: 'success' })
+      } else {
+        showToast({ title: result.error.message, variant: 'error' })
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    const result = await dataLinksApi.delete(id)
+    if (result.success) {
+      qc.invalidateQueries({ queryKey: ['data-links'] })
+      showToast({ title: 'Link deleted', variant: 'success' })
+    } else {
+      showToast({ title: result.error.message, variant: 'error' })
+    }
+  }
+
+  async function handleToggle(link: DataLink) {
+    const result = await dataLinksApi.update(link.id, { enabled: !link.enabled })
+    if (result.success) {
+      qc.invalidateQueries({ queryKey: ['data-links'] })
+    } else {
+      showToast({ title: result.error.message, variant: 'error' })
+    }
+  }
+
+  // Columns from selected definition (mocked — real impl would fetch from API)
+  function getColumns(datasetId: string): string[] {
+    const def = definitions.find((d) => d.id === datasetId)
+    if (!def) return []
+    // Return generic column names — in production these would come from the dataset schema API
+    return ['id', 'name', 'description', 'tag', 'value', 'timestamp', 'status']
+  }
+
+  const sourceColumns = getColumns(form.source_dataset_id)
+  const targetColumns = getColumns(form.target_dataset_id)
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '7px 10px',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    background: 'var(--io-surface)',
+    color: 'var(--io-text-primary)',
+    fontSize: '13px',
+    boxSizing: 'border-box',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--io-text-muted)',
+    marginBottom: '4px',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  }
+
+  if (!canManage) {
+    return (
+      <div
+        style={{
+          textAlign: 'center',
+          padding: '48px',
+          color: 'var(--io-text-muted)',
+          background: 'var(--io-surface-secondary)',
+          borderRadius: 'var(--io-radius)',
+          border: '1px solid var(--io-border)',
+        }}
+      >
+        You do not have permission to configure Data Links.
+        <br />
+        <span style={{ fontSize: '12px', opacity: 0.7 }}>
+          Required permission: <code>system:data_link_config</code>
+        </span>
+      </div>
+    )
+  }
+
+  const matchTypeLabel: Record<DataLink['match_type'], string> = {
+    exact: 'Exact',
+    case_insensitive: 'Case-insensitive',
+    transformed: 'Transformed',
+  }
+
+  return (
+    <div>
+      {/* Header row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div>
+          <div style={{ fontSize: '14px', fontWeight: 600 }}>Data Links</div>
+          <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', marginTop: '2px' }}>
+            Configure cross-dataset joins by linking columns between import datasets.
+          </div>
+        </div>
+        <button
+          onClick={openAdd}
+          style={{
+            padding: '7px 14px',
+            background: 'var(--io-accent)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 'var(--io-radius)',
+            fontSize: '13px',
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          Add Link
+        </button>
+      </div>
+
+      {/* Links table */}
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: '32px', color: 'var(--io-text-muted)', fontSize: '13px' }}>
+          Loading data links…
+        </div>
+      ) : links.length === 0 ? (
+        <div style={{
+          textAlign: 'center',
+          padding: '48px',
+          color: 'var(--io-text-muted)',
+          background: 'var(--io-surface-secondary)',
+          borderRadius: 'var(--io-radius)',
+          border: '1px dashed var(--io-border)',
+          fontSize: '13px',
+        }}>
+          No data links configured yet. Click "Add Link" to create the first one.
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid var(--io-border)' }}>
+              {['Source Dataset', 'Source Column', 'Target Dataset', 'Target Column', 'Match Type', 'Direction', 'Enabled', 'Actions'].map((h) => (
+                <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {links.map((link) => {
+              const srcDef = definitions.find((d) => d.id === link.source_dataset_id)
+              const tgtDef = definitions.find((d) => d.id === link.target_dataset_id)
+              const warn = validationWarnings[link.id]
+              return (
+                <tr key={link.id} style={{ borderBottom: '1px solid var(--io-border)' }}>
+                  <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
+                    {srcDef?.name ?? link.source_dataset_id}
+                    {warn && (
+                      <span
+                        title={warn === 'no_point_column_path' ? 'No path to a point column' : warn}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          marginLeft: '6px',
+                          padding: '1px 6px',
+                          background: 'var(--io-warning-subtle)',
+                          color: 'var(--io-warning)',
+                          borderRadius: '999px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        ⚠ No point path
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: '12px', verticalAlign: 'middle' }}>{link.source_column}</td>
+                  <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>{tgtDef?.name ?? link.target_dataset_id}</td>
+                  <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: '12px', verticalAlign: 'middle' }}>{link.target_column}</td>
+                  <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 8px',
+                      background: 'var(--io-surface-secondary)',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                    }}>
+                      {matchTypeLabel[link.match_type]}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 10px', verticalAlign: 'middle', textAlign: 'center' }}>
+                    {link.bidirectional ? (
+                      <span title="Bidirectional" style={{ fontSize: '14px' }}>⇄</span>
+                    ) : (
+                      <span title="One-way" style={{ fontSize: '14px', color: 'var(--io-text-muted)' }}>→</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 10px', verticalAlign: 'middle', textAlign: 'center' }}>
+                    <button
+                      onClick={() => handleToggle(link)}
+                      style={{
+                        width: '36px',
+                        height: '20px',
+                        borderRadius: '10px',
+                        background: link.enabled ? 'var(--io-accent)' : 'var(--io-surface-tertiary)',
+                        border: '1px solid var(--io-border)',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'background 0.15s',
+                      }}
+                      title={link.enabled ? 'Disable' : 'Enable'}
+                    >
+                      <span style={{
+                        position: 'absolute',
+                        top: '2px',
+                        left: link.enabled ? '17px' : '2px',
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '50%',
+                        background: '#fff',
+                        transition: 'left 0.15s',
+                      }} />
+                    </button>
+                  </td>
+                  <td style={{ padding: '8px 10px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                    <button
+                      onClick={() => openEdit(link)}
+                      style={{
+                        padding: '3px 10px',
+                        background: 'var(--io-surface-secondary)',
+                        border: '1px solid var(--io-border)',
+                        borderRadius: 'var(--io-radius)',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        color: 'var(--io-text-primary)',
+                        marginRight: '4px',
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(link.id)}
+                      style={{
+                        padding: '3px 10px',
+                        background: 'var(--io-danger-subtle)',
+                        border: '1px solid var(--io-danger)',
+                        borderRadius: 'var(--io-radius)',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        color: 'var(--io-danger)',
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {/* Add/Edit Dialog */}
+      {dialogOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.5)',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setDialogOpen(false) }}
+        >
+          <div
+            style={{
+              background: 'var(--io-surface)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius-lg)',
+              padding: '24px',
+              width: '640px',
+              maxWidth: '95vw',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+                {editingLink ? 'Edit Data Link' : 'Add Data Link'}
+              </h3>
+              <button
+                onClick={() => setDialogOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--io-text-muted)', lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Source section */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', border: '1px solid var(--io-border)' }}>
+              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '10px', color: 'var(--io-accent)' }}>Source</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={labelStyle}>Dataset</label>
+                  <select value={form.source_dataset_id} onChange={(e) => setField('source_dataset_id', e.target.value)} style={inputStyle}>
+                    <option value="">Select dataset…</option>
+                    {definitions.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Column</label>
+                  <select value={form.source_column} onChange={(e) => setField('source_column', e.target.value)} style={inputStyle} disabled={!form.source_dataset_id}>
+                    <option value="">Select column…</option>
+                    {sourceColumns.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <TransformPipeline
+                label="Source transforms"
+                transforms={form.source_transforms}
+                sampleValue={form.source_column || 'EXAMPLE-001'}
+                onChange={(t) => setField('source_transforms', t)}
+              />
+            </div>
+
+            {/* Target section */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', border: '1px solid var(--io-border)' }}>
+              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '10px', color: 'var(--io-text-secondary)' }}>Target</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div>
+                  <label style={labelStyle}>Dataset</label>
+                  <select value={form.target_dataset_id} onChange={(e) => setField('target_dataset_id', e.target.value)} style={inputStyle}>
+                    <option value="">Select dataset…</option>
+                    {definitions.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Column</label>
+                  <select value={form.target_column} onChange={(e) => setField('target_column', e.target.value)} style={inputStyle} disabled={!form.target_dataset_id}>
+                    <option value="">Select column…</option>
+                    {targetColumns.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <TransformPipeline
+                label="Target transforms"
+                transforms={form.target_transforms}
+                sampleValue={form.target_column || 'example_001'}
+                onChange={(t) => setField('target_transforms', t)}
+              />
+            </div>
+
+            {/* Match type + bidirectional */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+              <div>
+                <label style={labelStyle}>Match Type</label>
+                <select
+                  value={form.match_type}
+                  onChange={(e) => setField('match_type', e.target.value as DataLink['match_type'])}
+                  style={inputStyle}
+                >
+                  <option value="exact">Exact</option>
+                  <option value="case_insensitive">Case-insensitive</option>
+                  <option value="transformed">Transformed</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.bidirectional}
+                    onChange={(e) => setField('bidirectional', e.target.checked)}
+                    style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+                  />
+                  <span>Bidirectional link</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={() => setDialogOpen(false)}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--io-surface-secondary)',
+                  color: 'var(--io-text-primary)',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: 'var(--io-radius)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !form.source_dataset_id || !form.source_column || !form.target_dataset_id || !form.target_column}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--io-accent)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 'var(--io-radius)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving…' : editingLink ? 'Save Changes' : 'Create Link'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
-type Tab = 'connectors' | 'connections' | 'definitions' | 'runs' | 'point_detail'
+type Tab = 'connectors' | 'connections' | 'definitions' | 'runs' | 'point_detail' | 'data_links'
 
 export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab }) {
   const canManageConnections = usePermission('system:import_connections')
   const canManageDefinitions = usePermission('system:import_definitions')
   const canViewHistory = usePermission('system:import_history')
   const canManagePointDetail = usePermission('system:point_detail_config')
+  const canManageDataLinks = usePermission('system:data_link_config')
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab ?? 'connectors')
 
@@ -2645,6 +3455,7 @@ export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab })
     { id: 'definitions',  label: 'Definitions',   visible: canManageDefinitions },
     { id: 'runs',         label: 'Run History',   visible: canViewHistory },
     { id: 'point_detail', label: 'Point Detail',  visible: canManagePointDetail },
+    { id: 'data_links',   label: 'Data Links',    visible: canManageDataLinks },
   ]
 
   const visibleTabs = tabs.filter((t) => t.visible)
@@ -2702,6 +3513,7 @@ export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab })
       {activeTab === 'definitions' && <DefinitionsTab />}
       {activeTab === 'runs' && <RunsTab />}
       {activeTab === 'point_detail' && <PointDetailTab />}
+      {activeTab === 'data_links' && <DataLinksTab />}
     </div>
   )
 }
