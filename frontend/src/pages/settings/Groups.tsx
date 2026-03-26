@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -724,6 +724,118 @@ function MemberPanel({ group }: { group: Group }) {
 }
 
 // ---------------------------------------------------------------------------
+// GroupContextMenu — right-click context menu for group table rows
+// ---------------------------------------------------------------------------
+interface ContextMenuPos { x: number; y: number }
+
+function GroupContextMenu({
+  group,
+  pos,
+  onClose,
+  onAddMembers,
+  onManageRoles,
+  onDelete,
+}: {
+  group: Group
+  pos: ContextMenuPos
+  onClose: () => void
+  onAddMembers: (g: Group) => void
+  onManageRoles: (g: Group) => void
+  onDelete: (g: Group) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  const menuStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: pos.y,
+    left: pos.x,
+    zIndex: 500,
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+    minWidth: '180px',
+    overflow: 'hidden',
+    padding: '4px 0',
+  }
+
+  const itemStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    padding: '7px 14px',
+    background: 'transparent',
+    border: 'none',
+    textAlign: 'left',
+    fontSize: '13px',
+    color: 'var(--io-text-secondary)',
+    cursor: 'pointer',
+  }
+
+  const disabledItemStyle: React.CSSProperties = {
+    ...itemStyle,
+    color: 'var(--io-text-muted)',
+    cursor: 'not-allowed',
+    opacity: 0.55,
+  }
+
+  const dangerItemStyle: React.CSSProperties = {
+    ...itemStyle,
+    color: 'var(--io-danger)',
+  }
+
+  const hasMembers = group.member_count > 0
+
+  function menuItem(label: string, action: () => void, danger = false) {
+    return (
+      <button
+        style={danger ? dangerItemStyle : itemStyle}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        onClick={() => { action(); onClose() }}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} style={menuStyle}>
+      {menuItem('Add Members', () => onAddMembers(group))}
+      {menuItem('Manage Roles', () => onManageRoles(group))}
+      <div style={{ height: '1px', background: 'var(--io-border)', margin: '4px 0' }} />
+      {hasMembers ? (
+        <button
+          style={disabledItemStyle}
+          title="Cannot delete a group that has members"
+          disabled
+        >
+          Delete
+        </button>
+      ) : (
+        menuItem('Delete', () => onDelete(group), true)
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // GroupRow — single group row with expand/collapse
 // ---------------------------------------------------------------------------
 function GroupRow({
@@ -732,12 +844,14 @@ function GroupRow({
   total,
   onEdit,
   onDelete,
+  onContextMenu,
 }: {
   group: Group
   index: number
   total: number
   onEdit: (g: Group) => void
   onDelete: (g: Group) => void
+  onContextMenu: (e: React.MouseEvent, g: Group) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -747,6 +861,7 @@ function GroupRow({
         style={{
           borderBottom: expanded || index < total - 1 ? '1px solid var(--io-border-subtle)' : undefined,
         }}
+        onContextMenu={(e) => onContextMenu(e, group)}
       >
         <td style={cellStyle}>
           <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>{group.name}</span>
@@ -840,6 +955,23 @@ export default function Groups() {
   const [deleteGroup, setDeleteGroup] = useState<Group | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [bannerError, _setBannerError] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ group: Group; pos: ContextMenuPos } | null>(null)
+
+  function handleContextMenu(e: React.MouseEvent, group: Group) {
+    e.preventDefault()
+    setContextMenu({ group, pos: { x: e.clientX, y: e.clientY } })
+  }
+
+  function handleAddMembers(group: Group) {
+    // Open the group edit dialog which contains the MemberPanel
+    setEditGroup(group)
+    setEditOpen(true)
+  }
+
+  function handleManageRoles(group: Group) {
+    setEditGroup(group)
+    setEditOpen(true)
+  }
 
   const groupsQuery = useQuery({
     queryKey: ['groups'],
@@ -984,6 +1116,7 @@ export default function Groups() {
                   total={groups.length}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onContextMenu={handleContextMenu}
                 />
               ))}
             </tbody>
@@ -1036,6 +1169,17 @@ export default function Groups() {
           if (!v) setDeleteGroup(null)
         }}
       />
+
+      {contextMenu && (
+        <GroupContextMenu
+          group={contextMenu.group}
+          pos={contextMenu.pos}
+          onClose={() => setContextMenu(null)}
+          onAddMembers={(g) => { handleAddMembers(g) }}
+          onManageRoles={(g) => { handleManageRoles(g) }}
+          onDelete={(g) => { handleDelete(g) }}
+        />
+      )}
     </div>
   )
 }

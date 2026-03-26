@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { recognitionApi, type ModelInfo } from '../../api/recognition'
+import { api } from '../../api/client'
 import { showToast } from '../../shared/components/Toast'
 
 // ---------------------------------------------------------------------------
@@ -56,6 +57,106 @@ function SectionCard({ title, children }: { title: string; children: React.React
         {title}
       </div>
       <div style={{ padding: '20px' }}>{children}</div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// RecognitionModelContextMenu — right-click context menu for model table rows
+// ---------------------------------------------------------------------------
+interface ContextMenuPos { x: number; y: number }
+
+function RecognitionModelContextMenu({
+  model,
+  pos,
+  onClose,
+  onViewDetails,
+  onSetActive,
+  onViewFeedback,
+}: {
+  model: ModelInfo
+  pos: ContextMenuPos
+  onClose: () => void
+  onViewDetails: (m: ModelInfo) => void
+  onSetActive: (m: ModelInfo) => void
+  onViewFeedback: (m: ModelInfo) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  const menuStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: pos.y,
+    left: pos.x,
+    zIndex: 500,
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+    minWidth: '190px',
+    overflow: 'hidden',
+    padding: '4px 0',
+  }
+
+  const itemStyle: React.CSSProperties = {
+    display: 'block',
+    width: '100%',
+    padding: '7px 14px',
+    background: 'transparent',
+    border: 'none',
+    textAlign: 'left',
+    fontSize: '13px',
+    color: 'var(--io-text-secondary)',
+    cursor: 'pointer',
+  }
+
+  const disabledItemStyle: React.CSSProperties = {
+    ...itemStyle,
+    color: 'var(--io-text-muted)',
+    cursor: 'not-allowed',
+    opacity: 0.55,
+  }
+
+  function menuItem(label: string, action: () => void) {
+    return (
+      <button
+        style={itemStyle}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+        onClick={() => { action(); onClose() }}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} style={menuStyle}>
+      {menuItem('View Details', () => onViewDetails(model))}
+      {model.loaded ? (
+        <button style={disabledItemStyle} title="This model is already active" disabled>
+          Set as Active
+        </button>
+      ) : (
+        menuItem('Set as Active', () => onSetActive(model))
+      )}
+      {menuItem('View Feedback History', () => onViewFeedback(model))}
     </div>
   )
 }
@@ -135,6 +236,13 @@ function ModelsSection() {
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ model: ModelInfo; pos: ContextMenuPos } | null>(null)
+  const [detailModel, setDetailModel] = useState<ModelInfo | null>(null)
+
+  function handleContextMenu(e: React.MouseEvent, model: ModelInfo) {
+    e.preventDefault()
+    setContextMenu({ model, pos: { x: e.clientX, y: e.clientY } })
+  }
 
   const { data: models, isLoading } = useQuery({
     queryKey: ['recognition', 'models'],
@@ -155,6 +263,19 @@ function ModelsSection() {
       qc.invalidateQueries({ queryKey: ['recognition', 'models'] })
       qc.invalidateQueries({ queryKey: ['recognition', 'status'] })
       showToast({ title: 'Model removed', variant: 'success' })
+    },
+  })
+
+  const setActiveMutation = useMutation({
+    mutationFn: (id: string) => api.post<{ activated: boolean }>(`/api/recognition/models/${id}/activate`, {}),
+    onSuccess: (result) => {
+      if (!result.success) {
+        showToast({ title: result.error.message, variant: 'error' })
+        return
+      }
+      qc.invalidateQueries({ queryKey: ['recognition', 'models'] })
+      qc.invalidateQueries({ queryKey: ['recognition', 'status'] })
+      showToast({ title: 'Model set as active', variant: 'success' })
     },
   })
 
@@ -252,6 +373,7 @@ function ModelsSection() {
                 <tr
                   key={m.id}
                   style={{ borderBottom: '1px solid var(--io-border-subtle)' }}
+                  onContextMenu={(e) => handleContextMenu(e, m)}
                 >
                   <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
                     {m.domain.toUpperCase()}
@@ -295,6 +417,94 @@ function ModelsSection() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {contextMenu && (
+        <RecognitionModelContextMenu
+          model={contextMenu.model}
+          pos={contextMenu.pos}
+          onClose={() => setContextMenu(null)}
+          onViewDetails={(m) => { setDetailModel(m) }}
+          onSetActive={(m) => { setActiveMutation.mutate(m.id) }}
+          onViewFeedback={(_m) => {
+            window.location.href = '/settings/recognition'
+          }}
+        />
+      )}
+
+      {detailModel && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setDetailModel(null)}
+        >
+          <div
+            style={{
+              background: 'var(--io-surface-elevated)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 'var(--io-radius)',
+              padding: '24px',
+              width: '420px',
+              maxWidth: 'calc(100vw - 32px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
+                Model Details
+              </h3>
+              <button
+                onClick={() => setDetailModel(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--io-text-muted)', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}
+              >
+                x
+              </button>
+            </div>
+            <dl style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[
+                ['Domain', detailModel.domain.toUpperCase()],
+                ['Version', detailModel.version],
+                ['Filename', detailModel.filename],
+                ['Classes', String(detailModel.class_count)],
+                ['Size', `${(detailModel.file_size_bytes / 1024 / 1024).toFixed(1)} MB`],
+                ['Status', detailModel.loaded ? 'Active' : 'Inactive'],
+                ['Uploaded', new Date(detailModel.uploaded_at).toLocaleString()],
+              ].map(([label, value]) => (
+                <div key={label} style={{ display: 'flex', gap: '12px' }}>
+                  <dt style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', width: '100px', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {label}
+                  </dt>
+                  <dd style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-primary)', wordBreak: 'break-all' }}>
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button
+                onClick={() => setDetailModel(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--io-radius)',
+                  border: '1px solid var(--io-border)',
+                  background: 'transparent',
+                  color: 'var(--io-text-secondary)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </SectionCard>
