@@ -59,6 +59,23 @@ const musterPersonAccountedHandlers = new Set<(data: MusterPersonAccounted) => v
 export interface NotificationStatusChanged { message_id: string; status: string; channel?: string; recipient_count?: number }
 const notificationStatusHandlers = new Set<(data: NotificationStatusChanged) => void>()
 
+// Alarm count events — published by the Data Broker when alarms are created or acknowledged
+export interface AlarmCountUpdate {
+  /** The new total unacknowledged alarm count (absolute, from broker) */
+  unacknowledged: number
+}
+export interface AlarmCreatedEvent {
+  alarm_id: string
+  unacknowledged_count?: number
+}
+export interface AlarmAcknowledgedEvent {
+  alarm_id: string
+  unacknowledged_count?: number
+}
+const alarmCountUpdateHandlers = new Set<(data: AlarmCountUpdate) => void>()
+const alarmCreatedHandlers = new Set<(data: AlarmCreatedEvent) => void>()
+const alarmAcknowledgedHandlers = new Set<(data: AlarmAcknowledgedEvent) => void>()
+
 let currentState: WsConnectionState = 'disconnected'
 
 // ---------------------------------------------------------------------------
@@ -286,6 +303,41 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
       notificationStatusHandlers.forEach((fn) => fn(data))
       break
     }
+    case 'alarm_count_update': {
+      // Broker publishes an absolute unacknowledged count (preferred)
+      const payload = (msg.payload as Record<string, unknown> | undefined) ?? msg
+      const unacknowledged = (payload.unacknowledged as number | undefined) ?? (msg.unacknowledged as number | undefined) ?? 0
+      alarmCountUpdateHandlers.forEach((fn) => fn({ unacknowledged }))
+      break
+    }
+    case 'alarm_created': {
+      // Broker publishes individual alarm creation events
+      const payload = (msg.payload as Record<string, unknown> | undefined) ?? msg
+      const data: AlarmCreatedEvent = {
+        alarm_id: (payload.alarm_id as string | undefined) ?? '',
+        unacknowledged_count: payload.unacknowledged_count as number | undefined,
+      }
+      alarmCreatedHandlers.forEach((fn) => fn(data))
+      // If the broker includes an absolute count, forward to count handlers too
+      if (typeof data.unacknowledged_count === 'number') {
+        alarmCountUpdateHandlers.forEach((fn) => fn({ unacknowledged: data.unacknowledged_count! }))
+      }
+      break
+    }
+    case 'alarm_acknowledged': {
+      // Broker publishes acknowledgement events
+      const payload = (msg.payload as Record<string, unknown> | undefined) ?? msg
+      const data: AlarmAcknowledgedEvent = {
+        alarm_id: (payload.alarm_id as string | undefined) ?? '',
+        unacknowledged_count: payload.unacknowledged_count as number | undefined,
+      }
+      alarmAcknowledgedHandlers.forEach((fn) => fn(data))
+      // If the broker includes an absolute count, forward to count handlers too
+      if (typeof data.unacknowledged_count === 'number') {
+        alarmCountUpdateHandlers.forEach((fn) => fn({ unacknowledged: data.unacknowledged_count! }))
+      }
+      break
+    }
   }
 }
 
@@ -404,6 +456,24 @@ export const wsWorkerConnector = {
     return () => { notificationStatusHandlers.delete(fn) }
   },
 
+  /** Subscribe to absolute alarm count updates published by the broker. */
+  onAlarmCountUpdate(fn: (data: AlarmCountUpdate) => void): () => void {
+    alarmCountUpdateHandlers.add(fn)
+    return () => { alarmCountUpdateHandlers.delete(fn) }
+  },
+
+  /** Subscribe to individual alarm_created events. */
+  onAlarmCreated(fn: (data: AlarmCreatedEvent) => void): () => void {
+    alarmCreatedHandlers.add(fn)
+    return () => { alarmCreatedHandlers.delete(fn) }
+  },
+
+  /** Subscribe to individual alarm_acknowledged events. */
+  onAlarmAcknowledged(fn: (data: AlarmAcknowledgedEvent) => void): () => void {
+    alarmAcknowledgedHandlers.add(fn)
+    return () => { alarmAcknowledgedHandlers.delete(fn) }
+  },
+
   sendStatusReport(renderFps: number, pendingUpdates: number, lastBatchProcessMs: number) {
     const p = getPort()
     p.postMessage({
@@ -426,6 +496,9 @@ export const wsWorkerConnector = {
     musterStatusHandlers.clear()
     musterPersonAccountedHandlers.clear()
     notificationStatusHandlers.clear()
+    alarmCountUpdateHandlers.clear()
+    alarmCreatedHandlers.clear()
+    alarmAcknowledgedHandlers.clear()
     currentState = 'disconnected'
     stateListeners.forEach((fn) => fn('disconnected'))
   },
