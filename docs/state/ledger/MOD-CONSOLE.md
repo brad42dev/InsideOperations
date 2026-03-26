@@ -35,3 +35,4 @@ MOD-CONSOLE-024 | Search/filter input missing from left nav section panels | ver
 MOD-CONSOLE-024 | Search/filter input missing from left nav section panels | verified 2026-03-25 | commit c312a44 | npx tsc --noEmit | PASS
 MOD-CONSOLE-023 | View-mode selector buttons missing from left nav section headers | verified 2026-03-25 | commit fd25ac0 | npx tsc --noEmit | PASS
 MOD-CONSOLE-022 | Favorites group missing from Workspaces section in left nav | verified 2026-03-26 | commit f5b7104 | npx tsc --noEmit | PASS
+MOD-CONSOLE-023 | View-mode selector buttons missing from left nav section headers | verified 2026-03-26 | commit 1e1136b | npx tsc --noEmit (delta 0) | PASS
