@@ -332,12 +332,8 @@ export default function ConsolePage() {
         }
         saveFailCountRef.current += 1
         const next = saveFailCountRef.current
-        if (next === 1) {
-          showToast({ title: 'Failed to save workspace. Retrying\u2026', variant: 'error' })
-        }
         if (next >= 3) {
           setShowSaveBanner(true)
-          showToast({ title: 'Workspace save failed after multiple attempts.', variant: 'error' })
         } else {
           const delay = Math.pow(2, next - 1) * 1000
           if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
@@ -370,6 +366,7 @@ export default function ConsolePage() {
       }
       saveFailCountRef.current = 0
       setShowSaveBanner(false)
+      setIsDirty(false)
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current)
         retryTimerRef.current = null
@@ -412,12 +409,8 @@ export default function ConsolePage() {
       }
       saveFailCountRef.current += 1
       const next = saveFailCountRef.current
-      if (next === 1) {
-        showToast({ title: 'Failed to save workspace. Retrying\u2026', variant: 'error' })
-      }
       if (next >= 3) {
         setShowSaveBanner(true)
-        showToast({ title: 'Workspace save failed after multiple attempts.', variant: 'error' })
       } else {
         // Exponential backoff: 1s after first failure, 2s after second
         const delay = Math.pow(2, next - 1) * 1000
@@ -480,6 +473,7 @@ export default function ConsolePage() {
 
   const scheduleSave = useCallback(
     (ws: WorkspaceLayout) => {
+      setIsDirty(true)
       if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
       saveDebounceRef.current = setTimeout(() => {
         persistWorkspace(ws)
@@ -528,6 +522,7 @@ export default function ConsolePage() {
 
   const saveFailCountRef = useRef(0)
   const [showSaveBanner, setShowSaveBanner] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
@@ -1100,6 +1095,20 @@ export default function ConsolePage() {
                 </span>
               )}
               {ws.name}
+              {isDirty && ws.id === activeId && (
+                <span
+                  title="Unsaved changes"
+                  style={{
+                    display: 'inline-block',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: 'var(--io-warning)',
+                    marginLeft: 5,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
             </button>
           ))}
 
@@ -1541,7 +1550,7 @@ export default function ConsolePage() {
                 gap: 12,
               }}
             >
-              <span>Workspace changes not saved. Retry?</span>
+              <span>Workspace changes not saved</span>
               <button
                 onClick={() => {
                   if (activeWorkspace) {
