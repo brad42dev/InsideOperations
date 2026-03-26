@@ -915,7 +915,15 @@ export default function ProcessPage() {
 
   // ---- Keyboard shortcuts (§12.1) ------------------------------------------
 
-  const [minimapVisible, setMinimapVisible] = useState(true)
+  const minimapVisible = true
+  const [minimapCollapsed, setMinimapCollapsed] = useState(() => {
+    try { return localStorage.getItem('io-process-minimap-collapsed') === 'true' } catch { return false }
+  })
+
+  useEffect(() => {
+    try { localStorage.setItem('io-process-minimap-collapsed', String(minimapCollapsed)) } catch { /* ignore */ }
+  }, [minimapCollapsed])
+
   // Ref so keyboard handler always reads latest isHistorical without ordering constraint
   const isHistoricalRef = useRef(false)
 
@@ -936,8 +944,8 @@ export default function ProcessPage() {
         if (e.key === 'ArrowRight') { e.preventDefault(); setViewport((vp) => ({ ...vp, panX: vp.panX + PAN_STEP / vp.zoom })); return }
         if (e.key === 'ArrowUp') { e.preventDefault(); setViewport((vp) => ({ ...vp, panY: vp.panY - PAN_STEP / vp.zoom })); return }
         if (e.key === 'ArrowDown') { e.preventDefault(); setViewport((vp) => ({ ...vp, panY: vp.panY + PAN_STEP / vp.zoom })); return }
-        // M — toggle minimap
-        if (e.key === 'm' || e.key === 'M') { setMinimapVisible((v) => !v); return }
+        // M — toggle minimap collapsed state (persisted via localStorage)
+        if (e.key === 'm' || e.key === 'M') { setMinimapCollapsed((v) => !v); return }
         // + / = — zoom in
         if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); return }
         // - — zoom out
@@ -1244,6 +1252,8 @@ export default function ProcessPage() {
                 onViewportChange={handleMinimapViewportChange}
                 sceneData={graphic.scene_data}
                 visible={minimapVisible}
+                collapsed={minimapCollapsed}
+                onCollapsedChange={setMinimapCollapsed}
               />
             )}
 

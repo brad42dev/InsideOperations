@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +31,10 @@ export interface ProcessMinimapProps {
   sceneData?: SceneData | null
   /** Whether the minimap is visible (M key toggles) */
   visible?: boolean
+  /** Whether the minimap is collapsed (persisted by parent) */
+  collapsed: boolean
+  /** Called when the user toggles the collapsed state */
+  onCollapsedChange: (collapsed: boolean) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -73,8 +77,9 @@ export default function ProcessMinimap({
   onViewportChange,
   sceneData,
   visible = true,
+  collapsed,
+  onCollapsedChange,
 }: ProcessMinimapProps) {
-  const [collapsed, setCollapsed] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const isDragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -195,24 +200,12 @@ export default function ProcessMinimap({
     isDragging.current = false
   }, [])
 
-  // Keyboard shortcut M to toggle minimap
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'm' || e.key === 'M') {
-        // Only when no input is focused
-        const active = document.activeElement
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || (active as HTMLElement).isContentEditable)) return
-        setCollapsed((v) => !v)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  // Keyboard shortcut M is handled by ProcessPage (index.tsx) via onCollapsedChange
 
   if (collapsed) {
     return (
       <button
-        onClick={() => setCollapsed(false)}
+        onClick={() => onCollapsedChange(false)}
         title="Show minimap (M)"
         style={{
           position: 'absolute',
@@ -258,7 +251,7 @@ export default function ProcessMinimap({
     >
       {/* Toggle button — top-left corner */}
       <button
-        onClick={() => setCollapsed(true)}
+        onClick={() => onCollapsedChange(true)}
         title="Hide minimap (M)"
         style={{
           position: 'absolute',
