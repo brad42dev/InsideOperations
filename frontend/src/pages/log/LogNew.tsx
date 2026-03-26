@@ -9,13 +9,29 @@ export default function LogNew() {
   const [teamName, setTeamName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const { data: templates, isLoading } = useQuery({
+  const { data: templates = [], isLoading, isError, error: queryError } = useQuery({
     queryKey: ['log', 'templates', 'active'],
     queryFn: async () => {
       const res = await logsApi.listTemplates({ is_active: true })
       if (!res.success) return []
-      // Handle pagination wrapper from PagedResponse
-      return Array.isArray(res.data) ? res.data : (res.data as { data: unknown[] }).data ?? []
+
+      // Handle different response shapes from the API client
+      // Expected: res.data is PaginatedResult<LogTemplate> with { data: LogTemplate[], pagination: ... }
+      // But it might also be an array directly if the API client unwrapping is different
+      const responseData = res.data as any
+
+      // Check if it's already an array (API client returned data directly)
+      if (Array.isArray(responseData)) {
+        return responseData
+      }
+
+      // Check if it's a paginated result with a data array
+      if (responseData && typeof responseData === 'object' && Array.isArray(responseData.data)) {
+        return responseData.data
+      }
+
+      // Fallback: return empty array if shape doesn't match
+      return []
     },
   })
 
@@ -102,7 +118,7 @@ export default function LogNew() {
             <option value="">
               {isLoading ? 'Loading templates…' : '— Select a template —'}
             </option>
-            {templates.map((t) => (
+            {templates.map((t: any) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
@@ -123,6 +139,12 @@ export default function LogNew() {
         {error && (
           <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: '#ef4444' }}>
             {error}
+          </div>
+        )}
+
+        {isError && (
+          <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: '#ef4444' }}>
+            Failed to load templates: {queryError ? String(queryError) : 'Unknown error'}
           </div>
         )}
 
