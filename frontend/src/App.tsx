@@ -1246,7 +1246,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/detached/dashboard/:dashboardId"
+        path="/detached/dashboard/:id"
         element={
           <PermissionGuard permission="dashboards:read">
             <ErrorBoundary module="Dashboards">
