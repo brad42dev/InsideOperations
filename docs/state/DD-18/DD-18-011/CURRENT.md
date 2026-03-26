@@ -1,10 +1,10 @@
 ---
 task_id: DD-18-011
 unit: DD-18
-status: completed
-attempt: 1
-claimed_at: 2026-03-25T10:00:00Z
-last_heartbeat: 2026-03-25T10:05:00Z
+status: claimed
+attempt: 2
+claimed_at: 2026-03-26T00:02:00Z
+last_heartbeat: 2026-03-26T00:02:00Z
 rate_limited: false
 ---
 
@@ -14,21 +14,23 @@ rate_limited: false
 |---------|---------------|-------------|--------|
 | 1 | dev.sh | 9f80e611c4a775e91e3e2ed3487788d5d63dee2f | SUCCESS |
 
-## Current Attempt (1) — CLOSED
+## Current Attempt (2)
 
 ### Phase
-CLOSED
+CLAIM
+
+### Files Loaded
+- [x] docs/state/DD-18/DD-18-011/CURRENT.md
+- [x] docs/tasks/dd-18/DD-18-011-uat-archive-save-toast.md
+- [x] docs/tasks/dd-18/DD-18-011-sum-column-absent-from-api.md
+- [x] services/archive-service/src/handlers/history.rs
+- [x] frontend/src/pages/settings/ArchiveSettings.tsx
 
 ### Work Log
-- 2026-03-25T10:00:00Z — Claimed task DD-18-011, attempt 1
-- 2026-03-25T10:01:00Z — Loaded: dev.sh (1 file). No spec-doc: DD-18 unit is a dev-tooling task with no module spec file — skipped.
-- 2026-03-25T10:02:00Z — Modified dev.sh: split build_services into build_only_services + build_and_restart_services; updated help text; updated dispatch for build and build-only commands
-- 2026-03-25T10:03:00Z — Build check: PASS (bash -n syntax check passed)
-- 2026-03-25T10:04:00Z — Checklist: all 8 acceptance criteria pass
-- 2026-03-25T10:05:00Z — Scope check: PASS — only dev.sh modified (in-scope)
+- 2026-03-26T00:02:00Z — Claimed task DD-18-011, attempt 2 (prior attempt 1 was dev.sh — different task)
 
 ### Exit Checklist
-- [x] Attempt file written: attempts/001.md
-- [x] Attempt file read back and verified non-empty
-- [x] CURRENT.md updated with final status and fingerprints
+- [ ] Attempt file written
+- [ ] Attempt file read back and verified non-empty
+- [ ] CURRENT.md updated with final status and fingerprints
 - [ ] CURRENT.md read back — status field confirmed
