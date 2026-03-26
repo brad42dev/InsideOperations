@@ -1205,8 +1205,8 @@ export default function ProcessPage() {
             {graphic?.scene_data && (
               isTablet ? (
                 <TransformWrapper
-                  minScale={0.5}
-                  maxScale={5}
+                  minScale={0.05}
+                  maxScale={8}
                   velocityAnimation={{ sensitivity: 1, animationTime: 200 }}
                   panning={{ velocityDisabled: false }}
                 >
