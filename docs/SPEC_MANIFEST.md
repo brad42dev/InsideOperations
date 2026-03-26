@@ -729,6 +729,10 @@ These features span multiple modules. They are defined once here. **Every audit 
 - Data export: 6 formats (CSV, JSON, Excel, PDF, PNG, SVG)
 - Live/Historical toggle visible in toolbar or status bar
 
+**CX-CONSOLE-WORKSPACE-FULLSCREEN — decided**:
+The main Console workspace toolbar (index.tsx right-side controls) must have a browser fullscreen button [⛶] at the far-right position, always visible when a workspace is active. It calls `document.documentElement.requestFullscreen()` (whole-page, matching Process). It is independent of kiosk mode. State must sync with actual browser fullscreen state via `document.addEventListener('fullscreenchange')`. F11 with no pane selected or in fullscreen triggers workspace browser fullscreen; F11 with a pane selected still triggers pane fullscreen (existing). The existing detached window button in WorkspaceView.tsx must also be updated with the `fullscreenchange` listener to fix existing desync.
+**Decision file**: docs/decisions/cx-console-workspace-fullscreen.md
+
 ---
 
 ### MOD-PROCESS — Process Module

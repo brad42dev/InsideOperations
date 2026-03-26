@@ -557,9 +557,10 @@ export default function LogPage() {
     queryKey: ['log-templates'],
     queryFn: async () => {
       const res = await logsApi.listTemplates()
-      if (!res.success) return []
-      // Guard against non-array responses (pagination wrappers, error objects, etc.)
-      return Array.isArray(res.data) ? res.data : []
+      if (!res.success) return [] as LogTemplate[]
+      // listTemplates returns PaginatedResult<LogTemplate> — res.data has a .data array
+      const rows = Array.isArray(res.data) ? res.data : (res.data as { data: LogTemplate[] })?.data ?? []
+      return rows
     },
     // Load always so templates are available for the search filter dropdown
   })

@@ -34,3 +34,7 @@
 | MOD-CONSOLE-035 | Remove guard blocking deletion of the last workspace | pending | 0 |
 | MOD-CONSOLE-036 | Pane resize broken in edit mode — no onResizeStop handler, no neighbor adjustment | pending | 0 |
 | MOD-CONSOLE-037 | Drag in workspace edit mode displaces and hides non-dragged panes | pending | 0 |
+| MOD-CONSOLE-038 | Fix pane title bar — optional per-pane show/hide, auto-populate from graphic, workspace-level hide-all toggle | pending | 0 |
+| MOD-CONSOLE-039 | Fix pane fullscreen — position:fixed trapped inside RGL transform ancestor; add double-click activation | pending | 0 |
+| MOD-CONSOLE-040 | Add workspace browser fullscreen button to Console main toolbar | pending | 0 |
+| MOD-CONSOLE-041 | Add "Open in New Window" button to Console workspace toolbar | pending | 0 |

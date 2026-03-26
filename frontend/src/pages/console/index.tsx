@@ -1534,6 +1534,31 @@ export default function ConsolePage() {
             </div>
           )}
 
+          {/* Open in New Window */}
+          {activeWorkspace && !editMode && !isKiosk && (
+            <button
+              onClick={() => window.open(`/detached/console/${activeWorkspace.id}`, '_blank', 'noopener,noreferrer')}
+              title="Open workspace in new window"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--io-border)',
+                borderRadius: 6,
+                padding: '5px 8px',
+                cursor: 'pointer',
+                color: 'var(--io-text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </button>
+          )}
+
           {/* Edit toggle */}
           {activeWorkspace && !editMode && (
             <button

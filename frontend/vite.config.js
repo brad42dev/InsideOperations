@@ -11,6 +11,16 @@ export default defineConfig({
         alias: {
             '@': path.resolve(__dirname, './src'),
         },
+        // Prevent duplicate React instances (pnpm symlink isolation + multiple
+        // packages with React peer deps can resolve React through different
+        // virtual-store paths, triggering "Invalid hook call" at runtime).
+        dedupe: ['react', 'react-dom'],
+    },
+    optimizeDeps: {
+        // Pre-bundle React explicitly so the dev server always resolves
+        // to the same pre-optimised copy, preventing the duplicate-React
+        // "Invalid hook call" that can occur with pnpm's symlinked store.
+        include: ['react', 'react-dom', 'react/jsx-runtime'],
     },
     server: {
         host: true,
@@ -61,6 +71,7 @@ export default defineConfig({
                         '@radix-ui/react-dropdown-menu',
                         '@radix-ui/react-toast',
                         '@radix-ui/react-tooltip',
+                        '@radix-ui/react-context-menu',
                     ],
                 },
             },
