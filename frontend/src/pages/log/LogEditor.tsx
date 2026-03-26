@@ -11,6 +11,8 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
+import FontFamily from '@tiptap/extension-font-family'
+import { PasteFromOffice } from './PasteFromOffice'
 import { logsApi, type LogAttachment, type LogSegment, type LogTemplate } from '../../api/logs'
 import { useWebSocket } from '../../shared/hooks/useWebSocket'
 import { SkeletonBlock } from '../../shared/components/Skeleton'
@@ -110,6 +112,8 @@ function WysiwygSegment({
       TableHeader,
       TextStyle,
       Color,
+      FontFamily,
+      PasteFromOffice,
     ],
     content: (initialContent.doc as object) ?? '',
     editable: !readOnly,
@@ -252,6 +256,41 @@ function WysiwygSegment({
               onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
             />
           </label>
+          <span
+            style={{
+              width: '1px',
+              background: 'var(--io-border)',
+              margin: '4px 4px',
+            }}
+          />
+          <select
+            title="Font family"
+            value={editor.getAttributes('textStyle').fontFamily ?? ''}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value) {
+                editor.chain().focus().setFontFamily(value).run()
+              } else {
+                editor.chain().focus().unsetFontFamily().run()
+              }
+            }}
+            style={{
+              background: 'var(--io-surface-secondary)',
+              border: '1px solid var(--io-border)',
+              borderRadius: '4px',
+              padding: '3px 6px',
+              fontSize: '12px',
+              color: 'var(--io-text-secondary)',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">Default</option>
+            <option value="Inter, sans-serif">Inter</option>
+            <option value="serif">Serif</option>
+            <option value="monospace">Monospace</option>
+            <option value="Arial, sans-serif">Arial</option>
+            <option value="Georgia, serif">Georgia</option>
+          </select>
         </div>
       )}
       <div
