@@ -186,7 +186,21 @@
     "MOD-CONSOLE-024": 0,
     "MOD-CONSOLE-022": 1,
     "MOD-CONSOLE-025": 1,
-    "MOD-CONSOLE-023": 2
+    "MOD-CONSOLE-023": 2,
+    "MOD-CONSOLE-026": 2,
+    "MOD-DESIGNER-040": 1,
+    "DD-06-021": 0,
+    "MOD-DESIGNER-038": 1,
+    "DD-06-022": 1,
+    "DD-14-010": 0,
+    "DD-18-011": 0,
+    "DD-29-018": 1,
+    "DD-23-024": 1,
+    "DD-31-021": 1,
+    "DD-32-017": 0,
+    "DD-32-018": 0,
+    "DD-31-020": 1,
+    "DD-32-019": 0
   },
   "queue": [
     {
@@ -840,7 +854,7 @@
       "completed_at": "2026-03-21",
       "notes": "9 tasks. DataTable missing 7 must-have features; no ThemeProvider context; PointDetailPanel lacks Alarm Data/Graphics sections.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 1
+      "verified_since_last_audit": 2
     },
     {
       "unit": "DD-33",
@@ -5729,7 +5743,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "status": "implementing",
+      "status": "pending",
       "uat_status": null,
       "answer_file": null
     },
@@ -5776,7 +5790,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "implementing_at": "2026-03-25T22:53:53.217219Z"
+      "uat_status": null
     },
     {
       "id": "MOD-CONSOLE-023",
@@ -5788,6 +5802,183 @@
       "source": "uat",
       "audit_round": 9,
       "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-039",
+      "unit": "MOD-DESIGNER",
+      "title": "Add \"Refresh Data\" and \"Detach from Dashboard\" to Widget node context menu (RC-DES-12)",
+      "priority": "low",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 9
+    },
+    {
+      "id": "MOD-DESIGNER-038",
+      "unit": "MOD-DESIGNER",
+      "title": "Fix Annotation \"Change Style\" submenu to use spec-required note/warning/info variants",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 9,
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-040",
+      "unit": "MOD-DESIGNER",
+      "title": "Shape palette tile right-click places element instead of showing context menu",
+      "status": "verified",
+      "priority": "high",
+      "depends_on": [],
+      "source": "uat",
+      "audit_round": 9,
+      "uat_status": null
+    },
+    {
+      "id": "DD-06-021",
+      "unit": "DD-06",
+      "title": "Fix command palette prefix scopes (@=points, /=graphics, #=entities)",
+      "priority": "medium",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-06-022",
+      "unit": "DD-06",
+      "title": "G-key keyboard handler causes browser crash / page navigation to about:blank",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified",
+      "source": "uat",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-06-023",
+      "unit": "DD-06",
+      "title": "G-key hint overlay not rendering after G press",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "source": "uat",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-06-024",
+      "unit": "DD-06",
+      "title": "G-key navigation broken \u2014 G+P and G+D do not navigate",
+      "status": "verified",
+      "priority": "high",
+      "depends_on": [],
+      "source": "uat",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-14-010",
+      "unit": "DD-14",
+      "title": "PrintDialog crashes on open \u2014 templates.map is not a function",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified",
+      "source": "uat",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-14-011",
+      "unit": "DD-14",
+      "wave": 1,
+      "title": "Rounds export not 6-format \u2014 History has CSV-only, Templates/Schedules have no export button",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": null,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-18-011",
+      "unit": "DD-18",
+      "wave": 3,
+      "title": "dev.sh build does not restart running services \u2014 stale binary causes repeated 404s",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-23-024",
+      "unit": "DD-23",
+      "wave": 1,
+      "title": "Expression builder dialog has no focus trap; keyboard navigation escapes to app shell",
+      "priority": "high",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-29-018",
+      "unit": "DD-29",
+      "title": "Lock screen does not display PIN entry option when user has a PIN set",
+      "status": "verified",
+      "priority": "high",
+      "depends_on": [],
+      "source": "uat",
+      "audit_round": 9,
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-020",
+      "unit": "DD-31",
+      "title": "/api/notifications/channels/enabled still 404 + Fix TemplatesPanel Edit action",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified",
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-021",
+      "unit": "DD-31",
+      "title": "Add alerts:manage_templates and alerts:manage_groups permission gates",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
+      "audit_round": 9,
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-017",
+      "unit": "DD-32",
+      "title": "No success toast shown on workspace creation (silent success)",
+      "status": "implementing",
+      "priority": "high",
+      "depends_on": [],
+      "source": "uat",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-32-018",
+      "unit": "DD-32",
+      "title": "Error toasts auto-dismiss instead of persisting until manually dismissed",
+      "status": "verified",
+      "priority": "high",
+      "depends_on": [],
+      "source": "uat",
+      "audit_round": 9
+    },
+    {
+      "id": "DD-32-019",
+      "unit": "DD-32",
+      "title": "F8 key does not open Notifications history panel or drawer",
+      "priority": "high",
+      "depends_on": [],
+      "source": "uat",
+      "status": "implementing",
+      "audit_round": 9
     }
   ],
   "audit_round": 9,
