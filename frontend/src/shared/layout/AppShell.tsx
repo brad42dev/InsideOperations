@@ -1478,17 +1478,18 @@ export default function AppShell() {
         )}
         {/* Topbar — must form its own stacking context (position+zIndex) so that
             dropdown menus appear above module workspace content regardless of what
-            z-index values modules use internally. */}
+            z-index values modules use internally.
+            Hidden when: kiosk mode is active (isKiosk) OR user has manually hidden the topbar. */}
         <header
           style={{
-            height: (!isKiosk && topbarHidden) ? 0 : 'var(--io-topbar-height)',
+            height: (isKiosk || topbarHidden) ? 0 : 'var(--io-topbar-height)',
             overflow: 'hidden',
             background: 'var(--io-surface-secondary)',
-            borderBottom: (!isKiosk && topbarHidden) ? 'none' : '1px solid var(--io-border)',
+            borderBottom: (isKiosk || topbarHidden) ? 'none' : '1px solid var(--io-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: (!isKiosk && topbarHidden) ? 0 : '0 20px',
+            padding: (isKiosk || topbarHidden) ? 0 : '0 20px',
             flexShrink: 0,
             position: 'relative',
             zIndex: 3000,

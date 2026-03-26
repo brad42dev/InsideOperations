@@ -591,7 +591,7 @@ pub async fn create_instance(
     )
     .bind(body.template_id)
     .bind(&body.team_name)
-    .bind("pending")
+    .bind("draft")
     .fetch_one(&state.db)
     .await;
 

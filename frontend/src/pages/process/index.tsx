@@ -333,6 +333,150 @@ function countTotalPoints(doc: { children: SceneNode[] }): number {
 }
 
 // ---------------------------------------------------------------------------
+// BookmarkDialog — Name (required) + Description (optional)
+// ---------------------------------------------------------------------------
+
+interface BookmarkDialogProps {
+  onConfirm: (name: string, description: string) => void
+  onCancel: () => void
+}
+
+function BookmarkDialog({ onConfirm, onCancel }: BookmarkDialogProps) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [nameError, setNameError] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    nameRef.current?.focus()
+  }, [])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) {
+      setNameError(true)
+      nameRef.current?.focus()
+      return
+    }
+    onConfirm(name.trim(), description.trim())
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '6px 8px',
+    background: 'var(--io-surface-elevated)',
+    border: '1px solid var(--io-border)',
+    borderRadius: 'var(--io-radius)',
+    color: 'var(--io-text-primary)',
+    fontSize: 13,
+    boxSizing: 'border-box',
+    outline: 'none',
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000 }}
+        onClick={onCancel}
+      />
+      {/* Dialog */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Save Viewport Bookmark"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 2001,
+          background: 'var(--io-surface)',
+          border: '1px solid var(--io-border)',
+          borderRadius: 'var(--io-radius-lg)',
+          boxShadow: 'var(--io-shadow-lg)',
+          width: 340,
+          padding: 24,
+        }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: 'var(--io-text-primary)' }}>
+          Save Viewport Bookmark
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, color: 'var(--io-text-secondary)', display: 'block', marginBottom: 4 }}>
+              Name *
+            </label>
+            <input
+              ref={nameRef}
+              type="text"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setNameError(false) }}
+              placeholder="e.g. Reactor overview"
+              style={{
+                ...inputStyle,
+                borderColor: nameError ? 'var(--io-alarm-high)' : 'var(--io-border)',
+              }}
+            />
+            {nameError && (
+              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--io-alarm-high)' }}>
+                Name is required
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 11, color: 'var(--io-text-secondary)', display: 'block', marginBottom: 4 }}>
+              Description (optional)
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Zoomed to feed inlet area"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button
+              type="button"
+              onClick={onCancel}
+              style={{
+                padding: '6px 14px',
+                background: 'var(--io-surface-elevated)',
+                border: '1px solid var(--io-border)',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'pointer',
+                fontSize: 13,
+                color: 'var(--io-text-primary)',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{
+                padding: '6px 14px',
+                background: 'var(--io-accent)',
+                border: 'none',
+                borderRadius: 'var(--io-radius)',
+                cursor: 'pointer',
+                fontSize: 13,
+                color: '#fff',
+              }}
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // ProcessPage
 // ---------------------------------------------------------------------------
 
@@ -484,10 +628,11 @@ export default function ProcessPage() {
       })
   }, [rawBookmarks])
 
+  const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false)
+
   const addViewportBookmarkMutation = useMutation({
-    mutationFn: (args: { panX: number; panY: number; zoom: number }) => {
-      const label = `Viewport @ ${Math.round(args.zoom * 100)}%`
-      const name = JSON.stringify({ label, ...args })
+    mutationFn: (args: { label: string; description: string; panX: number; panY: number; zoom: number }) => {
+      const name = JSON.stringify({ label: args.label, description: args.description, panX: args.panX, panY: args.panY, zoom: args.zoom })
       return bookmarksApi.add({
         entity_type: 'viewport',
         entity_id: selectedId ?? 'process',
@@ -504,7 +649,14 @@ export default function ProcessPage() {
       alert(`Maximum ${MAX_BOOKMARKS} bookmarks per graphic. Please delete some before adding more.`)
       return
     }
+    setBookmarkDialogOpen(true)
+  }
+
+  function handleBookmarkConfirm(label: string, description: string) {
+    setBookmarkDialogOpen(false)
     addViewportBookmarkMutation.mutate({
+      label,
+      description,
       panX: viewport.panX,
       panY: viewport.panY,
       zoom: viewport.zoom,
@@ -1584,6 +1736,14 @@ export default function ProcessPage() {
               </svg>
             </button>
           </div>}
+
+          {/* Bookmark dialog — shown when user clicks ★ or presses Ctrl+Shift+B */}
+          {bookmarkDialogOpen && (
+            <BookmarkDialog
+              onConfirm={handleBookmarkConfirm}
+              onCancel={() => setBookmarkDialogOpen(false)}
+            />
+          )}
 
           {/* Historical Playback Bar (only in historical mode) */}
           {isHistorical && <HistoricalPlaybackBar />}

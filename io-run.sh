@@ -189,8 +189,9 @@ _io_lock_cleanup() {
 rotate_logs() {
     local prefix="$1"
     # List matching files sorted by modification time (oldest first), skip last 3
+    # Use || true so set -euo pipefail doesn't exit when no log files exist yet.
     local files
-    files=$(ls -t /tmp/${prefix}*.log 2>/dev/null | tail -n +4)
+    files=$(ls -t /tmp/${prefix}*.log 2>/dev/null | tail -n +4) || true
     if [ -n "$files" ]; then
         echo "$files" | xargs rm -f 2>/dev/null || true
     fi
@@ -206,6 +207,12 @@ ensure_backend_running() {
     fi
     echo "Backend not detected on port 3000. Starting services via dev.sh..."
     echo "(Note: first run requires cargo build — may take several minutes)"
+    # Wait up to 10s for port 3000 to be fully released (graceful drain from prior instance)
+    for _port_wait in $(seq 1 10); do
+        ss -tlnp 2>/dev/null | grep -q ':3000 ' || break
+        [ "$_port_wait" -eq 1 ] && echo "  Waiting for port 3000 to be released..."
+        sleep 1
+    done
     rotate_logs "$log_prefix"
     "$REPO/dev.sh" start > "/tmp/${log_prefix}.log" 2>&1 &
     BACKEND_PID=$!
@@ -321,7 +328,10 @@ try:
     """).fetchall()
     task_id = None
     for row_id, deps_raw in candidates:
-        deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
+        try:
+            deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
+        except Exception:
+            deps = []  # malformed depends_on — treat as no dependencies
         if not all(d in verified_ids for d in deps):
             continue
         # File conflict check: skip if a currently-implementing task owns overlapping files.
@@ -421,7 +431,10 @@ verified_ids = {r[0] for r in con.execute("SELECT id FROM io_tasks WHERE status=
 blocked_rows = con.execute("SELECT id, depends_on FROM io_tasks WHERE status='blocked'").fetchall()
 unblocked = 0
 for row_id, deps_raw in blocked_rows:
-    deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
+    try:
+        deps = json.loads(deps_raw) if deps_raw and deps_raw not in ('[]', '') else []
+    except Exception:
+        deps = []  # malformed depends_on — treat as no dependencies
     if all(d in verified_ids for d in deps):
         con.execute("UPDATE io_tasks SET status='pending', updated_at=? WHERE id=?", (now, row_id))
         unblocked += 1
@@ -1679,13 +1692,27 @@ try:
         status   = fm.get('status', 'pending').strip()
         priority = fm.get('priority', 'medium').strip()
         source   = fm.get('source', 'uat').strip()
-        depends  = fm.get('depends-on', '').strip()
+        depends_raw = fm.get('depends-on', '').strip()
+        # Normalise depends-on to valid JSON array string.
+        # YAML `[A, B]` (unquoted) → JSON `["A", "B"]`; `[]` or blank → None.
+        depends = None
+        if depends_raw and depends_raw != '[]':
+            try:
+                import json as _json
+                parsed = _json.loads(depends_raw)
+                depends = _json.dumps(parsed)
+            except Exception:
+                # Unquoted YAML array like [DD-15-009] — split and re-encode
+                inner = depends_raw.strip('[]')
+                if inner:
+                    items = [x.strip().strip('"\'') for x in inner.split(',') if x.strip()]
+                    depends = _json.dumps(items) if items else None
         wave     = wave_map.get(unit)
         con.execute(
             '''INSERT OR IGNORE INTO io_tasks
                (id, unit, wave, title, status, priority, source, depends_on, spec_body, created_at, updated_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
-            (task_id, unit, wave, title, status, priority, source, depends or None, text, now, now)
+            (task_id, unit, wave, title, status, priority, source, depends, text, now, now)
         )
         existing.add(task_id)
         ingested += 1
@@ -2761,6 +2788,14 @@ PYEOF
                     if [ "$_uat_idx" -ge "${#_uat_arr[@]}" ]; then
                         _uat_exhausted=1; echo "  No more UAT units."; continue
                     fi
+                    # Re-check backend health before launching UAT — an impl agent may have
+                    # restarted services in its worktree, killing the shared backend process.
+                    if ! curl -sf --max-time 2 --connect-timeout 1 http://localhost:3000/health/live > /dev/null 2>&1; then
+                        echo "  ⚠ Backend down before UAT launch — restarting..."
+                        BACKEND_STARTED=""  # reset so ensure_backend_running will start it
+                        ensure_backend_running "io-auto-uat-backend-recover"
+                        BACKEND_STARTED=1
+                    fi
                     _uid="${_uat_arr[$_uat_idx]}"
                     _uat_idx=$((_uat_idx + 1))
                     _auto_uat_ts="$(date '+%Y%m%dT%H%M%S')"
@@ -2832,6 +2867,22 @@ try:
         compaction_count,num_turns)
         VALUES(?,?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?,?,?,?,?,?,?,?,?)''',
         (task_id, n, verdict, input_tok, output_tok, util_pct, tfb, impl_avg, impl_max, impl_cnt, compactions, num_turns))
+    # Propagate UAT verdict to io_tasks.uat_status for tasks in this unit.
+    # The uat-agent writes uat_status to AUDIT_PROGRESS.json (legacy), but the
+    # authoritative store is tasks.db. Update here so the auto eligibility query
+    # (uat_status IS NULL OR uat_status = 'partial') converges and doesn't loop.
+    # Rules:
+    #   pass    → set NULL/partial tasks to 'pass'
+    #   fail    → set NULL/partial tasks to 'fail' (impl needs to fix them)
+    #   partial → set NULL tasks to 'partial' (needs re-test)
+    #   other   → leave unchanged
+    if verdict in ('pass', 'fail', 'partial'):
+        new_uat = verdict
+        con.execute("""
+            UPDATE io_tasks SET uat_status=?, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
+            WHERE unit=? AND status='verified'
+              AND (uat_status IS NULL OR uat_status='partial')
+        """, (new_uat, unit_id))
     con.commit()
     con.close()
 except Exception: pass

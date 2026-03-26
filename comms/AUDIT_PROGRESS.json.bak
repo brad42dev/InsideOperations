@@ -219,7 +219,8 @@
     "MOD-DESIGNER-043": 1,
     "MOD-DESIGNER-045": 1,
     "MOD-CONSOLE-031": 1,
-    "MOD-DESIGNER-047": 1
+    "MOD-DESIGNER-047": 1,
+    "MOD-DESIGNER-048": 1
   },
   "queue": [
     {
@@ -502,8 +503,8 @@
       "completed_at": "2026-03-21",
       "notes": "10 tasks. Tiptap extensions missing; Underline button calls toggleStrike; attachment upload absent; schedule mgmt is static stub.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 3,
-      "tasks_uat_added": 3
+      "verified_since_last_audit": 4,
+      "tasks_uat_added": 4
     },
     {
       "unit": "DD-14",
@@ -1009,8 +1010,8 @@
     {
       "id": "MOD-DESIGNER",
       "wave": 2,
-      "verified_since_last_audit": 5,
-      "tasks_uat_added": 2
+      "verified_since_last_audit": 7,
+      "tasks_uat_added": 3
     }
   ],
   "escalated": [],
@@ -1216,7 +1217,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -1448,7 +1449,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-003",
@@ -5798,7 +5799,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-037",
@@ -6067,7 +6068,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-029",
@@ -6139,7 +6140,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-043",
@@ -6151,7 +6152,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-044",
@@ -6163,7 +6164,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-045",
@@ -6175,7 +6176,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-046",
@@ -6187,7 +6188,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-011",
@@ -6196,7 +6197,7 @@
       "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-014",
@@ -6271,7 +6272,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-017",
@@ -6334,7 +6335,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-031",
@@ -6346,7 +6347,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-047",
@@ -6366,7 +6367,7 @@
       "wave": 2,
       "title": "Escape key cancel of in-progress canvas drag not verifiable",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [
         "MOD-DESIGNER-047"
       ],
@@ -6380,7 +6381,7 @@
       "wave": 1,
       "title": "Bookmark \u2605 button does not open Name/Description dialog",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6392,7 +6393,7 @@
       "wave": 1,
       "title": "Kiosk mode leaves breadcrumb nav bar visible",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6432,7 +6433,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-13-021",
@@ -6468,6 +6469,30 @@
       "depends_on": [
         "DD-32-022"
       ],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-049",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Canvas drag-to-move creates duplicate elements \u2014 mousedown misrouted to palette drop handler",
+      "priority": "high",
+      "status": "implementing",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-028",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Fix /log/new route crash when creating new log instance",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
       "audit_round": 9,
       "source": "uat",
       "uat_status": null

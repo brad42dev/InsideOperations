@@ -15,7 +15,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | DD-10 | 7 | 20 | 0 | 16 | 0 | DD-10-001 |
 | DD-11 | 3 | 9 | 0 | 9 | 0 | DD-11-001 |
 | DD-12 | 3 | 13 | 0 | 13 | 0 | DD-12-001 |
-| DD-13 | 3 | 18 | 1 | 17 | 0 | DD-13-001 |
+| DD-13 | 3 | 19 | 1 | 18 | 0 | DD-13-001 |
 | DD-14 | 4 | 9 | 0 | 8 | 0 | DD-14-001 |
 | DD-15 | 3 | 15 | 0 | 15 | 0 | DD-15-001 |
 | DD-16 | 3 | 6 | 0 | 6 | 0 | DD-16-001 |
@@ -40,7 +40,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | DD-38 | 3 | 7 | 0 | 7 | 0 | DD-38-001 |
 | DD-39 | 4 | 13 | 1 | 11 | 0 | DD-39-001 |
 
-**Total: 308 tasks | 7 verified | 301 pending | 0 escalated**
+**Total: 309 tasks | 7 verified | 302 pending | 0 escalated**
 
 ## Zombie Tasks
 None detected.

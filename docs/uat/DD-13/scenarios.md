@@ -1,23 +1,27 @@
-# UAT Scenarios — DD-13
+# UAT Scenarios — DD-13 (Log Module)
 
-## Page Load & Stability
-Scenario 1: [DD-13-006] Log module renders without error — navigate to /log → module UI visible, no "Log failed to load" error boundary
-Scenario 2: [DD-13-006] — data flow: GET /api/logs/instances — navigate to /log, click Completed tab, wait for load → entries table visible OR empty state message (no error boundary, no crash)
+## Font-Family Selector Feature (DD-13-020)
 
-## Export Split Button (DD-13-006)
-Scenario 3: [DD-13-006] Export split button visible on Completed tab — navigate to /log, click Completed tab → "[Export v]" or "Export" split button visible in toolbar above table
-Scenario 4: [DD-13-006] Export dropdown lists format options — click the dropdown chevron on the Export button → dropdown shows CSV, XLSX, PDF, JSON options
+Scenario 1: [DD-13-020] Log module loads without error — navigate to /log → page renders with Active Logs, Completed, Templates tabs visible
 
-## Schedule Management UI (DD-13-008)
-Scenario 5: [DD-13-008] Schedule page loads without stub — navigate to /log/schedules → full schedule management UI visible (list + "+ New Schedule" button), NOT a stub/placeholder/blank
-Scenario 6: [DD-13-008] New Schedule form opens — click "+ New Schedule" button on /log/schedules → form opens with template selector, recurrence type, and other fields (not a no-op)
+Scenario 2: [DD-13-020] Fetch log templates — page loads → API call GET /api/logs/templates succeeds → template list is populated and available for instantiation
 
-## RBAC Route Access (DD-13-017)
-Scenario 7: [DD-13-017] Templates page accessible to admin — navigate to /log/templates → page loads with template list or empty state (no 403, no redirect away)
-Scenario 8: [DD-13-017] Schedules page accessible to admin — navigate to /log/schedules → page loads (no 403, no redirect for admin user with all permissions)
+Scenario 3: [DD-13-020] Create log instance from template — select a template → click create instance → instance row appears in list with status
 
-## Tiptap Extensions (DD-13-016)
-Scenario 9: [DD-13-016] Font family control in WYSIWYG toolbar — navigate to /log, open or create a log entry that has a WYSIWYG segment → toolbar shows a font family selector (dropdown/select control for font)
+Scenario 4: [DD-13-020] Open LogEditor for created instance — click on instance row → navigate to instance detail page → LogEditor component loads and WYSIWYG toolbar is visible
 
-## Point Context Menu (DD-13-018)
-Scenario 10: [DD-13-018] Point context menu on point data rows — navigate to /log, open a log entry with a PointDataSegment (point data rows visible), right-click a point row → PointContextMenu appears with point-related actions
+Scenario 5: [DD-13-020] Font-family dropdown is visible in toolbar — LogEditor loads → inspect toolbar for font selector dropdown with label visible
+
+Scenario 6: [DD-13-020] Font dropdown opens when clicked — click font-family selector → dropdown opens and shows font options (Monospace, Arial, Georgia, etc.)
+
+Scenario 7: [DD-13-020] Font selection changes editor text appearance — select a different font from dropdown → text in the editor visually changes to match selected font
+
+Scenario 8: [DD-13-020] No JavaScript errors in console — complete all above interactions → check browser console for any errors or warnings
+
+Scenario 9: [DD-13-020] — data flow: GET /api/logs/templates —
+  1. Navigate to /log
+  2. Perform action: page load triggers template fetch
+  3. Wait for response: browser_wait_for time=3000
+  4. Snapshot and check: template list must show at least one template option
+  Pass: template names visible AND dropdown/list is not empty AND does not say "Loading..."
+  Fail: no templates shown, "Loading..." still visible, or error boundary
