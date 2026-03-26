@@ -641,6 +641,8 @@ function DisplayElementTile({
   collapsed: boolean
 }) {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only handle left-click drags; right-clicks go to the context menu
+    if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
@@ -672,34 +674,57 @@ function DisplayElementTile({
     document.addEventListener('mouseup', onUp)
   }, [type, label])
 
-  if (collapsed) {
-    return (
-      <div
-        onMouseDown={handleMouseDown}
-        title={label}
-        style={{
-          width: 32,
-          height: 32,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          cursor: 'grab',
-          overflow: 'hidden',
-          userSelect: 'none',
-          flexShrink: 0,
-        }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
-      >
-        <DisplayElementPreview type={type} size={26} />
-      </div>
-    )
+  function handlePlaceAtCenter() {
+    const canvasEl = document.querySelector('[data-designer-canvas="true"]')
+    const rect = canvasEl?.getBoundingClientRect()
+    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+    document.dispatchEvent(new CustomEvent('io:display-element-drop', {
+      detail: { elementType: type, x: cx, y: cy },
+    }))
   }
 
-  return (
+  function handleAddToFavorites() {
+    // Persist to localStorage under the display-elements favorites key
+    try {
+      const raw = localStorage.getItem('io:palette-favorites') ?? '{}'
+      const favs = JSON.parse(raw) as Record<string, string[]>
+      if (!favs['display-elements']) favs['display-elements'] = []
+      if (!favs['display-elements'].includes(type)) {
+        favs['display-elements'].push(type)
+        localStorage.setItem('io:palette-favorites', JSON.stringify(favs))
+      }
+    } catch {
+      // localStorage may be blocked — silently ignore
+    }
+  }
+
+  const tileCollapsed = (
+    <div
+      onMouseDown={handleMouseDown}
+      title={label}
+      style={{
+        width: 32,
+        height: 32,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--io-surface-elevated)',
+        border: '1px solid var(--io-border)',
+        borderRadius: 'var(--io-radius)',
+        cursor: 'grab',
+        overflow: 'hidden',
+        userSelect: 'none',
+        flexShrink: 0,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--io-accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--io-border)' }}
+    >
+      <DisplayElementPreview type={type} size={26} />
+    </div>
+  )
+
+  const tileExpanded = (
     <div
       onMouseDown={handleMouseDown}
       title={label}
@@ -729,6 +754,28 @@ function DisplayElementTile({
         {label.length > 12 ? label.slice(0, 11) + '…' : label}
       </span>
     </div>
+  )
+
+  const menuContent = (
+    <ContextMenuPrimitive.Portal>
+      <ContextMenuPrimitive.Content style={cmContentStyle}>
+        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handlePlaceAtCenter}>
+          Place at Center
+        </ContextMenuPrimitive.Item>
+        <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleAddToFavorites}>
+          Add to Favorites
+        </ContextMenuPrimitive.Item>
+      </ContextMenuPrimitive.Content>
+    </ContextMenuPrimitive.Portal>
+  )
+
+  return (
+    <ContextMenuPrimitive.Root>
+      <ContextMenuPrimitive.Trigger asChild>
+        {collapsed ? tileCollapsed : tileExpanded}
+      </ContextMenuPrimitive.Trigger>
+      {menuContent}
+    </ContextMenuPrimitive.Root>
   )
 }
 
@@ -1137,6 +1184,8 @@ function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolea
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only handle left-click drags; right-clicks go to the context menu
+    if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
@@ -1340,6 +1389,8 @@ function WidgetTile({
   collapsed: boolean
 }) {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only handle left-click drags; right-clicks go to the context menu
+    if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
@@ -1367,9 +1418,33 @@ function WidgetTile({
     document.addEventListener('mouseup', onUp)
   }, [type, label])
 
+  function handlePlaceAtCenter() {
+    const canvasEl = document.querySelector('[data-designer-canvas="true"]')
+    const rect = canvasEl?.getBoundingClientRect()
+    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+    document.dispatchEvent(new CustomEvent('io:widget-drop', {
+      detail: { widgetType: type, x: cx, y: cy },
+    }))
+  }
+
+  function handleAddToFavorites() {
+    try {
+      const raw = localStorage.getItem('io:palette-favorites') ?? '{}'
+      const favs = JSON.parse(raw) as Record<string, string[]>
+      if (!favs['widgets']) favs['widgets'] = []
+      if (!favs['widgets'].includes(type)) {
+        favs['widgets'].push(type)
+        localStorage.setItem('io:palette-favorites', JSON.stringify(favs))
+      }
+    } catch {
+      // localStorage may be blocked — silently ignore
+    }
+  }
+
   const size = collapsed ? 32 : 48
 
-  return (
+  const tileDiv = (
     <div
       onMouseDown={handleMouseDown}
       title={label}
@@ -1400,6 +1475,24 @@ function WidgetTile({
         </span>
       )}
     </div>
+  )
+
+  return (
+    <ContextMenuPrimitive.Root>
+      <ContextMenuPrimitive.Trigger asChild>
+        {tileDiv}
+      </ContextMenuPrimitive.Trigger>
+      <ContextMenuPrimitive.Portal>
+        <ContextMenuPrimitive.Content style={cmContentStyle}>
+          <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handlePlaceAtCenter}>
+            Place at Center
+          </ContextMenuPrimitive.Item>
+          <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleAddToFavorites}>
+            Add to Favorites
+          </ContextMenuPrimitive.Item>
+        </ContextMenuPrimitive.Content>
+      </ContextMenuPrimitive.Portal>
+    </ContextMenuPrimitive.Root>
   )
 }
 
@@ -1487,6 +1580,8 @@ function ReportElementPreview({ elementType, size }: { elementType: ReportElemen
 
 function ReportElementTile({ elementType, label, collapsed }: ReportElementDef & { collapsed: boolean }) {
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only handle left-click drags; right-clicks go to the context menu
+    if (e.button !== 0) return
     e.preventDefault()
     const ghost = document.createElement('div')
     ghost.style.cssText = `
@@ -1514,10 +1609,34 @@ function ReportElementTile({ elementType, label, collapsed }: ReportElementDef &
     document.addEventListener('mouseup', onUp)
   }, [elementType, label])
 
+  function handlePlaceAtCenter() {
+    const canvasEl = document.querySelector('[data-designer-canvas="true"]')
+    const rect = canvasEl?.getBoundingClientRect()
+    const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2
+    document.dispatchEvent(new CustomEvent('io:report-element-drop', {
+      detail: { elementType, x: cx, y: cy },
+    }))
+  }
+
+  function handleAddToFavorites() {
+    try {
+      const raw = localStorage.getItem('io:palette-favorites') ?? '{}'
+      const favs = JSON.parse(raw) as Record<string, string[]>
+      if (!favs['report-elements']) favs['report-elements'] = []
+      if (!favs['report-elements'].includes(elementType)) {
+        favs['report-elements'].push(elementType)
+        localStorage.setItem('io:palette-favorites', JSON.stringify(favs))
+      }
+    } catch {
+      // localStorage may be blocked — silently ignore
+    }
+  }
+
   const size = collapsed ? 32 : 48
   const previewSize = collapsed ? 20 : 32
 
-  return (
+  const tileDiv = (
     <div
       onMouseDown={handleMouseDown}
       title={label}
@@ -1547,6 +1666,24 @@ function ReportElementTile({ elementType, label, collapsed }: ReportElementDef &
         </span>
       )}
     </div>
+  )
+
+  return (
+    <ContextMenuPrimitive.Root>
+      <ContextMenuPrimitive.Trigger asChild>
+        {tileDiv}
+      </ContextMenuPrimitive.Trigger>
+      <ContextMenuPrimitive.Portal>
+        <ContextMenuPrimitive.Content style={cmContentStyle}>
+          <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handlePlaceAtCenter}>
+            Place at Center
+          </ContextMenuPrimitive.Item>
+          <ContextMenuPrimitive.Item style={cmItemStyle} onSelect={handleAddToFavorites}>
+            Add to Favorites
+          </ContextMenuPrimitive.Item>
+        </ContextMenuPrimitive.Content>
+      </ContextMenuPrimitive.Portal>
+    </ContextMenuPrimitive.Root>
   )
 }
 
