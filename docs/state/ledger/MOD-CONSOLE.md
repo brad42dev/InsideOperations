@@ -49,3 +49,4 @@ MOD-CONSOLE-036 | Pane resize broken in edit mode — no onResizeStop handler, n
 MOD-CONSOLE-036 | Pane resize broken in edit mode — no onResizeStop handler, no neighbor adjustment | verified 2026-03-26 | commit 83a093e | npx tsc --noEmit | PASS
 MOD-CONSOLE-039 | Fix pane fullscreen — portal + double-click | verified 2026-03-26 | commit 6cbe43f | npx tsc --noEmit | PASS
 MOD-CONSOLE-040 | Add workspace browser fullscreen button to Console main toolbar | verified 2026-03-26 | commit fb81791 | npx tsc --noEmit | PASS
+MOD-CONSOLE-041 | Add "Open in New Window" button to Console workspace toolbar | verified 2026-03-26 | commit 1726571 | npx tsc --noEmit | PASS

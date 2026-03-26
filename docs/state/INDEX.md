@@ -11,7 +11,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | MOD-PROCESS | 5 | 12 | 0 | 12 | 3 | MOD-PROCESS-001 |
 | MOD-DESIGNER | 2 | 55 | 4 | 51 | 0 | MOD-DESIGNER-002 |
 | OPC-BACKEND | 2 | 3 | 0 | 3 | 0 | OPC-BACKEND-001 |
-| DD-06 | 4 | 21 | 1 | 19 | 0 | DD-06-001 |
+| DD-06 | 4 | 22 | 1 | 20 | 0 | DD-06-001 |
 | DD-10 | 7 | 21 | 0 | 17 | 0 | DD-10-001 |
 | DD-11 | 3 | 9 | 0 | 9 | 0 | DD-11-001 |
 | DD-12 | 3 | 13 | 0 | 13 | 0 | DD-12-001 |
@@ -40,7 +40,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | DD-38 | 3 | 7 | 0 | 7 | 0 | DD-38-001 |
 | DD-39 | 4 | 13 | 1 | 11 | 0 | DD-39-001 |
 
-**Total: 317 tasks | 7 verified | 310 pending | 0 escalated**
+**Total: 318 tasks | 7 verified | 311 pending | 0 escalated**
 
 ## Zombie Tasks
 None detected.

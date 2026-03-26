@@ -20,3 +20,4 @@ MOD-PROCESS-022 | Kiosk mode leaves breadcrumb nav bar visible | verified 2026-0
 MOD-PROCESS-023 | No minimap toggle button in main Process view toolbar | verified 2026-03-26 | commit 3101cf0 | npx tsc --noEmit | PASS
 MOD-PROCESS-024 | Kiosk mode breadcrumb nav bar ("Process" heading) still visible at /process?kiosk=true | verified 2026-03-26 | commit ed3190f | npx tsc --noEmit | PASS
 MOD-PROCESS-015 | Bookmark dialog state/mutation/handler | verified 2026-03-26 | commit fe09aeb | tsc --noEmit | PASS
+MOD-PROCESS-025 | Add "Open in New Window" button to Process view toolbar | verified 2026-03-26 | commit 2da5ddc | npx tsc --noEmit | PASS

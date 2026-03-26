@@ -247,6 +247,24 @@ pub async fn get_point_history(
         validate_agg_type(&state.db, point_id, &params.agg).await?;
     }
 
+    // When agg is not explicitly specified and resolution is aggregate, look up the
+    // point's aggregation_types bitmask once and use it to null out disallowed columns.
+    // Bit 0 (value 1): allow avg. Bit 1 (value 2): allow sum.
+    // When agg IS explicitly specified it already passed validate_agg_type above, so
+    // we expose all columns as before (no masking needed).
+    let (allow_avg, allow_sum) = if params.resolution != "raw" && params.agg.is_none() {
+        let agg_types: i32 = sqlx::query_scalar(
+            "SELECT aggregation_types FROM points_metadata WHERE id = $1",
+        )
+        .bind(point_id)
+        .fetch_optional(&state.db)
+        .await?
+        .unwrap_or(0);
+        ((agg_types & 1) != 0, (agg_types & 2) != 0)
+    } else {
+        (true, true)
+    };
+
     let rows = match params.resolution.as_str() {
         "raw" => {
             let raw_rows = sqlx::query(
@@ -303,11 +321,11 @@ pub async fn get_point_history(
                         timestamp: ts.to_rfc3339(),
                         value: None,
                         quality: None,
-                        avg: r.get("avg"),
+                        avg: if allow_avg { r.get("avg") } else { None },
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
-                        sum: r.get("sum"),
+                        sum: if allow_sum { r.get("sum") } else { None },
                     }
                 })
                 .collect::<Vec<_>>()
@@ -335,11 +353,11 @@ pub async fn get_point_history(
                         timestamp: ts.to_rfc3339(),
                         value: None,
                         quality: None,
-                        avg: r.get("avg"),
+                        avg: if allow_avg { r.get("avg") } else { None },
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
-                        sum: r.get("sum"),
+                        sum: if allow_sum { r.get("sum") } else { None },
                     }
                 })
                 .collect::<Vec<_>>()
@@ -367,11 +385,11 @@ pub async fn get_point_history(
                         timestamp: ts.to_rfc3339(),
                         value: None,
                         quality: None,
-                        avg: r.get("avg"),
+                        avg: if allow_avg { r.get("avg") } else { None },
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
-                        sum: r.get("sum"),
+                        sum: if allow_sum { r.get("sum") } else { None },
                     }
                 })
                 .collect::<Vec<_>>()
@@ -399,11 +417,11 @@ pub async fn get_point_history(
                         timestamp: ts.to_rfc3339(),
                         value: None,
                         quality: None,
-                        avg: r.get("avg"),
+                        avg: if allow_avg { r.get("avg") } else { None },
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
-                        sum: r.get("sum"),
+                        sum: if allow_sum { r.get("sum") } else { None },
                     }
                 })
                 .collect::<Vec<_>>()
@@ -431,11 +449,11 @@ pub async fn get_point_history(
                         timestamp: ts.to_rfc3339(),
                         value: None,
                         quality: None,
-                        avg: r.get("avg"),
+                        avg: if allow_avg { r.get("avg") } else { None },
                         min: r.get("min"),
                         max: r.get("max"),
                         count: r.get("count"),
-                        sum: r.get("sum"),
+                        sum: if allow_sum { r.get("sum") } else { None },
                     }
                 })
                 .collect::<Vec<_>>()
@@ -544,6 +562,22 @@ pub async fn get_batch_history(
             validate_agg_type(&state.db, *point_id, &body.agg).await?;
         }
 
+        // When agg is not explicitly specified and resolution is aggregate, look up the
+        // point's aggregation_types bitmask once per point and use it to null out
+        // disallowed columns in the response.
+        let (allow_avg, allow_sum) = if body.resolution != "raw" && body.agg.is_none() {
+            let agg_types: i32 = sqlx::query_scalar(
+                "SELECT aggregation_types FROM points_metadata WHERE id = $1",
+            )
+            .bind(point_id)
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or(0);
+            ((agg_types & 1) != 0, (agg_types & 2) != 0)
+        } else {
+            (true, true)
+        };
+
         let rows = match body.resolution.as_str() {
             "raw" => {
                 let raw_rows = sqlx::query(
@@ -598,11 +632,11 @@ pub async fn get_batch_history(
                             timestamp: ts.to_rfc3339(),
                             value: None,
                             quality: None,
-                            avg: r.get("avg"),
+                            avg: if allow_avg { r.get("avg") } else { None },
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
-                            sum: r.get("sum"),
+                            sum: if allow_sum { r.get("sum") } else { None },
                         }
                     })
                     .collect::<Vec<_>>()
@@ -629,11 +663,11 @@ pub async fn get_batch_history(
                             timestamp: ts.to_rfc3339(),
                             value: None,
                             quality: None,
-                            avg: r.get("avg"),
+                            avg: if allow_avg { r.get("avg") } else { None },
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
-                            sum: r.get("sum"),
+                            sum: if allow_sum { r.get("sum") } else { None },
                         }
                     })
                     .collect::<Vec<_>>()
@@ -660,11 +694,11 @@ pub async fn get_batch_history(
                             timestamp: ts.to_rfc3339(),
                             value: None,
                             quality: None,
-                            avg: r.get("avg"),
+                            avg: if allow_avg { r.get("avg") } else { None },
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
-                            sum: r.get("sum"),
+                            sum: if allow_sum { r.get("sum") } else { None },
                         }
                     })
                     .collect::<Vec<_>>()
@@ -691,11 +725,11 @@ pub async fn get_batch_history(
                             timestamp: ts.to_rfc3339(),
                             value: None,
                             quality: None,
-                            avg: r.get("avg"),
+                            avg: if allow_avg { r.get("avg") } else { None },
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
-                            sum: r.get("sum"),
+                            sum: if allow_sum { r.get("sum") } else { None },
                         }
                     })
                     .collect::<Vec<_>>()
@@ -722,11 +756,11 @@ pub async fn get_batch_history(
                             timestamp: ts.to_rfc3339(),
                             value: None,
                             quality: None,
-                            avg: r.get("avg"),
+                            avg: if allow_avg { r.get("avg") } else { None },
                             min: r.get("min"),
                             max: r.get("max"),
                             count: r.get("count"),
-                            sum: r.get("sum"),
+                            sum: if allow_sum { r.get("sum") } else { None },
                         }
                     })
                     .collect::<Vec<_>>()
@@ -766,6 +800,21 @@ pub async fn get_point_rolling(
     check_service_secret(&headers, &state.config.service_secret)?;
 
     let window_secs = parse_window_seconds(&params.window)?;
+
+    // Enforce aggregation_types: rolling average requires averaging to be permitted.
+    let agg_types: i32 = sqlx::query_scalar(
+        "SELECT aggregation_types FROM points_metadata WHERE id = $1",
+    )
+    .bind(point_id)
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(0);
+
+    if (agg_types & 1) == 0 {
+        return Err(IoError::BadRequest(
+            "This point does not permit averaging (aggregation_types bit 0 not set)".to_string(),
+        ));
+    }
 
     // Select source table based on window size:
     //   < 5 min  (< 300 s)   => points_history_raw   (quality = 'Good')
