@@ -671,6 +671,7 @@ function ImportConnectionContextMenu({
   onTest,
   onToggleEnabled,
   onDelete,
+  definitionCount,
 }: {
   connection: ImportConnection
   pos: ContextMenuPos
@@ -678,14 +679,15 @@ function ImportConnectionContextMenu({
   onTest: (c: ImportConnection) => void
   onToggleEnabled: (c: ImportConnection) => void
   onDelete: (c: ImportConnection) => void
+  definitionCount: number
 }) {
   const ref = useRef<HTMLDivElement>(null)
   useContextMenuDismiss(ref, onClose)
 
-  const hasDefinitions = false // connection.definition_count not available in type — use false as safe default
+  const hasDefinitions = definitionCount > 0
 
   return (
-    <div ref={ref} style={{ ...cmMenuStyle, top: pos.y, left: pos.x }}>
+    <div ref={ref} role="menu" style={{ ...cmMenuStyle, top: pos.y, left: pos.x }}>
       <CmItem label="Test Connection" action={() => { onTest(connection); onClose() }} />
       <CmItem label={connection.enabled ? 'Disable' : 'Enable'} action={() => { onToggleEnabled(connection); onClose() }} />
       <div style={{ height: '1px', background: 'var(--io-border)', margin: '4px 0' }} />
@@ -755,6 +757,22 @@ function ConnectionsTab() {
   })
 
   const connections = data ?? []
+
+  // Fetch definitions to determine per-connection definition count for Delete graying.
+  // Shares the same cache key as DefinitionsTab — no duplicate network request.
+  const { data: defsData } = useQuery({
+    queryKey: ['import-definitions'],
+    queryFn: async () => {
+      const res = await importApi.listDefinitions()
+      return res.success ? res.data : []
+    },
+    staleTime: 30_000,
+  })
+  const definitions = defsData ?? []
+
+  function definitionCountForConnection(connectionId: string): number {
+    return definitions.filter((d) => d.connection_id === connectionId).length
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => importApi.deleteConnection(id),
@@ -916,6 +934,7 @@ function ConnectionsTab() {
               deleteMutation.mutate(c.id)
             }
           }}
+          definitionCount={definitionCountForConnection(connContextMenu.connection.id)}
         />
       )}
     </div>
