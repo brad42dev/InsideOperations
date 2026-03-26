@@ -1,7 +1,7 @@
 {
   "_note": "READ-ONLY BACKUP \u2014 authoritative state is in comms/tasks.db (SQLite). This file is no longer written by io-run.sh. Do not edit.",
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-26T05:25:38.000000+00:00",
+  "last_updated": "2026-03-26T06:28:01.731500Z",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -359,7 +359,7 @@
       "completed_at": "2026-03-21",
       "notes": "Re-audited round 3. 10 gaps found. Wave 0 findings: CX-CANVAS-CONTEXT, CX-POINT-CONTEXT, CX-ERROR, CX-LOADING, CX-TOKENS. Round 6: 15 feature tasks added (resize completeness, canvas size controls, cross-mode palette parity, group management/tabs, promote group to shape).",
       "last_audit_round": 3,
-      "verified_since_last_audit": 10,
+      "verified_since_last_audit": 11,
       "tasks_uat_added": 5
     },
     {
@@ -6123,7 +6123,7 @@
       "wave": 2,
       "title": "Annotation node right-click: Change Style missing from context menu",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6135,7 +6135,7 @@
       "wave": 2,
       "title": "Palette tile right-click shows no context menu (no Place at Center / Favorites)",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6151,7 +6151,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-045",
