@@ -336,13 +336,25 @@ function ShapeTile({
       el.removeAttribute('data-dragging')
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('keydown', onKeyDown)
       document.dispatchEvent(new CustomEvent('io:shape-drop', {
         detail: { shapeId: item.id, x: ev.clientX, y: ev.clientY },
       }))
     }
 
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ghost.remove()
+        el.removeAttribute('data-dragging')
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    }
+
     document.addEventListener('mousemove', onMove, true)
     document.addEventListener('mouseup', onUp, true)
+    document.addEventListener('keydown', onKeyDown, true)
   }, [item.id, item.label])
 
   function handleAddToCanvas() {
@@ -684,12 +696,22 @@ function DisplayElementTile({
       ghost.remove()
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('keydown', onKeyDown)
       document.dispatchEvent(new CustomEvent('io:display-element-drop', {
         detail: { elementType: type, x: ev.clientX, y: ev.clientY },
       }))
     }
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ghost.remove()
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    }
     document.addEventListener('mousemove', onMove, true)
     document.addEventListener('mouseup', onUp, true)
+    document.addEventListener('keydown', onKeyDown, true)
   }, [type, label])
 
   function handlePlaceAtCenter() {
@@ -993,13 +1015,25 @@ function CustomShapesPaletteTile({ item }: { item: UserShapeItem }) {
       el.removeAttribute('data-dragging')
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('keydown', onKeyDown)
       document.dispatchEvent(new CustomEvent('io:shape-drop', {
         detail: { shapeId: item.shape_id, x: ev.clientX, y: ev.clientY },
       }))
     }
 
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ghost.remove()
+        el.removeAttribute('data-dragging')
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    }
+
     document.addEventListener('mousemove', onMove, true)
     document.addEventListener('mouseup', onUp, true)
+    document.addEventListener('keydown', onKeyDown, true)
   }, [item.shape_id, item.name])
 
   function handleAddToCanvas() {
@@ -1243,12 +1277,22 @@ function StencilTile({ item, collapsed }: { item: StencilItem; collapsed: boolea
       ghost.remove()
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('keydown', onKeyDown)
       document.dispatchEvent(new CustomEvent('io:stencil-drop', {
         detail: { stencilId: item.id, x: ev.clientX, y: ev.clientY },
       }))
     }
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ghost.remove()
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    }
     document.addEventListener('mousemove', onMove, true)
     document.addEventListener('mouseup', onUp, true)
+    document.addEventListener('keydown', onKeyDown, true)
   }, [item.id, item.name])
 
   function handleExportSvg() {
@@ -1460,12 +1504,22 @@ function WidgetTile({
       ghost.remove()
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('keydown', onKeyDown)
       document.dispatchEvent(new CustomEvent('io:widget-drop', {
         detail: { widgetType: type, x: ev.clientX, y: ev.clientY },
       }))
     }
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ghost.remove()
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    }
     document.addEventListener('mousemove', onMove, true)
     document.addEventListener('mouseup', onUp, true)
+    document.addEventListener('keydown', onKeyDown, true)
   }, [type, label])
 
   function handlePlaceAtCenter() {
@@ -1663,12 +1717,22 @@ function ReportElementTile({ elementType, label, collapsed }: ReportElementDef &
       ghost.remove()
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('keydown', onKeyDown)
       document.dispatchEvent(new CustomEvent('io:report-element-drop', {
         detail: { elementType, x: ev.clientX, y: ev.clientY },
       }))
     }
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        ghost.remove()
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.removeEventListener('keydown', onKeyDown)
+      }
+    }
     document.addEventListener('mousemove', onMove, true)
     document.addEventListener('mouseup', onUp, true)
+    document.addEventListener('keydown', onKeyDown, true)
   }, [elementType, label])
 
   function handlePlaceAtCenter() {

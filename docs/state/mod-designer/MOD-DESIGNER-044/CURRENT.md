@@ -13,6 +13,7 @@ last_heartbeat: 2026-03-26T12:00:00Z
 | Attempt | Fingerprint | Before Hash | After Hash | Result |
 |---------|-------------|-------------|------------|--------|
 | 1 | Fixed drag ghost ID to io-canvas-drag-ghost in all palette tiles | - | - | ✅ complete |
+| 2 | Added Escape key handler to cancel drag and remove ghost | - | - | ✅ uat-verified |
 
 ## Implementation Summary
 
@@ -63,3 +64,31 @@ Updated 5 palette tile components' drag handlers:
 - Capture phase event listeners for reliable handling
 
 All acceptance criteria met. Feature is complete and functioning as specified.
+
+### UAT Gap Resolution (2026-03-26, Attempt 2)
+
+Initial UAT identified **Scenario 5 gap**: Ghost not cancelled when Escape pressed during palette drag.
+
+**Fix Applied:**
+Added `onKeyDown` handler to all 6 palette tile drag implementations:
+- Checks `if (ev.key === 'Escape')`
+- Removes ghost from DOM
+- Cleans up event listeners
+- Does NOT dispatch drop event (cancels drag)
+
+**Files Modified:**
+- ShapeTile (lines ~334-358)
+- DisplayElementTile (lines ~703-725)
+- CustomShapesPaletteTile (lines ~1021-1043)
+- StencilTile (lines ~1284-1306)
+- WidgetTile (lines ~1519-1541)
+- ReportElementTile (lines ~1741-1763)
+
+✅ **All 5 UAT scenarios now PASS:**
+1. ✅ Drag ghost appears during palette drag
+2. ✅ Ghost follows cursor
+3. ✅ Ghost disappears on drop
+4. ✅ Ghost shows shape label
+5. ✅ Ghost disappears on Escape key (NEW)
+
+**Build Status:** ✅ Zero errors, production build successful
