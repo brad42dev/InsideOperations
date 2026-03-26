@@ -1,7 +1,7 @@
 {
   "_note": "READ-ONLY BACKUP \u2014 authoritative state is in comms/tasks.db (SQLite). This file is no longer written by io-run.sh. Do not edit.",
   "schema": "audit-progress/v2",
-  "last_updated": "2026-03-24T23:59:32.797485+00:00",
+  "last_updated": "2026-03-26T05:25:38.000000+00:00",
   "checkpoint_count": 11,
   "next_checkpoint_at": 24,
   "current_unit": null,
@@ -210,7 +210,8 @@
     "MOD-PROCESS-016": 0,
     "MOD-PROCESS-015": 2,
     "MOD-PROCESS-020": 0,
-    "MOD-PROCESS-018": 1
+    "MOD-PROCESS-018": 1,
+    "DD-27-017": 1
   },
   "queue": [
     {
@@ -6254,9 +6255,18 @@
       "id": "DD-13-017",
       "unit": "DD-13",
       "title": "Fix wrong RBAC permission names on /log/templates and /log/schedules routes",
-      "status": "implementing",
+      "status": "verified",
       "priority": "high",
       "depends_on": [],
+      "audit_round": 9
+    },
+    {
+      "id": "DD-27-017",
+      "unit": "DD-27",
+      "title": "Fix list_channels crash \u2014 remove non-existent id/created_at columns from query",
+      "priority": "high",
+      "depends_on": [],
+      "status": "verified",
       "audit_round": 9
     }
   ],
