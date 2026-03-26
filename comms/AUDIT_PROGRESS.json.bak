@@ -221,7 +221,8 @@
     "MOD-CONSOLE-031": 1,
     "MOD-DESIGNER-047": 1,
     "MOD-DESIGNER-048": 1,
-    "MOD-PROCESS-022": 1
+    "MOD-PROCESS-022": 1,
+    "MOD-PROCESS-021": 1
   },
   "queue": [
     {
@@ -6218,7 +6219,7 @@
       "priority": "medium",
       "depends_on": [],
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-PROCESS-016",
@@ -6241,7 +6242,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-PROCESS-018",
@@ -6263,7 +6264,7 @@
       "priority": "low",
       "depends_on": [],
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-PROCESS-020",
@@ -6283,7 +6284,7 @@
       "priority": "high",
       "depends_on": [],
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "DD-27-017",
@@ -6314,7 +6315,7 @@
       "depends_on": [],
       "audit_round": 9,
       "answer_file": null,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "DD-13-018",
@@ -6324,7 +6325,7 @@
       "priority": "medium",
       "depends_on": [],
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-CONSOLE-030",
@@ -6382,7 +6383,7 @@
       "wave": 1,
       "title": "Bookmark \u2605 button does not open Name/Description dialog",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6406,7 +6407,7 @@
       "wave": 1,
       "title": "No minimap toggle button in main Process view toolbar",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6430,11 +6431,11 @@
       "wave": 3,
       "title": "Re-verify WYSIWYG font-family toolbar when log backend API is available",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "DD-13-021",
@@ -6480,7 +6481,7 @@
       "wave": 2,
       "title": "Canvas drag-to-move creates duplicate elements \u2014 mousedown misrouted to palette drop handler",
       "priority": "high",
-      "status": "implementing",
+      "status": "pending",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
