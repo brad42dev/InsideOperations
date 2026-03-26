@@ -615,6 +615,10 @@ function WorkspaceThumbnailCard({
   isFavorite,
   onSelect,
   onToggleFavorite,
+  onRename,
+  onDuplicate,
+  onDelete,
+  canDelete,
   gridMode,
 }: {
   ws: WorkspaceLayout
@@ -622,6 +626,10 @@ function WorkspaceThumbnailCard({
   isFavorite: boolean
   onSelect: () => void
   onToggleFavorite: () => void
+  onRename?: () => void
+  onDuplicate?: () => void
+  onDelete?: () => void
+  canDelete?: boolean
   gridMode: boolean
 }) {
   const [hovering, setHovering] = useState(false)
@@ -729,14 +737,64 @@ function WorkspaceThumbnailCard({
             paddingTop: 4,
             paddingBottom: 4,
             outline: 'none',
+            animation: 'io-context-menu-in 0.08s ease',
           }}
           onContextMenu={(e) => e.preventDefault()}
         >
+          <style>{`
+            @keyframes io-context-menu-in {
+              from { opacity: 0; transform: scale(0.97) translateY(-3px); }
+              to   { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            [data-radix-context-menu-item]:focus {
+              background: var(--io-accent-subtle);
+              outline: none;
+            }
+          `}</style>
+
           <RadixContextMenu.Item onSelect={onSelect} style={ctxMenuItemStyle}>Open</RadixContextMenu.Item>
+
           <RadixContextMenu.Separator style={ctxMenuSeparatorStyle} />
+
           <RadixContextMenu.Item onSelect={onToggleFavorite} style={ctxMenuItemStyle}>
             {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
           </RadixContextMenu.Item>
+
+          {onRename && (
+            <RadixContextMenu.Item
+              onSelect={onRename}
+              style={ctxMenuItemStyle}
+            >
+              {'Rename\u2026'}
+            </RadixContextMenu.Item>
+          )}
+
+          {onDuplicate && (
+            <RadixContextMenu.Item
+              onSelect={onDuplicate}
+              style={ctxMenuItemStyle}
+            >
+              Duplicate
+            </RadixContextMenu.Item>
+          )}
+
+          {onDelete && (
+            <>
+              <RadixContextMenu.Separator style={ctxMenuSeparatorStyle} />
+              <RadixContextMenu.Item
+                onSelect={onDelete}
+                disabled={!canDelete}
+                style={{
+                  ...ctxMenuItemStyle,
+                  color: !canDelete ? 'var(--io-text-muted)' : 'var(--io-text-primary)',
+                  opacity: !canDelete ? 0.5 : 1,
+                  cursor: !canDelete ? 'default' : 'pointer',
+                }}
+              >
+                Delete
+              </RadixContextMenu.Item>
+            </>
+          )}
         </RadixContextMenu.Content>
       </RadixContextMenu.Portal>
     </RadixContextMenu.Root>
@@ -827,6 +885,10 @@ function WorkspacesSection({
               isFavorite={favoriteIds.has(ws.id)}
               onSelect={() => onSelectWorkspace?.(ws.id)}
               onToggleFavorite={() => onToggleFavorite(ws.id)}
+              onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+              onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+              onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+              canDelete={canDeleteCheck}
               gridMode
             />
           ))}
@@ -845,6 +907,10 @@ function WorkspacesSection({
             isFavorite={favoriteIds.has(ws.id)}
             onSelect={() => onSelectWorkspace?.(ws.id)}
             onToggleFavorite={() => onToggleFavorite(ws.id)}
+            onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
+            onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
+            onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+            canDelete={canDeleteCheck}
             gridMode={false}
           />
         ))}
