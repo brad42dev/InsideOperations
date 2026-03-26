@@ -427,10 +427,16 @@ function AlertBell() {
   )
 }
 
-// CornerTrigger — fixed 32×32px transparent hit area in each screen corner.
-// Dwelling for 1500ms reveals a semi-transparent "Exit Kiosk" button.
+// CornerTrigger — detects mouse dwell in a 48×48px screen corner zone.
+// Uses a global document mousemove listener (not onMouseEnter on a div) so that
+// it works reliably regardless of element stacking order and in automated tests
+// that dispatch synthetic mousemove events.  Dwelling for 1500ms reveals a
+// semi-transparent "Exit Kiosk" button positioned near the corner.
 // Only rendered when isKiosk is true.
 type CornerPosition = 'tl' | 'tr' | 'bl' | 'br'
+
+// Corner zone size in pixels — cursor must stay within this square of the corner.
+const CORNER_ZONE = 48
 
 interface CornerTriggerProps {
   corner: CornerPosition
@@ -440,12 +446,51 @@ interface CornerTriggerProps {
 function CornerTrigger({ corner, onDwellComplete }: CornerTriggerProps) {
   const [showButton, setShowButton] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inZoneRef = useRef(false)
 
-  const cornerStyle: CSSProperties = {
+  useEffect(() => {
+    function isInCorner(x: number, y: number): boolean {
+      const w = window.innerWidth
+      const h = window.innerHeight
+      switch (corner) {
+        case 'tl': return x <= CORNER_ZONE && y <= CORNER_ZONE
+        case 'tr': return x >= w - CORNER_ZONE && y <= CORNER_ZONE
+        case 'bl': return x <= CORNER_ZONE && y >= h - CORNER_ZONE
+        case 'br': return x >= w - CORNER_ZONE && y >= h - CORNER_ZONE
+      }
+    }
+
+    function handleMouseMove(e: MouseEvent) {
+      const inside = isInCorner(e.clientX, e.clientY)
+      if (inside && !inZoneRef.current) {
+        // Entered corner zone — start dwell timer
+        inZoneRef.current = true
+        timerRef.current = setTimeout(() => setShowButton(true), 1500)
+      } else if (!inside && inZoneRef.current) {
+        // Left corner zone — cancel timer and hide button
+        inZoneRef.current = false
+        if (timerRef.current) {
+          clearTimeout(timerRef.current)
+          timerRef.current = null
+        }
+        setShowButton(false)
+      }
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [corner])
+
+  const containerStyle: CSSProperties = {
     position: 'fixed',
-    width: 32,
-    height: 32,
     zIndex: 9999,
+    pointerEvents: 'none',
     ...(corner === 'tl' ? { top: 0, left: 0 } : {}),
     ...(corner === 'tr' ? { top: 0, right: 0 } : {}),
     ...(corner === 'bl' ? { bottom: 0, left: 0 } : {}),
@@ -453,7 +498,7 @@ function CornerTrigger({ corner, onDwellComplete }: CornerTriggerProps) {
   }
 
   const buttonStyle: CSSProperties = {
-    position: 'absolute',
+    pointerEvents: 'auto',
     background: 'rgba(0,0,0,0.55)',
     color: '#fff',
     border: 'none',
@@ -462,28 +507,21 @@ function CornerTrigger({ corner, onDwellComplete }: CornerTriggerProps) {
     fontSize: 11,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
-    ...(corner === 'tl' ? { top: 36, left: 0 } : {}),
-    ...(corner === 'tr' ? { top: 36, right: 0 } : {}),
-    ...(corner === 'bl' ? { bottom: 36, left: 0 } : {}),
-    ...(corner === 'br' ? { bottom: 36, right: 0 } : {}),
-  }
-
-  function handleMouseEnter() {
-    timerRef.current = setTimeout(() => setShowButton(true), 1500)
-  }
-
-  function handleMouseLeave() {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-    setShowButton(false)
+    display: 'block',
+    margin: 4,
   }
 
   return (
-    <div style={cornerStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div
+      style={containerStyle}
+      data-testid={`kiosk-corner-trigger-${corner}`}
+    >
       {showButton && (
-        <button style={buttonStyle} onClick={onDwellComplete}>
+        <button
+          style={buttonStyle}
+          data-testid="kiosk-exit-button"
+          onClick={onDwellComplete}
+        >
           Exit Kiosk
         </button>
       )}
@@ -522,11 +560,17 @@ export default function AppShell() {
   // sidebarHidden drives the edge-reveal strip
   const sidebarHidden = sidebarState === 'hidden'
   const [sidebarPeek, setSidebarPeek] = useState(false)
+  // Hidden sidebar floating overlay (opens on chevron click, retracts after 400ms mouse-leave)
+  const [sidebarHiddenPeekOpen, setSidebarHiddenPeekOpen] = useState(false)
+  const sidebarHiddenPeekOpenRef = useRef(false)
+  sidebarHiddenPeekOpenRef.current = sidebarHiddenPeekOpen
+  const sidebarEdgeDwellRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sidebarHiddenRetractRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Collapsed sidebar hover-to-expand overlay (300ms dwell, 200ms retract)
   const [collapsedPeek, setCollapsedPeek] = useState(false)
   const collapsedPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // When collapsed but peeking, show full sidebar content as floating overlay
-  const sidebarShowFull = !sidebarCollapsed || collapsedPeek
+  // When collapsed but peeking, or hidden overlay is open, show full sidebar content
+  const sidebarShowFull = !sidebarCollapsed || collapsedPeek || sidebarHiddenPeekOpen
   // Top bar hidden state (Ctrl+Shift+T)
   const [topbarHidden, setTopbarHidden] = useState(false)
   const [topbarPeek, setTopbarPeek] = useState(false)
@@ -776,6 +820,10 @@ export default function AppShell() {
           _setGKeyHintVisible.current?.(false)
           return
         }
+        if (sidebarHiddenPeekOpenRef.current) {
+          setSidebarHiddenPeekOpen(false)
+          return
+        }
         if (isKioskRef.current && !isLockedRef.current) {
           e.preventDefault()
           exitKioskRef.current()
@@ -939,44 +987,60 @@ export default function AppShell() {
             <div
               style={{
                 position: 'relative',
-                width: 4,
+                width: 8,
                 flexShrink: 0,
                 zIndex: 60,
-                cursor: 'pointer',
-                background: sidebarPeek ? 'var(--io-accent)' : 'transparent',
-                transition: 'background 0.15s',
+                background: 'transparent',
               }}
-              onMouseEnter={() => setSidebarPeek(true)}
-              onMouseLeave={() => setSidebarPeek(false)}
-              onClick={() => setSidebarState('expanded')}
-              title="Show sidebar"
+              onMouseEnter={() => {
+                if (sidebarEdgeDwellRef.current) clearTimeout(sidebarEdgeDwellRef.current)
+                if (sidebarHiddenRetractRef.current) clearTimeout(sidebarHiddenRetractRef.current)
+                sidebarEdgeDwellRef.current = setTimeout(() => setSidebarPeek(true), 200)
+              }}
+              onMouseLeave={() => {
+                if (sidebarEdgeDwellRef.current) clearTimeout(sidebarEdgeDwellRef.current)
+                setSidebarPeek(false)
+              }}
             >
               {sidebarPeek && (
-                <div style={{
-                  position: 'absolute',
-                  left: 4,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'var(--io-surface)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '0 4px 4px 0',
-                  padding: '4px 6px',
-                  fontSize: 10,
-                  color: 'var(--io-text-muted)',
-                  whiteSpace: 'nowrap',
-                  pointerEvents: 'none',
-                  zIndex: 61,
-                }}>
-                  › Show sidebar
-                </div>
+                <button
+                  style={{
+                    position: 'absolute',
+                    left: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: 24,
+                    height: 48,
+                    background: 'var(--io-surface-elevated, var(--io-surface))',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: '0 6px 6px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    opacity: 0.85,
+                    zIndex: 61,
+                    padding: 0,
+                    color: 'var(--io-text-primary)',
+                    fontSize: 16,
+                  }}
+                  onClick={() => {
+                    if (sidebarHiddenRetractRef.current) clearTimeout(sidebarHiddenRetractRef.current)
+                    setSidebarHiddenPeekOpen(true)
+                    setSidebarPeek(false)
+                  }}
+                  title="Show sidebar"
+                >
+                  ›
+                </button>
               )}
             </div>
           )}
         <aside
           style={{
-            width: sidebarHidden ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
-            // When collapsed+peeking: fixed overlay, no flex participation change (content doesn't reflow)
-            position: (sidebarCollapsed && collapsedPeek) ? 'fixed' : 'relative',
+            width: (sidebarHidden && !sidebarHiddenPeekOpen) ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
+            // When collapsed+peeking or hidden+peekOpen: fixed overlay, no content reflow
+            position: (sidebarCollapsed && collapsedPeek) || sidebarHiddenPeekOpen ? 'fixed' : 'relative',
             left: 0,
             top: 0,
             bottom: 0,
@@ -986,25 +1050,38 @@ export default function AppShell() {
               zIndex: 200,
               boxShadow: '4px 0 24px rgba(0,0,0,0.4)',
             } : {}),
+            ...(sidebarHiddenPeekOpen ? {
+              width: 'var(--io-sidebar-width, 240px)',
+              zIndex: 200,
+              boxShadow: '4px 0 24px rgba(0,0,0,0.4)',
+            } : {}),
             background: 'var(--io-surface-secondary)',
-            borderRight: sidebarHidden ? 'none' : '1px solid var(--io-border)',
+            borderRight: (sidebarHidden && !sidebarHiddenPeekOpen) ? 'none' : '1px solid var(--io-border)',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
-            zIndex: sidebarCollapsed && collapsedPeek ? 200 : 50,
+            zIndex: (sidebarCollapsed && collapsedPeek) || sidebarHiddenPeekOpen ? 200 : 50,
             overflow: 'hidden',
             transition: 'width 0.18s ease',
           }}
           className="sidebar"
           onMouseEnter={() => {
-            if (!sidebarCollapsed) return
-            if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
-            collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(true), 300)
+            if (sidebarCollapsed) {
+              if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
+              collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(true), 300)
+            }
+            if (sidebarHiddenPeekOpen) {
+              if (sidebarHiddenRetractRef.current) clearTimeout(sidebarHiddenRetractRef.current)
+            }
           }}
           onMouseLeave={() => {
-            if (!sidebarCollapsed) return
-            if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
-            collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(false), 200)
+            if (sidebarCollapsed) {
+              if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
+              collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(false), 200)
+            }
+            if (sidebarHiddenPeekOpen) {
+              sidebarHiddenRetractRef.current = setTimeout(() => setSidebarHiddenPeekOpen(false), 400)
+            }
           }}
         >
           {/* Logo / collapse button row */}
@@ -1077,6 +1154,33 @@ export default function AppShell() {
                   I/O
                 </span>
               </div>
+            )}
+            {/* Pin button — visible only in hidden-overlay mode; pins sidebar to Collapsed state */}
+            {sidebarHiddenPeekOpen && (
+              <button
+                onClick={() => {
+                  setSidebarState('collapsed')
+                  setSidebarHiddenPeekOpen(false)
+                }}
+                title="Pin sidebar (switch to Collapsed)"
+                style={{
+                  flexShrink: 0,
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'none',
+                  border: '1px solid var(--io-border)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  color: 'var(--io-text-muted)',
+                  fontSize: '11px',
+                  padding: 0,
+                }}
+              >
+                ⊢
+              </button>
             )}
             {/* Collapse toggle button — toggles expanded ↔ collapsed (Ctrl+\) */}
             <button
