@@ -486,7 +486,13 @@ function renderPrimitiveGeometry(node: Primitive): React.ReactNode {
     transform.mirror,
   )
 
-  const gProps = { key: id, transform: t, 'data-node-id': id }
+  const gProps = {
+    key: id,
+    transform: t,
+    'data-node-id': id,
+    'data-canvas-x': String(Math.round(transform.position.x)),
+    'data-canvas-y': String(Math.round(transform.position.y)),
+  }
 
   switch (geometry.type) {
     case 'rect':
@@ -542,7 +548,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
       case 'text_readout': {
         const formatted = formatValue(v, cfg.valueFormat ?? '%.2f')
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
+          <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={Math.max(cfg.minWidth ?? 60, formatted.length * 8 + 8)} height={22}
               fill="rgba(0,0,0,0.6)" stroke={stale ? '#6b7280' : 'var(--io-accent)'} strokeWidth={0.5} rx={2} />
             <text x={4} y={14} fontSize={11} fill={textColor} fontFamily="var(--io-font-mono)">{formatted}</text>
@@ -558,7 +564,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
         const fillH = cfg.orientation === 'vertical' ? barH * pct : barH
         const fillY = cfg.orientation === 'vertical' ? barH - fillH : 0
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
+          <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={barW} height={barH} fill="rgba(0,0,0,0.4)" stroke="var(--io-border)" strokeWidth={0.5} rx={1} />
             <rect x={0} y={fillY} width={fillW} height={fillH}
               fill={stale ? '#6b7280' : 'var(--io-accent)'} rx={1} style={{ transition: 'height 0.3s, width 0.3s, y 0.3s' }} />
@@ -573,7 +579,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
       case 'alarm_indicator': {
         const alarming = v !== 0
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
+          <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <circle cx={8} cy={8} r={7}
               fill={alarming ? '#ef4444' : '#22c55e'}
               stroke={alarming ? '#dc2626' : '#16a34a'}
@@ -586,7 +592,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
         const label = cfg.stateLabels[String(Math.round(v))] ?? String(Math.round(v))
         const isNormal = cfg.normalStates.includes(String(Math.round(v)))
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
+          <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={60} height={20} fill={isNormal ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'} stroke={isNormal ? '#22c55e' : '#ef4444'} strokeWidth={0.5} rx={2} />
             <text x={4} y={13} fontSize={9} fill={isNormal ? '#22c55e' : '#ef4444'}>{label}</text>
           </g>
@@ -598,7 +604,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
         const w = (cfg.barWidth ?? 40), h = (cfg.barHeight ?? 80)
         const fillH = h * pct
         return (
-          <g transform={tx} data-node-id={de.id} opacity={de.opacity} onContextMenu={handleContextMenu}>
+          <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity} onContextMenu={handleContextMenu}>
             <rect x={0} y={0} width={w} height={h} fill="rgba(0,0,0,0.4)" stroke="var(--io-border)" strokeWidth={0.5} rx={2} />
             <rect x={0} y={h - fillH} width={w} height={fillH} fill={stale ? '#6b7280' : '#3b82f6'} rx={1} />
             {cfg.showValue && (
@@ -624,7 +630,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
         ? ` ${cfg.unit as string}` : ''
       const boxW = 92, boxH = label ? 32 : 22
       return (
-        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+        <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity}>
           <rect x={0} y={0} width={boxW} height={boxH} rx={2} fill="#27272A" stroke="#3F3F46" strokeWidth={1}/>
           {label && <text x={4} y={10} fontSize={8} fill="#71717A" fontFamily="Inter, sans-serif">{label}</text>}
           <text x={46} y={label ? 24 : 14} textAnchor="middle" dominantBaseline="central"
@@ -641,7 +647,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
     case 'analog_bar': {
       const bW = 18, bH = 'barHeight' in cfg ? (cfg.barHeight as number) : 100
       return (
-        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+        <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity}>
           <rect x={0} y={0} width={bW} height={bH} fill="#27272A" stroke="#52525B" strokeWidth={0.5}/>
           <rect x={1} y={1}              width={bW-2} height={Math.round(bH*0.1)} fill="#5C3A3A" stroke="#52525B" strokeWidth={0.5}/>
           <rect x={1} y={Math.round(bH*0.1)+1} width={bW-2} height={Math.round(bH*0.17)} fill="#5C4A32" stroke="#52525B" strokeWidth={0.5}/>
@@ -663,7 +669,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
       const gW = 'barWidth' in cfg ? (cfg.barWidth as number) : 24
       const gH = 'barHeight' in cfg ? (cfg.barHeight as number) : 80
       return (
-        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+        <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity}>
           <rect x={0} y={0} width={gW} height={gH} rx={2} fill="none" stroke="#52525B" strokeWidth={0.5}/>
           <rect x={1} y={Math.round(gH*0.38)} width={gW-2} height={Math.round(gH*0.61)} rx={1} fill="#475569" opacity={0.6}/>
           <line x1={1} y1={Math.round(gH*0.38)} x2={gW-1} y2={Math.round(gH*0.38)} stroke="#64748B" strokeWidth={0.8} strokeDasharray="5 3"/>
@@ -674,7 +680,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
       const sW = 'sparkWidth' in cfg ? (cfg.sparkWidth as number) : 110
       const sH = 18
       return (
-        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+        <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity}>
           <rect x={0} y={0} width={sW} height={sH} rx={1} fill="#27272A"/>
           <polyline
             points={`3,14 ${sW*0.09|0},11 ${sW*0.17|0},13 ${sW*0.26|0},8 ${sW*0.35|0},10 ${sW*0.43|0},6 ${sW*0.51|0},11 ${sW*0.59|0},9 ${sW*0.68|0},5 ${sW*0.76|0},10 ${sW*0.84|0},8 ${sW*0.92|0},13 ${sW-3},10`}
@@ -686,7 +692,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
     case 'alarm_indicator': {
       // Ghost indicator in design mode — 25% opacity, gray, dash inside
       return (
-        <g transform={tx} data-node-id={de.id} opacity={0.3 * de.opacity}>
+        <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={0.3 * de.opacity}>
           <rect x={-12} y={-9} width={24} height={18} rx={2} fill="none" stroke="#808080" strokeWidth={1.8}/>
           <text x={0} y={0} textAnchor="middle" dominantBaseline="central"
             fontFamily="'JetBrains Mono', monospace" fontSize={9} fontWeight={600} fill="#808080">—</text>
@@ -697,7 +703,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
       const stateText = de.binding.pointId ? 'AUTO' : '—'
       const dW = stateText.length * 6 + 12
       return (
-        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+        <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity}>
           <rect x={0} y={0} width={dW} height={20} rx={2} fill="#3F3F46"/>
           <text x={dW/2} y={10} textAnchor="middle" dominantBaseline="central"
             fontFamily="'JetBrains Mono', monospace" fontSize={9} fill="#A1A1AA">{stateText}</text>
@@ -706,7 +712,7 @@ function DisplayElementRenderer({ node, tx }: { node: DisplayElement; tx: string
     }
     default: {
       return (
-        <g transform={tx} data-node-id={de.id} opacity={de.opacity}>
+        <g transform={tx} data-node-id={de.id} data-canvas-x={String(Math.round(de.transform.position.x))} data-canvas-y={String(Math.round(de.transform.position.y))} opacity={de.opacity}>
           <rect x={0} y={0} width={80} height={22} fill="#27272A" stroke="#3F3F46" rx={2}/>
           <text x={4} y={14} fontSize={9} fill="#71717A">{de.displayType.replace(/_/g, ' ')}</text>
         </g>
@@ -737,7 +743,7 @@ function WidgetRenderer({ node, tx }: { node: WidgetNode; tx: string }) {
   const isSmall = width < 80 || height < 50
 
   return (
-    <g transform={tx} data-node-id={node.id} opacity={node.opacity}>
+    <g transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
       {/* Background */}
       <rect
         x={0} y={0}
@@ -825,7 +831,7 @@ function RenderNode({
       // Insulation: parallel offset lines on each side
       const insulationOffset = pipe.strokeWidth + 2
       const renderPipePath = (d: string | null, pts: string | null) => (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+        <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
           {pipe.insulated && d && (
             <>
               <path d={d} fill="none" stroke={color} strokeWidth={1} strokeOpacity={0.5}
@@ -867,7 +873,7 @@ function RenderNode({
       const tbW = (tb.maxWidth ?? 120) + bgPad * 2
       const tbH = (tb.fontSize ? tb.fontSize * 1.4 : 20) + bgPad * 2
       return (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+        <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
           {tb.background && (
             <rect
               x={0} y={0}
@@ -906,7 +912,7 @@ function RenderNode({
       if (!svgStr) {
         // Placeholder box while shape loads
         return (
-          <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+          <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
             <rect x={0} y={0} width={bw} height={bh} fill="none" stroke="var(--io-border)" strokeDasharray="4 2" rx={2}/>
             <text x={bw/2} y={bh/2+4} textAnchor="middle" fontSize={9} fill="var(--io-text-muted)">
               {si.shapeRef.shapeId.replace(/_/g, ' ')}
@@ -918,7 +924,7 @@ function RenderNode({
       const innerMatch = svgStr.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i)
       const inner = innerMatch ? innerMatch[1] : svgStr
       return (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+        <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
           <svg x={0} y={0} width={bw} height={bh} viewBox={viewBox} overflow="visible"
             // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{ __html: inner }}
@@ -939,7 +945,7 @@ function RenderNode({
         ? img.assetRef.hash
         : `/api/v1/image-assets/${img.assetRef.hash}`
       return (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+        <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
           <image href={url} x={0} y={0} width={img.displayWidth} height={img.displayHeight}
             preserveAspectRatio={img.preserveAspectRatio ? 'xMidYMid meet' : 'none'}
             imageRendering={img.imageRendering === 'auto' ? undefined : img.imageRendering}
@@ -951,7 +957,7 @@ function RenderNode({
     case 'group': {
       const grp = node as Group
       return (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+        <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
           {grp.children.map(child => (
             <RenderNode key={child.id} node={child} getShapeSvg={getShapeSvg} selectedIds={selectedIds} />
           ))}
@@ -962,7 +968,7 @@ function RenderNode({
     case 'embedded_svg': {
       const esn = node as EmbeddedSvgNode
       return (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}
+        <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}
           dangerouslySetInnerHTML={{ __html: esn.svgContent }}
         />
       )
@@ -986,7 +992,7 @@ function RenderNode({
           const dasharray = sbCfg.style === 'dotted' ? '2 4' : sbCfg.style === 'space' ? undefined : undefined
           const isSpace = sbCfg.style === 'space'
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               {isSpace
                 ? <rect x={0} y={0} width={aw} height={thickness} fill="none"/>
                 : <line x1={0} y1={thickness / 2} x2={aw} y2={thickness / 2} stroke={color} strokeWidth={thickness} strokeLinecap="round" strokeDasharray={dasharray}/>
@@ -996,7 +1002,7 @@ function RenderNode({
         }
         case 'page_break':
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               <line x1={0} y1={10} x2={aw} y2={10} stroke="#EF4444" strokeWidth={2} strokeLinecap="round" strokeDasharray="6 4"/>
               <rect x={aw / 2 - 28} y={2} width={56} height={14} rx={2} fill="rgba(239,68,68,0.15)"/>
               <text x={aw / 2} y={12} textAnchor="middle" fontSize={8} fill="#EF4444" fontWeight={600} fontFamily="Inter">PAGE BREAK</text>
@@ -1010,7 +1016,7 @@ function RenderNode({
           const hAnchor = hCfg.textAlign === 'center' ? 'middle' : hCfg.textAlign === 'right' ? 'end' : 'start'
           const hTx = hCfg.textAlign === 'center' ? aw / 2 : hCfg.textAlign === 'right' ? aw - 8 : 8
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               <rect x={0} y={0} width={aw} height={hH} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
               <text x={hTx} y={hH / 2 + hFs * 0.35} textAnchor={hAnchor} fontSize={hFs} fill="#93c5fd" fontWeight={500} fontFamily="Inter">{hContent}</text>
               <line x1={0} y1={hH} x2={aw} y2={hH} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3"/>
@@ -1025,7 +1031,7 @@ function RenderNode({
           const fAnchor = fCfg.textAlign === 'center' ? 'middle' : fCfg.textAlign === 'right' ? 'end' : 'start'
           const fTx = fCfg.textAlign === 'center' ? aw / 2 : fCfg.textAlign === 'right' ? aw - 8 : 8
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               <line x1={0} y1={0} x2={aw} y2={0} stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3"/>
               <rect x={0} y={0} width={aw} height={fH} rx={2} fill="rgba(59,130,246,0.1)" stroke="#3b82f6" strokeWidth={1}/>
               <text x={fTx} y={fH / 2 + fFs * 0.35} textAnchor={fAnchor} fontSize={fFs} fill="#93c5fd" fontWeight={500} fontFamily="Inter">{fContent}</text>
@@ -1052,7 +1058,7 @@ function RenderNode({
           const cH = cFs + cPad * 2
           const tp = cCfg.targetPoint ?? { x: cW / 2, y: cH + 20 }
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               {/* Leader line */}
               <line x1={cW / 2} y1={cH} x2={tp.x} y2={tp.y} stroke={cBorder} strokeWidth={1.5} strokeLinecap="round"/>
               <circle cx={tp.x} cy={tp.y} r={3} fill={cBorder}/>
@@ -1074,7 +1080,7 @@ function RenderNode({
           const mx = (sp.x + ep.x) / 2
           const my = (sp.y + ep.y) / 2 - offset - 4
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               {/* Extension lines */}
               <line x1={sp.x} y1={sp.y} x2={sp.x} y2={sp.y - offset} stroke={dColor} strokeWidth={1} strokeDasharray="3 2"/>
               <line x1={ep.x} y1={ep.y} x2={ep.x} y2={ep.y - offset} stroke={dColor} strokeWidth={1} strokeDasharray="3 2"/>
@@ -1092,7 +1098,7 @@ function RenderNode({
           const nColor = nCfg.color ?? '#A1A1AA'
           const r = nSize / 2
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               {nCfg.style === 'compass' ? (
                 <>
                   <circle cx={r} cy={r} r={r - 1} fill="none" stroke={nColor} strokeWidth={1}/>
@@ -1119,7 +1125,7 @@ function RenderNode({
           const lW = 140
           const lH = entries.length * rowH + 16
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               <rect x={0} y={0} width={lW} height={Math.max(lH, 24)} rx={3} fill={lBg} stroke={lBorder} strokeWidth={1}/>
               {entries.map((entry, i) => {
                 const y = 8 + i * rowH
@@ -1148,7 +1154,7 @@ function RenderNode({
           const bDash = bCfg.strokeDasharray
           const tb = bCfg.titleBlock
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               <rect x={0} y={0} width={bW} height={bH} rx={bRx} fill="none" stroke={bStroke} strokeWidth={bSW} strokeDasharray={bDash}/>
               {tb && (
                 <>
@@ -1163,7 +1169,7 @@ function RenderNode({
         }
         default:
           return (
-            <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+            <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
               <rect x={0} y={0} width={Math.max(aw, 60)} height={Math.max(ah, 20)} fill="none" stroke="var(--io-border)" strokeDasharray="3 2" rx={2}/>
               <text x={6} y={14} fontSize={8} fill="var(--io-text-muted)">{an.annotationType}</text>
             </g>
@@ -1175,7 +1181,7 @@ function RenderNode({
     default:
       // Placeholder for unimplemented types
       return (
-        <g key={node.id} transform={tx} data-node-id={node.id} opacity={node.opacity}>
+        <g key={node.id} transform={tx} data-node-id={node.id} data-canvas-x={String(Math.round(node.transform.position.x))} data-canvas-y={String(Math.round(node.transform.position.y))} opacity={node.opacity}>
           <rect x={0} y={0} width={48} height={24} fill="none" stroke="var(--io-border)" strokeDasharray="3 2"/>
           <text x={4} y={16} fontSize={8} fill="var(--io-text-muted)">{node.type}</text>
         </g>
@@ -4097,6 +4103,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
     >
       {/* Canvas SVG */}
       <svg
+        data-testid="designer-canvas-svg"
         width="100%"
         height="100%"
         style={{ display: 'block', overflow: 'visible', position: 'absolute', inset: 0 }}
