@@ -16,7 +16,8 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
-import { showToast } from '../components/Toast'
+import { showToast, useToastStore } from '../components/Toast'
+import NotificationHistoryPanel from '../components/NotificationHistoryPanel'
 import LockOverlay from '../components/LockOverlay'
 import EmergencyAlert from '../components/EmergencyAlert'
 import CommandPalette from '../components/CommandPalette'
@@ -827,6 +828,13 @@ export default function AppShell() {
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '?') {
         e.preventDefault()
         setHelpOpen((v) => !v)
+        return
+      }
+
+      // F8 — toggle notification history panel
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'F8') {
+        e.preventDefault()
+        useToastStore.getState().toggleNotifPanel()
         return
       }
 
@@ -1974,6 +1982,7 @@ export default function AppShell() {
       <EmergencyAlert />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <KeyboardHelpOverlay open={helpOpen} onOpenChange={setHelpOpen} />
+      <NotificationHistoryPanel />
 
       {/* Corner dwell triggers — only in kiosk mode */}
       {isKiosk && (['tl', 'tr', 'bl', 'br'] as CornerPosition[]).map((corner) => (

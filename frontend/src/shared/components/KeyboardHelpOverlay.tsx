@@ -45,6 +45,7 @@ const SECTIONS: ShortcutSection[] = [
     shortcuts: [
       { keys: ['Ctrl', 'K'], description: 'Open command palette' },
       { keys: ['Ctrl', 'Shift', 'K'], description: 'Toggle kiosk mode' },
+      { keys: ['F8'], description: 'Open notification history panel' },
       { keys: ['?'], description: 'Show keyboard shortcuts (this overlay)' },
       { keys: ['Esc'], description: 'Dismiss overlay / exit kiosk' },
     ],
