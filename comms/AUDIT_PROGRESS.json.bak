@@ -6084,7 +6084,7 @@
       "wave": 1,
       "title": "Template variable inputs show raw name instead of structured label; no required indicator",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6108,7 +6108,7 @@
       "wave": 3,
       "title": "Error toasts auto-dismiss instead of persisting until manually dismissed",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6248,8 +6248,9 @@
       "title": "Pass isAlarm prop to PointContextMenu in Process module",
       "priority": "low",
       "depends_on": [],
-      "status": "implementing",
-      "audit_round": 9
+      "status": "verified",
+      "audit_round": 9,
+      "uat_status": null
     },
     {
       "id": "DD-13-017",
