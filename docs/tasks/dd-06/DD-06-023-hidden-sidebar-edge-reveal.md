@@ -2,7 +2,7 @@
 id: DD-06-023
 title: Fix hidden sidebar edge-reveal: 8px strip, 200ms dwell, floating overlay on click
 unit: DD-06
-status: pending
+status: done
 priority: medium
 depends-on: []
 ---
@@ -24,13 +24,13 @@ Primary files:
 
 ## Verification Checklist
 
-- [ ] Edge-reveal hit area is 8px wide (currently 4px at line 907)
-- [ ] A 200ms dwell timer fires before the handle appears (currently no dwell — `onMouseEnter` immediately sets `sidebarPeek`)
-- [ ] Handle is a 24×48px semi-transparent chevron element, not a tooltip strip
-- [ ] Clicking the handle opens the sidebar as a floating overlay (`position: fixed`, no flex layout change, content does not reflow)
-- [ ] Mouse leaving the sidebar overlay triggers a 400ms retract delay before closing
-- [ ] Escape key closes the sidebar overlay immediately when it is open in this mode
-- [ ] A "Pin" button in the overlay header transitions from Hidden → Collapsed (persisting the sidebar in layout)
+- [x] Edge-reveal hit area is 8px wide (currently 4px at line 907)
+- [x] A 200ms dwell timer fires before the handle appears (currently no dwell — `onMouseEnter` immediately sets `sidebarPeek`)
+- [x] Handle is a 24×48px semi-transparent chevron element, not a tooltip strip
+- [x] Clicking the handle opens the sidebar as a floating overlay (`position: fixed`, no flex layout change, content does not reflow)
+- [x] Mouse leaving the sidebar overlay triggers a 400ms retract delay before closing
+- [x] Escape key closes the sidebar overlay immediately when it is open in this mode
+- [x] A "Pin" button in the overlay header transitions from Hidden → Collapsed (persisting the sidebar in layout)
 
 ## Assessment
 
