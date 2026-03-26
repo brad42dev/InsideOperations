@@ -213,7 +213,7 @@
     "MOD-PROCESS-018": 1,
     "DD-27-017": 1,
     "DD-32-020": 0,
-    "DD-06-026": 0,
+    "DD-06-026": 2,
     "DD-13-016": 0
   },
   "queue": [
@@ -6279,8 +6279,9 @@
       "title": "Replace command palette with cmdk library and command-score fuzzy matching",
       "priority": "medium",
       "depends_on": [],
-      "status": "implementing",
-      "audit_round": 9
+      "status": "verified",
+      "audit_round": 9,
+      "uat_status": null
     },
     {
       "id": "DD-13-016",
@@ -6297,7 +6298,7 @@
       "id": "DD-13-018",
       "unit": "DD-13",
       "title": "Wire PointContextMenu onto point rows in PointDataSegment (CX-POINT-CONTEXT)",
-      "status": "implementing",
+      "status": "verified",
       "priority": "medium",
       "depends_on": [],
       "audit_round": 9
