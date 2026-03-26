@@ -1092,8 +1092,8 @@ export default function ProcessPage() {
         {/* Viewport area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
-          {/* Breadcrumb navigation bar (§6.4) — only when history depth > 1 */}
-          {navHistory.length > 0 && (
+          {/* Breadcrumb navigation bar (§6.4) — only when history depth > 1 and not in kiosk mode */}
+          {!isKiosk && navHistory.length > 0 && (
             <div style={{
               height: 28,
               flexShrink: 0,
@@ -1316,6 +1316,7 @@ export default function ProcessPage() {
             <PointContextMenu
               pointId={pointCtxMenu.pointId}
               tagName={pointCtxMenu.pointId}
+              isAlarm={pointCtxMenu.isAlarmElement}
               isAlarmElement={pointCtxMenu.isAlarmElement}
               open={true}
               onOpenChange={(open) => { if (!open) setPointCtxMenu(null) }}
@@ -1344,8 +1345,8 @@ export default function ProcessPage() {
             />
           ))}
 
-          {/* View toolbar */}
-          <div style={{
+          {/* View toolbar — hidden in kiosk mode */}
+          {!isKiosk && <div style={{
             height: 40,
             flexShrink: 0,
             display: 'flex',
@@ -1522,7 +1523,7 @@ export default function ProcessPage() {
                 )}
               </svg>
             </button>
-          </div>
+          </div>}
 
           {/* Historical Playback Bar (only in historical mode) */}
           {isHistorical && <HistoricalPlaybackBar />}
