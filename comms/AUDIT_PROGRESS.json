@@ -5922,7 +5922,7 @@
       "id": "DD-29-018",
       "unit": "DD-29",
       "title": "Implement LDAP hourly background group-membership sync",
-      "status": "implementing",
+      "status": "verified",
       "priority": "high",
       "depends_on": [],
       "source": "audit",
