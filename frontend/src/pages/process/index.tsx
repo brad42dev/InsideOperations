@@ -778,6 +778,39 @@ export default function ProcessPage() {
     }
   }, [])
 
+  // ---- Print (§14.2, §10.2) — server-side PDF, A1/A3 large-format ----------
+
+  const handlePrint = useCallback(async () => {
+    const token = localStorage.getItem('io_access_token')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = 'Bearer ' + token
+    try {
+      const apiBase = (import.meta.env.VITE_API_URL ?? '') as string
+      const res = await fetch(apiBase + '/api/process/print', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ graphic_id: selectedId }),
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        const contentDisposition = res.headers.get('Content-Disposition') ?? ''
+        const filenameMatch = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition)
+        const filename = filenameMatch?.[1]?.replace(/['"]/g, '') ?? 'process-print.pdf'
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+    } catch (err) {
+      console.error('[Process] Print failed:', err)
+    }
+  }, [selectedId])
+
   // ---- Fullscreen ----------------------------------------------------------
 
   function toggleFullscreen() {
@@ -966,10 +999,16 @@ export default function ProcessPage() {
         }
         return
       }
+      // Ctrl+P — server-side print (§12.1); prevent browser print dialog
+      if (ctrl && (e.key === 'p' || e.key === 'P') && !e.shiftKey) {
+        e.preventDefault()
+        void handlePrint()
+        return
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward, openPointDetail, isKiosk, setKiosk])
+  }, [zoomFit, zoom100, handleAddBookmark, toggleSidebar, navBack, navForward, openPointDetail, isKiosk, setKiosk, handlePrint])
 
   // ---- Debounced viewport for point subscriptions ─────────────────────────
 
@@ -1507,6 +1546,17 @@ export default function ProcessPage() {
                   </>
                 )}
               </div>
+            )}
+
+            {/* Print button — gated by process:export, hidden when permission absent (§16.1) */}
+            {canExport && (
+              <button
+                onClick={() => { void handlePrint() }}
+                title="Print graphic (server-side PDF, Ctrl+P)"
+                style={toolbarBtnStyle}
+              >
+                Print
+              </button>
             )}
 
             {/* Fullscreen button */}
