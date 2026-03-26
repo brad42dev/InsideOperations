@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
+import type { PaginatedResult } from '../../api/client'
 import { opcCertsApi, OpcServerCert } from '../../api/opcCerts'
 
 // ---------------------------------------------------------------------------
@@ -439,10 +440,14 @@ export default function CertificatesPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['certificates'],
-    queryFn: () => api.get<CertInfo[]>('/api/certificates'),
+    queryFn: () => api.get<PaginatedResult<CertInfo>>('/api/certificates'),
   })
 
-  const certs: CertInfo[] = data?.success ? data.data : []
+  // The /api/certificates endpoint returns a PagedResponse, which client.ts unwraps
+  // into { data: CertInfo[], pagination: {...} }. Guard against any non-array
+  // value so .map() never throws.
+  const rawData = data?.success ? data.data : null
+  const certs: CertInfo[] = Array.isArray(rawData?.data) ? rawData.data : []
 
   const deleteMutation = useMutation({
     mutationFn: (name: string) =>
