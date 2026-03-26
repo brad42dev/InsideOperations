@@ -216,7 +216,10 @@
     "DD-06-026": 2,
     "DD-13-016": 0,
     "MOD-DESIGNER-044": 1,
-    "MOD-DESIGNER-043": 1
+    "MOD-DESIGNER-043": 1,
+    "MOD-DESIGNER-045": 1,
+    "MOD-CONSOLE-031": 1,
+    "MOD-DESIGNER-047": 1
   },
   "queue": [
     {
@@ -499,7 +502,8 @@
       "completed_at": "2026-03-21",
       "notes": "10 tasks. Tiptap extensions missing; Underline button calls toggleStrike; attachment upload absent; schedule mgmt is static stub.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 0
+      "verified_since_last_audit": 3,
+      "tasks_uat_added": 3
     },
     {
       "unit": "DD-14",
@@ -1005,7 +1009,7 @@
     {
       "id": "MOD-DESIGNER",
       "wave": 2,
-      "verified_since_last_audit": 3,
+      "verified_since_last_audit": 5,
       "tasks_uat_added": 2
     }
   ],
@@ -1212,7 +1216,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 8,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -2046,7 +2050,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-007",
@@ -2068,7 +2072,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-009",
@@ -3147,7 +3151,7 @@
         "DD-27-006"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-27-008",
@@ -5395,7 +5399,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-014",
@@ -5601,7 +5605,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-29-016",
@@ -5721,7 +5725,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-27-016",
@@ -5735,7 +5739,7 @@
       ],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-29-017",
@@ -5794,7 +5798,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-DESIGNER-037",
@@ -5992,7 +5996,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-018",
@@ -6003,7 +6007,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-019",
@@ -6063,7 +6067,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": "fail"
+      "uat_status": null
     },
     {
       "id": "MOD-CONSOLE-029",
@@ -6099,7 +6103,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-020",
@@ -6111,7 +6115,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-021",
@@ -6123,7 +6127,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-042",
@@ -6167,7 +6171,7 @@
       "wave": 2,
       "title": "Test mode: right-click on display element shows no context menu",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6276,7 +6280,8 @@
       "status": "verified",
       "priority": "high",
       "depends_on": [],
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "fail"
     },
     {
       "id": "DD-27-017",
@@ -6285,7 +6290,8 @@
       "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-026",
@@ -6306,7 +6312,7 @@
       "depends_on": [],
       "audit_round": 9,
       "answer_file": null,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-13-018",
@@ -6315,7 +6321,8 @@
       "status": "verified",
       "priority": "medium",
       "depends_on": [],
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-030",
@@ -6323,7 +6330,7 @@
       "wave": 1,
       "title": "Left nav panel width resize handle missing",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6335,7 +6342,7 @@
       "wave": 1,
       "title": "Detached console route /detached/console/:id still renders Phase 7 stub",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6347,7 +6354,7 @@
       "wave": 2,
       "title": "Canvas drag-to-move element position could not be confirmed in UAT",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6399,6 +6406,68 @@
       "priority": "high",
       "status": "pending",
       "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-019",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "/log/templates direct URL navigation crashes browser",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-020",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Re-verify WYSIWYG font-family toolbar when log backend API is available",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-13-021",
+      "unit": "DD-13",
+      "wave": 3,
+      "title": "Re-verify PointContextMenu on PointDataSegment rows when log backend available",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-022",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Success toast on workspace creation untestable \u2014 Done click silent; success path blocked by backend 404",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-023",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Success toast auto-dismiss regression unverifiable \u2014 backend returns 404 on workspace creation",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [
+        "DD-32-022"
+      ],
       "audit_round": 9,
       "source": "uat",
       "uat_status": null

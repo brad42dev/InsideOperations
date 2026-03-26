@@ -40,3 +40,4 @@ MOD-DESIGNER-038 | Fix API gateway rate limit on /api/v1/design-objects (429 UAT
 MOD-DESIGNER-044 | Drag ghost not visible during palette-to-canvas drag | verified 2026-03-26 | commit 1f84153 | npx tsc --noEmit | PASS
 MOD-DESIGNER-043 | Palette tile right-click shows no context menu (no Place at Center / Favorites) | verified 2026-03-26 | commit 84241b5 | npx tsc --noEmit | PASS
 MOD-DESIGNER-046 | Group Ctrl+G does not create group node; Open in Tab missing from group context menu | verified 2026-03-26 | commit 8a504f3 | npx tsc --noEmit | PASS
+MOD-DESIGNER-047 | Canvas drag-to-move testability attributes | verified 2026-03-26 | commit 3eddc6a | npx tsc --noEmit | PASS
