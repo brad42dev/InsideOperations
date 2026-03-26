@@ -1012,7 +1012,7 @@
     {
       "id": "MOD-DESIGNER",
       "wave": 2,
-      "verified_since_last_audit": 7,
+      "verified_since_last_audit": 8,
       "tasks_uat_added": 3
     }
   ],
@@ -6407,7 +6407,7 @@
       "wave": 1,
       "title": "No minimap toggle button in main Process view toolbar",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6481,7 +6481,7 @@
       "wave": 2,
       "title": "Canvas drag-to-move creates duplicate elements \u2014 mousedown misrouted to palette drop handler",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
