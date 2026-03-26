@@ -236,6 +236,177 @@ export default function WorkspaceGrid({
     [editMode, onGridLayoutChange],
   )
 
+  // ── Neighbor auto-resize on resize stop ──────────────────────────────────
+  // Adjusts border-sharing neighbors when a pane is resized, maintaining
+  // gap-free and overlap-free layout. Uses reading-order priority (y asc, x asc).
+  //
+  // The noCompactor is intentional (fixed positions) — so we must manually
+  // adjust neighbors here. Algorithm per spec §5.7 and task doc.
+
+  const handleResizeStop = useCallback(
+    (
+      layout: readonly LayoutItem[],
+      oldItem: LayoutItem | null,
+      newItem: LayoutItem | null,
+    ) => {
+      if (!editMode || !onGridLayoutChange || !oldItem || !newItem) return
+
+      // Build a mutable copy of the layout; we will adjust neighbors in-place.
+      const adjusted = layout.map((item) => ({ ...item }))
+
+      // Helper: find mutable item by id
+      const findItem = (id: string) => adjusted.find((it) => it.i === id) ?? null
+
+      // Reading-order sort comparator: y asc then x asc (lower = higher priority)
+      const readingOrder = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+        a.y !== b.y ? a.y - b.y : a.x - b.x
+
+      // ── Right edge changed ────────────────────────────────────────────────
+      // oldItem.x + oldItem.w = old right edge
+      // newItem.x + newItem.w = new right edge
+      // delta > 0: pane expanded right → right neighbors must shrink/move right
+      // delta < 0: pane shrank right → right neighbors must grow/move left
+      const oldRight = oldItem.x + oldItem.w
+      const newRight = newItem.x + newItem.w
+      const rightDelta = newRight - oldRight // positive = expanded, negative = shrank
+
+      if (rightDelta !== 0) {
+        // Panes whose left edge was at oldRight (directly right-adjacent)
+        const rightNeighbors = adjusted
+          .filter((it) => it.i !== newItem.i && it.x === oldRight)
+          .sort(readingOrder)
+
+        for (const neighbor of rightNeighbors) {
+          if (rightDelta > 0) {
+            // Source expanded right → neighbor shifts right and shrinks
+            const newNeighborX = neighbor.x + rightDelta
+            const newNeighborW = neighbor.w - rightDelta
+            if (newNeighborW < MIN_ITEM_W) {
+              // Neighbor can't yield fully — clamp both
+              const maxDelta = neighbor.w - MIN_ITEM_W
+              const src = findItem(newItem.i)
+              if (src) src.w = oldItem.w + maxDelta
+              neighbor.x = neighbor.x + maxDelta
+              neighbor.w = MIN_ITEM_W
+            } else {
+              neighbor.x = newNeighborX
+              neighbor.w = newNeighborW
+            }
+          } else {
+            // Source shrank right → neighbor shifts left and grows
+            neighbor.x = neighbor.x + rightDelta // rightDelta is negative
+            neighbor.w = neighbor.w - rightDelta  // grow by abs(rightDelta)
+          }
+        }
+      }
+
+      // ── Bottom edge changed ───────────────────────────────────────────────
+      const oldBottom = oldItem.y + oldItem.h
+      const newBottom = newItem.y + newItem.h
+      const bottomDelta = newBottom - oldBottom
+
+      if (bottomDelta !== 0) {
+        const bottomNeighbors = adjusted
+          .filter((it) => it.i !== newItem.i && it.y === oldBottom)
+          .sort(readingOrder)
+
+        for (const neighbor of bottomNeighbors) {
+          if (bottomDelta > 0) {
+            const newNeighborY = neighbor.y + bottomDelta
+            const newNeighborH = neighbor.h - bottomDelta
+            if (newNeighborH < MIN_ITEM_H) {
+              const maxDelta = neighbor.h - MIN_ITEM_H
+              const src = findItem(newItem.i)
+              if (src) src.h = oldItem.h + maxDelta
+              neighbor.y = neighbor.y + maxDelta
+              neighbor.h = MIN_ITEM_H
+            } else {
+              neighbor.y = newNeighborY
+              neighbor.h = newNeighborH
+            }
+          } else {
+            neighbor.y = neighbor.y + bottomDelta
+            neighbor.h = neighbor.h - bottomDelta
+          }
+        }
+      }
+
+      // ── Left edge changed (x increased = shrank from left) ───────────────
+      // newItem.x > oldItem.x → left edge moved right → left neighbors can expand
+      // newItem.x < oldItem.x → left edge moved left → left neighbors must shrink
+      const leftDelta = newItem.x - oldItem.x // positive = left edge moved right
+
+      if (leftDelta !== 0) {
+        // Panes whose right edge (x + w) was at oldItem.x (directly left-adjacent)
+        const leftNeighbors = adjusted
+          .filter((it) => it.i !== newItem.i && it.x + it.w === oldItem.x)
+          .sort(readingOrder)
+
+        for (const neighbor of leftNeighbors) {
+          if (leftDelta > 0) {
+            // Source shrank from left → left neighbors can expand right
+            neighbor.w = neighbor.w + leftDelta
+          } else {
+            // Source expanded left → left neighbors must shrink
+            const newNeighborW = neighbor.w + leftDelta // leftDelta negative
+            if (newNeighborW < MIN_ITEM_W) {
+              const maxDelta = -(neighbor.w - MIN_ITEM_W) // negative
+              const src = findItem(newItem.i)
+              if (src) {
+                src.x = oldItem.x + maxDelta // clamp source left edge
+                src.w = src.w - maxDelta
+              }
+              neighbor.w = MIN_ITEM_W
+            } else {
+              neighbor.w = newNeighborW
+            }
+          }
+        }
+      }
+
+      // ── Top edge changed (y increased = shrank from top) ─────────────────
+      const topDelta = newItem.y - oldItem.y
+
+      if (topDelta !== 0) {
+        const topNeighbors = adjusted
+          .filter((it) => it.i !== newItem.i && it.y + it.h === oldItem.y)
+          .sort(readingOrder)
+
+        for (const neighbor of topNeighbors) {
+          if (topDelta > 0) {
+            // Source shrank from top → top neighbors can expand down
+            neighbor.h = neighbor.h + topDelta
+          } else {
+            // Source expanded top → top neighbors must shrink
+            const newNeighborH = neighbor.h + topDelta
+            if (newNeighborH < MIN_ITEM_H) {
+              const maxDelta = -(neighbor.h - MIN_ITEM_H)
+              const src = findItem(newItem.i)
+              if (src) {
+                src.y = oldItem.y + maxDelta
+                src.h = src.h - maxDelta
+              }
+              neighbor.h = MIN_ITEM_H
+            } else {
+              neighbor.h = newNeighborH
+            }
+          }
+        }
+      }
+
+      // Clamp all panes to minimum size as a final safety pass
+      for (const item of adjusted) {
+        item.w = Math.max(item.w, MIN_ITEM_W)
+        item.h = Math.max(item.h, MIN_ITEM_H)
+      }
+
+      onGridLayoutChange(
+        adjusted.map((item) => ({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h })),
+      )
+    },
+    [editMode, onGridLayoutChange],
+  )
+
   // ── Pane swap on drag stop ────────────────────────────────────────────────
   // When a dragged pane overlaps another pane by >50%, swap their grid positions.
 
@@ -264,8 +435,24 @@ export default function WorkspaceGrid({
       }
 
       if (!swapCandidate) {
-        // No swap — just emit the normal layout
-        onGridLayoutChange(layout.map((item) => ({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h })))
+        // Out-of-bounds check: remove the pane if dragged outside the 12×12 grid
+        if (
+          newItem.x + newItem.w > GRID_COLS || newItem.x < 0 ||
+          newItem.y + newItem.h > GRID_ROWS || newItem.y < 0
+        ) {
+          onRemovePane(newItem.i)
+          return
+        }
+        // Only update the dragged pane; keep all others at pre-drag coords from
+        // workspace state — NOT the RGL layout, which contains collision displacements
+        // that would push untouched panes off-screen.
+        const updated = gridItems.map((item): GridItem => {
+          if (item.i === newItem.i) {
+            return { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
+          }
+          return item
+        })
+        onGridLayoutChange(updated)
         return
       }
 
@@ -284,7 +471,7 @@ export default function WorkspaceGrid({
       })
       onGridLayoutChange(swapped)
     },
-    [editMode, onGridLayoutChange],
+    [editMode, gridItems, onGridLayoutChange, onRemovePane],
   )
 
   // During drag, update visual swap indicator
@@ -444,6 +631,7 @@ export default function WorkspaceGrid({
         onLayoutChange={handleLayoutChange}
         onDragStop={handleDragStop}
         onDrag={handleDrag}
+        onResizeStop={handleResizeStop}
         className="io-workspace-grid"
       >
         {layoutWithConstraints.map((item) => {
