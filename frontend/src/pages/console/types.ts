@@ -6,6 +6,8 @@ export interface PaneConfig {
   id: string
   type: PaneType
   title?: string
+  /** When true, the pane title bar is shown in live mode. Default absent = false (hidden). */
+  showTitle?: boolean
   // trend pane
   trendPointIds?: string[]
   trendDuration?: number // minutes, default 60

@@ -210,10 +210,12 @@ export default function ConsolePage() {
     activeId,
     editMode,
     preserveAspectRatio,
+    hideTitles,
     setWorkspaces,
     setActiveId,
     setEditMode,
     setPreserveAspectRatio,
+    setHideTitles,
     updateWorkspace,
     renameWorkspace,
     changeLayout,
@@ -614,6 +616,7 @@ export default function ConsolePage() {
   const pendingRenameIdsRef = useRef<Set<string>>(new Set())
 
   const [paletteVisible, setPaletteVisible] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
@@ -631,6 +634,26 @@ export default function ConsolePage() {
   }, [])
 
   const activeWorkspace = workspaces.find((w) => w.id === activeId) ?? null
+
+  // ---- Browser fullscreen --------------------------------------------------
+
+  const toggleFullscreen = useCallback(() => {
+    if (!isFullscreen) {
+      document.documentElement.requestFullscreen?.().catch(() => undefined)
+    } else {
+      document.exitFullscreen?.().catch(() => undefined)
+    }
+  }, [isFullscreen])
+
+  // Sync isFullscreen with actual browser state so the button icon stays correct
+  // if the user exits fullscreen via Escape, browser F11, or browser native controls.
+  useEffect(() => {
+    function onFullscreenChange() {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
 
   // ---- Workspace management -----------------------------------------------
 
@@ -1431,6 +1454,26 @@ export default function ConsolePage() {
             </button>
           )}
 
+          {/* TT — hide-all pane titles toggle (spec MOD-CONSOLE-038 §4) */}
+          {activeWorkspace && !editMode && (
+            <button
+              onClick={() => setHideTitles(!hideTitles)}
+              title={hideTitles ? 'Pane titles hidden (click to restore)' : 'Hide all pane titles'}
+              style={{
+                background: hideTitles ? 'var(--io-accent)' : 'transparent',
+                border: '1px solid var(--io-border)',
+                borderRadius: 6,
+                padding: '4px 8px',
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600,
+                color: hideTitles ? '#fff' : 'var(--io-text-muted)',
+              }}
+            >
+              TT
+            </button>
+          )}
+
           {/* Export split button — gated by console:export */}
           {activeWorkspace && !editMode && canExport && (
             <div style={{ position: 'relative', display: 'inline-flex' }}>
@@ -1590,6 +1633,32 @@ export default function ConsolePage() {
               Edit
             </button>
           )}
+
+          {/* Browser fullscreen toggle — always visible when workspace active (spec §CX-CONSOLE-WORKSPACE-FULLSCREEN) */}
+          {activeWorkspace && (
+            <button
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--io-border)',
+                borderRadius: 6,
+                padding: '5px 8px',
+                cursor: 'pointer',
+                color: 'var(--io-text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                {isFullscreen ? (
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+                ) : (
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+                )}
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1745,6 +1814,7 @@ export default function ConsolePage() {
               editMode={editMode}
               selectedPaneIds={selectedPaneIds}
               preserveAspectRatio={preserveAspectRatio}
+              hideTitles={hideTitles}
               onConfigurePane={handleConfigurePane}
               onRemovePane={handleRemovePane}
               onSelectPane={handlePaneSelect}
@@ -1755,6 +1825,7 @@ export default function ConsolePage() {
               onSwapWith={handleSwapWith}
               onSwapComplete={handleSwapComplete}
               onReplace={handleReplacePane}
+              onBrowserFullscreen={toggleFullscreen}
             />
           ) : (
             <div

@@ -108,6 +108,8 @@ export interface WorkspaceGridProps {
   editMode: boolean
   selectedPaneIds?: Set<string>
   preserveAspectRatio?: boolean
+  /** When true, all pane title bars are suppressed in live mode (workspace-level TT toggle). */
+  hideTitles?: boolean
   onConfigurePane: (paneId: string) => void
   onRemovePane: (paneId: string) => void
   onSelectPane?: (paneId: string, addToSelection: boolean) => void
@@ -123,6 +125,8 @@ export interface WorkspaceGridProps {
   onSwapComplete?: (targetId: string) => void
   /** Called when user selects a new graphic in the Replace dialog */
   onReplace?: (paneId: string, graphicId: string, graphicName: string) => void
+  /** Called when F11 is pressed with no pane selected — triggers workspace browser fullscreen */
+  onBrowserFullscreen?: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +143,7 @@ export default function WorkspaceGrid({
   editMode,
   selectedPaneIds,
   preserveAspectRatio = true,
+  hideTitles = false,
   onConfigurePane,
   onWorkspaceContextMenu,
   onRemovePane,
@@ -149,6 +154,7 @@ export default function WorkspaceGrid({
   onSwapWith,
   onSwapComplete,
   onReplace,
+  onBrowserFullscreen,
 }: WorkspaceGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(800)
@@ -208,18 +214,24 @@ export default function WorkspaceGrid({
   }, [])
 
   // F11 keyboard shortcut: toggle fullscreen on single selected pane (spec §5.11)
+  // Precedence: pane fullscreen > workspace browser fullscreen (decision CX-CONSOLE-WORKSPACE-FULLSCREEN)
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'F11') {
         e.preventDefault()
         if (fullscreenPaneId !== null) {
+          // A pane is already in pane-fullscreen — exit it
           exitFullscreen()
           return
         }
         if (selectedPaneIds && selectedPaneIds.size === 1) {
+          // A pane is selected — enter pane fullscreen
           const [paneId] = selectedPaneIds
           setFullscreenPaneId(paneId)
+          return
         }
+        // No pane selected and no pane in fullscreen — fall through to workspace browser fullscreen
+        onBrowserFullscreen?.()
       }
       if (e.key === 'Escape' && fullscreenPaneId !== null) {
         exitFullscreen()
@@ -227,7 +239,7 @@ export default function WorkspaceGrid({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [fullscreenPaneId, selectedPaneIds, exitFullscreen])
+  }, [fullscreenPaneId, selectedPaneIds, exitFullscreen, onBrowserFullscreen])
 
   useEffect(() => {
     const el = containerRef.current
@@ -730,6 +742,7 @@ export default function WorkspaceGrid({
                   onSelect={onSelectPane}
                   onPaletteDrop={onPaletteDrop}
                   preserveAspectRatio={preserveAspectRatio}
+                  hideTitles={hideTitles}
                   swapModeSourceId={swapModeSourceId}
                   onSwapWith={onSwapWith}
                   onSwapComplete={onSwapComplete}
@@ -801,6 +814,7 @@ export default function WorkspaceGrid({
                 onSelect={onSelectPane}
                 onPaletteDrop={onPaletteDrop}
                 preserveAspectRatio={preserveAspectRatio}
+                hideTitles={hideTitles}
                 swapModeSourceId={swapModeSourceId}
                 onSwapWith={onSwapWith}
                 onSwapComplete={onSwapComplete}

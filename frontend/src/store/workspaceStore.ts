@@ -72,12 +72,16 @@ export interface WorkspaceState {
   activeId: string | null
   editMode: boolean
   preserveAspectRatio: boolean
+  /** Session-only workspace-level toggle: when true all pane title bars are hidden
+   *  regardless of per-pane showTitle setting. Not persisted to the server. */
+  hideTitles: boolean
 
   // Workspace CRUD
   setWorkspaces: (workspaces: WorkspaceLayout[]) => void
   setActiveId: (id: string | null) => void
   setEditMode: (editMode: boolean) => void
   setPreserveAspectRatio: (value: boolean) => void
+  setHideTitles: (value: boolean) => void
 
   createWorkspace: (name?: string, layout?: LayoutPreset) => WorkspaceLayout
   deleteWorkspace: (id: string) => void
@@ -105,11 +109,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       activeId: null,
       editMode: false,
       preserveAspectRatio: true,
+      hideTitles: false,
 
       setWorkspaces: (workspaces) => set({ workspaces }),
       setActiveId: (activeId) => set({ activeId }),
       setEditMode: (editMode) => set({ editMode }),
       setPreserveAspectRatio: (preserveAspectRatio) => set({ preserveAspectRatio }),
+      setHideTitles: (hideTitles) => set({ hideTitles }),
 
       createWorkspace: (name, layout = '2x2') => {
         const count = get().workspaces.length

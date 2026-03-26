@@ -40,6 +40,9 @@ export interface PaneWrapperProps {
   onReplace?: (paneId: string, graphicId: string, graphicName: string) => void
   /** Workspace ID — used to construct the detached window URL for "Open in New Window" */
   workspaceId?: string
+  /** When true, suppresses this pane's title bar in live mode (workspace-level override).
+   *  Per-pane showTitle setting is preserved — this only affects rendering. */
+  hideTitles?: boolean
 }
 
 const PANE_TYPE_LABELS: Record<string, string> = {
@@ -149,6 +152,7 @@ export default function PaneWrapper({
   onSwapComplete,
   onReplace,
   workspaceId,
+  hideTitles = false,
 }: PaneWrapperProps) {
   const navigate = useNavigate()
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
@@ -226,6 +230,11 @@ export default function PaneWrapper({
     onToggleFullscreen?.()
   }
 
+  // In live mode, determine whether the title bar should render.
+  // - editMode: always render header (drag handle + action buttons required)
+  // - live mode: render only when showTitle is true AND workspace hideTitles is false
+  const showHeader = editMode || (!hideTitles && config.showTitle === true)
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -269,70 +278,179 @@ export default function PaneWrapper({
         ...fullscreenStyle,
       }}
     >
-      {/* Header — io-pane-drag-handle is the react-grid-layout drag target in edit mode */}
-      <div
-        className={editMode ? 'io-pane-drag-handle' : undefined}
-        onContextMenu={(e) => {
-          // Header context menu — always show regardless of target
-          e.preventDefault()
-          e.stopPropagation()
-          setPaneCtxMenu({ x: e.clientX, y: e.clientY })
-        }}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '0 10px',
-          height: 36,
-          flexShrink: 0,
-          background: 'var(--io-surface-secondary)',
-          borderBottom: '1px solid var(--io-border)',
-          cursor: editMode ? 'grab' : 'context-menu',
-        }}
-      >
-        <span
+      {/* Header — io-pane-drag-handle is the react-grid-layout drag target in edit mode.
+          In live mode this is only rendered when showTitle:true AND !hideTitles.
+          In edit mode it always renders (drag handle + action buttons). */}
+      {showHeader && (
+        <div
+          className={editMode ? 'io-pane-drag-handle' : undefined}
+          onContextMenu={(e) => {
+            // Header context menu — always show regardless of target
+            e.preventDefault()
+            e.stopPropagation()
+            setPaneCtxMenu({ x: e.clientX, y: e.clientY })
+          }}
           style={{
-            flex: 1,
-            fontSize: 13,
-            fontWeight: 500,
-            color: 'var(--io-text-primary)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '0 10px',
+            height: 36,
+            flexShrink: 0,
+            background: 'var(--io-surface-secondary)',
+            borderBottom: '1px solid var(--io-border)',
+            cursor: editMode ? 'grab' : 'context-menu',
           }}
         >
-          {title}
-        </span>
+          <span
+            style={{
+              flex: 1,
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--io-text-primary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {/* In edit mode show the title or an empty string (no type-label fallback) */}
+            {editMode ? (config.title ?? '') : title}
+          </span>
 
-        <PaneTypeBadge type={config.type} />
+          {editMode && <PaneTypeBadge type={config.type} />}
 
-        {/* Fullscreen toggle button (always shown for non-edit mode, or when fullscreen) */}
-        {!editMode && (
+          {/* Fullscreen toggle button — shown in header only when header is visible in live mode */}
+          {!editMode && (
+            <button
+              onClick={() => onToggleFullscreen?.()}
+              title={isFullscreen ? 'Exit full screen' : 'Full screen (F11)'}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--io-text-muted)',
+                padding: '3px 5px',
+                borderRadius: 4,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {isFullscreen ? (
+                /* Compress icon */
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                </svg>
+              ) : (
+                /* Expand icon */
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+              )}
+            </button>
+          )}
+
+          {editMode && (
+            <>
+              {/* Configure button */}
+              <button
+                onClick={() => onConfigure(config.id)}
+                title="Configure pane"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--io-text-muted)',
+                  padding: '3px 5px',
+                  borderRadius: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {/* Settings / gear icon */}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+
+              {/* Remove button */}
+              <button
+                onClick={() => onRemove(config.id)}
+                title="Remove pane"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--io-text-muted)',
+                  padding: '3px 5px',
+                  borderRadius: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        {/* Hover-overlay fullscreen button — shown when header is hidden in live mode.
+            Spec §5.2 (MOD-CONSOLE-038): "the fullscreen button moves to a hover-revealed overlay
+            (absolutely positioned top-right corner of the pane, appears on hovered state)". */}
+        {!showHeader && !editMode && hovered && (
           <button
-            onClick={() => onToggleFullscreen?.()}
+            onClick={(e) => { e.stopPropagation(); onToggleFullscreen?.() }}
             title={isFullscreen ? 'Exit full screen' : 'Full screen (F11)'}
             style={{
-              background: 'transparent',
-              border: 'none',
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              zIndex: 50,
+              background: 'rgba(9,9,11,0.70)',
+              border: '1px solid var(--io-border)',
+              borderRadius: 4,
+              padding: '4px 6px',
               cursor: 'pointer',
               color: 'var(--io-text-muted)',
-              padding: '3px 5px',
-              borderRadius: 4,
               display: 'flex',
               alignItems: 'center',
             }}
           >
             {isFullscreen ? (
-              /* Compress icon */
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M8 3v3a2 2 0 0 1-2 2H3" />
                 <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
                 <path d="M3 16h3a2 2 0 0 1 2 2v3" />
                 <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
               </svg>
             ) : (
-              /* Expand icon */
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M8 3H5a2 2 0 0 0-2 2v3" />
                 <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
                 <path d="M3 16v3a2 2 0 0 0 2 2h3" />
@@ -342,70 +460,6 @@ export default function PaneWrapper({
           </button>
         )}
 
-        {editMode && (
-          <>
-            {/* Configure button */}
-            <button
-              onClick={() => onConfigure(config.id)}
-              title="Configure pane"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--io-text-muted)',
-                padding: '3px 5px',
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              {/* Settings / gear icon */}
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </button>
-
-            {/* Remove button */}
-            <button
-              onClick={() => onRemove(config.id)}
-              title="Remove pane"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--io-text-muted)',
-                padding: '3px 5px',
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <PaneErrorBoundary paneId={config.id}>
           {config.type === 'trend' && (
             <TrendPane
