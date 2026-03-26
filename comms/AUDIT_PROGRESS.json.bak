@@ -214,7 +214,9 @@
     "DD-27-017": 1,
     "DD-32-020": 0,
     "DD-06-026": 2,
-    "DD-13-016": 0
+    "DD-13-016": 0,
+    "MOD-DESIGNER-044": 1,
+    "MOD-DESIGNER-043": 1
   },
   "queue": [
     {
@@ -999,6 +1001,12 @@
       "notes": "8 tasks. UUID\u2192tag conversion absent; analyze/commit import endpoints missing; manifest missing 5 required fields.",
       "last_audit_round": 2,
       "verified_since_last_audit": 1
+    },
+    {
+      "id": "MOD-DESIGNER",
+      "wave": 2,
+      "verified_since_last_audit": 3,
+      "tasks_uat_added": 2
     }
   ],
   "escalated": [],
@@ -1204,7 +1212,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -1214,7 +1222,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-003",
@@ -1349,7 +1357,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 1,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-003",
@@ -1436,7 +1444,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": "partial"
+      "uat_status": null
     },
     {
       "id": "MOD-DESIGNER-003",
@@ -1480,7 +1488,7 @@
       ],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-007",
@@ -4225,7 +4233,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 3,
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-010",
@@ -5775,7 +5783,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-025",
@@ -5786,7 +5794,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-037",
@@ -6043,7 +6051,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-028",
@@ -6055,7 +6063,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-029",
@@ -6067,7 +6075,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-022",
@@ -6135,7 +6143,7 @@
       "wave": 2,
       "title": "Palette tile right-click shows no context menu (no Place at Center / Favorites)",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6147,11 +6155,11 @@
       "wave": 2,
       "title": "Drag ghost not visible during palette-to-canvas drag",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": "pass"
+      "uat_status": null
     },
     {
       "id": "MOD-DESIGNER-045",
@@ -6159,7 +6167,7 @@
       "wave": 2,
       "title": "Test mode: right-click on display element shows no context menu",
       "priority": "high",
-      "status": "pending",
+      "status": "implementing",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6171,7 +6179,7 @@
       "wave": 2,
       "title": "Group \"Open in Tab\" missing; Ctrl+G does not create group node",
       "priority": "high",
-      "status": "pending",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
@@ -6183,7 +6191,8 @@
       "title": "Fix tablet zoom range to 5%\u2013800% (TransformWrapper limits 50%\u2013500%)",
       "priority": "high",
       "depends_on": [],
-      "status": "verified"
+      "status": "verified",
+      "uat_status": "partial"
     },
     {
       "id": "MOD-PROCESS-014",
@@ -6192,7 +6201,8 @@
       "status": "verified",
       "priority": "medium",
       "depends_on": [],
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-015",
@@ -6202,7 +6212,7 @@
       "priority": "medium",
       "depends_on": [],
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-016",
@@ -6213,7 +6223,8 @@
       "depends_on": [],
       "audit_round": 9,
       "verified_at": "2026-03-26",
-      "commit": "447e2b1"
+      "commit": "447e2b1",
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-017",
@@ -6223,7 +6234,8 @@
       "priority": "low",
       "status": "verified",
       "depends_on": [],
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-018",
@@ -6234,7 +6246,8 @@
       "status": "verified",
       "audit_round": 9,
       "commit": "92a99e8",
-      "verified_at": "2026-03-26"
+      "verified_at": "2026-03-26",
+      "uat_status": "pass"
     },
     {
       "id": "MOD-PROCESS-019",
@@ -6243,7 +6256,8 @@
       "status": "verified",
       "priority": "low",
       "depends_on": [],
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "fail"
     },
     {
       "id": "MOD-PROCESS-020",
@@ -6253,7 +6267,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "partial"
     },
     {
       "id": "DD-13-017",
@@ -6281,7 +6295,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-13-016",
@@ -6302,6 +6316,92 @@
       "priority": "medium",
       "depends_on": [],
       "audit_round": 9
+    },
+    {
+      "id": "MOD-CONSOLE-030",
+      "unit": "MOD-CONSOLE",
+      "wave": 1,
+      "title": "Left nav panel width resize handle missing",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-031",
+      "unit": "MOD-CONSOLE",
+      "wave": 1,
+      "title": "Detached console route /detached/console/:id still renders Phase 7 stub",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-047",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Canvas drag-to-move element position could not be confirmed in UAT",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-DESIGNER-048",
+      "unit": "MOD-DESIGNER",
+      "wave": 2,
+      "title": "Escape key cancel of in-progress canvas drag not verifiable",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [
+        "MOD-DESIGNER-047"
+      ],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-PROCESS-021",
+      "unit": "MOD-PROCESS",
+      "wave": 1,
+      "title": "Bookmark \u2605 button does not open Name/Description dialog",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-PROCESS-022",
+      "unit": "MOD-PROCESS",
+      "wave": 1,
+      "title": "Kiosk mode leaves breadcrumb nav bar visible",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-PROCESS-023",
+      "unit": "MOD-PROCESS",
+      "wave": 1,
+      "title": "No minimap toggle button in main Process view toolbar",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
     }
   ],
   "audit_round": 9,

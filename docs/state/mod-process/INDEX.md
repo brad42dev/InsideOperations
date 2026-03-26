@@ -12,3 +12,6 @@
 | MOD-PROCESS-008 | Replace loading spinner with module-shaped skeleton state | verified | - |
 | MOD-PROCESS-009 | Process module fails to load due to dynamic import error | verified | - |
 | MOD-PROCESS-010 | React Query graphic data returns undefined instead of null on graphic load | pending | 0 |
+| MOD-PROCESS-021 | Bookmark ★ button does not open Name/Description dialog | pending | 0 |
+| MOD-PROCESS-022 | Kiosk mode leaves breadcrumb nav bar visible | pending | 0 |
+| MOD-PROCESS-023 | No minimap toggle button in main Process view toolbar | pending | 0 |

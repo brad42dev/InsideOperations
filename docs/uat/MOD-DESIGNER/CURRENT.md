@@ -2,46 +2,46 @@
 unit: MOD-DESIGNER
 date: 2026-03-26
 uat_mode: auto
-verdict: pass
-scenarios_tested: 14
-scenarios_passed: 14
-scenarios_failed: 0
+verdict: partial
+scenarios_tested: 13
+scenarios_passed: 11
+scenarios_failed: 2
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /designer loads real implementation — full editor with toolbar, palette, canvas, file tabs, and properties panel visible.
+pass: Navigating to /designer/graphics/new loads real designer canvas with toolbar, left palette (Equipment/Display Elements/Widgets), SVG canvas, right panel (Document properties, Scene tree, Layers). No error boundary. No stub/placeholder content.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Rendering | [MOD-DESIGNER-023] Designer renders without error | ✅ pass | No error boundary; full editor UI visible |
-| 2 | Data Flow | [MOD-DESIGNER-023] — data flow: GET /api/v1/design-objects — graphics list loads | ✅ pass | /designer/graphics shows list with design objects (Cooling Tower Overview, P-101, New Graphic); real content not "No data" |
-| 3 | File Tabs | [MOD-DESIGNER-029] File tab bar component visible | ✅ pass | tablist "Open graphics" present with tab for open file |
-| 4 | File Tabs | [MOD-DESIGNER-037] File→New creates new file tab | ✅ pass | File menu → New Graphic created new tab "Untitled Graphic" |
-| 5 | Palette | [MOD-DESIGNER-040] Right-click palette tile shows context menu | ✅ pass | Right-clicking "Analog Bar" tile opened context menu |
-| 6 | Palette | [MOD-DESIGNER-007] Palette context menu has "Place at Center" and "Add to Favorites" | ✅ pass | Both items present in palette tile context menu |
-| 7 | Palette | [MOD-DESIGNER-040] Left-click palette tile places element on canvas | ✅ pass | Clicking Text Readout tile placed element; canvas SVG updated |
-| 8 | Canvas Context Menu | [MOD-DESIGNER-004] Empty canvas right-click shows canvas-only menu | ✅ pass | Menu contains: Paste (disabled), Select All, Grid, Zoom, Properties — no node-specific items |
-| 9 | Canvas Context Menu | [MOD-DESIGNER-005] Node right-click shows Lock, Navigation Link, Properties | ✅ pass | Full node menu confirmed: Cut, Copy, Delete, Lock, Navigation Link, Properties… all present |
-| 10 | Canvas Context Menu | [MOD-DESIGNER-004] Node menu differs from empty canvas menu | ✅ pass | Node menu has Cut/Copy/Delete/Lock/Navigation Link; canvas menu has only Paste/Select All/Grid/Zoom/Properties |
-| 11 | Point Context | [MOD-DESIGNER-033] Display element right-click shows point context items | ✅ pass | Point Detail, Trend This Point, View Alerts, Bind Point, Change Type — all present |
-| 12 | Drag | [MOD-DESIGNER-031] Drag ghost visible when moving shape on canvas | ✅ pass | id="io-canvas-drag-ghost" found in DOM with opacity=0.7 during drag simulation |
-| 13 | Groups | [MOD-DESIGNER-024] Group right-click shows "Open in Tab" | ✅ pass | After grouping 2 elements, right-click showed "Open in Tab", "Enter Group", "Rename…", "Ungroup" |
-| 14 | Widgets | [MOD-DESIGNER-039] Widget right-click has "Refresh Data" and "Detach from Dashboard" | ✅ pass | Both "Refresh Data" and "Detach from Dashboard" present in Trend widget context menu (disabled, as expected with no dashboard connection) |
+| 1 | Page Load | [MOD-DESIGNER-002] Designer page renders without error | ✅ pass | Landing page + canvas editor both load cleanly |
+| 2 | Drag Ghost (MOD-DESIGNER-002) | Shape placed on canvas via palette drag | ✅ pass | Text Readout placed by dragging from palette; Undo:Add in toolbar; right panel shows Display Element properties |
+| 3 | Drag Ghost (MOD-DESIGNER-002) | Drag existing element to new position | ❌ fail | browser_error — automation SVG element query found nav sidebar icon at (28,92) instead of canvas element at (630,325); page.mouse.click(28,92) triggered navigation to /console. Element move to new position could not be confirmed. |
+| 4 | Drag Ghost (MOD-DESIGNER-002) | Escape key cancels drag | ❌ fail | browser_error — untestable without reliable drag (Scenario 3 failure) |
+| 5 | Node Context Menu (MOD-DESIGNER-006) | Right-click placed element shows node context menu | ✅ pass | [role=menu] appeared with full node menu |
+| 6 | Node Context Menu (MOD-DESIGNER-006) | Node menu contains Lock/Unlock | ✅ pass | "Lock" item present (e614) |
+| 7 | Node Context Menu (MOD-DESIGNER-006) | Node menu contains Navigation Link | ✅ pass | "Navigation Link" item present (e615) |
+| 8 | Node Context Menu (MOD-DESIGNER-006) | Node menu contains Properties | ✅ pass | "Properties…" item present (e619) |
+| 9 | Node Context Menu (MOD-DESIGNER-006) | Empty canvas right-click shows different menu | ✅ pass | Canvas menu: Paste, Select All, Grid, Zoom, Properties — no Lock/Unlock |
+| 10 | Test Mode (MOD-DESIGNER-009) | Test mode toggle visible in toolbar | ✅ pass | "Test" button present in toolbar row |
+| 11 | Test Mode (MOD-DESIGNER-009) | Edit mode right-click uses standard node menu | ✅ pass | Node menu with 20+ items (Cut/Copy/Delete/Lock/Nav Link/Properties + disabled point items) |
+| 12 | Test Mode (MOD-DESIGNER-009) | Test mode activates without error | ✅ pass | "TEST MODE" banner on canvas; status bar shows "● Test Mode"; toolbar switches to test toolbar; no error boundary |
+| 13 | Data Flow | [MOD-DESIGNER-002] data flow: designer canvas loads | ✅ pass | Canvas renders with toolbar, palette (Equipment+Display Elements+Widgets), SVG canvas, right panel; no persistent loading; no error boundary |
 
 ## New Bug Tasks Created
 
-None
+MOD-DESIGNER-047 — Canvas drag-to-move element position could not be confirmed in UAT
+MOD-DESIGNER-048 — Escape key cancel of in-progress canvas drag not verifiable
 
 ## Screenshot Notes
 
-- Seed data: 1 row in points_metadata for source_id 11110000-0000-0000-0000-000000000000 — data flow scenario evaluated as real data
-- Canvas SVG elements are not exposed in ARIA tree; tested via JavaScript dispatchEvent workaround
-- Sidebar pointer-events intercepted direct clicks near canvas origin; contextmenu dispatched programmatically on SVG g elements
-- Node context menu (Scenario 9/10/11) confirmed via dispatchEvent on the closest g ancestor of text element containing "—"
-- Drag ghost (Scenario 12) confirmed via simulated mousedown+mousemove; io-canvas-drag-ghost element found with opacity=0.7
-- Widget context menu (Scenario 14) confirmed on Trend widget g element — "Refresh Data" and "Detach from Dashboard" disabled as expected (no dashboard link)
-- Group context menu (Scenario 13) confirmed "Open in Tab" present alongside "Enter Group", "Rename…", "Ungroup"
+- ⚠️ Seed data: UNAVAILABLE (psql not accessible)
+- Scenario 3 failure: automation found wrong SVG element (nav sidebar icon rect at screen 28,92) instead of canvas element at screen 630,325. Right-click at same coords (630,325) worked correctly in Scenarios 5-9, confirming element IS there but left-click drag automation used wrong target.
+- Scenario 5-9 confirmed: node context menu has full complement of items including Lock, Navigation Link, Properties, Save as Stencil, Promote to Shape, Change Type, Bind Point, point-context items (disabled when no point bound)
+- Scenario 12 confirmed: Test mode shown as teal "TEST MODE" banner on canvas with test toolbar replacing edit toolbar
+- MOD-DESIGNER-009 confirmed: right-click on display element in test mode shows PointContextMenu (Point Detail, Trend Point, Investigate Point, Report on Point, Copy Tag Name) — screenshot: test-mode-point-context-menu.png
+- MOD-DESIGNER-006 confirmed: node context menu contains all required base items (Lock, Navigation Link, Properties)
+- Note: multiple accidental element placements occurred during drag testing (automation created new elements via palette drag system) — does not affect feature test results

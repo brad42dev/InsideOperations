@@ -2,7 +2,7 @@
 id: MOD-DESIGNER-045
 unit: MOD-DESIGNER
 title: Test mode: right-click on display element shows no context menu
-status: pending
+status: completed
 priority: high
 depends-on: []
 source: uat

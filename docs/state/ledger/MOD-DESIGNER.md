@@ -37,3 +37,6 @@ MOD-DESIGNER-036 | "View Alerts" added to display element point context menu | v
 MOD-DESIGNER-041 | PointContextMenu does not fire in test mode for point-bound display elements | verified 2026-03-25 | commit 8db82b8 | npx tsc --noEmit | PASS
 MOD-DESIGNER-037 | Opening second graphic via File->New does not create a second file tab | verified 2026-03-26 | commit 0064e46 | npx tsc --noEmit | PASS
 MOD-DESIGNER-038 | Fix API gateway rate limit on /api/v1/design-objects (429 UAT blocker) | verified 2026-03-26 | commit 00b2342 | cargo check -p api-gateway | PASS
+MOD-DESIGNER-044 | Drag ghost not visible during palette-to-canvas drag | verified 2026-03-26 | commit 1f84153 | npx tsc --noEmit | PASS
+MOD-DESIGNER-043 | Palette tile right-click shows no context menu (no Place at Center / Favorites) | verified 2026-03-26 | commit 84241b5 | npx tsc --noEmit | PASS
+MOD-DESIGNER-046 | Group Ctrl+G does not create group node; Open in Tab missing from group context menu | verified 2026-03-26 | commit 8a504f3 | npx tsc --noEmit | PASS

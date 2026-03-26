@@ -1,35 +1,49 @@
 ---
 unit: MOD-PROCESS
-date: 2026-03-24
+date: 2026-03-26
 uat_mode: auto
-verdict: pass
-scenarios_tested: 6
-scenarios_passed: 6
-scenarios_failed: 0
+verdict: partial
+scenarios_tested: 16
+scenarios_passed: 12
+scenarios_failed: 4
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /process loads real implementation — sidebar, toolbar, status bar all present with full interaction
+✅ pass: Navigating to /process loads real implementation — sidebar with Views/Bookmarks/Navigation, view toolbar, status bar all present. No error boundary.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Load & Error Boundary | [MOD-PROCESS-010] Process module renders without error | ✅ pass | No "Something went wrong" boundary; page title "Process" visible |
-| 2 | Page Load & Error Boundary | [MOD-PROCESS-010] Process module sidebar visible | ✅ pass | Sidebar shows Views list, Bookmarks, Navigation, Recent Views |
-| 3 | Console Error Verification | [MOD-PROCESS-010] Graphic loads without crashing | ✅ pass | Status bar updated to current graphic name; no error boundary appeared |
-| 4 | Console Error Verification | [MOD-PROCESS-010] No "Query data cannot be undefined" errors on load | ✅ pass | Console log checked — zero matching entries across all log files |
-| 5 | Console Error Verification | [MOD-PROCESS-010] Clicking a graphic in the sidebar loads it | ✅ pass | Clicked "Air Cooler / Fin-Fan": button became [active], status bar updated, Recent Views updated |
-| 6 | Console Error Verification | [MOD-PROCESS-010] Multiple graphic selections produce no error boundary | ✅ pass | Clicked "Compressor" after "Air Cooler / Fin-Fan"; clean transition, console error count unchanged at 53 (all 404 thumbnail 404s unrelated to query fix) |
+| 1 | Data Flow | [MOD-PROCESS-002] Page loads without error boundary | ✅ pass | Sidebar loads graphics list; ⚠️ seed data status unknown |
+| 2 | Data Flow | [MOD-PROCESS-002] Sidebar navigation visible | ✅ pass | Views, Bookmarks, Navigation, Recent Views sections present |
+| 3 | Toolbar | [MOD-PROCESS-014] Print button visible | ✅ pass | "Print" button present in view toolbar, right of Export |
+| 4 | Toolbar | [MOD-PROCESS-014] Print button consistent styling | ✅ pass | Screenshot confirms consistent dark-theme button styling |
+| 5 | Toolbar | [MOD-PROCESS-005] Export split button visible | ✅ pass | "Export" + "Choose export format" split button present |
+| 6 | Toolbar | [MOD-PROCESS-015] ★ bookmark button visible | ✅ pass | ★ button present in view toolbar |
+| 7 | Bookmark | [MOD-PROCESS-015] Clicking ★ opens Name/Description dialog | ❌ fail | Click only toggles button active state — no dialog appeared; expected [role="dialog"] with Name input |
+| 8 | Kiosk | [MOD-PROCESS-019] Kiosk hides breadcrumb nav bar | ❌ fail | Banner with "Process" heading still rendered at top in kiosk mode; expected hidden |
+| 9 | Kiosk | [MOD-PROCESS-019] Kiosk hides view toolbar | ✅ pass | Zoom controls, Live/Historical, Export, Print NOT rendered |
+| 10 | Kiosk | [MOD-PROCESS-007] Kiosk hides sidebar | ✅ pass | Left sidebar (complementary) NOT rendered in kiosk mode |
+| 11 | Kiosk | [MOD-PROCESS-007] Escape exits kiosk mode | ✅ pass | Full UI chrome (sidebar, top bar, toolbar) restored after Escape |
+| 12 | Detached | [MOD-PROCESS-016] Detached route renders | ✅ pass | /detached/process/test-view-id loads; "View not found" shown (no 404, no error boundary) |
+| 13 | Detached | [MOD-PROCESS-016] Detached route has no app chrome | ✅ pass | No sidebar, no module switcher, no app top bar; thin title bar with time/status/controls |
+| 14 | Minimap | [MOD-PROCESS-017] Minimap toggle button visible | ❌ fail | No Map/Minimap button in main process toolbar; M key no effect; detached view has "Map" button but main view doesn't |
+| 15 | Minimap | [MOD-PROCESS-017] Minimap state persists across reload | ❌ fail | Cannot test — minimap toggle not accessible in main process view |
+| 16 | Design Tokens | [MOD-PROCESS-018] No color artifacts in dark theme | ✅ pass | Status dot, Live button, UI all use consistent dark theme colors; no jarring hardcoded hex colors visible |
 
 ## New Bug Tasks Created
 
-None
+MOD-PROCESS-021 — Bookmark ★ button does not open Name/Description dialog
+MOD-PROCESS-022 — Kiosk mode leaves breadcrumb nav bar ("Process" header) visible
+MOD-PROCESS-023 — No minimap toggle button in main Process view toolbar
 
 ## Screenshot Notes
 
-- Console errors during session are exclusively 404s for missing thumbnail images and /api/v1/uom/catalog endpoint — these are backend resource issues unrelated to the React Query fix being tested.
-- The canvas area renders graphically but is essentially empty (no SVG visible in the accessibility tree) — the process viewer is connected (status: "Connected", "0/0 points") but no live backend data.
-- The fix for MOD-PROCESS-010 (React Query `["graphic", uuid]` returning `undefined`) is confirmed working: zero "Query data cannot be undefined" errors observed across 3 graphic selections.
+- s7-bookmark-no-dialog.png: ★ button clicked, turned active (gold/highlighted) — no dialog, no modal appeared
+- s8-kiosk-breadcrumb-present.png: Kiosk mode at /process?kiosk=true — thin "Process" bar still visible at very top
+- process-graphic-selected.png: "Air Cooler / Fin-Fan" selected — blank canvas (no backend), no minimap visible
+- ⚠️ Seed data status: UNAVAILABLE — psql not accessible; data flow evaluated on structural basis only
+- MOD-PROCESS-015: S15 (persistence) failed as dependent on S14; both attributed to minimap toggle absence

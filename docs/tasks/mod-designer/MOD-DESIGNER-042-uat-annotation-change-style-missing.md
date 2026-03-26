@@ -2,7 +2,7 @@
 id: MOD-DESIGNER-042
 unit: MOD-DESIGNER
 title: Annotation node right-click: Change Style missing from context menu
-status: pending
+status: completed
 priority: high
 depends-on: []
 source: uat
@@ -19,18 +19,18 @@ Expected: right-click on annotation (text node) shows context menu containing "C
 
 ## Acceptance Criteria
 
-- [ ] Right-clicking on a text/annotation node on the canvas shows the node context menu
-- [ ] The node context menu for annotations includes "Change Style" as a menu item or submenu trigger
-- [ ] "Change Style" submenu opens with available style options when hovered/clicked
-- [ ] The annotation hit target is large enough to reliably receive right-click events
+- [x] Right-clicking on a text/annotation node on the canvas shows the node context menu
+- [x] The node context menu for annotations includes "Change Style" as a menu item or submenu trigger
+- [x] "Change Style" submenu opens with available style options when hovered/clicked
+- [x] The annotation hit target is large enough to reliably receive right-click events
 
 ## Verification Checklist
 
-- [ ] Use Text tool (T) to place a text annotation on the canvas
-- [ ] Press V to switch to Select tool
-- [ ] Right-click on the annotation — confirm node context menu appears (not empty canvas menu)
-- [ ] Confirm "Change Style" is present in the context menu
-- [ ] Click "Change Style" — confirm submenu opens with style options
+- [x] Use Text tool (T) to place a text annotation on the canvas
+- [x] Press V to switch to Select tool
+- [x] Right-click on the annotation — confirm node context menu appears (not empty canvas menu)
+- [x] Confirm "Change Style" is present in the context menu
+- [x] Click "Change Style" — confirm submenu opens with style options
 
 ## Do NOT
 

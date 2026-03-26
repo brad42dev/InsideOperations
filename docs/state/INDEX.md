@@ -7,9 +7,9 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | GFX-CORE | 1 | 5 | 1 | 4 | 0 | GFX-CORE-002 |
 | GFX-DISPLAY | 1 | 9 | 0 | 9 | 0 | GFX-DISPLAY-001 |
 | GFX-SHAPES | 1 | 6 | 3 | 3 | 0 | GFX-SHAPES-003 |
-| MOD-CONSOLE | 2 | 24 | 2 | 22 | 0 | MOD-CONSOLE-018 |
-| MOD-PROCESS | 2 | 10 | 0 | 10 | 0 | MOD-PROCESS-001 |
-| MOD-DESIGNER | 2 | 46 | 1 | 45 | 0 | MOD-DESIGNER-002 |
+| MOD-CONSOLE | 2 | 26 | 2 | 24 | 0 | MOD-CONSOLE-018 |
+| MOD-PROCESS | 5 | 10 | 0 | 10 | 3 | MOD-PROCESS-001 |
+| MOD-DESIGNER | 2 | 49 | 3 | 46 | 0 | MOD-DESIGNER-002 |
 | OPC-BACKEND | 2 | 3 | 0 | 3 | 0 | OPC-BACKEND-001 |
 | DD-06 | 4 | 19 | 1 | 17 | 0 | DD-06-001 |
 | DD-10 | 7 | 20 | 0 | 16 | 0 | DD-10-001 |
@@ -40,7 +40,7 @@ _Updated by orchestrator. Max ~50 lines. Full detail in unit INDEX.md files._
 | DD-38 | 3 | 7 | 0 | 7 | 0 | DD-38-001 |
 | DD-39 | 4 | 13 | 1 | 11 | 0 | DD-39-001 |
 
-**Total: 307 tasks | 7 verified | 300 pending | 0 escalated**
+**Total: 308 tasks | 7 verified | 301 pending | 0 escalated**
 
 ## Zombie Tasks
 None detected.

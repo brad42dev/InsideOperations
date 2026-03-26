@@ -1,10 +1,23 @@
 # UAT Scenarios — DD-13
 
-## Log Module Stability
+## Page Load & Stability
+Scenario 1: [DD-13-006] Log module renders without error — navigate to /log → module UI visible, no "Log failed to load" error boundary
+Scenario 2: [DD-13-006] — data flow: GET /api/logs/instances — navigate to /log, click Completed tab, wait for load → entries table visible OR empty state message (no error boundary, no crash)
 
-Scenario 1: [DD-13-015] Log module loads without crash — navigate to /log → page renders without error boundary ("Log failed to load" text NOT present)
-Scenario 2: [DD-13-015] Template editor renders on direct navigation — navigate to /log/templates/new/edit → editor renders with form/editor UI, no "Log failed to load" error boundary visible
-Scenario 3: [DD-13-015] Template editor via click flow — navigate to /log, find Templates tab, click "New Template" → template editor renders with name/title field and body editor area (no crash)
-Scenario 4: [DD-13-015] Reload template editor route — navigate directly to /log/templates/new/edit and take snapshot → no crash, no "allSegments.filter is not a function" error boundary
-Scenario 5: [DD-13-015] Existing template opens without crash — if templates exist in the list, click edit/open on one → template editor opens without error boundary
-Scenario 6: [DD-13-015] Template editor has expected fields — on template editor page → a name/title input and a rich-text body editor area are visible
+## Export Split Button (DD-13-006)
+Scenario 3: [DD-13-006] Export split button visible on Completed tab — navigate to /log, click Completed tab → "[Export v]" or "Export" split button visible in toolbar above table
+Scenario 4: [DD-13-006] Export dropdown lists format options — click the dropdown chevron on the Export button → dropdown shows CSV, XLSX, PDF, JSON options
+
+## Schedule Management UI (DD-13-008)
+Scenario 5: [DD-13-008] Schedule page loads without stub — navigate to /log/schedules → full schedule management UI visible (list + "+ New Schedule" button), NOT a stub/placeholder/blank
+Scenario 6: [DD-13-008] New Schedule form opens — click "+ New Schedule" button on /log/schedules → form opens with template selector, recurrence type, and other fields (not a no-op)
+
+## RBAC Route Access (DD-13-017)
+Scenario 7: [DD-13-017] Templates page accessible to admin — navigate to /log/templates → page loads with template list or empty state (no 403, no redirect away)
+Scenario 8: [DD-13-017] Schedules page accessible to admin — navigate to /log/schedules → page loads (no 403, no redirect for admin user with all permissions)
+
+## Tiptap Extensions (DD-13-016)
+Scenario 9: [DD-13-016] Font family control in WYSIWYG toolbar — navigate to /log, open or create a log entry that has a WYSIWYG segment → toolbar shows a font family selector (dropdown/select control for font)
+
+## Point Context Menu (DD-13-018)
+Scenario 10: [DD-13-018] Point context menu on point data rows — navigate to /log, open a log entry with a PointDataSegment (point data rows visible), right-click a point row → PointContextMenu appears with point-related actions
