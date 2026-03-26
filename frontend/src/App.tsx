@@ -74,6 +74,7 @@ const WorkspaceEditor = lazy(() => import('./pages/console/WorkspaceEditor'))
 const ProcessPage = lazy(() => import('./pages/process/index'))
 const ProcessView = lazy(() => import('./pages/process/ProcessView'))
 const ProcessEditor = lazy(() => import('./pages/process/ProcessEditor'))
+const ProcessDetachedView = lazy(() => import('./pages/process/ProcessDetachedView'))
 
 // Designer module
 const DesignerPage = lazy(() => import('./pages/designer/index'))
@@ -1236,8 +1237,8 @@ function AppRoutes() {
         path="/detached/process/:viewId"
         element={
           <PermissionGuard permission="process:read">
-            <ErrorBoundary module="Process">
-              <ProcessView detached />
+            <ErrorBoundary module="Process-Detached">
+              <ProcessDetachedView />
             </ErrorBoundary>
           </PermissionGuard>
         }
