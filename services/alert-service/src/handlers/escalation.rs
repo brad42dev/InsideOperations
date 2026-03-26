@@ -282,6 +282,27 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
         error!(alert_id = %alert_id, error = %e, "dispatch_tier: failed to update current_escalation");
     }
 
+    // Log the escalation step in the audit table.
+    // from_level is the escalation level before this dispatch; to_level is the current tier.
+    let from_level = tier - 1;
+    if let Err(e) = sqlx::query(
+        "INSERT INTO alert_escalations (alert_id, from_level, to_level, reason)
+         VALUES ($1, $2, $3, 'no_acknowledgment')",
+    )
+    .bind(alert_id)
+    .bind(from_level)
+    .bind(tier)
+    .execute(&state.db)
+    .await
+    {
+        error!(
+            alert_id = %alert_id,
+            error = %e,
+            "dispatch_tier: failed to insert alert_escalations record"
+        );
+        // Non-fatal: continue delivery even if audit record fails
+    }
+
     // Dispatch each channel
     for channel in &channels {
         match channel.as_str() {
