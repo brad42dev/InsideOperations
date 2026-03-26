@@ -220,7 +220,8 @@
     "MOD-DESIGNER-045": 1,
     "MOD-CONSOLE-031": 1,
     "MOD-DESIGNER-047": 1,
-    "MOD-DESIGNER-048": 1
+    "MOD-DESIGNER-048": 1,
+    "MOD-PROCESS-022": 1
   },
   "queue": [
     {
@@ -6393,7 +6394,7 @@
       "wave": 1,
       "title": "Kiosk mode leaves breadcrumb nav bar visible",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
