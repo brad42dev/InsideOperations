@@ -1,30 +1,28 @@
 # UAT Scenarios — DD-14
 
-## Page Load / Error Boundary
+Tasks under test: DD-14-004, DD-14-006, DD-14-010, DD-14-011
+Seed data status: UNAVAILABLE (psql not accessible)
 
-Scenario 1: [DD-14-009] Rounds page loads without error boundary — navigate to /rounds → no "Something went wrong" error boundary, page content visible
-Scenario 2: [DD-14-009] Rounds page tabs visible — navigate to /rounds → tabs "Available", "In Progress", "History", "Templates", "Schedules" are all present in snapshot
+## Page Load & Navigation
 
-## Tab Navigation
+Scenario 1: [DD-14-004] Rounds page renders without error — navigate to /rounds → page renders with tabs (Active, History, Templates, Schedules), no error boundary text ("Something went wrong")
 
-Scenario 3: [DD-14-009] Available tab accessible — click "Available" tab → tab content renders without crash, empty state or data shown
-Scenario 4: [DD-14-009] In Progress tab accessible — click "In Progress" tab → tab content renders without crash, empty state or data shown
-Scenario 5: [DD-14-009] History tab accessible — click "History" tab → tab content renders without crash, empty state or data shown
-Scenario 6: [DD-14-009] Templates tab accessible — click "Templates" tab → tab content renders without crash, empty state or data shown
-Scenario 7: [DD-14-009] Schedules tab accessible — click "Schedules" tab → tab content renders without crash, empty state or data shown
+Scenario 2: [DD-14-004] — data flow: GET /api/rounds/templates — navigate to /rounds → click Templates tab → wait 3s → template list or empty state renders (no "Loading...", no error boundary, no crash)
 
-## Empty State Handling
+## Print Checklist (DD-14-004 and DD-14-010)
 
-Scenario 8: [DD-14-009] Empty state shown instead of crash — with no rounds data, each tab shows empty state message rather than JavaScript error or blank white screen
+Scenario 3: [DD-14-004] Print button visible in rounds header — navigate to /rounds → Print button visible in page header or toolbar
 
-## Export Button — 6-format ExportButton (DD-14-011)
+Scenario 4: [DD-14-010] Print dialog opens without crash — click Print button in rounds header → dialog opens (no error boundary, no "Rounds failed to load", no crash)
 
-Scenario 9: [DD-14-011] History tab has Export button (not CSV-only) — navigate to /rounds → click History tab → header contains an "Export" button (split button with chevron), not an "Export CSV" text button that directly downloads; the DataTable toolbar should have no "Export CSV" button
+Scenario 5: [DD-14-010] Print dialog has correct controls — after Print dialog opens → template selector, mode toggle with "Blank" and "Current Results" options, and page size selector all visible
 
-Scenario 10: [DD-14-011] History Export button opens format dialog — navigate to /rounds → click History tab → click "Export" button → a dialog appears with format options (CSV, Excel, PDF, JSON, Parquet, HTML) and a column selector; no direct file download occurs on click
+## Export Button (DD-14-006 and DD-14-011)
 
-Scenario 11: [DD-14-011] Templates tab has Export button — navigate to /rounds → click Templates tab → header contains an "Export" button adjacent to "+ New Template" button; button is visible in the header area
+Scenario 6: [DD-14-011] History tab has Export button (not just CSV) — navigate to /rounds → click History tab → Export button visible in toolbar
 
-Scenario 12: [DD-14-011] Schedules tab has Export button — navigate to /rounds → click Schedules tab → header contains an "Export" button; button is visible in the header area
+Scenario 7: [DD-14-011] Export button opens 6-format dialog — click Export button on History tab → format selector dialog appears with CSV, XLSX, PDF, JSON, Parquet, HTML options
 
-Scenario 13: [DD-14-011] Export button respects rounds:export permission — navigate to /rounds → if user lacks rounds:export permission, Export buttons are hidden across History, Templates, and Schedules tabs
+Scenario 8: [DD-14-011] Templates tab has Export button — navigate to /rounds → click Templates tab → Export button visible adjacent to "+ New Template" button
+
+Scenario 9: [DD-14-006] Schedules tab has Export button — navigate to /rounds → click Schedules tab → Export button visible in header

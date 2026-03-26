@@ -1516,6 +1516,20 @@ export default function DesignerPage() {
   // -------------------------------------------------------------------------
 
   function handleNewConfirm(name: string, mode: 'graphic' | 'dashboard' | 'report', width: number, height: number, autoHeight: boolean) {
+    // Save the outgoing tab's scene and viewport before replacing it with the new document.
+    // Without this, the previous graphic is lost: newDocument() replaces the scene in
+    // sceneStore immediately, and the outgoing tab's savedScene slot remains null.
+    // When the user later clicks the original tab, switchToTab() would find savedScene=null
+    // and attempt a server fetch using the placeholder 'new-...' ID — which fails.
+    const outgoingTabId = useTabStore.getState().activeTabId
+    if (outgoingTabId) {
+      const currentDoc = useSceneStore.getState().doc
+      if (currentDoc) {
+        tabStoreSaveScene(outgoingTabId, currentDoc)
+      }
+      tabStoreSaveViewport(outgoingTabId, useUiStore.getState().viewport)
+    }
+
     newDocument(mode, name, width, height, autoHeight)
     historyClear()
     setShowNewDialog(false)

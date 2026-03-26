@@ -4,3 +4,5 @@
 |------|-------|--------|----------|
 | DD-32-015 | No toast shown when workspace duplication fails — silent 404 error | pending | 0 |
 | DD-32-016 | Optimistic success toast fires on workspace creation even when backend returns 404 | pending | 0 |
+| DD-32-020 | No success toast shown after workspace creation (Done button) | pending | 0 |
+| DD-32-021 | Error toasts auto-dismiss instead of persisting until manually dismissed | pending | 0 |

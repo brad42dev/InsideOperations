@@ -1319,7 +1319,7 @@ function TemplatesPanel() {
         <h3 style={{ margin: 0, fontSize: 15 }}>Notification Templates</h3>
         {canManageTemplates && (
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => { setShowCreate(true); setEditTemplateId(null); setEditForm({}); setEditVarDefs([]) }}
             style={{
               padding: '6px 14px',
               borderRadius: 6,

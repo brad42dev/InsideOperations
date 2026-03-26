@@ -35,3 +35,5 @@ MOD-DESIGNER-034 | Group editing does not open a sub-tab in the Designer tab bar
 MOD-DESIGNER-035 | Canvas drag ghost missing — no preview when dragging shape on canvas | verified 2026-03-24 | commit 9e3904c | cd frontend && npx tsc --noEmit | PASS
 MOD-DESIGNER-036 | "View Alerts" added to display element point context menu | verified 2026-03-24 | commit 09ea2c1 | npx tsc --noEmit | PASS
 MOD-DESIGNER-041 | PointContextMenu does not fire in test mode for point-bound display elements | verified 2026-03-25 | commit 8db82b8 | npx tsc --noEmit | PASS
+MOD-DESIGNER-037 | Opening second graphic via File->New does not create a second file tab | verified 2026-03-26 | commit 0064e46 | npx tsc --noEmit | PASS
+MOD-DESIGNER-038 | Fix API gateway rate limit on /api/v1/design-objects (429 UAT blocker) | verified 2026-03-26 | commit 00b2342 | cargo check -p api-gateway | PASS

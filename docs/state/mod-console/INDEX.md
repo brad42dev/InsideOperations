@@ -23,3 +23,6 @@
 | MOD-CONSOLE-019 | No right-click context menu on workspace items in Console left nav panel | pending | 0 |
 | MOD-CONSOLE-020 | Kiosk mode does not hide Console ASSETS/left panel | pending | 0 |
 | MOD-CONSOLE-021 | Workspace list items missing right-click context menu | pending | 0 |
+| MOD-CONSOLE-027 | Workspaces section Favorites group missing when no favorites are set | pending | 0 |
+| MOD-CONSOLE-028 | Detached console route /detached/console/:id still renders Phase 7 stub | pending | 0 |
+| MOD-CONSOLE-029 | Workspace save feedback missing dirty indicator and persistent failure banner | pending | 0 |

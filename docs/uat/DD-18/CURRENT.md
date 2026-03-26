@@ -1,33 +1,38 @@
 ---
 unit: DD-18
-date: 2026-03-24
+date: 2026-03-26
 uat_mode: auto
-verdict: fail
-scenarios_tested: 5
-scenarios_passed: 0
-scenarios_failed: 5
+verdict: pass
+scenarios_tested: 8
+scenarios_passed: 8
+scenarios_failed: 0
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /settings/archive loads the settings page (real implementation, not stub) — however the archive settings content area shows an API error.
+pass: Navigating to /settings/archive loads real implementation — "Archive & Timeseries Settings" form with retention, compression, and maintenance fields.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Archive Settings | Page renders without error | ❌ fail | Shows "Failed to load archive settings. Ensure the archive service is running." — red error message, no form |
-| 2 | Archive Settings | Retention period inputs present | ❌ fail | Form never loaded; only error message visible |
-| 3 | Archive Settings | Compression toggle present | ❌ fail | Form never loaded; only error message visible |
-| 4 | Archive Settings | Continuous aggregate settings present | ❌ fail | Form never loaded; only error message visible |
-| 5 | Archive Settings | Save form produces visible change | ❌ fail | No form to interact with; Save button not present |
+| 1 | Route | [DD-18-007] /settings/archive renders without error | ✅ pass | Heading "Archive & Timeseries Settings", no error boundary |
+| 2 | Navigation | [DD-18-007] Archive appears in Settings sidebar | ✅ pass | "Archive" link visible at /settings/archive in sidebar |
+| 3 | Navigation | [DD-18-007] Sidebar click navigates to archive settings | ✅ pass | Click Archive → /settings/archive loads, Archive link [active] |
+| 4 | Data Flow | [DD-18-008] GET /api/archive/settings returns data | ✅ pass | Spinbuttons populated: raw=90d, 1m=365d, 5m=730d, 15m=1095d, 1h=1825d, 1d=2555d — ⚠️ seed data status unknown |
+| 5 | Form Fields | [DD-18-009] Retention period inputs visible | ✅ pass | "Retention period (days)" spinbutton with value "90" visible |
+| 6 | Form Fields | [DD-18-010] Compression toggle/input present | ✅ pass | "Compress chunks older than (days)" spinbutton with value "7" visible |
+| 7 | Form Fields | [DD-18-010] Continuous aggregate settings present | ✅ pass | 1m/5m/15m/1h/1d aggregate retention spinbuttons all visible |
+| 8 | Save Action | [DD-18-011] Save Settings shows success indicator | ✅ pass | "Archive settings saved." alert appeared after click; not a silent no-op |
 
 ## New Bug Tasks Created
 
-DD-18-010 — Archive settings API /api/archive/settings still returns 404 — form never loads
+None
 
 ## Screenshot Notes
 
-Screenshot: docs/uat/DD-18/scenario1-fail-api-404.png
-The /settings/archive page loads (sidebar shows Archive link, breadcrumb shows Settings › Archive), but the content area displays: "Failed to load archive settings. Ensure the archive service is running." in red text. The browser console confirms GET /api/archive/settings returns 404. The /api/archive/settings endpoint is still not implemented — the task DD-18-009 was verified as implemented but the API route does not exist at runtime.
+- Initial navigation to /settings/archive showed "Loading archive settings…" with a 429 Too Many Requests on /api/archive/settings — resolved via retry within ~4 seconds
+- After loading, all form sections visible: Raw Data Retention, Continuous Aggregate Retention (5 tiers), Compression, Maintenance Schedule
+- Save Settings produced inline alert "Archive settings saved." with Dismiss button — confirms PUT /api/archive/settings is wired up
+- Seed data status: UNAVAILABLE (psql not accessible) — data flow scenario marked with ⚠️

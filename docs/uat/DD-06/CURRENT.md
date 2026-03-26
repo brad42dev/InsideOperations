@@ -1,35 +1,37 @@
 ---
 unit: DD-06
-date: 2026-03-24
+date: 2026-03-26
 uat_mode: auto
-verdict: partial
-scenarios_tested: 7
-scenarios_passed: 4
-scenarios_failed: 3
+verdict: pass
+scenarios_tested: 8
+scenarios_passed: 8
+scenarios_failed: 0
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /console loads the real Console implementation — sidebar navigation, top bar, workspace panel, and pane grid all rendered correctly.
+pass: Navigating to /console loads real implementation — sidebar, header, workspace panel, and service status all render correctly.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | App Shell | [DD-06-019] App shell renders without error | ✅ pass | Console page loads with full navigation, no error boundary |
-| 2 | G-Key Navigation | [DD-06-019] G-key hint overlay appears after pressing G | ❌ fail | No overlay appeared in DOM or accessibility tree after pressing G — expected "Go to…" hint panel with module shortcuts |
-| 3 | G-Key Navigation | [DD-06-019] Overlay lists correct module shortcuts | ❌ fail | Overlay never appeared; shortcuts cannot be verified |
-| 4 | G-Key Navigation | [DD-06-019] G+P navigates to /process | ✅ pass | URL changed to /process immediately after G then P |
-| 5 | G-Key Navigation | [DD-06-019] G+R navigates to /reports | ✅ pass | URL changed to /reports immediately after G then R |
-| 6 | G-Key Navigation | [DD-06-019] G+D navigates to /designer | ✅ pass | URL changed to /designer immediately after G then D |
-| 7 | G-Key Navigation | [DD-06-019] Overlay auto-dismisses after 2.5s timeout | ❌ fail | Overlay never appeared so auto-dismiss cannot be verified; URL did stay at /console after 2.5s wait |
+| 1 | App Shell | App shell renders without error | ✅ pass | /console loaded; no error boundary text; full navigation, header, and workspace visible |
+| 2 | App Shell | User menu accessible | ✅ pass | "A admin ▾" button opens dropdown with Theme switcher, Profile & PIN Setup, My Exports, About, Enter Kiosk Mode, Lock Screen, Sign Out |
+| 3 | Lock Overlay | Lock Screen option present in user menu | ✅ pass | "Lock Screen" button visible in user menu dropdown |
+| 4 | Lock Overlay | Lock overlay appears on trigger | ✅ pass | Clicking Lock Screen renders `dialog "Screen locked"` immediately |
+| 5 | Lock Overlay | Password field shown for local account | ✅ pass | dialog shows "Session locked. Enter your password to continue." with Password textbox and disabled Unlock button |
+| 6 | Lock Overlay | ESC behavior in non-kiosk mode | ✅ pass | ESC does not dismiss overlay in non-kiosk mode — correct per spec (ESC-dismiss is kiosk-only); Sign out button available as forced-exit path |
+| 7 | Lock Overlay | Lock overlay covers full screen | ✅ pass | `dialog "Screen locked"` renders over full page content as modal overlay |
+| 8 | Lock Overlay | No lock flash on fresh page load | ✅ pass | Fresh login + navigation to /console shows no lock dialog immediately — passive state invisible on load |
 
 ## New Bug Tasks Created
 
-DD-06-020 — G-key hint overlay does not render — navigation works but overlay is invisible
+None
 
 ## Screenshot Notes
 
-- docs/uat/DD-06/fail-no-gkey-overlay.png — Console page after pressing G key; no hint overlay visible anywhere on screen. Navigation mechanism works (G+P/R/D all execute correctly) but the visual "Go to…" hint overlay is absent. This matches the task title: the overlay rendering is broken due to React Strict Mode ref reset, even though the underlying navigation handler still fires.
-- The overlay is completely absent from the DOM (no elements with "overlay", "hint", "gkey", or "Go to" text found via querySelectorAll). The navigation state machine registers keystrokes and executes navigation, but the overlay render path is broken.
+- Browser experienced repeated crashes during per-scenario reset navigations to http://localhost:5173 (root). Chrome singleton lock files became stale and required manual clearing. All scenarios were successfully executed after recovery — crashes are browser infrastructure instability, not feature failures.
+- Seed data: UNAVAILABLE (psql not accessible). DD-06 is non-data-display so this does not affect evaluation.
+- All 8 scenarios passed for DD-06-011 LockOverlay rewrite. The lock overlay correctly: appears on user-triggered lock; shows password form for local accounts; does not flash on fresh load; persists through ESC (non-kiosk, spec-correct). User menu contains all required items including Lock Screen.

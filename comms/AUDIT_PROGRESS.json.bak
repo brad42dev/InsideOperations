@@ -186,21 +186,22 @@
     "MOD-CONSOLE-024": 0,
     "MOD-CONSOLE-022": 1,
     "MOD-CONSOLE-025": 1,
-    "MOD-CONSOLE-023": 2,
+    "MOD-CONSOLE-023": 3,
     "MOD-CONSOLE-026": 2,
     "MOD-DESIGNER-040": 1,
     "DD-06-021": 0,
     "MOD-DESIGNER-038": 1,
     "DD-06-022": 1,
     "DD-14-010": 0,
-    "DD-18-011": 0,
+    "DD-18-011": 1,
     "DD-29-018": 1,
     "DD-23-024": 1,
     "DD-31-021": 1,
     "DD-32-017": 0,
     "DD-32-018": 0,
     "DD-31-020": 1,
-    "DD-32-019": 0
+    "DD-32-019": 0,
+    "DD-14-011": 2
   },
   "queue": [
     {
@@ -831,7 +832,7 @@
       "completed_at": "2026-03-21",
       "notes": "12 tasks. Emergency permission not enforced; template variables typed wrong; no resolve/cancel on active alerts.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 1
+      "verified_since_last_audit": 2
     },
     {
       "unit": "DD-32",
@@ -5743,7 +5744,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "status": "pending",
+      "status": "verified",
       "uat_status": null,
       "answer_file": null
     },
@@ -5785,7 +5786,7 @@
       "id": "MOD-CONSOLE-026",
       "unit": "MOD-CONSOLE",
       "title": "Kiosk mode corner dwell exit trigger not implemented",
-      "status": "implementing",
+      "status": "verified",
       "priority": "low",
       "depends_on": [],
       "source": "uat",
@@ -5810,17 +5811,19 @@
       "priority": "low",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": null
     },
     {
       "id": "MOD-DESIGNER-038",
       "unit": "MOD-DESIGNER",
-      "title": "Fix Annotation \"Change Style\" submenu to use spec-required note/warning/info variants",
+      "title": "Drag ghost verification blocked \u2014 backend /api/v1/design-objects returns 429",
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": null,
+      "source": "uat"
     },
     {
       "id": "MOD-DESIGNER-040",
@@ -5836,11 +5839,13 @@
     {
       "id": "DD-06-021",
       "unit": "DD-06",
-      "title": "Fix command palette prefix scopes (@=points, /=graphics, #=entities)",
-      "priority": "medium",
+      "title": "G+letter navigation still broken \u2014 overlay appears but second key does not navigate",
+      "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 9
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
     },
     {
       "id": "DD-06-022",
@@ -5865,11 +5870,11 @@
     {
       "id": "DD-06-024",
       "unit": "DD-06",
-      "title": "G-key navigation broken \u2014 G+P and G+D do not navigate",
+      "title": "Wire active rounds count to sidebar badge via API",
       "status": "verified",
-      "priority": "high",
+      "priority": "low",
       "depends_on": [],
-      "source": "uat",
+      "source": "audit",
       "audit_round": 9
     },
     {
@@ -5888,7 +5893,7 @@
       "wave": 1,
       "title": "Rounds export not 6-format \u2014 History has CSV-only, Templates/Schedules have no export button",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": null,
       "source": "uat",
@@ -5977,7 +5982,17 @@
       "priority": "high",
       "depends_on": [],
       "source": "uat",
-      "status": "implementing",
+      "status": "verified",
+      "audit_round": 9
+    },
+    {
+      "id": "MOD-DESIGNER-041",
+      "unit": "MOD-DESIGNER",
+      "wave": 1,
+      "title": "MOD-DESIGNER-041 (reconciled)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
       "audit_round": 9
     }
   ],

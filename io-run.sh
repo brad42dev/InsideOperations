@@ -2689,13 +2689,14 @@ PYEOF
                     fi
                     _uid="${_uat_arr[$_uat_idx]}"
                     _uat_idx=$((_uat_idx + 1))
-                    _auto_uat_log="/tmp/io-uat-${_uid}-$(date '+%Y%m%dT%H%M%S').log"
+                    _auto_uat_ts="$(date '+%Y%m%dT%H%M%S')"
+                    _auto_uat_log="/tmp/io-uat-${_uid}-${_auto_uat_ts}.log"
+                    _auto_uat_stream="/tmp/io-stream-auto-${_uid}-${_auto_uat_ts}"
                     _auto_uat_usage="/tmp/io-usage-uat-${_uid}"
                     rm -f "$_auto_uat_usage" 2>/dev/null || true
                     echo "$(ts) [uat  ] agent launching: ${_uid} (${_uat_idx}/${#_uat_arr[@]}) — log: $_auto_uat_log"
                     (
                         echo "$(ts) UAT ${_uid} starting" | tee "$_auto_uat_log"
-                        _auto_uat_stream="/tmp/io-stream-auto-${_uid}"
                         rm -f "$_auto_uat_stream" 2>/dev/null || true
                         claude --dangerously-skip-permissions \
                                --agent "uat-agent" \

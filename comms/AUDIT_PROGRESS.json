@@ -186,21 +186,22 @@
     "MOD-CONSOLE-024": 0,
     "MOD-CONSOLE-022": 1,
     "MOD-CONSOLE-025": 1,
-    "MOD-CONSOLE-023": 2,
+    "MOD-CONSOLE-023": 3,
     "MOD-CONSOLE-026": 2,
     "MOD-DESIGNER-040": 1,
     "DD-06-021": 0,
     "MOD-DESIGNER-038": 1,
     "DD-06-022": 1,
     "DD-14-010": 0,
-    "DD-18-011": 0,
+    "DD-18-011": 1,
     "DD-29-018": 1,
     "DD-23-024": 1,
     "DD-31-021": 1,
     "DD-32-017": 0,
     "DD-32-018": 0,
     "DD-31-020": 1,
-    "DD-32-019": 0
+    "DD-32-019": 0,
+    "DD-14-011": 2
   },
   "queue": [
     {
@@ -283,7 +284,8 @@
       "completed_at": "2026-03-22T02:44:13.591467+00:00",
       "notes": "11 tasks generated, 10 open, wave0 findings yes",
       "last_audit_round": 8,
-      "verified_since_last_audit": 10
+      "verified_since_last_audit": 13,
+      "tasks_uat_added": 3
     },
     {
       "unit": "MOD-PROCESS",
@@ -385,7 +387,8 @@
       "completed_at": "2026-03-21",
       "notes": "10 tasks.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 2
+      "verified_since_last_audit": 3,
+      "tasks_uat_added": 1
     },
     {
       "unit": "DD-10",
@@ -831,7 +834,7 @@
       "completed_at": "2026-03-21",
       "notes": "12 tasks. Emergency permission not enforced; template variables typed wrong; no resolve/cancel on active alerts.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 1
+      "verified_since_last_audit": 2
     },
     {
       "unit": "DD-32",
@@ -854,7 +857,8 @@
       "completed_at": "2026-03-21",
       "notes": "9 tasks. DataTable missing 7 must-have features; no ThemeProvider context; PointDetailPanel lacks Alarm Data/Graphics sections.",
       "last_audit_round": 2,
-      "verified_since_last_audit": 2
+      "verified_since_last_audit": 4,
+      "tasks_uat_added": 2
     },
     {
       "unit": "DD-33",
@@ -1186,7 +1190,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-002",
@@ -1196,7 +1200,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-003",
@@ -1287,7 +1291,7 @@
       "depends_on": [],
       "status": "verified",
       "audit_round": 8,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-012",
@@ -1548,7 +1552,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-004",
@@ -1559,7 +1563,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-06-005",
@@ -2108,7 +2112,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-14-005",
@@ -2130,7 +2134,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-14-007",
@@ -2717,7 +2721,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-012",
@@ -2728,7 +2732,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-013",
@@ -2741,7 +2745,7 @@
         "DD-23-011"
       ],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-014",
@@ -2752,7 +2756,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-015",
@@ -3426,7 +3430,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-004",
@@ -3450,7 +3454,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-006",
@@ -3472,7 +3476,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-008",
@@ -3483,7 +3487,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-31-009",
@@ -3606,7 +3610,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 2,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-008",
@@ -4172,7 +4176,7 @@
       ],
       "audit_round": 2,
       "source": "feature",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-012",
@@ -4637,7 +4641,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-28-009",
@@ -4661,7 +4665,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-10-012",
@@ -4721,7 +4725,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-013",
@@ -4805,7 +4809,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-011",
@@ -4961,7 +4965,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-26-008",
@@ -4997,7 +5001,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-013",
@@ -5021,7 +5025,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-017",
@@ -5081,7 +5085,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-015",
@@ -5153,7 +5157,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-019",
@@ -5177,7 +5181,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-021",
@@ -5357,7 +5361,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-27-013",
@@ -5479,7 +5483,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": "partial"
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-016",
@@ -5539,7 +5543,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-022",
@@ -5647,7 +5651,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-10-019",
@@ -5683,7 +5687,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-27-015",
@@ -5743,8 +5747,8 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "status": "pending",
-      "uat_status": null,
+      "status": "verified",
+      "uat_status": "pass",
       "answer_file": null
     },
     {
@@ -5757,7 +5761,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-CONSOLE-025",
@@ -5768,7 +5772,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "MOD-DESIGNER-037",
@@ -5785,12 +5789,12 @@
       "id": "MOD-CONSOLE-026",
       "unit": "MOD-CONSOLE",
       "title": "Kiosk mode corner dwell exit trigger not implemented",
-      "status": "implementing",
+      "status": "verified",
       "priority": "low",
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-CONSOLE-023",
@@ -5801,7 +5805,7 @@
       "depends_on": [],
       "source": "uat",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "MOD-DESIGNER-039",
@@ -5810,17 +5814,19 @@
       "priority": "low",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": null
     },
     {
       "id": "MOD-DESIGNER-038",
       "unit": "MOD-DESIGNER",
-      "title": "Fix Annotation \"Change Style\" submenu to use spec-required note/warning/info variants",
+      "title": "Drag ghost verification blocked \u2014 backend /api/v1/design-objects returns 429",
       "priority": "medium",
       "depends_on": [],
       "status": "verified",
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": null,
+      "source": "uat"
     },
     {
       "id": "MOD-DESIGNER-040",
@@ -5836,11 +5842,13 @@
     {
       "id": "DD-06-021",
       "unit": "DD-06",
-      "title": "Fix command palette prefix scopes (@=points, /=graphics, #=entities)",
-      "priority": "medium",
+      "title": "G+letter navigation still broken \u2014 overlay appears but second key does not navigate",
+      "priority": "high",
       "depends_on": [],
       "status": "verified",
-      "audit_round": 9
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-022",
@@ -5850,7 +5858,8 @@
       "depends_on": [],
       "status": "verified",
       "source": "uat",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "pass"
     },
     {
       "id": "DD-06-023",
@@ -5865,12 +5874,13 @@
     {
       "id": "DD-06-024",
       "unit": "DD-06",
-      "title": "G-key navigation broken \u2014 G+P and G+D do not navigate",
+      "title": "Wire active rounds count to sidebar badge via API",
       "status": "verified",
-      "priority": "high",
+      "priority": "low",
       "depends_on": [],
-      "source": "uat",
-      "audit_round": 9
+      "source": "audit",
+      "audit_round": 9,
+      "uat_status": "pass"
     },
     {
       "id": "DD-14-010",
@@ -5880,7 +5890,8 @@
       "depends_on": [],
       "status": "verified",
       "source": "uat",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "pass"
     },
     {
       "id": "DD-14-011",
@@ -5888,11 +5899,11 @@
       "wave": 1,
       "title": "Rounds export not 6-format \u2014 History has CSV-only, Templates/Schedules have no export button",
       "priority": "high",
-      "status": "implementing",
+      "status": "verified",
       "depends_on": [],
       "audit_round": null,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-18-011",
@@ -5904,7 +5915,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-23-024",
@@ -5916,7 +5927,7 @@
       "depends_on": [],
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-29-018",
@@ -5938,7 +5949,7 @@
       "status": "verified",
       "audit_round": 9,
       "source": "uat",
-      "uat_status": null
+      "uat_status": "fail"
     },
     {
       "id": "DD-31-021",
@@ -5948,7 +5959,7 @@
       "status": "verified",
       "depends_on": [],
       "audit_round": 9,
-      "uat_status": null
+      "uat_status": "pass"
     },
     {
       "id": "DD-32-017",
@@ -5958,7 +5969,8 @@
       "priority": "high",
       "depends_on": [],
       "source": "uat",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-018",
@@ -5968,7 +5980,8 @@
       "priority": "high",
       "depends_on": [],
       "source": "uat",
-      "audit_round": 9
+      "audit_round": 9,
+      "uat_status": "fail"
     },
     {
       "id": "DD-32-019",
@@ -5977,8 +5990,117 @@
       "priority": "high",
       "depends_on": [],
       "source": "uat",
-      "status": "implementing",
+      "status": "verified",
+      "audit_round": 9,
+      "uat_status": "pass"
+    },
+    {
+      "id": "MOD-DESIGNER-041",
+      "unit": "MOD-DESIGNER",
+      "wave": 1,
+      "title": "MOD-DESIGNER-041 (reconciled)",
+      "priority": "medium",
+      "status": "verified",
+      "depends_on": [],
       "audit_round": 9
+    },
+    {
+      "id": "DD-06-025",
+      "unit": "DD-06",
+      "wave": 3,
+      "title": "Lock overlay structure requires human UAT \u2014 cannot trigger via auto mode",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [
+        "DD-06-011"
+      ],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-027",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Workspaces section Favorites group missing when no favorites are set",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-028",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Detached console route /detached/console/:id still renders Phase 7 stub",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "MOD-CONSOLE-029",
+      "unit": "MOD-CONSOLE",
+      "wave": 2,
+      "title": "Workspace save feedback missing dirty indicator and persistent failure banner",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-022",
+      "unit": "DD-31",
+      "wave": 1,
+      "title": "/api/notifications/channels/enabled intermittent cold-start 404 \u2014 alert compose shows only WebSocket",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-31-023",
+      "unit": "DD-31",
+      "wave": 1,
+      "title": "Template variable inputs show raw name instead of structured label; no required indicator",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-020",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "No success toast shown after workspace creation (Done button)",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
+    },
+    {
+      "id": "DD-32-021",
+      "unit": "DD-32",
+      "wave": 3,
+      "title": "Error toasts auto-dismiss instead of persisting until manually dismissed",
+      "priority": "high",
+      "status": "pending",
+      "depends_on": [],
+      "audit_round": 9,
+      "source": "uat",
+      "uat_status": null
     }
   ],
   "audit_round": 9,

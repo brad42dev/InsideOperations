@@ -1,16 +1,33 @@
 # UAT Scenarios — DD-23
+# Session 2026-03-26: Tasks DD-23-011, DD-23-012, DD-23-013, DD-23-014, DD-23-018, DD-23-020, DD-23-024
 
-## Drag-and-Drop Into Container (DD-23-022)
+## Expression Builder Access & Defaults
 
-Scenario 1: [DD-23-022] Expression builder opens without error — navigate to /settings/expressions → page loads, no error boundary, expression list visible
-Scenario 2: [DD-23-022] Add group container to workspace — open/edit expression, click (…) group container in palette → group tile appears in workspace with "Click palette tiles to insert, or drag them here" zone
-Scenario 3: [DD-23-022] Drag tile from palette into group container interior — drag "Enter Value" from VALUES palette and drop onto group's drop zone → tile appears INSIDE the group (indented, level-2 styled), not outside it
-Scenario 4: [DD-23-022] Group error clears after tile dropped inside — after dropping tile into group → "(…) container must have at least one child tile" error message is no longer shown
-Scenario 5: [DD-23-022] Second tile drops into sibling gap inside group — drag second tile onto gap between existing children inside group → tile inserts between existing children correctly
+Scenario 1: [DD-23-014] Expression editor renders without error — navigate to /settings/expressions → page loads without error boundary, expression list or empty state visible
+Scenario 2: [DD-23-014] saveForFuture checkbox checked by default — open expression builder (Edit on any expression) → "Save for Future Use" checkbox is checked; Name and Description fields are NOT grayed out
 
-## Breadcrumb Navigation in Nested Containers (DD-23-023)
+## Insertion Cursor
 
-Scenario 6: [DD-23-023] No breadcrumb at root level — open expression editor at root level → no breadcrumb trail visible above workspace (or only "Root" shown, no nesting path)
-Scenario 7: [DD-23-023] Breadcrumb appears when cursor enters container — add (…) group container, click inside it to move cursor into it → breadcrumb trail (e.g. "Root > (…)") appears above workspace
-Scenario 8: [DD-23-023] Breadcrumb is clickable — with cursor inside container, click "Root" breadcrumb item → cursor returns to root level, breadcrumb hides/resets
-Scenario 9: [DD-23-023] Breadcrumb updates dynamically on deeper nesting — add nested (…) inside outer group and enter it → breadcrumb shows both levels (e.g. "Root > (…) > (…)")
+Scenario 3: [DD-23-011] Blinking insertion cursor visible — open expression editor, click in workspace between/after tiles → a visible 2px cursor element appears at that position
+Scenario 4: [DD-23-011] Cursor position changes on click — with at least one tile in workspace, click different positions → cursor moves to the clicked position each time (not stuck in one spot)
+
+## Drag-and-Drop from Palette
+
+Scenario 5: [DD-23-012] Drag palette tile to root workspace — open expression editor, drag "Enter Value" tile from palette into workspace drop zone → tile appears as a new workspace tile
+Scenario 6: [DD-23-012] DragOverlay ghost visible while dragging — drag a palette tile slowly over workspace → a ghost/overlay element follows the drag pointer (visual feedback during drag)
+
+## Drag-and-Drop into Container
+
+Scenario 7: [DD-23-018] Group container shows empty drop zone — add a (…) group container to workspace, leave it empty → "Drop tiles here" text or drop target zone visible inside the group
+Scenario 8: [DD-23-018] Drag tile into group container drop zone — drag palette tile onto group container's empty interior zone → tile appears inside the group with nesting color (indented/level-2 styled)
+
+## Breadcrumb Navigation
+
+Scenario 9: [DD-23-013] [DD-23-020] No breadcrumb at root level — open expression editor at root level (no container entered) → no breadcrumb trail above workspace (or only "Root" with no nesting path)
+Scenario 10: [DD-23-013] [DD-23-020] Breadcrumb appears when cursor enters group container — add group container, click inside it → breadcrumb trail appears above workspace (e.g. "Root > (…)")
+Scenario 11: [DD-23-013] [DD-23-020] Breadcrumb click returns cursor to root — with cursor inside container showing breadcrumb, click "Root" breadcrumb → cursor moves back to root, breadcrumb hides or shows only root
+
+## Focus Trap
+
+Scenario 12: [DD-23-024] Escape closes expression builder dialog — open expression builder dialog, press Escape → dialog closes
+Scenario 13: [DD-23-024] Arrow keys stay inside dialog — open builder, click a tile (tile shows selected), press ArrowLeft → cursor moves within the expression; the page URL does NOT change (app shell does not navigate away)
