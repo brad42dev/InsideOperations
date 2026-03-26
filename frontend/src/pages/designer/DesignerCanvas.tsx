@@ -1200,6 +1200,7 @@ function SelectionOverlay({
   onRotateStart,
   onResizeStart,
   previewRotation,
+  dragActive,
 }: {
   nodeIds: Set<NodeId>
   doc: GraphicDocument
@@ -1207,6 +1208,8 @@ function SelectionOverlay({
   onRotateStart?: (nodeId: NodeId, center: { x: number; y: number }, initialTransform: Transform) => void
   onResizeStart?: (nodeId: NodeId, handle: ResizeHandle, bounds: { x: number; y: number; w: number; h: number }, transform: Transform, startX: number, startY: number, allNodeIds?: NodeId[], selectionBBox?: { x: number; y: number; w: number; h: number }) => void
   previewRotation?: { nodeId: NodeId; angle: number } | null
+  /** When true, suppress pointer-events on resize/rotate handles so drag-move events are not intercepted. */
+  dragActive?: boolean
 }) {
   if (nodeIds.size === 0) return null
 
@@ -1300,7 +1303,7 @@ function SelectionOverlay({
                   stroke="var(--io-accent)"
                   strokeWidth={1 / zoom}
                   transform={rotAttr}
-                  style={{ pointerEvents: 'all', cursor: 'crosshair' }}
+                  style={{ pointerEvents: dragActive ? 'none' : 'all', cursor: 'crosshair' }}
                   onMouseDown={(e) => {
                     e.stopPropagation()
                     e.preventDefault()
@@ -1341,7 +1344,7 @@ function SelectionOverlay({
                 fill="white"
                 stroke="var(--io-accent)"
                 strokeWidth={1 / zoom}
-                style={{ pointerEvents: 'all', cursor: rh.cursor }}
+                style={{ pointerEvents: dragActive ? 'none' : 'all', cursor: rh.cursor }}
                 onMouseDown={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
@@ -1375,7 +1378,7 @@ function SelectionOverlay({
               fill="white"
               stroke="var(--io-accent)"
               strokeWidth={1 / zoom}
-              style={{ pointerEvents: 'all', cursor: rh.cursor }}
+              style={{ pointerEvents: dragActive ? 'none' : 'all', cursor: rh.cursor }}
               onMouseDown={(e) => {
                 e.stopPropagation()
                 e.preventDefault()
@@ -1859,6 +1862,14 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   // Palette-drag ghost lives in DesignerLeftPalette.tsx; this mirrors that pattern.
   const canvasDragGhostRef = useRef<HTMLDivElement | null>(null)
 
+  // Tracks whether a canvas move-drag is in progress.
+  // canvasDragActiveRef: used inside non-React closures (document-level event listeners).
+  // isDraggingCanvas: React state version used to re-render SelectionOverlay with dragActive=true
+  // so resize/rotate handle pointer-events are suppressed while dragging (fixes Playwright
+  // "subtree intercepts pointer events" error and ensures mouseup is never intercepted).
+  const canvasDragActiveRef = useRef(false)
+  const [isDraggingCanvas, setIsDraggingCanvas] = useState(false)
+
   // Point context menu (test mode only) — tracks trigger position + point identity
   const [pointCtxMenu, setPointCtxMenu] = useState<PointCtxMenuTrigger | null>(null)
 
@@ -2276,6 +2287,108 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
           document.body.appendChild(ghost)
           canvasDragGhostRef.current = ghost
         }
+
+        // Attach document-level mousemove/mouseup listeners for the duration of this drag.
+        // This ensures drag preview and commit work correctly even when:
+        //   - The pointer moves over a child SVG element with pointer-events:all
+        //   - Playwright browser_drag fires events at the document level
+        //   - The pointer leaves the canvas container bounds mid-drag
+        // Pattern mirrors guide creation (startGuideCreate below).
+        canvasDragActiveRef.current = true
+        setIsDraggingCanvas(true)
+
+        const dragMoveFn = (me: MouseEvent) => {
+          if (interactionRef.current.type !== 'drag') return
+          const r = containerRef.current?.getBoundingClientRect()
+          if (!r) return
+          const vp = viewportRef.current
+          const dcx = (me.clientX - r.left - vp.panX) / vp.zoom
+          const dcy = (me.clientY - r.top  - vp.panY) / vp.zoom
+          const ddx = dcx - interactionRef.current.startCanvasX
+          const ddy = dcy - interactionRef.current.startCanvasY
+          const svgEl = containerRef.current?.querySelector('svg')
+          if (svgEl) {
+            for (const sid of selectedIdsRef.current) {
+              const sorig = interactionRef.current.originalPositions.get(sid)
+              if (!sorig) continue
+              const sgEl = svgEl.querySelector(`[data-node-id="${sid}"]`)
+              if (sgEl) {
+                sgEl.setAttribute('transform', `translate(${sorig.x + ddx},${sorig.y + ddy})`)
+                sgEl.setAttribute('opacity', '0.4')
+              }
+            }
+          }
+          if (canvasDragGhostRef.current) {
+            canvasDragGhostRef.current.style.left = `${me.clientX}px`
+            canvasDragGhostRef.current.style.top  = `${me.clientY}px`
+          }
+        }
+
+        const dragUpFn = (me: MouseEvent) => {
+          document.removeEventListener('mousemove', dragMoveFn)
+          document.removeEventListener('mouseup', dragUpFn, true)
+          canvasDragActiveRef.current = false
+          setIsDraggingCanvas(false)
+
+          if (interactionRef.current.type !== 'drag') return
+          const r = containerRef.current?.getBoundingClientRect()
+          if (!r) return
+          const vp = viewportRef.current
+          const ucx = (me.clientX - r.left - vp.panX) / vp.zoom
+          const ucy = (me.clientY - r.top  - vp.panY) / vp.zoom
+          const ud = docRef.current
+          if (!ud) { interactionRef.current.type = 'none'; return }
+
+          let udx = ucx - interactionRef.current.startCanvasX
+          let udy = ucy - interactionRef.current.startCanvasY
+
+          if (Math.abs(udx) > 0.5 || Math.abs(udy) > 0.5) {
+            const uids = Array.from(selectedIdsRef.current)
+            if (uids.length > 0) {
+              function ufindT(nodes: SceneNode[], tid: NodeId): import('../../shared/types/graphics').Transform | null {
+                for (const tn of nodes) {
+                  if (tn.id === tid) return tn.transform
+                  if ('children' in tn && Array.isArray(tn.children)) {
+                    const tf = ufindT(tn.children as SceneNode[], tid)
+                    if (tf) return tf
+                  }
+                }
+                return null
+              }
+              const uprevTransforms = new Map<NodeId, import('../../shared/types/graphics').Transform>()
+              for (const [uid] of interactionRef.current.originalPositions) {
+                const ut = ufindT(ud.children, uid)
+                if (ut) uprevTransforms.set(uid, ut)
+              }
+              executeCmd(new MoveNodesCommand(
+                uids,
+                { x: snap(udx), y: snap(udy) },
+                uprevTransforms,
+              ))
+            }
+          }
+
+          // Restore ghost opacity
+          {
+            const svgEl = containerRef.current?.querySelector('svg')
+            if (svgEl) {
+              for (const [uid] of interactionRef.current.originalPositions) {
+                const ugEl = svgEl.querySelector(`[data-node-id="${uid}"]`)
+                if (ugEl) ugEl.removeAttribute('opacity')
+              }
+            }
+          }
+          if (canvasDragGhostRef.current) {
+            canvasDragGhostRef.current.remove()
+            canvasDragGhostRef.current = null
+          }
+          interactionRef.current.type = 'none'
+          endDrag()
+          setAlignGuides([])
+        }
+
+        document.addEventListener('mousemove', dragMoveFn)
+        document.addEventListener('mouseup', dragUpFn, true)
       } else {
         // Start marquee selection
         if (!e.shiftKey) {
@@ -4321,6 +4434,7 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
               onRotateStart={startRotate}
               onResizeStart={startResize}
               previewRotation={rotationPreview}
+              dragActive={isDraggingCanvas}
             />
           )}
 
