@@ -41,10 +41,10 @@ package.iographic (ZIP)
 ├── graphics/
 │   ├── crude-unit-overview/
 │   │   ├── graphic.json       # Graphic metadata + bindings (tag-name based) + expressions
-│   │   └── graphic.svg        # Raw SVG content
+│   │   └── graphic.svg        # Raw SVG content — OPTIONAL (see §5)
 │   ├── reactor-section-a/
 │   │   ├── graphic.json
-│   │   └── graphic.svg
+│   │   └── graphic.svg        # Omit to trigger server-side SVG reconstruction from graphic.json
 │   └── ...                    # One subdirectory per graphic
 ├── shapes/                    # Custom shapes used by graphics in this package
 │   ├── wet-gas-scrubber.custom.142/
@@ -463,17 +463,23 @@ Expression ASTs may reference point tags internally via `tag_ref` nodes. During 
 
 ---
 
-## 5. `graphic.svg` File
+## 5. `graphic.svg` File — OPTIONAL
 
-The raw SVG XML content from `design_objects.svg_data`. This is the complete, renderable SVG document for the graphic.
+`graphic.svg` is the raw SVG XML content from `design_objects.svg_data`. It is **optional** in `.iographic` packages.
 
-**Why include both `graphic.json` and `graphic.svg`?**
+### When `graphic.svg` is present (normal I/O → I/O export)
 
-- `graphic.svg` is the canonical renderable content — it includes all visual elements exactly as they appear
-- `graphic.json` carries the structured metadata that is NOT in the SVG: bindings (portable tag-based), shape references, pipe service types, layer definitions, expression definitions, and transform data
-- On import, the system uses `graphic.svg` as the SVG content and `graphic.json` for the structured data. The JSON `shapes`, `pipes`, and `annotations` arrays serve as a structured index of what's in the SVG — they enable the import wizard to analyze dependencies and present mapping UIs without SVG parsing
+The SVG is exported verbatim from the database. It contains `data-point-id` attributes with UUIDs (the database format). These UUIDs are stale on import — the import process rewrites them with target-instance UUIDs. The JSON `shapes`, `pipes`, and `annotations` arrays serve as a structured index for the import wizard (dependency analysis, point mapping UI) without requiring SVG parsing.
 
-**No modifications to the SVG**: The SVG is exported verbatim from the database. It contains `data-point-id` attributes with UUIDs (the database format). These UUIDs are stale — the import process uses `graphic.json` bindings (tag-based) to rewrite them with target-instance UUIDs. The SVG's embedded UUIDs are treated as dead references that get overwritten.
+### When `graphic.svg` is absent (programmatic/external authoring)
+
+If `graphic.svg` is absent, the import server **reconstructs the SVG from `graphic.json`** during Phase 4 (see §9). This mode enables external tools, scripts, and agents to author `.iographic` packages by writing only `graphic.json` — no SVG authoring required.
+
+The reconstructed SVG is functionally equivalent to a Designer-authored SVG: shapes are composited from the local shape library at the specified positions/scales, pipes are drawn with correct service-type colors, annotations are rendered as SVG text/shape elements, and all `data-point-id` attributes are written with resolved UUIDs in a single pass.
+
+### Design rationale
+
+`graphic.json` already contains the complete declarative description of a graphic — every shape, every pipe, every annotation, every binding. SVG is derived output, not source of truth. Including `graphic.svg` in exports is a convenience (avoids a re-render round-trip when importing between I/O instances) but is not structurally necessary for the format. Making it optional enables external authoring while preserving fidelity for I/O-to-I/O transfers.
 
 ---
 
@@ -675,7 +681,10 @@ The import wizard presents a multi-step review:
 
 ```
 11. For each graphic in the package:
-    a. Read graphic.svg → will become design_objects.svg_data
+    a. Determine SVG source mode:
+       - If graphic.svg is present in ZIP → SVG_MODE = "provided"
+       - If graphic.svg is absent         → SVG_MODE = "reconstruct"
+
     b. Read graphic.json
     c. Rebuild expression references:
        - For each expression in graphic.json.expressions:
@@ -691,12 +700,119 @@ The import wizard presents a multi-step review:
            - Link to the imported expression definition
          - For skipped tags: omit from bindings
          - For unresolved (kept) tags: store binding with original tag name and `unresolved: true` marker
-    e. Rewrite data-point-id attributes in the SVG to match new UUIDs
+
+    e. Produce SVG content:
+       IF SVG_MODE = "provided":
+         - Read graphic.svg verbatim
+         - Rewrite data-point-id attributes to match resolved UUIDs from step (d)
+       IF SVG_MODE = "reconstruct":
+         - Call reconstruct_svg(graphic.json, resolved_bindings, shape_library)
+           → See §5.1 Reconstruction Algorithm below
+         - data-point-id attributes are written with correct UUIDs during reconstruction
+
     f. Rebuild metadata JSONB from graphic.json.metadata
-    g. INSERT into design_objects (new UUID, new created_by, new timestamps)
+    g. INSERT into design_objects (svg_data = SVG from step e, new UUID, new created_by, new timestamps)
     h. INSERT into design_object_versions (version 1, draft or publish per user choice)
     i. Update design_object_points index table
 ```
+
+### §5.1 SVG Reconstruction Algorithm
+
+Called when `graphic.svg` is absent. Produces a Designer-equivalent SVG from `graphic.json`.
+
+```
+reconstruct_svg(graphic_json, resolved_bindings, shape_library):
+
+  canvas_w = graphic_json.metadata.width
+  canvas_h = graphic_json.metadata.height
+  bg_color = graphic_json.metadata.background_color ?? "#09090B"
+  view_box = graphic_json.metadata.viewBox
+
+  svg = open <svg> with viewBox, width, height
+
+  // 1. Background
+  append <rect width=canvas_w height=canvas_h fill=bg_color/>
+
+  // 2. Pipes (render first — behind equipment)
+  for each pipe in graphic_json.pipes:
+    color = SERVICE_TYPE_COLORS[pipe.service_type]  // see §19 palette
+    append <path id=pipe.element_id
+                 d=pipe.path_data
+                 stroke=color stroke-width=pipe.stroke_width fill="none"
+                 data-service-type=pipe.service_type/>
+    if pipe.label:
+      append <text> near midpoint of path with label text
+
+  // 3. Equipment shapes
+  for each shape_ref in graphic_json.shapes:
+    shape_svg = shape_library.get_svg(shape_ref.shape_id, shape_ref.variant,
+                                      shape_ref.configuration)
+    // shape_svg is the inner <g class="io-shape-body"> content (no outer <svg>)
+
+    if shape_svg is None:
+      // Shape missing from local library
+      shape_svg = placeholder_rect(shape_ref)   // dashed border + shape_id label
+      append data-missing-shape=shape_ref.shape_id attribute
+
+    transform = build_transform(shape_ref.position, shape_ref.scale,
+                                shape_ref.rotation, shape_ref.mirror)
+
+    point_id = resolved_bindings[shape_ref.element_id].point_id ?? "unresolved"
+
+    append <g id=shape_ref.element_id
+              transform=transform
+              data-io-shape=shape_ref.shape_id
+              data-point-id=point_id>
+             shape_svg content
+           </g>
+
+    // Attach composable parts
+    for each part in shape_ref.composable_parts:
+      part_svg = shape_library.get_svg(part.part_id, "opt1", null)
+      attachment_offset = shape_library.get_attachment_point(shape_ref.shape_id,
+                                                             shape_ref.variant,
+                                                             part.attachment)
+      append part at attachment_offset within the shape group
+
+  // 4. Display elements (text readouts, level gauges, sparklines)
+  for each (element_id, binding) in graphic_json.bindings:
+    if element_id already rendered (part of a shape group above): continue
+    // Standalone display element — not part of a shape
+    point_id = resolved_bindings[element_id].point_id ?? "unresolved"
+    // Position comes from annotations[] if present, else a default near the bound shape
+    pos = find_annotation_position(element_id, graphic_json.annotations)
+    if binding.attribute == "text":
+      append <text id=element_id x=pos.x y=pos.y
+                   font-family="Arial,sans-serif" font-size=18 fill="#E5E5E5"
+                   data-point-id=point_id data-point-attr="text">—</text>
+    if binding.mapping.type == "fill_gauge":
+      append fill gauge overlay elements at vessel position
+    if binding.mapping.type == "analog_bar":
+      append analog bar SVG group at specified position
+    if binding.mapping.type == "sparkline":
+      append sparkline placeholder <path> at specified position
+
+  // 5. Annotations (static labels, decorative elements)
+  for each annotation in graphic_json.annotations:
+    if annotation.type == "text":
+      append <text id=annotation.element_id x=position.x y=position.y
+                   font-size=font_size font-weight=font_weight fill=fill
+                   text-anchor=text_anchor ?? "start">annotation.content</text>
+    if annotation.type == "rect":
+      append <rect id=annotation.element_id .../>
+    if annotation.type == "line":
+      append <line id=annotation.element_id .../>
+    // etc. for ellipse, path
+
+  close </svg>
+  return svg_string
+```
+
+**Key properties of reconstructed SVGs:**
+- Functionally identical to Designer-authored SVGs for rendering and data binding
+- All `data-point-id` attributes are written with resolved UUIDs in a single pass (no post-process rewrite step needed)
+- Missing shapes produce placeholder rectangles with `data-missing-shape` attributes, same as the missing-shape handling in normal import
+- The reconstructed SVG is stored in `design_objects.svg_data` — once imported, the graphic behaves identically to a Designer-authored graphic including full Designer editing support
 
 ### Phase 5: Post-Import
 
@@ -1420,6 +1536,7 @@ The importer checks:
 
 ## Change Log
 
+- **v0.4**: Made `graphic.svg` optional. When absent, the import server reconstructs SVG from `graphic.json` during Phase 4 using the shape library (§5.1 Reconstruction Algorithm). This enables external tools and agents to produce `.iographic` packages by authoring only `graphic.json` — no SVG authoring required. `graphic.json` was always the source of truth; SVG is now explicitly derived output. Normal I/O → I/O exports still include `graphic.svg` for import efficiency (no re-render round-trip).
 - **v0.3**: Fixed stale crate name `io-types` → `io-models` (4 locations) per doc 01 v2.1 canonical crate list.
 - **v0.2**: Clarified unresolved point tag behavior in import wizard. Unresolved tags are imported with original tag names by default (not rejected or treated as blocking placeholders). Default action changed from "Import as placeholder" to "Keep as-is" — graphics render immediately with N/C display. Aligned with doc 19 v1.8 (Point Binding Resolution States). Updated Phase 4 and Phase 5 language to match.
 - **v0.1**: Initial specification. ZIP-based container with manifest.json, graphic.json + graphic.svg per graphic, tag-based portable bindings, shape/stencil packaging, expression references, workspace export, 5-step import wizard, SHA-256 integrity, Rust type definitions. Resolves previously-deferred "Graphics layout export" from docs 09 and 25.

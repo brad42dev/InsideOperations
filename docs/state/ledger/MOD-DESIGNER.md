@@ -45,3 +45,4 @@ MOD-DESIGNER-047 | Canvas drag-to-move testability attributes | verified 2026-03
 MOD-DESIGNER-049 | Canvas drag-to-move creates duplicate elements — mousedown misrouted to palette drop handler | verified 2026-03-26 | commit 6f3f364 | npx tsc --noEmit | PASS
 MOD-DESIGNER-050 | Annotation node right-click Change Style still absent after MOD-DESIGNER-042 fix | verified 2026-03-26 | commit 928c636 | cd frontend && npx tsc --noEmit | PASS
 MOD-DESIGNER-051 | Canvas drag-to-move still broken after MOD-DESIGNER-047 fix | verified 2026-03-26 | commit 282d03c | npx tsc --noEmit | PASS
+MOD-DESIGNER-055 | Escape key drag-cancel still untestable — mid-drag Escape cannot be verified via Playwright atomic drag | verified 2026-03-26 | commit 420191f | npx tsc --noEmit (worktree, pre-existing errors only) | PASS

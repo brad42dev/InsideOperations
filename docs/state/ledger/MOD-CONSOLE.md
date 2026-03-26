@@ -50,3 +50,5 @@ MOD-CONSOLE-036 | Pane resize broken in edit mode — no onResizeStop handler, n
 MOD-CONSOLE-039 | Fix pane fullscreen — portal + double-click | verified 2026-03-26 | commit 6cbe43f | npx tsc --noEmit | PASS
 MOD-CONSOLE-040 | Add workspace browser fullscreen button to Console main toolbar | verified 2026-03-26 | commit fb81791 | npx tsc --noEmit | PASS
 MOD-CONSOLE-041 | Add "Open in New Window" button to Console workspace toolbar | verified 2026-03-26 | commit 1726571 | npx tsc --noEmit | PASS
+MOD-CONSOLE-042 | TT toggle button missing from Console toolbar — pane title hide-all not implemented | verified 2026-03-26 | commit 200def7 | npx tsc --noEmit (21287 pre-existing errors, 0 new) | PASS
+MOD-CONSOLE-044 | Console graphics picker now filters to process graphics only | verified 2026-03-26 | commit a7b363a | npx tsc --noEmit | PASS

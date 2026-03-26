@@ -3,45 +3,39 @@ unit: MOD-DESIGNER
 date: 2026-03-26
 uat_mode: auto
 verdict: partial
-scenarios_tested: 14
-scenarios_passed: 10
-scenarios_failed: 4
+scenarios_tested: 10
+scenarios_passed: 9
+scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /designer loads real implementation — toolbar, palette, canvas visible; no error boundary.
+✅ pass: Navigating to /designer loads real implementation — Designer home with Graphics, Dashboards, and Report Templates hub cards visible; no error boundary.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Designer Page Load | [MOD-DESIGNER-038] Designer page renders without error | ✅ pass | Toolbar, palette, canvas all visible; no error boundary |
-| 2 | Designer Page Load | [MOD-DESIGNER-038] New graphic canvas loads cleanly | ✅ pass | /designer/graphics/new creates canvas; no 429 error |
-| 3 | Multi-Tab File Management | [MOD-DESIGNER-037] File→New creates a second tab | ✅ pass | Two tabs visible in tablist "Open graphics" after creating second graphic |
-| 4 | Multi-Tab File Management | [MOD-DESIGNER-037] Tab switching between graphics | ✅ pass | Clicking first tab switches canvas without error |
-| 5 | Palette Tile Right-Click | [MOD-DESIGNER-043] Palette tile right-click shows context menu | ✅ pass | [role="menu"] appeared; no element placed on canvas |
-| 6 | Palette Tile Right-Click | [MOD-DESIGNER-040] Context menu has "Place at Center" and "Add to Favorites" | ✅ pass | Both items present in palette tile context menu |
-| 7 | Canvas Node Context Menus | [MOD-DESIGNER-042] Annotation right-click includes "Change Style" | ❌ fail | Context menu lacked "Change Style"; items seen: Cut/Copy/Paste/Duplicate/Delete/Group/Ungroup/Rotate/Flip/Lock/Bind Point/Rename/Properties — no "Change Style" |
-| 8 | Canvas Node Context Menus | [MOD-DESIGNER-039] TextBlock context menu shows text-specific items | ✅ pass | "Edit Text" visible in TextBlock context menu |
-| 9 | Test Mode PointContextMenu | [MOD-DESIGNER-041] Test mode right-click shows PointContextMenu not edit menu | ✅ pass | Test mode context menu showed data-point options (trend, view detail, acknowledge) — not the edit menu |
-| 10 | Canvas Drag Interactions | [MOD-DESIGNER-047] Canvas drag-to-move repositions element | ❌ fail | browser_drag timed out with "subtree intercepts pointer events"; JS pointer event dispatch also failed — undo remained "Undo: Resize" not "Undo: Move" |
-| 11 | Canvas Drag Interactions | [MOD-DESIGNER-048] Escape key cancels in-progress drag | ❌ fail | Untestable — underlying drag-to-move is broken; cannot test cancel of a drag that never starts |
-| 12 | Canvas Drag Interactions | [MOD-DESIGNER-044] Drag ghost visible during palette→canvas drag | ❌ fail | MutationObserver (window.__ghostSeen) confirmed ghostSeen=false; #io-canvas-drag-ghost never added to DOM during palette→canvas drag |
-| 13 | Group Management | [MOD-DESIGNER-046] Ctrl+G creates group node in scene tree | ✅ pass | Undo showed "Undo: Group"; scene tree showed "Group 1 / Group" with 3 children |
-| 14 | Group Management | [MOD-DESIGNER-046] Group context menu has "Open in Tab" | ✅ pass | "Open in Tab" present in group context menu |
+| 1 | Designer Home | [MOD-DESIGNER-054] Designer home renders without error | ✅ pass | Hub cards (Graphics, Dashboards, Report Templates) visible; no error boundary |
+| 2 | Designer Home | [MOD-DESIGNER-054] data flow: Graphics hub card visible alongside Dashboards and Report Templates | ✅ pass | All three hub cards present; counts show "—" (loading state, backend unavailable) |
+| 3 | Designer Home | [MOD-DESIGNER-054] Graphics Browse navigates to /designer/graphics | ✅ pass | URL became /designer/graphics; listing showed 50 graphics |
+| 4 | Designer Home | [MOD-DESIGNER-054] Graphics + New navigates to /designer/graphics/new | ✅ pass | URL became /designer/graphics/new; New Graphic form with canvas preset options appeared |
+| 5 | Drag Ghost | [MOD-DESIGNER-053] Palette drag ghost #io-canvas-drag-ghost detected in DOM during drag | ✅ pass | MutationObserver confirmed window.__ghostSeen=true during Text Readout palette→canvas drag |
+| 6 | Canvas Drag | [MOD-DESIGNER-049][MOD-DESIGNER-051] Canvas drag-to-move moves element without duplicates | ✅ pass | Element moved from translate(100,150) to translate(50,140); scene panel still shows 1 element |
+| 7 | Canvas Drag | [MOD-DESIGNER-049][MOD-DESIGNER-051] Undo after drag shows "Undo: Move" | ✅ pass | Undo button label showed "Undo: Move" after drag-move completed |
+| 8 | Escape Cancel | [MOD-DESIGNER-052] Escape cancels in-progress canvas drag | ❌ fail | Cannot test mid-drag Escape via Playwright — browser_drag is atomic (no interrupt); synthetic dispatchEvent did not confirm drag state was entered; untestable with available tools |
+| 9 | Annotation Menu | [MOD-DESIGNER-050] Annotation right-click shows "Change Style" | ✅ pass | Right-click on text node showed [role="menu"] containing "Change Style" menuitem |
+| 10 | Annotation Menu | [MOD-DESIGNER-050] "Change Style" opens style submenu | ✅ pass | Submenu opened with style options: Normal ✓, Heading, Subheading, Label, Caption (aria-expanded=true confirmed) |
 
 ## New Bug Tasks Created
 
-MOD-DESIGNER-050 — Annotation node right-click "Change Style" still absent after MOD-DESIGNER-042 fix
-MOD-DESIGNER-051 — Canvas drag-to-move still broken after MOD-DESIGNER-047 fix
-MOD-DESIGNER-052 — Escape key drag-cancel untestable — depends on broken canvas drag-to-move (MOD-DESIGNER-051)
-MOD-DESIGNER-053 — Palette-to-canvas drag ghost #io-canvas-drag-ghost still absent after MOD-DESIGNER-044 fix
+MOD-DESIGNER-055 — Escape key drag-cancel still untestable — mid-drag Escape requires native pointer event interrupt not achievable with Playwright's atomic browser_drag
 
 ## Screenshot Notes
 
-- fail-s7-change-style-missing.png — Annotation context menu snapshot; no "Change Style" item present
-- fail-s10-drag-move.png — Canvas after failed drag-to-move attempt; element did not move
-- fail-s12-no-drag-ghost.png — Canvas after palette→canvas drag; MutationObserver confirmed ghost element never appeared
-- Seed data: UNAVAILABLE (psql not accessible) — data flow scenarios not applicable to MOD-DESIGNER (graphics editor, not data-display unit)
+- annotation-context-menu.png — Context menu visible on text annotation; menu extends below viewport but "Change Style" confirmed present in accessibility tree
+- change-style-result.png — After clicking "Change Style"; submenu open with Normal/Heading/Subheading/Label/Caption options
+- fail-s8-escape-drag-inconclusive.png — Canvas state during Scenario 8; synthetic drag events could not confirm drag state initiation before Escape
+- Seed data: UNAVAILABLE (psql not accessible)
+- Note: Previous UAT session created tasks MOD-DESIGNER-050 through 054 as bug tasks; this session tests those same tasks now marked verified

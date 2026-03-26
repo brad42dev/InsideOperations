@@ -17,3 +17,4 @@
 | MOD-PROCESS-023 | No minimap toggle button in main Process view toolbar | pending | 0 |
 | MOD-PROCESS-024 | Kiosk mode breadcrumb nav bar ("Process" heading) still visible at /process?kiosk=true | pending | 0 |
 | MOD-PROCESS-025 | Add "Open in New Window" button to Process view toolbar | pending | 0 |
+| MOD-PROCESS-026 | No "Open in New Window" button in Process view toolbar | pending | 0 |

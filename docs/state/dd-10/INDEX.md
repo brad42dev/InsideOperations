@@ -8,3 +8,4 @@
 | DD-10-018 | TrendChart widget crashes — results.some is not a function | pending | 0 |
 | DD-10-019 | Equipment Health dashboard crashes — QualityDistribution widget throws sources.filter is not a function | pending | 0 |
 | DD-10-020 | Executive Summary dashboard crashes — RoundsCompletion widget throws instances.filter is not a function | pending | 0 |
+| DD-10-022 | Detached dashboard view shows "Failed to load dashboard" when opened via "Open in New Window" | pending | 0 |

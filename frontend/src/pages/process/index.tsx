@@ -1737,20 +1737,23 @@ export default function ProcessPage() {
               Map
             </button>
 
-            {/* Open in New Window button — opens detached process view, hidden in kiosk (toolbar already gated) */}
-            {selectedId && (
-              <button
-                onClick={() => { window.open(`/detached/process/${selectedId}`, '_blank', 'noopener,noreferrer') }}
-                title="Open view in new window"
-                style={toolbarBtnStyle}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-              </button>
-            )}
+            {/* Open in New Window button — opens detached process view, disabled when no graphic loaded */}
+            <button
+              onClick={() => { if (selectedId) window.open(`/detached/process/${selectedId}`, '_blank', 'noopener,noreferrer') }}
+              title={selectedId ? 'Open view in new window' : 'No graphic loaded'}
+              disabled={!selectedId}
+              style={{
+                ...toolbarBtnStyle,
+                opacity: selectedId ? 1 : 0.4,
+                cursor: selectedId ? 'pointer' : 'not-allowed',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </button>
 
             {/* Fullscreen button */}
             <button

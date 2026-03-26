@@ -38,3 +38,6 @@
 | MOD-CONSOLE-039 | Fix pane fullscreen — position:fixed trapped inside RGL transform ancestor; add double-click activation | pending | 0 |
 | MOD-CONSOLE-040 | Add workspace browser fullscreen button to Console main toolbar | pending | 0 |
 | MOD-CONSOLE-041 | Add "Open in New Window" button to Console workspace toolbar | pending | 0 |
+| MOD-CONSOLE-042 | TT toggle button missing from Console toolbar — pane title hide-all not implemented | pending | 0 |
+| MOD-CONSOLE-043 | Workspace browser fullscreen button missing from Console main toolbar | pending | 0 |
+| MOD-CONSOLE-044 | Console graphics picker still shows DCS shape library shapes instead of process graphics | pending | 0 |

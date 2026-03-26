@@ -9,3 +9,5 @@
 | DD-06-028 | G-key hint overlay still not rendering after G press | pending | 0 |
 | DD-06-029 | G-key navigation still broken — G+P, G+D, G+R are silent no-ops | pending | 0 |
 | DD-06-030 | Kiosk mode does not enter browser fullscreen | pending | 0 |
+| DD-06-031 | G-key hint overlay still not rendering — 0 DOM elements after G press | pending | 0 |
+| DD-06-032 | G-key navigation incomplete — G+D and G+R are silent no-ops, only G+P works | pending | 0 |

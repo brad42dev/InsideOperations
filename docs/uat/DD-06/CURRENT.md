@@ -3,40 +3,40 @@ unit: DD-06
 date: 2026-03-26
 uat_mode: auto
 verdict: partial
-scenarios_tested: 10
+scenarios_tested: 9
 scenarios_passed: 5
-scenarios_failed: 5
+scenarios_failed: 4
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /console loads real implementation — full console UI with sidebar navigation, workspace tabs, asset palette, and header.
+✅ pass: Navigating to /console loads real implementation — full console UI with workspaces, assets panel, and header.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | App Shell Baseline | [DD-06-022] Page renders without crash | ✅ pass | /console loads, no error boundary, URL intact |
-| 2 | G-Key Overlay | [DD-06-023] G-key overlay appears on G press | ❌ fail | No overlay/hint element in DOM after pressing G; querySelectorAll returned 0 elements |
-| 3 | G-Key Overlay | [DD-06-023] G-key overlay auto-dismisses | ❌ fail | No overlay appeared to dismiss; root cause same as Scenario 2 |
-| 4 | G-Key Overlay | [DD-06-022] G pressed 3 times without crash | ✅ pass | Page stayed at /console after 3 G presses with 3s wait each, no crash, no about:blank |
-| 5 | G-Key Navigation | [DD-06-021] G+P navigates to /process | ❌ fail | URL remained at /console after G then P; no navigation occurred |
-| 6 | G-Key Navigation | [DD-06-024] G+D navigates to /designer | ❌ fail | URL remained at /console after G then D; no navigation occurred |
-| 7 | G-Key Navigation | [DD-06-021] G+R navigates to /reports | ❌ fail | URL remained at /console after G then R; no navigation occurred |
-| 8 | Command Palette | [DD-06-026] Command palette opens with Ctrl+K | ✅ pass | Dialog "Command Palette" appeared with combobox and full navigation options list |
-| 9 | Command Palette | [DD-06-026] Fuzzy matching — "cons" → Console first | ✅ pass | "Console" appeared at top (selected) when typing "cons"; not alphabetically ordered |
-| 10 | Command Palette | [DD-06-026] Escape closes palette | ✅ pass | Escape dismissed the dialog; no dialog in subsequent snapshot |
+| 1 | App Shell | [DD-06-027] App shell renders without error | ✅ pass | /console loads, no error boundary |
+| 2 | App Shell | [DD-06-027] Alert badge renders in header | ✅ pass | Header renders, Alerts button present, no crash |
+| 3 | G-Key Overlay | [DD-06-028] G-key overlay appears after G press | ❌ fail | querySelectorAll('[class*="hint"], [class*="overlay"]') returned 0 elements after G press — overlay not in DOM |
+| 4 | G-Key Overlay | [DD-06-028] G-key overlay auto-dismisses | ❌ fail | Pre-condition failed: overlay never appeared (blocked by scenario 3) |
+| 5 | G-Key Nav | [DD-06-029] G+P navigates to /process | ✅ pass | URL changed to /process, Process module loaded correctly |
+| 6 | G-Key Nav | [DD-06-029] G+D navigates to /designer | ❌ fail | URL stayed at /console after G+D — no navigation occurred |
+| 7 | G-Key Nav | [DD-06-029] G+R navigates to /reports | ❌ fail | URL stayed at /console after G+R — no navigation occurred |
+| 8 | Kiosk Mode | [DD-06-030] User menu has "Enter Kiosk Mode" | ✅ pass | "Enter Kiosk Mode" button visible in user menu dropdown |
+| 9 | Kiosk Mode | [DD-06-030] Kiosk mode activation triggers fullscreen | ✅ pass | document.fullscreenElement = HTML confirmed; URL → /console?mode=kiosk; notification shown |
 
 ## New Bug Tasks Created
 
-DD-06-028 — G-key hint overlay not rendering after G press (overlay absent, navigation broken)
-DD-06-029 — G-key navigation broken — G+P, G+D, G+R all silent no-ops
+DD-06-031 — G-key hint overlay still not rendering — 0 DOM elements after G press
+DD-06-032 — G-key navigation incomplete — G+D and G+R are silent no-ops, only G+P works
 
 ## Screenshot Notes
 
-- dd06-scenario2-gkey-no-overlay.png: Console at /console after pressing G — no overlay visible anywhere on screen
-- dd06-scenario5-gkey-no-navigate.png: Console at /console after G+P — URL unchanged, still on /console
-- Seed data status: UNAVAILABLE (psql not accessible)
-- Console errors are all 404/thumbnail resource failures — not related to UAT failures
-- DialogContent missing DialogTitle warning fired when command palette opened — minor accessibility issue, palette functional
+- fail-scenario3-gkey-overlay.png: Console page after G press — no overlay visible, DOM query confirmed 0 hint/overlay elements
+- fail-scenario6-gkey-d-nav.png: Console page after G+D — URL still /console, no navigation
+- fail-scenario7-gkey-r-nav.png: Console page after G+R — URL still /console, no navigation
+- G+P navigation works correctly but G+D and G+R are silent no-ops — only 'p' appears to be mapped
+- DD-06-030 appears FIXED: kiosk mode now triggers actual browser fullscreen (document.fullscreenElement = HTML)
+- User menu contains all expected items: Theme switcher (Light/Dark/HPHMI), My Exports, About Inside/Operations, Enter Kiosk Mode

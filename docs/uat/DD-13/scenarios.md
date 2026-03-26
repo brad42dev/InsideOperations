@@ -1,32 +1,21 @@
 # UAT Scenarios — DD-13
 
-## Log Module — Page Load & RBAC
-Scenario 1: [DD-13-017] Log module renders without error — navigate to /log → page loads, no error boundary, navigation tabs visible (Entries, Templates, Schedules)
-Scenario 2: [DD-13-017] Log/templates route accessible for admin — navigate to /log/templates → templates list or empty state loads (no Access Denied / PermissionGuard block)
-Scenario 3: [DD-13-017] Log/schedules route accessible for admin — navigate to /log/schedules → schedules list or empty state loads (no Access Denied / PermissionGuard block)
+## Basic Module Load
+Scenario 1: [DD-13-027] Log module renders without error — navigate to /log → page loads with no error boundary, no blank screen, no "Something went wrong"
+Scenario 2: [DD-13-028] Navigate to /log/new without browser crash — navigate to /log/new → page loads, LogNew component visible (template dropdown or form present, no crash)
 
-## Data Flow — Templates API
-Scenario 4: [DD-13-024] — data flow: GET /api/v1/logs/templates —
-  1. Navigate to /log/new
-  2. Perform action that triggers load: page load auto-fetches templates via React Query
-  3. Wait for response: browser_wait_for time=3000
-  4. Snapshot and check: template dropdown/select must contain named options (Test Template, Shift Handover, UAT Test Template, or similar)
-  Pass: at least one named template option is present in the dropdown AND no error boundary visible
-  Fail: dropdown empty, still loading, error boundary, or "No data" when seed templates exist
+## Templates API & List
+Scenario 3: [DD-13-022] — data flow: GET /api/v1/logs/templates — navigate to /log/new, wait 3s → template dropdown shows ≥1 template name (not empty, not "No templates")
+Scenario 4: [DD-13-029] /log/templates page shows template rows — navigate to /log/templates, wait 3s → at least one template row visible (not "No templates yet. Create one to get started.")
+Scenario 5: [DD-13-029] /log Templates tab shows template rows — navigate to /log, click Templates tab, wait 3s → at least one template row visible
 
-## Log New Entry — Template Dropdown
-Scenario 5: [DD-13-024] Template dropdown populates on /log/new — navigate to /log/new, wait 3s, click/open template select → named template options visible
-Scenario 6: [DD-13-024] Start Entry button enables after template selection — select any template from dropdown → "Start Entry" button becomes enabled/clickable
+## Log Instance Creation
+Scenario 6: [DD-13-025] Create log instance succeeds — navigate to /log/new, select a template, click Start Entry/Create → no error shown, navigates to log instance editor (not a 500 error page)
+Scenario 7: [DD-13-026] Save new template succeeds — navigate to /log/templates/new, fill in template name, click Save → no 500 error, template saved (confirmation or redirect to template list)
 
-## Log Entry Creation
-Scenario 7: [DD-13-023] Creating a log instance navigates to editor — select template, click Start Entry → navigates away from /log/new to editor page (not stays on /log/new or shows error)
+## PointDataSegment & Context Menu
+Scenario 8: [DD-13-030] PointDataSegment shows point rows — navigate to /log/new, select "Test Log with Points" template, create instance → PointDataSegment section shows ≥1 point row (not "No points configured for this segment.")
+Scenario 9: [DD-13-021] PointContextMenu on point row — in a log instance with PointDataSegment showing point rows, right-click a point row → [role="menu"] appears with point-specific actions (Point Detail, Trend Point, Copy Tag Name, or similar)
 
-## WYSIWYG Editor — Font Family
-Scenario 8: [DD-13-016] Font-family control visible in toolbar — start a log entry to reach editor → toolbar contains a font-family selector (select/dropdown with font names)
-
-## Template List — Right-click Context Menu
-Scenario 9: [DD-13-019] Right-click on template row opens context menu — navigate to /log/templates, right-click a template row → [role="menu"] appears
-Scenario 10: [DD-13-019] Template context menu contains expected items — after right-click on template row → menu contains Edit Template, Duplicate, Delete items
-
-## Point Data Segment — Right-click Context Menu
-Scenario 11: [DD-13-018] Point context menu on PointDataSegment row — open a log entry with a point data segment, right-click a point row → context menu appears with point-specific actions
+## Data Flow
+Scenario 10: [DD-13-022] — data flow: GET /api/v1/logs/instances — navigate to /log, wait 3s → log entries list visible with entries or graceful empty state (no error boundary, no 500 error displayed)

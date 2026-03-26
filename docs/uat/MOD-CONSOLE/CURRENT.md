@@ -3,41 +3,47 @@ unit: MOD-CONSOLE
 date: 2026-03-26
 uat_mode: auto
 verdict: partial
-scenarios_tested: 12
-scenarios_passed: 11
-scenarios_failed: 1
+scenarios_tested: 15
+scenarios_passed: 13
+scenarios_failed: 2
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-✅ pass: Navigating to /console loads real implementation — app shell, left nav, workspace panes visible. No stub or blank page.
+✅ pass: Navigating to /console loads real implementation — workspace tabs, left nav panel with Favorites/Graphics/Widgets/Points sections, workspace pane grid. No error boundary.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Load | [MOD-CONSOLE-022] Console page renders without error | ✅ pass | App shell, nav, panes all visible. No error boundary. |
-| 2 | Data Flow | [MOD-CONSOLE-022] data flow: GET /api/v1/workspaces — workspace list renders | ✅ pass | "Workspace 2" and "Reactor Overview" visible in left nav Workspaces section |
-| 3 | Favorites | [MOD-CONSOLE-027] Favorites group visible when no favorites set | ✅ pass | "Favorites" group + "No favorites yet" visible in Workspaces section on fresh load |
-| 4 | Favorites | [MOD-CONSOLE-022] Favoriting a workspace adds it to Favorites group | ✅ pass | Clicked "Add to Favorites" → "Workspace 2" appeared under Favorites group, count updated to 1 |
-| 5 | View Mode | [MOD-CONSOLE-023] View-mode selector buttons in Workspaces section header | ✅ pass | List/Thumbnails/Grid icon buttons present in WORKSPACES section header |
-| 6 | View Mode | [MOD-CONSOLE-023] Clicking view-mode button changes layout | ✅ pass | Clicked "Thumbnails view" → button became [active], item layout changed to thumbnail cards |
-| 7 | Search | [MOD-CONSOLE-024] Search/filter input in Workspaces section | ✅ pass | "Filter workspaces…" searchbox present inside Workspaces accordion |
-| 8 | Search | [MOD-CONSOLE-024] Search/filter input in Graphics section | ✅ pass | "Filter graphics…" searchbox present inside Graphics accordion |
-| 9 | Detached | [MOD-CONSOLE-031] Detached console route has no Phase 7 stub | ✅ pass | /detached/console/test-id shows minimal shell (Connected status, clock) + "Workspace not found" for invalid ID. No "Phase 7" text. |
-| 10 | Kiosk | [MOD-CONSOLE-026] Kiosk corner dwell exit trigger | ✅ pass | /console?kiosk=true: simulated mousemove to (0,0) → after 2s "Exit Kiosk" button appeared |
-| 11 | Save Feedback | [MOD-CONSOLE-029] Dirty indicator on workspace tab after layout change | ❌ fail | After layout change (JS-triggered 2×2→1×1), tab innerHTML = "Workspace 2" only — no dot, asterisk, badge, or child span. No dirty indicator. |
-| 12 | Resize | [MOD-CONSOLE-030] Left nav panel resize handle exists | ✅ pass | separator "Resize assets palette width" visible in accessibility tree at panel edge; also section-height separators present |
+| 1 | Page Load | [MOD-CONSOLE-001] Console renders without error | ✅ pass | Full UI visible, no error boundary |
+| 2 | Data Flow | [MOD-CONSOLE-001] GET /api/v1/workspaces — workspaces load | ✅ pass | "Workspace 3" and "Reactor Overview" visible in nav and tabs |
+| 3 | Left Nav | [MOD-CONSOLE-001][MOD-CONSOLE-016] Favorites group visible | ✅ pass | "Favorites" section with "No favorites yet" present in left nav |
+| 4 | Left Nav | [MOD-CONSOLE-001] View-mode selector (list/grid/thumbnail) | ✅ pass | All 3 view mode buttons visible in Workspaces section header |
+| 5 | Context Menu | [MOD-CONSOLE-034] Right-click workspace in list view | ✅ pass | Menu shows: Open, Add to Favorites, Rename…, Duplicate, Delete |
+| 6 | Context Menu | [MOD-CONSOLE-034] Right-click workspace in thumbnail view | ✅ pass | Full menu: Open, Add to Favorites, Rename…, Duplicate, Delete |
+| 7 | Context Menu | [MOD-CONSOLE-034] Right-click workspace in grid view | ✅ pass | Full menu: Open, Add to Favorites, Rename…, Duplicate, Delete |
+| 8 | Dirty Indicator | [MOD-CONSOLE-029][MOD-CONSOLE-032] Tab shows unsaved indicator | ✅ pass | Tab changed to "Workspace 3 Unsaved changes" immediately after layout change in edit mode |
+| 9 | Toolbar | [MOD-CONSOLE-038] TT toggle button present | ❌ fail | Toolbar shows AR, Export, "Open workspace in new window", Edit — NO "TT" button anywhere |
+| 10 | Detached Route | [MOD-CONSOLE-025][MOD-CONSOLE-028] /detached/console/:id not Phase 7 stub | ✅ pass | Shows minimal shell: Connected status, clock, fullscreen button, "Workspace not found" for invalid ID. No "Phase 7" text. |
+| 11 | Toolbar | [MOD-CONSOLE-040] Workspace browser fullscreen button | ❌ fail | Toolbar shows AR, Export, "Open workspace in new window", Edit — NO workspace browser fullscreen button |
+| 12 | Toolbar | [MOD-CONSOLE-041] "Open in New Window" button present | ✅ pass | "Open workspace in new window" button (pop-out icon) present in toolbar |
+| 13 | Kiosk Mode | [MOD-CONSOLE-011] Kiosk mode via ?kiosk=true | ✅ pass | Sidebar and app header completely hidden; only workspace content visible |
+| 14 | Edit Mode | [MOD-CONSOLE-036] Pane resize in edit mode | ✅ pass | Edit mode active with layout combobox; react-grid-layout renders resize handles on pane borders |
+| 15 | Fullscreen | [MOD-CONSOLE-039] Pane fullscreen button present | ✅ pass | "Full screen (F11)" button visible in each pane title bar in live mode |
 
 ## New Bug Tasks Created
 
-MOD-CONSOLE-032 — Workspace tab dirty indicator missing after layout change in edit mode
+MOD-CONSOLE-042 — TT toggle button missing from Console toolbar — pane title hide-all not implemented
+MOD-CONSOLE-043 — Workspace browser fullscreen button missing from Console main toolbar
+MOD-CONSOLE-044 — Console graphics picker still shows DCS shape library shapes instead of process graphics
 
 ## Screenshot Notes
 
-- Seed data: UNAVAILABLE (psql not accessible — docker container was stopped, restarted during session)
-- Thumbnail 404 errors in console are expected — graphics thumbnails not yet generated; does not affect core functionality
-- fail-s11-no-dirty-indicator.png: screenshot shows "Workspace 2" tab with no dirty indicator after layout change; edit mode was exited, but the tab showed no indicator during the edit mode layout change either
-- S10 (kiosk corner dwell): tested via JS mousemove event dispatch to (0,0); "Exit Kiosk" button confirmed present after 2s dwell
-- S9 (detached console): MOD-CONSOLE-025, MOD-CONSOLE-028, MOD-CONSOLE-031 all describe the same underlying bug (Phase 7 stub on /detached/console/:id); the route now works correctly
+- docs/uat/MOD-CONSOLE/fail-s9-s11-toolbar-missing-buttons.png — Console toolbar showing AR, Export, pop-out, Edit only. No TT button and no workspace browser fullscreen button.
+- docs/uat/MOD-CONSOLE/edit-mode-panes.png — Edit mode with 3×2 layout showing pane grid with drag/resize handles.
+- Seed data status: UNAVAILABLE (psql not accessible). Data flow scenario passed — workspaces loaded from frontend mock/API.
+- ADDITIONAL FINDING (MOD-CONSOLE-033): Graphics section in left nav still shows DCS shape library shapes (Air Cooler / Fin-Fan, Ball Valve, Butterfly Valve, Centrifugal Pump, Compressor, etc.) instead of process graphics filtered by module='console'. Bug fix was not applied or not effective.
+- MOD-CONSOLE-035 (delete last workspace): Not formally tested — could not reduce to 1 workspace during session. Left as partial.
+- MOD-CONSOLE-037 (drag pane displacement): Not formally tested — drag behavior via a11y tree not reliable. Left as partial.

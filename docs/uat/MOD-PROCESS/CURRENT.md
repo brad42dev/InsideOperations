@@ -3,46 +3,41 @@ unit: MOD-PROCESS
 date: 2026-03-26
 uat_mode: auto
 verdict: partial
-scenarios_tested: 16
-scenarios_passed: 15
+scenarios_tested: 12
+scenarios_passed: 11
 scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /process loads real implementation — sidebar with graphics list, view toolbar with zoom/export/print/map, status bar with LOD and zoom percentage.
+pass: Navigating to /process loads real implementation — sidebar with graphics list, view toolbar with zoom/export/print/map/bookmark, status bar with LOD and zoom percentage.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Load | [MOD-PROCESS-011] Process module renders without error | ✅ pass | Heading "Process", sidebar, canvas, toolbar all visible |
-| 2 | Page Load | [MOD-PROCESS-011] data flow: GET /api/v1/graphics | ✅ pass | Sidebar loaded with full graphics list (Air Cooler, Alarm Annunciator, etc.) |
-| 3 | Toolbar | [MOD-PROCESS-014] Print button visible in view toolbar | ✅ pass | `button "Print"` present in toolbar |
-| 4 | Toolbar | [MOD-PROCESS-014] Export button present in toolbar | ✅ pass | `button "Export"` and split button present |
-| 5 | Bookmark | [MOD-PROCESS-021] Bookmark star button opens dialog | ✅ pass | `dialog "Save Viewport Bookmark"` opens with Name and Description fields |
-| 6 | Bookmark | [MOD-PROCESS-021] Bookmark dialog blocks empty name | ✅ pass | "Name is required" validation error shown, dialog stays open |
-| 7 | Zoom | [MOD-PROCESS-011] Zoom controls in toolbar | ✅ pass | `button "−"` and `button "+"` present |
-| 8 | Zoom | [MOD-PROCESS-011] Zoom percentage shown in status bar | ✅ pass | "100%" shown in status bar |
-| 9 | Minimap | [MOD-PROCESS-017] Minimap toggle button in view toolbar | ✅ pass | `button "Map"` present in toolbar |
-| 10 | Minimap | [MOD-PROCESS-017] Minimap toggle changes state | ✅ pass | Button entered [active] state after click |
-| 11 | LOD | [MOD-PROCESS-013] LOD level indicator in status bar | ✅ pass | "LOD 3 – Detail" shown in status bar |
-| 12 | Kiosk | [MOD-PROCESS-019] Kiosk mode hides breadcrumb nav bar | ❌ fail | `banner: heading "Process"` still visible at /process?kiosk=true — breadcrumb nav bar NOT hidden |
-| 13 | Kiosk | [MOD-PROCESS-022] Kiosk mode hides view toolbar | ✅ pass | No toolbar buttons (zoom/export/print/map) rendered in kiosk mode |
-| 14 | Kiosk | [MOD-PROCESS-019] Escape exits kiosk mode | ✅ pass | Full app shell (sidebar, toolbar, banner) restored after Escape |
-| 15 | Detached | [MOD-PROCESS-016] Detached route renders component | ✅ pass | /detached/process/test-view-id renders minimal window with connection status, view name, time, zoom controls, map, fullscreen — no main app nav |
-| 16 | Tokens | [MOD-PROCESS-018] Connection status indicator visible | ✅ pass | "Disconnected" status indicator present in status bar |
+| 1 | Page Load | [MOD-PROCESS-023] Process page renders without error | ✅ pass | Module content visible, no error boundary |
+| 2 | Data Flow | [MOD-PROCESS-025] data flow: GET /api/v1/process/views | ✅ pass | Graphics list loaded (Air Cooler / Fin-Fan, Ball Valve, etc. visible in sidebar) |
+| 3 | Toolbar | [MOD-PROCESS-023] Minimap toggle button in main toolbar | ✅ pass | `button "Map"` present in view toolbar |
+| 4 | Toolbar | [MOD-PROCESS-025] Open in New Window button in main toolbar | ❌ fail | No "Open in New Window" or external-link button found in toolbar; toolbar contains: 100%, −, +, Fit, 100%, ● Live, ◷ Historical, ★, Export, Print, Map, Toggle fullscreen |
+| 5 | Bookmark | [MOD-PROCESS-015] Bookmark ★ button visible in toolbar | ✅ pass | `button "★"` present |
+| 6 | Bookmark | [MOD-PROCESS-015] Clicking ★ opens Name/Description dialog | ✅ pass | `dialog "Save Viewport Bookmark"` with Name (required) and Description (optional) fields appeared |
+| 7 | Bookmark | [MOD-PROCESS-015] Bookmark dialog blocks empty-Name submit | ✅ pass | "Name is required" validation error shown, dialog stayed open |
+| 8 | Kiosk | [MOD-PROCESS-024] Kiosk mode hides "Process" heading/banner | ✅ pass | No banner or heading "Process" in accessibility snapshot at /process?kiosk=true |
+| 9 | Kiosk | [MOD-PROCESS-019] Kiosk mode hides view toolbar | ✅ pass | Zoom controls, Live/Historical, Export, Print, Map all absent in kiosk snapshot |
+| 10 | Kiosk | [MOD-PROCESS-019] Kiosk mode hides breadcrumb nav | ✅ pass | No breadcrumb nav bar visible in kiosk mode |
+| 11 | Kiosk | [MOD-PROCESS-024] Escape exits kiosk mode | ✅ pass | heading "Process" and full toolbar restored after Escape |
+| 12 | Toast | [MOD-PROCESS-012] Toast container present | ✅ pass | `region "Notifications (F8)"` with aria list present — toast infrastructure wired up |
 
 ## New Bug Tasks Created
 
-MOD-PROCESS-024 — Kiosk mode: breadcrumb nav bar ("Process" heading) still visible at /process?kiosk=true
+MOD-PROCESS-026 — No "Open in New Window" button in Process view toolbar
 
 ## Screenshot Notes
 
-- Seed data status: UNAVAILABLE (psql not accessible) — data flow scenario evaluated on empty-state graceful handling
-- Scenario 12 FAIL: /process?kiosk=true shows `banner: heading "Process" [level=1]` in accessibility tree — the Process module-level banner is not hidden in kiosk mode. The app shell sidebar (nav, services) IS correctly hidden. The view toolbar IS correctly hidden. Only the breadcrumb banner persists.
-- Kiosk mode correctly hides: app shell sidebar, view toolbar (zoom/live/historical/bookmark/export/print/map/fullscreen), status bar
-- Kiosk mode fails to hide: the `<banner>` containing the "Process" h1 heading
-- Escape key correctly exits kiosk mode and restores all elements
-- Detached route (/detached/process/:viewId) fully implemented: connection dot, view name, current time, zoom±/Fit/Map/⤢ controls, no app chrome
+- Seed data status: UNAVAILABLE (psql not accessible) — data flow scenario evaluated on graceful load of graphics metadata list
+- S4 FAIL: Toolbar at /process contains: 100%, −, +, Fit, 100%, ● Live, ◷ Historical, ★, Export, Print, Map, Toggle fullscreen. No "Open in New Window" button anywhere in toolbar or toolbar overflow. Screenshot saved: s4-no-open-in-new-window.png
+- Kiosk mode (S8-S11): all kiosk chrome-hiding is now working correctly — banner, toolbar, breadcrumbs all hidden. Escape exits correctly. Fixes confirmed for MOD-PROCESS-019 and MOD-PROCESS-024.
+- Bookmark dialog (S6-S7): fully implemented with Name/Description fields and Name required validation.
+- MOD-PROCESS-023 (minimap toggle): previously failing — now ✅ Map button present in main toolbar.

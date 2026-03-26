@@ -1,66 +1,58 @@
 # UAT Scenarios — MOD-CONSOLE
 
-Session date: 2026-03-26
-Tasks: MOD-CONSOLE-022, MOD-CONSOLE-023, MOD-CONSOLE-024, MOD-CONSOLE-025, MOD-CONSOLE-026,
-       MOD-CONSOLE-027, MOD-CONSOLE-028, MOD-CONSOLE-029, MOD-CONSOLE-030, MOD-CONSOLE-031
+17 tasks to UAT: MOD-CONSOLE-001, MOD-CONSOLE-002, MOD-CONSOLE-011, MOD-CONSOLE-016,
+MOD-CONSOLE-025, MOD-CONSOLE-028, MOD-CONSOLE-029, MOD-CONSOLE-032, MOD-CONSOLE-033,
+MOD-CONSOLE-034, MOD-CONSOLE-035, MOD-CONSOLE-036, MOD-CONSOLE-037, MOD-CONSOLE-038,
+MOD-CONSOLE-039, MOD-CONSOLE-040, MOD-CONSOLE-041
+
 Seed data status: UNAVAILABLE (psql not accessible)
 
 ## Page Load
 
-Scenario 1: [MOD-CONSOLE-022] Console page renders without error — navigate to /console → app shell loads, workspace pane visible, no "Something went wrong" error boundary text
+Scenario 1: [MOD-CONSOLE-001] Console page renders without error — navigate to /console → page loads with workspace list or empty-state visible, no error boundary ("Something went wrong")
 
-Scenario 2: [MOD-CONSOLE-022] — data flow: GET /api/v1/workspaces — navigate to /console, wait 3s, snapshot left nav Workspaces section — workspace name visible OR meaningful empty-state ("No workspaces"); pass if no error boundary or crash
+## Data Flow
 
-## Left Nav — Favorites Group
+Scenario 2: [MOD-CONSOLE-001] — data flow: GET /api/v1/workspaces — navigate to /console, wait 3s, check that workspace name(s) appear in left nav OR empty-state "Create workspace" CTA is shown; NOT stuck "Loading..."; NOT error boundary. Pass: named workspace OR empty-state CTA visible. Fail: blank/error/stuck loading. ⚠️ seed data status unknown.
 
-Scenario 3: [MOD-CONSOLE-027] Favorites group visible in Workspaces section when empty — navigate to /console → Workspaces accordion section → "Favorites" group label visible at top with "No favorites yet" placeholder
-Pass: "Favorites" text visible in Workspaces section even when nothing is favorited
-Fail: No Favorites group visible at top of Workspaces section
+## Left Nav Panel
 
-Scenario 4: [MOD-CONSOLE-022] Favoriting adds workspace to Favorites group — use "Add to Favorites" button on a workspace → workspace appears inside Favorites group
-Pass: favorited workspace name appears under Favorites group
-Fail: workspace not in Favorites group after favoriting
+Scenario 3: [MOD-CONSOLE-001][MOD-CONSOLE-016] Favorites group visible in left nav — navigate to /console → left nav panel shows "Favorites" section/group header
 
-## Left Nav — View Mode Buttons
+Scenario 4: [MOD-CONSOLE-001] View-mode selector present in left nav — navigate to /console → left nav shows list/grid/thumbnail toggle buttons or a view-mode dropdown with at least 2 modes
 
-Scenario 5: [MOD-CONSOLE-023] View-mode selector buttons in Workspaces section header — navigate to /console → WORKSPACES section header shows three icon buttons (List / Thumbnails / Grid) at top-right
-Pass: at least one of List/Thumbnails/Grid icon buttons visible in WORKSPACES header
-Fail: no view-mode buttons; only section title and collapse arrow
+Scenario 5: [MOD-CONSOLE-034] Right-click workspace in list view shows full context menu — right-click workspace row → [role="menu"] with Rename, Duplicate, Delete items (not just Open)
 
-Scenario 6: [MOD-CONSOLE-023] Clicking view-mode button changes layout — click Thumbnails or Grid button → workspace items re-render in new layout
-Pass: visible layout change after clicking button
-Fail: no visible change (silent no-op)
+## Context Menu in Alternate Views
 
-## Left Nav — Search/Filter
+Scenario 6: [MOD-CONSOLE-034] Right-click workspace in thumbnail view shows full context menu — switch to thumbnails view, right-click workspace card → [role="menu"] with Rename, Duplicate, Delete items
 
-Scenario 7: [MOD-CONSOLE-024] Search/filter input in Workspaces section — navigate to /console → Workspaces section → text search input visible inside section
-Pass: text input present inside Workspaces accordion
-Fail: no text input in Workspaces section
+Scenario 7: [MOD-CONSOLE-034] Right-click workspace in grid view shows full context menu — switch to grid view, right-click workspace card → [role="menu"] with Rename, Duplicate, Delete items
 
-Scenario 8: [MOD-CONSOLE-024] Search/filter input in Graphics section — navigate to /console → open Graphics section → text search input visible inside section
-Pass: text input present inside Graphics section
-Fail: no text input in Graphics section
+## Dirty Indicator
 
-## Detached Console Route
+Scenario 8: [MOD-CONSOLE-029][MOD-CONSOLE-032] Workspace tab dirty indicator appears on layout change — enter edit mode, change layout → workspace tab shows dot/asterisk/badge within 2s
 
-Scenario 9: [MOD-CONSOLE-031] Detached console route has no Phase 7 stub — navigate to /detached/console/test-id → page does NOT contain "Phase 7" text; shows minimal shell or workspace-not-found
-Pass: "Phase 7" absent; some real UI rendered
-Fail: "Phase 7" text present (stub still active)
+## Pane Title TT Toggle
+
+Scenario 9: [MOD-CONSOLE-038] TT toggle button present in Console toolbar — navigate to /console → toolbar contains "TT" button (hide-all-titles toggle)
+
+## Detached Route
+
+Scenario 10: [MOD-CONSOLE-025][MOD-CONSOLE-028] Detached console route not a Phase 7 stub — navigate to /detached/console/test-id → NO "Phase 7" text visible; shows minimal shell or workspace-not-found state
+
+## Toolbar Buttons
+
+Scenario 11: [MOD-CONSOLE-040] Workspace browser fullscreen button in Console toolbar — navigate to /console → toolbar shows a fullscreen button for the workspace browser
+
+Scenario 12: [MOD-CONSOLE-041] "Open in New Window" button in Console toolbar — navigate to /console → toolbar shows "Open in New Window" or pop-out icon button
 
 ## Kiosk Mode
 
-Scenario 10: [MOD-CONSOLE-026] Kiosk corner dwell exit trigger — navigate to /console?kiosk=true → hover mouse to top-left corner → wait 2s → "Exit Kiosk" button appears near corner
-Pass: element with "Exit Kiosk" or "exit" text visible after corner dwell
-Fail: no exit button appears after waiting in corner
+Scenario 13: [MOD-CONSOLE-011] Kiosk mode via ?kiosk=true — navigate to /console?kiosk=true → app chrome hidden (sidebar, top nav not visible); full-screen workspace active
 
-## Workspace Save Feedback
+## Edit Mode
 
-Scenario 11: [MOD-CONSOLE-029] Dirty indicator on workspace tab after layout change — navigate to /console, modify workspace layout → workspace tab shows dot/asterisk/badge while save pending
-Pass: dirty indicator visible on workspace tab
-Fail: tab shows only name with no save-state indicator
+Scenario 14: [MOD-CONSOLE-036] Pane resize handles visible in edit mode — enter edit mode with 2+ panes → resize handle visible on pane borders (hover shows resize cursor)
 
-## Left Nav Resize Handle
-
-Scenario 12: [MOD-CONSOLE-030] Left nav panel resize handle exists — navigate to /console → right edge of Assets panel has draggable resize handle (col-resize cursor or splitter element)
-Pass: resize/splitter/drag-handle element visible at panel right edge
-Fail: no resize handle found at panel boundary
+Scenario 15: [MOD-CONSOLE-039] Pane fullscreen overlay button appears on hover — navigate to /console in live mode, hover over a pane → fullscreen/expand button visible as overlay in top-right corner of pane

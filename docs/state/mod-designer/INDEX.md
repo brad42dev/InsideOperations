@@ -57,3 +57,4 @@
 | MOD-DESIGNER-052 | Escape key drag-cancel untestable — depends on broken canvas drag-to-move (MOD-DESIGNER-051) | pending | 0 |
 | MOD-DESIGNER-053 | Palette-to-canvas drag ghost #io-canvas-drag-ghost still absent after MOD-DESIGNER-044 fix | pending | 0 |
 | MOD-DESIGNER-054 | Designer Home missing Graphics hub card (Browse + New buttons absent) | pending | 0 |
+| MOD-DESIGNER-055 | Escape key drag-cancel still untestable — mid-drag Escape cannot be verified via Playwright atomic drag | pending | 0 |
