@@ -12,26 +12,25 @@ export default function LogNew() {
   const { data: templates = [], isLoading, isError, error: queryError } = useQuery({
     queryKey: ['log', 'templates', 'active'],
     queryFn: async () => {
-      const res = await logsApi.listTemplates({ is_active: true })
-      if (!res.success) return []
+      try {
+        const res = await logsApi.listTemplates({ is_active: true })
+        console.log('[LogNew] API response success:', res.success)
 
-      // Handle different response shapes from the API client
-      // Expected: res.data is PaginatedResult<LogTemplate> with { data: LogTemplate[], pagination: ... }
-      // But it might also be an array directly if the API client unwrapping is different
-      const responseData = res.data as any
+        if (!res.success) {
+          console.error('[LogNew] API failed:', res.error?.message)
+          return []
+        }
 
-      // Check if it's already an array (API client returned data directly)
-      if (Array.isArray(responseData)) {
-        return responseData
+        // API client returns either:
+        // 1. Array directly: res.data = [LogTemplate, ...]
+        // 2. Paginated result: res.data = { data: [LogTemplate, ...], pagination: ... }
+        const templates = Array.isArray(res.data) ? res.data : (res.data as { data: unknown[] })?.data ?? []
+        console.log('[LogNew] Fetched templates:', templates.length, templates)
+        return templates
+      } catch (error) {
+        console.error('[LogNew] Fetch error:', error)
+        return []
       }
-
-      // Check if it's a paginated result with a data array
-      if (responseData && typeof responseData === 'object' && Array.isArray(responseData.data)) {
-        return responseData.data
-      }
-
-      // Fallback: return empty array if shape doesn't match
-      return []
     },
   })
 
@@ -145,6 +144,14 @@ export default function LogNew() {
         {isError && (
           <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: '#ef4444' }}>
             Failed to load templates: {queryError ? String(queryError) : 'Unknown error'}
+            <br />
+            {queryError && <small>Error details: {JSON.stringify(queryError)}</small>}
+          </div>
+        )}
+
+        {!isLoading && !isError && templates.length === 0 && (
+          <div style={{ padding: '10px 14px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', fontSize: '13px', color: '#3b82f6' }}>
+            No active templates available. Create a template in Settings to get started.
           </div>
         )}
 
