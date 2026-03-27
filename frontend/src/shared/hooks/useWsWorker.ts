@@ -4,6 +4,7 @@
 // so existing callers (useWebSocket.ts) can delegate to it without rewriting.
 
 import { wsTicketApi } from '../../api/ws-ticket'
+import { useRealtimeStore } from '../../store/realtimeStore'
 
 // Local copy of detectDeviceType — cannot import from useWebSocket.ts as that
 // module imports wsWorkerConnector from this file (would create a circular dep).
@@ -58,6 +59,20 @@ const musterPersonAccountedHandlers = new Set<(data: MusterPersonAccounted) => v
 // Notification delivery status events (from Alert Service)
 export interface NotificationStatusChanged { message_id: string; status: string; channel?: string; recipient_count?: number }
 const notificationStatusHandlers = new Set<(data: NotificationStatusChanged) => void>()
+
+// Alarm state events — published by the Data Broker when any alarm transitions state.
+// Source-agnostic: covers OPC A&C, threshold evaluator, universal import, and future sources.
+export interface AlarmStateUpdate {
+  point_id: string
+  /** 1=Critical, 2=High, 3=Medium, 4=Advisory, 0=Cleared/Normal */
+  priority: number
+  active: boolean
+  unacknowledged: boolean
+  suppressed: boolean
+  message?: string
+  timestamp: string
+}
+const alarmStateHandlers = new Set<(data: AlarmStateUpdate) => void>()
 
 // Alarm count events — published by the Data Broker when alarms are created or acknowledged
 export interface AlarmCountUpdate {
@@ -130,21 +145,25 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
         pendingReconnect = true  // will reconnect when visible
       }
       stateListeners.forEach((fn) => fn(state))
+      useRealtimeStore.getState().setConnectionStatus(state)
       break
     }
     case 'update': {
-      const point_id = msg.point_id as string | undefined
-      if (!point_id) break
-      const handlers = subscribers.get(point_id)
-      if (handlers) {
-        const update: PointValue = {
-          pointId: point_id,
-          value: (msg.value as number | undefined) ?? 0,
-          quality: (msg.quality as string | undefined) ?? 'unknown',
-          timestamp: (msg.timestamp as string | undefined) ?? new Date().toISOString(),
-          stale: false,
+      // Broker sends: { type: "update", payload: { points: [{id, v, q, t}, ...] } }
+      const payload = msg.payload as { points?: Array<{ id: string; v: number; q: string; t: number }> } | undefined
+      const points = payload?.points ?? []
+      for (const pt of points) {
+        const handlers = subscribers.get(pt.id)
+        if (handlers) {
+          const update: PointValue = {
+            pointId: pt.id,
+            value: pt.v ?? 0,
+            quality: pt.q ?? 'unknown',
+            timestamp: pt.t ? new Date(pt.t).toISOString() : new Date().toISOString(),
+            stale: false,
+          }
+          handlers.forEach((fn) => fn(update))
         }
-        handlers.forEach((fn) => fn(update))
       }
       break
     }
@@ -301,6 +320,26 @@ function handleWorkerMessage(msg: Record<string, unknown>) {
         recipient_count: payload.recipient_count as number | undefined,
       }
       notificationStatusHandlers.forEach((fn) => fn(data))
+      break
+    }
+    case 'alarm_state_changed': {
+      // Broker broadcasts alarm state transitions to all connected clients.
+      // The payload matches WsServerMessage::AlarmStateChanged from io-bus.
+      const payload = (msg.payload as Record<string, unknown> | undefined) ?? msg
+      const data: AlarmStateUpdate = {
+        point_id: (payload.point_id as string | undefined) ?? '',
+        priority: (payload.priority as number | undefined) ?? 0,
+        active: (payload.active as boolean | undefined) ?? false,
+        unacknowledged: (payload.unacknowledged as boolean | undefined) ?? false,
+        suppressed: (payload.suppressed as boolean | undefined) ?? false,
+        message: payload.message as string | undefined,
+        timestamp: (payload.timestamp as string | undefined) ?? new Date().toISOString(),
+      }
+      alarmStateHandlers.forEach((fn) => fn(data))
+      // Also update the alarm store buffer so SceneRenderer picks it up synchronously
+      import('../../store/alarmStore').then(({ useAlarmStore }) => {
+        useAlarmStore.getState().updateAlarmState(data)
+      })
       break
     }
     case 'alarm_count_update': {
@@ -474,6 +513,12 @@ export const wsWorkerConnector = {
     return () => { alarmAcknowledgedHandlers.delete(fn) }
   },
 
+  /** Subscribe to alarm state transitions (source-agnostic: OPC A&C, threshold, import). */
+  onAlarmStateChange(fn: (data: AlarmStateUpdate) => void): () => void {
+    alarmStateHandlers.add(fn)
+    return () => { alarmStateHandlers.delete(fn) }
+  },
+
   sendStatusReport(renderFps: number, pendingUpdates: number, lastBatchProcessMs: number) {
     const p = getPort()
     p.postMessage({
@@ -499,6 +544,7 @@ export const wsWorkerConnector = {
     alarmCountUpdateHandlers.clear()
     alarmCreatedHandlers.clear()
     alarmAcknowledgedHandlers.clear()
+    alarmStateHandlers.clear()
     currentState = 'disconnected'
     stateListeners.forEach((fn) => fn('disconnected'))
   },

@@ -21,24 +21,44 @@ interface PointTooltip {
   x: number
   y: number
   pointId: string
+  tagLabel: string
   value: string
   units: string
   quality: string
   timestamp: string
+  opacity: number
 }
 
 // ── Walk up the DOM tree to find the nearest ancestor with data-point-id ─────
 
-function findPointId(target: EventTarget | null): string | null {
+function formatTooltipValue(v: number | string): string {
+  const n = typeof v === 'string' ? parseFloat(v) : v
+  if (!isFinite(n)) return String(v)
+  const abs = Math.abs(n)
+  if (abs === 0) return '0'
+  if (abs >= 10000) return n.toFixed(0)
+  if (abs >= 1000) return n.toFixed(1)
+  if (abs >= 100) return n.toFixed(2)
+  if (abs >= 10) return n.toFixed(3)
+  if (abs >= 1) return n.toFixed(3)
+  return parseFloat(n.toPrecision(3)).toString()
+}
+
+function findPointInfo(target: EventTarget | null): { id: string; tag: string | null } | null {
   let el = target as HTMLElement | null
   while (el) {
-    if (el.dataset?.pointId) return el.dataset.pointId
-    // Also handle SVG elements (which may use getAttribute)
-    const attr = el.getAttribute?.('data-point-id')
-    if (attr) return attr
+    const id = el.dataset?.pointId || el.getAttribute?.('data-point-id')
+    if (id) {
+      const tag = el.dataset?.pointTag || el.getAttribute?.('data-point-tag') || null
+      return { id, tag }
+    }
     el = el.parentElement
   }
   return null
+}
+
+function findPointId(target: EventTarget | null): string | null {
+  return findPointInfo(target)?.id ?? null
 }
 
 interface Props {
@@ -47,33 +67,33 @@ interface Props {
   preserveAspectRatio?: boolean
 }
 
-/** Walk a SceneNode tree and collect every bound pointId or expressionId. */
+/** Walk a SceneNode tree and collect every bound pointId (UUID) or expressionId. */
 function extractPointIds(nodes: SceneNode[]): string[] {
   const ids = new Set<string>()
 
   function walk(n: SceneNode) {
-    // Direct binding (DisplayElement, TextBlock, AnalogBar, etc.)
-    // Also picks up expressionId — the broker treats expression results as virtual points
     if ('binding' in n && n.binding && typeof n.binding === 'object') {
       const b = n.binding as { pointId?: string; expressionId?: string }
       if (b.pointId) ids.add(b.pointId)
       if (b.expressionId) ids.add(b.expressionId)
     }
-    // Series bindings (TrendWidget)
+    if (n.type === 'symbol_instance' && 'stateBinding' in n) {
+      const sb = n.stateBinding as { pointId?: string; expressionId?: string } | undefined
+      if (sb?.pointId) ids.add(sb.pointId)
+      if (sb?.expressionId) ids.add(sb.expressionId)
+    }
     if ('series' in n && Array.isArray(n.series)) {
       for (const s of n.series as { binding?: { pointId?: string; expressionId?: string } }[]) {
         if (s.binding?.pointId) ids.add(s.binding.pointId)
         if (s.binding?.expressionId) ids.add(s.binding.expressionId)
       }
     }
-    // Slice bindings (PieChart)
     if ('slices' in n && Array.isArray(n.slices)) {
       for (const s of n.slices as { binding?: { pointId?: string; expressionId?: string } }[]) {
         if (s.binding?.pointId) ids.add(s.binding.pointId)
         if (s.binding?.expressionId) ids.add(s.binding.expressionId)
       }
     }
-    // Recurse into child nodes
     if ('children' in n && Array.isArray(n.children)) {
       for (const child of n.children) walk(child as SceneNode)
     }
@@ -83,9 +103,42 @@ function extractPointIds(nodes: SceneNode[]): string[] {
   return Array.from(ids)
 }
 
-/** Walk a SceneNode tree and collect pointIds for sparkline display elements. */
-function extractSparklinePointIds(nodes: SceneNode[]): string[] {
-  const ids = new Set<string>()
+/** Collect all tag-name bindings (pointTag, or legacy tag stored in pointId) across display elements and symbol instances. */
+function extractTagBindings(nodes: SceneNode[]): string[] {
+  const tags = new Set<string>()
+  function walk(n: SceneNode) {
+    if (n.type === 'display_element' && 'binding' in n) {
+      const b = n.binding as { pointId?: string; pointTag?: string }
+      if (b.pointTag) {
+        tags.add(b.pointTag)
+      } else if (b.pointId && !UUID_RE.test(b.pointId)) {
+        tags.add(b.pointId)
+      }
+    }
+    if (n.type === 'symbol_instance' && 'stateBinding' in n) {
+      const sb = n.stateBinding as { pointId?: string; pointTag?: string } | undefined
+      if (sb?.pointTag) {
+        tags.add(sb.pointTag)
+      } else if (sb?.pointId && !UUID_RE.test(sb.pointId)) {
+        tags.add(sb.pointId)
+      }
+    }
+    if ('children' in n && Array.isArray(n.children)) {
+      for (const child of n.children) walk(child as SceneNode)
+    }
+  }
+  for (const n of nodes) walk(n)
+  return Array.from(tags)
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Walk a SceneNode tree and collect sparkline bindings split into UUIDs and tags,
+ *  plus the maximum timeWindowMinutes across all sparklines. */
+function extractSparklineBindings(nodes: SceneNode[]): { uuids: string[]; tags: string[]; maxWindowMinutes: number } {
+  const uuids = new Set<string>()
+  const tags = new Set<string>()
+  let maxWindowMinutes = 30
   function walk(n: SceneNode) {
     if (
       n.type === 'display_element' &&
@@ -93,15 +146,22 @@ function extractSparklinePointIds(nodes: SceneNode[]): string[] {
       (n as { displayType: string }).displayType === 'sparkline' &&
       'binding' in n
     ) {
-      const pid = (n.binding as { pointId?: string }).pointId
-      if (pid) ids.add(pid)
+      const b = n.binding as { pointId?: string; pointTag?: string }
+      if (b.pointTag) {
+        tags.add(b.pointTag)
+      } else if (b.pointId) {
+        if (UUID_RE.test(b.pointId)) uuids.add(b.pointId)
+        else tags.add(b.pointId)
+      }
+      const cfg = (n as { config?: { timeWindowMinutes?: number } }).config
+      if (cfg?.timeWindowMinutes) maxWindowMinutes = Math.max(maxWindowMinutes, cfg.timeWindowMinutes)
     }
     if ('children' in n && Array.isArray(n.children)) {
       for (const child of n.children) walk(child as SceneNode)
     }
   }
   for (const n of nodes) walk(n)
-  return Array.from(ids)
+  return { uuids: Array.from(uuids), tags: Array.from(tags), maxWindowMinutes }
 }
 
 const isPhone = detectDeviceType() === 'phone'
@@ -109,7 +169,7 @@ const isTablet = detectDeviceType() === 'tablet'
 
 /** Extract point bindings with fractional positions for TileGraphicViewer overlays. */
 function extractTileBindings(doc: GraphicDocument) {
-  const { width, height } = doc.canvas
+  const { width, height } = doc.canvas ?? { width: 0, height: 0 }
   const out: Array<{ pointId: string; label?: string; x: number; y: number }> = []
 
   function walk(n: SceneNode) {
@@ -139,36 +199,105 @@ function clamp(value: number, min: number, max: number): number {
 
 export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio = true }: Props) {
   const [statusView, setStatusView] = useState(false)
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['graphic', graphicId],
     queryFn: async () => {
       const result = await graphicsApi.get(graphicId)
-      if (result.success) return result.data
-      throw new Error('Failed to load graphic')
+      if (!result.success) throw new Error('Failed to load graphic')
+      const doc = result.data
+      // scene_data must be a valid GraphicDocument (spec §2.2) — it has canvas + children[].
+      // DB rows that store raw GraphicModel or legacy bindings formats will not have these fields.
+      if (!Array.isArray(doc.scene_data?.children) || !doc.scene_data?.canvas) {
+        throw new Error('Graphic is not yet rendered — open it in Designer to generate scene data')
+      }
+      return doc
     },
     staleTime: 30_000,
   })
 
-  // Derive the list of point IDs once the graphic is loaded
-  const pointIds = useMemo(
-    () => (data ? extractPointIds(data.scene_data.children ?? []) : []),
+  // Derive the list of direct UUID point IDs
+  const directPointIds = useMemo(
+    () => (data ? extractPointIds(data.scene_data?.children ?? []) : []),
     [data],
   )
 
-  // Derive sparkline point IDs for history fetching
-  const sparklinePointIds = useMemo(
-    () => (data ? extractSparklinePointIds(data.scene_data.children ?? []) : []),
+  // Collect all tag-name bindings that need resolution for subscriptions/tooltips
+  const allTagBindings = useMemo(
+    () => (data ? extractTagBindings(data.scene_data?.children ?? []) : []),
     [data],
   )
 
-  // Fetch sparkline history — last 30 minutes, 14 samples, refresh every 60s
+  // Resolve all tag bindings to UUIDs (used for subscriptions and tooltip values)
+  const { data: resolvedAllTags } = useQuery({
+    queryKey: ['resolve-all-tags', allTagBindings],
+    queryFn: async () => {
+      if (allTagBindings.length === 0) return {} as Record<string, string>
+      const result = await graphicsApi.resolveTags(allTagBindings)
+      return (result.success ? result.data : {}) as Record<string, string>
+    },
+    staleTime: Infinity,
+    enabled: allTagBindings.length > 0,
+  })
+
+  // Full point ID list: direct UUIDs + resolved tag UUIDs
+  const pointIds = useMemo(() => {
+    const ids = new Set(directPointIds)
+    if (resolvedAllTags) {
+      for (const uuid of Object.values(resolvedAllTags)) {
+        if (uuid) ids.add(uuid)
+      }
+    }
+    return Array.from(ids)
+  }, [directPointIds, resolvedAllTags])
+
+  // Reverse map: UUID → tag name, for tooltip display
+  const uuidToTagMap = useMemo(() => {
+    const m = new Map<string, string>()
+    if (resolvedAllTags) {
+      for (const [tag, uuid] of Object.entries(resolvedAllTags)) {
+        if (uuid) m.set(uuid, tag)
+      }
+    }
+    return m
+  }, [resolvedAllTags])
+
+  // Derive sparkline bindings split by UUID vs tag
+  const sparklineBindings = useMemo(
+    () => (data ? extractSparklineBindings(data.scene_data?.children ?? []) : { uuids: [], tags: [], maxWindowMinutes: 30 }),
+    [data],
+  )
+
+  // Resolve sparkline tags to UUIDs (needed when tag names are stored in binding)
+  const { data: resolvedSparklineTags } = useQuery({
+    queryKey: ['sparkline-resolve-tags', sparklineBindings.tags],
+    queryFn: async () => {
+      if (sparklineBindings.tags.length === 0) return {} as Record<string, string>
+      const result = await graphicsApi.resolveTags(sparklineBindings.tags)
+      return (result.success ? result.data : {}) as Record<string, string>
+    },
+    staleTime: Infinity,
+    enabled: sparklineBindings.tags.length > 0,
+  })
+
+  // Combine UUID sparklines + resolved tag UUIDs for the history fetch
+  const sparklinePointIds = useMemo(() => {
+    const ids = new Set(sparklineBindings.uuids)
+    if (resolvedSparklineTags) {
+      for (const uuid of Object.values(resolvedSparklineTags)) {
+        if (uuid) ids.add(uuid)
+      }
+    }
+    return Array.from(ids)
+  }, [sparklineBindings.uuids, resolvedSparklineTags])
+
+  // Fetch sparkline history — window driven by max timeWindowMinutes across all sparklines
   const { data: sparklineHistories } = useQuery({
-    queryKey: ['sparkline-history', sparklinePointIds],
+    queryKey: ['sparkline-history', sparklinePointIds, sparklineBindings.maxWindowMinutes],
     queryFn: async () => {
       if (sparklinePointIds.length === 0) return new Map<string, number[]>()
       const end = new Date().toISOString()
-      const start = new Date(Date.now() - 30 * 60 * 1000).toISOString()
-      const result = await pointsApi.historyBatch(sparklinePointIds, { start, end, limit: 14 })
+      const start = new Date(Date.now() - sparklineBindings.maxWindowMinutes * 60 * 1000).toISOString()
+      const result = await pointsApi.historyBatch(sparklinePointIds, { start, end, limit: 200 })
       if (!result.success) return new Map<string, number[]>()
       const map = new Map<string, number[]>()
       for (const r of result.data) {
@@ -229,6 +358,21 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
 
   const [tooltip, setTooltip] = useState<PointTooltip | null>(null)
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tooltipFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tooltipDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearTooltipDismissTimers = useCallback(() => {
+    if (tooltipFadeRef.current) { clearTimeout(tooltipFadeRef.current); tooltipFadeRef.current = null }
+    if (tooltipDismissRef.current) { clearTimeout(tooltipDismissRef.current); tooltipDismissRef.current = null }
+  }, [])
+
+  const scheduleTooltipDismiss = useCallback(() => {
+    clearTooltipDismissTimers()
+    tooltipFadeRef.current = setTimeout(() => {
+      setTooltip(t => t ? { ...t, opacity: 0 } : null)
+      tooltipDismissRef.current = setTimeout(() => setTooltip(null), 1000)
+    }, 1500)
+  }, [clearTooltipDismissTimers])
 
   // ── Point context menu state ─────────────────────────────────────────────────
 
@@ -293,40 +437,45 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
 
   const handleSvgMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      const pointId = findPointId(e.target)
-      if (!pointId) {
-        // Moved off a point-bound element — cancel pending tooltip but don't hide existing
+      const info = findPointInfo(e.target)
+      if (!info) {
         if (tooltipTimerRef.current) {
           clearTimeout(tooltipTimerRef.current)
           tooltipTimerRef.current = null
         }
+        // Mouse moved off a point — start dismiss timer (no-op if no tooltip is showing)
+        scheduleTooltipDismiss()
         return
       }
-      // Reset timer if we're already hovering a point
+      const { id: pointId, tag: domTag } = info
       if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
-      const clientX = e.clientX
-      const clientY = e.clientY
+      const rect = containerRef.current?.getBoundingClientRect()
+      const relX = e.clientX - (rect?.left ?? 0)
+      const relY = e.clientY - (rect?.top ?? 0)
       tooltipTimerRef.current = setTimeout(() => {
-        // Live mode: read from the ref (no re-render dependency)
-        // Historical mode: read from the React state pointValues map
         const livePv = !isHistorical ? tooltipValuesRef.current.get(pointId) : undefined
         const reactPv = isHistorical ? pointValues.get(pointId) : undefined
         const value = livePv?.value ?? reactPv?.value
         const quality = livePv?.quality ?? reactPv?.quality
+        // Show tag name: prefer data-point-tag from DOM, then reverse-lookup UUID→tag, then UUID
+        const tagLabel = domTag ?? uuidToTagMap.get(pointId) ?? pointId
+        clearTooltipDismissTimers()
         setTooltip({
-          x: clientX,
-          y: clientY,
+          x: relX,
+          y: relY,
           pointId,
-          value: value !== null && value !== undefined ? String(value) : '---',
+          tagLabel,
+          value: value !== null && value !== undefined ? formatTooltipValue(value) : '---',
           units: '',
           quality: quality ?? 'unknown',
           timestamp: new Date().toLocaleTimeString(),
+          opacity: 1,
         })
+        scheduleTooltipDismiss()
       }, 500)
     },
-    // pointValues only needed for historical mode; live mode reads from ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isHistorical, pointValues],
+    [isHistorical, pointValues, uuidToTagMap],
   )
 
   // Note: Per-element mouse-leave is handled at the container level via handleContainerMouseLeave.
@@ -337,15 +486,17 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
       clearTimeout(tooltipTimerRef.current)
       tooltipTimerRef.current = null
     }
+    clearTooltipDismissTimers()
     setTooltip(null)
-  }, [])
+  }, [clearTooltipDismissTimers])
 
-  // Clear timer on unmount
+  // Clear timers on unmount
   useEffect(() => {
     return () => {
       if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
+      clearTooltipDismissTimers()
     }
-  }, [])
+  }, [clearTooltipDismissTimers])
 
   // ── Point right-click context menu handler ───────────────────────────────────
 
@@ -396,23 +547,26 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLDivElement>) => {
+  // Wheel zoom — must use a non-passive listener to call preventDefault().
+  // React's synthetic onWheel is passive in modern browsers, so we attach manually.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9
       setZoom((prevZoom) => {
         const newZoom = clamp(prevZoom * zoomFactor, 0.25, 4.0)
-        const canvasX = e.nativeEvent.offsetX / prevZoom + panX
-        const canvasY = e.nativeEvent.offsetY / prevZoom + panY
-        const newPanX = canvasX - e.nativeEvent.offsetX / newZoom
-        const newPanY = canvasY - e.nativeEvent.offsetY / newZoom
-        setPanX(newPanX)
-        setPanY(newPanY)
+        const canvasX = e.offsetX / prevZoom + panX
+        const canvasY = e.offsetY / prevZoom + panY
+        setPanX(canvasX - e.offsetX / newZoom)
+        setPanY(canvasY - e.offsetY / newZoom)
         return newZoom
       })
-    },
-    [panX, panY],
-  )
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [panX, panY])
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     // Middle-click or Ctrl+left-click to pan
@@ -436,8 +590,8 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
 
   const zoomToFit = useCallback(() => {
     if (!data) return
-    const cw = data.scene_data.canvas.width
-    const ch = data.scene_data.canvas.height
+    const cw = data.scene_data?.canvas?.width ?? 0
+    const ch = data.scene_data?.canvas?.height ?? 0
     if (cw === 0 || ch === 0 || screenWidth === 0 || screenHeight === 0) return
     const newZoom = clamp(Math.min(screenWidth / cw, screenHeight / ch), 0.25, 4.0)
     setZoom(newZoom)
@@ -455,8 +609,8 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
     panX,
     panY,
     zoom,
-    canvasWidth: data?.scene_data.canvas.width ?? 0,
-    canvasHeight: data?.scene_data.canvas.height ?? 0,
+    canvasWidth: data?.scene_data?.canvas?.width ?? 0,
+    canvasHeight: data?.scene_data?.canvas?.height ?? 0,
     screenWidth,
     screenHeight,
   }), [panX, panY, zoom, data, screenWidth, screenHeight])
@@ -471,8 +625,8 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
 
   if (isError || !data) {
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--io-surface-primary)', color: 'var(--io-text-muted)', fontSize: 13 }}>
-        Failed to load graphic
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--io-surface-primary)', color: 'var(--io-text-muted)', fontSize: 13, padding: 16, textAlign: 'center' }}>
+        {error instanceof Error ? error.message : 'Failed to load graphic'}
       </div>
     )
   }
@@ -499,8 +653,8 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <TileGraphicViewer
             graphicId={graphicId}
-            graphicWidth={data.scene_data.canvas.width}
-            graphicHeight={data.scene_data.canvas.height}
+            graphicWidth={data.scene_data?.canvas?.width ?? 0}
+            graphicHeight={data.scene_data?.canvas?.height ?? 0}
             pointValues={pointValues}
             pointBindings={tileBindings}
             statusView={statusView}
@@ -516,7 +670,6 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
     <div
       ref={containerRef}
       style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative', cursor: panDragRef.current ? 'grabbing' : 'default' }}
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={(e) => {
         handleMouseMove(e)
@@ -606,7 +759,7 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
       {tooltip && (
         <div
           style={{
-            position: 'fixed',
+            position: 'absolute',
             left: tooltip.x + 14,
             top: tooltip.y - 8,
             zIndex: 1500,
@@ -619,10 +772,12 @@ export default function GraphicPane({ graphicId, onNavigate, preserveAspectRatio
             boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
             pointerEvents: 'none',
             minWidth: 160,
+            opacity: tooltip.opacity,
+            transition: 'opacity 1s ease-out',
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: 3, fontSize: 11, color: 'var(--io-text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            {tooltip.pointId}
+            {tooltip.tagLabel}
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
             <span style={{ fontSize: 16, fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>

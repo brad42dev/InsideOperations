@@ -216,6 +216,29 @@ pub struct NotifyPointValue {
     pub ts: String,      // RFC 3339
 }
 
+/// Sent on channel `alarm_state_changed` by Event Service (and OPC Service for pass-through
+/// A&C events).  Source-agnostic: covers threshold alarms, OPC A&C, imported events, and
+/// expression-based alarms.  All alarm state broadcasts use this same envelope regardless of
+/// how the underlying event reached the system.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotifyAlarmState {
+    /// The point this alarm is associated with.
+    pub point_id: Uuid,
+    /// ISA-18.2 priority (1=Critical/Urgent, 2=High, 3=Medium, 4=Advisory/Low, 0=Normal/Cleared).
+    pub priority: i32,
+    /// Condition is currently active (Unacknowledged or Acknowledged state).
+    pub active: bool,
+    /// Condition requires operator acknowledgment (Unacknowledged or ReturnToNormal state).
+    pub unacknowledged: bool,
+    /// Alarm is shelved, suppressed, or disabled (operator/design-time muted).
+    pub suppressed: bool,
+    /// Human-readable alarm message (condition name or description).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// ISO 8601 timestamp of the state change.
+    pub timestamp: String,
+}
+
 /// Sent on channel `point_metadata_changed`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyPointMetadataChanged {
@@ -423,6 +446,21 @@ pub enum WsServerMessage {
         person_name: String,
         muster_point: String,
         method: String,
+    },
+    /// Per-point alarm state change — broadcast to all clients whenever any alarm state
+    /// transitions.  Source-agnostic: threshold, OPC A&C, import, and expression alarms
+    /// all use this same message.  Frontend should update its alarm state buffer and
+    /// apply visual changes (flash class, alarm colors) to any bound display elements.
+    AlarmStateChanged {
+        point_id: Uuid,
+        /// ISA-18.2 priority 1–4 (1=most urgent), or 0 when cleared.
+        priority: i32,
+        active: bool,
+        unacknowledged: bool,
+        suppressed: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+        timestamp: String,
     },
 }
 

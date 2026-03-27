@@ -12,6 +12,8 @@ use tokio::time::{interval, Duration};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use io_bus::NotifyAlarmState;
+
 use crate::alarm_state::{transition, AlarmEvent, AlarmInstance, AlarmState};
 use crate::config::Config;
 
@@ -328,10 +330,24 @@ async fn persist_transition(
     .execute(db)
     .await?;
 
-    // Broadcast via PostgreSQL NOTIFY.
-    let payload = serde_json::to_string(instance).unwrap_or_default();
+    // Broadcast via PostgreSQL NOTIFY using the source-agnostic NotifyAlarmState envelope.
+    // All alarm sources (threshold, OPC A&C, import, expression) use this same shape.
+    let notify = NotifyAlarmState {
+        point_id: instance.point_id,
+        priority: if matches!(new_state, AlarmState::Normal | AlarmState::Disabled) {
+            0
+        } else {
+            instance.priority
+        },
+        active: matches!(new_state, AlarmState::Unacknowledged | AlarmState::Acknowledged),
+        unacknowledged: matches!(new_state, AlarmState::Unacknowledged | AlarmState::ReturnToNormal),
+        suppressed: matches!(new_state, AlarmState::Shelved | AlarmState::Suppressed | AlarmState::Disabled),
+        message: Some(instance.message.clone()),
+        timestamp: now.to_rfc3339(),
+    };
+    let notify_payload = serde_json::to_string(&notify).unwrap_or_default();
     sqlx::query("SELECT pg_notify('alarm_state_changed', $1)")
-        .bind(&payload)
+        .bind(&notify_payload)
         .execute(db)
         .await?;
 
@@ -487,5 +503,138 @@ fn alarm_state_to_db_str(s: &AlarmState) -> &'static str {
         AlarmState::Shelved => "shelved",
         AlarmState::Suppressed => "suppressed",
         AlarmState::Disabled => "disabled",
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Pass-through processor for externally-sourced alarm events
+// ---------------------------------------------------------------------------
+
+/// Process alarm events that arrived via external sources (OPC UA A&C, Universal Import,
+/// and future connectors).  These events land in the `events` table with
+/// `event_type = 'process_alarm'` but do NOT go through the threshold evaluator, so they
+/// would otherwise never reach the `alarm_state_changed` broadcast channel.
+///
+/// This function polls for new such events every 5 seconds (using a created_at watermark
+/// to avoid re-processing) and re-emits each as a standardised `NotifyAlarmState` NOTIFY
+/// so the data-broker can push the state to all WebSocket clients — regardless of source.
+///
+/// The ISA-18.2 state machine for these sources runs on the originating system (e.g. the
+/// OPC server itself); we pass the state through faithfully without re-evaluating it.
+pub async fn run_external_alarm_processor(db: PgPool) {
+    // On startup, look back 60 seconds so we catch events that arrived just before we
+    // connected.  After that we advance the watermark each cycle.
+    let mut watermark = Utc::now() - chrono::Duration::seconds(60);
+    let mut ticker = interval(Duration::from_secs(5));
+
+    info!("External alarm processor started (OPC A&C / Import events, 5-second poll)");
+
+    loop {
+        ticker.tick().await;
+
+        let now = Utc::now();
+
+        // Fetch the most recent process_alarm event per point for events that arrived
+        // after our last watermark.  DISTINCT ON (point_id) gives us the latest state
+        // per point in this window, which is exactly what we want to broadcast.
+        let rows = match sqlx::query(
+            r#"
+            SELECT DISTINCT ON (point_id)
+                point_id,
+                metadata,
+                timestamp
+            FROM events
+            WHERE event_type = 'process_alarm'
+              AND source IN ('opc', 'import')
+              AND point_id IS NOT NULL
+              AND created_at > $1
+            ORDER BY point_id, timestamp DESC
+            "#,
+        )
+        .bind(watermark)
+        .fetch_all(&db)
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(error = %e, "External alarm processor: DB query failed");
+                continue;
+            }
+        };
+
+        watermark = now;
+
+        for row in &rows {
+            let point_id: Uuid = match row.try_get("point_id") {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let metadata: Option<serde_json::Value> = row.try_get("metadata").unwrap_or(None);
+            let meta = match metadata {
+                Some(m) => m,
+                None => continue,
+            };
+
+            let active = meta.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+            let acked = meta.get("acked").and_then(|v| v.as_bool()).unwrap_or(false);
+            let suppressed_or_shelved = meta
+                .get("suppressed_or_shelved")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            // Derive priority: LimitState → priority number.
+            // "HighHigh" → 1 (Critical), "High" → 2, "Low" → 3, "LowLow" → 4, else advisory 4.
+            let limit_state = meta
+                .get("limit_state")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let priority = if active || acked {
+                limit_state_to_priority(limit_state)
+            } else {
+                0 // Cleared
+            };
+
+            let message = meta
+                .get("condition_name")
+                .or_else(|| meta.get("message"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let notify = NotifyAlarmState {
+                point_id,
+                priority,
+                active,
+                unacknowledged: active && !acked,
+                suppressed: suppressed_or_shelved,
+                message,
+                timestamp: now.to_rfc3339(),
+            };
+
+            let payload = match serde_json::to_string(&notify) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            if let Err(e) = sqlx::query("SELECT pg_notify('alarm_state_changed', $1)")
+                .bind(&payload)
+                .execute(&db)
+                .await
+            {
+                warn!(error = %e, %point_id, "External alarm processor: NOTIFY failed");
+            }
+        }
+
+        if !rows.is_empty() {
+            info!(count = rows.len(), "External alarm processor: broadcast {} alarm state(s)", rows.len());
+        }
+    }
+}
+
+/// Map OPC UA LimitState/CurrentState string to ISA-18.2 priority integer.
+fn limit_state_to_priority(limit_state: &str) -> i32 {
+    match limit_state {
+        "HighHigh" | "LowLow" => 1,
+        "High" | "Low" => 2,
+        _ => 4, // Advisory when no specific limit state
     }
 }

@@ -288,9 +288,12 @@ pub async fn set_source_status(
 #[derive(Debug, Clone)]
 pub struct OpcEvent {
     pub source_id: Uuid,
+    /// Resolved point UUID (from SourceName → points_metadata lookup via node_map).
+    /// NULL when the point is not known to the system.
+    pub point_id: Option<Uuid>,
     pub event_id: Option<String>,    // hex-encoded EventId bytes
     pub event_type: Option<String>,  // NodeId string of EventType
-    pub source_name: Option<String>, // SourceName field
+    pub source_name: Option<String>, // SourceName field (= point name string)
     pub timestamp: DateTime<Utc>,    // Time field
     pub severity: Option<u16>,       // Severity field (1–1000)
     pub message: Option<String>,     // Message.text field
@@ -298,6 +301,15 @@ pub struct OpcEvent {
     pub acked: bool,   // AckedState/Id
     pub active: bool,  // ActiveState/Id
     pub retain: bool,
+    /// LimitState/CurrentState — "HighHigh", "High", "Low", "LowLow", or "" for normal.
+    pub limit_state: Option<String>,
+    /// SuppressedOrShelved — true when the OPC server has shelved or suppressed this alarm.
+    pub suppressed_or_shelved: bool,
+    /// Configured alarm thresholds from the OPC server (HighHighLimit, HighLimit, etc.).
+    pub high_high_limit: Option<f64>,
+    pub high_limit: Option<f64>,
+    pub low_limit: Option<f64>,
+    pub low_low_limit: Option<f64>,
 }
 
 /// Batch-insert OPC UA events into the `events` hypertable.
@@ -320,17 +332,32 @@ pub async fn write_opc_events(db: &DbPool, events: &[OpcEvent]) -> anyhow::Resul
             "cleared"
         };
 
-        // Build metadata JSONB with OPC-specific fields.
+        // limit_state → ISA-18.2 priority integer for the events.priority column.
+        // The external alarm processor in event-service reads limit_state from
+        // metadata to derive the same priority for the alarm_state_changed broadcast.
+        let limit_state = ev.limit_state.as_deref().unwrap_or("");
+
+        // Build metadata JSONB with all OPC A&C fields.
+        // The external alarm processor in event-service reads `active`, `acked`,
+        // `limit_state`, and `suppressed_or_shelved` from here to reconstruct
+        // NotifyAlarmState for the alarm_state_changed broadcast.
         let metadata = serde_json::json!({
-            "source_id": ev.source_id,
-            "external_id": ev.event_id,
-            "source_ref": ev.source_name,
-            "condition_name": ev.condition_name,
-            "event_type": ev.event_type,
-            "alarm_state": alarm_state,
-            "acked": ev.acked,
-            "active": ev.active,
-            "retain": ev.retain,
+            "source_id":            ev.source_id,
+            "external_id":          ev.event_id,
+            "source_ref":           ev.source_name,
+            "condition_name":       ev.condition_name,
+            "event_type":           ev.event_type,
+            "alarm_state":          alarm_state,
+            "acked":                ev.acked,
+            "active":               ev.active,
+            "retain":               ev.retain,
+            // New fields from SimBLAH A&C spec — consumed by event-service processor
+            "limit_state":          limit_state,
+            "suppressed_or_shelved": ev.suppressed_or_shelved,
+            "high_high_limit":      ev.high_high_limit,
+            "high_limit":           ev.high_limit,
+            "low_limit":            ev.low_limit,
+            "low_low_limit":        ev.low_low_limit,
         });
 
         let message = ev.message.as_deref().unwrap_or("(no message)");
@@ -350,15 +377,16 @@ pub async fn write_opc_events(db: &DbPool, events: &[OpcEvent]) -> anyhow::Resul
                 'process_alarm',
                 'opc',
                 $1,
-                NULL,
                 $2,
                 $3,
-                $3,
-                $4
+                $4,
+                $4,
+                $5
             )
             "#,
         )
         .bind(severity)
+        .bind(ev.point_id)
         .bind(message)
         .bind(ev.timestamp)
         .bind(&metadata)
@@ -417,6 +445,7 @@ pub async fn notify_broker(
 
 /// A pending or running history recovery job.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RecoveryJob {
     pub id: Uuid,
     pub source_id: Uuid,
@@ -440,6 +469,32 @@ pub async fn get_last_history_timestamp(
     .fetch_one(db)
     .await
     .context("get_last_history_timestamp")?;
+    Ok(ts)
+}
+
+/// Returns the earliest timestamp among the 100 most recently recorded values
+/// for a source.  Used to compute the watchdog recovery window: we recover from
+/// `(earliest_of_last_100 - 5 min)` to `now` so no data is lost even if the
+/// last recorded point was slightly before the outage began.
+pub async fn get_earliest_of_recent_points(
+    db: &DbPool,
+    source_id: Uuid,
+) -> anyhow::Result<Option<DateTime<Utc>>> {
+    let ts = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+        r#"SELECT MIN(sub.time) AS earliest
+           FROM (
+               SELECT ph.time
+               FROM points_history_raw ph
+               JOIN points_metadata pm ON pm.id = ph.point_id
+               WHERE pm.source_id = $1
+               ORDER BY ph.time DESC
+               LIMIT 100
+           ) sub"#,
+    )
+    .bind(source_id)
+    .fetch_one(db)
+    .await
+    .context("get_earliest_of_recent_points")?;
     Ok(ts)
 }
 

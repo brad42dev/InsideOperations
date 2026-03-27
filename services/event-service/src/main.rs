@@ -43,11 +43,19 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState { db: db.clone(), config: cfg.clone() };
     let cfg_arc = Arc::new(cfg);
 
-    // Spawn the ISA-18.2 alarm evaluator as a background task.
+    // Spawn the ISA-18.2 threshold alarm evaluator.
     let eval_db = db.clone();
     let eval_cfg = cfg_arc.clone();
     tokio::spawn(async move {
         alarm_evaluator::run_alarm_evaluator(eval_db, eval_cfg).await;
+    });
+
+    // Spawn the external alarm processor: handles OPC A&C events and imported alarm
+    // events that land in the events table from non-threshold sources.
+    // This makes the alarm_state_changed broadcast source-agnostic.
+    let ext_db = db.clone();
+    tokio::spawn(async move {
+        alarm_evaluator::run_external_alarm_processor(ext_db).await;
     });
 
     let app: Router = Router::new()

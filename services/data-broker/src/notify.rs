@@ -7,7 +7,8 @@ use crate::{
 use chrono::DateTime;
 use dashmap::DashMap;
 use io_bus::{
-    NotifyPointUpdates, PointQuality, UdsPointBatch, UdsPointUpdate, WsServerMessage,
+    NotifyAlarmState, NotifyPointUpdates, PointQuality, UdsPointBatch, UdsPointUpdate,
+    WsServerMessage,
 };
 use io_db::DbPool;
 use std::collections::HashSet;
@@ -52,7 +53,12 @@ pub async fn run_notify_listener(
         return;
     }
 
-    info!("NOTIFY/LISTEN active on channels 'point_updates', 'export_complete'");
+    if let Err(e) = listener.listen("alarm_state_changed").await {
+        // Non-fatal: shapes won't receive real-time alarm state without this.
+        warn!(error = %e, "Failed to LISTEN on alarm_state_changed channel — alarm broadcasts disabled");
+    }
+
+    info!("NOTIFY/LISTEN active on channels 'point_updates', 'export_complete', 'alarm_state_changed'");
 
     loop {
         match listener.recv().await {
@@ -88,6 +94,9 @@ pub async fn run_notify_listener(
                             &user_connections,
                         )
                         .await;
+                    }
+                    "alarm_state_changed" => {
+                        broadcast_alarm_state_changed(payload, &connections);
                     }
                     other => {
                         warn!(channel = %other, "Received NOTIFY on unexpected channel — ignoring");
@@ -167,6 +176,51 @@ async fn handle_export_complete(
         %user_id,
         clients_sent = sent,
         "export_complete: sent notification to user connections"
+    );
+}
+
+/// Broadcast an alarm state change to every connected WebSocket client.
+///
+/// The `alarm_state_changed` NOTIFY is fired by the event-service whenever any alarm
+/// state transitions — regardless of whether the original event came from OPC UA A&C,
+/// a threshold evaluator, the Universal Import module, or an expression-based alarm.
+/// This function deserialises the payload and fans it out to all clients so their
+/// display elements (shapes, alarm indicators, etc.) can update immediately.
+fn broadcast_alarm_state_changed(
+    payload: &str,
+    connections: &DashMap<ClientId, mpsc::Sender<WsServerMessage>>,
+) {
+    let alarm: NotifyAlarmState = match serde_json::from_str(payload) {
+        Ok(a) => a,
+        Err(e) => {
+            warn!(error = %e, "Failed to parse alarm_state_changed NOTIFY payload — ignoring");
+            return;
+        }
+    };
+
+    let msg = WsServerMessage::AlarmStateChanged {
+        point_id: alarm.point_id,
+        priority: alarm.priority,
+        active: alarm.active,
+        unacknowledged: alarm.unacknowledged,
+        suppressed: alarm.suppressed,
+        message: alarm.message,
+        timestamp: alarm.timestamp,
+    };
+
+    let mut sent = 0usize;
+    for entry in connections.iter() {
+        if entry.value().try_send(msg.clone()).is_ok() {
+            sent += 1;
+        }
+    }
+
+    tracing::debug!(
+        point_id = %alarm.point_id,
+        priority = alarm.priority,
+        active = alarm.active,
+        clients = sent,
+        "alarm_state_changed broadcast"
     );
 }
 

@@ -26,6 +26,7 @@ io-health = { path = "../../crates/io-health" }
 io-observability = { path = "../../crates/io-observability" }
 io-models = { path = "../../crates/io-models" }
 io-db = { path = "../../crates/io-db" }
+io-bus = { path = "../../crates/io-bus" }
 sqlx.workspace = true
 uuid.workspace = true
 chrono.workspace = true

@@ -17,6 +17,8 @@ import './operationalState.css'
 import './lod.css'
 import { wsManager } from '../hooks/useWebSocket'
 import type { PointValue as WsPointValue } from '../hooks/useWebSocket'
+import { wsWorkerConnector } from '../hooks/useWsWorker'
+import type { AlarmStateUpdate } from '../hooks/useWsWorker'
 
 // ---- Point value types received from WebSocket ----
 
@@ -87,6 +89,8 @@ export function SceneRenderer({
   const overlayRef = useRef<HTMLDivElement>(null)
   const [shapeMap, setShapeMap] = useState<Map<string, { svg: string; sidecar: Record<string, unknown> }>>(new Map())
   const [stencilMap, setStencilMap] = useState<Map<string, string>>(new Map())
+  // Tag-to-UUID resolution for PortablePointBinding (pointTag) bindings
+  const [resolvedTagMap, setResolvedTagMap] = useState<Map<string, string>>(new Map())
 
   const { canvas, layers, children } = document
   const vp = viewport ?? {
@@ -118,6 +122,10 @@ export function SceneRenderer({
   // Mutable update buffer — incoming WS messages accumulate here, drained each rAF
   const pendingDomRef = useRef<Map<string, WsPointValue>>(new Map())
   const domRafPendingRef = useRef(false)
+  // Last-known PV per point — used to re-apply when alarm state changes independently
+  const lastPvRef = useRef<Map<string, WsPointValue>>(new Map())
+  // Current alarm state per point — merged into PV on each DOM apply
+  const alarmStateRef = useRef<Map<string, AlarmStateUpdate>>(new Map())
 
   // Build node config map whenever the scene graph changes
   useEffect(() => {
@@ -131,7 +139,7 @@ export function SceneRenderer({
         }
         if (n.type === 'symbol_instance') {
           const si = n as SymbolInstance
-          if (si.stateBinding?.pointId || si.stateBinding?.expressionId) {
+          if (si.stateBinding?.pointId || si.stateBinding?.expressionId || si.stateBinding?.pointTag) {
             map.set(si.id, {
               displayType: 'symbol_state',
               config: {},
@@ -175,7 +183,13 @@ export function SceneRenderer({
     if (pointIds.length === 0) return
 
     const handler = (pv: WsPointValue) => {
-      pendingDomRef.current.set(pv.pointId, pv)
+      // Merge current alarm state into pv before buffering
+      const alarm = alarmStateRef.current.get(pv.pointId)
+      const pvWithAlarm: WsPointValue = alarm
+        ? { ...pv, alarmPriority: (alarm.active || alarm.unacknowledged ? alarm.priority : null) as (1|2|3|4|5|null) }
+        : pv
+      lastPvRef.current.set(pv.pointId, pvWithAlarm)
+      pendingDomRef.current.set(pv.pointId, pvWithAlarm)
       if (!domRafPendingRef.current) {
         domRafPendingRef.current = true
         requestAnimationFrame(() => {
@@ -199,12 +213,37 @@ export function SceneRenderer({
       }
     }
 
+    // Alarm state changes arrive independently of point value updates.
+    // Re-apply the last-known PV merged with the new alarm state so visual
+    // alarm indicators update immediately without waiting for the next data tick.
+    const alarmHandler = (alarm: AlarmStateUpdate) => {
+      alarmStateRef.current.set(alarm.point_id, alarm)
+      const lastPv = lastPvRef.current.get(alarm.point_id)
+      const els = pointToElementsRef.current.get(alarm.point_id)
+      if (!els || !lastPv) return
+      const pvWithAlarm: WsPointValue = {
+        ...lastPv,
+        alarmPriority: (alarm.active || alarm.unacknowledged ? alarm.priority : null) as (1|2|3|4|5|null),
+      }
+      lastPvRef.current.set(alarm.point_id, pvWithAlarm)
+      for (const el of els) {
+        const nodeId = el.getAttribute('data-node-id')
+        if (!nodeId) continue
+        const conf = nodeConfigMapRef.current.get(nodeId)
+        if (!conf) continue
+        applyPointValue(el, conf.displayType, conf.config, pvWithAlarm)
+      }
+    }
+
     pointIds.forEach(id => wsManager.subscribe(id, handler))
+    const unsubAlarm = wsWorkerConnector.onAlarmStateChange(alarmHandler)
     return () => {
       pointIds.forEach(id => wsManager.unsubscribe(id, handler))
+      unsubAlarm()
       pendingDomRef.current.clear()
+      lastPvRef.current.clear()
     }
-  }, [document.id, children, liveSubscribe])
+  }, [document.id, children, liveSubscribe, resolvedTagMap])
 
   // Build layer lookup
   const layerMap = new Map<string, LayerDefinition>()
@@ -228,7 +267,11 @@ export function SceneRenderer({
         const si = n as SymbolInstance
         ids.push(si.shapeRef.shapeId)
         if (si.composableParts) {
-          for (const p of si.composableParts) ids.push(p.partId)
+          for (const p of si.composableParts) {
+            // DB may store partId as snake_case (part_id) — handle both
+            const pid = p.partId ?? (p as unknown as Record<string, string>)['part_id']
+            if (pid) ids.push(pid)
+          }
         }
       }
       if ('children' in n && Array.isArray(n.children)) {
@@ -278,6 +321,39 @@ export function SceneRenderer({
       const m = new Map<string, string>()
       for (const r of results) { if (r) m.set(r.id, r.svg) }
       if (m.size > 0) setStencilMap(prev => new Map([...prev, ...m]))
+    }).catch(console.error)
+  }, [document.id, children])
+
+  // Resolve tag-based (PortablePointBinding) bindings to UUIDs.
+  // Runs once per document load; populates resolvedTagMap so renderDisplayElement
+  // can set correct data-point-id values for the live DOM-mutation subscription.
+  useEffect(() => {
+    const tags: string[] = []
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    function collectTags(nodes: SceneNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'display_element') {
+          const de = n as DisplayElement
+          if (de.binding.pointTag) tags.push(de.binding.pointTag)
+          // Also handle legacy graphics where a tag name was saved into pointId by mistake
+          else if (de.binding.pointId && !UUID_RE.test(de.binding.pointId)) tags.push(de.binding.pointId)
+        }
+        if (n.type === 'symbol_instance') {
+          const si = n as SymbolInstance
+          if (si.stateBinding?.pointTag) tags.push(si.stateBinding.pointTag)
+          else if (si.stateBinding?.pointId && !UUID_RE.test(si.stateBinding.pointId)) tags.push(si.stateBinding.pointId)
+        }
+        if ('children' in n && Array.isArray(n.children)) collectTags(n.children as SceneNode[])
+      }
+    }
+    collectTags(children)
+    const unique = [...new Set(tags)]
+    if (unique.length === 0) return
+    graphicsApi.resolveTags(unique).then(result => {
+      if (result.success && result.data) {
+        const resolved = result.data as unknown as Record<string, string>
+        setResolvedTagMap(new Map(Object.entries(resolved)))
+      }
     }).catch(console.error)
   }, [document.id, children])
 
@@ -486,10 +562,19 @@ export function SceneRenderer({
   // Used to draw the signal line back toward the parent shape.
   // vesselInteriorPath: SVG path string from parent SymbolInstance's sidecar, used for vessel_overlay fill_gauge clip.
   function renderDisplayElement(node: DisplayElement, parentOffset?: { x: number; y: number }, vesselInteriorPath?: string): React.ReactElement | null {
-    // Use pointId if bound; fall back to expressionId (broker publishes expression results as virtual points)
-    const pvKey = node.binding.pointId ?? node.binding.expressionId
+    // Resolve binding: UUID pointId wins; fall back to resolved tag (pointTag or legacy
+    // pointId-stored-as-tag); then expressionId.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const rawPointId = node.binding.pointId
+    const isTagInPointId = rawPointId && !UUID_RE.test(rawPointId)
+    const pvKey = (rawPointId && !isTagInPointId ? rawPointId : undefined)
+      ?? (node.binding.pointTag ? resolvedTagMap.get(node.binding.pointTag) : undefined)
+      ?? (isTagInPointId ? resolvedTagMap.get(rawPointId!) : undefined)
+      ?? node.binding.expressionId
     const pv = pvKey ? pointValues.get(pvKey) : undefined
-    const { x, y } = node.transform.position
+    // Human-readable tag for tooltip — prefer explicit pointTag, fall back to legacy tag-in-pointId
+    const pointTag = node.binding.pointTag ?? (isTagInPointId ? rawPointId : undefined)
+    const deTransform = getTransformAttr(node)
 
     switch (node.displayType) {
       case 'text_readout': {
@@ -522,7 +607,7 @@ export function SceneRenderer({
         const valueY = cfg.showLabel && label ? h * 0.65 : h / 2
         const flashClass = unacked && alarmColor ? 'io-alarm-flash' : ''
         return (
-          <g key={node.id} className={`io-display-element ${flashClass}`} transform={`translate(${x},${y})`} opacity={opacity} data-node-id={node.id} data-lod="1" data-point-id={pvKey} data-display-type="text_readout">
+          <g key={node.id} className={`io-display-element ${flashClass}`} transform={deTransform} opacity={opacity} data-node-id={node.id} data-lod="1" data-point-id={pvKey} data-point-tag={pointTag} data-display-type="text_readout">
             {cfg.showBox && <rect data-role="box" x={0} y={0} width={w} height={h} rx={2} fill={boxFill} stroke={boxStroke} strokeWidth={strokeWidth} strokeDasharray={effectiveDash} />}
             {cfg.showLabel && label && <text x={w/2} y={6} textAnchor="middle" dominantBaseline="hanging" fontFamily="Inter" fontSize={8} fill={DE_COLORS.textMuted}>{label}</text>}
             <text data-role="value" x={w/2} y={valueY} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={11} fill={valueColor} style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -560,7 +645,7 @@ export function SceneRenderer({
         const label = isGhost ? '—' : String(priority)
         const shapeEl = renderAlarmShape(priority, isGhost, color)
         return (
-          <g key={node.id} className={`io-alarm-indicator ${flashClass}`} data-node-id={node.id} data-lod="1" opacity={isGhost ? 0.25 : node.opacity} transform={`translate(${x},${y})`} data-display-type="alarm_indicator" data-point-id={pvKey}>
+          <g key={node.id} className={`io-alarm-indicator ${flashClass}`} data-node-id={node.id} data-lod="1" opacity={isGhost ? 0.25 : node.opacity} transform={deTransform} data-point-tag={pointTag} data-display-type="alarm_indicator" data-point-id={pvKey}>
             {shapeEl}
             <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fontWeight={600} fill={color}>{label}</text>
           </g>
@@ -576,7 +661,7 @@ export function SceneRenderer({
         const textColor = isNormal ? DE_COLORS.textSecondary : DE_COLORS.textPrimary
         const w = Math.max(40, label.length * 7.5 + 12)
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="digital_status" data-point-id={pvKey}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={deTransform} data-point-tag={pointTag} data-display-type="digital_status" data-point-id={pvKey}>
             <rect data-role="bg" x={0} y={0} width={w} height={22} rx={2} fill={fill} />
             <text data-role="value" x={w/2} y={11} textAnchor="middle" dominantBaseline="central" fontFamily="JetBrains Mono" fontSize={9} fill={textColor}>{label}</text>
             {cfg.showSignalLine && parentOffset && (() => {
@@ -643,7 +728,7 @@ export function SceneRenderer({
           { fill: zoneFills.ll,     y: hhH + hH + normalH + lH, h: llH,    label: 'LL', role: 'zone-ll'     },
         ]
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="analog_bar" data-point-id={pvKey}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={deTransform} data-point-tag={pointTag} data-display-type="analog_bar" data-point-id={pvKey}>
             <rect x={0} y={0} width={bw} height={bh} fill={DE_COLORS.surfaceElevated} stroke={DE_COLORS.borderStrong} strokeWidth={0.5} />
             {zones.map((z, i) => <rect key={i} data-role={z.role} x={1} y={z.y} width={bw-2} height={Math.max(0,z.h)} fill={z.fill} stroke={DE_COLORS.borderStrong} strokeWidth={0.5} />)}
             {cfg.showZoneLabels && zones.filter(z => z.label).map((z, i) => (
@@ -689,27 +774,38 @@ export function SceneRenderer({
 
       case 'sparkline': {
         const cfg = node.config as SparklineConfig
-        const W = 110, H = 18
+        const W = cfg.sparkWidth ?? 110
+        const H = cfg.sparkHeight ?? 18
+        const targetPoints = cfg.dataPoints ?? 60
         const alarmPriority = pv?.alarmPriority as number | null | undefined
         const strokeColor = alarmPriority ? (ALARM_COLORS[alarmPriority] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary
-        const history = node.binding.pointId ? sparklineHistories.get(node.binding.pointId) : undefined
+        const rawHistory = pvKey ? sparklineHistories.get(pvKey) : undefined
+        // Trim to time window, then downsample to targetPoints
         let polylinePoints = ''
-        if (history && history.length >= 2) {
-          const nums = history.filter((v) => typeof v === 'number' && isFinite(v))
-          if (nums.length >= 2) {
-            const lo = Math.min(...nums)
-            const hi = Math.max(...nums)
+        if (rawHistory && rawHistory.length >= 2) {
+          const nums = rawHistory.filter((v) => typeof v === 'number' && isFinite(v))
+          // Downsample: pick evenly spaced samples if more than targetPoints
+          const sampled = nums.length <= targetPoints ? nums : (() => {
+            const out: number[] = []
+            for (let i = 0; i < targetPoints; i++) {
+              out.push(nums[Math.round(i * (nums.length - 1) / (targetPoints - 1))])
+            }
+            return out
+          })()
+          if (sampled.length >= 2) {
+            const lo = Math.min(...sampled)
+            const hi = Math.max(...sampled)
             const range = hi - lo || 1
             const pad = 2
-            polylinePoints = nums.map((v, i) => {
-              const px = pad + (i / (nums.length - 1)) * (W - pad * 2)
+            polylinePoints = sampled.map((v, i) => {
+              const px = pad + (i / (sampled.length - 1)) * (W - pad * 2)
               const py = pad + (1 - (v - lo) / range) * (H - pad * 2)
               return `${px.toFixed(1)},${py.toFixed(1)}`
             }).join(' ')
           }
         }
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="sparkline" data-point-id={pvKey}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={deTransform} data-point-tag={pointTag} data-display-type="sparkline" data-point-id={pvKey}>
             <rect x={0} y={0} width={W} height={H} rx={1} fill={DE_COLORS.surfaceElevated} />
             {polylinePoints ? (
               <polyline points={polylinePoints} fill="none" stroke={strokeColor} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
@@ -752,7 +848,7 @@ export function SceneRenderer({
           const fillY = bh - fillH
           const clipPathData = vesselInteriorPath ?? `M0,0 H${bw} V${bh} H0 Z`
           return (
-            <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={pvKey}>
+            <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={deTransform} data-point-tag={pointTag} data-display-type="fill_gauge" data-point-id={pvKey}>
               <defs>
                 <clipPath id={clipId}>
                   <path d={clipPathData} />
@@ -782,7 +878,7 @@ export function SceneRenderer({
         const fillH = pct * (bh - 2)
         const fillY = bh - 1 - fillH
         return (
-          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={`translate(${x},${y})`} data-display-type="fill_gauge" data-point-id={pvKey}>
+          <g key={node.id} className="io-display-element" data-node-id={node.id} data-lod="2" opacity={node.opacity} transform={deTransform} data-point-tag={pointTag} data-display-type="fill_gauge" data-point-id={pvKey}>
             <rect x={0} y={0} width={bw} height={bh} rx={2} fill="none" stroke={DE_COLORS.borderStrong} strokeWidth={0.5} />
             <rect data-role="fill" x={1} y={fillY} width={bw-2} height={fillH} rx={1} fill={fillColor} />
             {cfg.showLevelLine && fillH > 0 && <line x1={1} y1={fillY} x2={bw-1} y2={fillY} stroke={DE_COLORS.borderStrong} strokeWidth={1} strokeDasharray="5 3" />}
@@ -811,15 +907,42 @@ export function SceneRenderer({
 
   function renderSymbolInstance(node: SymbolInstance): React.ReactElement {
     const shapeData = shapeMap.get(node.shapeRef.shapeId)
-    const svgContent = shapeData?.svg ?? ''
     const sidecar = shapeData?.sidecar as {
       textZones?: Array<{ id: string; x: number; y: number; width?: number; anchor?: string; fontSize?: number }>
       vesselInteriorPath?: string
+      geometry?: { viewBox: string; width: number; height: number }
+      valueAnchors?: Array<{ nx: number; ny: number; preferredElement?: string }>
+      alarmAnchor?: { nx: number; ny: number }
     } | undefined
+
+    // Shape SVG files include a full <svg> wrapper without explicit width/height.
+    // Inject geometry dimensions so nested SVGs don't default to 300×150.
+    // Fall back to parsing the SVG's own viewBox when sidecar.geometry is absent.
+    let svgContent = shapeData?.svg ?? ''
+    if (svgContent) {
+      let w: number | undefined = sidecar?.geometry?.width
+      let h: number | undefined = sidecar?.geometry?.height
+      if (w == null || h == null) {
+        const vbMatch = svgContent.match(/viewBox=["']([^"']+)["']/)
+        if (vbMatch) {
+          const parts = vbMatch[1].trim().split(/[\s,]+/)
+          if (parts.length >= 4) { w = parseFloat(parts[2]); h = parseFloat(parts[3]) }
+        }
+      }
+      if (w != null && h != null) {
+        svgContent = svgContent.replace(/(<svg\b[^>]*?)>/, `$1 width="${w}" height="${h}">`)
+      }
+    }
 
     // Derive operational state CSS class from stateBinding point value
     let stateClass = ''
-    const statePvKey = node.stateBinding?.pointId ?? node.stateBinding?.expressionId
+    const rawStateId = node.stateBinding?.pointId
+    const UUID_RE_SI = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const isTagInStateId = rawStateId && !UUID_RE_SI.test(rawStateId)
+    const statePvKey = (rawStateId && !isTagInStateId ? rawStateId : undefined)
+      ?? (node.stateBinding?.pointTag ? resolvedTagMap.get(node.stateBinding.pointTag) : undefined)
+      ?? (isTagInStateId ? resolvedTagMap.get(rawStateId!) : undefined)
+      ?? node.stateBinding?.expressionId
     const statePv = statePvKey ? pointValues.get(statePvKey) : undefined
     if (statePv) {
       const stateVal = statePv.value !== undefined ? String(statePv.value).toLowerCase() : ''
@@ -876,12 +999,66 @@ export function SceneRenderer({
 
     // Render composable parts (actuators, supports, etc.) — spec §Shape Library: Composable Parts
     const composablePartElements = (node.composableParts ?? []).map((part) => {
-      const partData = shapeMap.get(part.partId)
+      // DB may store partId as snake_case (part_id) — handle both
+      const pid = part.partId ?? (part as unknown as Record<string, string>)['part_id']
+      if (!pid) return null
+      const partData = shapeMap.get(pid)
       if (!partData?.svg) return null
       return (
-        <g key={`part-${part.partId}`} dangerouslySetInnerHTML={{ __html: partData.svg }} />
+        <g key={`part-${pid}`} dangerouslySetInnerHTML={{ __html: partData.svg }} />
       )
     })
+
+    // Sidecar auto-overlays — value text and alarm indicator driven by stateBinding point.
+    // Always rendered (even when statePv is null) so DOM-mutation path can update them.
+    // Scale-compensation group (scale 1/sx, 1/sy) cancels parent transform so overlays
+    // render at consistent visual size regardless of symbol scale.
+    const sx = node.transform.scale.x || 1
+    const sy = node.transform.scale.y || 1
+    const geoW = sidecar?.geometry?.width ?? 40
+    const geoH = sidecar?.geometry?.height ?? 40
+    const firstValueAnchor = sidecar?.valueAnchors?.[0]
+    const alarmAnchorPos = sidecar?.alarmAnchor
+
+    const sidecarValueOverlay = statePvKey && firstValueAnchor ? (() => {
+      const ax = firstValueAnchor.nx * geoW
+      const ay = firstValueAnchor.ny * geoH
+      const rawVal = statePv?.value ?? null
+      const alarmPri = statePv?.alarmPriority as (1|2|3|4|5) | undefined
+      const valueColor = alarmPri ? (ALARM_COLORS[alarmPri] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary
+      const valueStr = rawVal === null ? '---' : formatValue(rawVal, '%auto')
+      return (
+        <g key="sv" transform={`translate(${ax},${ay}) scale(${1/sx},${1/sy})`}>
+          <text data-role="sidecar-value" x={0} y={0} textAnchor="middle" dominantBaseline="hanging"
+            fontFamily="JetBrains Mono" fontSize={11} fill={valueColor}
+            style={{ fontVariantNumeric: 'tabular-nums' as const }}>
+            {valueStr}
+          </text>
+        </g>
+      )
+    })() : null
+
+    const sidecarAlarmOverlay = statePvKey && alarmAnchorPos ? (() => {
+      const ax = alarmAnchorPos.nx * geoW
+      const ay = alarmAnchorPos.ny * geoH
+      const alarmPri = (statePv?.alarmPriority ?? 0) as 0 | 1 | 2 | 3 | 4 | 5
+      const visible = alarmPri > 0
+      const priority = (alarmPri || 1) as 1 | 2 | 3 | 4 | 5
+      const unacked = statePv?.unacknowledged ?? false
+      const color = ALARM_COLORS[priority] ?? ALARM_COLORS[1]
+      const flashClass = visible && unacked ? `io-alarm-flash-${ALARM_PRIORITY_NAMES[priority]}` : ''
+      return (
+        <g key="sa" data-role="sidecar-alarm" className={`io-alarm-indicator ${flashClass}`}
+          transform={`translate(${ax},${ay}) scale(${1/sx},${1/sy})`}
+          style={{ display: visible ? '' : 'none' }}>
+          {renderAlarmShape(priority, false, color)}
+          <text x={0} y={0} textAnchor="middle" dominantBaseline="central"
+            fontFamily="JetBrains Mono" fontSize={9} fontWeight={600} fill={color}>
+            {String(priority)}
+          </text>
+        </g>
+      )
+    })() : null
 
     const isSelected = designerMode && selectedNodeIds.has(node.id)
     return (
@@ -903,6 +1080,8 @@ export function SceneRenderer({
         )}
         {composablePartElements}
         {textZoneElements}
+        {sidecarValueOverlay}
+        {sidecarAlarmOverlay}
         {node.children.map((child) => renderDisplayElement(child, child.transform.position, sidecar?.vesselInteriorPath))}
       </g>
     )
@@ -1364,9 +1543,22 @@ const ALARM_PRIORITY_NAMES: Record<number, string> = {
 function formatValue(raw: string | number | null, fmt: string): string {
   if (raw === null || raw === undefined) return '---'
   if (typeof raw === 'number') {
-    const match = fmt.match(/^%\.(\d+)f/)
-    if (match) return raw.toFixed(parseInt(match[1]))
+    if (fmt === '%auto') {
+      const abs = Math.abs(raw)
+      if (!isFinite(raw)) return String(raw)
+      if (abs === 0) return '0'
+      if (abs >= 10000) return raw.toFixed(0)
+      if (abs >= 1000) return raw.toFixed(1)
+      if (abs >= 100) return raw.toFixed(2)
+      if (abs >= 10) return raw.toFixed(3)
+      if (abs >= 1) return raw.toFixed(3)
+      return parseFloat(raw.toPrecision(3)).toString()
+    }
+    const fMatch = fmt.match(/^%\.(\d+)f/)
+    if (fMatch) return raw.toFixed(parseInt(fMatch[1]))
     if (/^%\.?0?d$|^%d$/.test(fmt)) return Math.round(raw).toString()
+    const gMatch = fmt.match(/^%\.(\d+)g/)
+    if (gMatch) return parseFloat(raw.toPrecision(parseInt(gMatch[1]))).toString()
   }
   return String(raw)
 }
@@ -1571,6 +1763,79 @@ function applyPointValue(
       break
     }
 
+    case 'sparkline': {
+      const cfg = config as SparklineConfig
+      const numVal = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) : NaN)
+      if (!isFinite(numVal)) break
+
+      // Rolling history stored on the DOM element as [timestamp_ms, value] pairs.
+      // Time-windowed: entries older than timeWindowMinutes are evicted on each update.
+      type SparkEntry = [number, number]
+      const elAny = el as unknown as { _sparkHistory?: SparkEntry[]; _sparkLastDraw?: number }
+      if (!elAny._sparkHistory) elAny._sparkHistory = []
+      const history = elAny._sparkHistory
+      const now = pv.timestamp ? new Date(pv.timestamp).getTime() : Date.now()
+      history.push([now, numVal])
+
+      // Evict entries outside the configured time window
+      const windowMs = (cfg.timeWindowMinutes ?? 30) * 60 * 1000
+      const cutoff = now - windowMs
+      let evictTo = 0
+      while (evictTo < history.length && history[evictTo][0] < cutoff) evictTo++
+      if (evictTo > 0) history.splice(0, evictTo)
+
+      // Throttle redraws to one per slot — only update the polyline when enough
+      // time has passed that a new slot boundary has been crossed.
+      const slotMs = windowMs / (cfg.dataPoints ?? 60)
+      const lastDraw = elAny._sparkLastDraw ?? 0
+      if (now - lastDraw < slotMs) break
+      elAny._sparkLastDraw = now
+
+      const W = cfg.sparkWidth ?? 110
+      const H = cfg.sparkHeight ?? 18
+      const targetPoints = cfg.dataPoints ?? 60
+      const pad = 2
+
+      // Downsample to targetPoints using uniform time-based index selection
+      const nums = history.map(([, v]) => v).filter((v) => isFinite(v))
+      const sampled = nums.length <= targetPoints ? nums : (() => {
+        const out: number[] = []
+        for (let i = 0; i < targetPoints; i++) {
+          out.push(nums[Math.round(i * (nums.length - 1) / (targetPoints - 1))])
+        }
+        return out
+      })()
+
+      const polyline = el.querySelector<SVGPolylineElement>('polyline')
+      const flatLine = el.querySelector<SVGLineElement>('line')
+
+      if (sampled.length >= 2) {
+        let lo: number, hi: number
+        if (cfg.scaleMode === 'fixed' && cfg.fixedRangeLo !== undefined && cfg.fixedRangeHi !== undefined) {
+          lo = cfg.fixedRangeLo; hi = cfg.fixedRangeHi
+        } else {
+          lo = Math.min(...sampled); hi = Math.max(...sampled)
+        }
+        const range = hi - lo || 1
+        const pts = sampled.map((v, i) => {
+          const px = pad + (i / (sampled.length - 1)) * (W - pad * 2)
+          const py = pad + (1 - (v - lo) / range) * (H - pad * 2)
+          return `${px.toFixed(1)},${py.toFixed(1)}`
+        }).join(' ')
+
+        const alarmPri = pv.alarmPriority as (1|2|3|4|5) | null | undefined
+        const strokeColor = alarmPri ? (ALARM_COLORS[alarmPri] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary
+
+        if (polyline) {
+          polyline.setAttribute('points', pts)
+          polyline.setAttribute('stroke', strokeColor)
+          polyline.style.display = ''
+        }
+        if (flatLine) flatLine.style.display = 'none'
+      }
+      break
+    }
+
     case 'symbol_state': {
       // Update operational state CSS class on the symbol instance g element
       const stateVal = String(value).toLowerCase()
@@ -1581,6 +1846,29 @@ function applyPointValue(
       else if (['oos', 'maintenance'].includes(stateVal)) newClass = 'io-oos'
       el.classList.remove('io-running', 'io-fault', 'io-transitioning', 'io-oos')
       if (newClass) el.classList.add(newClass)
+
+      // Update sidecar value overlay text
+      const sidecarValueText = el.querySelector<SVGTextElement>('[data-role="sidecar-value"]')
+      if (sidecarValueText) {
+        const alarmPri = pv.alarmPriority as (1|2|3|4|5) | undefined
+        const valueStr = isCommFail ? 'COMM' : isBad ? '????' : formatValue(value, '%auto')
+        sidecarValueText.textContent = valueStr
+        sidecarValueText.setAttribute('fill', alarmPri ? (ALARM_COLORS[alarmPri] ?? DE_COLORS.textSecondary) : DE_COLORS.textSecondary)
+      }
+
+      // Update sidecar alarm indicator overlay
+      const sidecarAlarmG = el.querySelector<SVGGElement>('[data-role="sidecar-alarm"]')
+      if (sidecarAlarmG) {
+        const alarmPri = pv.alarmPriority as (1|2|3|4|5) | undefined
+        if (alarmPri) {
+          sidecarAlarmG.style.display = ''
+          const color = ALARM_COLORS[alarmPri] ?? ALARM_COLORS[1]
+          const numText = sidecarAlarmG.querySelector<SVGTextElement>('text')
+          if (numText) { numText.textContent = String(alarmPri); numText.setAttribute('fill', color) }
+        } else {
+          sidecarAlarmG.style.display = 'none'
+        }
+      }
       break
     }
   }

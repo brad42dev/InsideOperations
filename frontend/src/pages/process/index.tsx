@@ -1028,6 +1028,7 @@ export default function ProcessPage() {
 
   const [tooltip, setTooltip] = useState<PointTooltip | null>(null)
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tooltipDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Ref so tooltip callback always reads latest point values without ordering constraint
   const pointValuesRef = useRef<Map<string, ScenePointValue>>(new Map())
   // Track the last hovered point ID for Ctrl+I shortcut
@@ -1039,8 +1040,13 @@ export default function ProcessPage() {
       if (pointId) lastHoveredPointRef.current = { id: pointId, x: e.clientX, y: e.clientY }
       if (!pointId) {
         if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
+        // Mouse moved off a point — dismiss tooltip after short delay
+        if (tooltipDismissRef.current) clearTimeout(tooltipDismissRef.current)
+        tooltipDismissRef.current = setTimeout(() => { setTooltip(null); tooltipDismissRef.current = null }, 800)
         return
       }
+      // Mouse moved onto a point — cancel any pending dismiss
+      if (tooltipDismissRef.current) { clearTimeout(tooltipDismissRef.current); tooltipDismissRef.current = null }
       if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
       const clientX = e.clientX
       const clientY = e.clientY
@@ -1060,10 +1066,14 @@ export default function ProcessPage() {
 
   const handleContainerMouseLeave = useCallback(() => {
     if (tooltipTimerRef.current) { clearTimeout(tooltipTimerRef.current); tooltipTimerRef.current = null }
+    if (tooltipDismissRef.current) { clearTimeout(tooltipDismissRef.current); tooltipDismissRef.current = null }
     setTooltip(null)
   }, [])
 
-  useEffect(() => () => { if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current) }, [])
+  useEffect(() => () => {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
+    if (tooltipDismissRef.current) clearTimeout(tooltipDismissRef.current)
+  }, [])
 
   // ---- Context menus (§13) -------------------------------------------------
 

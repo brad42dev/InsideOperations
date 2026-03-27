@@ -98,11 +98,36 @@ pub async fn run_source(
         }
 
         match run_source_once(&source, &db, &uds, &config, &sessions).await {
-            Ok(()) => {
+            Ok(watchdog_triggered) => {
                 info!(source = %source.name, "OPC UA driver exited cleanly");
                 last_error = None;
                 attempt = 0;
                 backoff_secs = 5;
+
+                if watchdog_triggered {
+                    // Watchdog fired — no updates for 5 minutes.  Schedule a history
+                    // recovery job covering from (earliest-of-last-100-points − 5 min)
+                    // to now so no data is lost across the reconnect cycle.
+                    let now = Utc::now();
+                    let recovery_from = match db::get_earliest_of_recent_points(&db, source.id).await {
+                        Ok(Some(earliest)) => earliest - chrono::Duration::minutes(5),
+                        Ok(None) => now - chrono::Duration::minutes(10),
+                        Err(e) => {
+                            warn!(source = %source.name, error = %e, "Watchdog: failed to get earliest point timestamp; recovering last 10 minutes");
+                            now - chrono::Duration::minutes(10)
+                        }
+                    };
+                    match db::create_recovery_job(&db, source.id, recovery_from, now, None).await {
+                        Ok(job_id) => info!(
+                            source = %source.name,
+                            %job_id,
+                            from = %recovery_from,
+                            to = %now,
+                            "Watchdog: history recovery job scheduled"
+                        ),
+                        Err(e) => warn!(source = %source.name, error = %e, "Watchdog: failed to schedule history recovery job"),
+                    }
+                }
             }
             Err(e) => {
                 let msg = e.to_string();
@@ -161,7 +186,7 @@ async fn run_source_once(
     uds: &Arc<UdsSender>,
     config: &Arc<Config>,
     sessions: &SessionRegistry,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     // Build OPC UA client and connect on a blocking thread to avoid blocking
     // the Tokio runtime (opcua 0.12 is synchronous).
     let endpoint_url = source.endpoint_url.clone();
@@ -278,13 +303,43 @@ async fn run_source_once(
 
                 if let Some(ep) = found {
                     connect_endpoint = ep;
+                } else {
+                    // Configured policy not offered by this server. Still grab the
+                    // server certificate from any endpoint so the secure-channel
+                    // request can be encrypted — without it the server will return
+                    // BadDecodingError because it can't decrypt our message.
+                    if let Some(any_ep) = server_endpoints.first() {
+                        connect_endpoint.server_certificate =
+                            any_ep.server_certificate.clone();
+                        tracing::warn!(
+                            endpoint_url = %endpoint_url,
+                            "Configured security policy not offered by server; \
+                             proceeding with configured policy and server cert from discovery"
+                        );
+                    }
                 }
-                // If still not found, proceed with our original endpoint as-is;
-                // connect_to_endpoint will report a descriptive error.
             }
             Ok(_) | Err(_) => {
                 // Server returned empty list or discovery failed — proceed
-                // with our configured endpoint as-is.
+                // with our configured endpoint as-is. Try to pre-populate the
+                // server certificate from the PKI trusted directory so that the
+                // secure-channel handshake can proceed without a discovery round.
+                let trusted_dir = std::path::Path::new(&pki_dir).join("trusted");
+                if let Ok(entries) = std::fs::read_dir(&trusted_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().map_or(false, |e| e == "der") {
+                            if let Ok(der) = std::fs::read(&path) {
+                                tracing::debug!(
+                                    cert = %path.display(),
+                                    "Preloading trusted server cert for direct connect"
+                                );
+                                connect_endpoint.server_certificate = ByteString::from(der.as_slice());
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -301,9 +356,21 @@ async fn run_source_once(
                 .ok_or_else(|| anyhow::anyhow!("ClientBuilder::client() returned None"))?;
         }
 
-        client
-            .connect_to_endpoint(connect_endpoint, identity)
-            .map_err(|sc| anyhow::anyhow!("OPC UA connect failed: {}", sc))
+        // Use new_session_from_info + connect_and_activate instead of
+        // connect_to_endpoint. connect_to_endpoint unconditionally calls
+        // get_server_endpoints_from_url internally, which fails when the server
+        // advertises an internal hostname (e.g. simblah:4840) that cannot be
+        // resolved from the client host. By going directly to the session layer
+        // we avoid that second discovery round entirely.
+        let session = client
+            .new_session_from_info((connect_endpoint, identity))
+            .map_err(|e| anyhow::anyhow!("OPC UA session creation failed: {}", e))?;
+        {
+            let mut s = session.write();
+            s.connect_and_activate()
+                .map_err(|sc| anyhow::anyhow!("OPC UA connect failed: {}", sc))?;
+        }
+        Ok::<_, anyhow::Error>(session)
     })
     .await
     .map_err(|e| anyhow::anyhow!("spawn_blocking join error: {}", e))??;
@@ -329,7 +396,7 @@ async fn run_source_once(
 
     if node_map.is_empty() {
         warn!(source = %source.name, "No variable nodes discovered; disconnecting");
-        return Ok(());
+        return Ok(false);
     }
 
     info!(
@@ -424,15 +491,36 @@ async fn run_source_once(
     metrics::gauge!("io_opc_points_subscribed").set(good_items as f64);
 
     // --- OPC UA Part 9 A&C event subscription (non-fatal) ---
+    // Build a name→UUID lookup from the node_map so the event callback can resolve
+    // OPC SourceName strings (e.g. "25-TIC-1010.PV") to point UUIDs.
+    // SimBLAH uses ns=1 string NodeIds of the form ns=1;s="<name>" — strip the quotes.
+    let source_name_to_id: Arc<HashMap<String, Uuid>> = Arc::new(
+        node_map
+            .iter()
+            .filter_map(|(nid, &uuid)| {
+                if nid.namespace == 1 {
+                    if let opcua::types::Identifier::String(s) = &nid.identifier {
+                        let name = s.value().as_ref()?.trim_matches('"').to_string();
+                        Some((name, uuid))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect(),
+    );
+
     // Store the handle so we can abort the drain task when this session ends,
     // preventing stale tasks from accumulating across reconnect cycles.
-    let event_task = create_event_subscription(source, db, &session, config).await;
+    let event_task = create_event_subscription(source, db, &session, config, source_name_to_id).await;
 
     // If all monitored items returned BadServiceUnsupported (0 good items), fall back to
     // periodic polling via OPC UA Read instead of subscriptions.  This handles servers
     // that implement Browse and Read but not the Subscription service, or servers that
     // have exhausted their subscription quota from zombie sessions.
-    if good_items == 0 && !node_map.is_empty() {
+    let watchdog_triggered = if good_items == 0 && !node_map.is_empty() {
         warn!(
             source = %source.name,
             points = node_map.len(),
@@ -440,11 +528,12 @@ async fn run_source_once(
         );
         drop(update_rx); // won't be used in polling mode
         poll_loop(source, db, uds, config, &session, &node_map).await;
+        false
     } else {
         info!(source = %source.name, "Entering flush loop — waiting for OPC UA DataChange callbacks");
-        // --- Flush loop (runs until session ends) ---
-        flush_loop(source, db, uds, config, &session, &node_map, update_rx).await;
-    }
+        // --- Flush loop (runs until session ends; returns true if watchdog triggered) ---
+        flush_loop(source, db, uds, config, &session, &node_map, update_rx).await
+    };
 
     // Abort the A&C drain task — the session is gone, events will no longer arrive.
     if let Some(handle) = event_task {
@@ -467,16 +556,31 @@ async fn run_source_once(
     // Without this, "zombie" sessions accumulate on the server across restarts
     // until the server-side timeout expires, consuming server session/item
     // quota and causing BadServiceUnsupported on monitored item creation.
+    //
+    // IMPORTANT: opcua 0.12's Session::run_async spins up an internal Tokio
+    // runtime on an OS thread.  When that runtime is dropped it panics with
+    // "Cannot drop a runtime in a context where blocking is not allowed" if
+    // we are inside Tokio's blocking thread pool (spawn_blocking).  We avoid
+    // the panic by doing the disconnect + drop on a plain std::thread (not
+    // Tokio's pool) and then joining it from a spawn_blocking call so the
+    // async code still awaits completion without blocking the executor.
     let session_clone = session.clone();
     let source_name = source.name.clone();
-    tokio::task::spawn_blocking(move || {
-        session_clone.write().disconnect();
-        tracing::info!(source = %source_name, "OPC UA session closed cleanly");
-    })
-    .await
-    .ok(); // join error is non-fatal
+    let join_handle = std::thread::Builder::new()
+        .name("opc-disconnect".to_string())
+        .spawn(move || {
+            session_clone.write().disconnect();
+            tracing::info!(source = %source_name, "OPC UA session closed cleanly");
+            // session_clone is dropped here — on a plain OS thread, which is
+            // allowed to drop Tokio runtimes.
+        });
+    if let Ok(handle) = join_handle {
+        tokio::task::spawn_blocking(move || { let _ = handle.join(); })
+            .await
+            .ok();
+    }
 
-    Ok(())
+    Ok(watchdog_triggered)
 }
 
 // ---------------------------------------------------------------------------
@@ -585,6 +689,20 @@ async fn browse_namespace(
                                     type_name,
                                     Some("AnalogItemType") | Some("DataItemType")
                                 );
+                                // Use the OPC node identifier string as the tagname when
+                                // available (e.g. "25-FI-1001.PV" from ns=1;s=25-FI-1001.PV).
+                                // This matches the point_tag values used in .iographic files
+                                // exported from the same OPC server.  Fall back to the
+                                // DisplayName for numeric/GUID identifiers.
+                                // Use the OPC identifier string as tagname (e.g. "25-FI-1001.PV"
+                                // from "ns=1;s=25-FI-1001.PV"). This matches point_tag values in
+                                // .iographic files exported from the same server. Fall back to
+                                // display_name for numeric/GUID identifiers.
+                                let node_id_str = node_id.to_string(); // "ns=N;s=..." or "ns=N;i=..."
+                                let tagname = node_id_str
+                                    .split_once(";s=")
+                                    .map(|(_, ident)| ident.to_string())
+                                    .unwrap_or_else(|| display_name.clone());
                                 let metadata = serde_json::json!({
                                     "node_id": node_id.to_string(),
                                     "display_name": display_name,
@@ -594,7 +712,7 @@ async fn browse_namespace(
                                 match db::upsert_point_from_source(
                                     db,
                                     source.id,
-                                    &display_name,
+                                    &tagname,
                                     metadata,
                                 )
                                 .await
@@ -608,7 +726,7 @@ async fn browse_namespace(
                                     Err(e) => {
                                         warn!(
                                             source = %source.name,
-                                            tag = %display_name,
+                                            tag = %tagname,
                                             error = %e,
                                             "Failed to upsert point"
                                         );
@@ -1385,6 +1503,9 @@ async fn create_event_subscription(
     db: &DbPool,
     session: &Arc<RwLock<Session>>,
     config: &Arc<Config>,
+    // Maps point name strings (SourceName from OPC events) → point UUIDs.
+    // Built from node_map: ns=1 string NodeId → strip quotes → point name.
+    source_name_to_id: Arc<std::collections::HashMap<String, uuid::Uuid>>,
 ) -> Option<tokio::task::JoinHandle<()>> {
     // Step 1: Check EventNotifier bit 0 on Server node (ns=0;i=2253).
     let server_node_id = NodeId::new(0u16, 2253u32);
@@ -1461,16 +1582,23 @@ async fn create_event_subscription(
         }
 
         let fields: &[FieldDef] = &[
-            FieldDef { name: "EventId",        attr_id: 13 }, // Value attribute
-            FieldDef { name: "EventType",       attr_id: 13 },
-            FieldDef { name: "SourceName",      attr_id: 13 },
-            FieldDef { name: "Time",            attr_id: 13 },
-            FieldDef { name: "Severity",        attr_id: 13 },
-            FieldDef { name: "Message",         attr_id: 13 },
-            FieldDef { name: "ConditionName",   attr_id: 13 },
-            FieldDef { name: "AckedState/Id",   attr_id: 13 },
-            FieldDef { name: "ActiveState/Id",  attr_id: 13 },
-            FieldDef { name: "Retain",          attr_id: 13 },
+            FieldDef { name: "EventId",                   attr_id: 13 }, // Value attribute
+            FieldDef { name: "EventType",                 attr_id: 13 },
+            FieldDef { name: "SourceName",                attr_id: 13 },
+            FieldDef { name: "Time",                      attr_id: 13 },
+            FieldDef { name: "Severity",                  attr_id: 13 },
+            FieldDef { name: "Message",                   attr_id: 13 },
+            FieldDef { name: "ConditionName",             attr_id: 13 },
+            FieldDef { name: "AckedState/Id",             attr_id: 13 },
+            FieldDef { name: "ActiveState/Id",            attr_id: 13 },
+            FieldDef { name: "Retain",                    attr_id: 13 },
+            // ExclusiveLimitAlarmType fields (SimBLAH A&C spec):
+            FieldDef { name: "LimitState/CurrentState",   attr_id: 13 }, // 10
+            FieldDef { name: "SuppressedOrShelved",       attr_id: 13 }, // 11
+            FieldDef { name: "HighHighLimit",             attr_id: 13 }, // 12
+            FieldDef { name: "HighLimit",                 attr_id: 13 }, // 13
+            FieldDef { name: "LowLimit",                  attr_id: 13 }, // 14
+            FieldDef { name: "LowLowLimit",               attr_id: 13 }, // 15
         ];
 
         let select_clauses: Vec<SimpleAttributeOperand> = fields
@@ -1517,7 +1645,9 @@ async fn create_event_subscription(
 
                 // Field order matches select_clauses above:
                 // 0=EventId, 1=EventType, 2=SourceName, 3=Time, 4=Severity,
-                // 5=Message, 6=ConditionName, 7=AckedState/Id, 8=ActiveState/Id, 9=Retain
+                // 5=Message, 6=ConditionName, 7=AckedState/Id, 8=ActiveState/Id, 9=Retain,
+                // 10=LimitState/CurrentState, 11=SuppressedOrShelved,
+                // 12=HighHighLimit, 13=HighLimit, 14=LowLimit, 15=LowLowLimit
 
                 let get = |i: usize| fields_vec.get(i);
 
@@ -1579,8 +1709,39 @@ async fn create_event_subscription(
                     matches!(v, Variant::Boolean(true))
                 }).unwrap_or(false);
 
+                // LimitState/CurrentState — LocalizedText or String, e.g. "HighHigh"
+                let limit_state = get(10).and_then(|v| match v {
+                    Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.clone()),
+                    Variant::String(s) => s.value().as_ref().map(|s| s.clone()),
+                    _ => None,
+                });
+
+                let suppressed_or_shelved = get(11).map(|v| {
+                    matches!(v, Variant::Boolean(true))
+                }).unwrap_or(false);
+
+                let high_high_limit = get(12).and_then(|v| {
+                    if let Variant::Double(f) = v { Some(*f) } else { None }
+                });
+                let high_limit = get(13).and_then(|v| {
+                    if let Variant::Double(f) = v { Some(*f) } else { None }
+                });
+                let low_limit = get(14).and_then(|v| {
+                    if let Variant::Double(f) = v { Some(*f) } else { None }
+                });
+                let low_low_limit = get(15).and_then(|v| {
+                    if let Variant::Double(f) = v { Some(*f) } else { None }
+                });
+
+                // Resolve SourceName → point_id using the name→UUID map.
+                let point_id = source_name
+                    .as_deref()
+                    .and_then(|name| source_name_to_id.get(name))
+                    .copied();
+
                 let ev = db::OpcEvent {
                     source_id,
+                    point_id,
                     event_id,
                     event_type,
                     source_name,
@@ -1591,6 +1752,12 @@ async fn create_event_subscription(
                     acked,
                     active,
                     retain,
+                    limit_state,
+                    suppressed_or_shelved,
+                    high_high_limit,
+                    high_limit,
+                    low_limit,
+                    low_low_limit,
                 };
 
                 if tx.send(ev).is_err() {
@@ -1744,7 +1911,7 @@ async fn create_event_subscription(
 /// Uses server-side pagination (continuation points) so arbitrarily large ranges
 /// are handled correctly even when the server limits results per request.
 async fn harvest_history(
-    source: &PointSource,
+    _source: &PointSource,
     db: &DbPool,
     session: &Arc<RwLock<Session>>,
     node_map: &HashMap<NodeId, Uuid>,
@@ -1794,7 +1961,9 @@ async fn harvest_history(
                 start_time: OpcDateTime::from(from_time),
                 end_time: OpcDateTime::from(to_time),
                 num_values_per_node: VALUES_PER_PAGE,
-                return_bounds: false,
+                // true = include bounding values just outside the requested range
+                // (Part 11 §6.4.2.1); ensures no gap at range boundaries.
+                return_bounds: true,
             };
 
             let session_clone = session.clone();
@@ -2035,6 +2204,8 @@ async fn poll_loop(
 // Flush loop
 // ---------------------------------------------------------------------------
 
+/// Returns `true` if the loop exited because the watchdog fired (no updates for
+/// 5 minutes), `false` if the session's update channel closed normally.
 async fn flush_loop(
     source: &PointSource,
     db: &DbPool,
@@ -2043,7 +2214,9 @@ async fn flush_loop(
     session: &Arc<RwLock<Session>>,
     node_map: &HashMap<NodeId, Uuid>,
     mut update_rx: mpsc::UnboundedReceiver<PointUpdate>,
-) {
+) -> bool {
+    const WATCHDOG_DURATION: Duration = Duration::from_secs(300); // 5 minutes
+
     let interval = Duration::from_millis(config.batch_interval_ms);
     let mut pending: Vec<PointUpdate> = Vec::with_capacity(config.batch_max_points);
     let mut next_flush = Instant::now() + interval;
@@ -2052,6 +2225,7 @@ async fn flush_loop(
     let mut job_check = tokio::time::Instant::now();
     let job_check_interval = Duration::from_secs(60);
     let mut total_updates: u64 = 0;
+    let mut last_update_time = tokio::time::Instant::now();
 
     loop {
         tokio::select! {
@@ -2061,6 +2235,7 @@ async fn flush_loop(
                 match maybe {
                     Some(update) => {
                         total_updates += 1;
+                        last_update_time = tokio::time::Instant::now();
                         metrics::counter!("io_opc_updates_received_total").increment(1);
                         if total_updates == 1 {
                             info!(source = %source.name, "First DataChange callback received!");
@@ -2072,11 +2247,11 @@ async fn flush_loop(
                         }
                     }
                     None => {
-                        // Channel closed — session ended.
+                        // Channel closed — session ended normally.
                         if !pending.is_empty() {
                             flush(source, db, uds, &mut pending).await;
                         }
-                        break;
+                        return false;
                     }
                 }
             }
@@ -2086,13 +2261,25 @@ async fn flush_loop(
                     flush(source, db, uds, &mut pending).await;
                 }
                 next_flush = Instant::now() + interval;
+
                 // Heartbeat: log every 30s if no data is arriving
-                if heartbeat.elapsed() >= heartbeat_interval && total_updates == 0 {
-                    warn!(source = %source.name, "No OPC UA DataChange callbacks received in 30s — subscriptions may not be delivering data");
-                    heartbeat = tokio::time::Instant::now();
-                } else if heartbeat.elapsed() >= heartbeat_interval {
+                if heartbeat.elapsed() >= heartbeat_interval {
+                    if total_updates == 0 {
+                        warn!(source = %source.name, "No OPC UA DataChange callbacks received in 30s — subscriptions may not be delivering data");
+                    }
                     heartbeat = tokio::time::Instant::now();
                 }
+
+                // Watchdog: force reconnect if no updates for 5 minutes
+                if last_update_time.elapsed() >= WATCHDOG_DURATION {
+                    warn!(
+                        source = %source.name,
+                        elapsed_secs = last_update_time.elapsed().as_secs(),
+                        "Watchdog: no point updates received — forcing reconnect and scheduling history recovery"
+                    );
+                    return true;
+                }
+
                 // Check for pending history recovery jobs every 60s.
                 if job_check.elapsed() >= job_check_interval {
                     run_pending_recovery_jobs(source, db, session, node_map).await;
