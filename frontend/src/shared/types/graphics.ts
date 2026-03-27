@@ -27,6 +27,13 @@ export interface PortablePointBinding {
   pointAttribute?: string
 }
 
+/**
+ * Unified binding type for DisplayElement — supports both UUID-based (live system)
+ * and tag-based (portable / SimBLAH-authored) bindings. Tag-based bindings are
+ * resolved to UUIDs at load time by SceneRenderer via POST /api/points/resolve-tags.
+ */
+export type DisplayElementBinding = PointBinding & Partial<PortablePointBinding>
+
 export type Color = string
 
 export type SceneNodeType =
@@ -125,7 +132,7 @@ export interface SymbolInstance extends SceneNodeBase {
   composableParts: ComposablePart[]
   textZoneOverrides: Record<string, TextZoneOverride>
   children: DisplayElement[]
-  stateBinding?: PointBinding
+  stateBinding?: DisplayElementBinding
   propertyOverrides: Record<string, unknown>
 }
 
@@ -229,7 +236,7 @@ export type DisplayElementConfig =
 export interface DisplayElement extends SceneNodeBase {
   type: 'display_element'
   displayType: DisplayElementType
-  binding: PointBinding
+  binding: DisplayElementBinding
   config: DisplayElementConfig
 }
 

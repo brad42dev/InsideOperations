@@ -410,7 +410,7 @@ function AppRoutes() {
             isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="dashboards:write">
               <ErrorBoundary module="Designer">
-                <DashboardBuilder />
+                <DesignerPage />
               </ErrorBoundary>
             </PermissionGuard>
           }
@@ -421,7 +421,7 @@ function AppRoutes() {
             isMobile ? <MobileNotAvailable module="Designer" /> :
             <PermissionGuard permission="dashboards:write">
               <ErrorBoundary module="Designer">
-                <DashboardBuilder />
+                <DesignerPage />
               </ErrorBoundary>
             </PermissionGuard>
           }
@@ -1304,10 +1304,11 @@ function PinnedPointDetailPanels() {
  */
 function UomCatalogInit() {
   const fetchCatalog = useUomStore((s) => s.fetchCatalog)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
 
   useEffect(() => {
-    void fetchCatalog()
-  }, [fetchCatalog])
+    if (isAuthenticated) void fetchCatalog()
+  }, [isAuthenticated, fetchCatalog])
 
   return null
 }

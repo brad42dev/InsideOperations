@@ -185,6 +185,29 @@ _io_lock_cleanup() {
     rm -f "${LOCK_FILE:-}" 2>/dev/null || true
 }
 
+# Recursively kill a process and all its descendants.
+# Sends SIGTERM to the whole subtree, then SIGKILL to survivors after 2s.
+# Used by INT traps to ensure MCP server grandchildren don't linger.
+_kill_proc_tree() {
+    local pid="$1"
+    local children
+    children=$(pgrep -P "$pid" 2>/dev/null || true)
+    for child in $children; do
+        _kill_proc_tree "$child"
+    done
+    kill "$pid" 2>/dev/null || true
+}
+
+_kill_proc_tree_hard() {
+    local pid="$1"
+    local children
+    children=$(pgrep -P "$pid" 2>/dev/null || true)
+    for child in $children; do
+        _kill_proc_tree_hard "$child"
+    done
+    kill -9 "$pid" 2>/dev/null || true
+}
+
 # Rotate /tmp/io-*.log files — keep last 3 per prefix, delete older ones
 rotate_logs() {
     local prefix="$1"
@@ -2631,8 +2654,27 @@ if [ "$MODE" = "auto" ]; then
 
     AUTO_INTERRUPTED=0
     AUTO_ROUND_FAILED=0
-    trap 'AUTO_INTERRUPTED=1; echo ""; echo "Stopping after current batch..."' INT
-    trap '_io_lock_cleanup' EXIT
+    # _auto_pids is populated inside the batch loop; the INT trap reads it to kill
+    # running agents and their MCP server grandchildren (playwright-mcp, postgres, context7).
+    _auto_pids=()
+    trap '
+        AUTO_INTERRUPTED=1
+        echo ""
+        echo "Stopping — sending SIGTERM to running agents..."
+        for _int_pid in "${_auto_pids[@]+"${_auto_pids[@]}"}"; do
+            _kill_proc_tree "$_int_pid"
+        done
+        sleep 2
+        for _int_pid in "${_auto_pids[@]+"${_auto_pids[@]}"}"; do
+            kill -0 "$_int_pid" 2>/dev/null && _kill_proc_tree_hard "$_int_pid" || true
+        done
+    ' INT
+    trap '
+        for _exit_pid in "${_auto_pids[@]+"${_auto_pids[@]}"}"; do
+            _kill_proc_tree "$_exit_pid" 2>/dev/null || true
+        done
+        _io_lock_cleanup
+    ' EXIT
 
     BACKEND_STARTED=""
     DEV_SERVER_STARTED=""
@@ -2724,7 +2766,14 @@ PYEOF
 
         if [ "$PENDING_UAT" -gt 0 ]; then
             if [ -z "$BACKEND_STARTED" ] && [ -z "$DEV_SERVER_STARTED" ]; then
-                trap 'if [ -n "$DEV_SERVER_STARTED" ]; then echo "Stopping dev server..."; kill_port 5173; fi; if [ -n "$BACKEND_STARTED" ]; then echo "Stopping backend services..."; "$REPO/dev.sh" stop > /dev/null 2>&1 || true; fi; _io_lock_cleanup' EXIT
+                trap '
+                    for _exit_pid in "${_auto_pids[@]+"${_auto_pids[@]}"}"; do
+                        _kill_proc_tree "$_exit_pid" 2>/dev/null || true
+                    done
+                    if [ -n "$DEV_SERVER_STARTED" ]; then echo "Stopping dev server..."; kill_port 5173; fi
+                    if [ -n "$BACKEND_STARTED" ]; then echo "Stopping backend services..."; "$REPO/dev.sh" stop > /dev/null 2>&1 || true; fi
+                    _io_lock_cleanup
+                ' EXIT
                 ensure_backend_running "io-auto-uat-backend"
                 ensure_frontend_running "io-auto-uat-devserver"
             fi

@@ -208,10 +208,6 @@ pub struct BatchHistoryRequest {
     pub agg: Option<String>, // "avg", "sum", "min", "max", "count"
 }
 
-#[derive(Debug, Serialize)]
-pub struct BatchHistoryResponse {
-    pub points: Vec<HistoryResponse>,
-}
 
 // ---------------------------------------------------------------------------
 // GET /history/points/:point_id
@@ -782,9 +778,7 @@ pub async fn get_batch_history(
         });
     }
 
-    Ok(Json(ApiResponse::ok(BatchHistoryResponse {
-        points: results,
-    })))
+    Ok(Json(ApiResponse::ok(results)))
 }
 
 // ---------------------------------------------------------------------------

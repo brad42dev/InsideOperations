@@ -14,6 +14,8 @@ import {
   Download,
   Info,
   Lock,
+  ChevronLeft,
+  ChevronsRight,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useUiStore } from '../../store/ui'
@@ -652,17 +654,10 @@ export default function AppShell() {
   // sidebarHidden drives the edge-reveal strip
   const sidebarHidden = sidebarState === 'hidden'
   const [sidebarPeek, setSidebarPeek] = useState(false)
-  // Hidden sidebar floating overlay (opens on chevron click, retracts after 400ms mouse-leave)
-  const [sidebarHiddenPeekOpen, setSidebarHiddenPeekOpen] = useState(false)
-  const sidebarHiddenPeekOpenRef = useRef(false)
-  sidebarHiddenPeekOpenRef.current = sidebarHiddenPeekOpen
   const sidebarEdgeDwellRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const sidebarHiddenRetractRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Collapsed sidebar hover-to-expand overlay (300ms dwell, 200ms retract)
-  const [collapsedPeek, setCollapsedPeek] = useState(false)
-  const collapsedPeekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // When collapsed but peeking, or hidden overlay is open, show full sidebar content
-  const sidebarShowFull = !sidebarCollapsed || collapsedPeek || sidebarHiddenPeekOpen
+  // Collapsed mode never auto-expands on hover — icons stay icon-only with title tooltips
+  // Full sidebar content only when explicitly in 'expanded' state
+  const sidebarShowFull = sidebarState === 'expanded'
   // Top bar hidden state (Ctrl+Shift+T)
   const [topbarHidden, setTopbarHidden] = useState(false)
   const [topbarPeek, setTopbarPeek] = useState(false)
@@ -955,10 +950,6 @@ export default function AppShell() {
           _setGKeyHintVisible.current?.(false)
           return
         }
-        if (sidebarHiddenPeekOpenRef.current) {
-          setSidebarHiddenPeekOpen(false)
-          return
-        }
         if (isKioskRef.current && !isLockedRef.current) {
           e.preventDefault()
           // Two-step Escape sequence:
@@ -1003,7 +994,6 @@ export default function AppShell() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === '\\') {
         e.preventDefault()
         setSidebarState(s => s === 'hidden' ? 'collapsed' : 'hidden')
-        setCollapsedPeek(false)
         return
       }
 
@@ -1145,7 +1135,6 @@ export default function AppShell() {
               }}
               onMouseEnter={() => {
                 if (sidebarEdgeDwellRef.current) clearTimeout(sidebarEdgeDwellRef.current)
-                if (sidebarHiddenRetractRef.current) clearTimeout(sidebarHiddenRetractRef.current)
                 sidebarEdgeDwellRef.current = setTimeout(() => setSidebarPeek(true), 200)
               }}
               onMouseLeave={() => {
@@ -1160,7 +1149,7 @@ export default function AppShell() {
                     left: 8,
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    width: 24,
+                    width: 28,
                     height: 48,
                     background: 'var(--io-surface-elevated, var(--io-surface))',
                     border: '1px solid var(--io-border)',
@@ -1173,67 +1162,29 @@ export default function AppShell() {
                     zIndex: 61,
                     padding: 0,
                     color: 'var(--io-text-primary)',
-                    fontSize: 16,
                   }}
-                  onClick={() => {
-                    if (sidebarHiddenRetractRef.current) clearTimeout(sidebarHiddenRetractRef.current)
-                    setSidebarHiddenPeekOpen(true)
-                    setSidebarPeek(false)
-                  }}
+                  onClick={() => { setSidebarPeek(false); setSidebarState('expanded') }}
                   title="Show sidebar"
                 >
-                  ›
+                  <ChevronsRight size={14} />
                 </button>
               )}
             </div>
           )}
         <aside
           style={{
-            width: (sidebarHidden && !sidebarHiddenPeekOpen) ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
-            // When collapsed+peeking or hidden+peekOpen: fixed overlay, no content reflow
-            position: (sidebarCollapsed && collapsedPeek) || sidebarHiddenPeekOpen ? 'fixed' : 'relative',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            // Override width for the floating overlay
-            ...(sidebarCollapsed && collapsedPeek ? {
-              width: 'var(--io-sidebar-width, 240px)',
-              zIndex: 200,
-              boxShadow: '4px 0 24px rgba(0,0,0,0.4)',
-            } : {}),
-            ...(sidebarHiddenPeekOpen ? {
-              width: 'var(--io-sidebar-width, 240px)',
-              zIndex: 200,
-              boxShadow: '4px 0 24px rgba(0,0,0,0.4)',
-            } : {}),
+            width: sidebarHidden ? 0 : sidebarCollapsed ? 'var(--io-sidebar-collapsed, 48px)' : 'var(--io-sidebar-width, 240px)',
+            position: 'relative',
             background: 'var(--io-surface-secondary)',
-            borderRight: (sidebarHidden && !sidebarHiddenPeekOpen) ? 'none' : '1px solid var(--io-border)',
+            borderRight: sidebarHidden ? 'none' : '1px solid var(--io-border)',
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
-            zIndex: (sidebarCollapsed && collapsedPeek) || sidebarHiddenPeekOpen ? 200 : 50,
+            zIndex: 50,
             overflow: 'hidden',
             transition: 'width 0.18s ease',
           }}
           className="sidebar"
-          onMouseEnter={() => {
-            if (sidebarCollapsed) {
-              if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
-              collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(true), 300)
-            }
-            if (sidebarHiddenPeekOpen) {
-              if (sidebarHiddenRetractRef.current) clearTimeout(sidebarHiddenRetractRef.current)
-            }
-          }}
-          onMouseLeave={() => {
-            if (sidebarCollapsed) {
-              if (collapsedPeekTimerRef.current) clearTimeout(collapsedPeekTimerRef.current)
-              collapsedPeekTimerRef.current = setTimeout(() => setCollapsedPeek(false), 200)
-            }
-            if (sidebarHiddenPeekOpen) {
-              sidebarHiddenRetractRef.current = setTimeout(() => setSidebarHiddenPeekOpen(false), 400)
-            }
-          }}
         >
           {/* Logo / collapse button row */}
           <div
@@ -1241,7 +1192,8 @@ export default function AppShell() {
               height: 'var(--io-topbar-height)',
               display: 'flex',
               alignItems: 'center',
-              padding: sidebarShowFull ? '0 8px 0 16px' : '0 0 0 10px',
+              justifyContent: sidebarShowFull ? 'flex-start' : 'center',
+              padding: sidebarShowFull ? '0 8px 0 16px' : '0',
               borderBottom: '1px solid var(--io-border)',
               flexShrink: 0,
               gap: '8px',
@@ -1288,7 +1240,9 @@ export default function AppShell() {
               </div>
             )}
             {!sidebarShowFull && (
-              <div
+              <button
+                onClick={() => setSidebarState('expanded')}
+                title="Expand sidebar"
                 style={{
                   width: '28px',
                   height: '28px',
@@ -1299,66 +1253,15 @@ export default function AppShell() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
+                  cursor: 'pointer',
+                  padding: 0,
                 }}
               >
                 <span style={{ color: 'var(--io-accent)', fontSize: '11px', fontWeight: 700, letterSpacing: '-0.3px' }}>
                   I/O
                 </span>
-              </div>
-            )}
-            {/* Pin button — visible only in hidden-overlay mode; pins sidebar to Collapsed state */}
-            {sidebarHiddenPeekOpen && (
-              <button
-                onClick={() => {
-                  setSidebarState('collapsed')
-                  setSidebarHiddenPeekOpen(false)
-                }}
-                title="Pin sidebar (switch to Collapsed)"
-                style={{
-                  flexShrink: 0,
-                  width: '24px',
-                  height: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'none',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  color: 'var(--io-text-muted)',
-                  fontSize: '11px',
-                  padding: 0,
-                }}
-              >
-                ⊢
               </button>
             )}
-            {/* Collapse toggle button — toggles expanded ↔ collapsed (Ctrl+\) */}
-            <button
-              onClick={() => {
-                setCollapsedPeek(false)
-                setSidebarState(s => s === 'hidden' ? 'collapsed' : s === 'collapsed' ? 'expanded' : 'collapsed')
-              }}
-              title={sidebarShowFull ? 'Collapse sidebar (Ctrl+\\)' : 'Expand sidebar (Ctrl+\\)'}
-              style={{
-                flexShrink: 0,
-                width: '24px',
-                height: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'none',
-                border: '1px solid var(--io-border)',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                color: 'var(--io-text-muted)',
-                fontSize: '10px',
-                marginLeft: sidebarShowFull ? 'auto' : '0',
-                padding: 0,
-              }}
-            >
-              {sidebarShowFull ? '‹' : '›'}
-            </button>
           </div>
 
           {/* Nav items — grouped */}
@@ -1402,7 +1305,7 @@ export default function AppShell() {
                       key={item.path}
                       to={item.path}
                       title={sidebarShowFull ? undefined : item.label}
-                      onClick={() => collapsedPeek && setCollapsedPeek(false)}
+                      onClick={() => {}}
                       aria-current={
                         location.pathname === item.path ||
                         location.pathname.startsWith(item.path + '/')
@@ -1461,6 +1364,35 @@ export default function AppShell() {
               )
             })}
           </nav>
+
+          {/* Sidebar footer — collapse/hide chevron button */}
+          <button
+            onClick={() => setSidebarState(s => s === 'expanded' ? 'collapsed' : 'hidden')}
+            title={sidebarState === 'expanded' ? 'Collapse sidebar (Ctrl+\\)' : 'Hide sidebar (Ctrl+\\)'}
+            style={{
+              width: '100%',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: sidebarShowFull ? 'flex-start' : 'center',
+              paddingLeft: sidebarShowFull ? '14px' : '0',
+              background: 'none',
+              border: 'none',
+              borderTop: '1px solid var(--io-border-subtle)',
+              cursor: 'pointer',
+              color: 'var(--io-text-muted)',
+              flexShrink: 0,
+              padding: sidebarShowFull ? '0 0 0 14px' : '0',
+              gap: '6px',
+            }}
+          >
+            <ChevronLeft size={14} />
+            {sidebarShowFull && (
+              <span style={{ fontSize: '12px' }}>
+                {sidebarState === 'expanded' ? 'Collapse' : 'Hide'}
+              </span>
+            )}
+          </button>
 
           {/* Sidebar footer — system health dots */}
           <div

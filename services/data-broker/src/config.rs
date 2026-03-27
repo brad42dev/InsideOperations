@@ -76,7 +76,7 @@ impl Config {
                 .parse()
                 .context("PORT must be a valid port number")?,
             opc_broker_sock: std::env::var("OPC_BROKER_SOCK")
-                .unwrap_or_else(|_| "/var/run/io/opc-broker.sock".to_string()),
+                .unwrap_or_else(|_| "/tmp/io-opc-broker.sock".to_string()),
             stale_threshold_secs: std::env::var("STALE_THRESHOLD_SECS")
                 .unwrap_or_else(|_| "60".to_string())
                 .parse()

@@ -739,3 +739,130 @@ pub async fn list_history_recovery_jobs(
 
     Json(PagedResponse::new(jobs, pg, limit, total as u64)).into_response()
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/points/resolve-tags
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ResolveTagsRequest {
+    pub tags: Vec<String>,
+}
+
+/// Resolve point tag names to their internal UUIDs.
+/// Accepts { "tags": ["25-AI-1401", ...] }, returns { "data": { "25-AI-1401": "uuid", ... } }.
+/// Unrecognised tags are silently omitted from the response.
+pub async fn resolve_tags(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Json(body): Json<ResolveTagsRequest>,
+) -> impl IntoResponse {
+    if body.tags.is_empty() {
+        return Json(serde_json::json!({ "data": {} })).into_response();
+    }
+
+    let rows = match sqlx::query(
+        "SELECT tagname, id::text FROM points_metadata WHERE tagname = ANY($1)",
+    )
+    .bind(&body.tags)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let resolved: std::collections::HashMap<String, String> = rows
+        .into_iter()
+        .map(|r| (r.get::<String, _>("tagname"), r.get::<String, _>("id")))
+        .collect();
+
+    Json(serde_json::json!({ "data": resolved })).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// List points
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ListPointsParams {
+    pub source_id: Option<Uuid>,
+    pub search: Option<String>,
+    pub page: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+/// GET /api/points — paginated list of points_metadata rows.
+/// Used by PointPickerModal and other UI components.
+pub async fn list_points(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Query(params): Query<ListPointsParams>,
+) -> impl IntoResponse {
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(50).clamp(1, 500);
+    let offset = (page - 1) * limit;
+
+    let search_pattern = params
+        .search
+        .as_deref()
+        .map(|s| format!("%{}%", s.to_lowercase()));
+
+    let rows = match sqlx::query(
+        r#"SELECT id::text, tagname, description, engineering_units, data_type,
+                  source_id::text, active, area, criticality
+           FROM points_metadata
+           WHERE ($1::uuid IS NULL OR source_id = $1)
+             AND ($2::text IS NULL OR LOWER(tagname) LIKE $2 OR LOWER(description) LIKE $2)
+           ORDER BY tagname
+           LIMIT $3 OFFSET $4"#,
+    )
+    .bind(params.source_id)
+    .bind(&search_pattern)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let total: i64 = match sqlx::query_scalar(
+        r#"SELECT COUNT(*) FROM points_metadata
+           WHERE ($1::uuid IS NULL OR source_id = $1)
+             AND ($2::text IS NULL OR LOWER(tagname) LIKE $2 OR LOWER(description) LIKE $2)"#,
+    )
+    .bind(params.source_id)
+    .bind(&search_pattern)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(n) => n,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let data: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<String, _>("id"),
+                "tagname": r.get::<String, _>("tagname"),
+                "description": r.get::<Option<String>, _>("description"),
+                "engineering_units": r.get::<Option<String>, _>("engineering_units"),
+                "data_type": r.get::<Option<String>, _>("data_type"),
+                "source_id": r.get::<Option<String>, _>("source_id"),
+                "active": r.get::<bool, _>("active"),
+                "area": r.get::<Option<String>, _>("area"),
+                "criticality": r.get::<Option<String>, _>("criticality"),
+            })
+        })
+        .collect();
+
+    let pages = ((total as f64) / (limit as f64)).ceil() as i64;
+    Json(serde_json::json!({
+        "data": data,
+        "pagination": { "total": total, "page": page, "pages": pages }
+    }))
+    .into_response()
+}

@@ -169,16 +169,17 @@ function NumberInput({
   max,
   step = 1,
 }: {
-  value: number
+  value: number | undefined
   onChange: (v: number) => void
   min?: number
   max?: number
   step?: number
 }) {
+  const safeValue = (value === undefined || value === null || isNaN(value as number)) ? '' : value
   return (
     <input
       type="number"
-      value={value}
+      value={safeValue}
       min={min}
       max={max}
       step={step}
@@ -492,19 +493,21 @@ function SymbolInstancePanel({ node }: { node: SymbolInstance }) {
         </div>
       )}
 
-      <Field label="Binding (Point ID)">
+      <Field label="Binding (Point Tag)">
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <input
             type="text"
-            defaultValue={node.stateBinding?.pointId ?? ''}
+            key={node.id}
+            defaultValue={node.stateBinding?.pointTag ?? node.stateBinding?.pointId ?? ''}
             onBlur={e => {
               const val = e.target.value.trim()
-              executeCmd(new ChangeBindingCommand(node.id, { pointId: val || undefined }, node.stateBinding ?? {}))
+              const newBinding = val ? { pointTag: val } : undefined
+              executeCmd(new ChangePropertyCommand(node.id, 'stateBinding', newBinding, node.stateBinding))
             }}
             style={{ ...inputStyle, flex: 1 }}
-            placeholder="tag.point"
+            placeholder="e.g. 25-AI-1401"
           />
-          <PointResolutionIndicator pointId={node.stateBinding?.pointId} />
+          <PointResolutionIndicator pointId={node.stateBinding?.pointTag ?? node.stateBinding?.pointId} />
         </div>
       </Field>
       <Field label="X">
@@ -1004,20 +1007,20 @@ function DisplayElementTypeFields({ node, executeCmd }: { node: DisplayElement; 
             Thresholds
           </div>
           <Field label="HH">
-            <NumberInput value={cfg.thresholds?.hh ?? NaN} step={0.1}
-              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, hh: isNaN(v) ? undefined : v } } as Partial<AnalogBarConfig>)} />
+            <NumberInput value={cfg.thresholds?.hh} step={0.1}
+              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, hh: v } } as Partial<AnalogBarConfig>)} />
           </Field>
           <Field label="H">
-            <NumberInput value={cfg.thresholds?.h ?? NaN} step={0.1}
-              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, h: isNaN(v) ? undefined : v } } as Partial<AnalogBarConfig>)} />
+            <NumberInput value={cfg.thresholds?.h} step={0.1}
+              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, h: v } } as Partial<AnalogBarConfig>)} />
           </Field>
           <Field label="L">
-            <NumberInput value={cfg.thresholds?.l ?? NaN} step={0.1}
-              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, l: isNaN(v) ? undefined : v } } as Partial<AnalogBarConfig>)} />
+            <NumberInput value={cfg.thresholds?.l} step={0.1}
+              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, l: v } } as Partial<AnalogBarConfig>)} />
           </Field>
           <Field label="LL">
-            <NumberInput value={cfg.thresholds?.ll ?? NaN} step={0.1}
-              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, ll: isNaN(v) ? undefined : v } } as Partial<AnalogBarConfig>)} />
+            <NumberInput value={cfg.thresholds?.ll} step={0.1}
+              onChange={v => patchConfig({ thresholds: { ...cfg.thresholds, ll: v } } as Partial<AnalogBarConfig>)} />
           </Field>
         </>
       )
@@ -1183,19 +1186,23 @@ function DisplayElementPanel({ node }: { node: DisplayElement }) {
           options={DISPLAY_ELEMENT_TYPE_OPTIONS}
         />
       </Field>
-      <Field label="Binding (Point ID)">
+      <Field label="Binding (Point Tag)">
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <input
             type="text"
-            defaultValue={node.binding.pointId ?? ''}
+            defaultValue={node.binding.pointTag ?? node.binding.pointId ?? ''}
             onBlur={e => {
               const val = e.target.value.trim()
-              executeCmd(new ChangeBindingCommand(node.id, { pointId: val || undefined }, node.binding))
+              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
+              const newBinding = val
+                ? (isUuid ? { pointId: val } : { pointTag: val })
+                : {}
+              executeCmd(new ChangeBindingCommand(node.id, newBinding, node.binding))
             }}
             style={{ ...inputStyle, flex: 1 }}
-            placeholder="tag.point"
+            placeholder="e.g. 25-AI-1401"
           />
-          <PointResolutionIndicator pointId={node.binding.pointId} />
+          <PointResolutionIndicator pointId={node.binding.pointTag ?? node.binding.pointId} />
         </div>
       </Field>
       <DisplayElementTypeFields node={node} executeCmd={executeCmd} />

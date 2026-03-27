@@ -26,6 +26,8 @@ fn check_permission(claims: &Claims, permission: &str) -> bool {
 // Request / Response types
 // ---------------------------------------------------------------------------
 
+fn default_graphic_type() -> String { "graphic".to_string() }
+
 #[derive(Debug, Deserialize)]
 pub struct DesignObjectTypeFilter {
     #[serde(rename = "type")]
@@ -38,7 +40,9 @@ pub struct DesignObjectTypeFilter {
 #[derive(Debug, Deserialize)]
 pub struct UpsertDesignObjectBody {
     pub name: String,
-    #[serde(rename = "type")]
+    /// Object type: "graphic", "dashboard", "report", "shape", "stencil", etc.
+    /// Defaults to "graphic" when omitted (Designer frontend omits this field).
+    #[serde(rename = "type", default = "default_graphic_type")]
     pub object_type: String,
     pub svg_data: Option<String>,
     /// The scene graph (GraphicDocument JSON) for graphics, or point binding definitions
@@ -290,8 +294,13 @@ pub async fn create_graphic(
         }
     }
 
-    // Force type to 'graphic' for this endpoint
-    let object_type = "graphic".to_string();
+    // Accept graphic/dashboard/report; default is "graphic" (set by UpsertDesignObjectBody default)
+    let allowed = ["graphic", "dashboard", "report"];
+    let object_type = if allowed.contains(&body.object_type.as_str()) {
+        body.object_type.clone()
+    } else {
+        "graphic".to_string()
+    };
     let id = Uuid::new_v4();
     let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
     let bindings = body.bindings.unwrap_or(JsonValue::Object(serde_json::Map::new()));
@@ -542,6 +551,88 @@ pub async fn delete_graphic(
     });
 
     Json(ApiResponse::ok(serde_json::json!({ "id": id }))).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/design-objects/:id/publish — create a permanent published snapshot
+// ---------------------------------------------------------------------------
+
+pub async fn publish_graphic(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    if !check_permission(&claims, "designer:publish") {
+        return IoError::Forbidden("designer:publish permission required".into()).into_response();
+    }
+
+    // Fetch current graphic content
+    let row = match sqlx::query(
+        "SELECT id, svg_data, bindings, metadata FROM design_objects WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => return IoError::NotFound(format!("Graphic {} not found", id)).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "publish_graphic fetch failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let svg_data: String = row.try_get("svg_data").unwrap_or_default();
+    let bindings: Option<JsonValue> = row.try_get("bindings").ok().flatten();
+    let metadata: Option<JsonValue> = row.try_get("metadata").ok().flatten();
+
+    // Determine next version number
+    let next_version: i32 = match sqlx::query_scalar(
+        "SELECT COALESCE(MAX(version_number), 0) + 1 FROM design_object_versions WHERE design_object_id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::error!(error = %e, "publish_graphic version query failed");
+            return IoError::Database(e).into_response();
+        }
+    };
+
+    let created_by = match claims.sub.parse::<Uuid>() {
+        Ok(u) => u,
+        Err(_) => return IoError::Internal("Invalid user ID in token".into()).into_response(),
+    };
+
+    match sqlx::query(
+        r#"
+        INSERT INTO design_object_versions
+            (design_object_id, version_number, version_type, svg_data, bindings, metadata, created_by)
+        VALUES ($1, $2, 'publish', $3, $4, $5, $6)
+        RETURNING id, version_number
+        "#,
+    )
+    .bind(id)
+    .bind(next_version)
+    .bind(&svg_data)
+    .bind(&bindings)
+    .bind(&metadata)
+    .bind(created_by)
+    .fetch_one(&state.db)
+    .await
+    {
+        Ok(row) => {
+            let version: i32 = row.try_get("version_number").unwrap_or(next_version);
+            tracing::info!(graphic_id = %id, version = version, "Graphic published");
+            Json(ApiResponse::ok(serde_json::json!({ "version": version }))).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "publish_graphic insert failed");
+            IoError::Database(e).into_response()
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

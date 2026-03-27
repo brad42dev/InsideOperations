@@ -18,7 +18,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useSceneStore, useHistoryStore, useTabStore, MAX_TABS } from '../../store/designer'
 import { useUiStore } from '../../store/designer/uiStore'
 import { graphicsApi } from '../../api/graphics'
@@ -48,8 +48,9 @@ import TabClosePrompt from './components/TabClosePrompt'
 // ---------------------------------------------------------------------------
 
 interface NewGraphicDialogProps {
-  onConfirm: (name: string, mode: 'graphic' | 'dashboard' | 'report', width: number, height: number, autoHeight: boolean) => void
+  onConfirm: (name: string, mode: 'graphic' | 'dashboard' | 'report', width: number, height: number, autoHeight: boolean, scope: 'console' | 'process' | null) => void
   onCancel: () => void
+  initialMode?: 'graphic' | 'dashboard' | 'report'
 }
 
 // ---------------------------------------------------------------------------
@@ -118,11 +119,13 @@ function ChainLinkIcon({ locked }: { locked: boolean }) {
 // NewGraphicDialog
 // ---------------------------------------------------------------------------
 
-function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
-  const [name, setName] = useState('Untitled Graphic')
-  const [mode, setMode] = useState<'graphic' | 'dashboard' | 'report'>('graphic')
-  const [width, setWidth] = useState<number>(MODE_DEFAULTS.graphic.width)
-  const [height, setHeight] = useState<number>(MODE_DEFAULTS.graphic.height)
+function NewGraphicDialog({ onConfirm, onCancel, initialMode = 'graphic' }: NewGraphicDialogProps) {
+  const defaultName = initialMode === 'dashboard' ? 'Untitled Dashboard' : initialMode === 'report' ? 'Untitled Report' : 'Untitled Graphic'
+  const [name, setName] = useState(defaultName)
+  const [mode, setMode] = useState<'graphic' | 'dashboard' | 'report'>(initialMode)
+  const [scope, setScope] = useState<'console' | 'process'>('console')
+  const [width, setWidth] = useState<number>(MODE_DEFAULTS[initialMode].width)
+  const [height, setHeight] = useState<number>(MODE_DEFAULTS[initialMode].height)
   const [autoHeight, setAutoHeight] = useState<boolean>(MODE_DEFAULTS.graphic.autoHeight)
   const [proportionalLock, setProportionalLock] = useState(false)
   const [activePreset, setActivePreset] = useState<string | null>('1080p')
@@ -199,7 +202,7 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) return
-    onConfirm(trimmed, mode, clampWidth(width), clampHeight(height), autoHeight)
+    onConfirm(trimmed, mode, clampWidth(width), clampHeight(height), autoHeight, mode === 'graphic' ? scope : null)
   }
 
   const visiblePresets = ASPECT_PRESETS.filter(p => !p.reportOnly || mode === 'report')
@@ -293,6 +296,36 @@ function NewGraphicDialog({ onConfirm, onCancel }: NewGraphicDialogProps) {
             ))}
           </div>
         </div>
+
+        {/* Scope — only relevant for graphic type */}
+        {mode === 'graphic' && (
+          <div>
+            <label style={labelStyle}>Module</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['console', 'process'] as const).map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setScope(s)}
+                  style={{
+                    flex: 1,
+                    padding: '6px 0',
+                    background: scope === s ? 'var(--io-accent)' : 'var(--io-surface)',
+                    color: scope === s ? 'var(--io-accent-foreground)' : 'var(--io-text-secondary)',
+                    border: '1px solid var(--io-border)',
+                    borderRadius: 'var(--io-radius)',
+                    fontSize: 12,
+                    fontWeight: scope === s ? 600 : 400,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Preset chip row */}
         <div>
@@ -556,7 +589,16 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 export default function DesignerPage() {
   const { id: graphicId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const isNew = !graphicId || graphicId === 'new'
+
+  // Derive initial mode from the route path so that /designer/dashboards/new
+  // pre-selects "dashboard" and /designer/reports/new pre-selects "report".
+  const routeInitialMode: 'graphic' | 'dashboard' | 'report' = location.pathname.includes('/dashboards')
+    ? 'dashboard'
+    : location.pathname.includes('/reports')
+      ? 'report'
+      : 'graphic'
 
   // Store actions
   const loadGraphic   = useSceneStore(s => s.loadGraphic)
@@ -613,6 +655,7 @@ export default function DesignerPage() {
   // Pessimistic lock state — non-null means WE do NOT hold the lock
   const [lockState, setLockState] = useState<{ lockedByName: string; lockedAt: string } | null>(null)
   const lockHeldRef = useRef(false) // true when this session holds the lock
+  const graphicScopeRef = useRef<'console' | 'process' | null>(null) // set on new-doc creation
 
   // New doc dialog
   const [showNewDialog, setShowNewDialog] = useState(false)
@@ -728,7 +771,10 @@ export default function DesignerPage() {
   const handleSave = useCallback(async ({ explicit = false }: { explicit?: boolean } = {}) => {
     const currentDoc = useSceneStore.getState().doc
     const currentId  = useSceneStore.getState().graphicId
-    if (!currentDoc || isSaving || lockHeldRef.current === false) return
+    // For new (unsaved) documents there is no lock yet — allow save.
+    // For existing documents, block save if this session doesn't hold the lock.
+    if (!currentDoc || isSaving) return
+    if (currentId && lockHeldRef.current === false) return
 
     setIsSaving(true)
     try {
@@ -749,10 +795,14 @@ export default function DesignerPage() {
           return
         }
       } else {
-        // Create new
+        // Create new — send designMode so the DB type is graphic/dashboard/report
+        const designMode = useSceneStore.getState().designMode
+        const scopeMeta = graphicScopeRef.current
         const resp = await graphicsApi.create({
           name: docName,
           scene_data: currentDoc,
+          type: designMode,
+          ...(scopeMeta ? { metadata: { module: scopeMeta } } : {}),
         })
         if (!resp.success) {
           console.error('[DesignerPage] Create failed:', resp.error.message)
@@ -764,7 +814,7 @@ export default function DesignerPage() {
           return
         }
         // Update graphicId in store via loadGraphic (sets graphicId in scene state)
-        loadGraphic(resp.data.data.id, currentDoc)
+        loadGraphic(resp.data.id, currentDoc)
         // Upgrade the active placeholder tab to the real server-assigned graphicId.
         // We use activeTabId here because: (a) the active tab IS the one being saved,
         // (b) multiple unsaved tabs each get a unique 'new-<uuid>' placeholder so we
@@ -773,7 +823,7 @@ export default function DesignerPage() {
         if (activeTabId) {
           const activeTabRecord = useTabStore.getState().getTab(activeTabId)
           if (activeTabRecord && activeTabRecord.graphicId.startsWith('new-')) {
-            tabStoreSetGraphicId(activeTabId, resp.data.data.id, docName)
+            tabStoreSetGraphicId(activeTabId, resp.data.id, docName)
           }
         }
       }
@@ -847,7 +897,8 @@ export default function DesignerPage() {
 
   const handlePublish = useCallback(async () => {
     const currentId = useSceneStore.getState().graphicId
-    if (!currentId || isPublishing || lockHeldRef.current === false) return
+    // Block publish only if another user explicitly holds the lock (lockState is set)
+    if (!currentId || isPublishing) return
     if (!window.confirm('Publish this graphic? This creates a permanent, immutable snapshot that cannot be deleted.')) return
 
     setIsPublishing(true)
@@ -1462,12 +1513,15 @@ export default function DesignerPage() {
 
     const STORE = 'designer-autosave'
     const DB_NAME = 'io-designer'
-    const DB_VERSION = 1
+    const DB_VERSION = 2
 
     // Open/upgrade IndexedDB
     const openReq = indexedDB.open(DB_NAME, DB_VERSION)
     openReq.onupgradeneeded = () => {
-      openReq.result.createObjectStore(STORE)
+      const upgradeDb = openReq.result
+      if (!upgradeDb.objectStoreNames.contains(STORE)) {
+        upgradeDb.createObjectStore(STORE)
+      }
     }
 
     let db: IDBDatabase | null = null
@@ -1515,7 +1569,8 @@ export default function DesignerPage() {
   // New graphic dialog confirm
   // -------------------------------------------------------------------------
 
-  function handleNewConfirm(name: string, mode: 'graphic' | 'dashboard' | 'report', width: number, height: number, autoHeight: boolean) {
+  function handleNewConfirm(name: string, mode: 'graphic' | 'dashboard' | 'report', width: number, height: number, autoHeight: boolean, scope: 'console' | 'process' | null) {
+    graphicScopeRef.current = scope
     // Save the outgoing tab's scene and viewport before replacing it with the new document.
     // Without this, the previous graphic is lost: newDocument() replaces the scene in
     // sceneStore immediately, and the outgoing tab's savedScene slot remains null.
@@ -1607,7 +1662,7 @@ export default function DesignerPage() {
     }}>
       {/* New graphic dialog */}
       {showNewDialog && (
-        <NewGraphicDialog onConfirm={handleNewConfirm} onCancel={handleNewCancel} />
+        <NewGraphicDialog onConfirm={handleNewConfirm} onCancel={handleNewCancel} initialMode={routeInitialMode} />
       )}
 
       {/* Crash recovery banner */}
@@ -1769,7 +1824,7 @@ export default function DesignerPage() {
                 const copyName = `${currentDoc.name ?? 'Untitled'} (copy)`
                 const resp = await graphicsApi.create({ name: copyName, scene_data: currentDoc }).catch(() => null)
                 if (resp?.success) {
-                  navigate(`/designer/graphics/${resp.data.data.id}/edit`)
+                  navigate(`/designer/graphics/${resp.data.id}/edit`)
                 }
               }}
               style={{

@@ -2413,8 +2413,13 @@ pub async fn commit_iographic(
             .as_deref()
             .and_then(|s| serde_json::from_str::<JsonValue>(s).ok())
             .and_then(|v| {
-                // Extract inner bindings array/object from graphic.json envelope
                 if let JsonValue::Object(ref obj) = v {
+                    // GraphicDocument format (spec-compliant): type = "graphic_document".
+                    // Store the entire document as scene_data (bindings column).
+                    if obj.get("type").and_then(|t| t.as_str()) == Some("graphic_document") {
+                        return Some(v);
+                    }
+                    // Legacy GraphicModel format: extract inner bindings dict.
                     obj.get("bindings").cloned()
                 } else {
                     Some(v)

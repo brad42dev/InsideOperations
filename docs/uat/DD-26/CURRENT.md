@@ -1,35 +1,36 @@
 ---
 unit: DD-26
-date: 2026-03-24
+date: 2026-03-26
 uat_mode: auto
-verdict: pass
-scenarios_tested: 8
+verdict: partial
+scenarios_tested: 9
 scenarios_passed: 8
-scenarios_failed: 0
+scenarios_failed: 1
 scenarios_skipped: 0
 ---
 
 ## Module Route Check
 
-pass: Navigating to /designer loads the real Designer implementation — toolbar with "Recognize Image" button, asset cards, and Recently Modified section are present with no error boundary.
+pass: Navigating to /settings/recognition loads the Recognition settings page — "Recognition" heading, Service Status section with per-domain P&ID/DCS stats, Loaded Models section, and Gap Reports section are all present with no error boundary.
 
 ## Scenarios
 
 | # | Area | Scenario | Result | Notes |
 |---|------|----------|--------|-------|
-| 1 | Page Load | [DD-26-009] Designer page renders without error | ✅ pass | Page loads cleanly at /designer, no error boundary |
-| 2 | Recognition Entry Point | [DD-26-009] Recognize Image button is visible | ✅ pass | "Recognize Image" button visible in action toolbar area |
-| 3 | Recognition Entry Point | [DD-26-009] Recognize Image button has correct role | ✅ pass | Element rendered as role="button" — interactive |
-| 4 | Recognition Entry Point | [DD-26-009] Clicking Recognize Image opens wizard dialog | ✅ pass | Clicking opens dialog "Recognize Image" with role="dialog" — not a silent no-op |
-| 5 | Wizard Content | [DD-26-009] Wizard shows service status message when unavailable | ✅ pass | Dialog shows "Recognition service is currently unavailable. The service may not be running. Contact your administrator." |
-| 6 | Wizard Content | [DD-26-010] Wizard has a close/cancel button | ✅ pass | Both "×" and "Close" buttons present in dialog |
-| 7 | Wizard Content | [DD-26-010] Close button dismisses wizard | ✅ pass | Clicking "Close" dismisses dialog, Designer returns to normal state |
-| 8 | Wizard Content | [DD-26-010] Recognize Image always produces visible UI change | ✅ pass | Dialog opened on click — visible change confirmed |
+| 1 | Recognition Settings | [DD-26-011] Settings recognition page renders without error | ✅ pass | "Recognition" heading visible, no error boundary |
+| 2 | Recognition Settings | [DD-26-011] Service Status section shows per-domain status | ✅ pass | "P&ID Model" and "DCS Model" appear as separate stat items in Service Status card |
+| 3 | Recognition Settings | [DD-26-011] — data flow: GET /api/recognition/status | ✅ pass | Both P&ID and DCS domains show "Not Loaded" + "mode: disabled · hw: cpu" — real API response rendered, not loading/error state |
+| 4 | Recognition Settings | [DD-26-011] P&ID and DCS model labels both visible simultaneously | ✅ pass | "P&ID Model" and "DCS Model" labels both present in Service Status section at the same time |
+| 5 | Loaded Models | [DD-26-012] Loaded Models section renders with Upload button | ✅ pass | "Loaded Models" section visible, "Upload .iomodel" button present |
+| 6 | Loaded Models | [DD-26-012] Models table has Domain column | ❌ fail | GET /api/recognition/models returns 404 — models table never renders, Domain column unverifiable; UI silently falls back to "No models uploaded" empty state instead of showing an error |
+| 7 | Recognition Settings | [DD-26-011] Status subtext shows mode and hardware per domain | ✅ pass | "mode: disabled · hw: cpu" subtext visible under both P&ID Model and DCS Model |
+| 8 | Gap Reports | [DD-26-012] Gap Reports section renders | ✅ pass | "Gap Reports" section visible with "Import .iogap" button |
+| 9 | Recognition Settings | [DD-26-011] No error boundary after page load | ✅ pass | No "Something went wrong" text, page renders cleanly |
 
 ## New Bug Tasks Created
 
-None
+DD-26-013 — /api/recognition/models endpoint returns 404; models table never renders
 
 ## Screenshot Notes
 
-All scenarios passed. The Recognize Image button is now properly interactive (role="button") and always opens the recognition import wizard regardless of recognition service status. When the service is unavailable, the wizard correctly displays a readable error message ("Recognition service is currently unavailable...") and provides a close button. Previous UAT session (DD-26-007 era) found the button was non-interactive — that issue has been resolved by DD-26-009 and DD-26-010 fixes.
+Seed data: UNAVAILABLE (psql not accessible). Recognition service API: /api/recognition/status returns 200 with per-domain domains.pid and domains.dcs structure — confirming ModelManager dual-slot architecture is working at the API level. /api/recognition/models returns 404 — this endpoint is not registered in the API gateway routing. The UI component silently falls back to the empty state message rather than surfacing an error. The "Domain" column in the models table (which would confirm per-domain display of DD-26-012 hot-swap architecture) is therefore unverifiable.

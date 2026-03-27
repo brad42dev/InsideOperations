@@ -10,7 +10,6 @@ import {
   type PointConfig,
   type UpdatePointConfigRequest,
   type PointMetadataVersion,
-  type PointSource,
 } from '../../api/points'
 import { expressionsApi, type SavedExpression } from '../../api/expressions'
 import { ExpressionBuilder } from '../../shared/components/expression/ExpressionBuilder'
@@ -1214,7 +1213,7 @@ export default function PointManagement() {
     queryFn: async () => {
       const result = await pointSourcesApi.list()
       if (!result.success) throw new Error(result.error.message)
-      return result.data as PointSource[]
+      return result.data.data
     },
   })
 

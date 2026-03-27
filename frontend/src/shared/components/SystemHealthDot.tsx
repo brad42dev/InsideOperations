@@ -20,23 +20,24 @@ interface ServiceHealth {
   status: ServiceStatus
 }
 
-interface HealthResponse {
-  status?: ServiceStatus
-  services?: Record<string, { status: ServiceStatus }>
+// API returns { success: true, data: [{ name: "api-gateway", status: "healthy" }] }
+interface HealthResponseItem {
+  name: string
+  status: ServiceStatus
 }
 
 const SERVICE_NAMES: { key: string; label: string }[] = [
-  { key: 'api_gateway',         label: 'API Gateway' },
-  { key: 'data_broker',         label: 'Data Broker' },
-  { key: 'opc_service',         label: 'OPC Service' },
-  { key: 'event_service',       label: 'Event Service' },
-  { key: 'parser_service',      label: 'Parser Service' },
-  { key: 'archive_service',     label: 'Archive Service' },
-  { key: 'import_service',      label: 'Import Service' },
-  { key: 'alert_service',       label: 'Alert Service' },
-  { key: 'email_service',       label: 'Email Service' },
-  { key: 'auth_service',        label: 'Auth Service' },
-  { key: 'recognition_service', label: 'Recognition Service' },
+  { key: 'api-gateway',         label: 'API Gateway' },
+  { key: 'data-broker',         label: 'Data Broker' },
+  { key: 'opc-service',         label: 'OPC Service' },
+  { key: 'event-service',       label: 'Event Service' },
+  { key: 'parser-service',      label: 'Parser Service' },
+  { key: 'archive-service',     label: 'Archive Service' },
+  { key: 'import-service',      label: 'Import Service' },
+  { key: 'alert-service',       label: 'Alert Service' },
+  { key: 'email-service',       label: 'Email Service' },
+  { key: 'auth-service',        label: 'Auth Service' },
+  { key: 'recognition-service', label: 'Recognition Service' },
 ]
 
 async function fetchHealth(): Promise<ServiceHealth[]> {
@@ -49,11 +50,13 @@ async function fetchHealth(): Promise<ServiceHealth[]> {
     if (!r.ok) {
       return SERVICE_NAMES.map(({ label }) => ({ name: label, status: 'unknown' }))
     }
-    const data: HealthResponse = await r.json()
-    return SERVICE_NAMES.map(({ key, label }) => {
-      const svc = data.services?.[key]
-      return { name: label, status: svc?.status ?? data.status ?? 'unknown' }
-    })
+    const body = await r.json() as { data?: HealthResponseItem[] }
+    const items: HealthResponseItem[] = Array.isArray(body.data) ? body.data : []
+    const byName = new Map(items.map((i) => [i.name, i.status]))
+    return SERVICE_NAMES.map(({ key, label }) => ({
+      name: label,
+      status: byName.get(key) ?? 'unknown',
+    }))
   } catch {
     return SERVICE_NAMES.map(({ label }) => ({ name: label, status: 'unknown' }))
   }

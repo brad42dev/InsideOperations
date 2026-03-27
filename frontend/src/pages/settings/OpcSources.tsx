@@ -2283,7 +2283,7 @@ export default function OpcSourcesPage() {
     queryFn: async () => {
       const result = await pointSourcesApi.list()
       if (!result.success) throw new Error(result.error.message)
-      return result.data as PointSource[]
+      return result.data.data as PointSource[]
     },
     // Poll faster when any source is in a transitional/error state
     refetchInterval: (query) => {
@@ -2299,7 +2299,7 @@ export default function OpcSourcesPage() {
     queryFn: async () => {
       const r = await pointSourceStatsApi.listAll()
       if (!r.success) return [] as PointSourceStats[]
-      return r.data as PointSourceStats[]
+      return r.data.data
     },
     refetchInterval: 30_000,
   })

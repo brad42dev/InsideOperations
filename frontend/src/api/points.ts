@@ -173,7 +173,7 @@ export interface ConnectionTestResult {
 }
 
 export const pointSourcesApi = {
-  list: () => api.get<PointSource[]>('/api/points/sources'),
+  list: () => api.get<{ data: PointSource[]; pagination: { total: number; page: number; pages: number } }>('/api/points/sources'),
   get: (id: string) => api.get<PointSource>(`/api/points/sources/${id}`),
   create: (req: CreatePointSourceRequest) => api.post<PointSource>('/api/points/sources', req),
   update: (id: string, req: UpdatePointSourceRequest) =>
@@ -377,7 +377,7 @@ export interface PointSourceStats {
 
 export const pointSourceStatsApi = {
   /** GET /api/opc/sources/stats — stats for all sources (bulk) */
-  listAll: () => api.get<PointSourceStats[]>('/api/opc/sources/stats'),
+  listAll: () => api.get<{ data: PointSourceStats[]; pagination: { total: number; page: number; pages: number } }>('/api/opc/sources/stats'),
   /** GET /api/opc/sources/:id/stats — stats for one source */
   get: (id: string) => api.get<PointSourceStats>(`/api/opc/sources/${id}/stats`),
 }

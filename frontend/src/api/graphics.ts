@@ -1,4 +1,4 @@
-import { api, queryString } from './client'
+import { api } from './client'
 import type { GraphicDocument, GraphicSummary } from '../shared/types/graphics'
 
 export interface DesignObjectSummary extends GraphicSummary {}
@@ -6,6 +6,8 @@ export interface DesignObjectSummary extends GraphicSummary {}
 export interface DesignObjectCreateRequest {
   name: string
   scene_data: GraphicDocument
+  type?: 'graphic' | 'dashboard' | 'report'
+  metadata?: Record<string, unknown>
 }
 
 export interface DesignObjectUpdateRequest {
@@ -32,10 +34,10 @@ export const graphicsApi = {
   getHierarchy: () =>
     api.get<{ tree: GraphicHierarchyNode[] }>('/api/graphics/hierarchy?scope=process'),
 
-  /** List all design objects (graphics) */
+  /** List graphics, optionally filtered by module scope */
   list: (params?: { scope?: 'console' | 'process'; mode?: 'graphic' | 'dashboard' | 'report' }) =>
     api.get<{ data: DesignObjectSummary[]; total: number }>(
-      `/api/v1/design-objects${queryString(params as Record<string, unknown>)}`
+      params?.scope ? `/api/graphics?module=${params.scope}` : '/api/graphics'
     ),
 
   /** Get a single graphic by ID */
@@ -60,7 +62,7 @@ export const graphicsApi = {
 
   /** Create a new graphic */
   create: (payload: DesignObjectCreateRequest) =>
-    api.post<{ data: { id: string } }>('/api/v1/design-objects', payload),
+    api.post<{ id: string }>('/api/v1/design-objects', payload),
 
   /** Update an existing graphic */
   update: (id: string, payload: DesignObjectUpdateRequest) =>
@@ -72,7 +74,7 @@ export const graphicsApi = {
 
   /** Batch fetch shapes from the shape library */
   batchShapes: (shapeIds: string[]) =>
-    api.post<ShapeBatchResponse>('/api/v1/shapes/batch', { shapeIds }),
+    api.post<ShapeBatchResponse>('/api/v1/shapes/batch', { shape_ids: shapeIds }),
 
   /** Get a graphic's thumbnail URL */
   thumbnailUrl: (id: string) => `/api/v1/design-objects/${id}/thumbnail.png`,
@@ -132,6 +134,14 @@ export const graphicsApi = {
       `/api/v1/shapes/${shapeId}/svg`,
       { svg_content: svgContent }
     ),
+
+  /**
+   * Resolve point tag names to their internal UUIDs.
+   * Returns a map of { tag → uuid } for all recognised tags.
+   * Unrecognised tags are silently omitted.
+   */
+  resolveTags: (tags: string[]) =>
+    api.post<{ data: Record<string, string> }>('/api/points/resolve-tags', { tags }),
 
   // ── Versioning ──────────────────────────────────────────────────────────
 

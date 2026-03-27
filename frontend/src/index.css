@@ -17,6 +17,7 @@
   --io-surface-elevated: #27272a;
   --io-surface-sunken: #09090b;
   --io-surface-overlay: rgba(0, 0, 0, 0.7);
+  --io-surface: var(--io-surface-elevated);
 
   /* Text (5) */
   --io-text-primary: #f9fafb;
@@ -216,6 +217,7 @@
   --io-surface-elevated: #ffffff;
   --io-surface-sunken: #f3f4f6;
   --io-surface-overlay: rgba(0, 0, 0, 0.5);
+  --io-surface: var(--io-surface-elevated);
 
   /* Text */
   --io-text-primary: #111827;
@@ -412,6 +414,7 @@
   --io-surface-elevated: #334155;
   --io-surface-sunken: #0c1525;
   --io-surface-overlay: rgba(0, 0, 0, 0.7);
+  --io-surface: var(--io-surface-elevated);
 
   /* Text */
   --io-text-primary: #e2e8f0;
@@ -808,6 +811,7 @@ code, pre, kbd,
     --io-surface-primary: #ffffff;
     --io-surface-secondary: #f9fafb;
     --io-surface-elevated: #ffffff;
+    --io-surface: #ffffff;
     --io-text-primary: #111827;
     --io-text-secondary: #374151;
     --io-text-muted: #6b7280;

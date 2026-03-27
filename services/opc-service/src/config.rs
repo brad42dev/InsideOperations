@@ -61,7 +61,7 @@ impl Config {
                 .context("PORT must be a valid port number")?,
 
             opc_broker_sock: std::env::var("OPC_BROKER_SOCK")
-                .unwrap_or_else(|_| "/var/run/io/opc-broker.sock".to_string()),
+                .unwrap_or_else(|_| "/tmp/io-opc-broker.sock".to_string()),
 
             batch_interval_ms: std::env::var("BATCH_INTERVAL_MS")
                 .unwrap_or_else(|_| "250".to_string())

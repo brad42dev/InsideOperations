@@ -1914,6 +1914,30 @@ export default function DesignerCanvas({ className, style, onPropertiesOpen, onO
   toolRef.current = activeTool
 
   // -------------------------------------------------------------------------
+  // Preload shape SVGs whenever a new document is loaded
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!doc) return
+    const shapeIds: string[] = []
+    function walkForShapes(nodes: SceneNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'symbol_instance') {
+          shapeIds.push((n as SymbolInstance).shapeRef.shapeId)
+        }
+        if ('children' in n && Array.isArray((n as { children?: unknown[] }).children)) {
+          walkForShapes((n as { children: SceneNode[] }).children)
+        }
+      }
+    }
+    walkForShapes(doc.children)
+    if (shapeIds.length > 0) {
+      useLibraryStore.getState().loadShapes(shapeIds)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id])
+
+  // -------------------------------------------------------------------------
   // Helper: execute + push to history
   // -------------------------------------------------------------------------
 

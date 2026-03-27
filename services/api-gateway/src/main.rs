@@ -222,6 +222,14 @@ async fn main() -> anyhow::Result<()> {
         // Point sources (OPC UA / Modbus / MQTT data source management)
         // IMPORTANT: static /sources path must come before parameterised /:id routes
         .route(
+            "/api/points",
+            get(handlers::points::list_points),
+        )
+        .route(
+            "/api/points/resolve-tags",
+            post(handlers::points::resolve_tags),
+        )
+        .route(
             "/api/points/sources",
             get(handlers::points::list_sources).post(handlers::points::create_source),
         )
@@ -347,9 +355,13 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/v1/design-objects",
             get(handlers::graphics::list_design_objects)
-                .post(handlers::graphics::create_design_object),
+                .post(handlers::graphics::create_graphic),
         )
         // Static sub-paths MUST come before parameterised /:id routes
+        .route(
+            "/api/v1/design-objects/:id/publish",
+            post(handlers::graphics::publish_graphic),
+        )
         .route(
             "/api/v1/design-objects/:id/thumbnail.png",
             get(handlers::graphics::get_thumbnail),
@@ -610,6 +622,14 @@ async fn main() -> anyhow::Result<()> {
             "/api/rounds/instances/:id",
             get(handlers::rounds::get_instance),
         )
+        // Stub: AppShell polls this for active-rounds badge count (full impl in future phase)
+        .route("/api/v1/rounds", get(|| async {
+            axum::Json(serde_json::json!({ "data": [], "total": 0, "success": true }))
+        }))
+        // Stub: UOM catalog (widgets fall back to raw values until UOM service is implemented)
+        .route("/api/v1/uom/catalog", get(|| async {
+            axum::Json(serde_json::json!({ "data": [], "success": true }))
+        }))
         // Email service proxy
         .route("/api/email/providers", any(proxy_email))
         .route("/api/email/providers/:id", any(proxy_email))
