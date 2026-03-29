@@ -16,7 +16,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use io_error::{IoError, IoResult};
-use io_models::{ApiResponse, PageParams, PagedResponse};
+use io_models::{ApiResponse, PagedResponse};
 
 use crate::alarm_state::{transition, AlarmEvent, AlarmState};
 use crate::state::AppState;
@@ -81,8 +81,10 @@ pub struct ActiveAlarmFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct AlarmHistoryFilter {
-    #[serde(flatten)]
-    pub page: PageParams,
+    // Inline pagination fields — serde_urlencoded does not support #[serde(flatten)]
+    // with numeric fields (coercion fails: string "100" won't match u32).
+    pub page: Option<u32>,
+    pub per_page: Option<u32>,
     pub definition_id: Option<Uuid>,
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
@@ -378,9 +380,9 @@ pub async fn get_alarm_history(
         return Err(IoError::Unauthorized);
     }
 
-    let page = filter.page.page();
-    let limit = filter.page.per_page();
-    let offset = filter.page.offset();
+    let page = filter.page.unwrap_or(1).max(1);
+    let limit = filter.per_page.unwrap_or(50).clamp(1, 100);
+    let offset = ((page - 1) * limit) as i64;
 
     let from = filter.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
     let to = filter.to.unwrap_or_else(Utc::now);

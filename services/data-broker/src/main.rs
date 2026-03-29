@@ -173,6 +173,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/ws", get(ws::ws_handler))
         .route("/internal/publish", post(publish::publish_handler))
         .route("/internal/broadcast", post(broadcast::broadcast_handler))
+        .route("/internal/ws-stats", get(ws_stats_handler))
         .with_state(state)
         .merge(health.into_router())
         .merge(obs.metrics_router())
@@ -272,4 +273,21 @@ async fn warm_cache(cache: &ShadowCache, db: &io_db::DbPool) {
             );
         }
     }
+}
+
+/// GET /internal/ws-stats — returns live WebSocket connection and subscription counts.
+/// Internal-only endpoint; called by the API gateway for the system health dashboard.
+async fn ws_stats_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> axum::Json<serde_json::Value> {
+    let active_connections = state.connections.len();
+    let total_subscriptions = state.registry.total_subscription_count();
+    let global_throttle_active = state.is_global_throttle_active();
+    axum::Json(serde_json::json!({
+        "active_connections": active_connections,
+        "total_subscriptions": total_subscriptions,
+        "message_rate": null,
+        "backpressure_events": null,
+        "global_throttle_active": global_throttle_active,
+    }))
 }

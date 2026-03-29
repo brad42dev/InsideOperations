@@ -25,7 +25,7 @@ use opcua::types::{
 };
 use tokio::sync::mpsc;
 use tokio::time::Instant;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::config::Config;
@@ -379,7 +379,7 @@ async fn run_source_once(
 
     // Register the live session so HTTP alarm-method handlers can reach it.
     {
-        let mut guard = sessions.lock().unwrap();
+        let mut guard = sessions.lock().unwrap_or_else(|e| e.into_inner());
         guard.insert(source.id, session.clone());
         metrics::gauge!("io_opc_sources_connected").set(guard.len() as f64);
     }
@@ -392,7 +392,7 @@ async fn run_source_once(
     let _run_sender = Session::run_async(session_for_run);
 
     // --- Browse namespace ---
-    let (node_map, analog_nodes) = browse_namespace(source, db, &session).await?;
+    let (node_map, analog_nodes, discrete_nodes) = browse_namespace(source, db, &session).await?;
 
     if node_map.is_empty() {
         warn!(source = %source.name, "No variable nodes discovered; disconnecting");
@@ -403,6 +403,7 @@ async fn run_source_once(
         source = %source.name,
         points = node_map.len(),
         analog_points = analog_nodes.len(),
+        discrete_points = discrete_nodes.len(),
         "Namespace browse complete"
     );
 
@@ -412,13 +413,18 @@ async fn run_source_once(
     // used by create_subscriptions to apply PercentDeadband filters.
     let eu_ranges = harvest_analog_metadata(source, db, &session, &node_map, &analog_nodes).await;
 
+    // --- Harvest discrete-type metadata (EnumStrings, TrueState/FalseState) ---
+    // Opportunistic — failures are non-fatal.
+    harvest_discrete_metadata(source, db, &session, &discrete_nodes).await;
+
     // --- Startup history auto-recovery ---
     // On every connect, check the most recent timestamp we have for this source.
     // Request HistoricalRead from the start of that last full hour to now so that
     // any data missed during a comm gap (reboot, network outage, etc.) is recovered.
     {
         let now = Utc::now();
-        let recover_from = match db::get_last_history_timestamp(db, source.id).await {
+        let point_ids: Vec<Uuid> = node_map.values().copied().collect();
+        let recover_from = match db::get_last_history_timestamp(db, &point_ids).await {
             Ok(Some(last_ts)) => {
                 use chrono::Timelike;
                 // Round down to the start of the hour containing the last stored value
@@ -546,7 +552,7 @@ async fn run_source_once(
     // Deregister from the session registry before closing — HTTP handlers will now
     // get 404 for this source rather than trying to use a dead session.
     {
-        let mut guard = sessions.lock().unwrap();
+        let mut guard = sessions.lock().unwrap_or_else(|e| e.into_inner());
         guard.remove(&source.id);
         metrics::gauge!("io_opc_sources_connected").set(guard.len() as f64);
     }
@@ -637,16 +643,25 @@ mod type_defs {
 /// - `analog_nodes`: subset of NodeIds whose TypeDefinition is AnalogItemType or DataItemType.
 ///   Used by `harvest_analog_metadata` to skip nodes that cannot have Part 8 properties.
 ///   If empty (server did not report TypeDefinitions), the caller falls back to all nodes.
+// Discrete node info collected during browse — used by harvest_discrete_metadata.
+struct DiscreteNodeInfo {
+    point_id: Uuid,
+    tagname: String,
+    type_name: &'static str,
+}
+
 async fn browse_namespace(
     source: &PointSource,
     db: &DbPool,
     session: &Arc<RwLock<Session>>,
-) -> anyhow::Result<(HashMap<NodeId, Uuid>, HashSet<NodeId>)> {
+) -> anyhow::Result<(HashMap<NodeId, Uuid>, HashSet<NodeId>, Vec<DiscreteNodeInfo>)> {
     // OPC UA Objects folder node id = ns=0;i=85
     let root = NodeId::new(0u16, 85u32);
     let mut node_map: HashMap<NodeId, Uuid> = HashMap::new();
     // Track which nodes are AnalogItemType or DataItemType (have Part 8 properties).
     let mut analog_nodes: HashSet<NodeId> = HashSet::new();
+    // Track MultiStateDiscreteType and TwoStateDiscreteType nodes for EnumStrings/state harvest.
+    let mut discrete_nodes: Vec<DiscreteNodeInfo> = Vec::new();
     let mut to_visit: Vec<NodeId> = vec![root];
 
     while !to_visit.is_empty() {
@@ -689,15 +704,19 @@ async fn browse_namespace(
                                     type_name,
                                     Some("AnalogItemType") | Some("DataItemType")
                                 );
+                                // Derive the OPC data_type to store in the DB.
+                                // TwoStateDiscreteType → Boolean, MultiStateDiscreteType → String,
+                                // everything else → Double (OPC numeric/float types).
+                                let data_type = match type_name {
+                                    Some("TwoStateDiscreteType") => "Boolean",
+                                    Some("MultiStateDiscreteType") | Some("MultiStateValueDiscreteType") => "String",
+                                    _ => "Double",
+                                };
                                 // Use the OPC node identifier string as the tagname when
                                 // available (e.g. "25-FI-1001.PV" from ns=1;s=25-FI-1001.PV).
                                 // This matches the point_tag values used in .iographic files
                                 // exported from the same OPC server.  Fall back to the
                                 // DisplayName for numeric/GUID identifiers.
-                                // Use the OPC identifier string as tagname (e.g. "25-FI-1001.PV"
-                                // from "ns=1;s=25-FI-1001.PV"). This matches point_tag values in
-                                // .iographic files exported from the same server. Fall back to
-                                // display_name for numeric/GUID identifiers.
                                 let node_id_str = node_id.to_string(); // "ns=N;s=..." or "ns=N;i=..."
                                 let tagname = node_id_str
                                     .split_once(";s=")
@@ -713,6 +732,7 @@ async fn browse_namespace(
                                     db,
                                     source.id,
                                     &tagname,
+                                    data_type,
                                     metadata,
                                 )
                                 .await
@@ -720,6 +740,19 @@ async fn browse_namespace(
                                     Ok(point_id) => {
                                         if is_analog_or_data_item {
                                             analog_nodes.insert(node_id.clone());
+                                        }
+                                        // Track discrete nodes for a second-pass EnumStrings harvest.
+                                        if matches!(
+                                            type_name,
+                                            Some("TwoStateDiscreteType")
+                                                | Some("MultiStateDiscreteType")
+                                                | Some("MultiStateValueDiscreteType")
+                                        ) {
+                                            discrete_nodes.push(DiscreteNodeInfo {
+                                                point_id,
+                                                tagname: tagname.clone(),
+                                                type_name: type_name.unwrap(),
+                                            });
                                         }
                                         node_map.insert(node_id, point_id);
                                     }
@@ -752,7 +785,7 @@ async fn browse_namespace(
         }
     }
 
-    Ok((node_map, analog_nodes))
+    Ok((node_map, analog_nodes, discrete_nodes))
 }
 
 /// Map TypeDefinition NodeId to a human-readable name for metadata storage.
@@ -949,6 +982,166 @@ async fn harvest_analog_metadata(
     }
 
     eu_ranges
+}
+
+/// Read EnumStrings / TrueState+FalseState properties for discrete variable nodes and merge
+/// them into source_raw in the DB.  Opportunistic — failures are non-fatal.
+async fn harvest_discrete_metadata(
+    source: &PointSource,
+    db: &DbPool,
+    session: &Arc<RwLock<Session>>,
+    discrete_nodes: &[DiscreteNodeInfo],
+) {
+    if discrete_nodes.is_empty() {
+        return;
+    }
+
+    const BATCH: usize = 50;
+    let mut harvested = 0usize;
+
+    for chunk in discrete_nodes.chunks(BATCH) {
+        let chunk_data: Vec<(Uuid, String, &'static str)> = chunk
+            .iter()
+            .map(|n| (n.point_id, n.tagname.clone(), n.type_name))
+            .collect();
+        let session_clone = session.clone();
+
+        let results = tokio::task::spawn_blocking(move || {
+            let session_guard = session_clone.read();
+            chunk_data
+                .iter()
+                .map(|(point_id, tagname, type_name)| {
+                    let extra = read_discrete_properties_simblah(&session_guard, tagname, type_name);
+                    (*point_id, extra)
+                })
+                .collect::<Vec<_>>()
+        })
+        .await;
+
+        match results {
+            Err(e) => {
+                warn!(source = %source.name, error = %e, "spawn_blocking error during discrete metadata harvest");
+                continue;
+            }
+            Ok(items) => {
+                for (point_id, extra) in items {
+                    if let Some(json) = extra {
+                        if let Err(e) = db::merge_point_source_raw(db, point_id, json).await {
+                            warn!(
+                                source = %source.name,
+                                %point_id,
+                                error = %e,
+                                "Failed to merge discrete metadata into source_raw"
+                            );
+                        } else {
+                            harvested += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if harvested > 0 {
+        info!(
+            source = %source.name,
+            harvested,
+            "Discrete point metadata (EnumStrings/state labels) harvested"
+        );
+    }
+}
+
+/// Read discrete-type OPC UA properties for a single SimBLAH variable node.
+/// Returns a JSON object suitable for merging into source_raw, or None if nothing was found.
+fn read_discrete_properties_simblah(
+    session: &Session,
+    point_name: &str,
+    type_name: &str,
+) -> Option<serde_json::Value> {
+    use opcua::types::Identifier;
+
+    match type_name {
+        "MultiStateDiscreteType" | "MultiStateValueDiscreteType" => {
+            let key = format!("prop:EnumStrings:{}", point_name);
+            let read_nodes = vec![ReadValueId {
+                node_id: NodeId {
+                    namespace: 1,
+                    identifier: Identifier::String(UAString::from(key)),
+                },
+                attribute_id: AttributeId::Value as u32,
+                index_range: UAString::null(),
+                data_encoding: QualifiedName::null(),
+            }];
+
+            let data_values = session.read(&read_nodes, TimestampsToReturn::Neither, 0.0).ok()?;
+            let dv = data_values.first()?;
+            let variant = dv.value.as_ref()?;
+
+            // EnumStrings is a LocalizedText[] variant — extract the text fields.
+            let labels: Vec<String> = match variant {
+                Variant::Array(arr) => arr
+                    .values
+                    .iter()
+                    .filter_map(|v| {
+                        if let Variant::LocalizedText(lt) = v {
+                            lt.text.value().clone()
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                _ => return None,
+            };
+
+            if labels.is_empty() {
+                return None;
+            }
+            Some(serde_json::json!({ "enum_strings": labels }))
+        }
+        "TwoStateDiscreteType" => {
+            let props: &[(&str, &str)] = &[
+                ("prop:TrueState",  "true_state"),
+                ("prop:FalseState", "false_state"),
+            ];
+            let read_nodes: Vec<ReadValueId> = props
+                .iter()
+                .map(|(prefix, _)| {
+                    let key = format!("{}:{}", prefix, point_name);
+                    ReadValueId {
+                        node_id: NodeId {
+                            namespace: 1,
+                            identifier: Identifier::String(UAString::from(key)),
+                        },
+                        attribute_id: AttributeId::Value as u32,
+                        index_range: UAString::null(),
+                        data_encoding: QualifiedName::null(),
+                    }
+                })
+                .collect();
+
+            let data_values = session.read(&read_nodes, TimestampsToReturn::Neither, 0.0).ok()?;
+
+            let mut obj = serde_json::Map::new();
+            for ((_, json_key), dv) in props.iter().zip(data_values.iter()) {
+                if let Some(ref v) = dv.value {
+                    let text = match v {
+                        Variant::LocalizedText(lt) => lt.text.value().clone(),
+                        Variant::String(s) => s.value().clone(),
+                        _ => None,
+                    };
+                    if let Some(t) = text {
+                        obj.insert(json_key.to_string(), serde_json::Value::String(t));
+                    }
+                }
+            }
+
+            if obj.is_empty() {
+                return None;
+            }
+            Some(serde_json::Value::Object(obj))
+        }
+        _ => None,
+    }
 }
 
 /// Read OPC UA Part 8 AnalogItemType properties for a single variable node.
@@ -1669,6 +1862,14 @@ async fn create_event_subscription(
                     }
                 });
 
+                // Skip ConditionRefresh bracket events — these are OPC UA meta-events
+                // that bracket a ConditionRefresh replay (RefreshStart/RefreshEnd) and
+                // carry no alarm state of their own.
+                // RefreshStart = ns=0;i=2787, RefreshEnd = ns=0;i=2788.
+                if matches!(event_type.as_deref(), Some("ns=0;i=2787") | Some("ns=0;i=2788")) {
+                    continue;
+                }
+
                 let source_name = get(2).and_then(|v| {
                     if let Variant::String(s) = v { s.value().as_ref().map(|s| s.clone()) } else { None }
                 });
@@ -1923,12 +2124,14 @@ async fn harvest_history(
     let node_ids: Vec<(NodeId, Uuid)> =
         node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
 
-    // OPC UA HistoricalRead supports up to ~1000 nodes per request on most servers.
-    // We use 200 nodes per chunk to stay well within limits.
-    const HISTORY_CHUNK: usize = 200;
+    // Keep per-request payload small to avoid BadResponseTooLarge from SimBLAH.
+    // 10 nodes × 200 values = 2,000 values/request; throughput is still fine
+    // since history recovery runs in the background and pages automatically.
+    // SimBLAH's MaxNodesPerHistoryReadData limit is low; 5 avoids BadTooManyOperations.
+    const HISTORY_CHUNK: usize = 5;
     // Values-per-node per page. 0 = server default (typically 100–1000).
     // Use an explicit limit so we can page predictably.
-    const VALUES_PER_PAGE: u32 = 500;
+    const VALUES_PER_PAGE: u32 = 200;
 
     let mut total_written: u64 = 0;
 
@@ -1991,16 +2194,27 @@ async fn harvest_history(
                 let point_id = chunk[chunk_idx].1;
 
                 if !result.status_code.is_good() {
-                    // Server couldn't retrieve history for this node — mark done.
+                    warn!(
+                        point_id = %point_id,
+                        status = %result.status_code,
+                        "HistoryRead returned non-Good status for node — skipping"
+                    );
                     active[chunk_idx] = false;
                     continue;
                 }
 
                 // Decode HistoryData from the ExtensionObject.
-                let history_data = result
+                let history_data = match result
                     .history_data
                     .decode_inner::<HistoryData>(&DecodingOptions::default())
-                    .unwrap_or_else(|_| HistoryData { data_values: None });
+                {
+                    Ok(hd) => hd,
+                    Err(e) => {
+                        warn!(point_id = %point_id, error = %e, "Failed to decode HistoryData for node");
+                        active[chunk_idx] = false;
+                        continue;
+                    }
+                };
 
                 if let Some(data_values) = history_data.data_values {
                     for dv in data_values {
@@ -2032,6 +2246,11 @@ async fn harvest_history(
             if !batch.is_empty() {
                 db::write_history_batch(db, &batch).await?;
                 total_written += batch.len() as u64;
+            } else {
+                debug!(
+                    active_nodes = nodes_to_read.len(),
+                    "HistoryRead page returned 0 data values"
+                );
             }
 
             if !any_continuation {
@@ -2083,6 +2302,19 @@ async fn run_pending_recovery_jobs(
                     "History recovery complete"
                 );
                 let _ = db::complete_recovery_job(db, job.id, n as i64).await;
+                // Refresh continuous aggregates so the recovered data becomes
+                // visible immediately. The scheduled policies only cover a short
+                // recent window and won't reach historical recovery dates.
+                info!(
+                    source = %source.name,
+                    job_id = %job.id,
+                    from = %job.from_time,
+                    to = %job.to_time,
+                    "Refreshing continuous aggregates for recovered range"
+                );
+                if let Err(e) = db::refresh_aggregates_for_range(db, job.from_time, job.to_time).await {
+                    warn!(source = %source.name, job_id = %job.id, error = %e, "Aggregate refresh failed (non-fatal)");
+                }
             }
             Err(e) => {
                 warn!(
@@ -2193,9 +2425,15 @@ async fn poll_loop(
             warn!(source = %source.name, "Poll returned 0 good values — nodes may be offline or unsupported");
         }
 
-        // Check for pending history recovery jobs every 60 polls.
+        // Check for pending history recovery jobs every 60 polls (background task).
         if total_polls % 60 == 1 {
-            run_pending_recovery_jobs(source, db, session, node_map).await;
+            let src = source.clone();
+            let db2 = db.clone();
+            let sess = session.clone();
+            let nm: HashMap<NodeId, Uuid> = node_map.clone();
+            tokio::spawn(async move {
+                run_pending_recovery_jobs(&src, &db2, &sess, &nm).await;
+            });
         }
     }
 }
@@ -2226,6 +2464,8 @@ async fn flush_loop(
     let job_check_interval = Duration::from_secs(60);
     let mut total_updates: u64 = 0;
     let mut last_update_time = tokio::time::Instant::now();
+    // Recovery jobs run in a background task so they don't block live DataChange callbacks.
+    let mut recovery_task: Option<tokio::task::JoinHandle<()>> = None;
 
     loop {
         tokio::select! {
@@ -2280,9 +2520,18 @@ async fn flush_loop(
                     return true;
                 }
 
-                // Check for pending history recovery jobs every 60s.
+                // Spawn recovery jobs in a background task so live data keeps flowing.
                 if job_check.elapsed() >= job_check_interval {
-                    run_pending_recovery_jobs(source, db, session, node_map).await;
+                    let task_done = recovery_task.as_ref().map_or(true, |h| h.is_finished());
+                    if task_done {
+                        let src = source.clone();
+                        let db2 = db.clone();
+                        let sess = session.clone();
+                        let nm: HashMap<NodeId, Uuid> = node_map.clone();
+                        recovery_task = Some(tokio::spawn(async move {
+                            run_pending_recovery_jobs(&src, &db2, &sess, &nm).await;
+                        }));
+                    }
                     job_check = tokio::time::Instant::now();
                 }
             }

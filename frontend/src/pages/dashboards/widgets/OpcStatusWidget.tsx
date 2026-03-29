@@ -39,11 +39,9 @@ export default function OpcStatusWidget({ config: _config }: Props) {
   const query = useQuery({
     queryKey: ['opc-sources-stats'],
     queryFn: async () => {
-      const result = await api.get<OpcSourceStat[]>('/api/opc/sources/stats')
+      const result = await api.get<{ data: OpcSourceStat[] }>('/api/opc/sources/stats')
       if (!result.success) throw new Error(result.error.message)
-      const data = result.data
-      if (Array.isArray(data)) return data
-      return []
+      return Array.isArray(result.data?.data) ? result.data.data : []
     },
     refetchInterval: 15000,
   })

@@ -37,16 +37,22 @@ export default function KpiCard({ config }: Props) {
   const pointId = cfg.metric
   const uomCatalog = useUomStore((s) => s.catalog)
 
+  // Only query real point IDs — UUID or tag names that look like real OPC tags.
+  // Dashboard seed metrics like "avg_pressure" are placeholders that will never
+  // exist in the DB; skip the request entirely rather than spam 404s.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const isValidPointRef = !!pointId && (UUID_RE.test(pointId) || pointId.includes('-') || pointId.includes('.'))
+
   const query = useQuery({
     queryKey: ['point-current', pointId],
     queryFn: async () => {
       if (!pointId || cfg.staticValue !== undefined) return null
       const result = await api.get<PointCurrentResponse>(`/api/points/${encodeURIComponent(pointId)}/current`)
-      if (!result.success) throw new Error(result.error.message)
+      if (!result.success) return null
       return result.data
     },
     refetchInterval: 5000,
-    enabled: !!pointId && cfg.staticValue === undefined,
+    enabled: isValidPointRef && cfg.staticValue === undefined,
   })
 
   // Real-time WebSocket subscription — overrides the API-fetched value when available

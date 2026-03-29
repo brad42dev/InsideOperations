@@ -224,7 +224,8 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
     },
   })
 
-  const isOwner = user && dashboard?.user_id === user.id
+  const canEditDashboards = user?.permissions.includes('dashboards:edit') === true
+  const isOwner = (user && dashboard?.user_id === user.id) || canEditDashboards
 
   if (query.isLoading) {
     return (

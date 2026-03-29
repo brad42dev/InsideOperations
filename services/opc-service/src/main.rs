@@ -141,10 +141,30 @@ async fn main() -> anyhow::Result<()> {
                         let source_id = source.id;
 
                         tokio::spawn(async move {
-                            driver::run_source(source, db_clone, uds_clone, cfg_clone, notify, sessions_clone).await;
-                            // Remove the notifier when the driver exits (shouldn't happen
-                            // in normal operation, but keeps the map clean).
-                            signals_clone.lock().unwrap().remove(&source_id);
+                            // Supervisor loop: restart the driver if it panics (e.g. due to
+                            // the opcua 0.12 runtime-drop panic on abrupt server disconnect).
+                            loop {
+                                let result = tokio::spawn(driver::run_source(
+                                    source.clone(),
+                                    db_clone.clone(),
+                                    uds_clone.clone(),
+                                    cfg_clone.clone(),
+                                    notify.clone(),
+                                    sessions_clone.clone(),
+                                )).await;
+                                match result {
+                                    Ok(()) => break, // clean exit
+                                    Err(e) if e.is_panic() => {
+                                        tracing::warn!(
+                                            source_id = %source_id,
+                                            "OPC driver task panicked (opcua runtime drop); restarting in 5s"
+                                        );
+                                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                    }
+                                    Err(_) => break, // cancelled
+                                }
+                            }
+                            signals_clone.lock().unwrap_or_else(|e| e.into_inner()).remove(&source_id);
                         });
                     }
                 }
@@ -206,7 +226,7 @@ async fn reconnect_source(
 /// Look up a live session by source_id, returning None if not connected.
 /// The Arc is cloned under the Mutex so we never hold the lock while doing I/O.
 fn get_session(state: &AppState, source_id: Uuid) -> Option<Arc<RwLock<Session>>> {
-    state.sessions.lock().unwrap().get(&source_id).cloned()
+    state.sessions.lock().unwrap_or_else(|e| e.into_inner()).get(&source_id).cloned()
 }
 
 /// Map an OPC UA StatusCode to an HTTP response.

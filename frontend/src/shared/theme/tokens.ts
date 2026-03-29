@@ -69,7 +69,7 @@ const darkTokens: Record<string, string> = {
 
   // Chart & Visualization
   '--io-chart-bg': '#18181b',
-  '--io-chart-grid': '#27272a',
+  '--io-chart-grid': '#3f3f46',
   '--io-chart-axis': '#a1a1aa',
   '--io-chart-crosshair': '#71717a',
   '--io-chart-tooltip-bg': '#27272a',
@@ -463,7 +463,7 @@ const hphmiTokens: Record<string, string> = {
 
   // Chart & Visualization
   '--io-chart-bg': '#1e293b',
-  '--io-chart-grid': '#1e293b',
+  '--io-chart-grid': '#475569',
   '--io-chart-axis': '#94a3b8',
   '--io-chart-crosshair': '#64748b',
   '--io-chart-tooltip-bg': '#1e293b',

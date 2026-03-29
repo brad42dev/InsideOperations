@@ -255,6 +255,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
                                     "Client acknowledged alert (not handled by broker)"
                                 );
                             }
+                            Ok(WsClientMessage::ClientHint { .. }) => {
+                                // Device-type hint — informational only, no broker action needed.
+                            }
                             Err(e) => {
                                 warn!(
                                     client_id = %client_id,

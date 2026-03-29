@@ -92,14 +92,24 @@ pub async fn upsert_point_from_source(
     db: &DbPool,
     source_id: Uuid,
     tagname: &str,
+    data_type: &str,
     metadata: serde_json::Value,
 ) -> anyhow::Result<Uuid> {
+    // Use the OPC UA DisplayName as the point description if present.
+    let display_name: Option<String> = metadata
+        .get("display_name")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
     let row = sqlx::query(
-        r#"SELECT upsert_point_from_source($1, $2, NULL, NULL, 'Double', NULL, NULL, $3) AS point_id"#,
+        r#"SELECT upsert_point_from_source($1, $2, $4, NULL, $5, NULL, NULL, $3) AS point_id"#,
     )
     .bind(source_id)
     .bind(tagname)
     .bind(metadata)
+    .bind(display_name)
+    .bind(data_type)
     .fetch_one(db)
     .await
     .context("upsert_point_from_source: query failed")?;
@@ -110,6 +120,32 @@ pub async fn upsert_point_from_source(
         .context("upsert_point_from_source: missing point_id")?;
 
     Ok(point_id)
+}
+
+/// Merge additional JSON fields into source_raw of the latest metadata version for a point.
+/// Used to attach discrete-type metadata (enum_strings, true_state, false_state) discovered
+/// after the initial browse upsert.
+pub async fn merge_point_source_raw(
+    db: &DbPool,
+    point_id: Uuid,
+    extra: serde_json::Value,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE points_metadata_versions
+        SET source_raw = COALESCE(source_raw, '{}'::jsonb) || $2::jsonb
+        WHERE point_id = $1
+          AND version = (
+              SELECT MAX(version) FROM points_metadata_versions WHERE point_id = $1
+          )
+        "#,
+    )
+    .bind(point_id)
+    .bind(extra)
+    .execute(db)
+    .await
+    .context("merge_point_source_raw: update failed")?;
+    Ok(())
 }
 
 /// Metadata harvested from OPC UA Part 8 AnalogItemType optional properties.
@@ -453,19 +489,18 @@ pub struct RecoveryJob {
     pub to_time: DateTime<Utc>,
 }
 
-/// Returns the latest timestamp stored in `points_history_raw` for points belonging
-/// to the given source.  Used to compute the auto-recovery window on startup.
+/// Returns the latest timestamp stored in `points_history_raw` for the given
+/// point IDs.  Accepts point IDs directly (already known from the node_map) so
+/// we avoid a join against points_metadata and let the (point_id, timestamp DESC)
+/// index satisfy the MAX per-chunk efficiently.
 pub async fn get_last_history_timestamp(
     db: &DbPool,
-    source_id: Uuid,
+    point_ids: &[Uuid],
 ) -> anyhow::Result<Option<DateTime<Utc>>> {
     let ts = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
-        r#"SELECT MAX(ph.time)
-           FROM points_history_raw ph
-           JOIN points_metadata pm ON pm.id = ph.point_id
-           WHERE pm.source_id = $1"#,
+        r#"SELECT MAX(timestamp) FROM points_history_raw WHERE point_id = ANY($1)"#,
     )
-    .bind(source_id)
+    .bind(point_ids)
     .fetch_one(db)
     .await
     .context("get_last_history_timestamp")?;
@@ -481,13 +516,13 @@ pub async fn get_earliest_of_recent_points(
     source_id: Uuid,
 ) -> anyhow::Result<Option<DateTime<Utc>>> {
     let ts = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
-        r#"SELECT MIN(sub.time) AS earliest
+        r#"SELECT MIN(sub.timestamp) AS earliest
            FROM (
-               SELECT ph.time
+               SELECT ph.timestamp
                FROM points_history_raw ph
                JOIN points_metadata pm ON pm.id = ph.point_id
                WHERE pm.source_id = $1
-               ORDER BY ph.time DESC
+               ORDER BY ph.timestamp DESC
                LIMIT 100
            ) sub"#,
     )
@@ -591,5 +626,29 @@ pub async fn fail_recovery_job(db: &DbPool, job_id: Uuid, error: &str) -> anyhow
     .execute(db)
     .await
     .context("fail_recovery_job")?;
+    Ok(())
+}
+
+/// Refresh continuous aggregates for a recovered date range.
+/// Called after each recovery job completes so historical data becomes visible
+/// in the materialized-only aggregate views immediately (the scheduled refresh
+/// policies only cover a short recent window and won't reach historical dates).
+pub async fn refresh_aggregates_for_range(
+    db: &DbPool,
+    from_time: chrono::DateTime<chrono::Utc>,
+    to_time: chrono::DateTime<chrono::Utc>,
+) -> anyhow::Result<()> {
+    let views = ["points_history_1m", "points_history_5m", "points_history_15m", "points_history_1h", "points_history_1d"];
+    for view in &views {
+        sqlx::query(&format!(
+            "CALL refresh_continuous_aggregate('{}', $1, $2)",
+            view
+        ))
+        .bind(from_time)
+        .bind(to_time)
+        .execute(db)
+        .await
+        .with_context(|| format!("refresh_continuous_aggregate({})", view))?;
+    }
     Ok(())
 }

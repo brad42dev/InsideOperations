@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
 import EChart from '../../../shared/components/charts/EChart'
+import ChartToolbar from '../../../shared/components/charts/ChartToolbar'
 import type { EChartsOption } from 'echarts'
 
 interface AlarmRateTrendConfig {
@@ -12,8 +14,7 @@ interface AlarmRateTrendConfig {
 
 interface AlarmEvent {
   id: string
-  triggered_at: string
-  severity: string
+  transitioned_at: string
 }
 
 interface Props {
@@ -37,7 +38,7 @@ function buildDailyBuckets(
   const buckets: number[] = new Array(bucketCount).fill(0)
 
   for (const event of events) {
-    const ts = new Date(event.triggered_at).getTime()
+    const ts = new Date(event.transitioned_at).getTime()
     const age = now - ts
     if (age < 0 || age > windowMs) continue
     const idx = Math.floor((windowMs - age) / bucketMs)
@@ -61,21 +62,23 @@ function buildDailyBuckets(
 
 export default function AlarmRateTrendWidget({ config }: Props) {
   const cfg = config.config as unknown as AlarmRateTrendConfig
-  const windowHours = cfg.window_hours ?? 168 // default 7 days
+  // Local duration state — toolbar controls this; initialised from saved config
+  const [durationMinutes, setDurationMinutes] = useState((cfg.window_hours ?? 168) * 60)
+  const windowHours = durationMinutes / 60
   const bucketHours = cfg.bucket_hours ?? (windowHours >= 72 ? 24 : 6)
 
-  const windowMs = windowHours * 60 * 60 * 1000
+  const windowMs = durationMinutes * 60 * 1000
 
   const query = useQuery({
-    queryKey: ['alarm-rate-trend', windowHours],
+    queryKey: ['alarm-rate-trend', durationMinutes],
     queryFn: async () => {
       const now = new Date()
       const start = new Date(now.getTime() - windowMs)
-      const result = await api.get<AlarmEvent[]>(
-        `/api/alarms/history?start=${start.toISOString()}&end=${now.toISOString()}&limit=10000`,
+      const result = await api.get<{ data: AlarmEvent[] }>(
+        `/api/alarms/history?from=${start.toISOString()}&to=${now.toISOString()}&per_page=10000`,
       )
       if (!result.success) throw new Error(result.error.message)
-      return { events: result.data, fetchedAt: now.getTime() }
+      return { events: Array.isArray(result.data?.data) ? result.data.data : [], fetchedAt: now.getTime() }
     },
     refetchInterval: 5 * 60 * 1000,
   })
@@ -219,6 +222,8 @@ export default function AlarmRateTrendWidget({ config }: Props) {
           <EChart option={option} />
         )}
       </div>
+
+      <ChartToolbar durationMinutes={durationMinutes} onDurationChange={setDurationMinutes} />
     </div>
   )
 }

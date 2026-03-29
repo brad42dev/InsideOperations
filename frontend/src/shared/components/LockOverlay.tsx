@@ -35,7 +35,7 @@ import { authApi } from '../../api/auth'
 // Constants
 // ---------------------------------------------------------------------------
 
-const AUTO_DISMISS_MS = 60_000  // 60 s of no input → return to passive state
+const AUTO_DISMISS_MS = 30_000  // 30 s of no input → return to passive state
 const FADE_IN_MS = 300
 const FADE_OUT_MS = 200
 const PIN_FAILURE_THRESHOLD = 3  // after this many PIN failures, offer password fallback
@@ -333,13 +333,23 @@ export default function LockOverlay() {
       }
     }
 
+    function handleBlur() {
+      // Window lost focus — nobody is at the screen. Return to passive state immediately
+      // so the overlay is not left hanging on an unattended screen.
+      if (phase === 'visible' || phase === 'entering') {
+        dismissOverlay()
+      }
+    }
+
     // Use capture phase for mousedown so we intercept before content handlers
     window.addEventListener('mousedown', handleMouseDown, { capture: true })
     window.addEventListener('keydown', handleKeyDown, { capture: true })
+    window.addEventListener('blur', handleBlur)
 
     return () => {
       window.removeEventListener('mousedown', handleMouseDown, { capture: true })
       window.removeEventListener('keydown', handleKeyDown, { capture: true })
+      window.removeEventListener('blur', handleBlur)
     }
   }, [isLocked, phase, showOverlay, dismissOverlay])
 

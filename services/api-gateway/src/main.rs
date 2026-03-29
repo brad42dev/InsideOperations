@@ -229,6 +229,16 @@ async fn main() -> anyhow::Result<()> {
             "/api/points/resolve-tags",
             post(handlers::points::resolve_tags),
         )
+        // Current value for a single point (UUID or tag name) — must be before /:id wildcard
+        .route(
+            "/api/points/:id/current",
+            get(handlers::points::get_point_current),
+        )
+        // Single point metadata — must come AFTER all static /api/points/* routes
+        .route(
+            "/api/points/:id",
+            get(handlers::points::get_point),
+        )
         .route(
             "/api/points/sources",
             get(handlers::points::list_sources).post(handlers::points::create_source),
@@ -238,6 +248,11 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::points::get_source)
                 .put(handlers::points::update_source)
                 .delete(handlers::points::delete_source),
+        )
+        // OPC point status — current values with quality for all points (dashboard widget)
+        .route(
+            "/api/opc/points/status",
+            get(handlers::points::list_point_status),
         )
         // OPC UA source stats — static path MUST be before parameterised /:id routes
         .route(
@@ -808,6 +823,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/system/sbom", get(handlers::system::download_sbom))
         // System health aggregation
         .route("/api/health/services", get(service_health_handler))
+        .route("/api/health/websocket", get(health_websocket_handler))
+        .route("/api/health/database", get(health_database_handler))
+        .route("/api/health/services/detail", get(health_services_detail_handler))
         // Middleware — tower layers are applied outermost-last, so the last
         // layer listed here is the FIRST to see each request.
         // Order: inject_secrets → rate_limit → jwt_auth → metrics → handler
@@ -1112,5 +1130,99 @@ async fn service_health_handler(State(state): State<AppState>) -> impl axum::res
     }
 
     let _ = state; // keep borrow checker happy
+    axum::Json(json!({ "success": true, "data": results }))
+}
+
+/// GET /api/health/websocket — returns live WebSocket stats from the data-broker.
+async fn health_websocket_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+    use serde_json::json;
+    let url = "http://127.0.0.1:3001/internal/ws-stats";
+    match state.http_client.get(url)
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(data) => axum::Json(json!({ "success": true, "data": data })).into_response(),
+                Err(_) => axum::Json(json!({ "success": false, "error": { "code": "PARSE_ERROR", "message": "Failed to parse ws-stats response" } })).into_response(),
+            }
+        }
+        _ => axum::Json(json!({ "success": false, "error": { "code": "SERVICE_UNAVAILABLE", "message": "data-broker unavailable" } })).into_response(),
+    }
+}
+
+/// GET /api/health/database — returns DB size and TimescaleDB info.
+async fn health_database_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+    use serde_json::json;
+    use sqlx::Row;
+
+    let size_result = sqlx::query("SELECT pg_database_size(current_database()) AS db_size_bytes")
+        .fetch_one(&state.db)
+        .await;
+
+    let ts_result = sqlx::query(
+        "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'"
+    )
+    .fetch_optional(&state.db)
+    .await;
+
+    let db_size_bytes: Option<i64> = size_result.ok().and_then(|r| r.try_get("db_size_bytes").ok());
+    let timescaledb_version: Option<String> = ts_result.ok().flatten()
+        .and_then(|r| r.try_get::<String, _>("extversion").ok());
+
+    axum::Json(json!({
+        "success": true,
+        "data": {
+            "db_size_bytes": db_size_bytes,
+            "timescaledb_version": timescaledb_version,
+        }
+    }))
+}
+
+/// GET /api/health/services/detail — fan out to all 11 services, measure round-trip latency.
+async fn health_services_detail_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+    use serde_json::json;
+
+    let services: &[(&str, &str)] = &[
+        ("api-gateway",         "http://127.0.0.1:3000"),
+        ("data-broker",         "http://127.0.0.1:3001"),
+        ("opc-service",         "http://127.0.0.1:3002"),
+        ("event-service",       "http://127.0.0.1:3003"),
+        ("parser-service",      "http://127.0.0.1:3004"),
+        ("archive-service",     "http://127.0.0.1:3005"),
+        ("import-service",      "http://127.0.0.1:3006"),
+        ("alert-service",       "http://127.0.0.1:3007"),
+        ("email-service",       "http://127.0.0.1:3008"),
+        ("auth-service",        "http://127.0.0.1:3009"),
+        ("recognition-service", "http://127.0.0.1:3010"),
+    ];
+
+    let client = &state.http_client;
+    let mut results: Vec<serde_json::Value> = Vec::with_capacity(services.len());
+
+    for (name, base) in services {
+        let url = format!("{}/health/live", base);
+        let start = std::time::Instant::now();
+        let outcome = client.get(&url)
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await;
+        let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+        let (status, response_ms) = match outcome {
+            Ok(resp) if resp.status().is_success() => ("healthy", Some(elapsed_ms)),
+            Ok(_) => ("unhealthy", Some(elapsed_ms)),
+            Err(_) => ("unhealthy", None),
+        };
+
+        results.push(json!({
+            "name": name,
+            "status": status,
+            "response_p50": response_ms,
+            "response_p95": response_ms,
+        }));
+    }
+
     axum::Json(json!({ "success": true, "data": results }))
 }

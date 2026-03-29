@@ -12,8 +12,7 @@ interface AlarmRateConfig {
 
 interface AlarmEvent {
   id: string
-  triggered_at: string
-  severity: string
+  transitioned_at: string
 }
 
 function resolveToken(token: string): string {
@@ -30,7 +29,7 @@ function buildBuckets(
   const buckets: number[] = new Array(bucketCount).fill(0)
 
   for (const event of events) {
-    const ts = new Date(event.triggered_at).getTime()
+    const ts = new Date(event.transitioned_at).getTime()
     const age = now - ts
     if (age < 0 || age > windowMs) continue
     const idx = Math.floor((windowMs - age) / bucketMs)
@@ -65,11 +64,11 @@ export default function AlarmRateWidget({ config }: Props) {
     queryFn: async () => {
       const now = new Date()
       const start = new Date(now.getTime() - windowMs)
-      const result = await api.get<AlarmEvent[]>(
-        `/api/alarms/history?start=${start.toISOString()}&end=${now.toISOString()}&limit=5000`,
+      const result = await api.get<{ data: AlarmEvent[] }>(
+        `/api/alarms/history?from=${start.toISOString()}&to=${now.toISOString()}&per_page=5000`,
       )
       if (!result.success) throw new Error(result.error.message)
-      return { events: result.data, fetchedAt: now.getTime() }
+      return { events: Array.isArray(result.data?.data) ? result.data.data : [], fetchedAt: now.getTime() }
     },
     refetchInterval: 60000,
   })

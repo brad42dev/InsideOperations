@@ -490,6 +490,11 @@ pub async fn create_history_recovery_job(
         return IoError::NotFound(format!("OPC UA source {} not found", source_id)).into_response();
     }
 
+    let requested_by = match Uuid::parse_str(&claims.sub) {
+        Ok(u) => u,
+        Err(_) => return IoError::Internal("invalid user ID in token".into()).into_response(),
+    };
+
     let job_id = match sqlx::query_scalar::<_, Uuid>(
         r#"
         INSERT INTO opc_history_recovery_jobs
@@ -499,7 +504,7 @@ pub async fn create_history_recovery_job(
         "#,
     )
     .bind(source_id)
-    .bind(claims.sub)
+    .bind(requested_by)
     .bind(body.from_time)
     .bind(to_time)
     .fetch_one(&state.db)
@@ -524,12 +529,14 @@ pub async fn create_history_recovery_job(
 #[derive(Debug, Serialize)]
 pub struct PointSourceStats {
     pub source_id: Uuid,
+    pub name: String,
+    pub connected: bool,
     /// Total number of configured points for this source.
     pub point_count: i64,
-    /// Points that received a value update in the last 5 minutes.
-    pub active_subscriptions: i64,
-    /// Points that received a value update in the last 1 minute.
-    pub updates_per_minute: i64,
+    /// Points that received a value update in the last 5 minutes (shown as subscribed_points).
+    pub subscribed_points: i64,
+    /// Updates in the last minute divided by 60 — approximate updates/s.
+    pub update_rate: f64,
     /// 1 if the source recorded an error in the last 24 h, 0 otherwise.
     pub error_count_24h: i64,
     /// Timestamp of the most recently written point value.
@@ -565,9 +572,11 @@ pub async fn list_source_stats(
         r#"
         SELECT
             ps.id                                                                              AS source_id,
+            ps.name,
+            ps.status,
             COUNT(DISTINCT pm.id)::bigint                                                      AS point_count,
             COUNT(DISTINCT CASE WHEN pc.updated_at > NOW() - INTERVAL '5 minutes'
-                                THEN pc.point_id END)::bigint                                  AS active_subscriptions,
+                                THEN pc.point_id END)::bigint                                  AS subscribed_points,
             COUNT(DISTINCT CASE WHEN pc.updated_at > NOW() - INTERVAL '1 minute'
                                 THEN pc.point_id END)::bigint                                  AS updates_per_minute,
             CASE WHEN ps.last_error_at IS NOT NULL
@@ -577,7 +586,7 @@ pub async fn list_source_stats(
         FROM point_sources ps
         LEFT JOIN points_metadata pm ON pm.source_id = ps.id
         LEFT JOIN points_current  pc ON pc.point_id  = pm.id
-        GROUP BY ps.id, ps.last_error_at
+        GROUP BY ps.id, ps.name, ps.status, ps.last_error_at
         ORDER BY ps.name
         LIMIT $1 OFFSET $2
         "#,
@@ -593,13 +602,19 @@ pub async fn list_source_stats(
 
     let stats: Vec<PointSourceStats> = rows
         .into_iter()
-        .map(|r| PointSourceStats {
-            source_id:            r.get("source_id"),
-            point_count:          r.get("point_count"),
-            active_subscriptions: r.get("active_subscriptions"),
-            updates_per_minute:   r.get("updates_per_minute"),
-            error_count_24h:      r.get("error_count_24h"),
-            last_value_at:        r.get("last_value_at"),
+        .map(|r| {
+            let status: String = r.get("status");
+            let updates_per_minute: i64 = r.get("updates_per_minute");
+            PointSourceStats {
+                source_id:        r.get("source_id"),
+                name:             r.get("name"),
+                connected:        status == "active",
+                point_count:      r.get("point_count"),
+                subscribed_points: r.get("subscribed_points"),
+                update_rate:      updates_per_minute as f64 / 60.0,
+                error_count_24h:  r.get("error_count_24h"),
+                last_value_at:    r.get("last_value_at"),
+            }
         })
         .collect();
 
@@ -634,9 +649,11 @@ pub async fn get_source_stats(
         )
         SELECT
             $1::uuid                                              AS source_id,
+            ps.name                                               AS name,
+            ps.status                                             AS status,
             (SELECT COUNT(*) FROM pts)::bigint                    AS point_count,
-            COALESCE((SELECT active_5m  FROM curr), 0)::bigint   AS active_subscriptions,
-            COALESCE((SELECT updates_1m FROM curr), 0)::bigint   AS updates_per_minute,
+            COALESCE((SELECT active_5m  FROM curr), 0)::bigint   AS subscribed_points,
+            COALESCE((SELECT updates_1m FROM curr), 0)::bigint   AS updates_1m,
             CASE
                 WHEN ps.last_error_at IS NOT NULL
                  AND ps.last_error_at > NOW() - INTERVAL '24 hours'
@@ -659,13 +676,17 @@ pub async fn get_source_stats(
         Err(e) => return IoError::Internal(e.to_string()).into_response(),
     };
 
+    let status: String = row.get("status");
+    let updates_1m: i64 = row.get("updates_1m");
     let stats = PointSourceStats {
-        source_id:            row.get("source_id"),
-        point_count:          row.get("point_count"),
-        active_subscriptions: row.get("active_subscriptions"),
-        updates_per_minute:   row.get("updates_per_minute"),
-        error_count_24h:      row.get("error_count_24h"),
-        last_value_at:        row.get("last_value_at"),
+        source_id:        row.get("source_id"),
+        name:             row.get("name"),
+        connected:        status == "active",
+        point_count:      row.get("point_count"),
+        subscribed_points: row.get("subscribed_points"),
+        update_rate:      updates_1m as f64 / 60.0,
+        error_count_24h:  row.get("error_count_24h"),
+        last_value_at:    row.get("last_value_at"),
     };
 
     Json(ApiResponse::ok(stats)).into_response()
@@ -863,6 +884,161 @@ pub async fn list_points(
     Json(serde_json::json!({
         "data": data,
         "pagination": { "total": total, "page": page, "pages": pages }
+    }))
+    .into_response()
+}
+
+/// GET /api/points/:id — rich metadata for a single point.
+///
+/// Returns the shape expected by the frontend `PointDetail` interface:
+/// { id, name, description, engineering_unit, data_type, source_id, source_name }
+pub async fn get_point(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let row = match sqlx::query(
+        r#"SELECT pm.id::text, pm.tagname, pm.description, pm.engineering_units,
+                  pm.data_type, pm.source_id::text, COALESCE(ps.name, '') AS source_name
+           FROM points_metadata pm
+           LEFT JOIN point_sources ps ON ps.id = pm.source_id
+           WHERE pm.id = $1"#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Point not found" }))).into_response(),
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    Json(serde_json::json!({
+        "id":               row.get::<String, _>("id"),
+        "name":             row.get::<String, _>("tagname"),
+        "description":      row.get::<Option<String>, _>("description"),
+        "engineering_unit": row.get::<Option<String>, _>("engineering_units"),
+        "data_type":        row.get::<Option<String>, _>("data_type").unwrap_or_default(),
+        "source_id":        row.get::<Option<String>, _>("source_id").unwrap_or_default(),
+        "source_name":      row.get::<String, _>("source_name"),
+    }))
+    .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/points/:id/current — current value for a single point.
+// Accepts UUID or tag name. Returns the latest value from points_current.
+// ---------------------------------------------------------------------------
+
+pub async fn get_point_current(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let row = match sqlx::query(
+        r#"SELECT pm.id::text, pm.tagname, pm.engineering_units,
+                  pc.value, pc.quality, pc.timestamp
+           FROM points_metadata pm
+           LEFT JOIN points_current pc ON pc.point_id = pm.id
+           WHERE pm.id::text = $1 OR pm.tagname = $1
+           LIMIT 1"#,
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "success": false, "error": { "code": "NOT_FOUND", "message": "Point not found" } })),
+            )
+                .into_response()
+        }
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    Json(serde_json::json!({
+        "success": true,
+        "data": {
+            "value":            row.get::<Option<f64>, _>("value"),
+            "quality":          row.get::<Option<String>, _>("quality").unwrap_or_else(|| "unknown".into()),
+            "timestamp":        row.get::<Option<DateTime<Utc>>, _>("timestamp"),
+            "engineering_unit": row.get::<Option<String>, _>("engineering_units"),
+        }
+    }))
+    .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/opc/points/status — paginated current status for all points.
+// Supports ?area=, ?filter=bad_quality, ?limit=
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct PointStatusParams {
+    pub area: Option<String>,
+    pub filter: Option<String>,
+    pub limit: Option<i64>,
+}
+
+pub async fn list_point_status(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Query(params): Query<PointStatusParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(50).min(500);
+    let area_filter = params.area.as_deref().filter(|a| *a != "__all__" && !a.is_empty());
+    let bad_quality_only = params.filter.as_deref() == Some("bad_quality");
+
+    let rows = match sqlx::query(
+        r#"SELECT pm.id::text AS point_id,
+                  pm.tagname,
+                  pm.description AS display_name,
+                  ps.name AS source_name,
+                  pm.area,
+                  pm.engineering_units AS unit,
+                  pc.value,
+                  COALESCE(pc.quality, 'unknown') AS quality,
+                  pc.timestamp
+           FROM points_metadata pm
+           LEFT JOIN point_sources ps ON ps.id = pm.source_id
+           LEFT JOIN points_current pc ON pc.point_id = pm.id
+           WHERE ($1::text IS NULL OR pm.area = $1)
+             AND (NOT $2 OR pc.quality NOT IN ('good'))
+           ORDER BY pm.tagname
+           LIMIT $3"#,
+    )
+    .bind(area_filter)
+    .bind(bad_quality_only)
+    .bind(limit)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let data: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "point_id":    row.get::<String, _>("point_id"),
+                "tagname":     row.get::<String, _>("tagname"),
+                "display_name": row.get::<Option<String>, _>("display_name"),
+                "source_name": row.get::<Option<String>, _>("source_name"),
+                "area":        row.get::<Option<String>, _>("area"),
+                "unit":        row.get::<Option<String>, _>("unit"),
+                "value":       row.get::<Option<f64>, _>("value"),
+                "quality":     row.get::<String, _>("quality"),
+                "timestamp":   row.get::<Option<DateTime<Utc>>, _>("timestamp"),
+            })
+        })
+        .collect();
+
+    Json(serde_json::json!({
+        "success": true,
+        "data": data
     }))
     .into_response()
 }

@@ -486,6 +486,11 @@ pub enum WsClientMessage {
         pending_updates: u32,
         last_batch_process_ms: u32,
     },
+    /// Device-type hint sent by the client after connect.  Broker ignores it;
+    /// the variant exists solely to suppress deserialization warnings.
+    ClientHint {
+        device_type: String,
+    },
 }
 
 #[cfg(test)]

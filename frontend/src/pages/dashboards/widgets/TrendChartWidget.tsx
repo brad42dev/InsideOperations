@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { pointsApi } from '../../../api/points'
 import type { WidgetConfig } from '../../../api/dashboards'
 import EChart from '../../../shared/components/charts/EChart'
+import ChartToolbar from '../../../shared/components/charts/ChartToolbar'
 import type { EChartsOption } from 'echarts'
 
 interface TrendChartConfig {
@@ -37,22 +39,29 @@ function resolveToken(token: string): string {
 
 export default function TrendChartWidget({ config, variables }: Props) {
   const cfg = config.config as unknown as TrendChartConfig
-  const windowHours = cfg.window_hours ?? 8
   const chartType = cfg.chart_type ?? 'line'
 
-  // Resolve point IDs — either from config.points directly or from a variable
-  const configPoints = cfg.points ?? []
+  // Local duration state — toolbar controls this; initialised from saved config
+  const [durationMinutes, setDurationMinutes] = useState((cfg.window_hours ?? 8) * 60)
+  const windowHours = durationMinutes / 60
+
+  // Resolve point IDs — either from config.points directly or from a variable.
+  // Filter to valid UUID-shaped strings only; dashboard variables may resolve
+  // to area names or other non-UUID values that would cause 422 on history-batch.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const configPoints = (cfg.points ?? []).filter((id) => UUID_RE.test(id))
   const variableKey = cfg.variable
-  const variablePointIds = variableKey ? (variables[variableKey] ?? []) : []
+  const variablePointIds = (variableKey ? (variables[variableKey] ?? []) : []).filter((id) =>
+    UUID_RE.test(id),
+  )
   const pointIds = configPoints.length > 0 ? configPoints : variablePointIds
 
-  const now = new Date()
-  const start = new Date(now.getTime() - windowHours * 60 * 60 * 1000)
-
   const query = useQuery({
-    queryKey: ['trend-chart', pointIds, windowHours],
+    queryKey: ['trend-chart', pointIds, durationMinutes],
     queryFn: async () => {
       if (pointIds.length === 0) return []
+      const now = new Date()
+      const start = new Date(now.getTime() - durationMinutes * 60 * 1000)
       const result = await pointsApi.historyBatch(pointIds, {
         start: start.toISOString(),
         end: now.toISOString(),
@@ -238,8 +247,11 @@ export default function TrendChartWidget({ config, variables }: Props) {
   }
 
   return (
-    <div style={{ height: '100%', minHeight: 0 }}>
-      <EChart option={option} />
+    <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <EChart option={option} />
+      </div>
+      <ChartToolbar durationMinutes={durationMinutes} onDurationChange={setDurationMinutes} />
     </div>
   )
 }

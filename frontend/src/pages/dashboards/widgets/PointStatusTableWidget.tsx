@@ -26,6 +26,17 @@ interface Props {
   variables: Record<string, string[]>
 }
 
+function fmtValue(v: number): string {
+  const abs = Math.abs(v)
+  if (!isFinite(v)) return String(v)
+  if (abs === 0) return '0'
+  if (abs >= 10000) return v.toFixed(0)
+  if (abs >= 1000) return v.toFixed(1)
+  if (abs >= 100) return v.toFixed(2)
+  if (abs >= 1) return v.toFixed(3)
+  return parseFloat(v.toPrecision(3)).toString()
+}
+
 function qualityColor(quality: string): string {
   switch (quality.toLowerCase()) {
     case 'good':
@@ -62,7 +73,8 @@ export default function PointStatusTableWidget({ config, variables }: Props) {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (filter) params.set('filter', filter)
-      if (areaFilter && areaFilter !== '__all__') params.set('area', areaFilter)
+      const isAllFilter = !areaFilter || areaFilter === '__all__' || areaFilter.startsWith('$__')
+      if (!isAllFilter) params.set('area', areaFilter!)
       params.set('limit', String(limit))
       const result = await api.get<PointCurrentStatus[]>(
         `/api/opc/points/status?${params.toString()}`,
@@ -193,7 +205,7 @@ export default function PointStatusTableWidget({ config, variables }: Props) {
                 fontFamily: 'var(--io-font-mono, monospace)',
               }}
             >
-              {pt.value != null ? `${pt.value}${pt.unit ? ` ${pt.unit}` : ''}` : '—'}
+              {pt.value != null ? `${fmtValue(pt.value)}${pt.unit ? ` ${pt.unit}` : ''}` : '—'}
             </span>
             <span
               style={{
