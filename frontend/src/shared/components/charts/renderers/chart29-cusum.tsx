@@ -59,7 +59,7 @@ export default function Chart29Cusum({ config }: RendererProps) {
     if (vals.length < 4) return { timestamps: [], series: [], xRange: undefined }
 
     const mean = math.mean(vals) as number
-    const sigma = math.std(vals, 'uncorrected') as number
+    const sigma = math.std(vals) as unknown as number  // sample std dev (N-1), correct for SPC
     const target = targetOverride ?? mean
 
     let Cp = 0, Cn = 0

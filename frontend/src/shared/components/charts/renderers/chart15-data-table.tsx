@@ -4,7 +4,7 @@
 // Value, Quality, Timestamp. WebSocket for live values, getMeta for metadata.
 // ---------------------------------------------------------------------------
 
-import { useQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 import { useWebSocket } from '../../../hooks/useWebSocket'
 import { pointsApi } from '../../../../api/points'
 import { type ChartConfig } from '../chart-config-types'
@@ -42,16 +42,16 @@ export default function Chart15DataTable({ config }: RendererProps) {
 
   const { values } = useWebSocket(pointIds)
 
-  // Fetch metadata for all points — individual queries so each caches independently
-  const metaQueries = pointIds.map((id) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useQuery({
+  // Fetch metadata for all points — useQueries handles dynamic array of queries
+  // without violating Rules of Hooks (unlike calling useQuery in a loop).
+  const metaQueries = useQueries({
+    queries: pointIds.map((id) => ({
       queryKey: ['point-meta', id],
       queryFn: () => pointsApi.getMeta(id),
       staleTime: 60_000,
       enabled: !!id,
-    }),
-  )
+    })),
+  })
 
   if (seriesSlots.length === 0) {
     return (

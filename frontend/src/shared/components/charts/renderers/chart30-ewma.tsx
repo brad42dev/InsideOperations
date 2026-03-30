@@ -57,7 +57,7 @@ export default function Chart30Ewma({ config }: RendererProps) {
     if (vals.length < 4) return { timestamps: [], series: [], xRange: undefined }
 
     const mean = math.mean(vals) as number
-    const sigma = math.std(vals, 'uncorrected') as number
+    const sigma = math.std(vals) as unknown as number  // sample std dev (N-1), correct for SPC
 
     let ewmaVal = mean
     const ewmaValues: number[] = []

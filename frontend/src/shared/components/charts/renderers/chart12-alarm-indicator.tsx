@@ -124,7 +124,10 @@ export default function Chart12AlarmIndicator({ config }: RendererProps) {
     }
   }
 
-  // Consider unacknowledged if any point has an active alarm level
+  // ISA-18.2 NOTE: acknowledged alarms should NOT flash. True acknowledgment state
+  // requires a subscription to the event service alarm channel (not yet threaded
+  // through the WS point value stream). Until then, all active alarms flash — this
+  // is conservative (noisier) rather than dangerous (hiding unacked alarms).
   const unacknowledged = worst !== 'normal'
 
   if (worst === 'normal') {

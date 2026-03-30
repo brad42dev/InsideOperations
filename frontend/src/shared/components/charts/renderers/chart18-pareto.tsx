@@ -187,8 +187,8 @@ export default function ParetoChart({ config }: RendererProps) {
         xAxis: [valueAxis0, { ...valueAxis1, position: 'top' as const }],
         yAxis: categoryAxis,
         series: [
-          { ...barSeries, yAxis: undefined },
-          { ...lineSeries, xAxisIndex: 1, yAxisIndex: undefined, data: cumulativePct },
+          { ...barSeries, yAxisIndex: 0, xAxisIndex: undefined },
+          { ...lineSeries, xAxisIndex: 1, yAxisIndex: 0, data: cumulativePct },
         ],
       } as EChartsOption
     }

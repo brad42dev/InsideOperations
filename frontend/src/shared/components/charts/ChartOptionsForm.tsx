@@ -423,7 +423,7 @@ function ExtrasEwma({ extras, onExtras }: { extras: Record<string, unknown>; onE
         <input type="number" step={0.05} min={0.05} max={1} value={(extras.lambda as number) ?? 0.2} onChange={(e) => onExtras({ ...extras, lambda: Number(e.target.value) })} style={inputStyle} />
       </Row>
       <Row label="Control limit (L)">
-        <input type="number" step={0.1} value={(extras.L as number) ?? 3} onChange={(e) => onExtras({ ...extras, L: Number(e.target.value) })} style={inputStyle} />
+        <input type="number" step={0.1} value={(extras.l as number) ?? 3} onChange={(e) => onExtras({ ...extras, l: Number(e.target.value) })} style={inputStyle} />
       </Row>
     </Section>
   )

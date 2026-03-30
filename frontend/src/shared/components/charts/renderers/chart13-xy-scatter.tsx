@@ -120,9 +120,10 @@ export default function XYScatterChart({ config }: RendererProps) {
   const isHistorical = playbackMode === 'historical'
 
   const end = isHistorical ? new Date(timeRange.end).toISOString() : new Date().toISOString()
+  // Truncate live start to nearest minute for a stable query key (prevents refetch on every render)
   const start = isHistorical
     ? new Date(timeRange.start).toISOString()
-    : new Date(Date.now() - durationMinutes * 60 * 1000).toISOString()
+    : new Date(Math.floor((Date.now() - durationMinutes * 60_000) / 60_000) * 60_000).toISOString()
 
   const queryEnabled = !!(xSlot && ySlot)
 

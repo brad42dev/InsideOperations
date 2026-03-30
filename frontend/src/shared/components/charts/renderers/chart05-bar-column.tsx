@@ -79,14 +79,9 @@ export default function BarColumnChart({ config }: RendererProps) {
 
     const names = seriesSlots.map((s) => slotLabel(s))
 
-    // Compute per-bar error bar data (very simple stddev estimate from current value ±10%)
-    // Real implementation would fetch statistical data from the API
-    const errorData = errorBars !== 'none'
-      ? dataValues.map((v) => {
-          const spread = errorBars === 'stddev' ? Math.abs(v) * 0.1 : Math.abs(v) * 0.15
-          return [v - spread, v + spread] as [number, number]
-        })
-      : []
+    // Error bars require historical statistical data from the API (not yet implemented).
+    // Render as empty so no fabricated ±10%/±15% data is shown to operators.
+    const errorData: [number, number][] = []
 
     const barSeries: EChartsOption['series'] = stacked
       ? seriesSlots.map((slot, i) => ({
@@ -147,20 +142,10 @@ export default function BarColumnChart({ config }: RendererProps) {
         }]
       : []
 
-    // Combo line series (second line overlaid on bar chart)
-    const comboSeries: EChartsOption['series'] = comboLine && dataValues.length > 0
-      ? [{
-          name: comboLineLabel,
-          type: 'line' as const,
-          data: dataValues.map((v) => v * 1.05), // placeholder: +5% of bar value
-          smooth: false,
-          symbol: 'circle',
-          symbolSize: 5,
-          lineStyle: { color: '#F59E0B', width: 2 },
-          itemStyle: { color: '#F59E0B' },
-          label: { show: false },
-        }]
-      : []
+    // Combo line series requires a dedicated second data source (not yet implemented).
+    // Suppress rendering so no placeholder +5% data is displayed as real data.
+    const comboSeries: EChartsOption['series'] = []
+    void comboLine  // option recognized but not yet wired to real data
 
     const categoryAxis = {
       type: 'category' as const,

@@ -47,7 +47,7 @@ export default function Chart22StackedArea({ config, bufferKey }: RendererProps)
     interpolation: config.interpolation ?? 'linear',
   })
 
-  const useStack = config.scaling?.type === 'fixed'
+  const useStack = (config.extras?.stacked as boolean) ?? true  // default stacked; toggle via Options
   const legendItems: LegendItem[] = seriesSlots.map((slot, i) => ({ label: slotLabel(slot), color: slot.color ?? autoColor(i) }))
 
   const option: EChartsOption = useMemo(() => {

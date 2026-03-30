@@ -57,7 +57,7 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
   const durationMinutes = config.durationMinutes ?? 60
 
   const nowMs = Date.now()
-  const startMs = nowMs - durationMinutes * 60_000
+  const startMs = Math.floor((nowMs - durationMinutes * 60_000) / 60_000) * 60_000  // truncated to minute for stable query key
   const startISO = new Date(startMs).toISOString()
   const endISO = new Date(nowMs).toISOString()
 

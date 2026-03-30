@@ -393,7 +393,10 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
         }}
       >
         <Suspense fallback={null}>
-          <ChartRenderer config={chartConfig} bufferKey={config.id} />
+          <ChartRenderer
+            config={{ ...chartConfig, extras: { ...chartConfig.extras, showGrid } }}
+            bufferKey={config.id}
+          />
         </Suspense>
 
         <ChartToolbar

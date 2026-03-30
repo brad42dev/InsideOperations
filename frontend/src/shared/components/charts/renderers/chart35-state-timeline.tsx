@@ -85,10 +85,11 @@ export default function StateTimelineChart({ config }: RendererProps) {
   const { mode: playbackMode, timeRange } = usePlaybackStore()
   const isHistorical = playbackMode === 'historical'
 
+  // Truncate live timestamps to nearest minute for stable query keys (prevents refetch on every render)
   const windowEndMs = isHistorical ? new Date(timeRange.end).getTime() : Date.now()
   const windowStartMs = isHistorical
     ? new Date(timeRange.start).getTime()
-    : windowEndMs - durationMinutes * 60 * 1000
+    : Math.floor((windowEndMs - durationMinutes * 60_000) / 60_000) * 60_000
 
   const end = new Date(windowEndMs).toISOString()
   const start = new Date(windowStartMs).toISOString()
