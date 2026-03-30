@@ -154,9 +154,9 @@ export interface LinkedGraphic {
 /** Latest value snapshot from the archive */
 export interface PointLatest {
   point_id: string
-  value: number
+  value: number | null
   quality: string
-  timestamp: string
+  timestamp: string | null
 }
 
 /** Single history entry from the archive time-series */

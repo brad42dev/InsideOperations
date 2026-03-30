@@ -32,8 +32,8 @@ function computeBoxStats(values: number[]) {
   const iqr = q3 - q1
   const lower = sorted.find((v) => v >= q1 - 1.5 * iqr) ?? sorted[0]
   const upper = [...sorted].reverse().find((v) => v <= q3 + 1.5 * iqr) ?? sorted[0]
-  const outliers = values.filter((v) => v < lower || v > upper)
-  const mean = values.reduce((a, b) => a + b, 0) / values.length
+  const outliers = sorted.filter((v) => v < lower || v > upper)
+  const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length
   return { q1, median, q3, lower, upper, outliers, mean }
 }
 

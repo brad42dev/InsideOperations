@@ -77,7 +77,7 @@ export default function ParetoChart({ config }: RendererProps) {
         const ws = values.get(slot.pointId)
         const val = ws !== undefined
           ? ws.value
-          : (latestData?.find((r: { point_id: string; value: number }) => r.point_id === slot.pointId)?.value ?? 0)
+          : (latestData?.find((r: { point_id: string; value: number | null }) => r.point_id === slot.pointId)?.value ?? 0)
         return { name: slotLabel(slot), value: Math.max(0, val), color: slot.color ?? autoColor(i) }
       })
       const total = items.reduce((s, d) => s + d.value, 0)
@@ -94,7 +94,7 @@ export default function ParetoChart({ config }: RendererProps) {
       const ws = values.get(slot.pointId)
       const val = ws !== undefined
         ? ws.value
-        : (latestData?.find((r: { point_id: string; value: number }) => r.point_id === slot.pointId)?.value ?? 0)
+        : (latestData?.find((r: { point_id: string; value: number | null }) => r.point_id === slot.pointId)?.value ?? 0)
       return { name: slotLabel(slot), value: Math.max(0, val), color: slot.color ?? autoColor(i) }
     })
     items.sort((a, b) => b.value - a.value)

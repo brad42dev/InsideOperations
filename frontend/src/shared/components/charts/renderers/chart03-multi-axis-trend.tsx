@@ -32,6 +32,8 @@ export default function Chart03MultiAxisTrend({ config, bufferKey }: RendererPro
     pointIds,
     durationMinutes,
     interpolation: config.interpolation ?? 'linear',
+    bucketSeconds: config.aggregateSize,
+    aggregateType: config.aggregateType,
   })
 
   const xRangeRef = useRef<{ min: number; max: number }>({ min: 0, max: 0 })

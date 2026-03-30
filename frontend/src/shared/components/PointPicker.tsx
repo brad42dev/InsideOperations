@@ -478,7 +478,7 @@ function PointPreview({ hoveredId }: { hoveredId: string | null }) {
                 {latestData.quality}
               </span>
               <span style={{ fontSize: 11, color: 'var(--io-text-muted)' }}>
-                {new Date(latestData.timestamp).toLocaleTimeString()}
+                {latestData.timestamp ? new Date(latestData.timestamp).toLocaleTimeString() : '—'}
               </span>
             </div>
           )}

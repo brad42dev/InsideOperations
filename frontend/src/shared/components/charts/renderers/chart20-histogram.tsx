@@ -48,7 +48,7 @@ function computeKDE(values: number[], points = 100): { x: number; density: numbe
   if (values.length < 2) return []
   const n = values.length
   const mean = values.reduce((a, b) => a + b, 0) / n
-  const stddev = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / n)
+  const stddev = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1))
   const h = 1.06 * stddev * Math.pow(n, -0.2) // Silverman's rule
   if (h === 0) return []
 
@@ -215,7 +215,7 @@ export default function HistogramChart({ config }: RendererProps) {
     if (!bins.length) return { labels: [], counts: [], normalCurve: [], cpk: null }
 
     const mean = vals.reduce((a, b) => a + b, 0) / n
-    const stddev = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / n)
+    const stddev = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1))
 
     const normalCurveData: number[] = normalOverlay && stddev > 0
       ? bins.map((b) => {
