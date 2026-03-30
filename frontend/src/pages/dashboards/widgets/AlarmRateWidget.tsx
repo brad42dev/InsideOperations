@@ -3,6 +3,7 @@ import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
 import EChart from '../../../shared/components/charts/EChart'
 import type { EChartsOption } from 'echarts'
+import { useThemeColors } from '../../../shared/theme/ThemeContext'
 
 interface AlarmRateConfig {
   title?: string
@@ -83,9 +84,9 @@ export default function AlarmRateWidget({ config }: Props) {
   const alarmsPerHour = totalAlarms > 0 ? Math.round((totalAlarms / windowHours) * 10) / 10 : 0
 
   const penColor = resolveToken('--io-pen-1')
+  const themeColors = useThemeColors()
   const axisColor = resolveToken('--io-border-strong')
   const labelColor = resolveToken('--io-text-muted')
-  const gridColor = resolveToken('--io-chart-grid')
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -112,7 +113,7 @@ export default function AlarmRateWidget({ config }: Props) {
       minInterval: 1,
       axisLine: { lineStyle: { color: axisColor } },
       axisLabel: { color: labelColor, fontSize: 11 },
-      splitLine: { lineStyle: { color: gridColor } },
+      splitLine: { lineStyle: { color: themeColors.chartGrid } },
     },
     series: [
       {

@@ -3,6 +3,7 @@ import { api } from '../../../api/client'
 import type { WidgetConfig } from '../../../api/dashboards'
 import EChart from '../../../shared/components/charts/EChart'
 import type { EChartsOption } from 'echarts'
+import { useThemeColors } from '../../../shared/theme/ThemeContext'
 
 interface AlarmCountBySeverityConfig {
   title?: string
@@ -60,9 +61,9 @@ export default function AlarmCountBySeverityWidget({ config }: Props) {
 
   const data = query.data ?? []
 
+  const themeColors = useThemeColors()
   const axisColor = resolveToken('--io-border-strong')
   const labelColor = resolveToken('--io-text-muted')
-  const gridColor = resolveToken('--io-chart-grid')
 
   const barOption: EChartsOption = {
     backgroundColor: 'transparent',
@@ -79,7 +80,7 @@ export default function AlarmCountBySeverityWidget({ config }: Props) {
       minInterval: 1,
       axisLine: { lineStyle: { color: axisColor } },
       axisLabel: { color: labelColor, fontSize: 11 },
-      splitLine: { lineStyle: { color: gridColor } },
+      splitLine: { lineStyle: { color: themeColors.chartGrid } },
     },
     series: [
       {

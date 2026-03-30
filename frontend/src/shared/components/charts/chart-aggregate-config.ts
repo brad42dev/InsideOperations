@@ -67,17 +67,24 @@ export function getValidBuckets(durationMinutes: number): BucketOption[] {
 }
 
 /**
- * Pick the best default bucket size for a given duration (mirrors the old
- * seedResolution logic but returns seconds instead of a resolution string).
- * Returns undefined when the caller should let the backend auto-select.
+ * Pick the best default bucket size for a given duration.
+ * Targets ~300 data points, using the smallest BUCKET_OPTION that keeps
+ * the point count ≤ 3000 (same upper bound as getValidBuckets so Auto
+ * always picks an option that would appear in the toolbar dropdown).
  */
 export function defaultBucketSeconds(durationMinutes: number): number {
-  if (durationMinutes <= 120)   return 1      // raw / 1s
-  if (durationMinutes <= 1440)  return 60     // 1 min
-  if (durationMinutes <= 10080) return 300    // 5 min
-  if (durationMinutes <= 43200) return 900    // 15 min
-  if (durationMinutes <= 525600) return 3600  // 1 hr
-  return 86400                                // 1 day
+  const durationSeconds = durationMinutes * 60
+  const target = 300 // aim for roughly this many data points
+  const idealBucketSeconds = durationSeconds / target
+  // Walk backwards through options (largest first) to find the biggest bucket
+  // that is still at or below the ideal bucket size — i.e. the one that gives
+  // at least ~300 points without exceeding 3000.
+  for (let i = BUCKET_OPTIONS.length - 1; i >= 0; i--) {
+    if (BUCKET_OPTIONS[i].seconds <= idealBucketSeconds) {
+      return BUCKET_OPTIONS[i].seconds
+    }
+  }
+  return BUCKET_OPTIONS[0].seconds // 1s minimum
 }
 
 /**

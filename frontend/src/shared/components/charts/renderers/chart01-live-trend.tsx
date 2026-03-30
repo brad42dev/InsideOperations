@@ -26,6 +26,8 @@ export default function Chart01LiveTrend({ config, bufferKey }: RendererProps) {
     pointIds,
     durationMinutes,
     interpolation: config.interpolation ?? 'linear',
+    bucketSeconds: config.aggregateSize,
+    aggregateType: config.aggregateType,
   })
 
   // xRange is recomputed each render so the chart auto-scrolls forward in time.

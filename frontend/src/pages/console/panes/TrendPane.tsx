@@ -47,13 +47,6 @@ function getPaneLastTs(id: string): Map<string, number> {
   return m
 }
 
-// Resolution and row limit scaled to fetch window size.
-function seedResolution(minutes: number): 'raw' | '5m' | '1h' {
-  if (minutes <= 120)   return 'raw'
-  if (minutes <= 10080) return '5m'
-  return '1h'
-}
-
 function seedLimit(minutes: number): number {
   if (minutes <= 120)   return 7_500
   if (minutes <= 10080) return 2_500
@@ -126,6 +119,8 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
   const bucketKey     = `io_trend_bucket_${config.id}`
   const aggregateKey  = `io_trend_aggregate_${config.id}`
 
+  const [showGrid, setShowGrid] = useState(true)
+
   const [durationMinutes, setDurationMinutes] = useState(() => {
     const saved = localStorage.getItem(durationKey)
     if (saved) { const n = parseInt(saved, 10); if (n > 0) return n }
@@ -165,6 +160,19 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
     })
     if (changed) setTick((t) => t + 1)
   }, [durationMinutes])
+
+  // Clear buffer synchronously during render when bucket or aggregate changes.
+  // Must be synchronous (not useEffect) so the buffer is empty before the new
+  // queryFn reads it. Using useRef skips the initial mount (refs are initialized
+  // to the current values, so the first comparison is always equal).
+  const prevBucketRef = useRef(bucketSeconds)
+  const prevAggRef    = useRef(aggregateType)
+  if (prevBucketRef.current !== bucketSeconds || prevAggRef.current !== aggregateType) {
+    prevBucketRef.current = bucketSeconds
+    prevAggRef.current    = aggregateType
+    buffers.current.forEach((_, id) => buffers.current.set(id, []))
+    lastAppendedTs.current.clear()
+  }
 
   const [_tick, setTick] = useState(0)
 
@@ -249,23 +257,21 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
           const latestTs = inWindow[inWindow.length - 1].ts
 
           if (earliestTs > cutoff + 60) {
-            const gapMinutes = (earliestTs - cutoff) / 60
             return pointsApi.history(id, {
               start: windowStart.toISOString(),
               end: new Date(earliestTs * 1000).toISOString(),
-              bucket_seconds: bucketSeconds ?? defaultBucketSeconds(gapMinutes),
+              bucket_seconds: effectiveBucket,
               aggregate_function: aggregateType,
-              limit: seedLimit(gapMinutes),
+              limit: seedLimit(durationMinutes),
             })
           }
 
-          const fetchMinutes = (nowSec - latestTs) / 60
           return pointsApi.history(id, {
             start: new Date(latestTs * 1000).toISOString(),
             end: now.toISOString(),
-            bucket_seconds: bucketSeconds ?? defaultBucketSeconds(fetchMinutes),
+            bucket_seconds: effectiveBucket,
             aggregate_function: aggregateType,
-            limit: seedLimit(fetchMinutes),
+            limit: seedLimit(durationMinutes),
           })
         }),
       )
@@ -300,9 +306,7 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
   useEffect(() => {
     if (values.size === 0) return
 
-    const res = seedResolution(durationMinutes)
-    const bucketSec = res === '1h' ? 3600 : res === '5m' ? 300 : 1
-
+    const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes)
     const cutoff = Date.now() / 1000 - durationMinutes * 60
     let changed = false
 
@@ -402,6 +406,8 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
           onBucketChange={(s) => handleSaveConfig({ ...chartConfig, aggregateSize: s })}
           aggregateType={chartConfig.aggregateType}
           onAggregateChange={(a) => handleSaveConfig({ ...chartConfig, aggregateType: a })}
+          showGrid={showGrid}
+          onToggleGrid={() => setShowGrid((g) => !g)}
         />
 
         {showConfig && (
@@ -602,13 +608,14 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
           </div>
         )}
         <TimeSeriesChart
-          key={`${config.id}-${durationMinutes}`}
+          key={`${config.id}-${durationMinutes}-${showGrid}`}
           timestamps={chartData.timestamps}
           series={chartData.series}
           xRange={{ min: Date.now() / 1000 - durationMinutes * 60, max: Date.now() / 1000 }}
           highlighted={highlighted}
           onSeriesClick={toggleHighlight}
           onClearHighlight={() => setHighlighted(new Set())}
+          showGrid={showGrid}
         />
       </div>
 
@@ -622,6 +629,8 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
         onBucketChange={setBucketSeconds}
         aggregateType={aggregateType}
         onAggregateChange={setAggregateType}
+        showGrid={showGrid}
+        onToggleGrid={() => setShowGrid((g) => !g)}
       />
 
       {showConfig && (

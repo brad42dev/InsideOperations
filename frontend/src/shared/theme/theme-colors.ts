@@ -43,7 +43,7 @@ export const themeColors: Record<'light' | 'dark' | 'high-contrast', ThemeColorS
   light: {
     // Chart & Visualization — matches lightTokens in tokens.ts
     chartBg: '#ffffff',
-    chartGrid: '#f3f4f6',
+    chartGrid: '#f5f6f8',
     chartAxis: '#6b7280',
     chartCrosshair: '#9ca3af',
     chartTooltipBg: '#ffffff',
@@ -93,7 +93,7 @@ export const themeColors: Record<'light' | 'dark' | 'high-contrast', ThemeColorS
   'high-contrast': {
     // Chart & Visualization — matches hphmiTokens in tokens.ts
     chartBg: '#1e293b',
-    chartGrid: '#475569',
+    chartGrid: '#3d5166',
     chartAxis: '#94a3b8',
     chartCrosshair: '#64748b',
     chartTooltipBg: '#1e293b',

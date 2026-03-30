@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import * as echarts from 'echarts'
-import { useThemeName, themeToColorKey } from '../../theme/ThemeContext'
+import { useThemeName, useThemeColors, themeToColorKey } from '../../theme/ThemeContext'
 import type { Theme } from '../../theme/tokens'
 
 export interface EChartProps {
@@ -36,12 +36,17 @@ export default function EChart({
   const prevOptionJson = useRef<string>('')
   const prevEventsRef = useRef<Record<string, (params: unknown) => void>>({})
   const [containerWidth, setContainerWidth] = useState<number>(width ?? 0)
+  // Always-current option ref — read inside init effect to avoid stale closure
+  const optionRef = useRef<echarts.EChartsOption>(option)
+  optionRef.current = option
 
   const isAutoWidth = width === undefined
 
   // Subscribe to the active theme from ThemeContext so changes re-render this component
   const theme = useThemeName()
   const echartsThemeName = toEChartsTheme(theme)
+  const themeColors = useThemeColors()
+  const gridColor = themeColors.chartGrid
 
   // Measure container width via ResizeObserver when width not provided
   useEffect(() => {
@@ -79,6 +84,13 @@ export default function EChart({
     const chart = echarts.init(el, echartsThemeName)
     chartRef.current = chart
 
+    // Apply the current option immediately after init so the correct theme colors
+    // are baked in before the separate option effect runs. notMerge: true ensures
+    // the freshly registered theme is the only base — no stale merge state.
+    const currentOption = optionRef.current
+    chart.setOption(currentOption, { notMerge: true })
+    prevOptionJson.current = JSON.stringify(currentOption)
+
     return () => {
       chart.dispose()
       chartRef.current = null
@@ -113,6 +125,17 @@ export default function EChart({
     })
     prevEventsRef.current = current
   }, [onEvents])
+
+  // Directly update splitLine color on theme change without waiting for chart reinit.
+  // setOption with notMerge:false targets only the grid lines; everything else is unchanged.
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    chart.setOption({
+      xAxis: [{ splitLine: { lineStyle: { color: gridColor } } }],
+      yAxis: [{ splitLine: { lineStyle: { color: gridColor } } }],
+    }, { notMerge: false })
+  }, [gridColor])
 
   // Resize when dimensions change
   useEffect(() => {

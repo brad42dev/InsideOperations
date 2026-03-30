@@ -266,7 +266,7 @@ const lightTokens: Record<string, string> = {
 
   // Chart & Visualization
   '--io-chart-bg': '#ffffff',
-  '--io-chart-grid': '#f3f4f6',
+  '--io-chart-grid': '#f5f6f8',
   '--io-chart-axis': '#6b7280',
   '--io-chart-crosshair': '#9ca3af',
   '--io-chart-tooltip-bg': '#ffffff',
@@ -430,9 +430,9 @@ const hphmiTokens: Record<string, string> = {
   '--io-accent-subtle': 'rgba(45,212,191,0.08)',
 
   // Borders
-  '--io-border': '#334155',
-  '--io-border-subtle': '#1e293b',
-  '--io-border-strong': '#475569',
+  '--io-border': '#475569',
+  '--io-border-subtle': '#2d3f53',
+  '--io-border-strong': '#64748b',
   '--io-focus-ring': '#14b8a6',
 
   // Alarm Priority
@@ -463,7 +463,7 @@ const hphmiTokens: Record<string, string> = {
 
   // Chart & Visualization
   '--io-chart-bg': '#1e293b',
-  '--io-chart-grid': '#475569',
+  '--io-chart-grid': '#3d5166',
   '--io-chart-axis': '#94a3b8',
   '--io-chart-crosshair': '#64748b',
   '--io-chart-tooltip-bg': '#1e293b',
@@ -530,7 +530,7 @@ const hphmiTokens: Record<string, string> = {
   '--io-btn-active': '#5eead4',
   '--io-btn-text': '#0f172a',
   '--io-btn-secondary-bg': '#1e293b',
-  '--io-btn-secondary-border': '#334155',
+  '--io-btn-secondary-border': '#475569',
 
   // Sidebar (remaining Layer 4)
   '--io-sidebar-bg': '#1e293b',
@@ -543,7 +543,7 @@ const hphmiTokens: Record<string, string> = {
 
   // Card (Layer 4)
   '--io-card-bg': '#1e293b',
-  '--io-card-border': '#334155',
+  '--io-card-border': '#475569',
   '--io-card-radius': '6px',
   '--io-card-shadow': '0 1px 2px rgba(0,0,0,0.3)',
 
@@ -557,7 +557,7 @@ const hphmiTokens: Record<string, string> = {
 
   // Input (Layer 4)
   '--io-input-bg': '#0c1525',
-  '--io-input-border': '#334155',
+  '--io-input-border': '#475569',
   '--io-input-focus-border': '#14b8a6',
   '--io-input-placeholder': '#64748b',
   '--io-input-height': '36px',
@@ -569,7 +569,7 @@ const hphmiTokens: Record<string, string> = {
 
   // Toast (Layer 4)
   '--io-toast-bg': '#334155',
-  '--io-toast-border': '#334155',
+  '--io-toast-border': '#475569',
   '--io-toast-shadow': '0 10px 15px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3)',
 
   // Z-Index Scale (static, all themes)

@@ -152,7 +152,7 @@ export default function ChartPointSelector({ slotDefs, points, allPoints, onChan
   return (
     <div style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0 }}>
       {/* ── Left: filterable point list ─────────────────────────────────── */}
-      <div style={{ flex: '0 0 clamp(180px, 15%, 240px)', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
+      <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
         <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>
           Available Points
         </div>
@@ -279,8 +279,15 @@ export default function ChartPointSelector({ slotDefs, points, allPoints, onChan
                         color={sp.color ?? autoColor(0)}
                         onChange={(c) => updateColor(sp.slotId, c)}
                       />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {meta?.tagname ?? sp.pointId}
+                      <span style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {meta?.tagname ?? sp.pointId}
+                        </div>
+                        {meta?.display_name && (
+                          <div style={{ fontSize: '0.8em', color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {meta.display_name}
+                          </div>
+                        )}
                       </span>
                       <button
                         onClick={() => removePoint(sp.slotId)}

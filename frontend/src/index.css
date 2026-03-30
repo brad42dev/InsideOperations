@@ -271,7 +271,7 @@
 
   /* Chart & Visualization */
   --io-chart-bg: #ffffff;
-  --io-chart-grid: #f3f4f6;
+  --io-chart-grid: #f5f6f8;
   --io-chart-axis: #6b7280;
   --io-chart-crosshair: #9ca3af;
   --io-chart-tooltip-bg: #ffffff;
@@ -431,9 +431,9 @@
   --io-accent-subtle: rgba(45, 212, 191, 0.08);
 
   /* Borders */
-  --io-border: #334155;
-  --io-border-subtle: #1e293b;
-  --io-border-strong: #475569;
+  --io-border: #475569;
+  --io-border-subtle: #2d3f53;
+  --io-border-strong: #64748b;
   --io-focus-ring: #14b8a6;
 
   /* Alarm Priority — ISA-101 */
@@ -468,7 +468,7 @@
 
   /* Chart & Visualization */
   --io-chart-bg: #1e293b;
-  --io-chart-grid: #1e293b;
+  --io-chart-grid: #3d5166;
   --io-chart-axis: #94a3b8;
   --io-chart-crosshair: #64748b;
   --io-chart-tooltip-bg: #1e293b;

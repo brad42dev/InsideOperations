@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import TrendPane from './panes/TrendPane'
@@ -156,11 +156,39 @@ export default function PaneWrapper({
 }: PaneWrapperProps) {
   const navigate = useNavigate()
   const title = config.title ?? PANE_TYPE_LABELS[config.type] ?? config.type
+  const containerRef = useRef<HTMLDivElement>(null)
   const [paneCtxMenu, setPaneCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [replaceSearch, setReplaceSearch] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [hovered, setHovered] = useState(false)
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false)
+
+  useEffect(() => {
+    function onFSChange() {
+      setIsBrowserFullscreen(document.fullscreenElement === containerRef.current)
+    }
+    document.addEventListener('fullscreenchange', onFSChange)
+    return () => document.removeEventListener('fullscreenchange', onFSChange)
+  }, [])
+
+  function handleBrowserFullscreen(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (isBrowserFullscreen) {
+      document.exitFullscreen()
+    } else {
+      containerRef.current?.requestFullscreen()
+    }
+  }
+
+  // Fill-workspace and browser fullscreen are mutually exclusive. If browser
+  // fullscreen is active when fill-workspace is toggled, exit it first so the
+  // portal PaneWrapper instance starts clean (it won't inherit this state).
+  function handleToggleMaximize(e?: React.MouseEvent) {
+    e?.stopPropagation()
+    if (isBrowserFullscreen) document.exitFullscreen()
+    onToggleFullscreen?.()
+  }
 
   const { data: replaceGraphics = [] } = useQuery({
     queryKey: ['console-replace-graphics'],
@@ -227,7 +255,7 @@ export default function PaneWrapper({
     const target = e.target as HTMLElement
     if (target.closest('[data-point-id]')) return // point-bound → Point Detail, not fullscreen
     if (target.closest('button, [role="menu"]')) return
-    onToggleFullscreen?.()
+    handleToggleMaximize()
   }
 
   // In live mode, determine whether the title bar should render.
@@ -237,6 +265,7 @@ export default function PaneWrapper({
 
   return (
     <div
+      ref={containerRef}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -319,40 +348,58 @@ export default function PaneWrapper({
 
           {editMode && <PaneTypeBadge type={config.type} />}
 
-          {/* Fullscreen toggle button — shown in header only when header is visible in live mode */}
+          {/* Fill-workspace + browser-fullscreen buttons — live mode only */}
           {!editMode && (
-            <button
-              onClick={() => onToggleFullscreen?.()}
-              title={isFullscreen ? 'Exit full screen' : 'Full screen (F11)'}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--io-text-muted)',
-                padding: '3px 5px',
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              {isFullscreen ? (
-                /* Compress icon */
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-                </svg>
-              ) : (
-                /* Expand icon */
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-                </svg>
-              )}
-            </button>
+            <>
+              {/* Fill workspace (maximize/restore within the workspace) */}
+              <button
+                onClick={(e) => { e.stopPropagation(); handleToggleMaximize() }}
+                title={isFullscreen ? 'Restore pane' : 'Fill workspace'}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', padding: '3px 5px', borderRadius: 4, display: 'flex', alignItems: 'center' }}
+              >
+                {isFullscreen ? (
+                  /* Restore: arrows pointing inward */
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="4 14 10 14 10 20" />
+                    <polyline points="20 10 14 10 14 4" />
+                    <line x1="10" y1="14" x2="3" y2="21" />
+                    <line x1="21" y1="3" x2="14" y2="10" />
+                  </svg>
+                ) : (
+                  /* Maximize: arrows pointing outward */
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="15 3 21 3 21 9" />
+                    <polyline points="9 21 3 21 3 15" />
+                    <line x1="21" y1="3" x2="14" y2="10" />
+                    <line x1="3" y1="21" x2="10" y2="14" />
+                  </svg>
+                )}
+              </button>
+              {/* True browser fullscreen */}
+              <button
+                onClick={handleBrowserFullscreen}
+                title={isBrowserFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', padding: '3px 5px', borderRadius: 4, display: 'flex', alignItems: 'center' }}
+              >
+                {isBrowserFullscreen ? (
+                  /* Compress icon */
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                    <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                    <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                    <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                  </svg>
+                ) : (
+                  /* Expand icon */
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                    <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                    <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                  </svg>
+                )}
+              </button>
+            </>
           )}
 
           {editMode && (
@@ -424,40 +471,52 @@ export default function PaneWrapper({
             Spec §5.2 (MOD-CONSOLE-038): "the fullscreen button moves to a hover-revealed overlay
             (absolutely positioned top-right corner of the pane, appears on hovered state)". */}
         {!showHeader && !editMode && hovered && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleFullscreen?.() }}
-            title={isFullscreen ? 'Exit full screen' : 'Full screen (F11)'}
-            style={{
-              position: 'absolute',
-              top: 6,
-              right: 6,
-              zIndex: 50,
-              background: 'rgba(9,9,11,0.70)',
-              border: '1px solid var(--io-border)',
-              borderRadius: 4,
-              padding: '4px 6px',
-              cursor: 'pointer',
-              color: 'var(--io-text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            {isFullscreen ? (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-              </svg>
-            )}
-          </button>
+          <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 50, display: 'flex', gap: 2 }}>
+            {/* Fill workspace */}
+            <button
+              onClick={(e) => { e.stopPropagation(); handleToggleMaximize() }}
+              title={isFullscreen ? 'Restore pane' : 'Fill workspace'}
+              style={{ background: 'rgba(9,9,11,0.70)', border: '1px solid var(--io-border)', borderRadius: 4, padding: '4px 6px', cursor: 'pointer', color: 'var(--io-text-muted)', display: 'flex', alignItems: 'center' }}
+            >
+              {isFullscreen ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="4 14 10 14 10 20" />
+                  <polyline points="20 10 14 10 14 4" />
+                  <line x1="10" y1="14" x2="3" y2="21" />
+                  <line x1="21" y1="3" x2="14" y2="10" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="15 3 21 3 21 9" />
+                  <polyline points="9 21 3 21 3 15" />
+                  <line x1="21" y1="3" x2="14" y2="10" />
+                  <line x1="3" y1="21" x2="10" y2="14" />
+                </svg>
+              )}
+            </button>
+            {/* Browser fullscreen */}
+            <button
+              onClick={handleBrowserFullscreen}
+              title={isBrowserFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              style={{ background: 'rgba(9,9,11,0.70)', border: '1px solid var(--io-border)', borderRadius: 4, padding: '4px 6px', cursor: 'pointer', color: 'var(--io-text-muted)', display: 'flex', alignItems: 'center' }}
+            >
+              {isBrowserFullscreen ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+              )}
+            </button>
+          </div>
         )}
 
         <PaneErrorBoundary paneId={config.id}>
@@ -490,35 +549,6 @@ export default function PaneWrapper({
           )}
         </PaneErrorBoundary>
 
-        {/* Exit Full Screen button — absolute overlay when fullscreen */}
-        {isFullscreen && (
-          <button
-            onClick={() => onToggleFullscreen?.()}
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              zIndex: 501,
-              background: 'rgba(9,9,11,0.85)',
-              border: '1px solid var(--io-border)',
-              borderRadius: 6,
-              padding: '5px 10px',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 500,
-              color: 'var(--io-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-            }}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-            Exit Full Screen
-          </button>
-        )}
       </div>
 
       {/* Pane context menu */}
@@ -530,7 +560,7 @@ export default function PaneWrapper({
           items={[
             {
               label: isFullscreen ? 'Exit Full Screen' : 'Full Screen',
-              onClick: () => onToggleFullscreen?.(),
+              onClick: () => handleToggleMaximize(),
             },
             ...(workspaceId ? [{
               label: 'Open in New Window',

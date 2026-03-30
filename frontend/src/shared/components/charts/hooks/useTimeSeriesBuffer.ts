@@ -8,6 +8,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useWebSocket } from '../../../hooks/useWebSocket'
 import { usePlaybackStore } from '../../../../store/playback'
 import { pointsApi } from '../../../../api/points'
+import { defaultBucketSeconds } from '../chart-aggregate-config'
+import type { AggregateType } from '../chart-config-types'
 
 export interface RingEntry {
   ts: number  // Unix seconds
@@ -35,11 +37,6 @@ function getLastTs(key: string): Map<string, number> {
   return m
 }
 
-function seedRes(minutes: number): 'raw' | '5m' | '1h' {
-  if (minutes <= 120)   return 'raw'
-  if (minutes <= 10080) return '5m'
-  return '1h'
-}
 function seedLimit(minutes: number): number {
   if (minutes <= 120)   return 7_500
   if (minutes <= 10080) return 2_500
@@ -56,6 +53,10 @@ export interface UseTimeSeriesBufferOptions {
   durationMinutes: number
   /** step interpolation buckets everything to the resolution boundary */
   interpolation?: 'linear' | 'step'
+  /** Explicit bucket width in seconds. Undefined = auto (defaultBucketSeconds). */
+  bucketSeconds?: number
+  /** Aggregate function sent to the archive API. Defaults to 'avg'. */
+  aggregateType?: AggregateType
 }
 
 export interface UseTimeSeriesBufferResult {
@@ -70,6 +71,8 @@ export function useTimeSeriesBuffer({
   pointIds,
   durationMinutes,
   interpolation = 'linear',
+  bucketSeconds,
+  aggregateType,
 }: UseTimeSeriesBufferOptions): UseTimeSeriesBufferResult {
   const buffers = useRef(getBuffers(bufferKey))
   const lastTs  = useRef(getLastTs(bufferKey))
@@ -121,9 +124,22 @@ export function useTimeSeriesBuffer({
     enabled: isHistorical && pointIds.length > 0,
   })
 
+  // Clear the buffer synchronously during render when bucket or aggregate changes.
+  // Must be synchronous (not useEffect) so the buffer is empty before the new
+  // queryFn reads it. Using useRef skips the initial mount (refs are initialized
+  // to the current values, so the first comparison is always equal).
+  const prevBucketRef = useRef(bucketSeconds)
+  const prevAggRef    = useRef(aggregateType)
+  if (prevBucketRef.current !== bucketSeconds || prevAggRef.current !== aggregateType) {
+    prevBucketRef.current = bucketSeconds
+    prevAggRef.current    = aggregateType
+    buffers.current.forEach((_, id) => buffers.current.set(id, []))
+    lastTs.current.clear()
+  }
+
   // Live seed query
   const seedQuery = useQuery({
-    queryKey: ['ts-seed', bufferKey, pointIds.join(','), durationMinutes],
+    queryKey: ['ts-seed', bufferKey, pointIds.join(','), durationMinutes, bucketSeconds, aggregateType],
     queryFn: async () => {
       const now = new Date()
       const nowSec = now.getTime() / 1000
@@ -134,31 +150,34 @@ export function useTimeSeriesBuffer({
         pointIds.map((id) => {
           const existing = buffers.current.get(id) ?? []
           const inWindow = existing.filter((e) => e.ts >= cutoff)
+          const effectiveBucket = bucketSeconds ?? defaultBucketSeconds(durationMinutes)
+          const effectiveAgg = aggregateType ?? 'avg'
           if (inWindow.length === 0) {
             return pointsApi.history(id, {
               start: windowStart.toISOString(),
               end: now.toISOString(),
-              resolution: seedRes(durationMinutes),
+              bucket_seconds: effectiveBucket,
+              aggregate_function: effectiveAgg,
               limit: seedLimit(durationMinutes),
             })
           }
           const earliestTs = inWindow[0].ts
           const latestTs = inWindow[inWindow.length - 1].ts
           if (earliestTs > cutoff + 60) {
-            const gapMinutes = (earliestTs - cutoff) / 60
             return pointsApi.history(id, {
               start: windowStart.toISOString(),
               end: new Date(earliestTs * 1000).toISOString(),
-              resolution: seedRes(gapMinutes),
-              limit: seedLimit(gapMinutes),
+              bucket_seconds: effectiveBucket,
+              aggregate_function: effectiveAgg,
+              limit: seedLimit(durationMinutes),
             })
           }
-          const fetchMinutes = (nowSec - latestTs) / 60
           return pointsApi.history(id, {
             start: new Date(latestTs * 1000).toISOString(),
             end: now.toISOString(),
-            resolution: seedRes(fetchMinutes),
-            limit: seedLimit(fetchMinutes),
+            bucket_seconds: effectiveBucket,
+            aggregate_function: effectiveAgg,
+            limit: seedLimit(durationMinutes),
           })
         }),
       )
@@ -193,8 +212,7 @@ export function useTimeSeriesBuffer({
   // Accumulate live WS ticks into buffers
   useEffect(() => {
     if (values.size === 0) return
-    const res = seedRes(durationMinutes)
-    const bucketSec = res === '1h' ? 3600 : res === '5m' ? 300 : 1
+    const bucketSec = bucketSeconds ?? defaultBucketSeconds(durationMinutes)
     const cutoff = Date.now() / 1000 - durationMinutes * 60
     let changed = false
 

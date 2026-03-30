@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
-import { useThemeColors } from '../../theme/ThemeContext'
 
 export interface Series {
   label: string
@@ -35,10 +34,22 @@ export interface TimeSeriesChartProps {
   onSeriesClick?: (label: string, multi: boolean) => void
   /** Called when the user clicks empty space on the chart (no series within proximity). */
   onClearHighlight?: () => void
+  /** Whether to render grid lines. Defaults to true. */
+  showGrid?: boolean
 }
 
 const DEFAULT_HEIGHT = 300
 const DEFAULT_COLOR = '#4A9EFF'
+
+// Read the current chart grid/axis color from CSS custom properties.
+// Called by uPlot stroke functions on every draw — CSS vars update synchronously
+// on theme switch so the next draw always uses the correct color.
+function readGridColor(): string {
+  return getComputedStyle(document.documentElement).getPropertyValue('--io-chart-grid').trim()
+}
+function readAxisColor(): string {
+  return getComputedStyle(document.documentElement).getPropertyValue('--io-chart-axis').trim()
+}
 
 
 // Format a Unix-second timestamp for the tooltip header
@@ -122,15 +133,13 @@ export default function TimeSeriesChart({
   highlighted,
   onSeriesClick,
   onClearHighlight,
+  showGrid = true,
 }: TimeSeriesChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const uplotRef = useRef<uPlot | null>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState<number>(width ?? 0)
   const [containerHeight, setContainerHeight] = useState<number>(height ?? DEFAULT_HEIGHT)
-
-  // Get theme-aware colors from context — no CSS variable reads
-  const colors = useThemeColors()
 
   // Track controlled vs auto dimensions
   const isAutoWidth = width === undefined
@@ -153,6 +162,11 @@ export default function TimeSeriesChart({
   onSeriesClickRef.current = onSeriesClick
   const onClearHighlightRef = useRef(onClearHighlight)
   onClearHighlightRef.current = onClearHighlight
+
+  // Always-current highlighted set — read in the rebuild effect so the new
+  // chart instance inherits the current highlight state immediately.
+  const highlightedRef = useRef(highlighted)
+  highlightedRef.current = highlighted
 
   // Measure container dimensions via ResizeObserver when not explicitly provided
   useEffect(() => {
@@ -212,14 +226,14 @@ export default function TimeSeriesChart({
       focus: { alpha: 0.2 },
       axes: [
         {
-          stroke: colors.chartAxis,
-          ticks: { stroke: colors.chartGrid },
-          grid: { stroke: colors.chartGrid, width: 1 },
+          stroke: readAxisColor,
+          ticks: { stroke: readGridColor },
+          grid: { show: showGrid, stroke: readGridColor, width: 1 },
         },
         {
-          stroke: colors.chartAxis,
-          ticks: { stroke: colors.chartGrid },
-          grid: { stroke: colors.chartGrid, width: 1 },
+          stroke: readAxisColor,
+          ticks: { stroke: readGridColor },
+          grid: { show: showGrid, stroke: readGridColor, width: 1 },
         },
       ],
       scales: {
@@ -385,12 +399,28 @@ export default function TimeSeriesChart({
     const u = new uPlot(opts, data, containerRef.current)
     uplotRef.current = u
 
+    // Re-apply highlight state so the rebuilt chart matches the legend after
+    // dimension changes (e.g. entering or exiting fullscreen).
+    const h = highlightedRef.current
+    if (h && h.size > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ux = u as any
+      latestSeriesRef.current.forEach((s, i) => {
+        const uSeries = ux.series[i + 1]
+        if (!uSeries) return
+        uSeries._focus = h.has(s.label)
+        uSeries.alpha = h.has(s.label) ? 1 : 0.3
+      })
+      u.redraw(false)
+    }
+
     return () => {
       u.destroy()
       uplotRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedWidth, resolvedHeight, colors, seriesCount])
+  }, [resolvedWidth, resolvedHeight, seriesCount])
+
 
   // Update data without rebuilding the chart (hot path — runs on every tick).
   useEffect(() => {
@@ -438,6 +468,19 @@ export default function TimeSeriesChart({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlighted])
 
+  // Track the active fullscreen element so we can portal the tooltip into it.
+  // When a pane uses requestFullscreen(), the pane enters the browser top-layer;
+  // elements in document.body render behind it. Portalling into document.fullscreenElement
+  // keeps the tooltip visible in both normal and fullscreen modes.
+  const [tooltipPortalTarget, setTooltipPortalTarget] = useState<Element>(document.body)
+  useEffect(() => {
+    function onFSChange() {
+      setTooltipPortalTarget(document.fullscreenElement ?? document.body)
+    }
+    document.addEventListener('fullscreenchange', onFSChange)
+    return () => document.removeEventListener('fullscreenchange', onFSChange)
+  }, [])
+
   const showNoData = timestamps.length === 0
 
   return (
@@ -463,8 +506,10 @@ export default function TimeSeriesChart({
         </div>
       )}
 
-      {/* Tooltip — portalled into document.body so position:fixed works correctly
-          even inside react-grid-layout's CSS-transformed grid items. */}
+      {/* Tooltip — portalled into the active fullscreen element (if any) or document.body.
+          When a pane uses requestFullscreen(), the pane enters the browser top-layer and
+          document.body children are rendered behind it. Portalling into the fullscreen
+          element ensures the tooltip remains visible in both normal and fullscreen modes. */}
       {createPortal(
         <div
           ref={tooltipRef}
@@ -482,7 +527,7 @@ export default function TimeSeriesChart({
             maxWidth: 220,
           }}
         />,
-        document.body,
+        tooltipPortalTarget,
       )}
     </div>
   )

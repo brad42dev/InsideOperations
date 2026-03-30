@@ -1,6 +1,7 @@
 import EChart from '../../../shared/components/charts/EChart'
 import type { EChartsOption } from 'echarts'
 import type { WidgetConfig } from '../../../api/dashboards'
+import { useThemeColors } from '../../../shared/theme/ThemeContext'
 
 interface BarChartConfig {
   title: string
@@ -29,9 +30,9 @@ export default function BarChart({ config }: Props) {
   // --io-pen-1 is the primary chart series color (blue, static across themes).
   const color = cfg.color ?? resolveToken('--io-pen-1')
 
+  const themeColors = useThemeColors()
   const axisColor = resolveToken('--io-border-strong')
   const labelColor = resolveToken('--io-text-muted')
-  const gridColor = resolveToken('--io-chart-grid')
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -41,7 +42,7 @@ export default function BarChart({ config }: Props) {
     },
     grid: { top: 16, right: 16, bottom: 40, left: 48 },
     xAxis: isHorizontal
-      ? { type: 'value', axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: labelColor, fontSize: 11 }, splitLine: { lineStyle: { color: gridColor } } }
+      ? { type: 'value', axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: labelColor, fontSize: 11 }, splitLine: { lineStyle: { color: themeColors.chartGrid } } }
       : {
           type: 'category',
           data: series.map((s) => s.label),
@@ -55,7 +56,7 @@ export default function BarChart({ config }: Props) {
           axisLine: { lineStyle: { color: axisColor } },
           axisLabel: { color: labelColor, fontSize: 11 },
         }
-      : { type: 'value', axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: labelColor, fontSize: 11 }, splitLine: { lineStyle: { color: gridColor } } },
+      : { type: 'value', axisLine: { lineStyle: { color: axisColor } }, axisLabel: { color: labelColor, fontSize: 11 }, splitLine: { lineStyle: { color: themeColors.chartGrid } } },
     series: [
       {
         type: 'bar',

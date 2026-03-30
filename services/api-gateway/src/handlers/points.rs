@@ -870,7 +870,7 @@ pub async fn list_points(
             serde_json::json!({
                 "id": r.get::<String, _>("id"),
                 "tagname": r.get::<String, _>("tagname"),
-                "description": r.get::<Option<String>, _>("description"),
+                "display_name": r.get::<Option<String>, _>("description"),
                 "engineering_units": r.get::<Option<String>, _>("engineering_units"),
                 "data_type": r.get::<Option<String>, _>("data_type"),
                 "source_id": r.get::<Option<String>, _>("source_id"),

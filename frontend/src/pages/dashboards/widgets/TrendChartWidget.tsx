@@ -6,6 +6,7 @@ import EChart from '../../../shared/components/charts/EChart'
 import ChartToolbar from '../../../shared/components/charts/ChartToolbar'
 import { CHART_AGGREGATE_TYPES, defaultBucketSeconds } from '../../../shared/components/charts/chart-aggregate-config'
 import type { AggregateType } from '../../../shared/components/charts/chart-config-types'
+import { useThemeColors } from '../../../shared/theme/ThemeContext'
 import type { EChartsOption } from 'echarts'
 
 interface TrendChartConfig {
@@ -48,6 +49,7 @@ export default function TrendChartWidget({ config, variables }: Props) {
   const windowHours = durationMinutes / 60
   const [bucketSeconds, setBucketSeconds] = useState<number | undefined>(undefined)
   const [aggregateType, setAggregateType] = useState<AggregateType>('avg')
+  const [showGrid, setShowGrid] = useState(true)
 
   // Resolve point IDs — either from config.points directly or from a variable.
   // Filter to valid UUID-shaped strings only; dashboard variables may resolve
@@ -154,9 +156,11 @@ export default function TrendChartWidget({ config, variables }: Props) {
     )
   }
 
-  const axisColor = resolveToken('--io-border-strong')
+  // useThemeColors makes this component a theme context consumer so it re-renders
+  // on theme switch — ensuring resolveToken reads and chart options are always fresh.
+  const themeColors = useThemeColors()
+  const axisColor = themeColors.chartAxis
   const labelColor = resolveToken('--io-text-muted')
-  const gridColor = resolveToken('--io-chart-grid')
 
   const series = results
     .filter((r) => r.rows && r.rows.length > 0)
@@ -245,7 +249,7 @@ export default function TrendChartWidget({ config, variables }: Props) {
       type: 'value',
       axisLine: { lineStyle: { color: axisColor } },
       axisLabel: { color: labelColor, fontSize: 10 },
-      splitLine: { lineStyle: { color: gridColor } },
+      splitLine: { show: showGrid, lineStyle: { color: themeColors.chartGrid } },
     },
     series,
     animation: false,
@@ -264,6 +268,8 @@ export default function TrendChartWidget({ config, variables }: Props) {
         onBucketChange={setBucketSeconds}
         aggregateType={aggregateType}
         onAggregateChange={setAggregateType}
+        showGrid={showGrid}
+        onToggleGrid={() => setShowGrid((g) => !g)}
       />
     </div>
   )

@@ -32,6 +32,8 @@ export default function Chart02HistoricalTrend({ config, bufferKey }: RendererPr
     pointIds,
     durationMinutes,
     interpolation: config.interpolation ?? 'linear',
+    bucketSeconds: config.aggregateSize,
+    aggregateType: config.aggregateType,
   })
 
   // For live mode: auto-scrolling window anchored to now.
