@@ -229,6 +229,11 @@ async fn main() -> anyhow::Result<()> {
             "/api/points/resolve-tags",
             post(handlers::points::resolve_tags),
         )
+        // Batch latest values — must be before /:id wildcard
+        .route(
+            "/api/points/batch-latest",
+            post(handlers::points::batch_latest),
+        )
         // Current value for a single point (UUID or tag name) — must be before /:id wildcard
         .route(
             "/api/points/:id/current",
@@ -253,6 +258,16 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/opc/points/status",
             get(handlers::points::list_point_status),
+        )
+        // OPC point quality — all points with their current quality (QualityDistributionWidget)
+        .route(
+            "/api/opc/points/current-quality",
+            get(handlers::points::list_current_quality),
+        )
+        // OPC stale points — points not updated within threshold (StalePointsWidget)
+        .route(
+            "/api/opc/points/stale",
+            get(handlers::points::list_stale_points),
         )
         // OPC UA source stats — static path MUST be before parameterised /:id routes
         .route(

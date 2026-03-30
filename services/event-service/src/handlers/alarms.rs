@@ -81,10 +81,10 @@ pub struct ActiveAlarmFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct AlarmHistoryFilter {
-    // Inline pagination fields — serde_urlencoded does not support #[serde(flatten)]
-    // with numeric fields (coercion fails: string "100" won't match u32).
-    pub page: Option<u32>,
-    pub per_page: Option<u32>,
+    // Use i64 instead of u32 — serde_urlencoded passes query params as strings,
+    // and Axum's Query extractor cannot coerce "5000" to u32 directly.
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
     pub definition_id: Option<Uuid>,
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
@@ -381,8 +381,8 @@ pub async fn get_alarm_history(
     }
 
     let page = filter.page.unwrap_or(1).max(1);
-    let limit = filter.per_page.unwrap_or(50).clamp(1, 100);
-    let offset = ((page - 1) * limit) as i64;
+    let limit = filter.per_page.unwrap_or(50).clamp(1, 500);
+    let offset = (page - 1) * limit;
 
     let from = filter.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
     let to = filter.to.unwrap_or_else(Utc::now);
@@ -438,7 +438,7 @@ pub async fn get_alarm_history(
         })
         .collect();
 
-    Ok(Json(PagedResponse::new(items, page, limit, total as u64)))
+    Ok(Json(PagedResponse::new(items, page as u32, limit as u32, total as u64)))
 }
 
 // ---------------------------------------------------------------------------

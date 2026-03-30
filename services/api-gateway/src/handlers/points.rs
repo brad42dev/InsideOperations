@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use std::collections::HashSet;
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
@@ -1044,4 +1045,164 @@ pub async fn list_point_status(
         "data": data
     }))
     .into_response()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/points/batch-latest — bulk latest values for multiple points.
+// Body: { "point_ids": ["uuid1", "uuid2", ...] }
+// Returns: [{ point_id, value, quality, timestamp }, ...]
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct BatchLatestRequest {
+    pub point_ids: Vec<String>,
+}
+
+pub async fn batch_latest(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Json(body): Json<BatchLatestRequest>,
+) -> impl IntoResponse {
+    if body.point_ids.is_empty() {
+        return Json(serde_json::json!({ "success": true, "data": [] })).into_response();
+    }
+
+    // Deduplicate and validate UUIDs
+    let ids: Vec<Uuid> = body
+        .point_ids
+        .iter()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .filter_map(|s| Uuid::parse_str(s).ok())
+        .collect();
+
+    if ids.is_empty() {
+        return Json(serde_json::json!({ "success": true, "data": [] })).into_response();
+    }
+
+    // Build a parameterized ANY query
+    let rows = match sqlx::query(
+        r#"SELECT pm.id::text AS point_id,
+                  pc.value,
+                  COALESCE(pc.quality, 'unknown') AS quality,
+                  pc.timestamp
+           FROM points_metadata pm
+           LEFT JOIN points_current pc ON pc.point_id = pm.id
+           WHERE pm.id = ANY($1)"#,
+    )
+    .bind(&ids)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let data: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "point_id":  row.get::<String, _>("point_id"),
+                "value":     row.get::<Option<f64>, _>("value"),
+                "quality":   row.get::<String, _>("quality"),
+                "timestamp": row.get::<Option<DateTime<Utc>>, _>("timestamp"),
+            })
+        })
+        .collect();
+
+    Json(serde_json::json!({ "success": true, "data": data })).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/opc/points/current-quality — all points with their current quality.
+// Returns: [{ point_id, quality }, ...]
+// ---------------------------------------------------------------------------
+
+pub async fn list_current_quality(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+) -> impl IntoResponse {
+    let rows = match sqlx::query(
+        r#"SELECT pm.id::text AS point_id,
+                  COALESCE(pc.quality, 'unknown') AS quality
+           FROM points_metadata pm
+           LEFT JOIN points_current pc ON pc.point_id = pm.id
+           ORDER BY pm.tagname"#,
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let data: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "point_id": row.get::<String, _>("point_id"),
+                "quality":  row.get::<String, _>("quality"),
+            })
+        })
+        .collect();
+
+    Json(serde_json::json!({ "success": true, "data": data })).into_response()
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/opc/points/stale — points whose last update is older than threshold.
+// Query params: ?threshold_minutes=N  (default 60)
+// Returns: [{ point_id, tagname, display_name, source_name, last_update, minutes_stale }, ...]
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct StalePointsParams {
+    pub threshold_minutes: Option<i64>,
+}
+
+pub async fn list_stale_points(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Query(params): Query<StalePointsParams>,
+) -> impl IntoResponse {
+    let threshold = params.threshold_minutes.unwrap_or(60).max(1);
+
+    let rows = match sqlx::query(
+        r#"SELECT pm.id::text AS point_id,
+                  pm.tagname,
+                  pm.description AS display_name,
+                  ps.name AS source_name,
+                  pc.timestamp AS last_update,
+                  (EXTRACT(EPOCH FROM (NOW() - pc.timestamp)) / 60.0)::float8 AS minutes_stale
+           FROM points_metadata pm
+           LEFT JOIN point_sources ps ON ps.id = pm.source_id
+           LEFT JOIN points_current pc ON pc.point_id = pm.id
+           WHERE pc.timestamp IS NULL
+              OR pc.timestamp < NOW() - make_interval(mins => $1)
+           ORDER BY pc.timestamp ASC NULLS FIRST
+           LIMIT 500"#,
+    )
+    .bind(threshold as i32)
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => return IoError::Internal(e.to_string()).into_response(),
+    };
+
+    let data: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "point_id":     row.get::<String, _>("point_id"),
+                "tagname":      row.get::<String, _>("tagname"),
+                "display_name": row.get::<Option<String>, _>("display_name"),
+                "source_name":  row.get::<Option<String>, _>("source_name"),
+                "last_update":  row.get::<Option<DateTime<Utc>>, _>("last_update"),
+                "minutes_stale": row.get::<Option<f64>, _>("minutes_stale"),
+            })
+        })
+        .collect();
+
+    Json(serde_json::json!({ "success": true, "data": data })).into_response()
 }
