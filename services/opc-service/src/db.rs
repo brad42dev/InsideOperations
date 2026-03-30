@@ -629,6 +629,47 @@ pub async fn fail_recovery_job(db: &DbPool, job_id: Uuid, error: &str) -> anyhow
     Ok(())
 }
 
+/// On startup, reset any jobs that were left in 'running' state (from a crash)
+/// back to 'pending', extending their to_time to `now` so the resumed recovery
+/// covers all of the gap up to the current restart time.
+/// Returns the number of jobs reset.
+pub async fn reset_interrupted_recovery_jobs(
+    db: &DbPool,
+    source_id: Uuid,
+    now: DateTime<Utc>,
+) -> anyhow::Result<u64> {
+    let result = sqlx::query(
+        r#"UPDATE opc_history_recovery_jobs
+           SET status = 'pending', to_time = $2, started_at = NULL
+           WHERE source_id = $1 AND status = 'running'"#,
+    )
+    .bind(source_id)
+    .bind(now)
+    .execute(db)
+    .await
+    .context("reset_interrupted_recovery_jobs")?;
+    Ok(result.rows_affected())
+}
+
+/// Returns true if there is at least one pending recovery job for this source.
+/// Used to avoid creating a duplicate startup job when one is already queued.
+pub async fn has_pending_recovery_jobs(
+    db: &DbPool,
+    source_id: Uuid,
+) -> anyhow::Result<bool> {
+    let exists: bool = sqlx::query_scalar(
+        r#"SELECT EXISTS(
+             SELECT 1 FROM opc_history_recovery_jobs
+             WHERE source_id = $1 AND status = 'pending'
+           )"#,
+    )
+    .bind(source_id)
+    .fetch_one(db)
+    .await
+    .context("has_pending_recovery_jobs")?;
+    Ok(exists)
+}
+
 /// Refresh continuous aggregates for a recovered date range.
 /// Called after each recovery job completes so historical data becomes visible
 /// in the materialized-only aggregate views immediately (the scheduled refresh

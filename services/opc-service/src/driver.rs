@@ -107,9 +107,10 @@ pub async fn run_source(
                 if watchdog_triggered {
                     // Watchdog fired — no updates for 5 minutes.  Schedule a history
                     // recovery job covering from (earliest-of-last-100-points − 5 min)
-                    // to now so no data is lost across the reconnect cycle.
+                    // to now, with an additional 5% overlap buffer, so no data is lost
+                    // across the reconnect cycle.
                     let now = Utc::now();
-                    let recovery_from = match db::get_earliest_of_recent_points(&db, source.id).await {
+                    let recovery_from_raw = match db::get_earliest_of_recent_points(&db, source.id).await {
                         Ok(Some(earliest)) => earliest - chrono::Duration::minutes(5),
                         Ok(None) => now - chrono::Duration::minutes(10),
                         Err(e) => {
@@ -117,6 +118,11 @@ pub async fn run_source(
                             now - chrono::Duration::minutes(10)
                         }
                     };
+                    // Apply 5% overlap buffer.
+                    let gap_secs = (now - recovery_from_raw).num_seconds().max(0) as f64;
+                    let buffer_secs = (gap_secs * 0.05) as i64;
+                    let recovery_from = recovery_from_raw - chrono::Duration::seconds(buffer_secs);
+
                     match db::create_recovery_job(&db, source.id, recovery_from, now, None).await {
                         Ok(job_id) => info!(
                             source = %source.name,
@@ -418,56 +424,77 @@ async fn run_source_once(
     harvest_discrete_metadata(source, db, &session, &discrete_nodes).await;
 
     // --- Startup history auto-recovery ---
-    // On every connect, check the most recent timestamp we have for this source.
-    // Request HistoricalRead from the start of that last full hour to now so that
-    // any data missed during a comm gap (reboot, network outage, etc.) is recovered.
+    // On every connect:
+    // 1. Reset any jobs that were 'running' when we last crashed back to 'pending'
+    //    (extending their to_time to now so the resume covers the full gap).
+    // 2. If no pending job already exists, create one covering from the start of the
+    //    hour containing the last stored value to now, with a 5% overlap buffer so
+    //    no boundary data is ever missed.
+    // Recovery runs in the background flush-loop poller — it does NOT block subscription
+    // setup and survives service restarts without losing progress.
     {
         let now = Utc::now();
-        let point_ids: Vec<Uuid> = node_map.values().copied().collect();
-        let recover_from = match db::get_last_history_timestamp(db, &point_ids).await {
-            Ok(Some(last_ts)) => {
-                use chrono::Timelike;
-                // Round down to the start of the hour containing the last stored value
-                // so we overlap slightly and don't miss data at hourly boundaries.
-                let hour_start = last_ts
-                    .with_minute(0)
-                    .and_then(|t: chrono::DateTime<Utc>| t.with_second(0))
-                    .and_then(|t: chrono::DateTime<Utc>| t.with_nanosecond(0))
-                    .unwrap_or(last_ts);
-                Some(hour_start)
-            }
-            Ok(None) => {
-                // No history yet — recover the last hour as an initial backfill.
-                Some(now - chrono::Duration::hours(1))
-            }
-            Err(e) => {
-                warn!(source = %source.name, error = %e, "Failed to query last history timestamp (skipping auto-recovery)");
-                None
-            }
-        };
 
-        if let Some(from_time) = recover_from {
-            // Only recover if there's actually a gap (from_time must be in the past).
-            if from_time < now {
-                info!(
-                    source = %source.name,
-                    from = %from_time,
-                    to = %now,
-                    "Starting startup history auto-recovery"
-                );
-                match harvest_history(source, db, &session, &node_map, from_time, now).await {
-                    Ok(n) => info!(
-                        source = %source.name,
-                        rows = n,
-                        "Startup history auto-recovery complete"
-                    ),
-                    Err(e) => warn!(
-                        source = %source.name,
-                        error = %e,
-                        "Startup history auto-recovery failed (non-fatal)"
-                    ),
+        // Step 1: Resume any job that was interrupted mid-run.
+        match db::reset_interrupted_recovery_jobs(db, source.id, now).await {
+            Ok(n) if n > 0 => info!(
+                source = %source.name,
+                count = n,
+                "Resumed {} interrupted history recovery job(s) (to_time extended to now)",
+                n
+            ),
+            Ok(_) => {}
+            Err(e) => warn!(source = %source.name, error = %e, "Failed to reset interrupted recovery jobs (non-fatal)"),
+        }
+
+        // Step 2: Create a new job only if nothing is already queued.
+        let already_queued = db::has_pending_recovery_jobs(db, source.id).await.unwrap_or(false);
+        if !already_queued {
+            let point_ids: Vec<Uuid> = node_map.values().copied().collect();
+            let recover_from = match db::get_last_history_timestamp(db, &point_ids).await {
+                Ok(Some(last_ts)) => {
+                    use chrono::Timelike;
+                    // Round down to the start of the hour containing the last stored value.
+                    let hour_start = last_ts
+                        .with_minute(0)
+                        .and_then(|t: chrono::DateTime<Utc>| t.with_second(0))
+                        .and_then(|t: chrono::DateTime<Utc>| t.with_nanosecond(0))
+                        .unwrap_or(last_ts);
+                    Some(hour_start)
+                }
+                Ok(None) => {
+                    // No history yet — recover the last hour as an initial backfill.
+                    Some(now - chrono::Duration::hours(1))
+                }
+                Err(e) => {
+                    warn!(source = %source.name, error = %e, "Failed to query last history timestamp (skipping auto-recovery)");
+                    None
+                }
+            };
+
+            if let Some(from_time) = recover_from {
+                if from_time < now {
+                    // Apply a 5% overlap buffer: extend from_time back by 5% of the gap
+                    // so data at hourly/daily aggregate boundaries is never missed.
+                    let gap_secs = (now - from_time).num_seconds().max(0) as f64;
+                    let buffer_secs = (gap_secs * 0.05) as i64;
+                    let buffered_from = from_time - chrono::Duration::seconds(buffer_secs);
+
+                    match db::create_recovery_job(db, source.id, buffered_from, now, None).await {
+                        Ok(job_id) => info!(
+                            source = %source.name,
+                            %job_id,
+                            from = %buffered_from,
+                            to = %now,
+                            gap_hours = (gap_secs / 3600.0) as u64,
+                            "Startup history recovery job queued (will run in background)"
+                        ),
+                        Err(e) => warn!(source = %source.name, error = %e, "Failed to queue startup history recovery job (non-fatal)"),
+                    }
                 }
             }
+        } else {
+            info!(source = %source.name, "Pending history recovery job already exists — skipping duplicate");
         }
     }
 
