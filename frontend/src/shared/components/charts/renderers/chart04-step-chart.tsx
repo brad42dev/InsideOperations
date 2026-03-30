@@ -28,6 +28,8 @@ export default function Chart04StepChart({ config, bufferKey }: RendererProps) {
     pointIds,
     durationMinutes,
     interpolation: 'step',
+    bucketSeconds: config.aggregateSize,
+    aggregateType: config.aggregateType,
   })
 
   const xRangeRef = useRef<{ min: number; max: number }>({ min: 0, max: 0 })

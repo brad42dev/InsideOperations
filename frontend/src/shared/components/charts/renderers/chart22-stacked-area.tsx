@@ -45,6 +45,8 @@ export default function Chart22StackedArea({ config, bufferKey }: RendererProps)
     pointIds,
     durationMinutes,
     interpolation: config.interpolation ?? 'linear',
+    bucketSeconds: config.aggregateSize,
+    aggregateType: config.aggregateType,
   })
 
   const useStack = (config.extras?.stacked as boolean) ?? true  // default stacked; toggle via Options
