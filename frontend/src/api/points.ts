@@ -50,6 +50,10 @@ export interface PointMeta {
   display_name: string | null
   unit: string | null
   data_type: string | null
+  /** OPC UA AnalogItemType.EURange.low — engineering minimum (from OPC UA metadata crawl) */
+  eu_range_low: number | null
+  /** OPC UA AnalogItemType.EURange.high — engineering maximum (from OPC UA metadata crawl) */
+  eu_range_high: number | null
 }
 
 export interface HistoryRow {

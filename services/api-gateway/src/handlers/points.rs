@@ -831,7 +831,8 @@ pub async fn list_points(
 
     let rows = match sqlx::query(
         r#"SELECT id::text, tagname, description, engineering_units, data_type,
-                  source_id::text, active, area, criticality
+                  source_id::text, active, area, criticality,
+                  min_value, max_value
            FROM points_metadata
            WHERE ($1::uuid IS NULL OR source_id = $1)
              AND ($2::text IS NULL OR LOWER(tagname) LIKE $2 OR LOWER(description) LIKE $2)
@@ -876,6 +877,8 @@ pub async fn list_points(
                 "active": r.get::<bool, _>("active"),
                 "area": r.get::<Option<String>, _>("area"),
                 "criticality": r.get::<Option<String>, _>("criticality"),
+                "eu_range_low": r.get::<Option<f64>, _>("min_value"),
+                "eu_range_high": r.get::<Option<f64>, _>("max_value"),
             })
         })
         .collect();

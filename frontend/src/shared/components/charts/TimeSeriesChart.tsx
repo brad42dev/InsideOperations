@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
@@ -21,10 +22,22 @@ export interface TimeSeriesChartProps {
   /** Explicit width in px. Omit to fill the parent container width. */
   width?: number
   className?: string
+  /**
+   * Set of series labels that are currently highlighted.
+   * When non-empty: highlighted series get 1.8× stroke width + alpha=1;
+   * non-highlighted series get alpha=0.15 (dimmed).
+   */
+  highlighted?: Set<string>
+  /**
+   * Called when the user clicks a line on the chart canvas.
+   * `multi` is true when Ctrl or Meta was held during the click.
+   */
+  onSeriesClick?: (label: string, multi: boolean) => void
 }
 
 const DEFAULT_HEIGHT = 300
 const DEFAULT_COLOR = '#4A9EFF'
+
 
 // Format a Unix-second timestamp for the tooltip header
 function fmtTime(ts: number): string {
@@ -104,6 +117,8 @@ export default function TimeSeriesChart({
   height,
   width,
   className,
+  highlighted,
+  onSeriesClick,
 }: TimeSeriesChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const uplotRef = useRef<uPlot | null>(null)
@@ -129,6 +144,10 @@ export default function TimeSeriesChart({
   latestDataRef.current = [timestamps, ...series.map((s) => s.data)]
   const latestSeriesRef = useRef(series)
   latestSeriesRef.current = series
+
+  // Always-current ref for the onSeriesClick callback (set in build effect, reads latest value)
+  const onSeriesClickRef = useRef(onSeriesClick)
+  onSeriesClickRef.current = onSeriesClick
 
   // Measure container dimensions via ResizeObserver when not explicitly provided
   useEffect(() => {
@@ -185,6 +204,7 @@ export default function TimeSeriesChart({
       height: resolvedHeight,
       series: uplotSeries,
       legend: { show: false },
+      focus: { alpha: 0.2 },
       axes: [
         {
           stroke: colors.chartAxis,
@@ -261,25 +281,89 @@ export default function TimeSeriesChart({
 
             buildTooltipDOM(tt, ts, rows)
 
-            // Position near cursor; flip side at midpoint to stay in bounds
-            const chartW = u.bbox.width / devicePixelRatio
-            const chartH = u.bbox.height / devicePixelRatio
+            // Position tooltip: 30px right + 30px up by default.
+            // Flip right→left when near the window's right edge.
+            // Flip up→down when tooltip would overlap the top nav bar.
+            // Tooltip uses position:fixed so coordinates are viewport-relative and
+            // it escapes any overflow:hidden parent (neighboring panes, etc.)
             const curLeft = u.cursor.left ?? 0
             const curTop = u.cursor.top ?? 0
-            const flipX = curLeft > chartW / 2
-            const flipY = curTop > chartH * 0.6
 
-            tt.style.left = flipX ? 'auto' : `${curLeft + 14}px`
-            tt.style.right = flipX ? `${chartW - curLeft + 14}px` : 'auto'
-            tt.style.top = flipY ? 'auto' : `${curTop + 14}px`
-            tt.style.bottom = flipY ? `${chartH - curTop + 14}px` : 'auto'
+            // Convert cursor to viewport coordinates via u.over's position
+            const overRect = u.over.getBoundingClientRect()
+            const vpX = overRect.left + curLeft
+            const vpY = overRect.top + curTop
+
+            // Temporarily render off-screen to measure tooltip dimensions
             tt.style.display = 'block'
+            tt.style.visibility = 'hidden'
+            tt.style.left = '0px'
+            tt.style.top = '-9999px'
+
+            const ttW = tt.offsetWidth
+            const ttH = tt.offsetHeight
+
+            // Top boundary: bottom edge of the top nav bar (not raw y=0)
+            const navBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0
+
+            // Flip X if tooltip overflows window right edge
+            const flipX = vpX + 30 + ttW > window.innerWidth
+            // Flip Y if tooltip would go above (or behind) the nav bar
+            const flipY = vpY - 30 - ttH < navBottom
+
+            tt.style.left = `${flipX ? vpX - ttW - 30 : vpX + 30}px`
+            tt.style.top = `${flipY ? vpY + 30 : vpY - ttH - 30}px`
+            tt.style.visibility = 'visible'
           },
         ],
         ready: [
           (u) => {
             u.over.addEventListener('mouseleave', () => {
               if (tooltipRef.current) tooltipRef.current.style.display = 'none'
+            })
+
+            // Click-to-highlight: find the series whose Y value is closest to click pos.
+            // stopPropagation prevents the pane selection handler from firing on chart clicks.
+            u.over.addEventListener('click', (e) => {
+              e.stopPropagation()
+              if (!onSeriesClickRef.current) return
+
+              // Use posToVal to find the data index nearest to the click X position.
+              // cursor.idx can be stale or null at click time (cursor moves after mousedown).
+              const xVal = u.posToVal(e.offsetX, 'x')
+              const tsArr = latestDataRef.current[0] as number[]
+              let nearestIdx = -1
+              let minDiff = Infinity
+              for (let j = 0; j < tsArr.length; j++) {
+                const diff = Math.abs(tsArr[j] - xVal)
+                if (diff < minDiff) { minDiff = diff; nearestIdx = j }
+              }
+              if (nearestIdx < 0) return
+
+              const clickY = e.offsetY
+              let closestSeries = -1
+              let minDist = 50 // px proximity threshold
+
+              const data = latestDataRef.current
+              const srcs = latestSeriesRef.current
+
+              for (let i = 0; i < srcs.length; i++) {
+                const val = (data[i + 1] as (number | null)[])[nearestIdx]
+                if (val == null) continue
+                const yPos = u.valToPos(val, 'y')
+                const dist = Math.abs(yPos - clickY)
+                if (dist < minDist) {
+                  minDist = dist
+                  closestSeries = i
+                }
+              }
+
+              if (closestSeries >= 0) {
+                onSeriesClickRef.current(
+                  srcs[closestSeries].label,
+                  e.ctrlKey || e.metaKey,
+                )
+              }
             })
           },
         ],
@@ -316,6 +400,34 @@ export default function TimeSeriesChart({
     uplotRef.current.setSize({ width: resolvedWidth, height: resolvedHeight })
   }, [resolvedWidth, resolvedHeight])
 
+  // Apply highlight dimming via uPlot's focus system when highlighted set changes.
+  // uPlot's setSeries only handles 'focus' and 'show' — stroke/width are ignored.
+  // For multi-select we set _focus and alpha directly then call redraw(false).
+  useEffect(() => {
+    const u = uplotRef.current
+    if (!u) return
+    const h = highlighted ?? new Set<string>()
+
+    if (h.size === 0) {
+      // setSeries(null) → setFocus(null) → _focus=null for all, alpha restored to 1
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(u as any).setSeries(null, { focus: true })
+    } else {
+      // Multi-highlight: set _focus + alpha per-series then redraw
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ux = u as any
+      series.forEach((s, i) => {
+        const uSeries = ux.series[i + 1]
+        if (!uSeries) return
+        const isActive = h.has(s.label)
+        uSeries._focus = isActive
+        uSeries.alpha = isActive ? 1 : 0.2
+      })
+      u.redraw(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlighted])
+
   const showNoData = timestamps.length === 0
 
   return (
@@ -341,23 +453,27 @@ export default function TimeSeriesChart({
         </div>
       )}
 
-      {/* Tooltip — hidden until cursor moves over chart; updated via direct DOM writes for perf */}
-      <div
-        ref={tooltipRef}
-        style={{
-          display: 'none',
-          position: 'absolute',
-          zIndex: 50,
-          pointerEvents: 'none',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 6,
-          padding: '7px 10px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-          minWidth: 140,
-          maxWidth: 220,
-        }}
-      />
+      {/* Tooltip — portalled into document.body so position:fixed works correctly
+          even inside react-grid-layout's CSS-transformed grid items. */}
+      {createPortal(
+        <div
+          ref={tooltipRef}
+          style={{
+            display: 'none',
+            position: 'fixed',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            background: 'var(--io-surface-elevated)',
+            border: '1px solid var(--io-border)',
+            borderRadius: 6,
+            padding: '7px 10px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+            minWidth: 140,
+            maxWidth: 220,
+          }}
+        />,
+        document.body,
+      )}
     </div>
   )
 }

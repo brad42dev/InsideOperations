@@ -3,7 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 export type TimeUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'years'
 
 const PRESETS = [1, 2, 3, 5, 7, 30, 60, 90, 120]
-const UNITS: TimeUnit[] = ['seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'years']
+const ALL_UNITS: TimeUnit[] = ['seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'years']
+const NO_SECONDS_UNITS: TimeUnit[] = ['minutes', 'hours', 'days', 'weeks', 'months', 'years']
+
+/**
+ * Chart types that show an instantaneous value and make sense at sub-minute
+ * durations (gauges, KPI cards, sparklines, indicators).
+ * All other chart types render time-window data that can't update fast enough
+ * to justify second-level durations — minimum is 1 minute.
+ */
+export const INSTANT_READOUT_CHART_TYPES = new Set([7, 8, 9, 10, 11, 12, 23])
 
 export function toMinutes(value: number, unit: TimeUnit): number {
   switch (unit) {
@@ -39,10 +48,27 @@ interface ChartToolbarProps {
   durationMinutes: number
   /** Called when user commits a new time window */
   onDurationChange: (minutes: number) => void
+  /** Called when user clicks the gear/configure button */
+  onConfigure?: () => void
+  /**
+   * When true, 'seconds' is available as a unit and durations < 1 minute are
+   * allowed. Defaults to false — only instant-readout charts (gauge, KPI card,
+   * sparkline, etc.) should pass true.
+   */
+  allowSeconds?: boolean
 }
 
-export default function ChartToolbar({ durationMinutes, onDurationChange }: ChartToolbarProps) {
-  const initial = fromMinutes(durationMinutes)
+export default function ChartToolbar({ durationMinutes, onDurationChange, onConfigure, allowSeconds = false }: ChartToolbarProps) {
+  const units = allowSeconds ? ALL_UNITS : NO_SECONDS_UNITS
+
+  function clampedFromMinutes(mins: number): { value: number; unit: TimeUnit } {
+    const parsed = fromMinutes(mins)
+    // If seconds are not allowed and stored value resolves to sub-minute, snap to 1 minute
+    if (!allowSeconds && parsed.unit === 'seconds') return { value: 1, unit: 'minutes' }
+    return parsed
+  }
+
+  const initial = clampedFromMinutes(durationMinutes)
   const [value, setValue] = useState(initial.value)
   const [unit, setUnit] = useState<TimeUnit>(initial.unit)
   const [inputStr, setInputStr] = useState(String(initial.value))
@@ -50,16 +76,18 @@ export default function ChartToolbar({ durationMinutes, onDurationChange }: Char
 
   // Sync when the parent-controlled duration changes externally
   useEffect(() => {
-    const parsed = fromMinutes(durationMinutes)
+    const parsed = clampedFromMinutes(durationMinutes)
     setValue(parsed.value)
     setUnit(parsed.unit)
     setInputStr(String(parsed.value))
-  }, [durationMinutes])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [durationMinutes, allowSeconds])
 
   function commit(v: number, u: TimeUnit) {
     if (v <= 0 || !isFinite(v)) return
     const mins = toMinutes(v, u)
-    if (mins > 0) onDurationChange(mins)
+    const effective = !allowSeconds ? Math.max(1, mins) : mins
+    if (effective > 0) onDurationChange(effective)
   }
 
   function handlePresetSelect(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -172,15 +200,16 @@ export default function ChartToolbar({ durationMinutes, onDurationChange }: Char
             cursor: 'pointer',
           }}
         >
-          {UNITS.map((u) => (
+          {units.map((u) => (
             <option key={u} value={u}>{u}</option>
           ))}
         </select>
       </div>
 
-      {/* Right: gear icon placeholder */}
+      {/* Right: gear icon */}
       <button
-        title="Chart settings"
+        onClick={onConfigure}
+        title="Configure chart"
         style={{
           background: 'none',
           border: 'none',

@@ -1,5 +1,7 @@
 // Console module type definitions
 
+import type { ChartConfig } from '../../shared/components/charts/chart-config-types'
+
 export type PaneType = 'trend' | 'point_table' | 'alarm_list' | 'graphic' | 'blank'
 
 export interface PaneConfig {
@@ -8,9 +10,11 @@ export interface PaneConfig {
   title?: string
   /** When true, the pane title bar is shown in live mode. Default absent = false (hidden). */
   showTitle?: boolean
-  // trend pane
+  // trend pane — legacy fields kept for backward compat, superseded by chartConfig
   trendPointIds?: string[]
   trendDuration?: number // minutes, default 60
+  /** Full chart configuration — replaces trendPointIds/trendDuration when present */
+  chartConfig?: ChartConfig
   // point_table pane
   tablePointIds?: string[]
   // alarm_list pane
