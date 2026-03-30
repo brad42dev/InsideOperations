@@ -44,7 +44,15 @@ pub struct HistoryQuery {
     #[serde(default = "default_limit")]
     pub limit: i64,
     #[serde(default)]
-    pub agg: Option<String>, // "avg", "sum", "min", "max", "count"
+    pub agg: Option<String>, // legacy: "avg", "sum", "min", "max", "count"
+    /// Explicit bucket size in seconds. When present, takes precedence over
+    /// `resolution` and drives which precomputed table + SQL aggregate to use.
+    #[serde(default)]
+    pub bucket_seconds: Option<i64>,
+    /// Aggregate function to apply per bucket. One of: avg, min, max, sum,
+    /// count, first, last, median, stddev, range. Defaults to "avg".
+    #[serde(default)]
+    pub aggregate_function: Option<String>,
 }
 
 fn default_resolution() -> String {
@@ -164,11 +172,11 @@ async fn validate_agg_type(
     };
 
     match agg_str.as_str() {
-        "min" | "max" | "count" => return Ok(()),
-        "avg" | "sum" => {}
+        "min" | "max" | "count" | "first" | "last" | "range" => return Ok(()),
+        "avg" | "sum" | "median" | "stddev" => {}
         other => {
             return Err(IoError::BadRequest(format!(
-                "Unknown aggregation type '{}'. Valid values: avg, sum, min, max, count",
+                "Unknown aggregation type '{}'. Valid values: avg, min, max, sum, count, first, last, median, stddev, range",
                 other
             )));
         }
@@ -183,14 +191,152 @@ async fn validate_agg_type(
     .unwrap_or(0);
 
     match agg_str.as_str() {
-        "avg" if (agg_types & 1) == 0 => Err(IoError::BadRequest(
-            "This point does not permit averaging (aggregation_types bit 0 not set)".to_string(),
-        )),
+        "avg" | "median" | "stddev" if (agg_types & 1) == 0 => Err(IoError::BadRequest(format!(
+            "This point does not permit '{}' (aggregation_types bit 0 not set)", agg_str
+        ))),
         "sum" if (agg_types & 2) == 0 => Err(IoError::BadRequest(
             "This point does not permit summing (aggregation_types bit 1 not set)".to_string(),
         )),
         _ => Ok(()),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Bucket-based query helpers
+// ---------------------------------------------------------------------------
+
+struct SourceInfo {
+    table: &'static str,
+    time_col: &'static str,
+    /// Column used as input to the aggregate expression (value for raw, avg for precomputed).
+    value_col: &'static str,
+    /// Seconds per row in the precomputed table. 0 = raw (variable rate).
+    table_bucket_sec: i64,
+}
+
+/// Choose the finest precomputed table whose bucket size is ≤ `bucket_seconds`.
+/// Falls back to raw for sub-minute requests.
+fn pick_source_table(bucket_seconds: i64) -> SourceInfo {
+    if bucket_seconds < 60 {
+        SourceInfo { table: "points_history_raw",  time_col: "timestamp", value_col: "value", table_bucket_sec: 0   }
+    } else if bucket_seconds < 300 {
+        SourceInfo { table: "points_history_1m",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 60  }
+    } else if bucket_seconds < 900 {
+        SourceInfo { table: "points_history_5m",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 300 }
+    } else if bucket_seconds < 3600 {
+        SourceInfo { table: "points_history_15m",  time_col: "bucket",    value_col: "avg",   table_bucket_sec: 900 }
+    } else if bucket_seconds < 86400 {
+        SourceInfo { table: "points_history_1h",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 3600}
+    } else {
+        SourceInfo { table: "points_history_1d",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 86400 }
+    }
+}
+
+/// Build the SQL aggregate expression for the compute path (time_bucket query).
+/// All identifiers come from `pick_source_table`, never from user input.
+fn agg_sql_expr(agg_fn: &str, value_col: &str, time_col: &str, is_raw: bool) -> String {
+    match agg_fn {
+        "avg"    => format!("AVG({}::float8)", value_col),
+        "min"    => format!("MIN({}::float8)", value_col),
+        "max"    => format!("MAX({}::float8)", value_col),
+        "sum"    => format!("SUM({}::float8)", value_col),
+        "count"  => if is_raw {
+            "COUNT(*)::float8".to_string()
+        } else {
+            "SUM(count)::float8".to_string()
+        },
+        "first"  => format!("first({}::float8, {})", value_col, time_col),
+        "last"   => format!("last({}::float8, {})", value_col, time_col),
+        "stddev" => format!("STDDEV({}::float8)", value_col),
+        "median" => format!("percentile_disc(0.5) WITHIN GROUP (ORDER BY {}::float8)", value_col),
+        "range"  => format!("(MAX({}::float8) - MIN({}::float8))", value_col, value_col),
+        _        => "NULL::float8".to_string(),
+    }
+}
+
+/// Query with explicit bucket size and aggregate function.
+/// Returns rows with `value` set to the aggregate result.
+/// Fast path: exact precomputed table match + avg/min/max/sum/count → direct column read.
+/// Compute path: time_bucket() + aggregate expression over source table.
+async fn query_with_bucket(
+    db: &sqlx::PgPool,
+    point_id: Uuid,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    bucket_seconds: i64,
+    agg_fn: &str,
+    limit: i64,
+) -> IoResult<Vec<HistoryRow>> {
+    let src = pick_source_table(bucket_seconds);
+    let is_raw = src.table_bucket_sec == 0;
+
+    // Fast path: bucket exactly matches precomputed table, agg is a precomputed column.
+    let is_precomputed_agg = matches!(agg_fn, "avg" | "min" | "max" | "sum" | "count");
+    if !is_raw && src.table_bucket_sec == bucket_seconds && is_precomputed_agg {
+        let col = match agg_fn {
+            "avg"   => "avg",
+            "min"   => "min",
+            "max"   => "max",
+            "sum"   => "sum",
+            "count" => "count",
+            _       => unreachable!(),
+        };
+        let sql = format!(
+            "SELECT {time_col} AS bucket, {col}::float8 AS value \
+             FROM {table} \
+             WHERE point_id = $1 AND {time_col} BETWEEN $2 AND $3 \
+             ORDER BY {time_col} LIMIT $4",
+            time_col = src.time_col,
+            col      = col,
+            table    = src.table,
+        );
+        let rows = sqlx::query(&sql)
+            .bind(point_id)
+            .bind(start)
+            .bind(end)
+            .bind(limit)
+            .fetch_all(db)
+            .await?;
+        return Ok(rows.into_iter().map(|r| {
+            let ts: DateTime<Utc> = r.get("bucket");
+            HistoryRow {
+                timestamp: ts.to_rfc3339(),
+                value: r.get("value"),
+                quality: None,
+                avg: None, min: None, max: None, count: None, sum: None,
+            }
+        }).collect());
+    }
+
+    // Compute path: time_bucket() + aggregate expression.
+    let agg_expr = agg_sql_expr(agg_fn, src.value_col, src.time_col, is_raw);
+    let sql = format!(
+        "SELECT time_bucket(($5::text || ' seconds')::interval, {time_col}) AS bucket, \
+         {agg_expr} AS value \
+         FROM {table} \
+         WHERE point_id = $1 AND {time_col} BETWEEN $2 AND $3 \
+         GROUP BY bucket ORDER BY bucket LIMIT $4",
+        time_col = src.time_col,
+        agg_expr = agg_expr,
+        table    = src.table,
+    );
+    let rows = sqlx::query(&sql)
+        .bind(point_id)
+        .bind(start)
+        .bind(end)
+        .bind(limit)
+        .bind(bucket_seconds)
+        .fetch_all(db)
+        .await?;
+    Ok(rows.into_iter().map(|r| {
+        let ts: DateTime<Utc> = r.get("bucket");
+        HistoryRow {
+            timestamp: ts.to_rfc3339(),
+            value: r.get("value"),
+            quality: None,
+            avg: None, min: None, max: None, count: None, sum: None,
+        }
+    }).collect())
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +351,11 @@ pub struct BatchHistoryRequest {
     #[serde(default = "default_resolution")]
     pub resolution: String,
     #[serde(default)]
-    pub agg: Option<String>, // "avg", "sum", "min", "max", "count"
+    pub agg: Option<String>, // legacy: "avg", "sum", "min", "max", "count"
+    #[serde(default)]
+    pub bucket_seconds: Option<i64>,
+    #[serde(default)]
+    pub aggregate_function: Option<String>,
 }
 
 
@@ -238,6 +388,29 @@ pub async fn get_point_history(
 
     let limit = params.limit.clamp(1, 100_000);
 
+    // --- New path: explicit bucket_seconds + aggregate_function ---
+    if let Some(bucket_seconds) = params.bucket_seconds {
+        if bucket_seconds < 1 {
+            return Err(IoError::BadRequest("bucket_seconds must be >= 1".to_string()));
+        }
+        let agg_fn = params.aggregate_function.as_deref().unwrap_or("avg");
+        let agg_opt = Some(agg_fn.to_string());
+        validate_agg_type(&state.db, point_id, &agg_opt).await?;
+
+        let rows = query_with_bucket(
+            &state.db, point_id, start, end, bucket_seconds, agg_fn, limit,
+        ).await?;
+
+        return Ok(Json(ApiResponse::ok(HistoryResponse {
+            point_id,
+            resolution: format!("{}s", bucket_seconds),
+            start: start.to_rfc3339(),
+            end: end.to_rfc3339(),
+            rows,
+        })));
+    }
+
+    // --- Legacy path: resolution param ---
     // Aggregation type validation: only applies to aggregate resolutions, not raw.
     if params.resolution != "raw" {
         validate_agg_type(&state.db, point_id, &params.agg).await?;
@@ -553,6 +726,30 @@ pub async fn get_batch_history(
     let mut results: Vec<HistoryResponse> = Vec::with_capacity(body.point_ids.len());
 
     for point_id in &body.point_ids {
+        // New path: explicit bucket_seconds.
+        if let Some(bucket_seconds) = body.bucket_seconds {
+            if bucket_seconds < 1 {
+                return Err(IoError::BadRequest("bucket_seconds must be >= 1".to_string()));
+            }
+            let agg_fn = body.aggregate_function.as_deref().unwrap_or("avg");
+            let agg_opt = Some(agg_fn.to_string());
+            validate_agg_type(&state.db, *point_id, &agg_opt).await?;
+
+            let rows = query_with_bucket(
+                &state.db, *point_id, start, end, bucket_seconds, agg_fn, 10_000,
+            ).await?;
+
+            results.push(HistoryResponse {
+                point_id: *point_id,
+                resolution: format!("{}s", bucket_seconds),
+                start: start.to_rfc3339(),
+                end: end.to_rfc3339(),
+                rows,
+            });
+            continue;
+        }
+
+        // Legacy path: resolution param.
         // Aggregation type validation: only applies to aggregate resolutions, not raw.
         if body.resolution != "raw" {
             validate_agg_type(&state.db, *point_id, &body.agg).await?;

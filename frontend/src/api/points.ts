@@ -196,7 +196,14 @@ export const pointsApi = {
 
   history: (
     pointId: string,
-    params: { start: string; end: string; resolution?: string; limit?: number },
+    params: {
+      start: string
+      end: string
+      resolution?: string
+      limit?: number
+      bucket_seconds?: number
+      aggregate_function?: string
+    },
   ) =>
     api.get<HistoryResult>(
       `/api/archive/history/points/${pointId}${queryString(params as Record<string, unknown>)}`,
@@ -215,7 +222,14 @@ export const pointsApi = {
   /** GET /api/archive/history/points/:id?start=&end=&resolution=&limit= */
   getHistory: (
     pointId: string,
-    params: { start: string; end: string; resolution?: string; limit?: number },
+    params: {
+      start: string
+      end: string
+      resolution?: string
+      limit?: number
+      bucket_seconds?: number
+      aggregate_function?: string
+    },
   ): Promise<ApiResult<HistoryEntry[]>> =>
     api.get<HistoryEntry[]>(
       `/api/archive/history/points/${pointId}${queryString(params as Record<string, unknown>)}`,
@@ -235,7 +249,14 @@ export const pointsApi = {
   /** POST /api/points/history-batch — bulk historical data for multiple points */
   historyBatch: (
     pointIds: string[],
-    params: { start: string; end: string; resolution?: string; limit?: number },
+    params: {
+      start: string
+      end: string
+      resolution?: string
+      limit?: number
+      bucket_seconds?: number
+      aggregate_function?: string
+    },
   ): Promise<ApiResult<HistoryResult[]>> =>
     api.post<HistoryResult[]>('/api/points/history-batch', { point_ids: pointIds, ...params }),
 

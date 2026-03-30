@@ -18,8 +18,8 @@ export function useHighlight() {
         else next.add(key)
         return next
       }
-      // Single: if already the only selection → clear; otherwise select only this
-      if (next.size === 1 && next.has(key)) return new Set()
+      // Single click: clear everything if anything is selected, otherwise select this one
+      if (next.size > 0) return new Set()
       return new Set([key])
     })
   }, [])

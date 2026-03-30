@@ -6,7 +6,8 @@ import TimeSeriesChart, { type Series } from '../../../shared/components/charts/
 import ChartToolbar, { INSTANT_READOUT_CHART_TYPES } from '../../../shared/components/charts/ChartToolbar'
 import { pointsApi } from '../../../api/points'
 import type { PaneConfig } from '../types'
-import type { ChartConfig } from '../../../shared/components/charts/chart-config-types'
+import type { AggregateType, ChartConfig } from '../../../shared/components/charts/chart-config-types'
+import { CHART_AGGREGATE_TYPES, defaultBucketSeconds } from '../../../shared/components/charts/chart-aggregate-config'
 import { useWorkspaceStore } from '../../../store/workspaceStore'
 
 const ChartConfigPanel = lazy(() => import('../../../shared/components/charts/ChartConfigPanel'))
@@ -121,15 +122,36 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
   // ── Legacy trend mode ──────────────────────────────────────────────────────
   const pointIds = config.trendPointIds ?? []
 
-  const durationKey = `io_trend_duration_${config.id}`
+  const durationKey   = `io_trend_duration_${config.id}`
+  const bucketKey     = `io_trend_bucket_${config.id}`
+  const aggregateKey  = `io_trend_aggregate_${config.id}`
+
   const [durationMinutes, setDurationMinutes] = useState(() => {
     const saved = localStorage.getItem(durationKey)
     if (saved) { const n = parseInt(saved, 10); if (n > 0) return n }
     return config.trendDuration ?? 60
   })
+  const [bucketSeconds, setBucketSeconds] = useState<number | undefined>(() => {
+    const saved = localStorage.getItem(bucketKey)
+    if (saved === 'auto') return undefined
+    if (saved) { const n = parseInt(saved, 10); if (n > 0) return n }
+    return undefined
+  })
+  const [aggregateType, setAggregateType] = useState<AggregateType>(() => {
+    const saved = localStorage.getItem(aggregateKey)
+    if (saved) return saved as AggregateType
+    return 'avg'
+  })
+
   useEffect(() => {
     localStorage.setItem(durationKey, String(durationMinutes))
   }, [durationKey, durationMinutes])
+  useEffect(() => {
+    localStorage.setItem(bucketKey, bucketSeconds === undefined ? 'auto' : String(bucketSeconds))
+  }, [bucketKey, bucketSeconds])
+  useEffect(() => {
+    localStorage.setItem(aggregateKey, aggregateType)
+  }, [aggregateKey, aggregateType])
 
   const buffers         = useRef(getPaneBuffers(config.id))
   const lastAppendedTs  = useRef(getPaneLastTs(config.id))
@@ -159,7 +181,8 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
         else next.add(label)
         return next
       }
-      if (next.size === 1 && next.has(label)) return new Set()
+      // Single click: clear everything if anything is selected, otherwise select this one
+      if (next.size > 0) return new Set()
       return new Set([label])
     })
   }, [])
@@ -197,7 +220,7 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
   })
 
   const seedQuery = useQuery({
-    queryKey: ['trend-seed', pointIds.join(','), durationMinutes],
+    queryKey: ['trend-seed', pointIds.join(','), durationMinutes, bucketSeconds, aggregateType],
     queryFn: async () => {
       const now = new Date()
       const nowSec = now.getTime() / 1000
@@ -209,11 +232,15 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
           const existing = buffers.current.get(id) ?? []
           const inWindow = existing.filter((e) => e.ts >= cutoff)
 
+          // Resolve the effective bucket: explicit user selection or auto-default
+          const effectiveBucket = bucketSeconds ?? defaultBucketSeconds(durationMinutes)
+
           if (inWindow.length === 0) {
             return pointsApi.history(id, {
               start: windowStart.toISOString(),
               end: now.toISOString(),
-              resolution: seedResolution(durationMinutes),
+              bucket_seconds: effectiveBucket,
+              aggregate_function: aggregateType,
               limit: seedLimit(durationMinutes),
             })
           }
@@ -226,7 +253,8 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
             return pointsApi.history(id, {
               start: windowStart.toISOString(),
               end: new Date(earliestTs * 1000).toISOString(),
-              resolution: seedResolution(gapMinutes),
+              bucket_seconds: bucketSeconds ?? defaultBucketSeconds(gapMinutes),
+              aggregate_function: aggregateType,
               limit: seedLimit(gapMinutes),
             })
           }
@@ -235,7 +263,8 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
           return pointsApi.history(id, {
             start: new Date(latestTs * 1000).toISOString(),
             end: now.toISOString(),
-            resolution: seedResolution(fetchMinutes),
+            bucket_seconds: bucketSeconds ?? defaultBucketSeconds(fetchMinutes),
+            aggregate_function: aggregateType,
             limit: seedLimit(fetchMinutes),
           })
         }),
@@ -368,6 +397,11 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
           onDurationChange={(m) => handleSaveConfig({ ...chartConfig, durationMinutes: m })}
           onConfigure={() => setShowConfig(true)}
           allowSeconds={INSTANT_READOUT_CHART_TYPES.has(chartConfig.chartType)}
+          aggregates={CHART_AGGREGATE_TYPES[chartConfig.chartType]}
+          bucketSeconds={chartConfig.aggregateSize}
+          onBucketChange={(s) => handleSaveConfig({ ...chartConfig, aggregateSize: s })}
+          aggregateType={chartConfig.aggregateType}
+          onAggregateChange={(a) => handleSaveConfig({ ...chartConfig, aggregateType: a })}
         />
 
         {showConfig && (
@@ -574,6 +608,7 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
           xRange={{ min: Date.now() / 1000 - durationMinutes * 60, max: Date.now() / 1000 }}
           highlighted={highlighted}
           onSeriesClick={toggleHighlight}
+          onClearHighlight={() => setHighlighted(new Set())}
         />
       </div>
 
@@ -582,6 +617,11 @@ export default function TrendPane({ config, editMode, onConfigurePoints }: Trend
         durationMinutes={durationMinutes}
         onDurationChange={setDurationMinutes}
         onConfigure={() => setShowConfig(true)}
+        aggregates={CHART_AGGREGATE_TYPES[1]}
+        bucketSeconds={bucketSeconds}
+        onBucketChange={setBucketSeconds}
+        aggregateType={aggregateType}
+        onAggregateChange={setAggregateType}
       />
 
       {showConfig && (

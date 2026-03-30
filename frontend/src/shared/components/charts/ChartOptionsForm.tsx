@@ -3,7 +3,13 @@
 // Renders only the options that make sense for the selected chart type.
 // ---------------------------------------------------------------------------
 
-import type { ChartConfig, ChartTypeId, AggregateType, TimeUnit } from './chart-config-types'
+import type { ChartConfig, ChartTypeId, AggregateType } from './chart-config-types'
+import {
+  CHART_AGGREGATE_TYPES,
+  CHART_HAS_DURATION,
+  AGGREGATE_LABELS,
+  getValidBuckets,
+} from './chart-aggregate-config'
 
 interface ChartOptionsFormProps {
   chartType: ChartTypeId
@@ -13,39 +19,10 @@ interface ChartOptionsFormProps {
 
 // Which charts support real-time live mode (duration window)
 const LIVE_CHARTS = new Set<ChartTypeId>([1, 4, 7, 8, 9, 10, 11, 12, 35])
-// Charts with time-windowed history fetch (need duration)
-const DURATION_CHARTS = new Set<ChartTypeId>([
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-  21, 22, 23, 24, 25, 26, 29, 30, 31, 32, 33,
-  35, 36, 37, 38, 39,
-])
-// Charts that support aggregation settings
-const AGGREGATE_CHARTS = new Set<ChartTypeId>([2, 3, 5, 6, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 29, 30, 37, 38, 39])
 // Charts with a legend
 const LEGEND_CHARTS = new Set<ChartTypeId>([1, 2, 3, 4, 5, 6, 13, 16, 18, 19, 20, 21, 22, 24, 25, 26, 29, 30, 32, 33, 37])
 // Charts with interpolation (linear vs step)
 const INTERPOLATION_CHARTS = new Set<ChartTypeId>([1, 2, 3, 4, 16, 22])
-
-const AGGREGATE_TYPES: { value: AggregateType; label: string }[] = [
-  { value: 'avg',    label: 'Average' },
-  { value: 'last',   label: 'Last value' },
-  { value: 'max',    label: 'Maximum' },
-  { value: 'min',    label: 'Minimum' },
-  { value: 'sum',    label: 'Sum' },
-  { value: 'count',  label: 'Count' },
-  { value: 'median', label: 'Median' },
-  { value: 'stddev', label: 'Std deviation' },
-  { value: 'range',  label: 'Range (max−min)' },
-]
-
-const TIME_UNITS: { value: TimeUnit; label: string }[] = [
-  { value: 'seconds', label: 'Seconds' },
-  { value: 'minutes', label: 'Minutes' },
-  { value: 'hours',   label: 'Hours' },
-  { value: 'days',    label: 'Days' },
-  { value: 'weeks',   label: 'Weeks' },
-  { value: 'months',  label: 'Months' },
-]
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -881,59 +858,53 @@ export default function ChartOptionsForm({ chartType, config, onChange }: ChartO
   return (
     <div style={{ fontSize: 'inherit' }}>
       {/* ── Duration / time window ───────────────────────────────────────── */}
-      {DURATION_CHARTS.has(chartType) && (
-        <Section title={LIVE_CHARTS.has(chartType) ? 'Live Window' : 'History Window'}>
-          <Row label="Duration">
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input
-                type="number"
-                min={1}
-                value={config.durationMinutes ?? 60}
-                onChange={(e) => onChange({ durationMinutes: Number(e.target.value) })}
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <span style={{ lineHeight: '26px', color: 'var(--io-text-muted)', whiteSpace: 'nowrap' }}>minutes</span>
-            </div>
-          </Row>
-        </Section>
-      )}
-
-      {/* ── Aggregation ─────────────────────────────────────────────────── */}
-      {AGGREGATE_CHARTS.has(chartType) && (
-        <Section title="Aggregation">
-          <Row label="Function">
-            <select
-              value={config.aggregateType ?? 'avg'}
-              onChange={(e) => onChange({ aggregateType: e.target.value as AggregateType })}
-              style={selectStyle}
-            >
-              {AGGREGATE_TYPES.map((a) => (
-                <option key={a.value} value={a.value}>{a.label}</option>
-              ))}
-            </select>
-          </Row>
-          <Row label="Bucket size">
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input
-                type="number"
-                min={1}
-                value={config.aggregateSize ?? 5}
-                onChange={(e) => onChange({ aggregateSize: Number(e.target.value) })}
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <select
-                value={config.aggregateSizeUnit ?? 'minutes'}
-                onChange={(e) => onChange({ aggregateSizeUnit: e.target.value as TimeUnit })}
-                style={{ ...selectStyle, flex: 1 }}
-              >
-                {TIME_UNITS.map((u) => (
-                  <option key={u.value} value={u.value}>{u.label}</option>
-                ))}
-              </select>
-            </div>
-          </Row>
-        </Section>
-      )}
+      {CHART_HAS_DURATION.has(chartType) && (() => {
+        const chartAggs = CHART_AGGREGATE_TYPES[chartType]
+        const validBuckets = getValidBuckets(config.durationMinutes ?? 60)
+        return (
+          <Section title={LIVE_CHARTS.has(chartType) ? 'Live Window' : 'History Window'}>
+            <Row label="Duration">
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input
+                  type="number"
+                  min={1}
+                  value={config.durationMinutes ?? 60}
+                  onChange={(e) => onChange({ durationMinutes: Number(e.target.value) })}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <span style={{ lineHeight: '26px', color: 'var(--io-text-muted)', whiteSpace: 'nowrap' }}>minutes</span>
+              </div>
+            </Row>
+            {chartAggs && chartAggs.length > 0 && (
+              <>
+                <Row label="Bucket size">
+                  <select
+                    value={config.aggregateSize ?? ''}
+                    onChange={(e) => onChange({ aggregateSize: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    style={selectStyle}
+                  >
+                    <option value="">Auto</option>
+                    {validBuckets.map((b) => (
+                      <option key={b.seconds} value={b.seconds}>{b.label}</option>
+                    ))}
+                  </select>
+                </Row>
+                <Row label="Aggregate">
+                  <select
+                    value={config.aggregateType ?? chartAggs[0]}
+                    onChange={(e) => onChange({ aggregateType: e.target.value as AggregateType })}
+                    style={selectStyle}
+                  >
+                    {chartAggs.map((a) => (
+                      <option key={a} value={a}>{AGGREGATE_LABELS[a].full}</option>
+                    ))}
+                  </select>
+                </Row>
+              </>
+            )}
+          </Section>
+        )
+      })()}
 
       {/* ── Interpolation ───────────────────────────────────────────────── */}
       {INTERPOLATION_CHARTS.has(chartType) && (

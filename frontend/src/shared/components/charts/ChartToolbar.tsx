@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import type { AggregateType } from './chart-config-types'
+import {
+  AGGREGATE_LABELS,
+  BUCKET_OPTIONS,
+  getValidBuckets,
+} from './chart-aggregate-config'
 
 export type TimeUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'years'
 
@@ -9,8 +15,6 @@ const NO_SECONDS_UNITS: TimeUnit[] = ['minutes', 'hours', 'days', 'weeks', 'mont
 /**
  * Chart types that show an instantaneous value and make sense at sub-minute
  * durations (gauges, KPI cards, sparklines, indicators).
- * All other chart types render time-window data that can't update fast enough
- * to justify second-level durations — minimum is 1 minute.
  */
 export const INSTANT_READOUT_CHART_TYPES = new Set([7, 8, 9, 10, 11, 12, 23])
 
@@ -43,6 +47,15 @@ export function fromMinutes(totalMinutes: number): { value: number; unit: TimeUn
   return { value: Math.round(m * 60), unit: 'seconds' }
 }
 
+// Responsive size tiers for the toolbar
+type SizeTier = 'wide' | 'medium' | 'narrow'
+
+function getTier(width: number): SizeTier {
+  if (width >= 560) return 'wide'
+  if (width >= 400) return 'medium'
+  return 'narrow'
+}
+
 interface ChartToolbarProps {
   /** Current window duration in minutes */
   durationMinutes: number
@@ -52,18 +65,39 @@ interface ChartToolbarProps {
   onConfigure?: () => void
   /**
    * When true, 'seconds' is available as a unit and durations < 1 minute are
-   * allowed. Defaults to false — only instant-readout charts (gauge, KPI card,
-   * sparkline, etc.) should pass true.
+   * allowed. Only instant-readout charts should pass true.
    */
   allowSeconds?: boolean
+  /**
+   * Aggregate types valid for this chart. If absent or empty the aggregate
+   * selector is not shown.
+   */
+  aggregates?: AggregateType[]
+  /** Current bucket size in seconds. undefined = auto (backend decides). */
+  bucketSeconds?: number
+  onBucketChange?: (seconds: number | undefined) => void
+  /** Current aggregate type. */
+  aggregateType?: AggregateType
+  onAggregateChange?: (agg: AggregateType) => void
 }
 
-export default function ChartToolbar({ durationMinutes, onDurationChange, onConfigure, allowSeconds = false }: ChartToolbarProps) {
+export default function ChartToolbar({
+  durationMinutes,
+  onDurationChange,
+  onConfigure,
+  allowSeconds = false,
+  aggregates,
+  bucketSeconds,
+  onBucketChange,
+  aggregateType,
+  onAggregateChange,
+}: ChartToolbarProps) {
   const units = allowSeconds ? ALL_UNITS : NO_SECONDS_UNITS
+  const showAggregate = aggregates && aggregates.length > 0
+  const showBucket = !!onBucketChange
 
   function clampedFromMinutes(mins: number): { value: number; unit: TimeUnit } {
     const parsed = fromMinutes(mins)
-    // If seconds are not allowed and stored value resolves to sub-minute, snap to 1 minute
     if (!allowSeconds && parsed.unit === 'seconds') return { value: 1, unit: 'minutes' }
     return parsed
   }
@@ -74,7 +108,21 @@ export default function ChartToolbar({ durationMinutes, onDurationChange, onConf
   const [inputStr, setInputStr] = useState(String(initial.value))
   const presetRef = useRef<HTMLSelectElement>(null)
 
-  // Sync when the parent-controlled duration changes externally
+  // Responsive tier
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [tier, setTier] = useState<SizeTier>('wide')
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      setTier(getTier(entry.contentRect.width))
+    })
+    ro.observe(el)
+    setTier(getTier(el.getBoundingClientRect().width))
+    return () => ro.disconnect()
+  }, [])
+
+  // Sync when parent-controlled duration changes externally
   useEffect(() => {
     const parsed = clampedFromMinutes(durationMinutes)
     setValue(parsed.value)
@@ -96,7 +144,6 @@ export default function ChartToolbar({ durationMinutes, onDurationChange, onConf
     setValue(p)
     setInputStr(String(p))
     commit(p, unit)
-    // Reset so the same preset can be selected again
     e.target.value = ''
   }
 
@@ -116,13 +163,41 @@ export default function ChartToolbar({ durationMinutes, onDurationChange, onConf
       setValue(n)
       commit(n, unit)
     } else {
-      // Revert to last good value
       setInputStr(String(value))
     }
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') e.currentTarget.blur()
+  }
+
+  // Valid bucket options for the current duration
+  const validBuckets = getValidBuckets(durationMinutes)
+
+  // Unit label for the unit select — abbreviated in narrow tier
+  function unitLabel(u: TimeUnit): string {
+    if (tier === 'narrow') {
+      const map: Record<TimeUnit, string> = {
+        seconds: 'sec', minutes: 'min', hours: 'hr',
+        days: 'day', weeks: 'wk', months: 'mo', years: 'yr',
+      }
+      return map[u]
+    }
+    return u
+  }
+
+  // Bucket label — short in narrow tier
+  function bucketLabel(seconds: number): string {
+    const opt = BUCKET_OPTIONS.find((b) => b.seconds === seconds)
+    if (!opt) return `${seconds}s`
+    return tier === 'narrow' ? opt.labelShort : opt.label
+  }
+
+  // Aggregate label
+  function aggLabel(agg: AggregateType): string {
+    return tier === 'narrow'
+      ? AGGREGATE_LABELS[agg].short
+      : AGGREGATE_LABELS[agg].full
   }
 
   const inputStyle: React.CSSProperties = {
@@ -134,8 +209,33 @@ export default function ChartToolbar({ durationMinutes, onDurationChange, onConf
     outline: 'none',
   }
 
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    padding: '0 4px',
+    borderRadius: 3,
+    cursor: 'pointer',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10,
+    color: 'var(--io-text-muted)',
+    userSelect: 'none',
+    whiteSpace: 'nowrap',
+  }
+
+  const groupStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  }
+
+  const durLabel = tier === 'wide' ? 'Duration' : tier === 'medium' ? 'Dur' : 'Dur'
+  const bucketLabelText = tier === 'wide' ? 'Bucket Size' : tier === 'medium' ? 'Bucket' : 'Bkt'
+  const aggLabelText = tier === 'wide' ? 'Aggregate' : tier === 'medium' ? 'Agg' : 'Agg'
+
   return (
     <div
+      ref={containerRef}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -145,65 +245,105 @@ export default function ChartToolbar({ durationMinutes, onDurationChange, onConf
         borderTop: '1px solid var(--io-border)',
         background: 'var(--io-surface-secondary)',
         flexShrink: 0,
+        gap: 8,
+        overflow: 'hidden',
       }}
     >
-      {/* Left: time window controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-        {/* Value input */}
-        <input
-          type="text"
-          inputMode="numeric"
-          value={inputStr}
-          onChange={handleInputChange}
-          onBlur={handleInputCommit}
-          onKeyDown={handleInputKeyDown}
-          style={{
-            ...inputStyle,
-            width: 44,
-            padding: '0 4px',
-            textAlign: 'right',
-            borderRadius: '3px 0 0 3px',
-            borderRight: 'none',
-          }}
-        />
-        {/* Presets quick-pick */}
-        <select
-          ref={presetRef}
-          onChange={handlePresetSelect}
-          defaultValue=""
-          style={{
-            ...inputStyle,
-            width: 20,
-            padding: 0,
-            borderRadius: '0 3px 3px 0',
-            cursor: 'pointer',
-            appearance: 'auto',
-            color: 'var(--io-text-muted)',
-          }}
-          title="Quick presets"
-        >
-          <option value="" disabled hidden />
-          {PRESETS.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
+      {/* Left: time window + bucket + aggregate controls */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', minWidth: 0 }}>
 
-        {/* Unit select */}
-        <select
-          value={unit}
-          onChange={handleUnitChange}
-          style={{
-            ...inputStyle,
-            marginLeft: 4,
-            padding: '0 4px',
-            borderRadius: 3,
-            cursor: 'pointer',
-          }}
-        >
-          {units.map((u) => (
-            <option key={u} value={u}>{u}</option>
-          ))}
-        </select>
+        {/* Duration */}
+        <div style={groupStyle}>
+          <span style={labelStyle}>{durLabel}:</span>
+          {/* Value input */}
+          <input
+            type="text"
+            inputMode="numeric"
+            value={inputStr}
+            onChange={handleInputChange}
+            onBlur={handleInputCommit}
+            onKeyDown={handleInputKeyDown}
+            style={{
+              ...inputStyle,
+              width: 40,
+              padding: '0 4px',
+              textAlign: 'right',
+              borderRadius: '3px 0 0 3px',
+              borderRight: 'none',
+            }}
+          />
+          {/* Presets quick-pick */}
+          <select
+            ref={presetRef}
+            onChange={handlePresetSelect}
+            defaultValue=""
+            style={{
+              ...inputStyle,
+              width: 20,
+              padding: 0,
+              borderRadius: '0 3px 3px 0',
+              cursor: 'pointer',
+              appearance: 'auto',
+              color: 'var(--io-text-muted)',
+            }}
+            title="Quick presets"
+          >
+            <option value="" disabled hidden />
+            {PRESETS.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          {/* Unit select */}
+          <select
+            value={unit}
+            onChange={handleUnitChange}
+            style={selectStyle}
+          >
+            {units.map((u) => (
+              <option key={u} value={u}>{unitLabel(u)}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Bucket Size */}
+        {showBucket && validBuckets.length > 0 && (
+          <div style={groupStyle}>
+            <span style={labelStyle}>{bucketLabelText}:</span>
+            <select
+              value={bucketSeconds ?? ''}
+              onChange={(e) => {
+                const v = e.target.value
+                onBucketChange!(v === '' ? undefined : Number(v))
+              }}
+              style={selectStyle}
+            >
+              <option value="">Auto</option>
+              {validBuckets.map((b) => (
+                <option key={b.seconds} value={b.seconds}>
+                  {bucketLabel(b.seconds)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Aggregate Type */}
+        {showAggregate && aggregates && aggregates.length > 0 && onAggregateChange && (
+          <div style={groupStyle}>
+            <span style={labelStyle}>{aggLabelText}:</span>
+            <select
+              value={aggregateType ?? aggregates[0]}
+              onChange={(e) => onAggregateChange(e.target.value as AggregateType)}
+              style={selectStyle}
+            >
+              {aggregates.map((a) => (
+                <option key={a} value={a}>
+                  {aggLabel(a)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Right: gear icon */}
@@ -220,6 +360,7 @@ export default function ChartToolbar({ durationMinutes, onDurationChange, onConf
           alignItems: 'center',
           borderRadius: 3,
           lineHeight: 0,
+          flexShrink: 0,
         }}
         onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--io-text-primary)' }}
         onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--io-text-muted)' }}

@@ -33,6 +33,8 @@ export interface TimeSeriesChartProps {
    * `multi` is true when Ctrl or Meta was held during the click.
    */
   onSeriesClick?: (label: string, multi: boolean) => void
+  /** Called when the user clicks empty space on the chart (no series within proximity). */
+  onClearHighlight?: () => void
 }
 
 const DEFAULT_HEIGHT = 300
@@ -119,6 +121,7 @@ export default function TimeSeriesChart({
   className,
   highlighted,
   onSeriesClick,
+  onClearHighlight,
 }: TimeSeriesChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const uplotRef = useRef<uPlot | null>(null)
@@ -148,6 +151,8 @@ export default function TimeSeriesChart({
   // Always-current ref for the onSeriesClick callback (set in build effect, reads latest value)
   const onSeriesClickRef = useRef(onSeriesClick)
   onSeriesClickRef.current = onSeriesClick
+  const onClearHighlightRef = useRef(onClearHighlight)
+  onClearHighlightRef.current = onClearHighlight
 
   // Measure container dimensions via ResizeObserver when not explicitly provided
   useEffect(() => {
@@ -363,6 +368,8 @@ export default function TimeSeriesChart({
                   srcs[closestSeries].label,
                   e.ctrlKey || e.metaKey,
                 )
+              } else {
+                onClearHighlightRef.current?.()
               }
             })
           },
@@ -408,20 +415,23 @@ export default function TimeSeriesChart({
     if (!u) return
     const h = highlighted ?? new Set<string>()
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ux = u as any
     if (h.size === 0) {
-      // setSeries(null) → setFocus(null) → _focus=null for all, alpha restored to 1
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // Reset manually-set alpha values before calling setSeries so the
+      // subsequent redraw uses full opacity for all series.
+      ux.series.forEach((uSeries: any) => {
+        if (uSeries) uSeries.alpha = 1
+      })
       ;(u as any).setSeries(null, { focus: true })
     } else {
       // Multi-highlight: set _focus + alpha per-series then redraw
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ux = u as any
       series.forEach((s, i) => {
         const uSeries = ux.series[i + 1]
         if (!uSeries) return
         const isActive = h.has(s.label)
         uSeries._focus = isActive
-        uSeries.alpha = isActive ? 1 : 0.2
+        uSeries.alpha = isActive ? 1 : 0.3
       })
       u.redraw(false)
     }

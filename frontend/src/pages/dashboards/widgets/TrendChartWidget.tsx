@@ -4,6 +4,8 @@ import { pointsApi } from '../../../api/points'
 import type { WidgetConfig } from '../../../api/dashboards'
 import EChart from '../../../shared/components/charts/EChart'
 import ChartToolbar from '../../../shared/components/charts/ChartToolbar'
+import { CHART_AGGREGATE_TYPES, defaultBucketSeconds } from '../../../shared/components/charts/chart-aggregate-config'
+import type { AggregateType } from '../../../shared/components/charts/chart-config-types'
 import type { EChartsOption } from 'echarts'
 
 interface TrendChartConfig {
@@ -44,6 +46,8 @@ export default function TrendChartWidget({ config, variables }: Props) {
   // Local duration state — toolbar controls this; initialised from saved config
   const [durationMinutes, setDurationMinutes] = useState((cfg.window_hours ?? 8) * 60)
   const windowHours = durationMinutes / 60
+  const [bucketSeconds, setBucketSeconds] = useState<number | undefined>(undefined)
+  const [aggregateType, setAggregateType] = useState<AggregateType>('avg')
 
   // Resolve point IDs — either from config.points directly or from a variable.
   // Filter to valid UUID-shaped strings only; dashboard variables may resolve
@@ -57,7 +61,7 @@ export default function TrendChartWidget({ config, variables }: Props) {
   const pointIds = configPoints.length > 0 ? configPoints : variablePointIds
 
   const query = useQuery({
-    queryKey: ['trend-chart', pointIds, durationMinutes],
+    queryKey: ['trend-chart', pointIds, durationMinutes, bucketSeconds, aggregateType],
     queryFn: async () => {
       if (pointIds.length === 0) return []
       const now = new Date()
@@ -65,7 +69,8 @@ export default function TrendChartWidget({ config, variables }: Props) {
       const result = await pointsApi.historyBatch(pointIds, {
         start: start.toISOString(),
         end: now.toISOString(),
-        resolution: windowHours <= 2 ? 'raw' : windowHours <= 24 ? '1m' : '5m',
+        bucket_seconds: bucketSeconds ?? defaultBucketSeconds(durationMinutes),
+        aggregate_function: aggregateType,
         limit: 2000,
       })
       if (!result.success) throw new Error(result.error.message)
@@ -251,7 +256,15 @@ export default function TrendChartWidget({ config, variables }: Props) {
       <div style={{ flex: 1, minHeight: 0 }}>
         <EChart option={option} />
       </div>
-      <ChartToolbar durationMinutes={durationMinutes} onDurationChange={setDurationMinutes} />
+      <ChartToolbar
+        durationMinutes={durationMinutes}
+        onDurationChange={setDurationMinutes}
+        aggregates={CHART_AGGREGATE_TYPES[1]}
+        bucketSeconds={bucketSeconds}
+        onBucketChange={setBucketSeconds}
+        aggregateType={aggregateType}
+        onAggregateChange={setAggregateType}
+      />
     </div>
   )
 }
