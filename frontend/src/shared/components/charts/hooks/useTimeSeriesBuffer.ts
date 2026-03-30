@@ -76,6 +76,17 @@ export function useTimeSeriesBuffer({
 }: UseTimeSeriesBufferOptions): UseTimeSeriesBufferResult {
   const buffers = useRef(getBuffers(bufferKey))
   const lastTs  = useRef(getLastTs(bufferKey))
+
+  // Clean up module-scope maps when this pane unmounts (prevents unbounded growth
+  // when operators add/remove panes over a long session).
+  useEffect(() => {
+    return () => {
+      _globalBuffers.delete(bufferKey)
+      _globalLastTs.delete(bufferKey)
+    }
+  // bufferKey is stable (pane ID) — intentionally empty-ish dep array
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bufferKey])
   const [tick, setTick] = useState(0)
 
   const { mode: playbackMode, timeRange } = usePlaybackStore()

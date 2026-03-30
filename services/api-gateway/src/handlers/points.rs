@@ -1182,7 +1182,7 @@ pub async fn list_stale_points(
            ORDER BY pc.timestamp ASC NULLS FIRST
            LIMIT 500"#,
     )
-    .bind(threshold as i32)
+    .bind(threshold.min(i64::from(i32::MAX)) as i32)
     .fetch_all(&state.db)
     .await
     {

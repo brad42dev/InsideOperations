@@ -159,7 +159,7 @@ export default function StalePointsWidget({ config }: Props) {
                   flexShrink: 0,
                 }}
               >
-                {pt.minutes_stale}m
+                {Math.round(pt.minutes_stale ?? 0)}m
               </span>
             )}
           </div>

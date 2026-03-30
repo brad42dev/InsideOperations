@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// ChartTypePicker — left list of 34 chart types + right preview/description panel
+// ChartTypePicker — left list of 39 chart types + right preview/description panel
 // ---------------------------------------------------------------------------
 
 import { useState } from 'react'

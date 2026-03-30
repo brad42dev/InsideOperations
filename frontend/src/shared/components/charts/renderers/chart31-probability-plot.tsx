@@ -65,7 +65,7 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
 
   const durationMinutes = config.durationMinutes ?? 120
   const nowISO = new Date().toISOString()
-  const startISO = new Date(Date.now() - durationMinutes * 60_000).toISOString()
+  const startISO = new Date(Math.floor((Date.now() - durationMinutes * 60_000) / 60_000) * 60_000).toISOString()
 
   const { data: histResult, isFetching } = useQuery({
     queryKey: ['chart31-qqplot', pointId, startISO],
@@ -152,27 +152,31 @@ export default function Chart31ProbabilityPlot({ config }: RendererProps) {
     }
 
     const div = plotDivRef.current
+    let cancelled = false
 
     // plotly.js-dist-min ships its own types via plotly.js; cast through unknown
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     import('plotly.js-dist-min' as any)
       .then((PlotlyRaw: unknown) => {
+        if (cancelled || !plotDivRef.current) return
         const Plotly = PlotlyRaw as typeof import('plotly.js')
         Plotly.newPlot(div, traces as import('plotly.js').Data[], layout as Partial<import('plotly.js').Layout>, {
           responsive: true,
           displayModeBar: false,
         }).catch((err: unknown) => {
-          setPlotError(String(err))
+          if (!cancelled) setPlotError(String(err))
         })
       })
       .catch((err: unknown) => {
-        setPlotError(String(err))
+        if (!cancelled) setPlotError(String(err))
       })
 
     return () => {
+      cancelled = true
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       import('plotly.js-dist-min' as any)
         .then((PlotlyRaw: unknown) => {
+          if (!div) return
           const Plotly = PlotlyRaw as typeof import('plotly.js')
           Plotly.purge(div)
         })

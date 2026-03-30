@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // ChartRenderer — dispatches to the correct chart component based on chartType.
-// All 34 chart types lazy-loaded via React.lazy to keep the bundle size down.
+// All 39 chart types lazy-loaded via React.lazy to keep the bundle size down.
 // ---------------------------------------------------------------------------
 
 import { Suspense, lazy } from 'react'

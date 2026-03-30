@@ -61,7 +61,9 @@ export default function Chart24Shewhart({ config }: RendererProps) {
 
   const durationMinutes = config.durationMinutes ?? 120
   const nowISO = new Date().toISOString()
-  const startISO = new Date(Date.now() - durationMinutes * 60_000).toISOString()
+  // Truncate to nearest minute so the query key is stable within a minute window,
+  // preventing TanStack Query from refetching on every render.
+  const startISO = new Date(Math.floor((Date.now() - durationMinutes * 60_000) / 60_000) * 60_000).toISOString()
 
   const { data: histResult, isFetching } = useQuery({
     queryKey: ['chart24-shewhart', pointId, startISO],
@@ -87,7 +89,7 @@ export default function Chart24Shewhart({ config }: RendererProps) {
     if (vals.length < 4) return { timestamps: [], series: [], xRange: undefined }
 
     const mean = math.mean(vals) as number
-    const sigma = math.std(vals, 'uncorrected') as number
+    const sigma = math.std(vals) as unknown as number  // sample std dev (N-1), correct for SPC
 
     const ucl = mean + 3 * sigma
     const lcl = mean - 3 * sigma

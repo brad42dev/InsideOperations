@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Chart configuration types — shared across all 34 chart renderers and the
+// Chart configuration types — shared across all 39 chart renderers and the
 // configuration panel UI.
 // ---------------------------------------------------------------------------
 
@@ -121,7 +121,7 @@ export interface ChartConfig {
 export const CHART_COLORS = [
   '#4A9EFF', '#F59E0B', '#10B981', '#EF4444',
   '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16',
-  '#F97316', '#14B8A6', '#A855F7', '#EF4444',
+  '#F97316', '#14B8A6', '#A855F7', '#F43F5E',
 ]
 
 export function autoColor(index: number): string {

@@ -81,8 +81,8 @@ pub struct ActiveAlarmFilter {
 
 #[derive(Debug, Deserialize)]
 pub struct AlarmHistoryFilter {
-    // Use i64 instead of u32 — serde_urlencoded passes query params as strings,
-    // and Axum's Query extractor cannot coerce "5000" to u32 directly.
+    // Use i64 instead of u32 for SQLx binding compatibility (sqlx encodes i64 as
+    // BIGINT which binds cleanly to LIMIT/OFFSET in PostgreSQL).
     pub page: Option<i64>,
     pub per_page: Option<i64>,
     pub definition_id: Option<Uuid>,

@@ -6,8 +6,6 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery } from '@tanstack/react-query'
-import { pointsApi } from '../../../api/points'
 import type { ChartConfig, ChartTypeId } from './chart-config-types'
 import { CHART_SLOTS, SCALING_TAB_CHARTS } from './chart-config-types'
 import ChartTypePicker from './ChartTypePicker'
@@ -41,14 +39,13 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
   }))
   const [tab, setTab] = useState<Tab>('type')
 
-  // Shared points list — used by both ChartPointSelector and ChartScalingTab
-  const { data: listResult } = useQuery({
-    queryKey: ['points-list-all'],
-    queryFn: () => pointsApi.list({ limit: 2000 }),
-    staleTime: 60_000,
-  })
-  const allPoints = listResult?.success ? listResult.data.data : []
-  const pointMeta = new Map(allPoints.map((p) => [p.id, p]))
+  // ChartPointSelector fetches its own list with server-side search.
+  // ChartScalingTab only needs metadata for already-configured points.
+  // We build pointMeta lazily from the config's own point list (label + color),
+  // which is sufficient for axis label display.
+  const pointMeta = new Map(
+    config.points.map((p) => [p.pointId, { id: p.pointId, tagname: p.label ?? p.pointId, display_name: p.label ?? null } as import('../../../api/points').PointMeta])
+  )
 
   // Only show Scaling tab for chart types that have configurable axes
   const TABS = SCALING_TAB_CHARTS.has(config.chartType)
@@ -219,7 +216,6 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
               <ChartPointSelector
                 slotDefs={slotDefs}
                 points={config.points}
-                allPoints={allPoints}
                 onChange={(pts) => patchConfig({ points: pts })}
               />
             </div>

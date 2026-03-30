@@ -3,8 +3,10 @@
 // Used inside ChartConfigPanel.
 // ---------------------------------------------------------------------------
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { PointMeta } from '../../../api/points'
+import { pointsApi } from '../../../api/points'
 import {
   type ChartPointSlot,
   type SlotDefinition,
@@ -15,7 +17,8 @@ import {
 interface ChartPointSelectorProps {
   slotDefs: SlotDefinition[]
   points: ChartPointSlot[]
-  allPoints: PointMeta[]
+  /** No longer required — component fetches its own list server-side. */
+  allPoints?: PointMeta[]
   onChange: (points: ChartPointSlot[]) => void
 }
 
@@ -47,26 +50,34 @@ function ColorSwatch({ color, onChange }: { color: string; onChange: (c: string)
   )
 }
 
-export default function ChartPointSelector({ slotDefs, points, allPoints, onChange }: ChartPointSelectorProps) {
+export default function ChartPointSelector({ slotDefs, points, onChange }: ChartPointSelectorProps) {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [dragPointId, setDragPointId] = useState<string | null>(null)
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null)
 
-  const filtered = allPoints.filter((p) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      p.tagname.toLowerCase().includes(q) ||
-      (p.display_name ?? '').toLowerCase().includes(q)
-    )
+  // Debounce search input so we don't fire a query on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Server-side search: fetch up to 100 matching points. When no search term is
+  // entered we show the first 100 points as suggestions.
+  const { data: listResult, isFetching: isSearching } = useQuery({
+    queryKey: ['chart-point-search', debouncedSearch],
+    queryFn: () => pointsApi.list({ search: debouncedSearch || undefined, limit: 100 }),
+    staleTime: 30_000,
   })
+  const allPoints: PointMeta[] = listResult?.success ? listResult.data.data : []
+  const filtered = allPoints
 
   function assignPoint(role: string, pointId: string) {
     const slotDef = slotDefs.find((s) => s.id === role)
     if (!slotDef) return
 
     // Resolve human-readable label — never show the UUID in charts
-    const meta = allPoints.find((p) => p.id === pointId)
+    const meta = filtered.find((p) => p.id === pointId)
     const label = meta?.display_name ?? meta?.tagname
 
     if (!slotDef.multi) {
@@ -175,7 +186,7 @@ export default function ChartPointSelector({ slotDefs, points, allPoints, onChan
         >
           {filtered.length === 0 && (
             <div style={{ padding: 12, color: 'var(--io-text-muted)', fontSize: 12 }}>
-              {allPoints.length === 0 ? 'Loading…' : 'No matches'}
+              {isSearching ? 'Searching…' : search ? 'No matches' : 'Loading…'}
             </div>
           )}
           {filtered.map((pt) => (
@@ -260,7 +271,7 @@ export default function ChartPointSelector({ slotDefs, points, allPoints, onChan
                   </div>
                 )}
                 {slotPoints.map((sp) => {
-                  const meta = allPoints.find((p) => p.id === sp.pointId)
+                  const meta = filtered.find((p) => p.id === sp.pointId)
                   return (
                     <div
                       key={sp.slotId}

@@ -63,36 +63,39 @@ export default function Chart07KpiCard({ config }: RendererProps) {
     }
   }, [liveValue])
 
-  // Trend: compare to value ~5 minutes ago
+  // Trend: compare current value to value ~5 minutes ago.
+  // The interval is mounted once so it is never cleared by WS updates.
+  // liveValueRef keeps the interval callback reading the latest value.
+  const liveValueRef = useRef<number | undefined>(liveValue)
+  useEffect(() => {
+    liveValueRef.current = liveValue
+  }, [liveValue])
+
   const fiveMinAgoRef = useRef<number | undefined>(undefined)
-  const fiveMinTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [trendDir, setTrendDir] = useState<'up' | 'down' | 'flat'>('flat')
 
+  // Update trend direction on every live value change
   useEffect(() => {
     if (liveValue === undefined) return
     if (fiveMinAgoRef.current === undefined) {
       fiveMinAgoRef.current = liveValue
-    }
-    if (!fiveMinTimerRef.current) {
-      fiveMinTimerRef.current = setInterval(() => {
-        if (liveValue !== undefined) {
-          fiveMinAgoRef.current = liveValue
-        }
-      }, 5 * 60 * 1000)
+      return
     }
     const prev = fiveMinAgoRef.current
     if (liveValue > prev + 0.001) setTrendDir('up')
     else if (liveValue < prev - 0.001) setTrendDir('down')
     else setTrendDir('flat')
-
-    return () => {
-      if (fiveMinTimerRef.current) {
-        clearInterval(fiveMinTimerRef.current)
-        fiveMinTimerRef.current = null
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveValue])
+
+  // Snapshot baseline every 5 minutes — mounted once, not tied to liveValue
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (liveValueRef.current !== undefined) {
+        fiveMinAgoRef.current = liveValueRef.current
+      }
+    }, 5 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Threshold background coloring
   const rawThresholds = config.extras?.thresholds

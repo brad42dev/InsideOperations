@@ -31,7 +31,7 @@ export default function Chart29Cusum({ config }: RendererProps) {
 
   const durationMinutes = config.durationMinutes ?? 120
   const nowISO = new Date().toISOString()
-  const startISO = new Date(Date.now() - durationMinutes * 60_000).toISOString()
+  const startISO = new Date(Math.floor((Date.now() - durationMinutes * 60_000) / 60_000) * 60_000).toISOString()
 
   const { data: histResult, isFetching } = useQuery({
     queryKey: ['chart29-cusum', pointId, startISO],

@@ -23,10 +23,12 @@ function resolveToken(token: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(token).trim()
 }
 
+// DEFAULT_THRESHOLDS use absolute values in the same unit as min/max.
+// The gauge defaults to min=0, max=100, so these represent 60%, 80%, 100%.
 const DEFAULT_THRESHOLDS: ThresholdZone[] = [
-  { value: 0.6, color: '#10B981' },
-  { value: 0.8, color: '#F59E0B' },
-  { value: 1.0, color: '#EF4444' },
+  { value: 60, color: '#10B981' },
+  { value: 80, color: '#F59E0B' },
+  { value: 100, color: '#EF4444' },
 ]
 
 export default function GaugeChart({ config }: RendererProps) {
@@ -50,9 +52,9 @@ export default function GaugeChart({ config }: RendererProps) {
     const textPrimary = resolveToken('--io-text-primary')
     const range = max - min
 
-    // Convert threshold zones to ECharts axisLine color pairs [fraction, color]
+    // Convert absolute threshold values to ECharts axisLine color pairs [fraction, color]
     const colorPairs: [number, string][] = thresholds.map((t) => [
-      Math.min(1, Math.max(0, (t.value * range - min + min) / range)),
+      Math.min(1, Math.max(0, (t.value - min) / range)),
       t.color,
     ])
 

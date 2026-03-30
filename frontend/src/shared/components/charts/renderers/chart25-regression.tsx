@@ -168,7 +168,7 @@ export default function Chart25Regression({ config }: RendererProps) {
 
   const durationMinutes = config.durationMinutes ?? 120
   const nowISO = new Date().toISOString()
-  const startISO = new Date(Date.now() - durationMinutes * 60_000).toISOString()
+  const startISO = new Date(Math.floor((Date.now() - durationMinutes * 60_000) / 60_000) * 60_000).toISOString()
 
   const { data: histResults, isFetching } = useQuery({
     queryKey: ['chart25-regression', pointIds.join(','), startISO, model, degree],
