@@ -9,19 +9,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
-use io_bus::{
-    PointQuality, SourceStatusChange, UdsPointBatch, UdsPointUpdate, UdsSourceStatus,
-};
+use io_bus::{PointQuality, SourceStatusChange, UdsPointBatch, UdsPointUpdate, UdsSourceStatus};
 use io_db::DbPool;
-use opcua::client::prelude::*;
-use opcua::sync::RwLock;
-use opcua::client::prelude::HistoryReadAction;
+use opcua::client::{
+    ClientBuilder, DataChangeCallback, EventCallback, HistoryReadAction, IdentityToken,
+    MonitoredItem, Session,
+};
+use opcua::crypto::SecurityPolicy;
 use opcua::types::{
     AttributeId, BrowseDescription, BrowseDirection, DataChangeFilter, DataChangeTrigger,
-    DeadbandType, DecodingOptions, ExtensionObject, HistoryData, HistoryReadValueId,
-    MonitoredItemCreateRequest, MonitoringMode, MonitoringParameters, NodeClass, NodeId, ObjectId,
-    QualifiedName, ReadRawModifiedDetails, ReadValueId, ReferenceTypeId, StatusCode,
-    TimestampsToReturn, UAString,
+    DataValue, DeadbandType, EndpointDescription, ExtensionObject, HistoryData, HistoryReadValueId,
+    MessageSecurityMode, MonitoredItemCreateRequest, MonitoringMode, MonitoringParameters,
+    NodeClass, NodeId, NumericRange, QualifiedName, ReadRawModifiedDetails, ReadValueId,
+    ReferenceTypeId, StatusCode, TimestampsToReturn, UAString, Variant,
 };
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -93,7 +93,9 @@ pub async fn run_source(
         );
 
         // Store the last error message while transitioning to "connecting".
-        if let Err(e) = db::set_source_status(&db, source.id, "connecting", last_error.as_deref()).await {
+        if let Err(e) =
+            db::set_source_status(&db, source.id, "connecting", last_error.as_deref()).await
+        {
             warn!(source = %source.name, error = %e, "Failed to set source status to connecting");
         }
 
@@ -110,7 +112,9 @@ pub async fn run_source(
                     // to now, with an additional 5% overlap buffer, so no data is lost
                     // across the reconnect cycle.
                     let now = Utc::now();
-                    let recovery_from_raw = match db::get_earliest_of_recent_points(&db, source.id).await {
+                    let recovery_from_raw = match db::get_earliest_of_recent_points(&db, source.id)
+                        .await
+                    {
                         Ok(Some(earliest)) => earliest - chrono::Duration::minutes(5),
                         Ok(None) => now - chrono::Duration::minutes(10),
                         Err(e) => {
@@ -131,7 +135,9 @@ pub async fn run_source(
                             to = %now,
                             "Watchdog: history recovery job scheduled"
                         ),
-                        Err(e) => warn!(source = %source.name, error = %e, "Watchdog: failed to schedule history recovery job"),
+                        Err(e) => {
+                            warn!(source = %source.name, error = %e, "Watchdog: failed to schedule history recovery job")
+                        }
                     }
                 }
             }
@@ -193,193 +199,208 @@ async fn run_source_once(
     config: &Arc<Config>,
     sessions: &SessionRegistry,
 ) -> anyhow::Result<bool> {
-    // Build OPC UA client and connect on a blocking thread to avoid blocking
-    // the Tokio runtime (opcua 0.12 is synchronous).
-    let endpoint_url = source.endpoint_url.clone();
-    let security_policy_str = source.security_policy.clone();
-    let security_mode_str = source.security_mode.clone();
-    let username = source.username.clone();
-    let password = source.password.clone();
+    let (mut security_policy, security_mode, identity) = build_security(
+        &source.security_policy,
+        &source.security_mode,
+        source.username.clone(),
+        source.password.clone(),
+    );
 
     let pki_dir = config.pki_dir.clone();
     let auto_trust = config.auto_trust_server_certs;
+    let endpoint_url = source.endpoint_url.clone();
 
-    let session: Arc<RwLock<Session>> = tokio::task::spawn_blocking(move || {
-        let (mut security_policy, security_mode, identity) =
-            build_security(&security_policy_str, &security_mode_str, username, password);
+    // Build client without keypair first — some servers hide their None
+    // endpoint when they detect a certificate-capable client.
+    let mut client = ClientBuilder::new()
+        .application_name("io-opc-service")
+        .application_uri("urn:io-opc-service")
+        .pki_dir(&pki_dir)
+        .trust_server_certs(auto_trust)
+        .create_sample_keypair(false)
+        .session_retry_limit(0)
+        .max_chunk_size(327_675)
+        .max_incoming_chunk_size(327_675)
+        .max_message_size(327_675)
+        .client()
+        .map_err(|errs| anyhow::anyhow!("ClientBuilder errors: {}", errs.join(", ")))?;
 
-        // Build client without keypair first — some servers hide their None
-        // endpoint when they detect a certificate-capable client.
-        let mut client = ClientBuilder::new()
-            .application_name("io-opc-service")
-            .application_uri("urn:io-opc-service")
-            .pki_dir(&pki_dir)
-            .trust_server_certs(auto_trust)
-            .create_sample_keypair(false)
-            .session_retry_limit(0)
-            .client()
-            .ok_or_else(|| anyhow::anyhow!("ClientBuilder::client() returned None"))?;
+    // Build the endpoint description from our configured parameters.
+    let mut connect_endpoint = EndpointDescription {
+        endpoint_url: UAString::from(endpoint_url.as_str()),
+        security_policy_uri: UAString::from(security_policy.to_uri()),
+        security_mode,
+        server: opcua::types::ApplicationDescription::default(),
+        server_certificate: opcua::types::ByteString::null(),
+        user_identity_tokens: None,
+        transport_profile_uri: UAString::null(),
+        security_level: 0,
+    };
 
-        // Build the endpoint description from our configured parameters.
-        let mut connect_endpoint = EndpointDescription {
-            endpoint_url: UAString::from(endpoint_url.as_str()),
-            security_policy_uri: UAString::from(security_policy.to_uri()),
-            security_mode,
-            server: ApplicationDescription::default(),
-            server_certificate: ByteString::null(),
-            user_identity_tokens: None,
-            transport_profile_uri: UAString::null(),
-            security_level: 0,
-        };
+    // Probe the server's endpoint list to handle URL mismatches (NAT,
+    // path-based URIs, different ports, etc.)  Many OPC UA servers
+    // advertise endpoints with internal addresses (127.0.0.1, internal
+    // hostnames) that don't match the DNS name the client uses to reach
+    // them.  We discover the actual endpoint, patch its hostname with
+    // ours, and use it for the real connection.
+    match client.get_server_endpoints_from_url(endpoint_url.as_str()).await {
+        Ok(server_endpoints) if !server_endpoints.is_empty() => {
+            let is_none_policy = security_policy == SecurityPolicy::None;
 
-        // Probe the server's endpoint list to handle URL mismatches (NAT,
-        // path-based URIs, different ports, etc.)  Many OPC UA servers
-        // advertise endpoints with internal addresses (127.0.0.1, internal
-        // hostnames) that don't match the DNS name the client uses to reach
-        // them.  We discover the actual endpoint, patch its hostname with
-        // ours, and use it for the real connection.
-        match client.get_server_endpoints_from_url(endpoint_url.as_str()) {
-            Ok(server_endpoints) if !server_endpoints.is_empty() => {
-                let is_none_policy = security_policy == SecurityPolicy::None;
-
-                // Step 1: standard matching (policy + mode + URL normalisation).
-                let found = Client::find_matching_endpoint(
-                    &server_endpoints,
-                    endpoint_url.as_str(),
-                    security_policy,
-                    security_mode,
-                )
-                // Step 2: URL-agnostic match — server advertises a different
-                // hostname/path.  Match by policy+mode only and rewrite URL.
-                .or_else(|| {
-                    server_endpoints
-                        .iter()
-                        .find(|e| {
-                            e.security_mode == security_mode
-                                && SecurityPolicy::from_uri(e.security_policy_uri.as_ref())
-                                    == security_policy
-                        })
-                        .cloned()
-                        .map(|mut ep| {
-                            let rewritten = rewrite_hostname(ep.endpoint_url.as_ref(), &endpoint_url);
-                            tracing::info!(
-                                original = ep.endpoint_url.as_ref(),
-                                rewritten = %rewritten,
-                                "Rewrote server endpoint URL to match client address"
-                            );
-                            ep.endpoint_url = UAString::from(rewritten.as_str());
-                            ep
-                        })
-                })
-                // Step 3 (only when the user left policy as "None" / default):
-                // auto-select the lowest-security endpoint on offer.
-                .or_else(|| {
-                    if !is_none_policy {
-                        // Configured policy not found — don't silently downgrade.
-                        let available: Vec<_> = server_endpoints
-                            .iter()
-                            .map(|e| format!("{}/{:?}", e.security_policy_uri, e.security_mode))
-                            .collect();
-                        tracing::warn!(
-                            endpoint_url = %endpoint_url,
-                            available = ?available,
-                            configured_policy = ?security_policy,
-                            configured_mode = ?security_mode,
-                            "Configured security policy not offered by server"
-                        );
-                        return None;
-                    }
-                    // Policy is None — pick the highest-security endpoint available.
-                    let mut candidates = server_endpoints.clone();
-                    candidates.sort_by_key(|e| std::cmp::Reverse(e.security_level));
-                    candidates.into_iter().next().map(|mut ep| {
-                        security_policy =
-                            SecurityPolicy::from_uri(ep.security_policy_uri.as_ref());
+            // Step 1: standard matching (policy + mode + URL normalisation).
+            let found = opcua::client::Client::find_matching_endpoint(
+                &server_endpoints,
+                endpoint_url.as_str(),
+                security_policy,
+                security_mode,
+            )
+            // Step 2: URL-agnostic match — server advertises a different
+            // hostname/path.  Match by policy+mode only and rewrite URL.
+            .or_else(|| {
+                server_endpoints
+                    .iter()
+                    .find(|e| {
+                        e.security_mode == security_mode
+                            && SecurityPolicy::from_uri(e.security_policy_uri.as_ref())
+                                == security_policy
+                    })
+                    .cloned()
+                    .map(|mut ep| {
+                        let rewritten =
+                            rewrite_hostname(ep.endpoint_url.as_ref(), &endpoint_url);
                         tracing::info!(
-                            endpoint_url = %endpoint_url,
-                            server_policy = %ep.security_policy_uri,
-                            mode = ?ep.security_mode,
-                            "Auto-selected highest-security endpoint"
+                            original = ep.endpoint_url.as_ref(),
+                            rewritten = %rewritten,
+                            "Rewrote server endpoint URL to match client address"
                         );
-                        let rewritten = rewrite_hostname(ep.endpoint_url.as_ref(), &endpoint_url);
                         ep.endpoint_url = UAString::from(rewritten.as_str());
                         ep
                     })
-                });
+            })
+            // Step 3 (only when the user left policy as "None" / default):
+            // auto-select the lowest-security endpoint on offer.
+            .or_else(|| {
+                if !is_none_policy {
+                    // Configured policy not found — don't silently downgrade.
+                    let available: Vec<_> = server_endpoints
+                        .iter()
+                        .map(|e| format!("{}/{:?}", e.security_policy_uri, e.security_mode))
+                        .collect();
+                    tracing::warn!(
+                        endpoint_url = %endpoint_url,
+                        available = ?available,
+                        configured_policy = ?security_policy,
+                        configured_mode = ?security_mode,
+                        "Configured security policy not offered by server"
+                    );
+                    return None;
+                }
+                // Policy is None — pick the highest-security endpoint available.
+                let mut candidates = server_endpoints.clone();
+                candidates.sort_by_key(|e| std::cmp::Reverse(e.security_level));
+                candidates.into_iter().next().map(|mut ep| {
+                    security_policy = SecurityPolicy::from_uri(ep.security_policy_uri.as_ref());
+                    tracing::info!(
+                        endpoint_url = %endpoint_url,
+                        server_policy = %ep.security_policy_uri,
+                        mode = ?ep.security_mode,
+                        "Auto-selected highest-security endpoint"
+                    );
+                    let rewritten = rewrite_hostname(ep.endpoint_url.as_ref(), &endpoint_url);
+                    ep.endpoint_url = UAString::from(rewritten.as_str());
+                    ep
+                })
+            });
 
-                if let Some(ep) = found {
-                    connect_endpoint = ep;
-                } else {
-                    // Configured policy not offered by this server. Still grab the
-                    // server certificate from any endpoint so the secure-channel
-                    // request can be encrypted — without it the server will return
-                    // BadDecodingError because it can't decrypt our message.
-                    if let Some(any_ep) = server_endpoints.first() {
-                        connect_endpoint.server_certificate =
-                            any_ep.server_certificate.clone();
-                        tracing::warn!(
-                            endpoint_url = %endpoint_url,
-                            "Configured security policy not offered by server; \
-                             proceeding with configured policy and server cert from discovery"
-                        );
-                    }
+            if let Some(ep) = found {
+                connect_endpoint = ep;
+            } else {
+                // Configured policy not offered by this server. Still grab the
+                // server certificate from any endpoint so the secure-channel
+                // request can be encrypted — without it the server will return
+                // BadDecodingError because it can't decrypt our message.
+                if let Some(any_ep) = server_endpoints.first() {
+                    connect_endpoint.server_certificate = any_ep.server_certificate.clone();
+                    tracing::warn!(
+                        endpoint_url = %endpoint_url,
+                        "Configured security policy not offered by server; \
+                         proceeding with configured policy and server cert from discovery"
+                    );
                 }
             }
-            Ok(_) | Err(_) => {
-                // Server returned empty list or discovery failed — proceed
-                // with our configured endpoint as-is. Try to pre-populate the
-                // server certificate from the PKI trusted directory so that the
-                // secure-channel handshake can proceed without a discovery round.
-                let trusted_dir = std::path::Path::new(&pki_dir).join("trusted");
-                if let Ok(entries) = std::fs::read_dir(&trusted_dir) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.extension().map_or(false, |e| e == "der") {
-                            if let Ok(der) = std::fs::read(&path) {
-                                tracing::debug!(
-                                    cert = %path.display(),
-                                    "Preloading trusted server cert for direct connect"
-                                );
-                                connect_endpoint.server_certificate = ByteString::from(der.as_slice());
-                                break;
-                            }
+        }
+        Ok(_) | Err(_) => {
+            // Server returned empty list or discovery failed — proceed
+            // with our configured endpoint as-is. Try to pre-populate the
+            // server certificate from the PKI trusted directory so that the
+            // secure-channel handshake can proceed without a discovery round.
+            let trusted_dir = std::path::Path::new(&pki_dir).join("trusted");
+            if let Ok(entries) = std::fs::read_dir(&trusted_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().is_some_and(|e| e == "der") {
+                        if let Ok(der) = std::fs::read(&path) {
+                            tracing::debug!(
+                                cert = %path.display(),
+                                "Preloading trusted server cert for direct connect"
+                            );
+                            connect_endpoint.server_certificate =
+                                opcua::types::ByteString::from(der.as_slice());
+                            break;
                         }
                     }
                 }
             }
         }
+    }
 
-        // If the endpoint needs signing, rebuild the client with a keypair.
-        if connect_endpoint.security_mode != MessageSecurityMode::None {
-            client = ClientBuilder::new()
-                .application_name("io-opc-service")
-                .application_uri("urn:io-opc-service")
-                .pki_dir(&pki_dir)
-                .trust_server_certs(auto_trust)
-                .create_sample_keypair(true)
-                .session_retry_limit(0)
-                .client()
-                .ok_or_else(|| anyhow::anyhow!("ClientBuilder::client() returned None"))?;
-        }
+    // If the endpoint needs signing, rebuild the client with a keypair.
+    if connect_endpoint.security_mode != MessageSecurityMode::None {
+        client = ClientBuilder::new()
+            .application_name("io-opc-service")
+            .application_uri("urn:io-opc-service")
+            .pki_dir(&pki_dir)
+            .trust_server_certs(auto_trust)
+            .create_sample_keypair(true)
+            .session_retry_limit(0)
+            .max_chunk_size(327_675)
+            .max_incoming_chunk_size(327_675)
+            .max_message_size(327_675)
+            .client()
+            .map_err(|errs| anyhow::anyhow!("ClientBuilder errors: {}", errs.join(", ")))?;
+    }
 
-        // Use new_session_from_info + connect_and_activate instead of
-        // connect_to_endpoint. connect_to_endpoint unconditionally calls
-        // get_server_endpoints_from_url internally, which fails when the server
-        // advertises an internal hostname (e.g. simblah:4840) that cannot be
-        // resolved from the client host. By going directly to the session layer
-        // we avoid that second discovery round entirely.
-        let session = client
-            .new_session_from_info((connect_endpoint, identity))
-            .map_err(|e| anyhow::anyhow!("OPC UA session creation failed: {}", e))?;
-        {
-            let mut s = session.write();
-            s.connect_and_activate()
-                .map_err(|sc| anyhow::anyhow!("OPC UA connect failed: {}", sc))?;
+    // connect_to_endpoint_directly bypasses the second endpoint discovery round
+    // that connect_to_matching_endpoint would do internally. This avoids failures
+    // when the server advertises an internal hostname (e.g. simblah:4840) that
+    // the client can't resolve from outside.
+    let (session, event_loop) = client
+        .connect_to_endpoint_directly(connect_endpoint, identity)
+        .map_err(|e| anyhow::anyhow!("OPC UA session creation failed: {}", e))?;
+
+    // Spawn the event loop — this starts the actual TCP connection handshake
+    // in a background Tokio task.  We hold onto the JoinHandle so we can
+    // detect an early exit.  With session_retry_limit(0) the event loop makes
+    // exactly one TCP attempt; if that fails the task exits and
+    // wait_for_connection() would hang forever (state_watch_tx lives in
+    // Arc<Session>, so the watch channel is never closed even after the event
+    // loop task ends).  The select! below catches that case immediately.
+    let event_loop_handle = event_loop.spawn();
+
+    // Wait until the session is fully established, or bail out if the event
+    // loop exits before connecting (e.g. server unreachable on first attempt).
+    let connected = tokio::select! {
+        connected = session.wait_for_connection() => connected,
+        result = event_loop_handle => {
+            let sc = result.unwrap_or(opcua::types::StatusCode::BadUnexpectedError);
+            return Err(anyhow::anyhow!(
+                "OPC UA event loop exited before connecting: {}", sc
+            ));
         }
-        Ok::<_, anyhow::Error>(session)
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("spawn_blocking join error: {}", e))??;
+    };
+    if !connected {
+        return Err(anyhow::anyhow!("OPC UA session failed to connect"));
+    }
 
     info!(source = %source.name, "Connected to OPC UA server");
 
@@ -392,10 +413,6 @@ async fn run_source_once(
 
     // Register the server certificate in the DB (non-fatal if it fails).
     register_server_cert(source, db, config).await;
-
-    // Run the OPC UA session event loop on a dedicated OS thread.
-    let session_for_run = session.clone();
-    let _run_sender = Session::run_async(session_for_run);
 
     // --- Browse namespace ---
     let (node_map, analog_nodes, discrete_nodes) = browse_namespace(source, db, &session).await?;
@@ -444,11 +461,15 @@ async fn run_source_once(
                 n
             ),
             Ok(_) => {}
-            Err(e) => warn!(source = %source.name, error = %e, "Failed to reset interrupted recovery jobs (non-fatal)"),
+            Err(e) => {
+                warn!(source = %source.name, error = %e, "Failed to reset interrupted recovery jobs (non-fatal)")
+            }
         }
 
         // Step 2: Create a new job only if nothing is already queued.
-        let already_queued = db::has_pending_recovery_jobs(db, source.id).await.unwrap_or(false);
+        let already_queued = db::has_pending_recovery_jobs(db, source.id)
+            .await
+            .unwrap_or(false);
         if !already_queued {
             let point_ids: Vec<Uuid> = node_map.values().copied().collect();
             let recover_from = match db::get_last_history_timestamp(db, &point_ids).await {
@@ -489,7 +510,9 @@ async fn run_source_once(
                             gap_hours = (gap_secs / 3600.0) as u64,
                             "Startup history recovery job queued (will run in background)"
                         ),
-                        Err(e) => warn!(source = %source.name, error = %e, "Failed to queue startup history recovery job (non-fatal)"),
+                        Err(e) => {
+                            warn!(source = %source.name, error = %e, "Failed to queue startup history recovery job (non-fatal)")
+                        }
                     }
                 }
             }
@@ -518,7 +541,8 @@ async fn run_source_once(
     // --- Subscribe ---
     let (update_tx, update_rx) = mpsc::unbounded_channel::<PointUpdate>();
 
-    let good_items = create_subscriptions(source, &session, &node_map, &eu_ranges, update_tx, config)?;
+    let good_items =
+        create_subscriptions(source, &session, &node_map, &eu_ranges, update_tx, config).await?;
 
     // Record how many points are currently subscribed after subscription creation.
     metrics::gauge!("io_opc_points_subscribed").set(good_items as f64);
@@ -533,21 +557,21 @@ async fn run_source_once(
             .filter_map(|(nid, &uuid)| {
                 if nid.namespace == 1 {
                     if let opcua::types::Identifier::String(s) = &nid.identifier {
-                        let name = s.value().as_ref()?.trim_matches('"').to_string();
-                        Some((name, uuid))
-                    } else {
-                        None
+                        if let Some(raw) = s.value() {
+                            let name = raw.trim_matches('"').to_string();
+                            return Some((name, uuid));
+                        }
                     }
-                } else {
-                    None
                 }
+                None
             })
             .collect(),
     );
 
     // Store the handle so we can abort the drain task when this session ends,
     // preventing stale tasks from accumulating across reconnect cycles.
-    let event_task = create_event_subscription(source, db, &session, config, source_name_to_id).await;
+    let event_task =
+        create_event_subscription(source, db, &session, config, source_name_to_id).await;
 
     // If all monitored items returned BadServiceUnsupported (0 good items), fall back to
     // periodic polling via OPC UA Read instead of subscriptions.  This handles servers
@@ -589,28 +613,10 @@ async fn run_source_once(
     // Without this, "zombie" sessions accumulate on the server across restarts
     // until the server-side timeout expires, consuming server session/item
     // quota and causing BadServiceUnsupported on monitored item creation.
-    //
-    // IMPORTANT: opcua 0.12's Session::run_async spins up an internal Tokio
-    // runtime on an OS thread.  When that runtime is dropped it panics with
-    // "Cannot drop a runtime in a context where blocking is not allowed" if
-    // we are inside Tokio's blocking thread pool (spawn_blocking).  We avoid
-    // the panic by doing the disconnect + drop on a plain std::thread (not
-    // Tokio's pool) and then joining it from a spawn_blocking call so the
-    // async code still awaits completion without blocking the executor.
-    let session_clone = session.clone();
-    let source_name = source.name.clone();
-    let join_handle = std::thread::Builder::new()
-        .name("opc-disconnect".to_string())
-        .spawn(move || {
-            session_clone.write().disconnect();
-            tracing::info!(source = %source_name, "OPC UA session closed cleanly");
-            // session_clone is dropped here — on a plain OS thread, which is
-            // allowed to drop Tokio runtimes.
-        });
-    if let Ok(handle) = join_handle {
-        tokio::task::spawn_blocking(move || { let _ = handle.join(); })
-            .await
-            .ok();
+    if let Err(e) = session.disconnect().await {
+        tracing::warn!(source = %source.name, error = %e, "OPC UA disconnect returned error (non-fatal)");
+    } else {
+        tracing::info!(source = %source.name, "OPC UA session closed cleanly");
     }
 
     Ok(watchdog_triggered)
@@ -623,24 +629,33 @@ async fn run_source_once(
 /// Call an OPC UA A&C method (Acknowledge, Enable, Disable, TimedShelve, etc.)
 /// on a live session.
 ///
-/// The condition object NodeId is `ns=1;s="<condition_node_id>"`.
-/// The method NodeId is `ns=1;s="alarm-method:<method_name>"`.
+/// The condition object NodeId is built from `condition_node_id`, which is the
+/// string form of the condition instance node (e.g. `ns=2;s="alarm.PV001.HHigh"`).
 ///
-/// This function is **synchronous** and must be called from a blocking thread
-/// (e.g. inside `tokio::task::spawn_blocking`).
+/// The method NodeId construction here uses a synthetic `ns=1;s="alarm-method:X"`
+/// placeholder that matches SimBLAH's naming convention.
+///
+/// TODO: verify method NodeIds against SimBLAH's actual OPC UA nodeset once
+/// alarms are exercised end-to-end.  Standard OPC UA Part 9 method IDs are in
+/// ns=0 (e.g. Acknowledge=9111, Enable=9027, Disable=9028, TimedShelve=11093)
+/// but many servers require calling the method node on the condition instance
+/// rather than the type definition.
 ///
 /// Returns the OPC `StatusCode` from the method result; callers treat `Good` as
 /// success and any bad status as a protocol-level failure.
-pub fn call_alarm_method(
+pub async fn call_alarm_method(
     session: &Session,
     condition_node_id: &str,
     method_name: &str,
     args: Option<Vec<Variant>>,
 ) -> StatusCode {
     let obj_id = NodeId::new(1u16, UAString::from(condition_node_id));
-    let method_id = NodeId::new(1u16, UAString::from(format!("alarm-method:{}", method_name)));
+    let method_id = NodeId::new(
+        1u16,
+        UAString::from(format!("alarm-method:{}", method_name)),
+    );
 
-    match session.call((obj_id, method_id, args)) {
+    match session.call_one((obj_id, method_id, args)).await {
         Ok(result) => result.status_code,
         Err(sc) => sc,
     }
@@ -680,8 +695,12 @@ struct DiscreteNodeInfo {
 async fn browse_namespace(
     source: &PointSource,
     db: &DbPool,
-    session: &Arc<RwLock<Session>>,
-) -> anyhow::Result<(HashMap<NodeId, Uuid>, HashSet<NodeId>, Vec<DiscreteNodeInfo>)> {
+    session: &Arc<Session>,
+) -> anyhow::Result<(
+    HashMap<NodeId, Uuid>,
+    HashSet<NodeId>,
+    Vec<DiscreteNodeInfo>,
+)> {
     // OPC UA Objects folder node id = ns=0;i=85
     let root = NodeId::new(0u16, 85u32);
     let mut node_map: HashMap<NodeId, Uuid> = HashMap::new();
@@ -695,16 +714,7 @@ async fn browse_namespace(
         let batch: Vec<NodeId> = std::mem::take(&mut to_visit);
 
         for parent_id in batch {
-            // Browse synchronously on the blocking thread pool.
-            let session_clone = session.clone();
-            let parent_id_clone = parent_id.clone();
-
-            let children_result = tokio::task::spawn_blocking(move || {
-                let session_guard = session_clone.read();
-                browse_children(&session_guard, &parent_id_clone)
-            })
-            .await
-            .map_err(|e| anyhow::anyhow!("spawn_blocking error: {}", e))?;
+            let children_result = browse_children(session, &parent_id).await;
 
             match children_result {
                 Ok(children) => {
@@ -736,7 +746,8 @@ async fn browse_namespace(
                                 // everything else → Double (OPC numeric/float types).
                                 let data_type = match type_name {
                                     Some("TwoStateDiscreteType") => "Boolean",
-                                    Some("MultiStateDiscreteType") | Some("MultiStateValueDiscreteType") => "String",
+                                    Some("MultiStateDiscreteType")
+                                    | Some("MultiStateValueDiscreteType") => "String",
                                     _ => "Double",
                                 };
                                 // Use the OPC node identifier string as the tagname when
@@ -756,11 +767,7 @@ async fn browse_namespace(
                                     "type_name": type_name,
                                 });
                                 match db::upsert_point_from_source(
-                                    db,
-                                    source.id,
-                                    &tagname,
-                                    data_type,
-                                    metadata,
+                                    db, source.id, &tagname, data_type, metadata,
                                 )
                                 .await
                                 {
@@ -823,10 +830,10 @@ fn type_name_from_typedef(type_def: &Option<NodeId>) -> Option<&'static str> {
     }
     match nid.identifier {
         opcua::types::Identifier::Numeric(id) => match id {
-            n if n == type_defs::ANALOG_ITEM           => Some("AnalogItemType"),
-            n if n == type_defs::DATA_ITEM             => Some("DataItemType"),
-            n if n == type_defs::TWO_STATE_DISCRETE    => Some("TwoStateDiscreteType"),
-            n if n == type_defs::MULTI_STATE_DISCRETE  => Some("MultiStateDiscreteType"),
+            n if n == type_defs::ANALOG_ITEM => Some("AnalogItemType"),
+            n if n == type_defs::DATA_ITEM => Some("DataItemType"),
+            n if n == type_defs::TWO_STATE_DISCRETE => Some("TwoStateDiscreteType"),
+            n if n == type_defs::MULTI_STATE_DISCRETE => Some("MultiStateDiscreteType"),
             n if n == type_defs::MULTI_STATE_VALUE_DISCRETE => Some("MultiStateValueDiscreteType"),
             _ => None,
         },
@@ -834,12 +841,12 @@ fn type_name_from_typedef(type_def: &Option<NodeId>) -> Option<&'static str> {
     }
 }
 
-/// Synchronous browse of a single node's children (call while holding session read lock).
+/// (NodeId, display_name, NodeClass, optional TypeDefinition NodeId)
+type BrowseEntry = (NodeId, String, NodeClass, Option<NodeId>);
+
+/// Async browse of a single node's children.
 /// Returns (NodeId, display_name, NodeClass, optional TypeDefinition NodeId).
-fn browse_children(
-    session: &Session,
-    node_id: &NodeId,
-) -> Result<Vec<(NodeId, String, NodeClass, Option<NodeId>)>, String> {
+async fn browse_children(session: &Session, node_id: &NodeId) -> Result<Vec<BrowseEntry>, String> {
     let desc = BrowseDescription {
         node_id: node_id.clone(),
         browse_direction: BrowseDirection::Forward,
@@ -850,37 +857,45 @@ fn browse_children(
     };
 
     let results = session
-        .browse(&[desc])
+        .browse(&[desc], 0, None)
+        .await
         .map_err(|e| format!("browse error: {}", e))?;
 
     let mut children = Vec::new();
 
-    if let Some(result_list) = results {
-        for result in result_list {
-            if let Some(refs) = result.references {
-                for r in refs {
-                    let nid = r.node_id.node_id.clone();
-                    let nc = r.node_class;
-                    let name = r.display_name.text.value().as_ref()
-                        .and_then(|s| if s.is_empty() { None } else { Some(s.clone()) })
-                        .or_else(|| {
-                            r.browse_name.name.value().as_ref()
-                                .and_then(|s| if s.is_empty() { None } else { Some(s.clone()) })
+    for result in &results {
+        if let Some(refs) = &result.references {
+            for r in refs {
+                let nid = r.node_id.node_id.clone();
+                let nc = r.node_class;
+                let name = r
+                    .display_name
+                    .text
+                    .value()
+                    .as_ref()
+                    .and_then(|s| if s.is_empty() { None } else { Some(s.to_string()) })
+                    .or_else(|| {
+                        r.browse_name.name.value().as_ref().and_then(|s| {
+                            if s.is_empty() {
+                                None
+                            } else {
+                                Some(s.to_string())
+                            }
                         })
-                        .unwrap_or_else(|| nid.to_string());
-                    // TypeDefinition is available via HasTypeDefinition reference in browse results.
-                    // In opcua 0.12, ReferenceDescription.type_definition is an ExpandedNodeId.
-                    // Only include it when namespace == 0 (OPC UA standard types).
-                    let type_def = {
-                        let td = &r.type_definition;
-                        if td.server_index == 0 {
-                            Some(td.node_id.clone())
-                        } else {
-                            None
-                        }
-                    };
-                    children.push((nid, name, nc, type_def));
-                }
+                    })
+                    .unwrap_or_else(|| nid.to_string());
+                // TypeDefinition is available via HasTypeDefinition reference in browse results.
+                // In async-opcua, ReferenceDescription.type_definition is an ExpandedNodeId.
+                // Only include it when namespace == 0 (OPC UA standard types).
+                let type_def = {
+                    let td = &r.type_definition;
+                    if td.server_index == 0 {
+                        Some(td.node_id.clone())
+                    } else {
+                        None
+                    }
+                };
+                children.push((nid, name, nc, type_def));
             }
         }
     }
@@ -907,21 +922,10 @@ fn browse_children(
 async fn harvest_analog_metadata(
     source: &PointSource,
     db: &DbPool,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
     analog_nodes: &HashSet<NodeId>,
 ) -> HashMap<NodeId, (f64, f64)> {
-    // OPC UA well-known property BrowseNames and their relative path from the variable node.
-    // These are children of AnalogItemType nodes under the Properties reference type (ns=0;i=68).
-    //
-    // We batch-read using absolute NodeIds constructed as relative paths.
-    // Most OPC UA stacks expose these as:
-    //   <variable_node>/EURange      → ns=same;s=<tagname>.EURange  (Kepware style)
-    // or as children browseable via HierarchicalReferences.
-    //
-    // Strategy: for each node, browse its children for the property nodes,
-    // then batch-read their values.
-
     // Filter to only AnalogItemType/DataItemType nodes to avoid unnecessary load on large servers.
     // Fall back to all nodes when analog_nodes is empty (server didn't report TypeDefinitions).
     let node_ids: Vec<(NodeId, Uuid)> = if analog_nodes.is_empty() {
@@ -943,57 +947,36 @@ async fn harvest_analog_metadata(
     let mut eu_ranges: HashMap<NodeId, (f64, f64)> = HashMap::new();
 
     for chunk in node_ids.chunks(BATCH) {
-        let chunk: Vec<(NodeId, Uuid)> = chunk.to_vec();
-        let session_clone = session.clone();
+        for (node_id, point_id) in chunk {
+            let meta = read_analog_properties(session, node_id).await;
 
-        let results = tokio::task::spawn_blocking(move || {
-            let session_guard = session_clone.read();
-            chunk
-                .iter()
-                .map(|(node_id, point_id)| {
-                    let meta = read_analog_properties(&session_guard, node_id);
-                    (node_id.clone(), *point_id, meta)
-                })
-                .collect::<Vec<_>>()
-        })
-        .await;
-
-        match results {
-            Err(e) => {
-                warn!(source = %source.name, error = %e, "spawn_blocking error during analog metadata harvest");
-                continue;
+            // Capture EURange for subscription-time deadband filter if non-degenerate.
+            if let (Some(low), Some(high)) = (meta.eu_range_low, meta.eu_range_high) {
+                if (high - low).abs() > f64::EPSILON {
+                    eu_ranges.insert(node_id.clone(), (low, high));
+                }
             }
-            Ok(items) => {
-                for (node_id, point_id, meta) in items {
-                    // Capture EURange for subscription-time deadband filter if non-degenerate.
-                    if let (Some(low), Some(high)) = (meta.eu_range_low, meta.eu_range_high) {
-                        if (high - low).abs() > f64::EPSILON {
-                            eu_ranges.insert(node_id, (low, high));
-                        }
-                    }
 
-                    // Only write to DB if at least one field was populated.
-                    let has_data = meta.description.is_some()
-                        || meta.engineering_units.is_some()
-                        || meta.eu_range_low.is_some()
-                        || meta.eu_range_high.is_some()
-                        || meta.alarm_limit_hh.is_some()
-                        || meta.alarm_limit_h.is_some()
-                        || meta.alarm_limit_l.is_some()
-                        || meta.alarm_limit_ll.is_some();
+            // Only write to DB if at least one field was populated.
+            let has_data = meta.description.is_some()
+                || meta.engineering_units.is_some()
+                || meta.eu_range_low.is_some()
+                || meta.eu_range_high.is_some()
+                || meta.alarm_limit_hh.is_some()
+                || meta.alarm_limit_h.is_some()
+                || meta.alarm_limit_l.is_some()
+                || meta.alarm_limit_ll.is_some();
 
-                    if has_data {
-                        if let Err(e) = db::update_point_analog_metadata(db, point_id, &meta).await {
-                            warn!(
-                                source = %source.name,
-                                point_id = %point_id,
-                                error = %e,
-                                "Failed to write analog metadata"
-                            );
-                        } else {
-                            harvested += 1;
-                        }
-                    }
+            if has_data {
+                if let Err(e) = db::update_point_analog_metadata(db, *point_id, &meta).await {
+                    warn!(
+                        source = %source.name,
+                        point_id = %point_id,
+                        error = %e,
+                        "Failed to write analog metadata"
+                    );
+                } else {
+                    harvested += 1;
                 }
             }
         }
@@ -1016,7 +999,7 @@ async fn harvest_analog_metadata(
 async fn harvest_discrete_metadata(
     source: &PointSource,
     db: &DbPool,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     discrete_nodes: &[DiscreteNodeInfo],
 ) {
     if discrete_nodes.is_empty() {
@@ -1027,43 +1010,20 @@ async fn harvest_discrete_metadata(
     let mut harvested = 0usize;
 
     for chunk in discrete_nodes.chunks(BATCH) {
-        let chunk_data: Vec<(Uuid, String, &'static str)> = chunk
-            .iter()
-            .map(|n| (n.point_id, n.tagname.clone(), n.type_name))
-            .collect();
-        let session_clone = session.clone();
-
-        let results = tokio::task::spawn_blocking(move || {
-            let session_guard = session_clone.read();
-            chunk_data
-                .iter()
-                .map(|(point_id, tagname, type_name)| {
-                    let extra = read_discrete_properties_simblah(&session_guard, tagname, type_name);
-                    (*point_id, extra)
-                })
-                .collect::<Vec<_>>()
-        })
-        .await;
-
-        match results {
-            Err(e) => {
-                warn!(source = %source.name, error = %e, "spawn_blocking error during discrete metadata harvest");
-                continue;
-            }
-            Ok(items) => {
-                for (point_id, extra) in items {
-                    if let Some(json) = extra {
-                        if let Err(e) = db::merge_point_source_raw(db, point_id, json).await {
-                            warn!(
-                                source = %source.name,
-                                %point_id,
-                                error = %e,
-                                "Failed to merge discrete metadata into source_raw"
-                            );
-                        } else {
-                            harvested += 1;
-                        }
-                    }
+        for node_info in chunk {
+            let extra =
+                read_discrete_properties_simblah(session, &node_info.tagname, node_info.type_name)
+                    .await;
+            if let Some(json) = extra {
+                if let Err(e) = db::merge_point_source_raw(db, node_info.point_id, json).await {
+                    warn!(
+                        source = %source.name,
+                        point_id = %node_info.point_id,
+                        error = %e,
+                        "Failed to merge discrete metadata into source_raw"
+                    );
+                } else {
+                    harvested += 1;
                 }
             }
         }
@@ -1080,7 +1040,7 @@ async fn harvest_discrete_metadata(
 
 /// Read discrete-type OPC UA properties for a single SimBLAH variable node.
 /// Returns a JSON object suitable for merging into source_raw, or None if nothing was found.
-fn read_discrete_properties_simblah(
+async fn read_discrete_properties_simblah(
     session: &Session,
     point_name: &str,
     type_name: &str,
@@ -1096,11 +1056,14 @@ fn read_discrete_properties_simblah(
                     identifier: Identifier::String(UAString::from(key)),
                 },
                 attribute_id: AttributeId::Value as u32,
-                index_range: UAString::null(),
+                index_range: NumericRange::None,
                 data_encoding: QualifiedName::null(),
             }];
 
-            let data_values = session.read(&read_nodes, TimestampsToReturn::Neither, 0.0).ok()?;
+            let data_values = session
+                .read(&read_nodes, TimestampsToReturn::Neither, 0.0)
+                .await
+                .ok()?;
             let dv = data_values.first()?;
             let variant = dv.value.as_ref()?;
 
@@ -1111,7 +1074,7 @@ fn read_discrete_properties_simblah(
                     .iter()
                     .filter_map(|v| {
                         if let Variant::LocalizedText(lt) = v {
-                            lt.text.value().clone()
+                            lt.text.value().as_ref().map(|s| s.to_string())
                         } else {
                             None
                         }
@@ -1127,7 +1090,7 @@ fn read_discrete_properties_simblah(
         }
         "TwoStateDiscreteType" => {
             let props: &[(&str, &str)] = &[
-                ("prop:TrueState",  "true_state"),
+                ("prop:TrueState", "true_state"),
                 ("prop:FalseState", "false_state"),
             ];
             let read_nodes: Vec<ReadValueId> = props
@@ -1140,20 +1103,23 @@ fn read_discrete_properties_simblah(
                             identifier: Identifier::String(UAString::from(key)),
                         },
                         attribute_id: AttributeId::Value as u32,
-                        index_range: UAString::null(),
+                        index_range: NumericRange::None,
                         data_encoding: QualifiedName::null(),
                     }
                 })
                 .collect();
 
-            let data_values = session.read(&read_nodes, TimestampsToReturn::Neither, 0.0).ok()?;
+            let data_values = session
+                .read(&read_nodes, TimestampsToReturn::Neither, 0.0)
+                .await
+                .ok()?;
 
             let mut obj = serde_json::Map::new();
             for ((_, json_key), dv) in props.iter().zip(data_values.iter()) {
                 if let Some(ref v) = dv.value {
                     let text = match v {
-                        Variant::LocalizedText(lt) => lt.text.value().clone(),
-                        Variant::String(s) => s.value().clone(),
+                        Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
+                        Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
                         _ => None,
                     };
                     if let Some(t) = text {
@@ -1179,14 +1145,16 @@ fn read_discrete_properties_simblah(
 ///
 /// Slow path (generic servers): Browse HasProperty children, then batch-read their values.
 /// All failures are silently ignored (returns empty AnalogMetadata).
-fn read_analog_properties(session: &Session, node_id: &NodeId) -> AnalogMetadata {
+async fn read_analog_properties(session: &Session, node_id: &NodeId) -> AnalogMetadata {
     // Fast path — SimBLAH publishes properties at known NodeIds under ns=1 string identifiers.
     if node_id.namespace == 1 {
         if let opcua::types::Identifier::String(ref s) = node_id.identifier {
             if let Some(point_name) = s.value() {
                 // Reject anything that already looks like a property or folder prefix.
                 if !point_name.starts_with("prop:") && !point_name.starts_with("folder:") {
-                    if let Some(meta) = read_analog_properties_simblah(session, point_name) {
+                    if let Some(meta) =
+                        read_analog_properties_simblah(session, &point_name).await
+                    {
                         return meta;
                     }
                 }
@@ -1194,20 +1162,23 @@ fn read_analog_properties(session: &Session, node_id: &NodeId) -> AnalogMetadata
         }
     }
 
-    read_analog_properties_generic(session, node_id)
+    read_analog_properties_generic(session, node_id).await
 }
 
 /// SimBLAH-specific fast path: construct property NodeIds directly and batch-read.
 /// Returns None if the batch read itself fails (caller falls back to generic path).
-fn read_analog_properties_simblah(session: &Session, point_name: &str) -> Option<AnalogMetadata> {
+async fn read_analog_properties_simblah(
+    session: &Session,
+    point_name: &str,
+) -> Option<AnalogMetadata> {
     use opcua::types::Identifier;
 
     let prop_names: &[(&str, &str)] = &[
-        ("prop:EURange",          "EURange"),
-        ("prop:EU",               "EngineeringUnits"),
-        ("prop:TrueState",        "TrueState"),
-        ("prop:FalseState",       "FalseState"),
-        ("prop:EnumStrings",      "EnumStrings"),
+        ("prop:EURange", "EURange"),
+        ("prop:EU", "EngineeringUnits"),
+        ("prop:TrueState", "TrueState"),
+        ("prop:FalseState", "FalseState"),
+        ("prop:EnumStrings", "EnumStrings"),
     ];
 
     let read_nodes: Vec<ReadValueId> = prop_names
@@ -1220,7 +1191,7 @@ fn read_analog_properties_simblah(session: &Session, point_name: &str) -> Option
                     identifier: Identifier::String(UAString::from(key)),
                 },
                 attribute_id: AttributeId::Value as u32,
-                index_range: UAString::null(),
+                index_range: NumericRange::None,
                 data_encoding: QualifiedName::null(),
             }
         })
@@ -1228,11 +1199,14 @@ fn read_analog_properties_simblah(session: &Session, point_name: &str) -> Option
 
     let data_values = session
         .read(&read_nodes, TimestampsToReturn::Neither, 0.0)
+        .await
         .ok()?;
 
     let mut meta = AnalogMetadata::default();
     for ((_, prop_name), dv) in prop_names.iter().zip(data_values.iter()) {
-        let Some(ref variant) = dv.value else { continue };
+        let Some(ref variant) = dv.value else {
+            continue;
+        };
         match *prop_name {
             "EngineeringUnits" => {
                 meta.engineering_units = extract_eu_display_name(variant);
@@ -1252,7 +1226,7 @@ fn read_analog_properties_simblah(session: &Session, point_name: &str) -> Option
 }
 
 /// Generic OPC UA property harvest: Browse HasProperty children, then batch-read their values.
-fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> AnalogMetadata {
+async fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> AnalogMetadata {
     let mut meta = AnalogMetadata::default();
 
     // Browse the node's properties (PropertyType reference = ns=0;i=68).
@@ -1265,8 +1239,9 @@ fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> Analog
         result_mask: 63,
     };
 
-    let Ok(Some(results)) = session.browse(&[desc]) else {
-        return meta;
+    let results = match session.browse(&[desc], 0, None).await {
+        Ok(r) => r,
+        Err(_) => return meta,
     };
 
     // Collect property node ids keyed by BrowseName.
@@ -1275,7 +1250,7 @@ fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> Analog
         if let Some(refs) = &result.references {
             for r in refs {
                 if let Some(name) = r.browse_name.name.value() {
-                    prop_nodes.insert(name.clone(), r.node_id.node_id.clone());
+                    prop_nodes.insert(name.to_string(), r.node_id.node_id.clone());
                 }
             }
         }
@@ -1308,7 +1283,7 @@ fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> Analog
                     ReadValueId {
                         node_id: nid.clone(),
                         attribute_id: AttributeId::Value as u32,
-                        index_range: UAString::null(),
+                        index_range: NumericRange::None,
                         data_encoding: QualifiedName::null(),
                     },
                     *name,
@@ -1321,7 +1296,10 @@ fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> Analog
         return meta;
     }
 
-    let data_values = match session.read(&read_nodes, TimestampsToReturn::Neither, 0.0) {
+    let data_values = match session
+        .read(&read_nodes, TimestampsToReturn::Neither, 0.0)
+        .await
+    {
         Ok(dvs) => dvs,
         Err(_) => return meta,
     };
@@ -1334,7 +1312,7 @@ fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> Analog
                 "Definition" => {
                     if let Variant::String(s) = variant {
                         if let Some(text) = s.value() {
-                            meta.description = Some(text.clone());
+                            meta.description = Some(text.to_string());
                         }
                     }
                 }
@@ -1350,9 +1328,9 @@ fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> Analog
                     }
                 }
                 "HighHighLimit" => meta.alarm_limit_hh = variant_to_f64(variant),
-                "HighLimit"     => meta.alarm_limit_h  = variant_to_f64(variant),
-                "LowLimit"      => meta.alarm_limit_l  = variant_to_f64(variant),
-                "LowLowLimit"   => meta.alarm_limit_ll = variant_to_f64(variant),
+                "HighLimit" => meta.alarm_limit_h = variant_to_f64(variant),
+                "LowLimit" => meta.alarm_limit_l = variant_to_f64(variant),
+                "LowLowLimit" => meta.alarm_limit_ll = variant_to_f64(variant),
                 _ => {}
             }
         }
@@ -1366,88 +1344,16 @@ fn read_analog_properties_generic(session: &Session, node_id: &NodeId) -> Analog
 ///   { namespaceUri: String, unitId: Int32, displayName: LocalizedText, description: LocalizedText }
 fn extract_eu_display_name(variant: &Variant) -> Option<String> {
     match variant {
-        Variant::ExtensionObject(ext) => {
-            decode_eu_display_name(ext)
-        }
-        Variant::String(s) => s.value().as_ref().map(|s| s.clone()),
+        Variant::ExtensionObject(ext) => decode_eu_display_name(ext),
+        Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
         _ => None,
     }
 }
 
-/// Manual binary decode of OPC UA EUInformation body.
-///
-/// Wire layout:
-///   OPC UA String  namespace_uri  (i32 len LE, then bytes; -1 = null)
-///   i32            unit_id        (4 bytes LE)
-///   LocalizedText  display_name   (1-byte mask; bit0 → locale string; bit1 → text string)
-///   LocalizedText  description    (same)
-///
-/// We return display_name.text.
-fn decode_eu_display_name(ext: &opcua::types::ExtensionObject) -> Option<String> {
-    use opcua::types::ExtensionObjectEncoding;
-    use std::io::Read;
-
-    let bytes = match &ext.body {
-        ExtensionObjectEncoding::ByteString(bs) => bs.value.as_ref()?,
-        _ => return None,
-    };
-
-    let mut cur = std::io::Cursor::new(bytes.as_slice());
-
-    // Skip namespace_uri string.
-    read_opc_string(&mut cur)?;
-
-    // Skip unit_id (4 bytes LE i32).
-    {
-        let mut buf = [0u8; 4];
-        cur.read_exact(&mut buf).ok()?;
-    }
-
-    // Read display_name LocalizedText.
-    // mask: 1 byte; bit0 = has locale, bit1 = has text
-    let display_text = read_opc_localized_text(&mut cur)?;
-
-    display_text
-}
-
-/// Read an OPC UA String from the cursor: i32 length LE (-1 = null), then bytes.
-/// Returns None only on I/O error; null string returns Some(None) — but here we return
-/// Option<String> where None means either null or I/O error (both treated same way for
-/// our purposes of just skipping or extracting the string).
-fn read_opc_string(cur: &mut std::io::Cursor<&[u8]>) -> Option<Option<String>> {
-    use std::io::Read;
-    let mut len_buf = [0u8; 4];
-    cur.read_exact(&mut len_buf).ok()?;
-    let len = i32::from_le_bytes(len_buf);
-    if len < 0 {
-        // Null string
-        return Some(None);
-    }
-    let len = len as usize;
-    let mut bytes = vec![0u8; len];
-    cur.read_exact(&mut bytes).ok()?;
-    Some(Some(String::from_utf8(bytes).unwrap_or_default()))
-}
-
-/// Read an OPC UA LocalizedText and return the text field (or None if absent).
-fn read_opc_localized_text(cur: &mut std::io::Cursor<&[u8]>) -> Option<Option<String>> {
-    use std::io::Read;
-    let mut mask_buf = [0u8; 1];
-    cur.read_exact(&mut mask_buf).ok()?;
-    let mask = mask_buf[0];
-
-    // bit0: locale string present
-    if mask & 0x01 != 0 {
-        read_opc_string(cur)?; // skip locale
-    }
-
-    // bit1: text string present
-    if mask & 0x02 != 0 {
-        let text = read_opc_string(cur)?;
-        Some(text)
-    } else {
-        Some(None)
-    }
+/// Decode EUInformation from an ExtensionObject using async-opcua's inner_as method.
+fn decode_eu_display_name(ext: &ExtensionObject) -> Option<String> {
+    ext.inner_as::<opcua::types::EUInformation>()
+        .and_then(|eu| eu.display_name.text.value().as_ref().map(|s| s.to_string()))
 }
 
 /// Extract (low, high) from an OPC UA Range ExtensionObject variant.
@@ -1459,33 +1365,13 @@ fn extract_eu_range(variant: &Variant) -> Option<(f64, f64)> {
     }
 }
 
-/// Manual binary decode of OPC UA Range body: two f64 LE values (low, high).
-fn decode_eu_range(ext: &opcua::types::ExtensionObject) -> Option<(f64, f64)> {
-    use opcua::types::ExtensionObjectEncoding;
-    use std::io::Read;
-
-    let bytes = match &ext.body {
-        ExtensionObjectEncoding::ByteString(bs) => bs.value.as_ref()?,
-        _ => return None,
-    };
-
-    if bytes.len() < 16 {
-        return None;
-    }
-
-    let mut cur = std::io::Cursor::new(bytes.as_slice());
-    let mut buf = [0u8; 8];
-
-    cur.read_exact(&mut buf).ok()?;
-    let low = f64::from_le_bytes(buf);
-
-    cur.read_exact(&mut buf).ok()?;
-    let high = f64::from_le_bytes(buf);
-
+/// Decode Range from an ExtensionObject using async-opcua's inner_as method.
+fn decode_eu_range(ext: &ExtensionObject) -> Option<(f64, f64)> {
+    let range = ext.inner_as::<opcua::types::Range>()?;
+    let (low, high) = (range.low, range.high);
     if low.is_nan() || low.is_infinite() || high.is_nan() || high.is_infinite() {
         return None;
     }
-
     Some((low, high))
 }
 
@@ -1499,18 +1385,15 @@ fn decode_eu_range(ext: &opcua::types::ExtensionObject) -> Option<(f64, f64)> {
 /// `eu_ranges` — map of NodeId → (low, high) EU range for analog nodes with valid EURange,
 /// produced by `harvest_analog_metadata`. Nodes present in this map get a PercentDeadband 1%
 /// DataChangeFilter; all other nodes get AbsoluteDeadband 0 (report any change).
-fn create_subscriptions(
+async fn create_subscriptions(
     source: &PointSource,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
     eu_ranges: &HashMap<NodeId, (f64, f64)>,
     update_tx: mpsc::UnboundedSender<PointUpdate>,
     config: &Arc<Config>,
 ) -> anyhow::Result<usize> {
-    let node_ids: Vec<(NodeId, Uuid)> = node_map
-        .iter()
-        .map(|(n, p)| (n.clone(), *p))
-        .collect();
+    let node_ids: Vec<(NodeId, Uuid)> = node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
 
     let publishing_ms = config.publishing_interval_ms;
     let mut total_good: usize = 0;
@@ -1522,37 +1405,32 @@ fn create_subscriptions(
         // Capture node_id → point_id map for the callback.
         let id_map: HashMap<NodeId, Uuid> = chunk.iter().cloned().collect();
 
-        let callback = DataChangeCallback::new(move |changed_items| {
+        // Per-item DataChange callback (async-opcua calls this once per changed item).
+        let callback = DataChangeCallback::new(move |dv: DataValue, item: &MonitoredItem| {
             let now = Utc::now();
-            for item in changed_items {
-                let node_id = &item.item_to_monitor().node_id;
-                let point_id = match id_map.get(node_id) {
-                    Some(id) => *id,
-                    None => continue,
-                };
+            let node_id = &item.item_to_monitor().node_id;
+            let point_id = match id_map.get(node_id) {
+                Some(id) => *id,
+                None => return,
+            };
 
-                let dv = item.last_value();
-                let (value, quality) = extract_value(dv);
+            let (value, quality) = extract_value(&dv);
 
-                let timestamp = dv
-                    .source_timestamp
-                    .as_ref()
-                    .map(|dt| dt.as_chrono())
-                    .or_else(|| dv.server_timestamp.as_ref().map(|dt| dt.as_chrono()))
-                    .unwrap_or(now);
+            let timestamp = dv
+                .source_timestamp
+                .as_ref()
+                .map(|dt| dt.as_chrono())
+                .or_else(|| dv.server_timestamp.as_ref().map(|dt| dt.as_chrono()))
+                .unwrap_or(now);
 
-                let update = PointUpdate {
-                    point_id,
-                    value,
-                    quality: quality.as_str().to_string(),
-                    timestamp,
-                };
+            let update = PointUpdate {
+                point_id,
+                value,
+                quality: quality.as_str().to_string(),
+                timestamp,
+            };
 
-                if tx.send(update).is_err() {
-                    // Receiver dropped — driver is shutting down.
-                    break;
-                }
-            }
+            let _ = tx.send(update);
         });
 
         // Build per-node DataChangeFilter.
@@ -1565,10 +1443,7 @@ fn create_subscriptions(
                 deadband_type: DeadbandType::Percent as u32,
                 deadband_value: 1.0,
             };
-            ExtensionObject::from_encodable(
-                NodeId::from(&ObjectId::DataChangeFilter_Encoding_DefaultBinary),
-                &dcf,
-            )
+            ExtensionObject::from_message(dcf)
         };
         let make_absolute_filter = || -> ExtensionObject {
             let dcf = DataChangeFilter {
@@ -1576,10 +1451,7 @@ fn create_subscriptions(
                 deadband_type: DeadbandType::None as u32,
                 deadband_value: 0.0,
             };
-            ExtensionObject::from_encodable(
-                NodeId::from(&ObjectId::DataChangeFilter_Encoding_DefaultBinary),
-                &dcf,
-            )
+            ExtensionObject::from_message(dcf)
         };
 
         let monitored_items: Vec<MonitoredItemCreateRequest> = chunk
@@ -1594,7 +1466,7 @@ fn create_subscriptions(
                     item_to_monitor: ReadValueId {
                         node_id: node_id.clone(),
                         attribute_id: AttributeId::Value as u32,
-                        index_range: UAString::null(),
+                        index_range: NumericRange::None,
                         data_encoding: QualifiedName::null(),
                     },
                     monitoring_mode: MonitoringMode::Reporting,
@@ -1609,22 +1481,22 @@ fn create_subscriptions(
             })
             .collect();
 
-        let session_guard = session.write();
-
-        let sub_id = session_guard
+        let sub_id = session
             .create_subscription(
-                publishing_ms as f64,
+                Duration::from_millis(publishing_ms),
                 10,
                 10,
                 1000,
-                0,
+                0u8,
                 true,
                 callback,
             )
+            .await
             .map_err(|sc| anyhow::anyhow!("create_subscription failed: {}", sc))?;
 
-        let mut item_results = session_guard
-            .create_monitored_items(sub_id, TimestampsToReturn::Both, &monitored_items)
+        let mut item_results = session
+            .create_monitored_items(sub_id, TimestampsToReturn::Both, monitored_items)
+            .await
             .map_err(|sc| anyhow::anyhow!("create_monitored_items failed: {}", sc))?;
 
         // Fallback: if any item returned BadDeadbandFilterInvalid, the server does not support
@@ -1633,7 +1505,7 @@ fn create_subscriptions(
         let fallback_indices: Vec<usize> = item_results
             .iter()
             .enumerate()
-            .filter(|(_, r)| r.status_code == StatusCode::BadDeadbandFilterInvalid)
+            .filter(|(_, r)| r.result.status_code == StatusCode::BadDeadbandFilterInvalid)
             .map(|(i, _)| i)
             .collect();
 
@@ -1651,7 +1523,7 @@ fn create_subscriptions(
                         item_to_monitor: ReadValueId {
                             node_id: node_id.clone(),
                             attribute_id: AttributeId::Value as u32,
-                            index_range: UAString::null(),
+                            index_range: NumericRange::None,
                             data_encoding: QualifiedName::null(),
                         },
                         monitoring_mode: MonitoringMode::Reporting,
@@ -1666,11 +1538,14 @@ fn create_subscriptions(
                 })
                 .collect();
 
-            if let Ok(fallback_results) =
-                session_guard.create_monitored_items(sub_id, TimestampsToReturn::Both, &fallback_items)
+            if let Ok(fallback_results) = session
+                .create_monitored_items(sub_id, TimestampsToReturn::Both, fallback_items)
+                .await
             {
                 // Patch the original results with the fallback outcomes.
-                for (&orig_idx, fallback_result) in fallback_indices.iter().zip(fallback_results.iter()) {
+                for (&orig_idx, fallback_result) in
+                    fallback_indices.iter().zip(fallback_results.iter())
+                {
                     item_results[orig_idx] = fallback_result.clone();
                 }
             }
@@ -1680,21 +1555,24 @@ fn create_subscriptions(
         let bad_items: Vec<String> = item_results
             .iter()
             .enumerate()
-            .filter(|(_, r)| !r.status_code.is_good())
+            .filter(|(_, r)| !r.result.status_code.is_good())
             .take(10)
-            .map(|(i, r)| format!("[{}]={}", i, r.status_code))
+            .map(|(i, r)| format!("[{}]={}", i, r.result.status_code))
             .collect();
         if !bad_items.is_empty() {
             warn!(
                 source = %source.name,
                 chunk = chunk_idx,
-                bad_count = item_results.iter().filter(|r| !r.status_code.is_good()).count(),
+                bad_count = item_results.iter().filter(|r| !r.result.status_code.is_good()).count(),
                 first_bad = %bad_items.join(", "),
                 "Some monitored items returned non-Good status codes"
             );
         }
 
-        let chunk_good = item_results.iter().filter(|r| r.status_code.is_good()).count();
+        let chunk_good = item_results
+            .iter()
+            .filter(|r| r.result.status_code.is_good())
+            .count();
         total_good += chunk_good;
 
         info!(
@@ -1721,7 +1599,7 @@ fn create_subscriptions(
 async fn create_event_subscription(
     source: &PointSource,
     db: &DbPool,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     config: &Arc<Config>,
     // Maps point name strings (SourceName from OPC events) → point UUIDs.
     // Built from node_map: ns=1 string NodeId → strip quotes → point name.
@@ -1731,41 +1609,36 @@ async fn create_event_subscription(
     let server_node_id = NodeId::new(0u16, 2253u32);
 
     let event_notifier_result = {
-        let session_clone = session.clone();
-        let nid = server_node_id.clone();
-        tokio::task::spawn_blocking(move || {
-            let guard = session_clone.read();
-            let read_req = ReadValueId {
-                node_id: nid,
-                attribute_id: 12, // EventNotifier
-                index_range: UAString::null(),
-                data_encoding: QualifiedName::null(),
-            };
-            guard.read(&[read_req], TimestampsToReturn::Neither, 0.0)
-        })
-        .await
+        let read_req = ReadValueId {
+            node_id: server_node_id.clone(),
+            attribute_id: 12, // EventNotifier
+            index_range: NumericRange::None,
+            data_encoding: QualifiedName::null(),
+        };
+        session
+            .read(&[read_req], TimestampsToReturn::Neither, 0.0)
+            .await
     };
 
     let subscribable = match event_notifier_result {
-        Ok(Ok(dvs)) => {
-            dvs.first()
-                .and_then(|dv| dv.value.as_ref())
-                .and_then(|v| {
-                    if let Variant::Byte(b) = v { Some(*b) } else { None }
-                })
-                .map(|b| b & 0x01 != 0)
-                .unwrap_or(false)
-        }
-        Ok(Err(sc)) => {
+        Ok(dvs) => dvs
+            .first()
+            .and_then(|dv| dv.value.as_ref())
+            .and_then(|v| {
+                if let Variant::Byte(b) = v {
+                    Some(*b)
+                } else {
+                    None
+                }
+            })
+            .map(|b| b & 0x01 != 0)
+            .unwrap_or(false),
+        Err(sc) => {
             info!(
                 source = %source.name,
                 status = %sc,
                 "EventNotifier read returned status code; skipping event subscription"
             );
-            return None;
-        }
-        Err(e) => {
-            warn!(source = %source.name, error = %e, "spawn_blocking error checking EventNotifier");
             return None;
         }
     };
@@ -1778,258 +1651,243 @@ async fn create_event_subscription(
         return None;
     }
 
-    // Step 2 & 3: Build EventFilter and create the subscription on the blocking thread.
-    // We use an mpsc channel to bridge the synchronous opcua callback to async DB writes.
+    // Step 2 & 3: Build EventFilter and create the subscription.
+    // We use an mpsc channel to bridge the OPC UA callback to async DB writes.
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<db::OpcEvent>();
 
     let source_id = source.id;
     let source_name_for_log = source.name.clone();
-    let publishing_ms = config.publishing_interval_ms as f64;
+    let publishing_ms = config.publishing_interval_ms;
 
-    let session_clone = session.clone();
-    let sub_result = tokio::task::spawn_blocking(move || -> anyhow::Result<u32> {
-        use opcua::types::{
-            ContentFilter, EventFilter, ExtensionObject, ObjectId, SimpleAttributeOperand,
+    // Build select clauses — one SimpleAttributeOperand per event field.
+    // type_definition_id = BaseEventType (ns=0;i=2041) for all fields.
+    let base_event_type = NodeId::new(0u16, 2041u32);
+
+    struct FieldDef {
+        name: &'static str,
+        attr_id: u32,
+    }
+
+    let fields: &[FieldDef] = &[
+        FieldDef { name: "EventId",                  attr_id: 13 },
+        FieldDef { name: "EventType",                attr_id: 13 },
+        FieldDef { name: "SourceName",               attr_id: 13 },
+        FieldDef { name: "Time",                     attr_id: 13 },
+        FieldDef { name: "Severity",                 attr_id: 13 },
+        FieldDef { name: "Message",                  attr_id: 13 },
+        FieldDef { name: "ConditionName",            attr_id: 13 },
+        FieldDef { name: "AckedState/Id",            attr_id: 13 },
+        FieldDef { name: "ActiveState/Id",           attr_id: 13 },
+        FieldDef { name: "Retain",                   attr_id: 13 },
+        // ExclusiveLimitAlarmType fields (SimBLAH A&C spec):
+        FieldDef { name: "LimitState/CurrentState",  attr_id: 13 }, // 10
+        FieldDef { name: "SuppressedOrShelved",      attr_id: 13 }, // 11
+        FieldDef { name: "HighHighLimit",            attr_id: 13 }, // 12
+        FieldDef { name: "HighLimit",                attr_id: 13 }, // 13
+        FieldDef { name: "LowLimit",                 attr_id: 13 }, // 14
+        FieldDef { name: "LowLowLimit",              attr_id: 13 }, // 15
+    ];
+
+    use opcua::types::{ContentFilter, EventFilter, SimpleAttributeOperand};
+
+    let select_clauses: Vec<SimpleAttributeOperand> = fields
+        .iter()
+        .map(|f| {
+            // browse_path: single element with the field name (ns=0).
+            let parts: Vec<QualifiedName> = f
+                .name
+                .split('/')
+                .map(|p| QualifiedName::new(0, p))
+                .collect();
+            SimpleAttributeOperand {
+                type_definition_id: base_event_type.clone(),
+                browse_path: Some(parts),
+                attribute_id: f.attr_id,
+                index_range: NumericRange::None,
+            }
+        })
+        .collect();
+
+    let event_filter = EventFilter {
+        select_clauses: Some(select_clauses),
+        where_clause: ContentFilter { elements: None },
+    };
+
+    // Encode the EventFilter into an ExtensionObject for MonitoringParameters.filter.
+    let filter_ext = ExtensionObject::from_message(event_filter);
+
+    // Build the callback: extract fields and send to the async channel.
+    // The new async-opcua EventCallback is per-event: called with Option<Vec<Variant>>
+    // containing the fields in the same order as the select_clauses above.
+    let tx = event_tx.clone();
+    let src_name_cb = source_name_for_log.clone();
+    let callback = EventCallback::new(move |event_fields: Option<Vec<Variant>>, _item: &MonitoredItem| {
+        let fields_vec = match event_fields {
+            Some(f) => f,
+            None => return,
         };
 
-        // Build select clauses — one SimpleAttributeOperand per event field.
-        // type_definition_id = BaseEventType (ns=0;i=2041) for all fields.
-        let base_event_type = NodeId::new(0u16, 2041u32);
+        // Field order matches select_clauses above:
+        // 0=EventId, 1=EventType, 2=SourceName, 3=Time, 4=Severity,
+        // 5=Message, 6=ConditionName, 7=AckedState/Id, 8=ActiveState/Id, 9=Retain,
+        // 10=LimitState/CurrentState, 11=SuppressedOrShelved,
+        // 12=HighHighLimit, 13=HighLimit, 14=LowLimit, 15=LowLowLimit
 
-        struct FieldDef {
-            name: &'static str,
-            attr_id: u32,
-        }
+        let get = |i: usize| fields_vec.get(i);
 
-        let fields: &[FieldDef] = &[
-            FieldDef { name: "EventId",                   attr_id: 13 }, // Value attribute
-            FieldDef { name: "EventType",                 attr_id: 13 },
-            FieldDef { name: "SourceName",                attr_id: 13 },
-            FieldDef { name: "Time",                      attr_id: 13 },
-            FieldDef { name: "Severity",                  attr_id: 13 },
-            FieldDef { name: "Message",                   attr_id: 13 },
-            FieldDef { name: "ConditionName",             attr_id: 13 },
-            FieldDef { name: "AckedState/Id",             attr_id: 13 },
-            FieldDef { name: "ActiveState/Id",            attr_id: 13 },
-            FieldDef { name: "Retain",                    attr_id: 13 },
-            // ExclusiveLimitAlarmType fields (SimBLAH A&C spec):
-            FieldDef { name: "LimitState/CurrentState",   attr_id: 13 }, // 10
-            FieldDef { name: "SuppressedOrShelved",       attr_id: 13 }, // 11
-            FieldDef { name: "HighHighLimit",             attr_id: 13 }, // 12
-            FieldDef { name: "HighLimit",                 attr_id: 13 }, // 13
-            FieldDef { name: "LowLimit",                  attr_id: 13 }, // 14
-            FieldDef { name: "LowLowLimit",               attr_id: 13 }, // 15
-        ];
-
-        let select_clauses: Vec<SimpleAttributeOperand> = fields
-            .iter()
-            .map(|f| {
-                // browse_path: single element with the field name (ns=0).
-                let parts: Vec<QualifiedName> = f
-                    .name
-                    .split('/')
-                    .map(|p| QualifiedName::new(0, p))
-                    .collect();
-                SimpleAttributeOperand {
-                    type_definition_id: base_event_type.clone(),
-                    browse_path: Some(parts),
-                    attribute_id: f.attr_id,
-                    index_range: UAString::null(),
-                }
-            })
-            .collect();
-
-        let event_filter = EventFilter {
-            select_clauses: Some(select_clauses),
-            where_clause: ContentFilter { elements: None },
-        };
-
-        // Encode the EventFilter into an ExtensionObject for MonitoringParameters.filter.
-        let filter_ext = ExtensionObject::from_encodable(
-            NodeId::from(&ObjectId::EventFilter_Encoding_DefaultBinary),
-            &event_filter,
-        );
-
-        // Build the callback: extract fields and send to the async channel.
-        let tx = event_tx.clone();
-        let callback = EventCallback::new(move |notif| {
-            let events = match &notif.events {
-                Some(e) => e,
-                None => return,
-            };
-            for efl in events {
-                let fields_vec = match &efl.event_fields {
-                    Some(f) => f,
-                    None => continue,
-                };
-
-                // Field order matches select_clauses above:
-                // 0=EventId, 1=EventType, 2=SourceName, 3=Time, 4=Severity,
-                // 5=Message, 6=ConditionName, 7=AckedState/Id, 8=ActiveState/Id, 9=Retain,
-                // 10=LimitState/CurrentState, 11=SuppressedOrShelved,
-                // 12=HighHighLimit, 13=HighLimit, 14=LowLimit, 15=LowLowLimit
-
-                let get = |i: usize| fields_vec.get(i);
-
-                let event_id = get(0).and_then(|v| {
-                    if let Variant::ByteString(bs) = v {
-                        bs.value.as_ref().map(|b| {
-                            b.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
-                        })
-                    } else {
-                        None
-                    }
-                });
-
-                let event_type = get(1).and_then(|v| {
-                    if let Variant::NodeId(nid) = v {
-                        Some(nid.to_string())
-                    } else {
-                        None
-                    }
-                });
-
-                // Skip ConditionRefresh bracket events — these are OPC UA meta-events
-                // that bracket a ConditionRefresh replay (RefreshStart/RefreshEnd) and
-                // carry no alarm state of their own.
-                // RefreshStart = ns=0;i=2787, RefreshEnd = ns=0;i=2788.
-                if matches!(event_type.as_deref(), Some("ns=0;i=2787") | Some("ns=0;i=2788")) {
-                    continue;
-                }
-
-                let source_name = get(2).and_then(|v| {
-                    if let Variant::String(s) = v { s.value().as_ref().map(|s| s.clone()) } else { None }
-                });
-
-                let timestamp = get(3)
-                    .and_then(|v| {
-                        if let Variant::DateTime(dt) = v {
-                            Some(dt.as_chrono())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(Utc::now);
-
-                let severity = get(4).and_then(|v| {
-                    if let Variant::UInt16(s) = v { Some(*s) } else { None }
-                });
-
-                let message = get(5).and_then(|v| match v {
-                    Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.clone()),
-                    Variant::String(s) => s.value().as_ref().map(|s| s.clone()),
-                    _ => None,
-                });
-
-                let condition_name = get(6).and_then(|v| {
-                    if let Variant::String(s) = v { s.value().as_ref().map(|s| s.clone()) } else { None }
-                });
-
-                let acked = get(7).map(|v| {
-                    matches!(v, Variant::Boolean(true))
-                }).unwrap_or(false);
-
-                let active = get(8).map(|v| {
-                    matches!(v, Variant::Boolean(true))
-                }).unwrap_or(false);
-
-                let retain = get(9).map(|v| {
-                    matches!(v, Variant::Boolean(true))
-                }).unwrap_or(false);
-
-                // LimitState/CurrentState — LocalizedText or String, e.g. "HighHigh"
-                let limit_state = get(10).and_then(|v| match v {
-                    Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.clone()),
-                    Variant::String(s) => s.value().as_ref().map(|s| s.clone()),
-                    _ => None,
-                });
-
-                let suppressed_or_shelved = get(11).map(|v| {
-                    matches!(v, Variant::Boolean(true))
-                }).unwrap_or(false);
-
-                let high_high_limit = get(12).and_then(|v| {
-                    if let Variant::Double(f) = v { Some(*f) } else { None }
-                });
-                let high_limit = get(13).and_then(|v| {
-                    if let Variant::Double(f) = v { Some(*f) } else { None }
-                });
-                let low_limit = get(14).and_then(|v| {
-                    if let Variant::Double(f) = v { Some(*f) } else { None }
-                });
-                let low_low_limit = get(15).and_then(|v| {
-                    if let Variant::Double(f) = v { Some(*f) } else { None }
-                });
-
-                // Resolve SourceName → point_id using the name→UUID map.
-                let point_id = source_name
-                    .as_deref()
-                    .and_then(|name| source_name_to_id.get(name))
-                    .copied();
-
-                let ev = db::OpcEvent {
-                    source_id,
-                    point_id,
-                    event_id,
-                    event_type,
-                    source_name,
-                    timestamp,
-                    severity,
-                    message: message.or_else(|| Some("(no message)".to_string())),
-                    condition_name,
-                    acked,
-                    active,
-                    retain,
-                    limit_state,
-                    suppressed_or_shelved,
-                    high_high_limit,
-                    high_limit,
-                    low_limit,
-                    low_low_limit,
-                };
-
-                if tx.send(ev).is_err() {
-                    // Channel closed — driver shutting down.
-                    break;
-                }
+        let event_id = get(0).and_then(|v| {
+            if let Variant::ByteString(bs) = v {
+                bs.value.as_ref().map(|b| {
+                    b.iter()
+                        .map(|byte| format!("{:02x}", byte))
+                        .collect::<String>()
+                })
+            } else {
+                None
             }
         });
 
-        let guard = session_clone.write();
+        let event_type = get(1).and_then(|v| {
+            if let Variant::NodeId(nid) = v {
+                Some(nid.to_string())
+            } else {
+                None
+            }
+        });
 
-        let sub_id = guard
-            .create_subscription(publishing_ms, 10, 10, 1000, 0, true, callback)
-            .map_err(|sc| anyhow::anyhow!("create_event_subscription failed: {}", sc))?;
+        // Skip ConditionRefresh bracket events — these are OPC UA meta-events
+        // that bracket a ConditionRefresh replay (RefreshStart/RefreshEnd) and
+        // carry no alarm state of their own.
+        // RefreshStart = ns=0;i=2787, RefreshEnd = ns=0;i=2788.
+        if matches!(
+            event_type.as_deref(),
+            Some("ns=0;i=2787") | Some("ns=0;i=2788")
+        ) {
+            return;
+        }
 
-        // Monitor Server node (ns=0;i=2253) attribute 12 (EventNotifier) with the EventFilter.
-        let server_nid = NodeId::new(0u16, 2253u32);
-        let monitored = MonitoredItemCreateRequest {
-            item_to_monitor: ReadValueId {
-                node_id: server_nid,
-                attribute_id: 12, // EventNotifier
-                index_range: UAString::null(),
-                data_encoding: QualifiedName::null(),
-            },
-            monitoring_mode: MonitoringMode::Reporting,
-            requested_parameters: MonitoringParameters {
-                client_handle: 0,
-                sampling_interval: 0.0, // as fast as possible
-                filter: filter_ext,
-                queue_size: 100,
-                discard_oldest: true,
-            },
+        let source_name = get(2).and_then(|v| {
+            if let Variant::String(s) = v {
+                s.value().as_ref().map(|s| s.to_string())
+            } else {
+                None
+            }
+        });
+
+        let timestamp = get(3)
+            .and_then(|v| {
+                if let Variant::DateTime(dt) = v {
+                    Some(dt.as_chrono())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(Utc::now);
+
+        let severity = get(4).and_then(|v| {
+            if let Variant::UInt16(s) = v {
+                Some(*s)
+            } else {
+                None
+            }
+        });
+
+        let message = get(5).and_then(|v| match v {
+            Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
+            Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
+            _ => None,
+        });
+
+        let condition_name = get(6).and_then(|v| {
+            if let Variant::String(s) = v {
+                s.value().as_ref().map(|s| s.to_string())
+            } else {
+                None
+            }
+        });
+
+        let acked = get(7)
+            .map(|v| matches!(v, Variant::Boolean(true)))
+            .unwrap_or(false);
+
+        let active = get(8)
+            .map(|v| matches!(v, Variant::Boolean(true)))
+            .unwrap_or(false);
+
+        let retain = get(9)
+            .map(|v| matches!(v, Variant::Boolean(true)))
+            .unwrap_or(false);
+
+        // LimitState/CurrentState — LocalizedText or String, e.g. "HighHigh"
+        let limit_state = get(10).and_then(|v| match v {
+            Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
+            Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
+            _ => None,
+        });
+
+        let suppressed_or_shelved = get(11)
+            .map(|v| matches!(v, Variant::Boolean(true)))
+            .unwrap_or(false);
+
+        let high_high_limit = get(12).and_then(|v| {
+            if let Variant::Double(f) = v { Some(*f) } else { None }
+        });
+        let high_limit = get(13).and_then(|v| {
+            if let Variant::Double(f) = v { Some(*f) } else { None }
+        });
+        let low_limit = get(14).and_then(|v| {
+            if let Variant::Double(f) = v { Some(*f) } else { None }
+        });
+        let low_low_limit = get(15).and_then(|v| {
+            if let Variant::Double(f) = v { Some(*f) } else { None }
+        });
+
+        // Resolve SourceName → point_id using the name→UUID map.
+        let point_id = source_name
+            .as_deref()
+            .and_then(|name| source_name_to_id.get(name))
+            .copied();
+
+        let ev = db::OpcEvent {
+            source_id,
+            point_id,
+            event_id,
+            event_type,
+            source_name,
+            timestamp,
+            severity,
+            message: message.or_else(|| Some("(no message)".to_string())),
+            condition_name,
+            acked,
+            active,
+            retain,
+            limit_state,
+            suppressed_or_shelved,
+            high_high_limit,
+            high_limit,
+            low_limit,
+            low_low_limit,
         };
 
-        guard
-            .create_monitored_items(sub_id, TimestampsToReturn::Both, &[monitored])
-            .map_err(|sc| anyhow::anyhow!("create_monitored_items (event) failed: {}", sc))?;
+        if tx.send(ev).is_err() {
+            // Channel closed — driver shutting down.
+            tracing::debug!(source = %src_name_cb, "Event channel closed");
+        }
+    });
 
-        Ok(sub_id)
-    })
-    .await;
-
-    let sub_id = match sub_result {
-        Ok(Ok(id)) => {
+    let sub_id = match session
+        .create_subscription(
+            Duration::from_millis(publishing_ms),
+            10,
+            10,
+            1000,
+            0u8,
+            true,
+            callback,
+        )
+        .await
+    {
+        Ok(id) => {
             info!(
                 source = %source_name_for_log,
                 sub_id = id,
@@ -2037,42 +1895,60 @@ async fn create_event_subscription(
             );
             id
         }
-        Ok(Err(e)) => {
-            warn!(source = %source_name_for_log, error = %e, "Failed to create A&C event subscription (non-fatal)");
-            return None;
-        }
         Err(e) => {
-            warn!(source = %source_name_for_log, error = %e, "spawn_blocking error creating A&C subscription");
+            warn!(source = %source_name_for_log, error = %e, "Failed to create A&C event subscription (non-fatal)");
             return None;
         }
     };
 
+    // Monitor Server node (ns=0;i=2253) attribute 12 (EventNotifier) with the EventFilter.
+    let server_nid = NodeId::new(0u16, 2253u32);
+    let monitored = MonitoredItemCreateRequest {
+        item_to_monitor: ReadValueId {
+            node_id: server_nid,
+            attribute_id: 12, // EventNotifier
+            index_range: NumericRange::None,
+            data_encoding: QualifiedName::null(),
+        },
+        monitoring_mode: MonitoringMode::Reporting,
+        requested_parameters: MonitoringParameters {
+            client_handle: 0,
+            sampling_interval: 0.0, // as fast as possible
+            filter: filter_ext,
+            queue_size: 100,
+            discard_oldest: true,
+        },
+    };
+
+    if let Err(e) = session
+        .create_monitored_items(sub_id, TimestampsToReturn::Both, vec![monitored])
+        .await
+    {
+        warn!(source = %source_name_for_log, error = %e, "create_monitored_items (event) failed (non-fatal)");
+        return None;
+    }
+
     // Step 4: ConditionRefresh — request all currently active conditions.
     {
-        let session_clone = session.clone();
         let src_name = source_name_for_log.clone();
         let sub_id_variant = Variant::UInt32(sub_id);
-        let _ = tokio::task::spawn_blocking(move || {
-            let guard = session_clone.read();
-            // Server node: ns=0;i=2253 (per OPC UA Part 9, ConditionRefresh is called on the Server node)
-            // ConditionRefresh method: ns=0;i=3875
-            let obj_id = NodeId::new(0u16, 2253u32); // Server node, not ConditionType (2782)
-            let method_id = NodeId::new(0u16, 3875u32);
-            let args: Option<Vec<Variant>> = Some(vec![sub_id_variant]);
-            match guard.call((obj_id, method_id, args)) {
-                Ok(_) => {
-                    tracing::debug!(source = %src_name, "ConditionRefresh succeeded");
-                }
-                Err(sc) => {
-                    tracing::info!(
-                        source = %src_name,
-                        status = %sc,
-                        "ConditionRefresh failed (non-fatal)"
-                    );
-                }
+        // Server node: ns=0;i=2253 (per OPC UA Part 9, ConditionRefresh is called on the Server node)
+        // ConditionRefresh method: ns=0;i=3875
+        let obj_id = NodeId::new(0u16, 2253u32);
+        let method_id = NodeId::new(0u16, 3875u32);
+        let args: Option<Vec<Variant>> = Some(vec![sub_id_variant]);
+        match session.call_one((obj_id, method_id, args)).await {
+            Ok(_) => {
+                tracing::debug!(source = %src_name, "ConditionRefresh succeeded");
             }
-        })
-        .await;
+            Err(sc) => {
+                tracing::info!(
+                    source = %src_name,
+                    status = %sc,
+                    "ConditionRefresh failed (non-fatal)"
+                );
+            }
+        }
     }
 
     // Step 5: background task to drain event_rx and write to DB.
@@ -2141,150 +2017,157 @@ async fn create_event_subscription(
 async fn harvest_history(
     _source: &PointSource,
     db: &DbPool,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
     from_time: chrono::DateTime<Utc>,
     to_time: chrono::DateTime<Utc>,
 ) -> anyhow::Result<u64> {
     use opcua::types::DateTime as OpcDateTime;
 
-    let node_ids: Vec<(NodeId, Uuid)> =
-        node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
+    let node_ids: Vec<(NodeId, Uuid)> = node_map.iter().map(|(n, p)| (n.clone(), *p)).collect();
 
-    // Keep per-request payload small to avoid BadResponseTooLarge from SimBLAH.
-    // 10 nodes × 200 values = 2,000 values/request; throughput is still fine
-    // since history recovery runs in the background and pages automatically.
-    // SimBLAH's MaxNodesPerHistoryReadData limit is low; 5 avoids BadTooManyOperations.
-    const HISTORY_CHUNK: usize = 5;
-    // Values-per-node per page. 0 = server default (typically 100–1000).
-    // Use an explicit limit so we can page predictably.
-    const VALUES_PER_PAGE: u32 = 200;
+    // SimBLAH executes each node's query sequentially within a single HistoryRead
+    // call, so per-request latency scales linearly with node count.  20 nodes is
+    // the confirmed sweet spot (server-documented: 20–50 nodes reliable).
+    const HISTORY_CHUNK: usize = 20;
+    // async-opcua properly advertises the configured max_message_size in HEL.
+    // With 327,675 bytes: 20 nodes × 100 values × ~30 bytes = 60,000 bytes per page.
+    // Keep VALUES_PER_PAGE at 100 for a safe margin; continuation points page remaining values.
+    const VALUES_PER_PAGE: u32 = 100;
+    // Time slices limit total continuation-point pages per node-chunk.
+    const TIME_SLICE_SECS: i64 = 3600; // 1 hour per node-chunk iteration
 
     let mut total_written: u64 = 0;
 
-    for chunk in node_ids.chunks(HISTORY_CHUNK) {
-        // Track continuation points per node (empty = first request).
-        let mut continuations: Vec<opcua::types::ByteString> =
-            vec![opcua::types::ByteString::null(); chunk.len()];
-        // Once a node has no more pages we remove it from subsequent requests.
-        let mut active: Vec<bool> = vec![true; chunk.len()];
+    let mut slice_start = from_time;
+    while slice_start < to_time {
+        let slice_end = (slice_start + chrono::Duration::seconds(TIME_SLICE_SECS)).min(to_time);
 
-        loop {
-            let nodes_to_read: Vec<HistoryReadValueId> = chunk
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| active[*i])
-                .map(|(i, (nid, _))| HistoryReadValueId {
-                    node_id: nid.clone(),
-                    index_range: UAString::null(),
-                    data_encoding: QualifiedName::null(),
-                    continuation_point: continuations[i].clone(),
-                })
-                .collect();
+        for chunk in node_ids.chunks(HISTORY_CHUNK) {
+            // Track continuation points per node (null = first request).
+            let mut continuations: Vec<opcua::types::ByteString> =
+                vec![opcua::types::ByteString::null(); chunk.len()];
+            // Once a node has no more pages we remove it from subsequent requests.
+            let mut active: Vec<bool> = vec![true; chunk.len()];
 
-            if nodes_to_read.is_empty() {
-                break;
-            }
+            loop {
+                let nodes_to_read: Vec<HistoryReadValueId> = chunk
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| active[*i])
+                    .map(|(i, (nid, _))| HistoryReadValueId {
+                        node_id: nid.clone(),
+                        index_range: NumericRange::None,
+                        data_encoding: QualifiedName::null(),
+                        continuation_point: continuations[i].clone(),
+                    })
+                    .collect();
 
-            let details = ReadRawModifiedDetails {
-                is_read_modified: false,
-                start_time: OpcDateTime::from(from_time),
-                end_time: OpcDateTime::from(to_time),
-                num_values_per_node: VALUES_PER_PAGE,
-                // true = include bounding values just outside the requested range
-                // (Part 11 §6.4.2.1); ensures no gap at range boundaries.
-                return_bounds: true,
-            };
-
-            let session_clone = session.clone();
-            let nodes_clone = nodes_to_read.clone();
-            let results = tokio::task::spawn_blocking(move || {
-                session_clone.read().history_read(
-                    HistoryReadAction::ReadRawModifiedDetails(details),
-                    TimestampsToReturn::Source,
-                    false,
-                    &nodes_clone,
-                )
-            })
-            .await
-            .map_err(|e| anyhow::anyhow!("spawn_blocking history_read: {}", e))?
-            .map_err(|sc| anyhow::anyhow!("OPC UA history_read returned: {}", sc))?;
-
-            let mut batch: Vec<crate::db::PointUpdate> = Vec::new();
-            let mut any_continuation = false;
-
-            // `results` is indexed over the ACTIVE nodes only — map back to chunk indices.
-            let active_indices: Vec<usize> = (0..chunk.len()).filter(|i| active[*i]).collect();
-
-            for (res_idx, result) in results.into_iter().enumerate() {
-                let chunk_idx = active_indices[res_idx];
-                let point_id = chunk[chunk_idx].1;
-
-                if !result.status_code.is_good() {
-                    warn!(
-                        point_id = %point_id,
-                        status = %result.status_code,
-                        "HistoryRead returned non-Good status for node — skipping"
-                    );
-                    active[chunk_idx] = false;
-                    continue;
+                if nodes_to_read.is_empty() {
+                    break;
                 }
 
-                // Decode HistoryData from the ExtensionObject.
-                let history_data = match result
-                    .history_data
-                    .decode_inner::<HistoryData>(&DecodingOptions::default())
-                {
-                    Ok(hd) => hd,
-                    Err(e) => {
-                        warn!(point_id = %point_id, error = %e, "Failed to decode HistoryData for node");
+                let details = ReadRawModifiedDetails {
+                    is_read_modified: false,
+                    start_time: OpcDateTime::from(slice_start),
+                    end_time: OpcDateTime::from(slice_end),
+                    num_values_per_node: VALUES_PER_PAGE,
+                    // true = include bounding values just outside the requested range
+                    // (Part 11 §6.4.2.1); ensures no gap at range boundaries.
+                    return_bounds: true,
+                };
+
+                let results = session
+                    .history_read(
+                        HistoryReadAction::ReadRawModifiedDetails(details),
+                        TimestampsToReturn::Source,
+                        false,
+                        &nodes_to_read,
+                    )
+                    .await
+                    .map_err(|sc| anyhow::anyhow!("OPC UA history_read returned: {}", sc))?;
+
+                let mut batch: Vec<crate::db::PointUpdate> = Vec::new();
+                let mut any_continuation = false;
+
+                // `results` is indexed over the ACTIVE nodes only — map back to chunk indices.
+                let active_indices: Vec<usize> =
+                    (0..chunk.len()).filter(|i| active[*i]).collect();
+
+                for (res_idx, result) in results.into_iter().enumerate() {
+                    let chunk_idx = active_indices[res_idx];
+                    let point_id = chunk[chunk_idx].1;
+
+                    if !result.status_code.is_good() {
+                        warn!(
+                            point_id = %point_id,
+                            status = %result.status_code,
+                            "HistoryRead returned non-Good status for node — skipping"
+                        );
                         active[chunk_idx] = false;
                         continue;
                     }
-                };
 
-                if let Some(data_values) = history_data.data_values {
-                    for dv in data_values {
-                        let (value, quality) = extract_value(&dv);
-                        let timestamp = dv
-                            .source_timestamp
-                            .as_ref()
-                            .map(|dt| dt.as_chrono())
-                            .or_else(|| dv.server_timestamp.as_ref().map(|dt| dt.as_chrono()))
-                            .unwrap_or(from_time);
-                        batch.push(crate::db::PointUpdate {
-                            point_id,
-                            value,
-                            quality: quality.as_str().to_string(),
-                            timestamp,
-                        });
+                    // Decode HistoryData from the ExtensionObject using inner_as.
+                    let history_data = match result.history_data.inner_as::<HistoryData>() {
+                        Some(hd) => hd,
+                        None => {
+                            warn!(point_id = %point_id, "Failed to decode HistoryData for node");
+                            active[chunk_idx] = false;
+                            continue;
+                        }
+                    };
+
+                    if let Some(data_values) = &history_data.data_values {
+                        for dv in data_values {
+                            let (value, quality) = extract_value(dv);
+                            let timestamp = dv
+                                .source_timestamp
+                                .as_ref()
+                                .map(|dt| dt.as_chrono())
+                                .or_else(|| dv.server_timestamp.as_ref().map(|dt| dt.as_chrono()))
+                                .unwrap_or(slice_start);
+                            batch.push(crate::db::PointUpdate {
+                                point_id,
+                                value,
+                                quality: quality.as_str().to_string(),
+                                timestamp,
+                            });
+                        }
+                    }
+
+                    // Update continuation point for next page.
+                    if result.continuation_point.is_null() {
+                        active[chunk_idx] = false;
+                    } else {
+                        continuations[chunk_idx] = result.continuation_point;
+                        any_continuation = true;
                     }
                 }
 
-                // Update continuation point for next page.
-                if result.continuation_point.is_null() {
-                    active[chunk_idx] = false;
+                if !batch.is_empty() {
+                    db::write_history_batch(db, &batch).await?;
+                    total_written += batch.len() as u64;
                 } else {
-                    continuations[chunk_idx] = result.continuation_point;
-                    any_continuation = true;
+                    debug!(
+                        active_nodes = nodes_to_read.len(),
+                        "HistoryRead page returned 0 data values"
+                    );
+                }
+
+                if !any_continuation {
+                    break;
                 }
             }
-
-            if !batch.is_empty() {
-                db::write_history_batch(db, &batch).await?;
-                total_written += batch.len() as u64;
-            } else {
-                debug!(
-                    active_nodes = nodes_to_read.len(),
-                    "HistoryRead page returned 0 data values"
-                );
-            }
-
-            if !any_continuation {
-                break;
-            }
         }
-    }
+
+        debug!(
+            from = %slice_start,
+            to = %slice_end,
+            "Time slice complete"
+        );
+        slice_start = slice_end;
+    } // end while slice_start < to_time
 
     Ok(total_written)
 }
@@ -2295,7 +2178,7 @@ async fn harvest_history(
 async fn run_pending_recovery_jobs(
     source: &PointSource,
     db: &DbPool,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
 ) {
     let jobs = match db::get_pending_recovery_jobs(db, source.id).await {
@@ -2339,18 +2222,69 @@ async fn run_pending_recovery_jobs(
                     to = %job.to_time,
                     "Refreshing continuous aggregates for recovered range"
                 );
-                if let Err(e) = db::refresh_aggregates_for_range(db, job.from_time, job.to_time).await {
+                if let Err(e) =
+                    db::refresh_aggregates_for_range(db, job.from_time, job.to_time).await
+                {
                     warn!(source = %source.name, job_id = %job.id, error = %e, "Aggregate refresh failed (non-fatal)");
                 }
             }
             Err(e) => {
-                warn!(
-                    source = %source.name,
-                    job_id = %job.id,
-                    error = %e,
-                    "History recovery failed"
-                );
-                let _ = db::fail_recovery_job(db, job.id, &e.to_string()).await;
+                let err_str = e.to_string();
+                // On BadResponseTooLarge, bisect the window and re-queue two smaller
+                // jobs rather than giving up.  Minimum window is 60 seconds — below
+                // that we just fail rather than splitting indefinitely.
+                if err_str.contains("BadResponseTooLarge") {
+                    let window = job.to_time - job.from_time;
+                    if window > chrono::Duration::seconds(120) {
+                        let mid = job.from_time + window / 2;
+                        let r1 =
+                            db::create_recovery_job(db, source.id, job.from_time, mid, None).await;
+                        let r2 =
+                            db::create_recovery_job(db, source.id, mid, job.to_time, None).await;
+                        match (r1, r2) {
+                            (Ok(id1), Ok(id2)) => {
+                                warn!(
+                                    source = %source.name,
+                                    job_id = %job.id,
+                                    sub_job_1 = %id1,
+                                    sub_job_2 = %id2,
+                                    "BadResponseTooLarge — window bisected into 2 sub-jobs"
+                                );
+                                let _ = db::fail_recovery_job(
+                                    db,
+                                    job.id,
+                                    "BadResponseTooLarge — bisected into 2 sub-jobs",
+                                )
+                                .await;
+                            }
+                            _ => {
+                                warn!(
+                                    source = %source.name,
+                                    job_id = %job.id,
+                                    error = %err_str,
+                                    "BadResponseTooLarge and could not create sub-jobs"
+                                );
+                                let _ = db::fail_recovery_job(db, job.id, &err_str).await;
+                            }
+                        }
+                    } else {
+                        warn!(
+                            source = %source.name,
+                            job_id = %job.id,
+                            error = %err_str,
+                            "BadResponseTooLarge — window too small to bisect further"
+                        );
+                        let _ = db::fail_recovery_job(db, job.id, &err_str).await;
+                    }
+                } else {
+                    warn!(
+                        source = %source.name,
+                        job_id = %job.id,
+                        error = %e,
+                        "History recovery failed"
+                    );
+                    let _ = db::fail_recovery_job(db, job.id, &err_str).await;
+                }
             }
         }
     }
@@ -2368,7 +2302,7 @@ async fn poll_loop(
     db: &DbPool,
     uds: &Arc<UdsSender>,
     config: &Arc<Config>,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
 ) {
     let poll_interval = Duration::from_millis(config.publishing_interval_ms);
@@ -2394,24 +2328,16 @@ async fn poll_loop(
                 .map(|(nid, _)| ReadValueId {
                     node_id: nid.clone(),
                     attribute_id: AttributeId::Value as u32,
-                    index_range: UAString::null(),
+                    index_range: NumericRange::None,
                     data_encoding: QualifiedName::null(),
                 })
                 .collect();
 
-            let session_clone = session.clone();
-            let results = tokio::task::spawn_blocking(move || {
-                session_clone
-                    .read()
-                    .read(&read_ids, TimestampsToReturn::Both, 0.0)
-            })
-            .await;
-
-            match results {
-                Ok(Ok(data_values)) => {
+            match session.read(&read_ids, TimestampsToReturn::Both, 0.0).await {
+                Ok(data_values) => {
                     for (i, dv) in data_values.iter().enumerate() {
                         if let Some((_, point_id)) = chunk.get(i) {
-                            if dv.status.as_ref().map_or(true, |s| s.is_good()) {
+                            if dv.status.as_ref().is_none_or(|s| s.is_good()) {
                                 let (value, quality) = extract_value(dv);
                                 let timestamp = dv
                                     .source_timestamp
@@ -2431,13 +2357,9 @@ async fn poll_loop(
                         }
                     }
                 }
-                Ok(Err(sc)) => {
+                Err(sc) => {
                     warn!(source = %source.name, status = %sc, "Poll read failed — session may have dropped");
                     return; // Trigger reconnect
-                }
-                Err(_) => {
-                    warn!(source = %source.name, "Poll spawn_blocking failed");
-                    return;
                 }
             }
         }
@@ -2448,7 +2370,7 @@ async fn poll_loop(
                 info!(source = %source.name, points = pending.len(), "First poll read succeeded — data flowing");
             }
             flush(source, db, uds, &mut pending).await;
-        } else if total_polls % 10 == 0 {
+        } else if total_polls.is_multiple_of(10) {
             warn!(source = %source.name, "Poll returned 0 good values — nodes may be offline or unsupported");
         }
 
@@ -2476,7 +2398,7 @@ async fn flush_loop(
     db: &DbPool,
     uds: &Arc<UdsSender>,
     config: &Arc<Config>,
-    session: &Arc<RwLock<Session>>,
+    session: &Arc<Session>,
     node_map: &HashMap<NodeId, Uuid>,
     mut update_rx: mpsc::UnboundedReceiver<PointUpdate>,
 ) -> bool {
@@ -2549,7 +2471,7 @@ async fn flush_loop(
 
                 // Spawn recovery jobs in a background task so live data keeps flowing.
                 if job_check.elapsed() >= job_check_interval {
-                    let task_done = recovery_task.as_ref().map_or(true, |h| h.is_finished());
+                    let task_done = recovery_task.as_ref().is_none_or(|h| h.is_finished());
                     if task_done {
                         let src = source.clone();
                         let db2 = db.clone();
@@ -2632,11 +2554,11 @@ fn build_security(
     // These are deprecated in OPC UA 1.04 but remain the majority of the installed OT base.
     // Doc 17 mandates we support them and log a warning rather than refusing the connection.
     let security_policy = match policy {
-        "Basic256Sha256"         => SecurityPolicy::Basic256Sha256,
-        "Aes128Sha256RsaOaep"    => SecurityPolicy::Aes128Sha256RsaOaep,
-        "Aes256Sha256RsaPss"     => SecurityPolicy::Aes256Sha256RsaPss,
-        "Basic256"               => SecurityPolicy::Basic256,
-        "Basic128Rsa15"          => SecurityPolicy::Basic128Rsa15,
+        "Basic256Sha256" => SecurityPolicy::Basic256Sha256,
+        "Aes128Sha256RsaOaep" => SecurityPolicy::Aes128Sha256RsaOaep,
+        "Aes256Sha256RsaPss" => SecurityPolicy::Aes256Sha256RsaPss,
+        "Basic256" => SecurityPolicy::Basic256,
+        "Basic128Rsa15" => SecurityPolicy::Basic128Rsa15,
         _ => SecurityPolicy::None,
     };
 
@@ -2647,7 +2569,7 @@ fn build_security(
     };
 
     let identity = if let (Some(user), Some(pass)) = (username, password) {
-        IdentityToken::UserName(user, pass)
+        IdentityToken::UserName(user, pass.into())
     } else {
         IdentityToken::Anonymous
     };
@@ -2661,11 +2583,7 @@ fn build_security(
 fn extract_value(dv: &DataValue) -> (f64, PointQuality) {
     let quality = status_to_quality(dv.status.as_ref());
 
-    let value = dv
-        .value
-        .as_ref()
-        .and_then(variant_to_f64)
-        .unwrap_or(0.0);
+    let value = dv.value.as_ref().and_then(variant_to_f64).unwrap_or(0.0);
 
     // NaN/infinity → 0.0 with Bad quality.
     if value.is_nan() || value.is_infinite() {
@@ -2736,10 +2654,7 @@ async fn register_server_cert(source: &PointSource, db: &DbPool, config: &Arc<Co
     // Scan trusted and rejected dirs.
     // The opcua library writes server certs directly to pki/trusted/ and pki/rejected/
     // (not a certs/ subdirectory), so we look there.
-    let dirs: &[(&str, &str)] = &[
-        ("trusted", "trusted"),
-        ("rejected", "pending"),
-    ];
+    let dirs: &[(&str, &str)] = &[("trusted", "trusted"), ("rejected", "pending")];
 
     for (subdir, initial_status) in dirs {
         let cert_dir = pki_dir.join(subdir);
@@ -2768,10 +2683,9 @@ async fn register_server_cert(source: &PointSource, db: &DbPool, config: &Arc<Co
             let fingerprint = format!("{:x}", hasher.finalize());
 
             // Parse cert for human-readable fields
-            let (subject, issuer, not_before, not_after) =
-                parse_der_cert_fields(&der_bytes);
+            let (subject, issuer, not_before, not_after) = parse_der_cert_fields(&der_bytes);
 
-            let status = if auto_trust && *subdir == "trusted/certs" {
+            let status = if auto_trust && *subdir == "trusted" {
                 "trusted"
             } else {
                 initial_status
@@ -2797,7 +2711,7 @@ async fn register_server_cert(source: &PointSource, db: &DbPool, config: &Arc<Co
             .bind(not_after)
             .bind(&der_bytes)
             .bind(status)
-            .bind(auto_trust && *subdir == "trusted/certs")
+            .bind(auto_trust && *subdir == "trusted")
             .execute(db)
             .await;
 
@@ -2850,13 +2764,19 @@ fn rewrite_hostname(server_url: &str, client_url: &str) -> String {
     }
 }
 
+/// (subject, issuer, not_before, not_after)
+type CertFields = (
+    Option<String>,
+    Option<String>,
+    Option<chrono::DateTime<chrono::Utc>>,
+    Option<chrono::DateTime<chrono::Utc>>,
+);
+
 /// Parse DER-encoded X.509 cert to extract subject, issuer, and validity period.
 /// Returns empty strings / None on parse failure.
-fn parse_der_cert_fields(
-    der: &[u8],
-) -> (Option<String>, Option<String>, Option<chrono::DateTime<chrono::Utc>>, Option<chrono::DateTime<chrono::Utc>>) {
-    use x509_parser::prelude::*;
+fn parse_der_cert_fields(der: &[u8]) -> CertFields {
     use chrono::{TimeZone, Utc};
+    use x509_parser::prelude::*;
 
     let Ok((_, cert)) = X509Certificate::from_der(der) else {
         return (None, None, None, None);
@@ -2865,8 +2785,12 @@ fn parse_der_cert_fields(
     let subject = Some(cert.subject().to_string());
     let issuer = Some(cert.issuer().to_string());
 
-    let not_before = Utc.timestamp_opt(cert.validity().not_before.timestamp(), 0).single();
-    let not_after  = Utc.timestamp_opt(cert.validity().not_after.timestamp(), 0).single();
+    let not_before = Utc
+        .timestamp_opt(cert.validity().not_before.timestamp(), 0)
+        .single();
+    let not_after = Utc
+        .timestamp_opt(cert.validity().not_after.timestamp(), 0)
+        .single();
 
     (subject, issuer, not_before, not_after)
 }
@@ -2889,7 +2813,7 @@ mod tests {
 
     #[test]
     fn variant_double_converts_to_f64() {
-        assert!((variant_to_f64(&Variant::Double(3.14)).unwrap() - 3.14).abs() < f64::EPSILON);
+        assert!((variant_to_f64(&Variant::Double(1.5)).unwrap() - 1.5).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -2953,26 +2877,40 @@ mod tests {
 
     #[test]
     fn extract_value_maps_nan_to_zero_with_bad_quality() {
-        let mut dv = DataValue::default();
-        dv.value = Some(Variant::Double(f64::NAN));
+        let dv = DataValue {
+            value: Some(Variant::Double(f64::NAN)),
+            ..Default::default()
+        };
         let (val, q) = extract_value(&dv);
         assert_eq!(val, 0.0, "NaN must be normalised to 0.0");
-        assert_eq!(q, PointQuality::Bad, "NaN must produce Bad quality per doc 37");
+        assert_eq!(
+            q,
+            PointQuality::Bad,
+            "NaN must produce Bad quality per doc 37"
+        );
     }
 
     #[test]
     fn extract_value_maps_infinity_to_zero_with_bad_quality() {
-        let mut dv = DataValue::default();
-        dv.value = Some(Variant::Double(f64::INFINITY));
+        let dv = DataValue {
+            value: Some(Variant::Double(f64::INFINITY)),
+            ..Default::default()
+        };
         let (val, q) = extract_value(&dv);
         assert_eq!(val, 0.0);
-        assert_eq!(q, PointQuality::Bad, "Infinity must produce Bad quality per doc 37");
+        assert_eq!(
+            q,
+            PointQuality::Bad,
+            "Infinity must produce Bad quality per doc 37"
+        );
     }
 
     #[test]
     fn extract_value_normal_float_passes_through() {
-        let mut dv = DataValue::default();
-        dv.value = Some(Variant::Double(55.5));
+        let dv = DataValue {
+            value: Some(Variant::Double(55.5)),
+            ..Default::default()
+        };
         let (val, q) = extract_value(&dv);
         assert!((val - 55.5).abs() < f64::EPSILON);
         assert_eq!(q, PointQuality::Good);
@@ -3018,7 +2956,12 @@ mod tests {
         // max=30: 5→10→20→30→30
         let max = 30u64;
         let mut b = 5u64;
-        let seq: Vec<u64> = (0..4).map(|_| { b = next_backoff(b, max); b }).collect();
+        let seq: Vec<u64> = (0..4)
+            .map(|_| {
+                b = next_backoff(b, max);
+                b
+            })
+            .collect();
         assert_eq!(seq, vec![10, 20, 30, 30]);
     }
 }
