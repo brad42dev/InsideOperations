@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 /// Identifies the vendor/integration type of a badge source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum BadgeAdapterType {
     Lenel,
     CCure,
@@ -69,6 +70,7 @@ pub struct BadgeEvent {
 /// A person record returned by `lookup_person`, populated from the external
 /// access-control system's personnel database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ExternalPerson {
     pub employee_id: String,
     pub first_name: Option<String>,
@@ -83,6 +85,7 @@ pub struct ExternalPerson {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum BadgeAdapterError {
     #[error("connection error: {0}")]
     Connection(String),
@@ -107,6 +110,7 @@ pub enum BadgeAdapterError {
 /// Implementors are expected to be `Send + Sync` and cheap to clone (or
 /// wrapped in `Arc`) so they can be held in long-running async tasks.
 #[async_trait]
+#[allow(dead_code)]
 pub trait BadgeAdapter: Send + Sync {
     /// Returns the vendor/integration type of this adapter.
     fn adapter_type(&self) -> BadgeAdapterType;
@@ -118,10 +122,8 @@ pub trait BadgeAdapter: Send + Sync {
     ///
     /// The poller stores the most recent `occurred_at` timestamp as a
     /// checkpoint and passes it as `since` on the next cycle.
-    async fn poll_events(
-        &self,
-        since: DateTime<Utc>,
-    ) -> Result<Vec<BadgeEvent>, BadgeAdapterError>;
+    async fn poll_events(&self, since: DateTime<Utc>)
+        -> Result<Vec<BadgeEvent>, BadgeAdapterError>;
 
     /// Look up a person record by badge ID or employee ID.
     async fn lookup_person(

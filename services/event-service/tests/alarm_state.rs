@@ -5,9 +5,7 @@
 ///
 /// No database is required — the state machine is a pure function.
 use chrono::Utc;
-use event_service_lib::alarm_state::{
-    transition, AlarmEvent, AlarmInstance, AlarmState,
-};
+use event_service_lib::alarm_state::{transition, AlarmEvent, AlarmInstance, AlarmState};
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -58,12 +56,18 @@ fn transition_normal_to_unacknowledged_on_condition_active() {
 fn transition_unacknowledged_to_acknowledged_on_operator_acknowledge() {
     let mut inst = new_instance();
     // First get to Unacknowledged state.
-    apply(&AlarmState::Normal, &AlarmEvent::ConditionActive { value: 50.0 }, &mut inst);
+    apply(
+        &AlarmState::Normal,
+        &AlarmEvent::ConditionActive { value: 50.0 },
+        &mut inst,
+    );
 
     let operator_id = Uuid::new_v4();
     let next = apply(
         &AlarmState::Unacknowledged,
-        &AlarmEvent::OperatorAcknowledge { user_id: operator_id },
+        &AlarmEvent::OperatorAcknowledge {
+            user_id: operator_id,
+        },
         &mut inst,
     );
 
@@ -77,7 +81,10 @@ fn transition_unacknowledged_to_acknowledged_on_operator_acknowledge() {
         Some(operator_id),
         "acknowledged_by must record the operator's user ID"
     );
-    assert!(inst.acknowledged_at.is_some(), "acknowledged_at must be set");
+    assert!(
+        inst.acknowledged_at.is_some(),
+        "acknowledged_at must be set"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +94,11 @@ fn transition_unacknowledged_to_acknowledged_on_operator_acknowledge() {
 #[test]
 fn transition_unacknowledged_to_return_to_normal_on_condition_cleared() {
     let mut inst = new_instance();
-    apply(&AlarmState::Normal, &AlarmEvent::ConditionActive { value: 80.0 }, &mut inst);
+    apply(
+        &AlarmState::Normal,
+        &AlarmEvent::ConditionActive { value: 80.0 },
+        &mut inst,
+    );
 
     let next = apply(
         &AlarmState::Unacknowledged,
@@ -110,10 +121,16 @@ fn transition_unacknowledged_to_return_to_normal_on_condition_cleared() {
 #[test]
 fn transition_acknowledged_to_normal_on_condition_cleared() {
     let mut inst = new_instance();
-    apply(&AlarmState::Normal, &AlarmEvent::ConditionActive { value: 90.0 }, &mut inst);
+    apply(
+        &AlarmState::Normal,
+        &AlarmEvent::ConditionActive { value: 90.0 },
+        &mut inst,
+    );
     apply(
         &AlarmState::Unacknowledged,
-        &AlarmEvent::OperatorAcknowledge { user_id: Uuid::new_v4() },
+        &AlarmEvent::OperatorAcknowledge {
+            user_id: Uuid::new_v4(),
+        },
         &mut inst,
     );
 
@@ -138,13 +155,23 @@ fn transition_acknowledged_to_normal_on_condition_cleared() {
 #[test]
 fn transition_return_to_normal_to_normal_on_operator_acknowledge() {
     let mut inst = new_instance();
-    apply(&AlarmState::Normal, &AlarmEvent::ConditionActive { value: 70.0 }, &mut inst);
-    apply(&AlarmState::Unacknowledged, &AlarmEvent::ConditionCleared, &mut inst);
+    apply(
+        &AlarmState::Normal,
+        &AlarmEvent::ConditionActive { value: 70.0 },
+        &mut inst,
+    );
+    apply(
+        &AlarmState::Unacknowledged,
+        &AlarmEvent::ConditionCleared,
+        &mut inst,
+    );
 
     let operator_id = Uuid::new_v4();
     let next = apply(
         &AlarmState::ReturnToNormal,
-        &AlarmEvent::OperatorAcknowledge { user_id: operator_id },
+        &AlarmEvent::OperatorAcknowledge {
+            user_id: operator_id,
+        },
         &mut inst,
     );
 
@@ -167,7 +194,11 @@ fn transition_return_to_normal_to_normal_on_operator_acknowledge() {
 #[test]
 fn transition_unacknowledged_to_shelved_on_operator_shelve() {
     let mut inst = new_instance();
-    apply(&AlarmState::Normal, &AlarmEvent::ConditionActive { value: 60.0 }, &mut inst);
+    apply(
+        &AlarmState::Normal,
+        &AlarmEvent::ConditionActive { value: 60.0 },
+        &mut inst,
+    );
 
     let until = Utc::now() + chrono::Duration::hours(2);
     let next = apply(
@@ -266,14 +297,21 @@ fn transition_shelved_to_normal_on_shelve_expired() {
         Some(AlarmState::Normal),
         "ShelveExpired must return to Normal"
     );
-    assert!(inst.shelved_until.is_none(), "shelved_until must be cleared");
+    assert!(
+        inst.shelved_until.is_none(),
+        "shelved_until must be cleared"
+    );
 }
 
 #[test]
 fn transition_shelved_unshelve_with_active_condition_returns_unacknowledged() {
     let mut inst = new_instance();
     // Activate alarm so activated_at is set and cleared_at is None.
-    apply(&AlarmState::Normal, &AlarmEvent::ConditionActive { value: 95.0 }, &mut inst);
+    apply(
+        &AlarmState::Normal,
+        &AlarmEvent::ConditionActive { value: 95.0 },
+        &mut inst,
+    );
     let until = Utc::now() + chrono::Duration::hours(1);
     apply(
         &AlarmState::Unacknowledged,
@@ -282,7 +320,11 @@ fn transition_shelved_unshelve_with_active_condition_returns_unacknowledged() {
     );
 
     // Operator manually unshelves while condition is still active.
-    let next = apply(&AlarmState::Shelved, &AlarmEvent::OperatorUnshelve, &mut inst);
+    let next = apply(
+        &AlarmState::Shelved,
+        &AlarmEvent::OperatorUnshelve,
+        &mut inst,
+    );
     assert_eq!(
         next,
         Some(AlarmState::Unacknowledged),

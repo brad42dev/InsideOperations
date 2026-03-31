@@ -1,76 +1,89 @@
-import React, { useState, useRef, useEffect } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { usersApi, User, UserDetail, CreateUserRequest, UpdateUserRequest } from '../../api/users'
-import { rolesApi, Role } from '../../api/roles'
-import type { PaginatedResult } from '../../api/client'
-import { ExportButton } from '../../shared/components/ExportDialog'
+import React, { useState, useRef, useEffect } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  usersApi,
+  User,
+  UserDetail,
+  CreateUserRequest,
+  UpdateUserRequest,
+} from "../../api/users";
+import { rolesApi, Role } from "../../api/roles";
+import type { PaginatedResult } from "../../api/client";
+import { ExportButton } from "../../shared/components/ExportDialog";
 
 // ---------------------------------------------------------------------------
 // Column definitions for users export
 // ---------------------------------------------------------------------------
 const USERS_COLUMNS = [
-  { id: 'id', label: 'ID' },
-  { id: 'username', label: 'Username' },
-  { id: 'email', label: 'Email' },
-  { id: 'full_name', label: 'Full Name' },
-  { id: 'enabled', label: 'Status' },
-  { id: 'auth_provider', label: 'Auth Provider' },
-  { id: 'last_login_at', label: 'Last Login' },
-  { id: 'created_at', label: 'Created At' },
-]
+  { id: "id", label: "ID" },
+  { id: "username", label: "Username" },
+  { id: "email", label: "Email" },
+  { id: "full_name", label: "Full Name" },
+  { id: "enabled", label: "Status" },
+  { id: "auth_provider", label: "Auth Provider" },
+  { id: "last_login_at", label: "Last Login" },
+  { id: "created_at", label: "Created At" },
+];
 
-const USERS_DEFAULT_VISIBLE = ['username', 'email', 'full_name', 'enabled', 'auth_provider', 'last_login_at']
+const USERS_DEFAULT_VISIBLE = [
+  "username",
+  "email",
+  "full_name",
+  "enabled",
+  "auth_provider",
+  "last_login_at",
+];
 
 // ---------------------------------------------------------------------------
 // Shared styles
 // ---------------------------------------------------------------------------
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  background: 'var(--io-surface-sunken)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  color: 'var(--io-text-primary)',
-  fontSize: '13px',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
+  width: "100%",
+  padding: "8px 10px",
+  background: "var(--io-surface-sunken)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  color: "var(--io-text-primary)",
+  fontSize: "13px",
+  outline: "none",
+  boxSizing: "border-box",
+};
 
 const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '12px',
+  display: "block",
+  fontSize: "12px",
   fontWeight: 500,
-  color: 'var(--io-text-secondary)',
-  marginBottom: '5px',
-}
+  color: "var(--io-text-secondary)",
+  marginBottom: "5px",
+};
 
 const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--io-accent)',
-  color: 'var(--io-text-on-accent)',
-  border: 'none',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '13px',
+  padding: "8px 16px",
+  background: "var(--io-accent)",
+  color: "var(--io-text-on-accent)",
+  border: "none",
+  borderRadius: "var(--io-radius)",
+  fontSize: "13px",
   fontWeight: 600,
-  cursor: 'pointer',
-}
+  cursor: "pointer",
+};
 
 const btnSecondary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'transparent',
-  color: 'var(--io-text-secondary)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '13px',
-  cursor: 'pointer',
-}
+  padding: "8px 16px",
+  background: "transparent",
+  color: "var(--io-text-secondary)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  fontSize: "13px",
+  cursor: "pointer",
+};
 
 const btnDanger: React.CSSProperties = {
   ...btnSecondary,
-  color: 'var(--io-danger)',
-  borderColor: 'rgba(239,68,68,0.3)',
-}
+  color: "var(--io-danger)",
+  borderColor: "rgba(239,68,68,0.3)",
+};
 
 // ---------------------------------------------------------------------------
 // ErrorBanner
@@ -79,18 +92,18 @@ function ErrorBanner({ message }: { message: string }) {
   return (
     <div
       style={{
-        background: 'rgba(239,68,68,0.1)',
-        border: '1px solid rgba(239,68,68,0.3)',
-        borderRadius: 'var(--io-radius)',
-        padding: '10px 14px',
-        color: 'var(--io-danger)',
-        fontSize: '13px',
-        marginBottom: '16px',
+        background: "rgba(239,68,68,0.1)",
+        border: "1px solid rgba(239,68,68,0.3)",
+        borderRadius: "var(--io-radius)",
+        padding: "10px 14px",
+        color: "var(--io-danger)",
+        fontSize: "13px",
+        marginBottom: "16px",
       }}
     >
       {message}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -101,55 +114,64 @@ function RoleCheckboxList({
   selected,
   onChange,
 }: {
-  roles: Role[]
-  selected: string[]
-  onChange: (ids: string[]) => void
+  roles: Role[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
 }) {
   function toggle(id: string) {
-    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+    onChange(
+      selected.includes(id)
+        ? selected.filter((x) => x !== id)
+        : [...selected, id],
+    );
   }
   return (
     <div
       style={{
-        maxHeight: '160px',
-        overflowY: 'auto',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        padding: '6px',
+        maxHeight: "160px",
+        overflowY: "auto",
+        border: "1px solid var(--io-border)",
+        borderRadius: "var(--io-radius)",
+        padding: "6px",
       }}
     >
       {roles.map((role) => (
         <label
           key={role.id}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '5px 6px',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            color: 'var(--io-text-primary)',
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "5px 6px",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "13px",
+            color: "var(--io-text-primary)",
           }}
         >
           <input
             type="checkbox"
             checked={selected.includes(role.id)}
             onChange={() => toggle(role.id)}
-            style={{ accentColor: 'var(--io-accent)' }}
+            style={{ accentColor: "var(--io-accent)" }}
           />
           <span>{role.display_name}</span>
         </label>
       ))}
       {roles.length === 0 && (
         <div
-          style={{ padding: '8px', fontSize: '12px', color: 'var(--io-text-muted)', textAlign: 'center' }}
+          style={{
+            padding: "8px",
+            fontSize: "12px",
+            color: "var(--io-text-muted)",
+            textAlign: "center",
+          }}
         >
           No roles available
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -160,49 +182,54 @@ function ModalContent({
   children,
   onClose,
 }: {
-  title: string
-  children: React.ReactNode
-  onClose?: () => void
+  title: string;
+  children: React.ReactNode;
+  onClose?: () => void;
 }) {
   return (
     <Dialog.Portal>
       <Dialog.Overlay
         style={{
-          position: 'fixed',
+          position: "fixed",
           inset: 0,
-          background: 'rgba(0,0,0,0.6)',
+          background: "rgba(0,0,0,0.6)",
           zIndex: 100,
         }}
       />
       <Dialog.Content
         aria-describedby={undefined}
         style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%,-50%)',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: '10px',
-          padding: '24px',
-          width: '480px',
-          maxWidth: '95vw',
-          maxHeight: '90vh',
-          overflowY: 'auto',
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "10px",
+          padding: "24px",
+          width: "480px",
+          maxWidth: "95vw",
+          maxHeight: "90vh",
+          overflowY: "auto",
           zIndex: 101,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
         }}
       >
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '20px',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "20px",
           }}
         >
           <Dialog.Title
-            style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+            style={{
+              margin: 0,
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
           >
             {title}
           </Dialog.Title>
@@ -210,11 +237,11 @@ function ModalContent({
             <button
               onClick={onClose}
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--io-text-muted)',
-                cursor: 'pointer',
-                fontSize: '18px',
+                background: "none",
+                border: "none",
+                color: "var(--io-text-muted)",
+                cursor: "pointer",
+                fontSize: "18px",
                 lineHeight: 1,
               }}
             >
@@ -225,7 +252,7 @@ function ModalContent({
         {children}
       </Dialog.Content>
     </Dialog.Portal>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -236,82 +263,99 @@ function CreateUserDialog({
   onOpenChange,
   roles,
 }: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  roles: Role[]
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  roles: Role[];
 }) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateUserRequest>({
-    username: '',
-    email: '',
-    full_name: '',
-    password: '',
+    username: "",
+    email: "",
+    full_name: "",
+    password: "",
     role_ids: [],
-  })
-  const [formError, setFormError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string; password?: string }>({})
+  });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    username?: string;
+    email?: string;
+    password?: string;
+  }>({});
 
   const mutation = useMutation({
     mutationFn: (req: CreateUserRequest) => usersApi.create(req),
     onSuccess: (result) => {
       if (!result.success) {
-        setFormError(result.error.message)
-        return
+        setFormError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      onOpenChange(false)
-      setForm({ username: '', email: '', full_name: '', password: '', role_ids: [] })
-      setFormError(null)
-      setFieldErrors({})
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      onOpenChange(false);
+      setForm({
+        username: "",
+        email: "",
+        full_name: "",
+        password: "",
+        role_ids: [],
+      });
+      setFormError(null);
+      setFieldErrors({});
     },
-  })
+  });
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setFormError(null)
+    e.preventDefault();
+    setFormError(null);
 
-    const errors: { username?: string; email?: string; password?: string } = {}
-    if (!form.username.trim()) errors.username = 'Username is required'
-    if (!form.email.trim()) errors.email = 'Email is required'
-    if (!form.password.trim()) errors.password = 'Password is required'
+    const errors: { username?: string; email?: string; password?: string } = {};
+    if (!form.username.trim()) errors.username = "Username is required";
+    if (!form.email.trim()) errors.email = "Email is required";
+    if (!form.password.trim()) errors.password = "Password is required";
 
     if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors)
-      return
+      setFieldErrors(errors);
+      return;
     }
 
-    setFieldErrors({})
-    const req: CreateUserRequest = { ...form }
-    if (!req.full_name) delete req.full_name
-    mutation.mutate(req)
+    setFieldErrors({});
+    const req: CreateUserRequest = { ...form };
+    if (!req.full_name) delete req.full_name;
+    mutation.mutate(req);
   }
 
   const fieldErrorStyle: React.CSSProperties = {
-    marginTop: '4px',
-    fontSize: '12px',
-    color: 'var(--io-danger)',
-  }
+    marginTop: "4px",
+    fontSize: "12px",
+    color: "var(--io-danger)",
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <ModalContent title="Add User">
         {formError && <ErrorBanner message={formError} />}
         <form onSubmit={handleSubmit} noValidate>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+          >
             <div>
               <label style={labelStyle}>Username *</label>
               <input
                 style={{
                   ...inputStyle,
-                  borderColor: fieldErrors.username ? 'var(--io-danger)' : undefined,
+                  borderColor: fieldErrors.username
+                    ? "var(--io-danger)"
+                    : undefined,
                 }}
                 value={form.username}
                 onChange={(e) => {
-                  setForm((f) => ({ ...f, username: e.target.value }))
-                  if (fieldErrors.username) setFieldErrors((fe) => ({ ...fe, username: undefined }))
+                  setForm((f) => ({ ...f, username: e.target.value }));
+                  if (fieldErrors.username)
+                    setFieldErrors((fe) => ({ ...fe, username: undefined }));
                 }}
               />
-              {fieldErrors.username && <p style={fieldErrorStyle}>{fieldErrors.username}</p>}
+              {fieldErrors.username && (
+                <p style={fieldErrorStyle}>{fieldErrors.username}</p>
+              )}
             </div>
             <div>
               <label style={labelStyle}>Email *</label>
@@ -319,22 +363,29 @@ function CreateUserDialog({
                 type="email"
                 style={{
                   ...inputStyle,
-                  borderColor: fieldErrors.email ? 'var(--io-danger)' : undefined,
+                  borderColor: fieldErrors.email
+                    ? "var(--io-danger)"
+                    : undefined,
                 }}
                 value={form.email}
                 onChange={(e) => {
-                  setForm((f) => ({ ...f, email: e.target.value }))
-                  if (fieldErrors.email) setFieldErrors((fe) => ({ ...fe, email: undefined }))
+                  setForm((f) => ({ ...f, email: e.target.value }));
+                  if (fieldErrors.email)
+                    setFieldErrors((fe) => ({ ...fe, email: undefined }));
                 }}
               />
-              {fieldErrors.email && <p style={fieldErrorStyle}>{fieldErrors.email}</p>}
+              {fieldErrors.email && (
+                <p style={fieldErrorStyle}>{fieldErrors.email}</p>
+              )}
             </div>
             <div>
               <label style={labelStyle}>Full Name</label>
               <input
                 style={inputStyle}
-                value={form.full_name ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                value={form.full_name ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, full_name: e.target.value }))
+                }
               />
             </div>
             <div>
@@ -343,15 +394,20 @@ function CreateUserDialog({
                 type="password"
                 style={{
                   ...inputStyle,
-                  borderColor: fieldErrors.password ? 'var(--io-danger)' : undefined,
+                  borderColor: fieldErrors.password
+                    ? "var(--io-danger)"
+                    : undefined,
                 }}
                 value={form.password}
                 onChange={(e) => {
-                  setForm((f) => ({ ...f, password: e.target.value }))
-                  if (fieldErrors.password) setFieldErrors((fe) => ({ ...fe, password: undefined }))
+                  setForm((f) => ({ ...f, password: e.target.value }));
+                  if (fieldErrors.password)
+                    setFieldErrors((fe) => ({ ...fe, password: undefined }));
                 }}
               />
-              {fieldErrors.password && <p style={fieldErrorStyle}>{fieldErrors.password}</p>}
+              {fieldErrors.password && (
+                <p style={fieldErrorStyle}>{fieldErrors.password}</p>
+              )}
             </div>
             <div>
               <label style={labelStyle}>Roles</label>
@@ -362,20 +418,31 @@ function CreateUserDialog({
               />
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "8px",
+              marginTop: "24px",
+            }}
+          >
             <Dialog.Close asChild>
               <button type="button" style={btnSecondary}>
                 Cancel
               </button>
             </Dialog.Close>
-            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Creating…' : 'Create User'}
+            <button
+              type="submit"
+              style={btnPrimary}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? "Creating…" : "Create User"}
             </button>
           </div>
         </form>
       </ModalContent>
     </Dialog.Root>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -387,68 +454,74 @@ function EditUserDialog({
   onOpenChange,
   roles,
 }: {
-  user: UserDetail | null
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  roles: Role[]
+  user: UserDetail | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  roles: Role[];
 }) {
-  const queryClient = useQueryClient()
-  const [form, setForm] = useState<UpdateUserRequest & { password?: string }>({})
-  const [formError, setFormError] = useState<string | null>(null)
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<UpdateUserRequest & { password?: string }>(
+    {},
+  );
+  const [formError, setFormError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (user) {
       setForm({
         email: user.email,
-        full_name: user.full_name ?? '',
+        full_name: user.full_name ?? "",
         enabled: user.enabled,
         role_ids: user.roles.map((r) => r.id),
-        password: '',
-      })
+        password: "",
+      });
     }
-  }, [user])
+  }, [user]);
 
   const mutation = useMutation({
     mutationFn: (req: UpdateUserRequest) => usersApi.update(user!.id, req),
     onSuccess: (result) => {
       if (!result.success) {
-        setFormError(result.error.message)
-        return
+        setFormError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      onOpenChange(false)
-      setFormError(null)
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      onOpenChange(false);
+      setFormError(null);
     },
-  })
+  });
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setFormError(null)
+    e.preventDefault();
+    setFormError(null);
     const req: UpdateUserRequest = {
       email: form.email,
       full_name: form.full_name || undefined,
       enabled: form.enabled,
       role_ids: form.role_ids,
-    }
-    if (form.password) req.password = form.password
-    mutation.mutate(req)
+    };
+    if (form.password) req.password = form.password;
+    mutation.mutate(req);
   }
 
-  if (!user) return null
+  if (!user) return null;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <ModalContent title={`Edit User: ${user.username}`}>
         {formError && <ErrorBanner message={formError} />}
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+          >
             <div>
               <label style={labelStyle}>Email *</label>
               <input
                 type="email"
                 style={inputStyle}
-                value={form.email ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                value={form.email ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, email: e.target.value }))
+                }
                 required
               />
             </div>
@@ -456,36 +529,44 @@ function EditUserDialog({
               <label style={labelStyle}>Full Name</label>
               <input
                 style={inputStyle}
-                value={form.full_name ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                value={form.full_name ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, full_name: e.target.value }))
+                }
               />
             </div>
             <div>
-              <label style={labelStyle}>New Password (leave blank to keep current)</label>
+              <label style={labelStyle}>
+                New Password (leave blank to keep current)
+              </label>
               <input
                 type="password"
                 style={inputStyle}
-                value={form.password ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                value={form.password ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, password: e.target.value }))
+                }
                 placeholder="Leave blank to keep current password"
               />
             </div>
             <div>
               <label
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: 'var(--io-text-primary)',
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  color: "var(--io-text-primary)",
                 }}
               >
                 <input
                   type="checkbox"
                   checked={form.enabled ?? true}
-                  onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
-                  style={{ accentColor: 'var(--io-accent)' }}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, enabled: e.target.checked }))
+                  }
+                  style={{ accentColor: "var(--io-accent)" }}
                 />
                 Account enabled
               </label>
@@ -499,20 +580,31 @@ function EditUserDialog({
               />
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "8px",
+              marginTop: "24px",
+            }}
+          >
             <Dialog.Close asChild>
               <button type="button" style={btnSecondary}>
                 Cancel
               </button>
             </Dialog.Close>
-            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Save Changes'}
+            <button
+              type="submit"
+              style={btnPrimary}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? "Saving…" : "Save Changes"}
             </button>
           </div>
         </form>
       </ModalContent>
     </Dialog.Root>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -527,21 +619,29 @@ function ConfirmDialog({
   onConfirm,
   danger,
 }: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  title: string
-  message: string
-  confirmLabel: string
-  onConfirm: () => void
-  danger?: boolean
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  danger?: boolean;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <ModalContent title={title}>
-        <p style={{ margin: '0 0 24px', fontSize: '14px', color: 'var(--io-text-secondary)' }}>
+        <p
+          style={{
+            margin: "0 0 24px",
+            fontSize: "14px",
+            color: "var(--io-text-secondary)",
+          }}
+        >
           {message}
         </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}
+        >
           <Dialog.Close asChild>
             <button type="button" style={btnSecondary}>
               Cancel
@@ -551,8 +651,8 @@ function ConfirmDialog({
             type="button"
             style={danger ? btnDanger : btnPrimary}
             onClick={() => {
-              onConfirm()
-              onOpenChange(false)
+              onConfirm();
+              onOpenChange(false);
             }}
           >
             {confirmLabel}
@@ -560,7 +660,7 @@ function ConfirmDialog({
         </div>
       </ModalContent>
     </Dialog.Root>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -570,10 +670,10 @@ function Badge({ label, color }: { label: string; color: string }) {
   return (
     <span
       style={{
-        display: 'inline-block',
-        padding: '2px 8px',
-        borderRadius: '100px',
-        fontSize: '11px',
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: "100px",
+        fontSize: "11px",
         fontWeight: 600,
         background: `${color}20`,
         color,
@@ -582,46 +682,53 @@ function Badge({ label, color }: { label: string; color: string }) {
     >
       {label}
     </span>
-  )
+  );
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return "—";
   return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // ---------------------------------------------------------------------------
 // TableSkeleton — shimmer rows matching the users table column structure
 // ---------------------------------------------------------------------------
-function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: number }) {
+function TableSkeleton({
+  rows = 5,
+  columns = 7,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr
           style={{
-            borderBottom: '1px solid var(--io-border)',
-            background: 'var(--io-surface-primary)',
+            borderBottom: "1px solid var(--io-border)",
+            background: "var(--io-surface-primary)",
           }}
         >
           {Array.from({ length: columns }).map((_, i) => (
             <th
               key={i}
               style={{
-                padding: '10px 14px',
-                textAlign: 'left',
+                padding: "10px 14px",
+                textAlign: "left",
               }}
             >
               <div
                 style={{
-                  height: '10px',
-                  borderRadius: '4px',
-                  background: 'var(--io-border)',
-                  width: i === 0 ? '80px' : i === columns - 1 ? '60px' : '120px',
-                  animation: 'io-shimmer 1.5s ease-in-out infinite',
+                  height: "10px",
+                  borderRadius: "4px",
+                  background: "var(--io-border)",
+                  width:
+                    i === 0 ? "80px" : i === columns - 1 ? "60px" : "120px",
+                  animation: "io-shimmer 1.5s ease-in-out infinite",
                 }}
               />
             </th>
@@ -633,18 +740,24 @@ function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: num
           <tr
             key={ri}
             style={{
-              borderBottom: ri < rows - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+              borderBottom:
+                ri < rows - 1 ? "1px solid var(--io-border-subtle)" : undefined,
             }}
           >
             {Array.from({ length: columns }).map((_, ci) => (
-              <td key={ci} style={{ padding: '12px 14px' }}>
+              <td key={ci} style={{ padding: "12px 14px" }}>
                 <div
                   style={{
-                    height: '12px',
-                    borderRadius: '4px',
-                    background: 'var(--io-surface-primary)',
-                    width: ci === columns - 1 ? '64px' : ci === 0 ? '100px' : '140px',
-                    animation: 'io-shimmer 1.5s ease-in-out infinite',
+                    height: "12px",
+                    borderRadius: "4px",
+                    background: "var(--io-surface-primary)",
+                    width:
+                      ci === columns - 1
+                        ? "64px"
+                        : ci === 0
+                          ? "100px"
+                          : "140px",
+                    animation: "io-shimmer 1.5s ease-in-out infinite",
                     animationDelay: `${ri * 0.05}s`,
                   }}
                 />
@@ -654,13 +767,16 @@ function TableSkeleton({ rows = 5, columns = 7 }: { rows?: number; columns?: num
         ))}
       </tbody>
     </table>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // UserContextMenu — right-click context menu for user table rows
 // ---------------------------------------------------------------------------
-interface ContextMenuPos { x: number; y: number }
+interface ContextMenuPos {
+  x: number;
+  y: number;
+}
 
 function UserContextMenu({
   user,
@@ -672,199 +788,220 @@ function UserContextMenu({
   onViewSessions,
   onCopyUsername,
 }: {
-  user: User
-  pos: ContextMenuPos
-  onClose: () => void
-  onEdit: (u: User) => void
-  onDisable: (u: User) => void
-  onEnable: (u: User) => void
-  onViewSessions: (u: User) => void
-  onCopyUsername: (u: User) => void
+  user: User;
+  pos: ContextMenuPos;
+  onClose: () => void;
+  onEdit: (u: User) => void;
+  onDisable: (u: User) => void;
+  onEnable: (u: User) => void;
+  onViewSessions: (u: User) => void;
+  onCopyUsername: (u: User) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose()
+        onClose();
       }
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [onClose])
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
 
   const menuStyle: React.CSSProperties = {
-    position: 'fixed',
+    position: "fixed",
     top: pos.y,
     left: pos.x,
     zIndex: 500,
-    background: 'var(--io-surface-elevated)',
-    border: '1px solid var(--io-border)',
-    borderRadius: 'var(--io-radius)',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-    minWidth: '180px',
-    overflow: 'hidden',
-    padding: '4px 0',
-  }
+    background: "var(--io-surface-elevated)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+    minWidth: "180px",
+    overflow: "hidden",
+    padding: "4px 0",
+  };
 
   const itemStyle: React.CSSProperties = {
-    display: 'block',
-    width: '100%',
-    padding: '7px 14px',
-    background: 'transparent',
-    border: 'none',
-    textAlign: 'left',
-    fontSize: '13px',
-    color: 'var(--io-text-secondary)',
-    cursor: 'pointer',
-  }
+    display: "block",
+    width: "100%",
+    padding: "7px 14px",
+    background: "transparent",
+    border: "none",
+    textAlign: "left",
+    fontSize: "13px",
+    color: "var(--io-text-secondary)",
+    cursor: "pointer",
+  };
 
   const dangerItemStyle: React.CSSProperties = {
     ...itemStyle,
-    color: 'var(--io-danger)',
-  }
+    color: "var(--io-danger)",
+  };
 
   function menuItem(label: string, action: () => void, danger = false) {
     return (
       <button
         style={danger ? dangerItemStyle : itemStyle}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-        onClick={() => { action(); onClose() }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background =
+            "var(--io-surface-secondary)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background =
+            "transparent";
+        }}
+        onClick={() => {
+          action();
+          onClose();
+        }}
       >
         {label}
       </button>
-    )
+    );
   }
 
   return (
     <div ref={ref} style={menuStyle}>
-      {menuItem('Edit', () => onEdit(user))}
+      {menuItem("Edit", () => onEdit(user))}
       {user.enabled
-        ? menuItem('Disable Account', () => onDisable(user), true)
-        : menuItem('Enable Account', () => onEnable(user))}
-      {menuItem('View Sessions', () => onViewSessions(user))}
-      {menuItem('Copy Username', () => onCopyUsername(user))}
+        ? menuItem("Disable Account", () => onDisable(user), true)
+        : menuItem("Enable Account", () => onEnable(user))}
+      {menuItem("View Sessions", () => onViewSessions(user))}
+      {menuItem("Copy Username", () => onCopyUsername(user))}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // UsersPage
 // ---------------------------------------------------------------------------
 export default function UsersPage() {
-  const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(50)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [editUser, setEditUser] = useState<UserDetail | null>(null)
-  const [editOpen, setEditOpen] = useState(false)
-  const [confirmUser, setConfirmUser] = useState<User | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [bannerError, setBannerError] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ user: User; pos: ContextMenuPos } | null>(null)
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editUser, setEditUser] = useState<UserDetail | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmUser, setConfirmUser] = useState<User | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    user: User;
+    pos: ContextMenuPos;
+  } | null>(null);
 
   const usersQuery = useQuery({
-    queryKey: ['users', page, limit],
+    queryKey: ["users", page, limit],
     queryFn: async () => {
-      const result = await usersApi.list({ page, limit })
-      if (!result.success) throw new Error(result.error.message)
-      return result.data as PaginatedResult<User>
+      const result = await usersApi.list({ page, limit });
+      if (!result.success) throw new Error(result.error.message);
+      return result.data as PaginatedResult<User>;
     },
-  })
+  });
 
   const rolesQuery = useQuery({
-    queryKey: ['roles'],
+    queryKey: ["roles"],
     queryFn: async () => {
-      const result = await rolesApi.list()
-      if (!result.success) throw new Error(result.error.message)
-      return result.data.data as Role[]
+      const result = await rolesApi.list();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data.data as Role[];
     },
-  })
+  });
 
   const userDetailQuery = useQuery({
-    queryKey: ['user', editUser?.id],
+    queryKey: ["user", editUser?.id],
     queryFn: async () => {
-      if (!editUser) return null
-      const result = await usersApi.get(editUser.id)
-      if (!result.success) throw new Error(result.error.message)
-      return result.data as UserDetail
+      if (!editUser) return null;
+      const result = await usersApi.get(editUser.id);
+      if (!result.success) throw new Error(result.error.message);
+      return result.data as UserDetail;
     },
     enabled: !!editUser,
-  })
+  });
 
   const disableMutation = useMutation({
-    mutationFn: (user: User) =>
-      usersApi.update(user.id, { enabled: false }),
+    mutationFn: (user: User) => usersApi.update(user.id, { enabled: false }),
     onSuccess: (result) => {
       if (!result.success) {
-        setBannerError(result.error.message)
-        return
+        setBannerError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ["users"] });
     },
-  })
+  });
 
   const enableMutation = useMutation({
-    mutationFn: (user: User) =>
-      usersApi.update(user.id, { enabled: true }),
+    mutationFn: (user: User) => usersApi.update(user.id, { enabled: true }),
     onSuccess: (result) => {
       if (!result.success) {
-        setBannerError(result.error.message)
-        return
+        setBannerError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ["users"] });
     },
-  })
+  });
 
   function handleEdit(user: User) {
-    setEditUser(user as UserDetail)
-    setEditOpen(true)
+    setEditUser(user as UserDetail);
+    setEditOpen(true);
   }
 
   function handleDisable(user: User) {
-    setConfirmUser(user)
-    setConfirmOpen(true)
+    setConfirmUser(user);
+    setConfirmOpen(true);
   }
 
   function handleContextMenu(e: React.MouseEvent, user: User) {
-    e.preventDefault()
-    setContextMenu({ user, pos: { x: e.clientX, y: e.clientY } })
+    e.preventDefault();
+    setContextMenu({ user, pos: { x: e.clientX, y: e.clientY } });
   }
 
-  const pagination = usersQuery.data?.pagination
-  const users = usersQuery.data?.data ?? []
-  const roles = rolesQuery.data ?? []
+  const pagination = usersQuery.data?.pagination;
+  const users = usersQuery.data?.data ?? [];
+  const roles = rolesQuery.data ?? [];
 
   return (
     <div>
       {/* Header */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '20px',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "20px",
         }}
       >
         <div>
           <h2
-            style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+            style={{
+              margin: "0 0 4px",
+              fontSize: "18px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
           >
             Users
           </h2>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-muted)' }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "13px",
+              color: "var(--io-text-muted)",
+            }}
+          >
             Manage user accounts and access
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <ExportButton
             module="settings"
             entity="users"
@@ -884,46 +1021,54 @@ export default function UsersPage() {
       {/* Table */}
       <div
         style={{
-          background: 'var(--io-surface-secondary)',
-          border: '1px solid var(--io-border)',
-          borderRadius: '8px',
-          overflow: 'hidden',
+          background: "var(--io-surface-secondary)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "8px",
+          overflow: "hidden",
         }}
       >
         {usersQuery.isLoading && <TableSkeleton rows={5} columns={7} />}
         {usersQuery.isError && (
-          <div style={{ padding: '20px' }}>
-            <ErrorBanner message={usersQuery.error?.message ?? 'Failed to load users'} />
+          <div style={{ padding: "20px" }}>
+            <ErrorBanner
+              message={usersQuery.error?.message ?? "Failed to load users"}
+            />
           </div>
         )}
         {!usersQuery.isLoading && !usersQuery.isError && (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr
                 style={{
-                  borderBottom: '1px solid var(--io-border)',
-                  background: 'var(--io-surface-primary)',
+                  borderBottom: "1px solid var(--io-border)",
+                  background: "var(--io-surface-primary)",
                 }}
               >
-                {['Username', 'Email', 'Full Name', 'Status', 'Auth Provider', 'Last Login', 'Actions'].map(
-                  (col) => (
-                    <th
-                      key={col}
-                      style={{
-                        padding: '10px 14px',
-                        textAlign: 'left',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: 'var(--io-text-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {col}
-                    </th>
-                  ),
-                )}
+                {[
+                  "Username",
+                  "Email",
+                  "Full Name",
+                  "Status",
+                  "Auth Provider",
+                  "Last Login",
+                  "Actions",
+                ].map((col) => (
+                  <th
+                    key={col}
+                    style={{
+                      padding: "10px 14px",
+                      textAlign: "left",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "var(--io-text-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {col}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -932,10 +1077,10 @@ export default function UsersPage() {
                   <td
                     colSpan={7}
                     style={{
-                      padding: '40px',
-                      textAlign: 'center',
-                      color: 'var(--io-text-muted)',
-                      fontSize: '14px',
+                      padding: "40px",
+                      textAlign: "center",
+                      color: "var(--io-text-muted)",
+                      fontSize: "14px",
                     }}
                   >
                     No users found
@@ -947,50 +1092,66 @@ export default function UsersPage() {
                   key={user.id}
                   style={{
                     borderBottom:
-                      i < users.length - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+                      i < users.length - 1
+                        ? "1px solid var(--io-border-subtle)"
+                        : undefined,
                   }}
                   onContextMenu={(e) => handleContextMenu(e, user)}
                 >
                   <td style={cellStyle}>
-                    <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        color: "var(--io-text-primary)",
+                      }}
+                    >
                       {user.username}
                     </span>
                   </td>
                   <td style={cellStyle}>{user.email}</td>
-                  <td style={cellStyle}>{user.full_name ?? '—'}</td>
+                  <td style={cellStyle}>{user.full_name ?? "—"}</td>
                   <td style={cellStyle}>
                     <Badge
-                      label={user.enabled ? 'Active' : 'Disabled'}
-                      color={user.enabled ? 'var(--io-success)' : 'var(--io-text-muted)'}
+                      label={user.enabled ? "Active" : "Disabled"}
+                      color={
+                        user.enabled
+                          ? "var(--io-success)"
+                          : "var(--io-text-muted)"
+                      }
                     />
                   </td>
                   <td style={cellStyle}>
                     <span
                       style={{
-                        fontSize: '12px',
-                        color: 'var(--io-text-muted)',
-                        textTransform: 'capitalize',
+                        fontSize: "12px",
+                        color: "var(--io-text-muted)",
+                        textTransform: "capitalize",
                       }}
                     >
                       {user.auth_provider}
                     </span>
                   </td>
                   <td style={cellStyle}>
-                    <span style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-muted)",
+                      }}
+                    >
                       {formatDate(user.last_login_at)}
                     </span>
                   </td>
                   <td style={cellStyle}>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div style={{ display: "flex", gap: "6px" }}>
                       <button
                         style={{
-                          padding: '4px 10px',
-                          background: 'transparent',
-                          border: '1px solid var(--io-border)',
-                          borderRadius: 'var(--io-radius)',
-                          color: 'var(--io-text-secondary)',
-                          fontSize: '12px',
-                          cursor: 'pointer',
+                          padding: "4px 10px",
+                          background: "transparent",
+                          border: "1px solid var(--io-border)",
+                          borderRadius: "var(--io-radius)",
+                          color: "var(--io-text-secondary)",
+                          fontSize: "12px",
+                          cursor: "pointer",
                         }}
                         onClick={() => handleEdit(user)}
                       >
@@ -999,13 +1160,13 @@ export default function UsersPage() {
                       {user.enabled && (
                         <button
                           style={{
-                            padding: '4px 10px',
-                            background: 'transparent',
-                            border: '1px solid rgba(239,68,68,0.3)',
-                            borderRadius: 'var(--io-radius)',
-                            color: 'var(--io-danger)',
-                            fontSize: '12px',
-                            cursor: 'pointer',
+                            padding: "4px 10px",
+                            background: "transparent",
+                            border: "1px solid rgba(239,68,68,0.3)",
+                            borderRadius: "var(--io-radius)",
+                            color: "var(--io-danger)",
+                            fontSize: "12px",
+                            cursor: "pointer",
                           }}
                           onClick={() => handleDisable(user)}
                         >
@@ -1025,44 +1186,54 @@ export default function UsersPage() {
       {pagination && pagination.total > 0 && (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: '16px',
-            fontSize: '13px',
-            color: 'var(--io-text-muted)',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: "16px",
+            fontSize: "13px",
+            color: "var(--io-text-muted)",
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span>
-              Showing {(page - 1) * limit + 1}–{Math.min(page * limit, pagination.total)} of{' '}
-              {pagination.total} users
+              Showing {(page - 1) * limit + 1}–
+              {Math.min(page * limit, pagination.total)} of {pagination.total}{" "}
+              users
             </span>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "13px",
+              }}
+            >
               Rows per page:
               <select
                 value={limit}
                 onChange={(e) => {
-                  setLimit(Number(e.target.value))
-                  setPage(1)
+                  setLimit(Number(e.target.value));
+                  setPage(1);
                 }}
                 style={{
-                  padding: '3px 6px',
-                  background: 'var(--io-surface-sunken)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: 'var(--io-radius)',
-                  color: 'var(--io-text-primary)',
-                  fontSize: '13px',
-                  cursor: 'pointer',
+                  padding: "3px 6px",
+                  background: "var(--io-surface-sunken)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  color: "var(--io-text-primary)",
+                  fontSize: "13px",
+                  cursor: "pointer",
                 }}
               >
                 {[10, 25, 50, 100].map((n) => (
-                  <option key={n} value={n}>{n}</option>
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
                 ))}
               </select>
             </label>
           </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: "flex", gap: "6px" }}>
             <button
               style={btnSecondary}
               disabled={page <= 1}
@@ -1082,7 +1253,11 @@ export default function UsersPage() {
       )}
 
       {/* Dialogs */}
-      <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} roles={roles} />
+      <CreateUserDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        roles={roles}
+      />
 
       <EditUserDialog
         user={userDetailQuery.data ?? editUser}
@@ -1099,7 +1274,7 @@ export default function UsersPage() {
         confirmLabel="Disable User"
         danger
         onConfirm={() => {
-          if (confirmUser) disableMutation.mutate(confirmUser)
+          if (confirmUser) disableMutation.mutate(confirmUser);
         }}
       />
 
@@ -1108,20 +1283,30 @@ export default function UsersPage() {
           user={contextMenu.user}
           pos={contextMenu.pos}
           onClose={() => setContextMenu(null)}
-          onEdit={(u) => { handleEdit(u) }}
-          onDisable={(u) => { handleDisable(u) }}
-          onEnable={(u) => { enableMutation.mutate(u) }}
-          onViewSessions={(u) => { window.location.href = `/settings/sessions?user=${u.id}` }}
-          onCopyUsername={(u) => { navigator.clipboard.writeText(u.username).catch(() => {}) }}
+          onEdit={(u) => {
+            handleEdit(u);
+          }}
+          onDisable={(u) => {
+            handleDisable(u);
+          }}
+          onEnable={(u) => {
+            enableMutation.mutate(u);
+          }}
+          onViewSessions={(u) => {
+            window.location.href = `/settings/sessions?user=${u.id}`;
+          }}
+          onCopyUsername={(u) => {
+            navigator.clipboard.writeText(u.username).catch(() => {});
+          }}
         />
       )}
     </div>
-  )
+  );
 }
 
 const cellStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  fontSize: '13px',
-  color: 'var(--io-text-secondary)',
-  verticalAlign: 'middle',
-}
+  padding: "12px 14px",
+  fontSize: "13px",
+  color: "var(--io-text-secondary)",
+  verticalAlign: "middle",
+};

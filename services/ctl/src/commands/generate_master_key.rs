@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use rand::RngCore;
 use rand::rngs::OsRng;
+use rand::RngCore;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;

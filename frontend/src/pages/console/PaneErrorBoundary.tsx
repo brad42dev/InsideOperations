@@ -1,13 +1,13 @@
-import React from 'react'
+import React from "react";
 
 interface Props {
-  paneId: string
-  children: React.ReactNode
+  paneId: string;
+  children: React.ReactNode;
 }
 
 interface State {
-  hasError: boolean
-  error: Error | null
+  hasError: boolean;
+  error: Error | null;
 }
 
 /**
@@ -20,27 +20,27 @@ interface State {
  * defined on a class component — functional error boundaries are not supported.
  */
 export class PaneErrorBoundary extends React.Component<Props, State> {
-  state: State = { hasError: false, error: null }
+  state: State = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     // Structured log for observability.
     // TODO: forward to the io-observability tracing pipeline once the
     // frontend tracing hook is available (tracked in observability spec).
-    console.error('[IO PaneError]', {
+    console.error("[IO PaneError]", {
       paneId: this.props.paneId,
       message: error.message,
       stack: error.stack,
       componentStack: info.componentStack,
-    })
+    });
   }
 
   private handleReload = () => {
-    this.setState({ hasError: false, error: null })
-  }
+    this.setState({ hasError: false, error: null });
+  };
 
   render() {
     if (this.state.hasError) {
@@ -48,14 +48,14 @@ export class PaneErrorBoundary extends React.Component<Props, State> {
         <div
           style={{
             flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
             gap: 10,
             padding: 20,
-            background: 'var(--io-surface-sunken)',
-            height: '100%',
+            background: "var(--io-surface-sunken)",
+            height: "100%",
           }}
         >
           <svg
@@ -76,8 +76,8 @@ export class PaneErrorBoundary extends React.Component<Props, State> {
           <span
             style={{
               fontSize: 13,
-              color: 'var(--io-text-muted)',
-              textAlign: 'center',
+              color: "var(--io-text-muted)",
+              textAlign: "center",
             }}
           >
             This pane encountered an error.
@@ -86,12 +86,12 @@ export class PaneErrorBoundary extends React.Component<Props, State> {
             onClick={this.handleReload}
             style={{
               marginTop: 4,
-              padding: '5px 14px',
-              borderRadius: 'var(--io-radius)',
-              border: '1px solid var(--io-border)',
-              background: 'var(--io-surface-secondary)',
-              color: 'var(--io-text-primary)',
-              cursor: 'pointer',
+              padding: "5px 14px",
+              borderRadius: "var(--io-radius)",
+              border: "1px solid var(--io-border)",
+              background: "var(--io-surface-secondary)",
+              color: "var(--io-text-primary)",
+              cursor: "pointer",
               fontSize: 12,
               fontWeight: 500,
             }}
@@ -99,9 +99,9 @@ export class PaneErrorBoundary extends React.Component<Props, State> {
             Reload pane
           </button>
         </div>
-      )
+      );
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }

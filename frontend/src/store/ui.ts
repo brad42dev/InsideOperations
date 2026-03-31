@@ -1,10 +1,18 @@
-import { create } from 'zustand'
-import { type Theme, setTheme as applyTheme, initTheme } from '../shared/theme/tokens'
-import { publishThemeChange, publishSessionLock, publishSessionUnlock } from '../lib/broadcastSync'
+import { create } from "zustand";
+import {
+  type Theme,
+  setTheme as applyTheme,
+  initTheme,
+} from "../shared/theme/tokens";
+import {
+  publishThemeChange,
+  publishSessionLock,
+  publishSessionUnlock,
+} from "../lib/broadcastSync";
 
 interface EmergencyAlert {
-  active: boolean
-  message: string
+  active: boolean;
+  message: string;
 }
 
 /**
@@ -14,44 +22,44 @@ interface EmergencyAlert {
  */
 export interface LockMeta {
   /** 'local' | 'oidc' | 'saml' | 'ldap' — from session check response */
-  authProvider: 'local' | 'oidc' | 'saml' | 'ldap'
+  authProvider: "local" | "oidc" | "saml" | "ldap";
   /** Display name of the SSO provider (e.g. "Azure AD") — only meaningful for non-local */
-  authProviderName: string
+  authProviderName: string;
   /** true if the user has a PIN set on their account */
-  hasPin: boolean
+  hasPin: boolean;
 }
 
 interface UiState {
-  theme: Theme
-  isLocked: boolean
-  lockMeta: LockMeta
+  theme: Theme;
+  isLocked: boolean;
+  lockMeta: LockMeta;
   /** When true the LockOverlay should display immediately (for manual lock actions). */
-  lockImmediate: boolean
-  isKiosk: boolean
-  emergencyAlert: EmergencyAlert
+  lockImmediate: boolean;
+  isKiosk: boolean;
+  emergencyAlert: EmergencyAlert;
 
-  setTheme: (theme: Theme) => void
+  setTheme: (theme: Theme) => void;
   /** Apply theme locally without broadcasting — used by BroadcastChannel receiver. */
-  setThemeLocal: (theme: Theme) => void
-  lock: (meta?: Partial<LockMeta>, immediate?: boolean) => void
+  setThemeLocal: (theme: Theme) => void;
+  lock: (meta?: Partial<LockMeta>, immediate?: boolean) => void;
   /** Lock locally without broadcasting — used by BroadcastChannel receiver. */
-  lockLocal: (meta?: Partial<LockMeta>) => void
-  unlock: () => void
+  lockLocal: (meta?: Partial<LockMeta>) => void;
+  unlock: () => void;
   /** Unlock locally without broadcasting — used by BroadcastChannel receiver. */
-  unlockLocal: () => void
-  setLockMeta: (meta: Partial<LockMeta>) => void
+  unlockLocal: () => void;
+  setLockMeta: (meta: Partial<LockMeta>) => void;
   /** Clear the lockImmediate flag after overlay has acknowledged it. */
-  clearLockImmediate: () => void
-  setKiosk: (kiosk: boolean) => void
-  showEmergencyAlert: (message: string) => void
-  dismissEmergencyAlert: () => void
+  clearLockImmediate: () => void;
+  setKiosk: (kiosk: boolean) => void;
+  showEmergencyAlert: (message: string) => void;
+  dismissEmergencyAlert: () => void;
 }
 
 const DEFAULT_LOCK_META: LockMeta = {
-  authProvider: 'local',
-  authProviderName: '',
+  authProvider: "local",
+  authProviderName: "",
   hasPin: false,
-}
+};
 
 export const useUiStore = create<UiState>((set) => ({
   theme: initTheme(),
@@ -59,17 +67,17 @@ export const useUiStore = create<UiState>((set) => ({
   lockMeta: { ...DEFAULT_LOCK_META },
   lockImmediate: false,
   isKiosk: false,
-  emergencyAlert: { active: false, message: '' },
+  emergencyAlert: { active: false, message: "" },
 
   setTheme: (theme: Theme) => {
-    applyTheme(theme)
-    set({ theme })
-    publishThemeChange(theme)
+    applyTheme(theme);
+    set({ theme });
+    publishThemeChange(theme);
   },
 
   setThemeLocal: (theme: Theme) => {
-    applyTheme(theme)
-    set({ theme })
+    applyTheme(theme);
+    set({ theme });
     // No broadcast — this is the receiving end
   },
 
@@ -78,8 +86,8 @@ export const useUiStore = create<UiState>((set) => ({
       isLocked: true,
       lockMeta: { ...state.lockMeta, ...meta },
       lockImmediate: immediate,
-    }))
-    publishSessionLock()
+    }));
+    publishSessionLock();
   },
 
   lockLocal: (meta?: Partial<LockMeta>) =>
@@ -92,8 +100,8 @@ export const useUiStore = create<UiState>((set) => ({
     set({
       isLocked: false,
       lockMeta: { ...DEFAULT_LOCK_META },
-    })
-    publishSessionUnlock()
+    });
+    publishSessionUnlock();
   },
 
   unlockLocal: () =>
@@ -115,5 +123,5 @@ export const useUiStore = create<UiState>((set) => ({
     set({ emergencyAlert: { active: true, message } }),
 
   dismissEmergencyAlert: () =>
-    set({ emergencyAlert: { active: false, message: '' } }),
-}))
+    set({ emergencyAlert: { active: false, message: "" } }),
+}));

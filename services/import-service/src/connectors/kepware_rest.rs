@@ -28,7 +28,12 @@ fn host(cfg: &ConnectorConfig) -> Result<String> {
 fn client(cfg: &ConnectorConfig) -> Result<reqwest::Client> {
     let mut builder = reqwest::Client::builder();
     // Kepware Config API uses self-signed cert by default; only skip validation when explicitly opted in
-    if cfg.extra.get("ignore_tls").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if cfg
+        .extra
+        .get("ignore_tls")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         builder = builder.danger_accept_invalid_certs(true);
     }
     builder.build().map_err(|e| anyhow!("reqwest client: {e}"))
@@ -79,9 +84,8 @@ impl DcsConnector for KepwareConnector {
                 Some(n) => n.to_string(),
                 None => continue,
             };
-            let devices_url = format!(
-                "http://{host}:{CONFIG_PORT}/config/v1/project/channels/{ch_name}/devices"
-            );
+            let devices_url =
+                format!("http://{host}:{CONFIG_PORT}/config/v1/project/channels/{ch_name}/devices");
             let req = if let (Some(u), Some(p)) = (cfg.username.as_deref(), cfg.password.as_deref())
             {
                 client.get(&devices_url).basic_auth(u, Some(p))
@@ -100,10 +104,7 @@ impl DcsConnector for KepwareConnector {
                 None => continue,
             };
             for device in &device_items {
-                let dev_name = match device
-                    .get("common.ALLTYPES_NAME")
-                    .and_then(|v| v.as_str())
-                {
+                let dev_name = match device.get("common.ALLTYPES_NAME").and_then(|v| v.as_str()) {
                     Some(n) => n.to_string(),
                     None => continue,
                 };
@@ -129,10 +130,7 @@ impl DcsConnector for KepwareConnector {
                     None => continue,
                 };
                 for tag in &tag_items {
-                    let tagname = match tag
-                        .get("common.ALLTYPES_NAME")
-                        .and_then(|v| v.as_str())
-                    {
+                    let tagname = match tag.get("common.ALLTYPES_NAME").and_then(|v| v.as_str()) {
                         Some(n) => format!("{ch_name}.{dev_name}.{n}"),
                         None => continue,
                     };
@@ -146,12 +144,8 @@ impl DcsConnector for KepwareConnector {
                             .get("servermain.TAG_EU_UNITS")
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string()),
-                        eu_range_low: tag
-                            .get("servermain.TAG_EU_LOW")
-                            .and_then(|v| v.as_f64()),
-                        eu_range_high: tag
-                            .get("servermain.TAG_EU_HIGH")
-                            .and_then(|v| v.as_f64()),
+                        eu_range_low: tag.get("servermain.TAG_EU_LOW").and_then(|v| v.as_f64()),
+                        eu_range_high: tag.get("servermain.TAG_EU_HIGH").and_then(|v| v.as_f64()),
                         alarm_limit_hh: None,
                         alarm_limit_h: None,
                         alarm_limit_l: None,

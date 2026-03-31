@@ -1,4 +1,5 @@
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Config {
     pub database_url: String,
     pub port: u16,
@@ -24,8 +25,7 @@ impl Config {
             port: std::env::var("EMAIL_SERVICE_PORT")
                 .unwrap_or_else(|_| "3008".to_string())
                 .parse()?,
-            service_secret: std::env::var("IO_SERVICE_SECRET")
-                .unwrap_or_default(),
+            service_secret: std::env::var("IO_SERVICE_SECRET").unwrap_or_default(),
             master_key: load_master_key()?,
             queue_poll_interval_ms: std::env::var("EMAIL_QUEUE_POLL_INTERVAL_MS")
                 .unwrap_or_else(|_| "1000".to_string())

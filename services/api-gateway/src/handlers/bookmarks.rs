@@ -69,7 +69,13 @@ fn extract_bookmark(row: &sqlx::postgres::PgRow) -> Option<BookmarkItem> {
         (String::new(), String::new())
     };
 
-    Some(BookmarkItem { id, entity_type, entity_id, name, created_at })
+    Some(BookmarkItem {
+        id,
+        entity_type,
+        entity_id,
+        name,
+        created_at,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +151,8 @@ pub async fn add_bookmark(
         return IoError::BadRequest("name is required".into()).into_response();
     }
     if body.entity_type.trim().is_empty() || body.entity_id.trim().is_empty() {
-        return IoError::BadRequest("entity_type and entity_id are required".into()).into_response();
+        return IoError::BadRequest("entity_type and entity_id are required".into())
+            .into_response();
     }
 
     let user_id: Uuid = match Uuid::parse_str(&claims.sub) {

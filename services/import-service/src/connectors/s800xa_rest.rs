@@ -47,9 +47,7 @@ impl DcsConnector for AbbImConnector {
         let mut skip: u64 = 0;
 
         loop {
-            let url = format!(
-                "{base}{API_PREFIX}/tags?$skip={skip}&$top={PAGE_SIZE}"
-            );
+            let url = format!("{base}{API_PREFIX}/tags?$skip={skip}&$top={PAGE_SIZE}");
             let req = apply_auth(client.get(&url), cfg);
             let resp: serde_json::Value = match req.send().await?.json().await {
                 Ok(v) => v,
@@ -171,7 +169,10 @@ impl DcsConnector for AbbImConnector {
                 event_type: "process_alarm".to_string(),
                 source_name,
                 timestamp,
-                severity: item.get("severity").and_then(|v| v.as_i64()).map(|s| s as i32),
+                severity: item
+                    .get("severity")
+                    .and_then(|v| v.as_i64())
+                    .map(|s| s as i32),
                 message: item
                     .get("message")
                     .or_else(|| item.get("description"))

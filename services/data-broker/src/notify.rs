@@ -35,13 +35,14 @@ pub async fn run_notify_listener(
     user_connections: Arc<DashMap<Uuid, HashSet<ClientId>>>,
     throttle_states: Arc<DashMap<ClientId, ThrottleLevel>>,
 ) {
-    let mut listener: sqlx::postgres::PgListener = match sqlx::postgres::PgListener::connect_with(&db).await {
-        Ok(l) => l,
-        Err(e) => {
-            error!(error = %e, "Failed to create PgListener — NOTIFY fallback disabled");
-            return;
-        }
-    };
+    let mut listener: sqlx::postgres::PgListener =
+        match sqlx::postgres::PgListener::connect_with(&db).await {
+            Ok(l) => l,
+            Err(e) => {
+                error!(error = %e, "Failed to create PgListener — NOTIFY fallback disabled");
+                return;
+            }
+        };
 
     if let Err(e) = listener.listen("point_updates").await {
         error!(error = %e, "Failed to LISTEN on point_updates channel — NOTIFY fallback disabled");
@@ -67,33 +68,25 @@ pub async fn run_notify_listener(
                 let payload = notification.payload();
 
                 match channel {
-                    "point_updates" => {
-                        match serde_json::from_str::<NotifyPointUpdates>(payload) {
-                            Ok(notify) => {
-                                let batch = notify_to_batch(notify);
-                                fanout_batch(
-                                    &batch,
-                                    &cache,
-                                    &registry,
-                                    &connections,
-                                    &pending,
-                                    deadband,
-                                    &throttle_states,
-                                );
-                            }
-                            Err(e) => {
-                                warn!(error = %e, payload = %payload, "Failed to deserialize point_updates NOTIFY payload");
-                            }
+                    "point_updates" => match serde_json::from_str::<NotifyPointUpdates>(payload) {
+                        Ok(notify) => {
+                            let batch = notify_to_batch(notify);
+                            fanout_batch(
+                                &batch,
+                                &cache,
+                                &registry,
+                                &connections,
+                                &pending,
+                                deadband,
+                                &throttle_states,
+                            );
                         }
-                    }
+                        Err(e) => {
+                            warn!(error = %e, payload = %payload, "Failed to deserialize point_updates NOTIFY payload");
+                        }
+                    },
                     "export_complete" => {
-                        handle_export_complete(
-                            payload,
-                            &db,
-                            &connections,
-                            &user_connections,
-                        )
-                        .await;
+                        handle_export_complete(payload, &db, &connections, &user_connections).await;
                     }
                     "alarm_state_changed" => {
                         broadcast_alarm_state_changed(payload, &connections);
@@ -125,8 +118,11 @@ async fn handle_export_complete(
     // Parse the notify payload.
     let job_id: Uuid = match serde_json::from_str::<serde_json::Value>(payload)
         .ok()
-        .and_then(|v| v.get("job_id").and_then(|j| j.as_str()).and_then(|s| s.parse::<Uuid>().ok()))
-    {
+        .and_then(|v| {
+            v.get("job_id")
+                .and_then(|j| j.as_str())
+                .and_then(|s| s.parse::<Uuid>().ok())
+        }) {
         Some(id) => id,
         None => {
             warn!(payload = %payload, "export_complete NOTIFY payload missing or invalid job_id — ignoring");
@@ -135,23 +131,22 @@ async fn handle_export_complete(
     };
 
     // Look up the user who requested this job.
-    let user_id: Uuid = match sqlx::query_scalar::<_, Uuid>(
-        "SELECT requested_by FROM report_jobs WHERE id = $1",
-    )
-    .bind(job_id)
-    .fetch_optional(db)
-    .await
-    {
-        Ok(Some(uid)) => uid,
-        Ok(None) => {
-            warn!(%job_id, "export_complete: no report_jobs row found for job — ignoring");
-            return;
-        }
-        Err(e) => {
-            error!(error = %e, %job_id, "export_complete: DB lookup failed");
-            return;
-        }
-    };
+    let user_id: Uuid =
+        match sqlx::query_scalar::<_, Uuid>("SELECT requested_by FROM report_jobs WHERE id = $1")
+            .bind(job_id)
+            .fetch_optional(db)
+            .await
+        {
+            Ok(Some(uid)) => uid,
+            Ok(None) => {
+                warn!(%job_id, "export_complete: no report_jobs row found for job — ignoring");
+                return;
+            }
+            Err(e) => {
+                error!(error = %e, %job_id, "export_complete: DB lookup failed");
+                return;
+            }
+        };
 
     // Build the WS message.
     let msg = WsServerMessage::ExportComplete { job_id };

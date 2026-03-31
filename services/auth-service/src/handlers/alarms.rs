@@ -36,7 +36,11 @@ fn has_permission(headers: &HeaderMap, perm: &str) -> bool {
     headers
         .get("x-io-permissions")
         .and_then(|v| v.to_str().ok())
-        .map(|perms| perms.split(',').any(|p| p.trim() == "*" || p.trim() == perm))
+        .map(|perms| {
+            perms
+                .split(',')
+                .any(|p| p.trim() == "*" || p.trim() == perm)
+        })
         .unwrap_or(false)
 }
 
@@ -79,8 +83,7 @@ fn map_row(r: &sqlx::postgres::PgRow) -> Result<AlarmDefinitionRow, sqlx::Error>
     })
 }
 
-const SELECT_COLS: &str =
-    "id, name, description, point_id, definition_type, threshold_config,
+const SELECT_COLS: &str = "id, name, description, point_id, definition_type, threshold_config,
      expression_id, priority::text AS priority, enabled, created_by, updated_by,
      created_at, updated_at";
 
@@ -135,8 +138,7 @@ pub async fn list_alarm_definitions(
     headers: HeaderMap,
     Query(filter): Query<AlarmDefinitionFilter>,
 ) -> IoResult<impl IntoResponse> {
-    let _caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let _caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     let page = filter.page.page();
     let limit = filter.page.per_page();
@@ -197,8 +199,7 @@ pub async fn get_alarm_definition(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> IoResult<impl IntoResponse> {
-    let _caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let _caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     let row = sqlx::query(&format!(
         "SELECT {SELECT_COLS} FROM alarm_definitions WHERE id = $1 AND deleted_at IS NULL"
@@ -221,11 +222,12 @@ pub async fn create_alarm_definition(
     headers: HeaderMap,
     Json(req): Json<CreateAlarmDefinitionRequest>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     if !has_permission(&headers, "alarms:write") {
-        return Err(IoError::Forbidden("alarms:write permission required".into()));
+        return Err(IoError::Forbidden(
+            "alarms:write permission required".into(),
+        ));
     }
 
     if req.name.trim().is_empty() {
@@ -251,9 +253,7 @@ pub async fn create_alarm_definition(
         ));
     }
 
-    let priority = req
-        .priority
-        .unwrap_or_else(|| "low".to_string());
+    let priority = req.priority.unwrap_or_else(|| "low".to_string());
     let valid_priorities = ["urgent", "high", "medium", "low", "diagnostic"];
     if !valid_priorities.contains(&priority.as_str()) {
         return Err(IoError::BadRequest(
@@ -304,11 +304,12 @@ pub async fn update_alarm_definition(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateAlarmDefinitionRequest>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     if !has_permission(&headers, "alarms:write") {
-        return Err(IoError::Forbidden("alarms:write permission required".into()));
+        return Err(IoError::Forbidden(
+            "alarms:write permission required".into(),
+        ));
     }
 
     // Verify exists
@@ -319,7 +320,9 @@ pub async fn update_alarm_definition(
     .fetch_one(&state.db)
     .await?;
     if !exists {
-        return Err(IoError::NotFound(format!("Alarm definition {id} not found")));
+        return Err(IoError::NotFound(format!(
+            "Alarm definition {id} not found"
+        )));
     }
 
     if let Some(name) = &req.name {
@@ -437,11 +440,12 @@ pub async fn delete_alarm_definition(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     if !has_permission(&headers, "alarms:write") {
-        return Err(IoError::Forbidden("alarms:write permission required".into()));
+        return Err(IoError::Forbidden(
+            "alarms:write permission required".into(),
+        ));
     }
 
     let result = sqlx::query(
@@ -455,7 +459,9 @@ pub async fn delete_alarm_definition(
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(IoError::NotFound(format!("Alarm definition {id} not found")));
+        return Err(IoError::NotFound(format!(
+            "Alarm definition {id} not found"
+        )));
     }
 
     Ok(StatusCode::NO_CONTENT)

@@ -127,14 +127,8 @@ async fn main() -> anyhow::Result<()> {
             "/alerts/:id/acknowledge",
             post(handlers::alerts::acknowledge_alert),
         )
-        .route(
-            "/alerts/:id/resolve",
-            post(handlers::alerts::resolve_alert),
-        )
-        .route(
-            "/alerts/:id/cancel",
-            post(handlers::alerts::cancel_alert),
-        )
+        .route("/alerts/:id/resolve", post(handlers::alerts::resolve_alert))
+        .route("/alerts/:id/cancel", post(handlers::alerts::cancel_alert))
         .route(
             "/alerts/:id/deliveries",
             get(handlers::alerts::list_deliveries),
@@ -143,7 +137,10 @@ async fn main() -> anyhow::Result<()> {
             "/alerts/:id/escalations",
             get(handlers::alerts::list_escalations),
         )
-        .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            validate_service_secret,
+        ))
         .with_state(state.clone());
 
     // Twilio webhook routes are NOT behind the internal service-secret middleware

@@ -1,12 +1,12 @@
-/// Integration tests for the archive-service.
-///
-/// The archive-service manages TimescaleDB hypertables, continuous aggregates,
-/// compression policies, and historical data queries.
-///
-/// Tests that require a live archive-service or TimescaleDB instance are
-/// marked `#[ignore]`.
-///
-///   cargo test -p archive-service --test history -- --ignored
+// Integration tests for the archive-service.
+//
+// The archive-service manages TimescaleDB hypertables, continuous aggregates,
+// compression policies, and historical data queries.
+//
+// Tests that require a live archive-service or TimescaleDB instance are
+// marked `#[ignore]`.
+//
+// cargo test -p archive-service --test history -- --ignored
 
 fn archive_url() -> String {
     std::env::var("TEST_ARCHIVE_SERVICE_URL")
@@ -41,7 +41,10 @@ fn test_timestamp_outside_retention_is_expired() {
     let retention = chrono::Duration::days(365);
 
     let cutoff = now - retention;
-    assert!(old < cutoff, "timestamp 400 days old must be past the 365-day retention cutoff");
+    assert!(
+        old < cutoff,
+        "timestamp 400 days old must be past the 365-day retention cutoff"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +82,10 @@ async fn test_history_query_returns_200_with_data() {
 
     let resp = client
         .get(&url)
-        .query(&[("from", "2026-01-01T00:00:00Z"), ("to", "2026-01-02T00:00:00Z")])
+        .query(&[
+            ("from", "2026-01-01T00:00:00Z"),
+            ("to", "2026-01-02T00:00:00Z"),
+        ])
         .send()
         .await
         .expect("request must succeed");

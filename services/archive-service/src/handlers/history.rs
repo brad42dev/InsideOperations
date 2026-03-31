@@ -63,6 +63,18 @@ fn default_limit() -> i64 {
     10_000
 }
 
+/// Pick the best precomputed resolution for a given time span.
+/// Callers use this when `resolution == "auto"`.
+fn auto_resolution(span_secs: i64) -> &'static str {
+    match span_secs {
+        s if s <= 7_200 => "raw",   // ≤ 2 h  → raw ticks
+        s if s <= 21_600 => "1m",   // ≤ 6 h  → 1-minute buckets
+        s if s <= 172_800 => "5m",  // ≤ 48 h → 5-minute buckets
+        s if s <= 604_800 => "1h",  // ≤ 7 d  → 1-hour buckets
+        _ => "1d",                  // > 7 d  → daily buckets
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
@@ -182,17 +194,17 @@ async fn validate_agg_type(
         }
     }
 
-    let agg_types: i32 = sqlx::query_scalar(
-        "SELECT aggregation_types FROM points_metadata WHERE id = $1",
-    )
-    .bind(point_id)
-    .fetch_optional(db)
-    .await?
-    .unwrap_or(0);
+    let agg_types: i32 =
+        sqlx::query_scalar("SELECT aggregation_types FROM points_metadata WHERE id = $1")
+            .bind(point_id)
+            .fetch_optional(db)
+            .await?
+            .unwrap_or(0);
 
     match agg_str.as_str() {
         "avg" | "median" | "stddev" if (agg_types & 1) == 0 => Err(IoError::BadRequest(format!(
-            "This point does not permit '{}' (aggregation_types bit 0 not set)", agg_str
+            "This point does not permit '{}' (aggregation_types bit 0 not set)",
+            agg_str
         ))),
         "sum" if (agg_types & 2) == 0 => Err(IoError::BadRequest(
             "This point does not permit summing (aggregation_types bit 1 not set)".to_string(),
@@ -218,17 +230,47 @@ struct SourceInfo {
 /// Falls back to raw for sub-minute requests.
 fn pick_source_table(bucket_seconds: i64) -> SourceInfo {
     if bucket_seconds < 60 {
-        SourceInfo { table: "points_history_raw",  time_col: "timestamp", value_col: "value", table_bucket_sec: 0   }
+        SourceInfo {
+            table: "points_history_raw",
+            time_col: "timestamp",
+            value_col: "value",
+            table_bucket_sec: 0,
+        }
     } else if bucket_seconds < 300 {
-        SourceInfo { table: "points_history_1m",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 60  }
+        SourceInfo {
+            table: "points_history_1m",
+            time_col: "bucket",
+            value_col: "avg",
+            table_bucket_sec: 60,
+        }
     } else if bucket_seconds < 900 {
-        SourceInfo { table: "points_history_5m",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 300 }
+        SourceInfo {
+            table: "points_history_5m",
+            time_col: "bucket",
+            value_col: "avg",
+            table_bucket_sec: 300,
+        }
     } else if bucket_seconds < 3600 {
-        SourceInfo { table: "points_history_15m",  time_col: "bucket",    value_col: "avg",   table_bucket_sec: 900 }
+        SourceInfo {
+            table: "points_history_15m",
+            time_col: "bucket",
+            value_col: "avg",
+            table_bucket_sec: 900,
+        }
     } else if bucket_seconds < 86400 {
-        SourceInfo { table: "points_history_1h",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 3600}
+        SourceInfo {
+            table: "points_history_1h",
+            time_col: "bucket",
+            value_col: "avg",
+            table_bucket_sec: 3600,
+        }
     } else {
-        SourceInfo { table: "points_history_1d",   time_col: "bucket",    value_col: "avg",   table_bucket_sec: 86400 }
+        SourceInfo {
+            table: "points_history_1d",
+            time_col: "bucket",
+            value_col: "avg",
+            table_bucket_sec: 86400,
+        }
     }
 }
 
@@ -236,21 +278,26 @@ fn pick_source_table(bucket_seconds: i64) -> SourceInfo {
 /// All identifiers come from `pick_source_table`, never from user input.
 fn agg_sql_expr(agg_fn: &str, value_col: &str, time_col: &str, is_raw: bool) -> String {
     match agg_fn {
-        "avg"    => format!("AVG({}::float8)", value_col),
-        "min"    => format!("MIN({}::float8)", value_col),
-        "max"    => format!("MAX({}::float8)", value_col),
-        "sum"    => format!("SUM({}::float8)", value_col),
-        "count"  => if is_raw {
-            "COUNT(*)::float8".to_string()
-        } else {
-            "SUM(count)::float8".to_string()
-        },
-        "first"  => format!("first({}::float8, {})", value_col, time_col),
-        "last"   => format!("last({}::float8, {})", value_col, time_col),
+        "avg" => format!("AVG({}::float8)", value_col),
+        "min" => format!("MIN({}::float8)", value_col),
+        "max" => format!("MAX({}::float8)", value_col),
+        "sum" => format!("SUM({}::float8)", value_col),
+        "count" => {
+            if is_raw {
+                "COUNT(*)::float8".to_string()
+            } else {
+                "SUM(count)::float8".to_string()
+            }
+        }
+        "first" => format!("first({}::float8, {})", value_col, time_col),
+        "last" => format!("last({}::float8, {})", value_col, time_col),
         "stddev" => format!("STDDEV({}::float8)", value_col),
-        "median" => format!("percentile_disc(0.5) WITHIN GROUP (ORDER BY {}::float8)", value_col),
-        "range"  => format!("(MAX({}::float8) - MIN({}::float8))", value_col, value_col),
-        _        => "NULL::float8".to_string(),
+        "median" => format!(
+            "percentile_disc(0.5) WITHIN GROUP (ORDER BY {}::float8)",
+            value_col
+        ),
+        "range" => format!("(MAX({}::float8) - MIN({}::float8))", value_col, value_col),
+        _ => "NULL::float8".to_string(),
     }
 }
 
@@ -274,12 +321,12 @@ async fn query_with_bucket(
     let is_precomputed_agg = matches!(agg_fn, "avg" | "min" | "max" | "sum" | "count");
     if !is_raw && src.table_bucket_sec == bucket_seconds && is_precomputed_agg {
         let col = match agg_fn {
-            "avg"   => "avg",
-            "min"   => "min",
-            "max"   => "max",
-            "sum"   => "sum",
+            "avg" => "avg",
+            "min" => "min",
+            "max" => "max",
+            "sum" => "sum",
             "count" => "count",
-            _       => unreachable!(),
+            _ => unreachable!(),
         };
         let sql = format!(
             "SELECT {time_col} AS bucket, {col}::float8 AS value \
@@ -287,8 +334,8 @@ async fn query_with_bucket(
              WHERE point_id = $1 AND {time_col} BETWEEN $2 AND $3 \
              ORDER BY {time_col} LIMIT $4",
             time_col = src.time_col,
-            col      = col,
-            table    = src.table,
+            col = col,
+            table = src.table,
         );
         let rows = sqlx::query(&sql)
             .bind(point_id)
@@ -297,15 +344,22 @@ async fn query_with_bucket(
             .bind(limit)
             .fetch_all(db)
             .await?;
-        return Ok(rows.into_iter().map(|r| {
-            let ts: DateTime<Utc> = r.get("bucket");
-            HistoryRow {
-                timestamp: ts.to_rfc3339(),
-                value: r.get("value"),
-                quality: None,
-                avg: None, min: None, max: None, count: None, sum: None,
-            }
-        }).collect());
+        return Ok(rows
+            .into_iter()
+            .map(|r| {
+                let ts: DateTime<Utc> = r.get("bucket");
+                HistoryRow {
+                    timestamp: ts.to_rfc3339(),
+                    value: r.get("value"),
+                    quality: None,
+                    avg: None,
+                    min: None,
+                    max: None,
+                    count: None,
+                    sum: None,
+                }
+            })
+            .collect());
     }
 
     // Compute path: time_bucket() + aggregate expression.
@@ -318,7 +372,7 @@ async fn query_with_bucket(
          GROUP BY bucket ORDER BY bucket LIMIT $4",
         time_col = src.time_col,
         agg_expr = agg_expr,
-        table    = src.table,
+        table = src.table,
     );
     let rows = sqlx::query(&sql)
         .bind(point_id)
@@ -328,15 +382,22 @@ async fn query_with_bucket(
         .bind(bucket_seconds)
         .fetch_all(db)
         .await?;
-    Ok(rows.into_iter().map(|r| {
-        let ts: DateTime<Utc> = r.get("bucket");
-        HistoryRow {
-            timestamp: ts.to_rfc3339(),
-            value: r.get("value"),
-            quality: None,
-            avg: None, min: None, max: None, count: None, sum: None,
-        }
-    }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let ts: DateTime<Utc> = r.get("bucket");
+            HistoryRow {
+                timestamp: ts.to_rfc3339(),
+                value: r.get("value"),
+                quality: None,
+                avg: None,
+                min: None,
+                max: None,
+                count: None,
+                sum: None,
+            }
+        })
+        .collect())
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +418,6 @@ pub struct BatchHistoryRequest {
     #[serde(default)]
     pub aggregate_function: Option<String>,
 }
-
 
 // ---------------------------------------------------------------------------
 // GET /history/points/:point_id
@@ -391,15 +451,24 @@ pub async fn get_point_history(
     // --- New path: explicit bucket_seconds + aggregate_function ---
     if let Some(bucket_seconds) = params.bucket_seconds {
         if bucket_seconds < 1 {
-            return Err(IoError::BadRequest("bucket_seconds must be >= 1".to_string()));
+            return Err(IoError::BadRequest(
+                "bucket_seconds must be >= 1".to_string(),
+            ));
         }
         let agg_fn = params.aggregate_function.as_deref().unwrap_or("avg");
         let agg_opt = Some(agg_fn.to_string());
         validate_agg_type(&state.db, point_id, &agg_opt).await?;
 
         let rows = query_with_bucket(
-            &state.db, point_id, start, end, bucket_seconds, agg_fn, limit,
-        ).await?;
+            &state.db,
+            point_id,
+            start,
+            end,
+            bucket_seconds,
+            agg_fn,
+            limit,
+        )
+        .await?;
 
         return Ok(Json(ApiResponse::ok(HistoryResponse {
             point_id,
@@ -411,8 +480,15 @@ pub async fn get_point_history(
     }
 
     // --- Legacy path: resolution param ---
+    // Resolve "auto" → best precomputed bucket for this time span.
+    let resolution = if params.resolution == "auto" {
+        auto_resolution((end - start).num_seconds()).to_string()
+    } else {
+        params.resolution.clone()
+    };
+
     // Aggregation type validation: only applies to aggregate resolutions, not raw.
-    if params.resolution != "raw" {
+    if resolution != "raw" {
         validate_agg_type(&state.db, point_id, &params.agg).await?;
     }
 
@@ -421,20 +497,19 @@ pub async fn get_point_history(
     // Bit 0 (value 1): allow avg. Bit 1 (value 2): allow sum.
     // When agg IS explicitly specified it already passed validate_agg_type above, so
     // we expose all columns as before (no masking needed).
-    let (allow_avg, allow_sum) = if params.resolution != "raw" && params.agg.is_none() {
-        let agg_types: i32 = sqlx::query_scalar(
-            "SELECT aggregation_types FROM points_metadata WHERE id = $1",
-        )
-        .bind(point_id)
-        .fetch_optional(&state.db)
-        .await?
-        .unwrap_or(0);
+    let (allow_avg, allow_sum) = if resolution != "raw" && params.agg.is_none() {
+        let agg_types: i32 =
+            sqlx::query_scalar("SELECT aggregation_types FROM points_metadata WHERE id = $1")
+                .bind(point_id)
+                .fetch_optional(&state.db)
+                .await?
+                .unwrap_or(0);
         ((agg_types & 1) != 0, (agg_types & 2) != 0)
     } else {
         (true, true)
     };
 
-    let rows = match params.resolution.as_str() {
+    let rows = match resolution.as_str() {
         "raw" => {
             let raw_rows = sqlx::query(
                 "SELECT timestamp, value, quality \
@@ -629,7 +704,7 @@ pub async fn get_point_history(
         }
         other => {
             return Err(IoError::BadRequest(format!(
-                "Unknown resolution '{}'. Valid values: raw, 1m, 5m, 15m, 1h, 1d",
+                "Unknown resolution '{}'. Valid values: auto, raw, 1m, 5m, 15m, 1h, 1d",
                 other
             )));
         }
@@ -637,7 +712,7 @@ pub async fn get_point_history(
 
     Ok(Json(ApiResponse::ok(HistoryResponse {
         point_id,
-        resolution: params.resolution,
+        resolution,
         start: start.to_rfc3339(),
         end: end.to_rfc3339(),
         rows,
@@ -729,15 +804,24 @@ pub async fn get_batch_history(
         // New path: explicit bucket_seconds.
         if let Some(bucket_seconds) = body.bucket_seconds {
             if bucket_seconds < 1 {
-                return Err(IoError::BadRequest("bucket_seconds must be >= 1".to_string()));
+                return Err(IoError::BadRequest(
+                    "bucket_seconds must be >= 1".to_string(),
+                ));
             }
             let agg_fn = body.aggregate_function.as_deref().unwrap_or("avg");
             let agg_opt = Some(agg_fn.to_string());
             validate_agg_type(&state.db, *point_id, &agg_opt).await?;
 
             let rows = query_with_bucket(
-                &state.db, *point_id, start, end, bucket_seconds, agg_fn, 10_000,
-            ).await?;
+                &state.db,
+                *point_id,
+                start,
+                end,
+                bucket_seconds,
+                agg_fn,
+                10_000,
+            )
+            .await?;
 
             results.push(HistoryResponse {
                 point_id: *point_id,
@@ -750,28 +834,34 @@ pub async fn get_batch_history(
         }
 
         // Legacy path: resolution param.
+        // Resolve "auto" → best precomputed bucket for this time span.
+        let resolution = if body.resolution == "auto" {
+            auto_resolution((end - start).num_seconds()).to_string()
+        } else {
+            body.resolution.clone()
+        };
+
         // Aggregation type validation: only applies to aggregate resolutions, not raw.
-        if body.resolution != "raw" {
+        if resolution != "raw" {
             validate_agg_type(&state.db, *point_id, &body.agg).await?;
         }
 
         // When agg is not explicitly specified and resolution is aggregate, look up the
         // point's aggregation_types bitmask once per point and use it to null out
         // disallowed columns in the response.
-        let (allow_avg, allow_sum) = if body.resolution != "raw" && body.agg.is_none() {
-            let agg_types: i32 = sqlx::query_scalar(
-                "SELECT aggregation_types FROM points_metadata WHERE id = $1",
-            )
-            .bind(point_id)
-            .fetch_optional(&state.db)
-            .await?
-            .unwrap_or(0);
+        let (allow_avg, allow_sum) = if resolution != "raw" && body.agg.is_none() {
+            let agg_types: i32 =
+                sqlx::query_scalar("SELECT aggregation_types FROM points_metadata WHERE id = $1")
+                    .bind(point_id)
+                    .fetch_optional(&state.db)
+                    .await?
+                    .unwrap_or(0);
             ((agg_types & 1) != 0, (agg_types & 2) != 0)
         } else {
             (true, true)
         };
 
-        let rows = match body.resolution.as_str() {
+        let rows = match resolution.as_str() {
             "raw" => {
                 let raw_rows = sqlx::query(
                     "SELECT timestamp, value, quality \
@@ -960,7 +1050,7 @@ pub async fn get_batch_history(
             }
             other => {
                 return Err(IoError::BadRequest(format!(
-                    "Unknown resolution '{}'. Valid values: raw, 1m, 5m, 15m, 1h, 1d",
+                    "Unknown resolution '{}'. Valid values: auto, raw, 1m, 5m, 15m, 1h, 1d",
                     other
                 )));
             }
@@ -968,7 +1058,7 @@ pub async fn get_batch_history(
 
         results.push(HistoryResponse {
             point_id: *point_id,
-            resolution: body.resolution.clone(),
+            resolution,
             start: start.to_rfc3339(),
             end: end.to_rfc3339(),
             rows,
@@ -993,13 +1083,12 @@ pub async fn get_point_rolling(
     let window_secs = parse_window_seconds(&params.window)?;
 
     // Enforce aggregation_types: rolling average requires averaging to be permitted.
-    let agg_types: i32 = sqlx::query_scalar(
-        "SELECT aggregation_types FROM points_metadata WHERE id = $1",
-    )
-    .bind(point_id)
-    .fetch_optional(&state.db)
-    .await?
-    .unwrap_or(0);
+    let agg_types: i32 =
+        sqlx::query_scalar("SELECT aggregation_types FROM points_metadata WHERE id = $1")
+            .bind(point_id)
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or(0);
 
     if (agg_types & 1) == 0 {
         return Err(IoError::BadRequest(
@@ -1034,9 +1123,21 @@ pub async fn get_point_rolling(
         RollingResponse {
             point_id,
             window: params.window,
-            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
-            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
-            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            rolling_avg: if sample_count > 0 {
+                row.get("rolling_avg")
+            } else {
+                None
+            },
+            rolling_min: if sample_count > 0 {
+                row.get("rolling_min")
+            } else {
+                None
+            },
+            rolling_max: if sample_count > 0 {
+                row.get("rolling_max")
+            } else {
+                None
+            },
             sample_count,
         }
     } else if window_secs <= 3600 {
@@ -1060,9 +1161,21 @@ pub async fn get_point_rolling(
         RollingResponse {
             point_id,
             window: params.window,
-            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
-            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
-            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            rolling_avg: if sample_count > 0 {
+                row.get("rolling_avg")
+            } else {
+                None
+            },
+            rolling_min: if sample_count > 0 {
+                row.get("rolling_min")
+            } else {
+                None
+            },
+            rolling_max: if sample_count > 0 {
+                row.get("rolling_max")
+            } else {
+                None
+            },
             sample_count,
         }
     } else if window_secs <= 86_400 {
@@ -1086,9 +1199,21 @@ pub async fn get_point_rolling(
         RollingResponse {
             point_id,
             window: params.window,
-            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
-            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
-            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            rolling_avg: if sample_count > 0 {
+                row.get("rolling_avg")
+            } else {
+                None
+            },
+            rolling_min: if sample_count > 0 {
+                row.get("rolling_min")
+            } else {
+                None
+            },
+            rolling_max: if sample_count > 0 {
+                row.get("rolling_max")
+            } else {
+                None
+            },
             sample_count,
         }
     } else {
@@ -1112,9 +1237,21 @@ pub async fn get_point_rolling(
         RollingResponse {
             point_id,
             window: params.window,
-            rolling_avg: if sample_count > 0 { row.get("rolling_avg") } else { None },
-            rolling_min: if sample_count > 0 { row.get("rolling_min") } else { None },
-            rolling_max: if sample_count > 0 { row.get("rolling_max") } else { None },
+            rolling_avg: if sample_count > 0 {
+                row.get("rolling_avg")
+            } else {
+                None
+            },
+            rolling_min: if sample_count > 0 {
+                row.get("rolling_min")
+            } else {
+                None
+            },
+            rolling_max: if sample_count > 0 {
+                row.get("rolling_max")
+            } else {
+                None
+            },
             sample_count,
         }
     };

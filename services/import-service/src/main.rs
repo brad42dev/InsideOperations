@@ -52,8 +52,7 @@ async fn main() -> anyhow::Result<()> {
         config: Arc::new(cfg),
     };
 
-    let mut health =
-        io_health::HealthRegistry::new("import-service", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("import-service", env!("CARGO_PKG_VERSION"));
     health.register(io_health::PgDatabaseCheck::new(app_state.db.clone()));
     health.mark_startup_complete();
 
@@ -147,7 +146,10 @@ async fn run_supplemental_connectors(db: sqlx::PgPool, master_key: [u8; 32]) {
     }
 }
 
-async fn poll_supplemental_connectors(db: &sqlx::PgPool, master_key: &[u8; 32]) -> anyhow::Result<()> {
+async fn poll_supplemental_connectors(
+    db: &sqlx::PgPool,
+    master_key: &[u8; 32],
+) -> anyhow::Result<()> {
     use sqlx::Row as _;
 
     let rows = sqlx::query(
@@ -196,7 +198,9 @@ async fn poll_supplemental_connectors(db: &sqlx::PgPool, master_key: &[u8; 32]) 
                     warn!(conn_id = %conn_id, "write_supplemental_metadata error: {e}");
                 }
             }
-            Err(e) => warn!(conn_id = %conn_id, conn_type = %conn_type, "fetch_metadata error: {e}"),
+            Err(e) => {
+                warn!(conn_id = %conn_id, conn_type = %conn_type, "fetch_metadata error: {e}")
+            }
         }
 
         // Fetch and write events
@@ -328,8 +332,9 @@ async fn poll_import_schedules(db: &sqlx::PgPool) -> anyhow::Result<()> {
         // Compute the next scheduled time based on schedule_type.
         let next_run_at: Option<chrono::DateTime<chrono::Utc>> = match schedule_type.as_str() {
             "cron" => {
-                cron_expression.as_deref().and_then(|expr| {
-                    match cron::Schedule::from_str(expr) {
+                cron_expression
+                    .as_deref()
+                    .and_then(|expr| match cron::Schedule::from_str(expr) {
                         Ok(sched) => sched.upcoming(chrono::Utc).next(),
                         Err(e) => {
                             warn!(
@@ -339,8 +344,7 @@ async fn poll_import_schedules(db: &sqlx::PgPool) -> anyhow::Result<()> {
                             );
                             None
                         }
-                    }
-                })
+                    })
             }
             "interval" => {
                 interval_seconds.map(|secs| chrono::Utc::now() + chrono::Duration::seconds(secs))
@@ -844,8 +848,8 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
 
     for t in templates {
         let target_tables: Vec<String> = t.target_tables.iter().map(|s| s.to_string()).collect();
-        let required_fields_json: serde_json::Value = serde_json::from_str(t.required_fields)
-            .unwrap_or(serde_json::Value::Array(vec![]));
+        let required_fields_json: serde_json::Value =
+            serde_json::from_str(t.required_fields).unwrap_or(serde_json::Value::Array(vec![]));
         let result = sqlx::query(
             "INSERT INTO connector_templates \
              (slug, name, domain, vendor, description, template_config, required_fields, target_tables, version) \

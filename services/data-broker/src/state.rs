@@ -31,7 +31,6 @@ pub struct AppState {
     // -----------------------------------------------------------------------
     // Adaptive throttling state
     // -----------------------------------------------------------------------
-
     /// Per-client throttle level. Updated by the StatusReport handler in ws.rs.
     /// Read by the fanout flusher to apply per-client delivery behaviour.
     /// DashMap is used so the hot fanout path never blocks.

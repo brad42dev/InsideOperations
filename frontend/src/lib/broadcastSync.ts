@@ -8,49 +8,51 @@
  */
 
 type SyncMessageType =
-  | 'theme:change'
-  | 'density:change'
-  | 'auth:refresh'
-  | 'session:lock'
-  | 'session:unlock'
+  | "theme:change"
+  | "density:change"
+  | "auth:refresh"
+  | "session:lock"
+  | "session:unlock";
 
 export interface SyncMessage {
-  type: SyncMessageType
+  type: SyncMessageType;
   /** Present on theme:change */
-  theme?: string
+  theme?: string;
   /** Present on density:change */
-  density?: string
+  density?: string;
   /** Present on auth:refresh — the new access token */
-  token?: string
+  token?: string;
 }
 
 // Guard for SSR / environments without BroadcastChannel (e.g. some test runners)
 const chan: BroadcastChannel | null =
-  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('io-app-sync') : null
+  typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel("io-app-sync")
+    : null;
 
 /** Publish a theme change to all other windows. */
 export function publishThemeChange(theme: string): void {
-  chan?.postMessage({ type: 'theme:change', theme } satisfies SyncMessage)
+  chan?.postMessage({ type: "theme:change", theme } satisfies SyncMessage);
 }
 
 /** Publish a density-mode change to all other windows. */
 export function publishDensityChange(density: string): void {
-  chan?.postMessage({ type: 'density:change', density } satisfies SyncMessage)
+  chan?.postMessage({ type: "density:change", density } satisfies SyncMessage);
 }
 
 /** Publish a token refresh so all windows stay authenticated. */
 export function publishAuthRefresh(token: string): void {
-  chan?.postMessage({ type: 'auth:refresh', token } satisfies SyncMessage)
+  chan?.postMessage({ type: "auth:refresh", token } satisfies SyncMessage);
 }
 
 /** Publish a session-lock event — all windows will show the lock overlay. */
 export function publishSessionLock(): void {
-  chan?.postMessage({ type: 'session:lock' } satisfies SyncMessage)
+  chan?.postMessage({ type: "session:lock" } satisfies SyncMessage);
 }
 
 /** Publish a session-unlock event — all windows will dismiss the lock overlay. */
 export function publishSessionUnlock(): void {
-  chan?.postMessage({ type: 'session:unlock' } satisfies SyncMessage)
+  chan?.postMessage({ type: "session:unlock" } satisfies SyncMessage);
 }
 
 /**
@@ -58,12 +60,14 @@ export function publishSessionUnlock(): void {
  *
  * Returns an unsubscribe function — call it in a useEffect cleanup.
  */
-export function subscribeToSync(handler: (msg: SyncMessage) => void): () => void {
-  if (!chan) return () => {}
+export function subscribeToSync(
+  handler: (msg: SyncMessage) => void,
+): () => void {
+  if (!chan) return () => {};
 
   const listener = (event: MessageEvent<SyncMessage>) => {
-    handler(event.data)
-  }
-  chan.addEventListener('message', listener)
-  return () => chan.removeEventListener('message', listener)
+    handler(event.data);
+  };
+  chan.addEventListener("message", listener);
+  return () => chan.removeEventListener("message", listener);
 }

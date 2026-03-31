@@ -4,16 +4,15 @@
 ///   cargo run -p io-load-tests -- --host http://localhost:3000 --users 200 --run-time 60s
 ///
 /// The test simulates six traffic patterns:
-///   1. login_scenario         — POST /api/auth/login, extracts JWT
-///   2. dashboard_browse       — GET /api/dashboards (authenticated)
-///   3. point_search           — GET /api/search?q=temp (authenticated)
-///   4. alarms_poll            — GET /api/alarms/active every 5 s (alarm banner)
-///   5. ws_ticket_scenario     — POST /api/auth/ws-ticket (WS upgrade prerequisite)
-///   6. ws_subscribe_scenario  — Open a real WebSocket connection, authenticate
-///                               with a ticket, subscribe to 50 point tags, and
-///                               count update messages for 30 s.
-///                               Target: sustain 200 concurrent WS connections
-///                               receiving >10,000 point updates/sec in aggregate.
+///
+/// 1. `login_scenario` — POST /api/auth/login, extracts JWT
+/// 2. `dashboard_browse` — GET /api/dashboards (authenticated)
+/// 3. `point_search` — GET /api/search?q=temp (authenticated)
+/// 4. `alarms_poll` — GET /api/alarms/active every 5 s (alarm banner)
+/// 5. `ws_ticket_scenario` — POST /api/auth/ws-ticket (WS upgrade prerequisite)
+/// 6. `ws_subscribe_scenario` — Open a real WebSocket connection, authenticate
+///    with a ticket, subscribe to 50 point tags, and count update messages for 30 s.
+///    Target: sustain 200 concurrent WS connections receiving >10,000 point updates/sec.
 ///
 /// Target: 200 concurrent users, 60-second run, p95 < 200 ms.
 use futures::{SinkExt, StreamExt};
@@ -245,23 +244,56 @@ fn ws_ticket_scenario() -> Scenario {
 /// Point tags used by the load scenario — 50 representative tags that the
 /// Data Broker simulator publishes at high frequency.
 const WS_POINT_TAGS: &[&str] = &[
-    "plant.unit1.temp.01", "plant.unit1.temp.02", "plant.unit1.temp.03",
-    "plant.unit1.temp.04", "plant.unit1.temp.05", "plant.unit1.pres.01",
-    "plant.unit1.pres.02", "plant.unit1.pres.03", "plant.unit1.pres.04",
-    "plant.unit1.pres.05", "plant.unit1.flow.01", "plant.unit1.flow.02",
-    "plant.unit1.flow.03", "plant.unit1.flow.04", "plant.unit1.flow.05",
-    "plant.unit2.temp.01", "plant.unit2.temp.02", "plant.unit2.temp.03",
-    "plant.unit2.temp.04", "plant.unit2.temp.05", "plant.unit2.pres.01",
-    "plant.unit2.pres.02", "plant.unit2.pres.03", "plant.unit2.pres.04",
-    "plant.unit2.pres.05", "plant.unit2.flow.01", "plant.unit2.flow.02",
-    "plant.unit2.flow.03", "plant.unit2.flow.04", "plant.unit2.flow.05",
-    "plant.unit3.temp.01", "plant.unit3.temp.02", "plant.unit3.temp.03",
-    "plant.unit3.temp.04", "plant.unit3.temp.05", "plant.unit3.pres.01",
-    "plant.unit3.pres.02", "plant.unit3.pres.03", "plant.unit3.pres.04",
-    "plant.unit3.pres.05", "plant.unit3.flow.01", "plant.unit3.flow.02",
-    "plant.unit3.flow.03", "plant.unit3.flow.04", "plant.unit3.flow.05",
-    "plant.cw.temp.01", "plant.cw.temp.02", "plant.cw.pres.01",
-    "plant.cw.flow.01", "plant.cw.level.01",
+    "plant.unit1.temp.01",
+    "plant.unit1.temp.02",
+    "plant.unit1.temp.03",
+    "plant.unit1.temp.04",
+    "plant.unit1.temp.05",
+    "plant.unit1.pres.01",
+    "plant.unit1.pres.02",
+    "plant.unit1.pres.03",
+    "plant.unit1.pres.04",
+    "plant.unit1.pres.05",
+    "plant.unit1.flow.01",
+    "plant.unit1.flow.02",
+    "plant.unit1.flow.03",
+    "plant.unit1.flow.04",
+    "plant.unit1.flow.05",
+    "plant.unit2.temp.01",
+    "plant.unit2.temp.02",
+    "plant.unit2.temp.03",
+    "plant.unit2.temp.04",
+    "plant.unit2.temp.05",
+    "plant.unit2.pres.01",
+    "plant.unit2.pres.02",
+    "plant.unit2.pres.03",
+    "plant.unit2.pres.04",
+    "plant.unit2.pres.05",
+    "plant.unit2.flow.01",
+    "plant.unit2.flow.02",
+    "plant.unit2.flow.03",
+    "plant.unit2.flow.04",
+    "plant.unit2.flow.05",
+    "plant.unit3.temp.01",
+    "plant.unit3.temp.02",
+    "plant.unit3.temp.03",
+    "plant.unit3.temp.04",
+    "plant.unit3.temp.05",
+    "plant.unit3.pres.01",
+    "plant.unit3.pres.02",
+    "plant.unit3.pres.03",
+    "plant.unit3.pres.04",
+    "plant.unit3.pres.05",
+    "plant.unit3.flow.01",
+    "plant.unit3.flow.02",
+    "plant.unit3.flow.03",
+    "plant.unit3.flow.04",
+    "plant.unit3.flow.05",
+    "plant.cw.temp.01",
+    "plant.cw.temp.02",
+    "plant.cw.pres.01",
+    "plant.cw.flow.01",
+    "plant.cw.level.01",
 ];
 
 /// Duration for each user's WebSocket subscription window.
@@ -392,8 +424,7 @@ fn ws_subscribe_scenario() -> Scenario {
                 .set_on_start(),
         )
         .register_transaction(
-            transaction!(ws_subscribe_transaction)
-                .set_name("WS subscribe 50 tags (30 s)"),
+            transaction!(ws_subscribe_transaction).set_name("WS subscribe 50 tags (30 s)"),
         )
 }
 

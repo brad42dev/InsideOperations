@@ -4,16 +4,16 @@ use axum::{
     extract::{Multipart, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    Json, Router,
     routing::{get, post, put},
+    Json, Router,
 };
-use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use io_error::IoError;
 use io_models::ApiResponse;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 use crate::crypto;
@@ -255,7 +255,9 @@ pub struct UploadFileResponse {
 // Row mapping helpers
 // ---------------------------------------------------------------------------
 
-fn row_to_connector_template(row: &sqlx::postgres::PgRow) -> Result<ConnectorTemplateRow, sqlx::Error> {
+fn row_to_connector_template(
+    row: &sqlx::postgres::PgRow,
+) -> Result<ConnectorTemplateRow, sqlx::Error> {
     Ok(ConnectorTemplateRow {
         id: row.try_get("id")?,
         slug: row.try_get("slug")?,
@@ -263,15 +265,21 @@ fn row_to_connector_template(row: &sqlx::postgres::PgRow) -> Result<ConnectorTem
         domain: row.try_get("domain")?,
         vendor: row.try_get("vendor")?,
         description: row.try_get("description").ok().flatten(),
-        template_config: row.try_get("template_config").unwrap_or(JsonValue::Object(Default::default())),
-        required_fields: row.try_get("required_fields").unwrap_or(JsonValue::Array(vec![])),
+        template_config: row
+            .try_get("template_config")
+            .unwrap_or(JsonValue::Object(Default::default())),
+        required_fields: row
+            .try_get("required_fields")
+            .unwrap_or(JsonValue::Array(vec![])),
         target_tables: row.try_get("target_tables").unwrap_or_default(),
         version: row.try_get("version").unwrap_or_else(|_| "1.0".to_string()),
     })
 }
 
 fn row_to_connection(row: &sqlx::postgres::PgRow) -> Result<ImportConnectionRow, sqlx::Error> {
-    let raw_config: JsonValue = row.try_get("config").unwrap_or(JsonValue::Object(Default::default()));
+    let raw_config: JsonValue = row
+        .try_get("config")
+        .unwrap_or(JsonValue::Object(Default::default()));
     // Mask any sensitive fields (password, api_key, etc.) that may have been
     // placed in config. auth_config is stored separately and is never returned
     // to callers via this struct.
@@ -281,7 +289,9 @@ fn row_to_connection(row: &sqlx::postgres::PgRow) -> Result<ImportConnectionRow,
         name: row.try_get("name")?,
         connection_type: row.try_get("connection_type")?,
         config,
-        auth_type: row.try_get("auth_type").unwrap_or_else(|_| "none".to_string()),
+        auth_type: row
+            .try_get("auth_type")
+            .unwrap_or_else(|_| "none".to_string()),
         enabled: row.try_get("enabled").unwrap_or(true),
         last_tested_at: row.try_get("last_tested_at").ok().flatten(),
         last_test_status: row.try_get("last_test_status").ok().flatten(),
@@ -298,12 +308,20 @@ fn row_to_definition(row: &sqlx::postgres::PgRow) -> Result<ImportDefinitionRow,
         connection_id: row.try_get("connection_id")?,
         name: row.try_get("name")?,
         description: row.try_get("description").ok().flatten(),
-        source_config: row.try_get("source_config").unwrap_or(JsonValue::Object(Default::default())),
-        field_mappings: row.try_get("field_mappings").unwrap_or(JsonValue::Array(vec![])),
-        transforms: row.try_get("transforms").unwrap_or(JsonValue::Array(vec![])),
+        source_config: row
+            .try_get("source_config")
+            .unwrap_or(JsonValue::Object(Default::default())),
+        field_mappings: row
+            .try_get("field_mappings")
+            .unwrap_or(JsonValue::Array(vec![])),
+        transforms: row
+            .try_get("transforms")
+            .unwrap_or(JsonValue::Array(vec![])),
         target_table: row.try_get("target_table")?,
         enabled: row.try_get("enabled").unwrap_or(true),
-        error_strategy: row.try_get("error_strategy").unwrap_or_else(|_| "quarantine".to_string()),
+        error_strategy: row
+            .try_get("error_strategy")
+            .unwrap_or_else(|_| "quarantine".to_string()),
         batch_size: row.try_get("batch_size").unwrap_or(1000),
         template_id: row.try_get("template_id").ok().flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
@@ -315,7 +333,9 @@ fn row_to_schedule(row: &sqlx::postgres::PgRow) -> Result<ImportScheduleRow, sql
         id: row.try_get("id")?,
         import_definition_id: row.try_get("import_definition_id")?,
         schedule_type: row.try_get("schedule_type")?,
-        schedule_config: row.try_get("schedule_config").unwrap_or(JsonValue::Object(Default::default())),
+        schedule_config: row
+            .try_get("schedule_config")
+            .unwrap_or(JsonValue::Object(Default::default())),
         enabled: row.try_get("enabled").unwrap_or(true),
         next_run_at: row.try_get("next_run_at").ok().flatten(),
         last_run_at: row.try_get("last_run_at").ok().flatten(),
@@ -329,7 +349,9 @@ fn row_to_run(row: &sqlx::postgres::PgRow) -> Result<ImportRunRow, sqlx::Error> 
         import_definition_id: row.try_get("import_definition_id")?,
         definition_name: row.try_get("definition_name").ok().flatten(),
         status: row.try_get("status")?,
-        triggered_by: row.try_get("triggered_by").unwrap_or_else(|_| "manual".to_string()),
+        triggered_by: row
+            .try_get("triggered_by")
+            .unwrap_or_else(|_| "manual".to_string()),
         dry_run: row.try_get("dry_run").unwrap_or(false),
         rows_extracted: row.try_get("rows_extracted").ok().flatten(),
         rows_loaded: row.try_get("rows_loaded").ok().flatten(),
@@ -415,7 +437,9 @@ pub async fn get_connector_template(
             Ok(t) => Json(ApiResponse::ok(t)).into_response(),
             Err(e) => IoError::Internal(format!("Row mapping error: {e}")).into_response(),
         },
-        Ok(None) => IoError::NotFound(format!("Connector template '{slug}' not found")).into_response(),
+        Ok(None) => {
+            IoError::NotFound(format!("Connector template '{slug}' not found")).into_response()
+        }
         Err(e) => IoError::Database(e).into_response(),
     }
 }
@@ -489,7 +513,9 @@ pub async fn create_connection(
 
     let config = body.config.unwrap_or(JsonValue::Object(Default::default()));
     let auth_type = body.auth_type.unwrap_or_else(|| "none".to_string());
-    let raw_auth_config = body.auth_config.unwrap_or(JsonValue::Object(Default::default()));
+    let raw_auth_config = body
+        .auth_config
+        .unwrap_or(JsonValue::Object(Default::default()));
     // Encrypt sensitive credential fields before persisting to the database.
     let auth_config = crypto::encrypt_sensitive_fields(&raw_auth_config, &state.config.master_key);
     let is_supplemental = body.is_supplemental_connector.unwrap_or(false);
@@ -567,14 +593,32 @@ pub async fn update_connection(
         Err(e) => return IoError::Database(e).into_response(),
     };
 
-    let name: String = body.name.unwrap_or_else(|| current_row.try_get("name").unwrap_or_default());
-    let connection_type: String = body.connection_type.unwrap_or_else(|| current_row.try_get("connection_type").unwrap_or_default());
-    let config: JsonValue = body.config.unwrap_or_else(|| current_row.try_get("config").unwrap_or(JsonValue::Object(Default::default())));
-    let auth_type: String = body.auth_type.unwrap_or_else(|| current_row.try_get("auth_type").unwrap_or_else(|_| "none".to_string()));
-    let raw_auth_config: JsonValue = body.auth_config.unwrap_or_else(|| current_row.try_get("auth_config").unwrap_or(JsonValue::Object(Default::default())));
+    let name: String = body
+        .name
+        .unwrap_or_else(|| current_row.try_get("name").unwrap_or_default());
+    let connection_type: String = body
+        .connection_type
+        .unwrap_or_else(|| current_row.try_get("connection_type").unwrap_or_default());
+    let config: JsonValue = body.config.unwrap_or_else(|| {
+        current_row
+            .try_get("config")
+            .unwrap_or(JsonValue::Object(Default::default()))
+    });
+    let auth_type: String = body.auth_type.unwrap_or_else(|| {
+        current_row
+            .try_get("auth_type")
+            .unwrap_or_else(|_| "none".to_string())
+    });
+    let raw_auth_config: JsonValue = body.auth_config.unwrap_or_else(|| {
+        current_row
+            .try_get("auth_config")
+            .unwrap_or(JsonValue::Object(Default::default()))
+    });
     // Re-encrypt sensitive credential fields before persisting to the database.
     let auth_config = crypto::encrypt_sensitive_fields(&raw_auth_config, &state.config.master_key);
-    let enabled: bool = body.enabled.unwrap_or_else(|| current_row.try_get("enabled").unwrap_or(true));
+    let enabled: bool = body
+        .enabled
+        .unwrap_or_else(|| current_row.try_get("enabled").unwrap_or(true));
 
     let row = sqlx::query(
         "UPDATE import_connections \
@@ -610,12 +654,11 @@ pub async fn delete_connection(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     // Check for dependent import definitions
-    let count_row = sqlx::query(
-        "SELECT COUNT(*) as cnt FROM import_definitions WHERE connection_id = $1",
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await;
+    let count_row =
+        sqlx::query("SELECT COUNT(*) as cnt FROM import_definitions WHERE connection_id = $1")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await;
 
     match count_row {
         Ok(row) => {
@@ -682,23 +725,21 @@ pub async fn test_connection(
     let cfg = connectors::extract_connector_config(id, &config, &auth_type, &auth_config);
 
     // Dispatch to the appropriate connector, or return an honest "not supported" message.
-    let (test_status, test_message) = if let Some(connector) = connectors::get_connector(&connection_type) {
-        match connector.test_connection(&cfg).await {
-            Ok(()) => (
-                "connected".to_string(),
-                "Connection successful".to_string(),
-            ),
-            Err(e) => ("error".to_string(), e.to_string()),
-        }
-    } else {
-        (
-            "error".to_string(),
-            format!(
-                "Connection test not supported for connector type '{}' yet",
-                connection_type
-            ),
-        )
-    };
+    let (test_status, test_message) =
+        if let Some(connector) = connectors::get_connector(&connection_type) {
+            match connector.test_connection(&cfg).await {
+                Ok(()) => ("connected".to_string(), "Connection successful".to_string()),
+                Err(e) => ("error".to_string(), e.to_string()),
+            }
+        } else {
+            (
+                "error".to_string(),
+                format!(
+                    "Connection test not supported for connector type '{}' yet",
+                    connection_type
+                ),
+            )
+        };
 
     // Persist the result back to the DB.
     let update_result = sqlx::query(
@@ -779,10 +820,14 @@ pub async fn create_definition(
         return IoError::Unauthorized.into_response();
     };
 
-    let source_config = body.source_config.unwrap_or(JsonValue::Object(Default::default()));
+    let source_config = body
+        .source_config
+        .unwrap_or(JsonValue::Object(Default::default()));
     let field_mappings = body.field_mappings.unwrap_or(JsonValue::Array(vec![]));
     let transforms = body.transforms.unwrap_or(JsonValue::Array(vec![]));
-    let error_strategy = body.error_strategy.unwrap_or_else(|| "quarantine".to_string());
+    let error_strategy = body
+        .error_strategy
+        .unwrap_or_else(|| "quarantine".to_string());
     let batch_size = body.batch_size.unwrap_or(1000);
 
     let row = sqlx::query(
@@ -862,15 +907,41 @@ pub async fn update_definition(
         Err(e) => return IoError::Database(e).into_response(),
     };
 
-    let name: String = body.name.unwrap_or_else(|| current_row.try_get("name").unwrap_or_default());
-    let description: Option<String> = body.description.or_else(|| current_row.try_get("description").ok().flatten());
-    let source_config: JsonValue = body.source_config.unwrap_or_else(|| current_row.try_get("source_config").unwrap_or(JsonValue::Object(Default::default())));
-    let field_mappings: JsonValue = body.field_mappings.unwrap_or_else(|| current_row.try_get("field_mappings").unwrap_or(JsonValue::Array(vec![])));
-    let transforms: JsonValue = body.transforms.unwrap_or_else(|| current_row.try_get("transforms").unwrap_or(JsonValue::Array(vec![])));
-    let target_table: String = body.target_table.unwrap_or_else(|| current_row.try_get("target_table").unwrap_or_default());
-    let error_strategy: String = body.error_strategy.unwrap_or_else(|| current_row.try_get("error_strategy").unwrap_or_else(|_| "quarantine".to_string()));
-    let batch_size: i32 = body.batch_size.unwrap_or_else(|| current_row.try_get("batch_size").unwrap_or(1000));
-    let enabled: bool = body.enabled.unwrap_or_else(|| current_row.try_get("enabled").unwrap_or(true));
+    let name: String = body
+        .name
+        .unwrap_or_else(|| current_row.try_get("name").unwrap_or_default());
+    let description: Option<String> = body
+        .description
+        .or_else(|| current_row.try_get("description").ok().flatten());
+    let source_config: JsonValue = body.source_config.unwrap_or_else(|| {
+        current_row
+            .try_get("source_config")
+            .unwrap_or(JsonValue::Object(Default::default()))
+    });
+    let field_mappings: JsonValue = body.field_mappings.unwrap_or_else(|| {
+        current_row
+            .try_get("field_mappings")
+            .unwrap_or(JsonValue::Array(vec![]))
+    });
+    let transforms: JsonValue = body.transforms.unwrap_or_else(|| {
+        current_row
+            .try_get("transforms")
+            .unwrap_or(JsonValue::Array(vec![]))
+    });
+    let target_table: String = body
+        .target_table
+        .unwrap_or_else(|| current_row.try_get("target_table").unwrap_or_default());
+    let error_strategy: String = body.error_strategy.unwrap_or_else(|| {
+        current_row
+            .try_get("error_strategy")
+            .unwrap_or_else(|_| "quarantine".to_string())
+    });
+    let batch_size: i32 = body
+        .batch_size
+        .unwrap_or_else(|| current_row.try_get("batch_size").unwrap_or(1000));
+    let enabled: bool = body
+        .enabled
+        .unwrap_or_else(|| current_row.try_get("enabled").unwrap_or(true));
 
     let row = sqlx::query(
         "UPDATE import_definitions \
@@ -959,7 +1030,9 @@ pub async fn create_schedule(
     Path(def_id): Path<Uuid>,
     Json(body): Json<CreateScheduleRequest>,
 ) -> impl IntoResponse {
-    let schedule_config = body.schedule_config.unwrap_or(JsonValue::Object(Default::default()));
+    let schedule_config = body
+        .schedule_config
+        .unwrap_or(JsonValue::Object(Default::default()));
     let enabled = body.enabled.unwrap_or(true);
 
     let row = sqlx::query(
@@ -1005,10 +1078,20 @@ pub async fn update_schedule(
         Err(e) => return IoError::Database(e).into_response(),
     };
 
-    let schedule_type: String = body.schedule_type.unwrap_or_else(|| current_row.try_get("schedule_type").unwrap_or_default());
-    let schedule_config: JsonValue = body.schedule_config.unwrap_or_else(|| current_row.try_get("schedule_config").unwrap_or(JsonValue::Object(Default::default())));
-    let enabled: bool = body.enabled.unwrap_or_else(|| current_row.try_get("enabled").unwrap_or(true));
-    let next_run_at: Option<DateTime<Utc>> = body.next_run_at.or_else(|| current_row.try_get("next_run_at").ok().flatten());
+    let schedule_type: String = body
+        .schedule_type
+        .unwrap_or_else(|| current_row.try_get("schedule_type").unwrap_or_default());
+    let schedule_config: JsonValue = body.schedule_config.unwrap_or_else(|| {
+        current_row
+            .try_get("schedule_config")
+            .unwrap_or(JsonValue::Object(Default::default()))
+    });
+    let enabled: bool = body
+        .enabled
+        .unwrap_or_else(|| current_row.try_get("enabled").unwrap_or(true));
+    let next_run_at: Option<DateTime<Utc>> = body
+        .next_run_at
+        .or_else(|| current_row.try_get("next_run_at").ok().flatten());
 
     let row = sqlx::query(
         "UPDATE import_schedules \
@@ -1082,10 +1165,7 @@ pub async fn list_runs(
 
     match rows {
         Ok(rows) => {
-            let runs: Vec<ImportRunRow> = rows
-                .iter()
-                .filter_map(|r| row_to_run(r).ok())
-                .collect();
+            let runs: Vec<ImportRunRow> = rows.iter().filter_map(|r| row_to_run(r).ok()).collect();
             Json(ApiResponse::ok(runs)).into_response()
         }
         Err(e) => IoError::Database(e).into_response(),
@@ -1137,10 +1217,7 @@ pub async fn trigger_run(
     (StatusCode::CREATED, Json(ApiResponse::ok(run))).into_response()
 }
 
-pub async fn get_run(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+pub async fn get_run(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let row = sqlx::query(
         "SELECT ir.id, ir.import_definition_id, id2.name as definition_name, \
                 ir.status, ir.triggered_by, ir.dry_run, ir.rows_extracted, ir.rows_loaded, \
@@ -1180,20 +1257,15 @@ pub async fn get_run_errors(
 
     match rows {
         Ok(rows) => {
-            let errors: Vec<ImportErrorRow> = rows
-                .iter()
-                .filter_map(|r| row_to_error(r).ok())
-                .collect();
+            let errors: Vec<ImportErrorRow> =
+                rows.iter().filter_map(|r| row_to_error(r).ok()).collect();
             Json(ApiResponse::ok(errors)).into_response()
         }
         Err(e) => IoError::Database(e).into_response(),
     }
 }
 
-pub async fn cancel_run(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+pub async fn cancel_run(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let row = sqlx::query(
         "UPDATE import_runs \
          SET status = 'cancelled', completed_at = NOW() \
@@ -1205,11 +1277,13 @@ pub async fn cancel_run(
     .await;
 
     match row {
-        Ok(Some(_)) => Json(ApiResponse::ok(serde_json::json!({ "cancelled": true }))).into_response(),
-        Ok(None) => IoError::Conflict(
-            "Run not found or cannot be cancelled (not pending/running)".into(),
-        )
-        .into_response(),
+        Ok(Some(_)) => {
+            Json(ApiResponse::ok(serde_json::json!({ "cancelled": true }))).into_response()
+        }
+        Ok(None) => {
+            IoError::Conflict("Run not found or cannot be cancelled (not pending/running)".into())
+                .into_response()
+        }
         Err(e) => IoError::Database(e).into_response(),
     }
 }
@@ -1219,7 +1293,10 @@ pub async fn cancel_run(
 // ---------------------------------------------------------------------------
 
 /// Perform {{key}} substitution across every string value in a JSON tree.
-fn substitute_placeholders(value: &JsonValue, fields: &std::collections::HashMap<String, String>) -> JsonValue {
+fn substitute_placeholders(
+    value: &JsonValue,
+    fields: &std::collections::HashMap<String, String>,
+) -> JsonValue {
     match value {
         JsonValue::String(s) => {
             let mut result = s.clone();
@@ -1236,9 +1313,11 @@ fn substitute_placeholders(value: &JsonValue, fields: &std::collections::HashMap
                 .collect();
             JsonValue::Object(new_map)
         }
-        JsonValue::Array(arr) => {
-            JsonValue::Array(arr.iter().map(|v| substitute_placeholders(v, fields)).collect())
-        }
+        JsonValue::Array(arr) => JsonValue::Array(
+            arr.iter()
+                .map(|v| substitute_placeholders(v, fields))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -1268,7 +1347,10 @@ pub async fn instantiate_template(
             Ok(t) => t,
             Err(e) => return IoError::Internal(format!("Row mapping error: {e}")).into_response(),
         },
-        Ok(None) => return IoError::NotFound(format!("Connector template '{slug}' not found")).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Connector template '{slug}' not found"))
+                .into_response()
+        }
         Err(e) => return IoError::Database(e).into_response(),
     };
 
@@ -1290,9 +1372,12 @@ pub async fn instantiate_template(
         .get("auth_config")
         .cloned()
         .unwrap_or(JsonValue::Object(Default::default()));
-    let auth_config = crate::crypto::encrypt_sensitive_fields(&raw_auth_config, &state.config.master_key);
+    let auth_config =
+        crate::crypto::encrypt_sensitive_fields(&raw_auth_config, &state.config.master_key);
 
-    let conn_name = body.connection_name.unwrap_or_else(|| format!("{} Connection", tmpl.name));
+    let conn_name = body
+        .connection_name
+        .unwrap_or_else(|| format!("{} Connection", tmpl.name));
     let conn_type = tmpl.slug.clone();
 
     // Insert the import_connection
@@ -1334,7 +1419,11 @@ pub async fn instantiate_template(
     if definitions_json.is_empty() {
         // Create one default definition when no definitions are in the template
         let def_name = format!("{} Import", tmpl.name);
-        let target_table = tmpl.target_tables.first().cloned().unwrap_or_else(|| "custom_import_data".to_string());
+        let target_table = tmpl
+            .target_tables
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "custom_import_data".to_string());
         let def_row = sqlx::query(
             "INSERT INTO import_definitions \
              (connection_id, name, source_config, field_mappings, transforms, \
@@ -1355,24 +1444,48 @@ pub async fn instantiate_template(
         match def_row {
             Ok(r) => match row_to_definition(&r) {
                 Ok(d) => definitions.push(d),
-                Err(e) => return IoError::Internal(format!("Definition row mapping error: {e}")).into_response(),
+                Err(e) => {
+                    return IoError::Internal(format!("Definition row mapping error: {e}"))
+                        .into_response()
+                }
             },
             Err(e) => return IoError::Database(e).into_response(),
         }
     } else {
         for def_entry in &definitions_json {
-            let def_name = def_entry.get("name").and_then(|v| v.as_str()).unwrap_or("Import").to_string();
-            let source_config = def_entry.get("source_config").cloned().unwrap_or(JsonValue::Object(Default::default()));
-            let field_mappings = def_entry.get("field_mappings").cloned().unwrap_or(JsonValue::Array(vec![]));
-            let transforms = def_entry.get("transforms").cloned().unwrap_or(JsonValue::Array(vec![]));
+            let def_name = def_entry
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Import")
+                .to_string();
+            let source_config = def_entry
+                .get("source_config")
+                .cloned()
+                .unwrap_or(JsonValue::Object(Default::default()));
+            let field_mappings = def_entry
+                .get("field_mappings")
+                .cloned()
+                .unwrap_or(JsonValue::Array(vec![]));
+            let transforms = def_entry
+                .get("transforms")
+                .cloned()
+                .unwrap_or(JsonValue::Array(vec![]));
             let target_table = def_entry
                 .get("target_table")
                 .and_then(|v| v.as_str())
                 .or_else(|| tmpl.target_tables.first().map(|s| s.as_str()))
                 .unwrap_or("custom_import_data")
                 .to_string();
-            let error_strategy = def_entry.get("error_strategy").and_then(|v| v.as_str()).unwrap_or("quarantine").to_string();
-            let batch_size: i32 = def_entry.get("batch_size").and_then(|v| v.as_i64()).map(|n| n as i32).unwrap_or(1000);
+            let error_strategy = def_entry
+                .get("error_strategy")
+                .and_then(|v| v.as_str())
+                .unwrap_or("quarantine")
+                .to_string();
+            let batch_size: i32 = def_entry
+                .get("batch_size")
+                .and_then(|v| v.as_i64())
+                .map(|n| n as i32)
+                .unwrap_or(1000);
 
             let def_row = sqlx::query(
                 "INSERT INTO import_definitions \
@@ -1399,14 +1512,24 @@ pub async fn instantiate_template(
             match def_row {
                 Ok(r) => match row_to_definition(&r) {
                     Ok(d) => definitions.push(d),
-                    Err(e) => return IoError::Internal(format!("Definition row mapping error: {e}")).into_response(),
+                    Err(e) => {
+                        return IoError::Internal(format!("Definition row mapping error: {e}"))
+                            .into_response()
+                    }
                 },
                 Err(e) => return IoError::Database(e).into_response(),
             }
         }
     }
 
-    (StatusCode::CREATED, Json(ApiResponse::ok(InstantiateTemplateResponse { connection, definitions }))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(ApiResponse::ok(InstantiateTemplateResponse {
+            connection,
+            definitions,
+        })),
+    )
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1418,12 +1541,10 @@ pub async fn discover_schema(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     // Fetch the connection row to verify it exists
-    let row = sqlx::query(
-        "SELECT id, connection_type FROM import_connections WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let row = sqlx::query("SELECT id, connection_type FROM import_connections WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
 
     match row {
         Ok(Some(_)) => {
@@ -1451,7 +1572,8 @@ pub async fn upload_file(
     let upload_path = PathBuf::from(&upload_dir);
 
     if let Err(e) = tokio::fs::create_dir_all(&upload_path).await {
-        return IoError::Internal(format!("Failed to create upload directory: {e}")).into_response();
+        return IoError::Internal(format!("Failed to create upload directory: {e}"))
+            .into_response();
     }
 
     const MAX_SIZE: usize = 100 * 1024 * 1024; // 100 MB
@@ -1470,30 +1592,45 @@ pub async fn upload_file(
                 .unwrap_or_else(|| "upload".to_string());
 
             let file_id = Uuid::new_v4().to_string();
-            let ext = safe_filename.rsplit('.').next().map(|e| format!(".{e}")).unwrap_or_default();
+            let ext = safe_filename
+                .rsplit('.')
+                .next()
+                .map(|e| format!(".{e}"))
+                .unwrap_or_default();
             let stored_name = format!("{file_id}{ext}");
             let dest = upload_path.join(&stored_name);
 
             // Ensure destination is within upload_dir (prevent path traversal)
             let canonical_dir = upload_path.canonicalize().unwrap_or(upload_path.clone());
-            let dest_canonical = dest.parent().map(|p| p.to_path_buf()).unwrap_or(upload_path.clone());
+            let dest_canonical = dest
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or(upload_path.clone());
             if !dest_canonical.starts_with(&canonical_dir) {
                 return IoError::BadRequest("Invalid filename".into()).into_response();
             }
 
             let data = match field.bytes().await {
                 Ok(b) => b,
-                Err(e) => return IoError::Internal(format!("Failed to read upload data: {e}")).into_response(),
+                Err(e) => {
+                    return IoError::Internal(format!("Failed to read upload data: {e}"))
+                        .into_response()
+                }
             };
 
             if data.len() > MAX_SIZE {
-                return IoError::BadRequest(format!("File exceeds 100 MB limit ({} bytes)", data.len())).into_response();
+                return IoError::BadRequest(format!(
+                    "File exceeds 100 MB limit ({} bytes)",
+                    data.len()
+                ))
+                .into_response();
             }
 
             let size_bytes = data.len() as u64;
 
             if let Err(e) = tokio::fs::write(&dest, &data).await {
-                return IoError::Internal(format!("Failed to write uploaded file: {e}")).into_response();
+                return IoError::Internal(format!("Failed to write uploaded file: {e}"))
+                    .into_response();
             }
 
             tracing::info!(file_id = %file_id, filename = %safe_filename, size_bytes, "File uploaded");
@@ -1502,7 +1639,8 @@ pub async fn upload_file(
                 file_id,
                 filename: safe_filename,
                 size_bytes,
-            })).into_response()
+            }))
+            .into_response()
         }
         Ok(None) | Err(_) => {
             IoError::BadRequest("No file field found in multipart request".into()).into_response()
@@ -1542,11 +1680,19 @@ pub async fn clone_definition(
     let connection_id: Uuid = orig_row.try_get("connection_id").unwrap_or_default();
     let name: String = orig_row.try_get("name").unwrap_or_default();
     let description: Option<String> = orig_row.try_get("description").ok().flatten();
-    let source_config: JsonValue = orig_row.try_get("source_config").unwrap_or(JsonValue::Object(Default::default()));
-    let field_mappings: JsonValue = orig_row.try_get("field_mappings").unwrap_or(JsonValue::Array(vec![]));
-    let transforms: JsonValue = orig_row.try_get("transforms").unwrap_or(JsonValue::Array(vec![]));
+    let source_config: JsonValue = orig_row
+        .try_get("source_config")
+        .unwrap_or(JsonValue::Object(Default::default()));
+    let field_mappings: JsonValue = orig_row
+        .try_get("field_mappings")
+        .unwrap_or(JsonValue::Array(vec![]));
+    let transforms: JsonValue = orig_row
+        .try_get("transforms")
+        .unwrap_or(JsonValue::Array(vec![]));
     let target_table: String = orig_row.try_get("target_table").unwrap_or_default();
-    let error_strategy: String = orig_row.try_get("error_strategy").unwrap_or_else(|_| "quarantine".to_string());
+    let error_strategy: String = orig_row
+        .try_get("error_strategy")
+        .unwrap_or_else(|_| "quarantine".to_string());
     let batch_size: i32 = orig_row.try_get("batch_size").unwrap_or(1000);
     let template_id: Option<Uuid> = orig_row.try_get("template_id").ok().flatten();
 
@@ -1593,7 +1739,10 @@ pub fn import_routes() -> Router<AppState> {
         // Connector templates
         .route("/connector-templates", get(list_connector_templates))
         .route("/connector-templates/:slug", get(get_connector_template))
-        .route("/connector-templates/:slug/instantiate", post(instantiate_template))
+        .route(
+            "/connector-templates/:slug/instantiate",
+            post(instantiate_template),
+        )
         // File upload
         .route("/upload", post(upload_file))
         // Connections
@@ -1603,7 +1752,9 @@ pub fn import_routes() -> Router<AppState> {
         )
         .route(
             "/connections/:id",
-            get(get_connection).put(update_connection).delete(delete_connection),
+            get(get_connection)
+                .put(update_connection)
+                .delete(delete_connection),
         )
         .route("/connections/:id/test", post(test_connection))
         .route("/connections/:id/discover", post(discover_schema))
@@ -1614,7 +1765,9 @@ pub fn import_routes() -> Router<AppState> {
         )
         .route(
             "/definitions/:id",
-            get(get_definition).put(update_definition).delete(delete_definition),
+            get(get_definition)
+                .put(update_definition)
+                .delete(delete_definition),
         )
         .route("/definitions/:id/clone", post(clone_definition))
         // Schedules
@@ -1627,10 +1780,7 @@ pub fn import_routes() -> Router<AppState> {
             put(update_schedule).delete(delete_schedule),
         )
         // Runs
-        .route(
-            "/definitions/:id/runs",
-            get(list_runs).post(trigger_run),
-        )
+        .route("/definitions/:id/runs", get(list_runs).post(trigger_run))
         .route("/runs/:id", get(get_run))
         .route("/runs/:id/errors", get(get_run_errors))
         .route("/runs/:id/cancel", post(cancel_run))

@@ -45,6 +45,7 @@ const MIN_POLL_SECS: u64 = 10;
 const MAX_POLL_SECS: u64 = 300;
 
 /// Default poll interval if none is configured.
+#[allow(dead_code)]
 const DEFAULT_POLL_SECS: u64 = 30;
 
 /// After this many consecutive failures, fire a WARNING alert.
@@ -66,7 +67,11 @@ pub async fn run_badge_poller(
 ) {
     tracing::info!("badge poller starting");
 
-    let broker = BrokerConfig { http, broker_url, service_secret };
+    let broker = BrokerConfig {
+        http,
+        broker_url,
+        service_secret,
+    };
     let mut known_source_ids: HashSet<Uuid> = HashSet::new();
     let mut discovery_interval = time::interval(SOURCE_DISCOVERY_INTERVAL);
     // Skip the first tick (fires immediately) so we do an immediate discovery.
@@ -113,7 +118,10 @@ async fn discover_and_spawn_sources(db: &PgPool, broker: &BrokerConfig, known: &
                 }
                 known.insert(source.id);
 
-                let poll_secs = source.poll_interval_s.max(MIN_POLL_SECS as i32).min(MAX_POLL_SECS as i32) as u64;
+                let poll_secs = source
+                    .poll_interval_s
+                    .max(MIN_POLL_SECS as i32)
+                    .min(MAX_POLL_SECS as i32) as u64;
                 let adapter: Arc<dyn BadgeAdapter> = Arc::from(build_adapter(
                     &source.adapter_type,
                     source.name.clone(),
@@ -226,7 +234,7 @@ async fn poll_once(
     let mut latest_ts: Option<DateTime<Utc>> = None;
     for event in &events {
         process_event(db, broker, source_id, event).await;
-        if latest_ts.map_or(true, |ts| event.occurred_at > ts) {
+        if latest_ts.is_none_or(|ts| event.occurred_at > ts) {
             latest_ts = Some(event.occurred_at);
         }
     }
@@ -317,24 +325,28 @@ async fn publish_presence_events(
     user_id: Option<uuid::Uuid>,
 ) {
     // Query current on-site count
-    let on_site: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM presence_status WHERE on_site = true")
-        .fetch_one(db)
-        .await
-        .unwrap_or(0);
+    let on_site: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM presence_status WHERE on_site = true")
+            .fetch_one(db)
+            .await
+            .unwrap_or(0);
 
-    let on_shift: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM presence_status WHERE on_shift = true")
-        .fetch_one(db)
-        .await
-        .unwrap_or(0);
+    let on_shift: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM presence_status WHERE on_shift = true")
+            .fetch_one(db)
+            .await
+            .unwrap_or(0);
 
     // Resolve person name for the badge event publish
     let person_name: String = if let Some(uid) = user_id {
-        sqlx::query_scalar::<_, String>("SELECT COALESCE(display_name, full_name, '') FROM users WHERE id = $1")
-            .bind(uid)
-            .fetch_optional(db)
-            .await
-            .unwrap_or(None)
-            .unwrap_or_default()
+        sqlx::query_scalar::<_, String>(
+            "SELECT COALESCE(display_name, full_name, '') FROM users WHERE id = $1",
+        )
+        .bind(uid)
+        .fetch_optional(db)
+        .await
+        .unwrap_or(None)
+        .unwrap_or_default()
     } else {
         event.employee_id.clone().unwrap_or_default()
     };
@@ -380,12 +392,11 @@ async fn publish_presence_events(
 async fn resolve_user_id(db: &PgPool, event: &BadgeEvent) -> Option<Uuid> {
     // Try employee_id first
     if let Some(ref emp_id) = event.employee_id {
-        if let Ok(Some(uid)) = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM users WHERE employee_id = $1 LIMIT 1",
-        )
-        .bind(emp_id)
-        .fetch_optional(db)
-        .await
+        if let Ok(Some(uid)) =
+            sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE employee_id = $1 LIMIT 1")
+                .bind(emp_id)
+                .fetch_optional(db)
+                .await
         {
             return Some(uid);
         }
@@ -502,7 +513,10 @@ async fn fire_warning_alert(
          VALUES ('warning', 'badge-poller', $1, $2, $3, now())
          ON CONFLICT DO NOTHING",
     )
-    .bind(format!("Badge source '{}' consecutive failures", source_name))
+    .bind(format!(
+        "Badge source '{}' consecutive failures",
+        source_name
+    ))
     .bind(format!(
         "Badge source '{}' (id={}) has failed {} consecutive times. Last error: {}",
         source_name, source_id, failures, error_msg

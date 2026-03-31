@@ -30,14 +30,13 @@ pub async fn generate_report_job(
     export_dir: &str,
 ) -> Result<(String, u64), String> {
     // Fetch the template
-    let tmpl_row = sqlx::query(
-        "SELECT id, name, description, category FROM report_templates WHERE id = $1",
-    )
-    .bind(template_id)
-    .fetch_optional(db)
-    .await
-    .map_err(|e| format!("DB error fetching template: {e}"))?
-    .ok_or_else(|| format!("Template {template_id} not found"))?;
+    let tmpl_row =
+        sqlx::query("SELECT id, name, description, category FROM report_templates WHERE id = $1")
+            .bind(template_id)
+            .fetch_optional(db)
+            .await
+            .map_err(|e| format!("DB error fetching template: {e}"))?
+            .ok_or_else(|| format!("Template {template_id} not found"))?;
 
     let template_name: String = tmpl_row.try_get("name").unwrap_or_default();
     let template_description: String = tmpl_row
@@ -81,8 +80,14 @@ pub async fn generate_report_job(
         ),
         _ => {
             // html
-            generate_html_report(&template_name, &template_description, &headers, &rows, &params)
-                .into_bytes()
+            generate_html_report(
+                &template_name,
+                &template_description,
+                &headers,
+                &rows,
+                &params,
+            )
+            .into_bytes()
         }
     };
 
@@ -143,16 +148,14 @@ async fn query_point_value_trend(
 
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
-    let rows = sqlx::query(
-        &format!(
-            "SELECT p.tag_path, ph.time, ph.value, ph.quality
+    let rows = sqlx::query(&format!(
+        "SELECT p.tag_path, ph.time, ph.value, ph.quality
              FROM points_history_1h ph
              JOIN points p ON p.id = ph.point_id
              WHERE ph.time >= {start_expr} AND ph.time <= {end_expr}
              ORDER BY p.tag_path, ph.time
              LIMIT 5000"
-        ),
-    )
+    ))
     .fetch_all(db)
     .await
     .map_err(|e| format!("DB error in Point Value Trend: {e}"))?;
@@ -194,9 +197,8 @@ async fn query_statistical_summary(
 
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
-    let rows = sqlx::query(
-        &format!(
-            "SELECT p.tag_path,
+    let rows = sqlx::query(&format!(
+        "SELECT p.tag_path,
                     MIN(ph.value)  AS min_val,
                     MAX(ph.value)  AS max_val,
                     AVG(ph.value)  AS avg_val,
@@ -208,8 +210,7 @@ async fn query_statistical_summary(
              GROUP BY p.tag_path
              ORDER BY p.tag_path
              LIMIT 1000"
-        ),
-    )
+    ))
     .fetch_all(db)
     .await
     .map_err(|e| format!("DB error in Statistical Summary: {e}"))?;
@@ -262,17 +263,15 @@ async fn query_alarm_rate_summary(
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
     // Count alarms per hour bucket
-    let rows = sqlx::query(
-        &format!(
-            "SELECT
+    let rows = sqlx::query(&format!(
+        "SELECT
                  date_trunc('hour', occurred_at) AS hour_bucket,
                  COUNT(*) AS alarm_count
              FROM events
              WHERE occurred_at >= {start_expr} AND occurred_at <= {end_expr}
              GROUP BY hour_bucket
              ORDER BY hour_bucket"
-        ),
-    )
+    ))
     .fetch_all(db)
     .await
     .map_err(|e| format!("DB error in Alarm Rate Summary: {e}"))?;
@@ -322,16 +321,12 @@ async fn query_top_bad_actors(
         .and_then(|v| v.as_str())
         .unwrap_or("last_24h");
 
-    let top_n: i64 = params
-        .get("top_n")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(20);
+    let top_n: i64 = params.get("top_n").and_then(|v| v.as_i64()).unwrap_or(20);
 
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
-    let rows = sqlx::query(
-        &format!(
-            "SELECT
+    let rows = sqlx::query(&format!(
+        "SELECT
                  ad.name AS alarm_name,
                  p.tag_path,
                  ae.priority,
@@ -343,8 +338,7 @@ async fn query_top_bad_actors(
              GROUP BY ad.name, p.tag_path, ae.priority
              ORDER BY occurrence_count DESC
              LIMIT $1"
-        ),
-    )
+    ))
     .bind(top_n)
     .fetch_all(db)
     .await
@@ -455,9 +449,8 @@ async fn query_chattering_alarms(
 
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
-    let rows = sqlx::query(
-        &format!(
-            "SELECT
+    let rows = sqlx::query(&format!(
+        "SELECT
                  ad.name AS alarm_name,
                  p.tag_path,
                  COUNT(*) AS transition_count
@@ -469,8 +462,7 @@ async fn query_chattering_alarms(
              HAVING COUNT(*) >= $1
              ORDER BY transition_count DESC
              LIMIT 500"
-        ),
-    )
+    ))
     .bind(chatter_threshold)
     .fetch_all(db)
     .await
@@ -571,9 +563,8 @@ async fn query_alarm_priority_distribution(
 
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
-    let rows = sqlx::query(
-        &format!(
-            "SELECT
+    let rows = sqlx::query(&format!(
+        "SELECT
                  priority,
                  COUNT(*) AS count,
                  ROUND(100.0 * COUNT(*) / NULLIF(SUM(COUNT(*)) OVER (), 0), 1) AS pct
@@ -589,8 +580,7 @@ async fn query_alarm_priority_distribution(
                      WHEN 'diagnostic'   THEN 5
                      ELSE 6
                  END"
-        ),
-    )
+    ))
     .fetch_all(db)
     .await
     .map_err(|e| format!("DB error in Alarm Priority Distribution: {e}"))?;
@@ -650,14 +640,12 @@ async fn query_alarm_health_summary(
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
     // Compute aggregate metrics for the EEMUA health summary
-    let total_row = sqlx::query(
-        &format!(
-            "SELECT COUNT(*) AS total_alarms,
+    let total_row = sqlx::query(&format!(
+        "SELECT COUNT(*) AS total_alarms,
                     COUNT(DISTINCT alarm_definition_id) AS distinct_alarms
              FROM events
              WHERE occurred_at >= {start_expr} AND occurred_at <= {end_expr}"
-        ),
-    )
+    ))
     .fetch_one(db)
     .await
     .map_err(|e| format!("DB error in Alarm Health Summary (totals): {e}"))?;
@@ -682,17 +670,23 @@ async fn query_alarm_health_summary(
         "Achievable"
     };
 
-    let headers = vec![
-        "Metric".to_string(),
-        "Value".to_string(),
-    ];
+    let headers = vec!["Metric".to_string(), "Value".to_string()];
 
     let data = vec![
         vec!["Total Alarms".to_string(), total_alarms.to_string()],
-        vec!["Distinct Alarm Types".to_string(), distinct_alarms.to_string()],
+        vec![
+            "Distinct Alarm Types".to_string(),
+            distinct_alarms.to_string(),
+        ],
         vec!["Analysis Window".to_string(), format!("{hours:.0} hours")],
-        vec!["Avg Rate (per 10 min)".to_string(), format!("{avg_rate:.2}")],
-        vec!["EEMUA 191 Classification".to_string(), eemua_class.to_string()],
+        vec![
+            "Avg Rate (per 10 min)".to_string(),
+            format!("{avg_rate:.2}"),
+        ],
+        vec![
+            "EEMUA 191 Classification".to_string(),
+            eemua_class.to_string(),
+        ],
     ];
 
     Ok((headers, data))
@@ -827,9 +821,8 @@ async fn query_round_exceptions(
 
     let (start_expr, end_expr) = time_range_to_sql(time_range);
 
-    let rows = sqlx::query(
-        &format!(
-            "SELECT
+    let rows = sqlx::query(&format!(
+        "SELECT
                  rt.name AS round_name,
                  rc.label AS checkpoint_label,
                  ro.value_text AS recorded_value,
@@ -845,8 +838,7 @@ async fn query_round_exceptions(
                AND ro.recorded_at >= {start_expr} AND ro.recorded_at <= {end_expr}
              ORDER BY ro.recorded_at DESC
              LIMIT 1000"
-        ),
-    )
+    ))
     .fetch_all(db)
     .await
     .map_err(|e| format!("DB error in Exception Report: {e}"))?;
@@ -865,7 +857,8 @@ async fn query_round_exceptions(
         .map(|r| {
             vec![
                 r.try_get::<String, _>("round_name").unwrap_or_default(),
-                r.try_get::<String, _>("checkpoint_label").unwrap_or_default(),
+                r.try_get::<String, _>("checkpoint_label")
+                    .unwrap_or_default(),
                 r.try_get::<Option<String>, _>("recorded_value")
                     .unwrap_or_default()
                     .unwrap_or_default(),
@@ -884,20 +877,11 @@ async fn query_round_exceptions(
 }
 
 /// Placeholder report for templates not yet data-connected.
-fn placeholder_report(
-    template_name: &str,
-    params: &JsonValue,
-) -> (Vec<String>, Vec<Vec<String>>) {
+fn placeholder_report(template_name: &str, params: &JsonValue) -> (Vec<String>, Vec<Vec<String>>) {
     let headers = vec!["Field".to_string(), "Value".to_string()];
     let mut rows = vec![
-        vec![
-            "Report".to_string(),
-            template_name.to_string(),
-        ],
-        vec![
-            "Generated At".to_string(),
-            Utc::now().to_rfc3339(),
-        ],
+        vec!["Report".to_string(), template_name.to_string()],
+        vec!["Generated At".to_string(), Utc::now().to_rfc3339()],
         vec![
             "Status".to_string(),
             "Data query not yet implemented for this template".to_string(),
@@ -989,9 +973,7 @@ pub fn generate_json(headers: &[String], rows: &[Vec<String>]) -> Vec<u8> {
             for (i, header) in headers.iter().enumerate() {
                 obj.insert(
                     header.clone(),
-                    serde_json::Value::String(
-                        row.get(i).cloned().unwrap_or_default(),
-                    ),
+                    serde_json::Value::String(row.get(i).cloned().unwrap_or_default()),
                 );
             }
             serde_json::Value::Object(obj)
@@ -1018,7 +1000,11 @@ pub fn generate_html_report(
             .iter()
             .map(|(k, v)| {
                 let val = v.as_str().unwrap_or(&v.to_string()).to_string();
-                format!("<tr><td class=\"param-key\">{}</td><td>{}</td></tr>", escape_html(k), escape_html(&val))
+                format!(
+                    "<tr><td class=\"param-key\">{}</td><td>{}</td></tr>",
+                    escape_html(k),
+                    escape_html(&val)
+                )
             })
             .collect();
         format!(
@@ -1192,10 +1178,7 @@ pub fn generate_html_report(
 /// Convert a time_range string into SQL NOW()-based expressions.
 fn time_range_to_sql(time_range: &str) -> (String, String) {
     match time_range {
-        "last_1h" => (
-            "NOW() - INTERVAL '1 hour'".to_string(),
-            "NOW()".to_string(),
-        ),
+        "last_1h" => ("NOW() - INTERVAL '1 hour'".to_string(), "NOW()".to_string()),
         "last_8h" => (
             "NOW() - INTERVAL '8 hours'".to_string(),
             "NOW()".to_string(),
@@ -1204,10 +1187,7 @@ fn time_range_to_sql(time_range: &str) -> (String, String) {
             "NOW() - INTERVAL '24 hours'".to_string(),
             "NOW()".to_string(),
         ),
-        "last_7d" => (
-            "NOW() - INTERVAL '7 days'".to_string(),
-            "NOW()".to_string(),
-        ),
+        "last_7d" => ("NOW() - INTERVAL '7 days'".to_string(), "NOW()".to_string()),
         "last_30d" => (
             "NOW() - INTERVAL '30 days'".to_string(),
             "NOW()".to_string(),
@@ -1337,9 +1317,7 @@ pub fn rows_to_typst_table(headers: &[String], rows: &[Vec<String>]) -> String {
         .collect::<Vec<_>>()
         .join(",\n  ");
 
-    format!(
-        "#table(\n  columns: {col_count},\n  {header_cells},\n  {data_rows}\n)"
-    )
+    format!("#table(\n  columns: {col_count},\n  {header_cells},\n  {data_rows}\n)")
 }
 
 /// Escape Typst special characters in cell content.
@@ -1368,9 +1346,7 @@ fn compile_typst_pdf(
 
     let source = build_typst_template(title, headers, rows);
 
-    let engine = TypstEngine::builder()
-        .main_file(source)
-        .build();
+    let engine = TypstEngine::builder().main_file(source).build();
 
     let doc: PagedDocument = engine
         .compile::<PagedDocument>()

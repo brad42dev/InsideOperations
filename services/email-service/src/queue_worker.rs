@@ -74,9 +74,14 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
     let from_address: Option<String> = row.get("from_address");
 
     // Decrypt provider secrets in-memory before passing to the delivery adapters.
-    let provider_config: Option<serde_json::Value> = match (provider_type.as_deref(), raw_provider_config) {
+    let provider_config: Option<serde_json::Value> = match (
+        provider_type.as_deref(),
+        raw_provider_config,
+    ) {
         (Some(pt), Some(mut cfg)) => {
-            if let Err(e) = crate::crypto::decrypt_provider_secrets(&mut cfg, pt, &state.config.master_key) {
+            if let Err(e) =
+                crate::crypto::decrypt_provider_secrets(&mut cfg, pt, &state.config.master_key)
+            {
                 tracing::warn!(queue_id = %queue_id, error = %e, "Failed to decrypt provider secrets — aborting delivery");
                 return Ok(false);
             }
@@ -91,12 +96,11 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
     // Query the suppression list for each recipient. If ALL recipients are
     // suppressed we log each as 'suppressed' and mark the queue item 'sent'
     // (not retried). Suppressed deliveries do NOT increment attempts.
-    let suppressed_rows = sqlx::query(
-        "SELECT email_address FROM email_suppressions WHERE email_address = ANY($1)",
-    )
-    .bind(&to_addresses)
-    .fetch_all(&state.db)
-    .await?;
+    let suppressed_rows =
+        sqlx::query("SELECT email_address FROM email_suppressions WHERE email_address = ANY($1)")
+            .bind(&to_addresses)
+            .fetch_all(&state.db)
+            .await?;
 
     let suppressed_addresses: std::collections::HashSet<String> = suppressed_rows
         .iter()
@@ -130,12 +134,10 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
 
     if deliverable.is_empty() {
         // All recipients suppressed — mark queue item done without incrementing attempts.
-        sqlx::query(
-            "UPDATE email_queue SET status = 'sent', sent_at = now() WHERE id = $1",
-        )
-        .bind(queue_id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE email_queue SET status = 'sent', sent_at = now() WHERE id = $1")
+            .bind(queue_id)
+            .execute(&state.db)
+            .await?;
         tracing::info!(queue_id = %queue_id, "All recipients suppressed — marking sent");
         return Ok(true);
     }
@@ -205,9 +207,16 @@ pub async fn process_one(state: &AppState) -> anyhow::Result<bool> {
                 let fb_raw_config: Option<serde_json::Value> = fb_row.get("provider_config");
                 let fb_from_address: Option<String> = fb_row.get("from_address");
 
-                let fb_provider_config: Option<serde_json::Value> = match (fb_provider_type.as_deref(), fb_raw_config) {
+                let fb_provider_config: Option<serde_json::Value> = match (
+                    fb_provider_type.as_deref(),
+                    fb_raw_config,
+                ) {
                     (Some(pt), Some(mut cfg)) => {
-                        if let Err(e) = crate::crypto::decrypt_provider_secrets(&mut cfg, pt, &state.config.master_key) {
+                        if let Err(e) = crate::crypto::decrypt_provider_secrets(
+                            &mut cfg,
+                            pt,
+                            &state.config.master_key,
+                        ) {
                             tracing::warn!(queue_id = %queue_id, error = %e, "Failed to decrypt fallback provider secrets");
                             None
                         } else {
@@ -409,11 +418,23 @@ pub async fn attempt_delivery(
     provider_type: Option<&str>,
     provider_config: Option<&serde_json::Value>,
 ) -> anyhow::Result<Option<String>> {
-    let config = provider_config.cloned().unwrap_or(serde_json::Value::Object(Default::default()));
+    let config = provider_config
+        .cloned()
+        .unwrap_or(serde_json::Value::Object(Default::default()));
 
     match provider_type {
         Some("smtp") => {
-            send_smtp(state, provider_id, to_addresses, subject, body_html, body_text, from_address, &config).await
+            send_smtp(
+                state,
+                provider_id,
+                to_addresses,
+                subject,
+                body_html,
+                body_text,
+                from_address,
+                &config,
+            )
+            .await
         }
         Some("smtp_xoauth2") => {
             // smtp_xoauth2 is handled inside send_smtp when auth_method == "xoauth2"
@@ -421,29 +442,70 @@ pub async fn attempt_delivery(
             if cfg.get("auth_method").is_none() {
                 cfg["auth_method"] = serde_json::Value::String("xoauth2".to_string());
             }
-            send_smtp(state, provider_id, to_addresses, subject, body_html, body_text, from_address, &cfg).await
+            send_smtp(
+                state,
+                provider_id,
+                to_addresses,
+                subject,
+                body_html,
+                body_text,
+                from_address,
+                &cfg,
+            )
+            .await
         }
         Some("webhook") => {
             send_webhook(state, to_addresses, subject, body_html, body_text, &config).await
         }
         Some("msgraph") => {
-            let pid = provider_id.ok_or_else(|| anyhow::anyhow!("MS Graph provider requires a provider UUID"))?;
-            send_msgraph(state, pid, to_addresses, subject, body_html, body_text, from_address, &config).await
+            let pid = provider_id
+                .ok_or_else(|| anyhow::anyhow!("MS Graph provider requires a provider UUID"))?;
+            send_msgraph(
+                state,
+                pid,
+                to_addresses,
+                subject,
+                body_html,
+                body_text,
+                from_address,
+                &config,
+            )
+            .await
         }
         Some("gmail") => {
-            let pid = provider_id.ok_or_else(|| anyhow::anyhow!("Gmail provider requires a provider UUID"))?;
-            send_gmail(state, pid, to_addresses, subject, body_html, body_text, from_address, &config).await
+            let pid = provider_id
+                .ok_or_else(|| anyhow::anyhow!("Gmail provider requires a provider UUID"))?;
+            send_gmail(
+                state,
+                pid,
+                to_addresses,
+                subject,
+                body_html,
+                body_text,
+                from_address,
+                &config,
+            )
+            .await
         }
         Some("ses") => {
             // SES: derive SMTP credentials from AWS secret key and route through SMTP.
-            send_ses(to_addresses, subject, body_html, body_text, from_address, &config).await
+            send_ses(
+                to_addresses,
+                subject,
+                body_html,
+                body_text,
+                from_address,
+                &config,
+            )
+            .await
         }
-        Some(other) => {
-            Err(anyhow::anyhow!("Unsupported email provider type: '{}'. Delivery aborted.", other))
-        }
-        None => {
-            Err(anyhow::anyhow!("No provider configured for this queue item. Delivery aborted."))
-        }
+        Some(other) => Err(anyhow::anyhow!(
+            "Unsupported email provider type: '{}'. Delivery aborted.",
+            other
+        )),
+        None => Err(anyhow::anyhow!(
+            "No provider configured for this queue item. Delivery aborted."
+        )),
     }
 }
 
@@ -466,11 +528,11 @@ fn is_hard_bounce_error(error: &str) -> bool {
     // SMTP 5xx pattern: "smtp error, code: 5" or "permanent" in error
     if lower.contains("smtp") {
         // Check for explicit 5xx codes
-        for code in ["500", "501", "502", "503", "504", "505",
-                     "510", "511", "512", "513", "514", "515",
-                     "521", "522", "523", "524", "525", "530",
-                     "531", "532", "533", "534", "535", "538",
-                     "541", "550", "551", "552", "553", "554", "555"] {
+        for code in [
+            "500", "501", "502", "503", "504", "505", "510", "511", "512", "513", "514", "515",
+            "521", "522", "523", "524", "525", "530", "531", "532", "533", "534", "535", "538",
+            "541", "550", "551", "552", "553", "554", "555",
+        ] {
             if lower.contains(code) {
                 return true;
             }
@@ -484,22 +546,25 @@ fn is_hard_bounce_error(error: &str) -> bool {
     }
 
     // MS Graph: HTTP 4xx/5xx with "permanent" or specific codes
-    if lower.contains("ms graph") || lower.contains("sendmail failed") {
-        if lower.contains("permanent") || lower.contains("550") || lower.contains("551")
-            || lower.contains("552") || lower.contains("553") || lower.contains("554")
-        {
-            return true;
-        }
+    if (lower.contains("ms graph") || lower.contains("sendmail failed"))
+        && (lower.contains("permanent")
+            || lower.contains("550")
+            || lower.contains("551")
+            || lower.contains("552")
+            || lower.contains("553")
+            || lower.contains("554"))
+    {
+        return true;
     }
 
     // SES: permanent bounce keywords
-    if lower.contains("ses") || lower.contains("amazon") {
-        if lower.contains("permanent") || lower.contains("bounce")
+    if (lower.contains("ses") || lower.contains("amazon"))
+        && (lower.contains("permanent")
+            || lower.contains("bounce")
             || lower.contains("address does not exist")
-            || lower.contains("user unknown")
-        {
-            return true;
-        }
+            || lower.contains("user unknown"))
+    {
+        return true;
     }
 
     // Generic permanent failure indicators
@@ -514,6 +579,7 @@ fn is_hard_bounce_error(error: &str) -> bool {
 
 // ─── SMTP / SMTP+XOAUTH2 ────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn send_smtp(
     state: &AppState,
     provider_id: Option<Uuid>,
@@ -539,7 +605,8 @@ async fn send_smtp(
 
     let (creds, mechanisms) = if auth_method == "xoauth2" {
         // Acquire OAuth2 token for XOAUTH2
-        let pid = provider_id.ok_or_else(|| anyhow::anyhow!("XOAUTH2 requires a provider UUID for token caching"))?;
+        let pid = provider_id
+            .ok_or_else(|| anyhow::anyhow!("XOAUTH2 requires a provider UUID for token caching"))?;
         let token = acquire_client_credentials_token(state, pid, config).await?;
         let creds = Credentials::new(username, token);
         (creds, vec![Mechanism::Xoauth2])
@@ -601,6 +668,7 @@ async fn send_webhook(
 
 // ─── Microsoft Graph API ─────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn send_msgraph(
     state: &AppState,
     provider_id: Uuid,
@@ -611,9 +679,11 @@ async fn send_msgraph(
     from_address: Option<&str>,
     config: &serde_json::Value,
 ) -> anyhow::Result<Option<String>> {
-    let tenant_id = config["tenant_id"].as_str()
+    let tenant_id = config["tenant_id"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("MS Graph: tenant_id not configured"))?;
-    let send_as_user = config["send_as_user"].as_str()
+    let send_as_user = config["send_as_user"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("MS Graph: send_as_user not configured"))?;
     let _save_to_sent = config["save_to_sent"].as_bool().unwrap_or(false);
 
@@ -684,9 +754,11 @@ async fn acquire_msgraph_token(
         }
     }
 
-    let client_id = config["client_id"].as_str()
+    let client_id = config["client_id"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("MS Graph: client_id not configured"))?;
-    let client_secret = config["client_secret"].as_str()
+    let client_secret = config["client_secret"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("MS Graph: client_secret not configured"))?;
 
     let token_url = format!(
@@ -719,7 +791,8 @@ async fn acquire_msgraph_token(
     }
 
     let token_resp: serde_json::Value = resp.json().await?;
-    let access_token = token_resp["access_token"].as_str()
+    let access_token = token_resp["access_token"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("MS Graph token response missing access_token"))?
         .to_string();
     let expires_in = token_resp["expires_in"].as_u64().unwrap_or(3600);
@@ -727,10 +800,13 @@ async fn acquire_msgraph_token(
     // Store in cache
     {
         let mut cache = state.token_cache.lock().await;
-        cache.insert(provider_id, crate::state::CachedToken {
-            access_token: access_token.clone(),
-            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
-        });
+        cache.insert(
+            provider_id,
+            crate::state::CachedToken {
+                access_token: access_token.clone(),
+                expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
+            },
+        );
     }
 
     Ok(access_token)
@@ -738,6 +814,7 @@ async fn acquire_msgraph_token(
 
 // ─── Gmail API ───────────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn send_gmail(
     state: &AppState,
     provider_id: Uuid,
@@ -749,9 +826,10 @@ async fn send_gmail(
     config: &serde_json::Value,
 ) -> anyhow::Result<Option<String>> {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-    use lettre::{Message, message::header::ContentType};
+    use lettre::{message::header::ContentType, Message};
 
-    let send_as_user = config["send_as_user"].as_str()
+    let send_as_user = config["send_as_user"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("Gmail: send_as_user not configured"))?;
 
     let access_token = acquire_gmail_token(state, provider_id, config).await?;
@@ -821,16 +899,20 @@ async fn acquire_gmail_token(
         }
     }
 
-    let service_account_key = config["service_account_key"].as_str()
+    let service_account_key = config["service_account_key"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("Gmail: service_account_key not configured"))?;
-    let subject_email = config["send_as_user"].as_str()
+    let subject_email = config["send_as_user"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("Gmail: send_as_user not configured for impersonation"))?;
 
     // Parse the service account JSON key
     let key_json: serde_json::Value = serde_json::from_str(service_account_key)?;
-    let private_key_pem = key_json["private_key"].as_str()
+    let private_key_pem = key_json["private_key"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("Gmail: service_account_key missing private_key field"))?;
-    let client_email = key_json["client_email"].as_str()
+    let client_email = key_json["client_email"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("Gmail: service_account_key missing client_email field"))?;
 
     let now = chrono::Utc::now().timestamp();
@@ -883,7 +965,8 @@ async fn acquire_gmail_token(
     }
 
     let token_resp: serde_json::Value = resp.json().await?;
-    let access_token = token_resp["access_token"].as_str()
+    let access_token = token_resp["access_token"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("Gmail token response missing access_token"))?
         .to_string();
     let expires_in = token_resp["expires_in"].as_u64().unwrap_or(3600);
@@ -891,10 +974,13 @@ async fn acquire_gmail_token(
     // Store in cache
     {
         let mut cache = state.token_cache.lock().await;
-        cache.insert(provider_id, crate::state::CachedToken {
-            access_token: access_token.clone(),
-            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
-        });
+        cache.insert(
+            provider_id,
+            crate::state::CachedToken {
+                access_token: access_token.clone(),
+                expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
+            },
+        );
     }
 
     Ok(access_token)
@@ -906,9 +992,9 @@ async fn acquire_gmail_token(
 /// HMAC-SHA256("AWS4" + secret_access_key, "SendRawEmail") then base64-encode.
 /// Reference: https://docs.aws.amazon.com/ses/latest/dg/smtp-credentials.html
 fn derive_ses_smtp_password(secret_access_key: &str, region: &str) -> anyhow::Result<String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
-    use base64::{engine::general_purpose::STANDARD, Engine as _};
 
     // Step 1: date key — HMAC-SHA256("AWS4" + secret, date)
     let date = "11111111"; // SES uses a fixed date string "11111111" per spec
@@ -958,9 +1044,11 @@ async fn send_ses(
     };
 
     let region = config["region"].as_str().unwrap_or("us-east-1");
-    let access_key_id = config["access_key_id"].as_str()
+    let access_key_id = config["access_key_id"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("SES: access_key_id not configured"))?;
-    let secret_access_key = config["secret_access_key"].as_str()
+    let secret_access_key = config["secret_access_key"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("SES: secret_access_key not configured"))?;
 
     let smtp_host = format!("email-smtp.{}.amazonaws.com", region);
@@ -1008,11 +1096,14 @@ async fn acquire_client_credentials_token(
         }
     }
 
-    let token_endpoint = config["token_endpoint"].as_str()
+    let token_endpoint = config["token_endpoint"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("XOAUTH2: token_endpoint not configured"))?;
-    let client_id = config["client_id"].as_str()
+    let client_id = config["client_id"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("XOAUTH2: client_id not configured"))?;
-    let client_secret = config["client_secret"].as_str()
+    let client_secret = config["client_secret"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("XOAUTH2: client_secret not configured"))?;
     let scope = config["scope"].as_str().unwrap_or("");
 
@@ -1049,7 +1140,8 @@ async fn acquire_client_credentials_token(
     }
 
     let token_resp: serde_json::Value = resp.json().await?;
-    let access_token = token_resp["access_token"].as_str()
+    let access_token = token_resp["access_token"]
+        .as_str()
         .ok_or_else(|| anyhow::anyhow!("XOAUTH2 token response missing access_token"))?
         .to_string();
     let expires_in = token_resp["expires_in"].as_u64().unwrap_or(3600);
@@ -1057,10 +1149,13 @@ async fn acquire_client_credentials_token(
     // Store in cache
     {
         let mut cache = state.token_cache.lock().await;
-        cache.insert(provider_id, crate::state::CachedToken {
-            access_token: access_token.clone(),
-            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
-        });
+        cache.insert(
+            provider_id,
+            crate::state::CachedToken {
+                access_token: access_token.clone(),
+                expires_at: std::time::Instant::now() + std::time::Duration::from_secs(expires_in),
+            },
+        );
     }
 
     Ok(access_token)

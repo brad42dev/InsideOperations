@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    Json,
-};
+use axum::{extract::State, http::HeaderMap, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tracing::warn;
@@ -132,7 +128,10 @@ pub async fn put_settings(
     ];
     for (name, val) in i64_fields {
         if *val < 1 || *val > 36_500 {
-            return Err(IoError::field(*name, "must be between 1 and 36500".to_string()));
+            return Err(IoError::field(
+                *name,
+                "must be between 1 and 36500".to_string(),
+            ));
         }
     }
     if body.maintenance_interval_secs < 60 || body.maintenance_interval_secs > 86_400 {
@@ -150,7 +149,10 @@ pub async fn put_settings(
         ("archive.retention_15m_days", body.retention_15m_days),
         ("archive.retention_1h_days", body.retention_1h_days),
         ("archive.retention_1d_days", body.retention_1d_days),
-        ("archive.compression_after_days", body.compression_after_days),
+        (
+            "archive.compression_after_days",
+            body.compression_after_days,
+        ),
         (
             "archive.maintenance_interval_secs",
             body.maintenance_interval_secs as i64,

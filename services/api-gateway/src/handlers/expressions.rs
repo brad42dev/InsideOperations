@@ -32,9 +32,7 @@ use crate::state::AppState;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ExprNode {
     /// Numeric or boolean literal: `{ "type": "literal", "value": 42.0 }`
-    Literal {
-        value: Value,
-    },
+    Literal { value: Value },
     /// Reference to an OPC point by ID: `{ "type": "point_ref", "point_id": "...", "alias": "x" }`
     PointRef {
         point_id: String,
@@ -44,14 +42,9 @@ pub enum ExprNode {
     },
     /// Reference to a field on the enclosing entity (round checkpoint / log segment):
     /// `{ "type": "field_ref", "field": "reading" }`
-    FieldRef {
-        field: String,
-    },
+    FieldRef { field: String },
     /// Unary operation: `{ "type": "unary", "op": "-", "operand": {...} }`
-    Unary {
-        op: String,
-        operand: Box<ExprNode>,
-    },
+    Unary { op: String, operand: Box<ExprNode> },
     /// Binary operation: `{ "type": "binary", "op": "+", "left": {...}, "right": {...} }`
     Binary {
         op: String,
@@ -59,10 +52,7 @@ pub enum ExprNode {
         right: Box<ExprNode>,
     },
     /// Named function call: `{ "type": "function", "name": "abs", "args": [...] }`
-    Function {
-        name: String,
-        args: Vec<ExprNode>,
-    },
+    Function { name: String, args: Vec<ExprNode> },
     /// Ternary conditional: `{ "type": "conditional", "condition": {...}, "then": {...}, "else": {...} }`
     Conditional {
         condition: Box<ExprNode>,
@@ -72,9 +62,7 @@ pub enum ExprNode {
         else_branch: Box<ExprNode>,
     },
     /// Parenthesised group (for display): `{ "type": "group", "inner": {...} }`
-    Group {
-        inner: Box<ExprNode>,
-    },
+    Group { inner: Box<ExprNode> },
 }
 
 // ---------------------------------------------------------------------------
@@ -101,12 +89,14 @@ pub struct EvalByIdRequest {
 
 /// Successful evaluation response.
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct EvalSuccess {
     pub result: f64,
 }
 
 /// Error evaluation response.
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct EvalError {
     pub error: String,
 }
@@ -137,9 +127,7 @@ pub fn ast_to_rhai_string(node: &ExprNode) -> String {
 
         ExprNode::PointRef { point_id, alias } => {
             // Use the alias if present, otherwise sanitise the point_id to a valid identifier.
-            let var_name = alias
-                .as_deref()
-                .unwrap_or(point_id.as_str());
+            let var_name = alias.as_deref().unwrap_or(point_id.as_str());
             sanitize_identifier(var_name)
         }
 
@@ -200,7 +188,13 @@ pub fn ast_to_rhai_string(node: &ExprNode) -> String {
 fn sanitize_identifier(s: &str) -> String {
     let mut out: String = s
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     if out.starts_with(|c: char| c.is_ascii_digit()) {
         out.insert(0, '_');
@@ -276,12 +270,10 @@ pub async fn evaluate_saved_expression_handler(
     Json(body): Json<EvalByIdRequest>,
 ) -> impl IntoResponse {
     // Fetch the saved expression record.
-    let row = sqlx::query(
-        "SELECT ast FROM expressions WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let row = sqlx::query("SELECT ast FROM expressions WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
 
     let row = match row {
         Ok(Some(r)) => r,
@@ -342,9 +334,9 @@ mod tests {
 
     #[test]
     fn literal_f64() {
-        let s = ast_to_rhai_string(&lit(3.14));
+        let s = ast_to_rhai_string(&lit(1.5));
         // Should produce a float literal string
-        assert!(s.contains("3.14") || s.contains("3.1400"));
+        assert!(s.contains("1.5") || s.contains("1.50"));
     }
 
     #[test]

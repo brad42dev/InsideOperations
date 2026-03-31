@@ -10,7 +10,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use io_error::{IoError, IoResult};
-use io_models::{PageParams, PagedResponse, ApiResponse};
+use io_models::{ApiResponse, PageParams, PagedResponse};
 
 use crate::state::AppState;
 
@@ -83,10 +83,7 @@ pub struct AddMemberRequest {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async fn fetch_group_detail(
-    db: &io_db::DbPool,
-    group_id: Uuid,
-) -> IoResult<GroupDetail> {
+async fn fetch_group_detail(db: &io_db::DbPool, group_id: Uuid) -> IoResult<GroupDetail> {
     let row = sqlx::query(
         "SELECT g.id, g.name, g.description, g.created_at,
                 COUNT(DISTINCT gr.role_id) AS role_count,
@@ -205,12 +202,11 @@ pub async fn create_group(
         return Err(IoError::BadRequest("name is required".to_string()));
     }
 
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM groups WHERE LOWER(name) = LOWER($1))",
-    )
-    .bind(&req.name)
-    .fetch_one(&state.db)
-    .await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM groups WHERE LOWER(name) = LOWER($1))")
+            .bind(&req.name)
+            .fetch_one(&state.db)
+            .await?;
     if exists {
         return Err(IoError::Conflict(format!(
             "Group '{}' already exists",
@@ -219,14 +215,12 @@ pub async fn create_group(
     }
 
     let group_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO groups (id, name, description) VALUES ($1, $2, $3)",
-    )
-    .bind(group_id)
-    .bind(&req.name)
-    .bind(&req.description)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("INSERT INTO groups (id, name, description) VALUES ($1, $2, $3)")
+        .bind(group_id)
+        .bind(&req.name)
+        .bind(&req.description)
+        .execute(&state.db)
+        .await?;
 
     if let Some(role_ids) = &req.role_ids {
         for role_id in role_ids {
@@ -275,7 +269,10 @@ pub async fn update_group(
         .fetch_one(&state.db)
         .await?;
         if name_taken {
-            return Err(IoError::Conflict(format!("Group '{}' already exists", name)));
+            return Err(IoError::Conflict(format!(
+                "Group '{}' already exists",
+                name
+            )));
         }
         sqlx::query("UPDATE groups SET name = $1, updated_at = NOW() WHERE id = $2")
             .bind(name)
@@ -360,12 +357,10 @@ pub async fn list_group_members(
         return Err(IoError::NotFound(format!("Group {} not found", group_id)));
     }
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM user_groups WHERE group_id = $1",
-    )
-    .bind(group_id)
-    .fetch_one(&state.db)
-    .await?;
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_groups WHERE group_id = $1")
+        .bind(group_id)
+        .fetch_one(&state.db)
+        .await?;
 
     let rows = sqlx::query(
         "SELECT u.id AS user_id, u.username, u.email, u.full_name, ug.added_at
@@ -420,11 +415,12 @@ pub async fn add_group_member(
     }
 
     // Verify user exists
-    let user_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL)")
-            .bind(req.user_id)
-            .fetch_one(&state.db)
-            .await?;
+    let user_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL)",
+    )
+    .bind(req.user_id)
+    .fetch_one(&state.db)
+    .await?;
     if !user_exists {
         return Err(IoError::NotFound(format!("User {} not found", req.user_id)));
     }
@@ -438,16 +434,16 @@ pub async fn add_group_member(
     .fetch_one(&state.db)
     .await?;
     if already_member {
-        return Err(IoError::Conflict("User is already a member of this group".to_string()));
+        return Err(IoError::Conflict(
+            "User is already a member of this group".to_string(),
+        ));
     }
 
-    sqlx::query(
-        "INSERT INTO user_groups (user_id, group_id, added_at) VALUES ($1, $2, NOW())",
-    )
-    .bind(req.user_id)
-    .bind(group_id)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("INSERT INTO user_groups (user_id, group_id, added_at) VALUES ($1, $2, NOW())")
+        .bind(req.user_id)
+        .bind(group_id)
+        .execute(&state.db)
+        .await?;
 
     // Fetch the new member row to return
     let row = sqlx::query(
@@ -482,13 +478,11 @@ pub async fn remove_group_member(
     State(state): State<AppState>,
     Path((group_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> IoResult<impl IntoResponse> {
-    let result = sqlx::query(
-        "DELETE FROM user_groups WHERE group_id = $1 AND user_id = $2",
-    )
-    .bind(group_id)
-    .bind(user_id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("DELETE FROM user_groups WHERE group_id = $1 AND user_id = $2")
+        .bind(group_id)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(IoError::NotFound(format!(

@@ -54,10 +54,7 @@ pub fn spawn_pool_metrics(pool: DbPool, service_name: &'static str) {
 /// return `true` if the database is reachable.
 pub async fn health_check(pool: &DbPool, service_name: &'static str) -> bool {
     let start = std::time::Instant::now();
-    let ok = sqlx::query("SELECT 1")
-        .execute(pool)
-        .await
-        .is_ok();
+    let ok = sqlx::query("SELECT 1").execute(pool).await.is_ok();
     let elapsed = start.elapsed().as_secs_f64();
     metrics::histogram!(
         "io_db_query_duration_seconds",

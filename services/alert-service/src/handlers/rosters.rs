@@ -71,10 +71,7 @@ pub async fn list_rosters(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// GET /alerts/rosters/:id — get a single roster
-pub async fn get_roster(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+pub async fn get_roster(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let row = sqlx::query_as::<_, AlertRoster>(
         "SELECT id, name, description, source, source_config, members, built_in,
                 created_at, updated_at, created_by, updated_by
@@ -187,12 +184,10 @@ pub async fn delete_roster(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     // Check if roster exists and whether it is built-in
-    let check = sqlx::query_scalar::<_, bool>(
-        "SELECT built_in FROM alert_rosters WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let check = sqlx::query_scalar::<_, bool>("SELECT built_in FROM alert_rosters WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
 
     match check {
         Ok(None) => {
@@ -200,10 +195,8 @@ pub async fn delete_roster(
         }
         Ok(Some(true)) => {
             // Built-in rosters cannot be deleted — return 409 Conflict
-            return IoError::Conflict(
-                "Built-in rosters cannot be deleted".to_string(),
-            )
-            .into_response();
+            return IoError::Conflict("Built-in rosters cannot be deleted".to_string())
+                .into_response();
         }
         Ok(Some(false)) => {}
         Err(e) => return IoError::Database(e).into_response(),
@@ -232,10 +225,7 @@ pub async fn delete_roster(
 /// - `all_users`  — all active users in the system
 /// - `on_shift`   — TODO: integrate with access-control-service when available
 /// - `on_site`    — TODO: integrate with access-control-service when available
-pub async fn resolve_roster_members(
-    state: &AppState,
-    roster_id: Uuid,
-) -> Vec<ChannelRecipient> {
+pub async fn resolve_roster_members(state: &AppState, roster_id: Uuid) -> Vec<ChannelRecipient> {
     let roster = sqlx::query_as::<_, AlertRoster>(
         "SELECT id, name, description, source, source_config, members, built_in,
                 created_at, updated_at, created_by, updated_by
@@ -286,19 +276,17 @@ pub async fn resolve_roster_members(
 /// Deserialize `members` JSONB from a manual roster.
 fn resolve_manual(roster: &AlertRoster) -> Vec<ChannelRecipient> {
     match &roster.members {
-        Some(members) => {
-            match serde_json::from_value::<Vec<ChannelRecipient>>(members.clone()) {
-                Ok(recipients) => recipients,
-                Err(e) => {
-                    tracing::error!(
-                        roster_id = %roster.id,
-                        error = %e,
-                        "resolve_manual: failed to deserialize members JSONB"
-                    );
-                    vec![]
-                }
+        Some(members) => match serde_json::from_value::<Vec<ChannelRecipient>>(members.clone()) {
+            Ok(recipients) => recipients,
+            Err(e) => {
+                tracing::error!(
+                    roster_id = %roster.id,
+                    error = %e,
+                    "resolve_manual: failed to deserialize members JSONB"
+                );
+                vec![]
             }
-        }
+        },
         None => vec![],
     }
 }
@@ -426,5 +414,8 @@ async fn resolve_all_users(state: &AppState) -> Vec<ChannelRecipient> {
 // ---------------------------------------------------------------------------
 
 fn is_valid_source(source: &str) -> bool {
-    matches!(source, "manual" | "role_group" | "all_users" | "on_shift" | "on_site")
+    matches!(
+        source,
+        "manual" | "role_group" | "all_users" | "on_shift" | "on_site"
+    )
 }

@@ -24,7 +24,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn require_backup_permission(claims: &Claims) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == "system:backup")
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == "system:backup")
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +70,8 @@ pub async fn list_backups(
         Ok(e) => e,
         Err(e) => {
             tracing::error!(error = %e, backup_dir = %backup_dir, "Failed to read backup directory");
-            return IoError::Internal(format!("Failed to read backup directory: {e}")).into_response();
+            return IoError::Internal(format!("Failed to read backup directory: {e}"))
+                .into_response();
         }
     };
 
@@ -151,7 +155,13 @@ pub async fn create_backup(
     // Sanitise label: allow only alphanumeric, hyphens, underscores
     let label: String = label
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .take(64)
         .collect();
 
@@ -309,7 +319,13 @@ pub async fn restore_backup(
     // Spawn in background; restore can be slow
     tokio::spawn(async move {
         let output = tokio::process::Command::new("pg_restore")
-            .args(["--clean", "--no-password", "-d", &database_url, &backup_path])
+            .args([
+                "--clean",
+                "--no-password",
+                "-d",
+                &database_url,
+                &backup_path,
+            ])
             .output()
             .await;
 

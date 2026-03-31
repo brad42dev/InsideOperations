@@ -1,6 +1,6 @@
 use axum::{
-    Router,
     routing::{delete, get, post, put},
+    Router,
 };
 use sha2::{Digest, Sha256};
 use std::net::SocketAddr;
@@ -40,8 +40,8 @@ async fn main() -> anyhow::Result<()> {
     handlers::reports::seed_report_templates(&db).await;
 
     // Seed EULA documents — insert-only, never overwrites published versions
-    seed_installer_eula(&db).await;   // installer (org) EULA — v1.0
-    seed_end_user_eula(&db).await;    // end-user EULA — v1.1
+    seed_installer_eula(&db).await; // installer (org) EULA — v1.0
+    seed_end_user_eula(&db).await; // end-user EULA — v1.1
 
     let mut health = io_health::HealthRegistry::new("auth-service", env!("CARGO_PKG_VERSION"));
     health.register(io_health::PgDatabaseCheck::new(db.clone()));
@@ -59,7 +59,10 @@ async fn main() -> anyhow::Result<()> {
                 interval.tick().await;
                 let now = chrono::Utc::now();
                 eula_tokens.retain(|_, entry| !entry.used && entry.expires_at > now);
-                tracing::debug!("eula_pending_tokens sweep complete, {} remaining", eula_tokens.len());
+                tracing::debug!(
+                    "eula_pending_tokens sweep complete, {} remaining",
+                    eula_tokens.len()
+                );
             }
         });
     }
@@ -72,9 +75,7 @@ async fn main() -> anyhow::Result<()> {
         let db = state.db.clone();
         let interval_secs = cfg.ldap_sync_interval_secs;
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                std::time::Duration::from_secs(interval_secs),
-            );
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
             // Skip the immediate first tick — avoid hammering LDAP on service restart.
             interval.tick().await;
             loop {
@@ -115,14 +116,18 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         }
                     };
-                    let bind_password = match config_json["bind_password"].as_str().map(str::to_string) {
+                    let bind_password = match config_json["bind_password"]
+                        .as_str()
+                        .map(str::to_string)
+                    {
                         Some(v) => v,
                         None => {
                             tracing::warn!(provider_id = %provider_id, "LDAP sync: provider missing bind_password, skipping");
                             continue;
                         }
                     };
-                    let search_base = match config_json["search_base"].as_str().map(str::to_string) {
+                    let search_base = match config_json["search_base"].as_str().map(str::to_string)
+                    {
                         Some(v) => v,
                         None => {
                             tracing::warn!(provider_id = %provider_id, "LDAP sync: provider missing search_base, skipping");
@@ -218,23 +223,35 @@ async fn main() -> anyhow::Result<()> {
         // Auth flow
         // /auth/providers — public endpoint listing enabled IdPs for the login page
         // NOTE: also accessible at /auth/admin/providers (authenticated) for full details
-        .route("/auth/providers", get(handlers::auth_providers::list_public_providers))
+        .route(
+            "/auth/providers",
+            get(handlers::auth_providers::list_public_providers),
+        )
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/refresh", post(handlers::auth::refresh))
         .route("/auth/logout", post(handlers::auth::logout))
         // Session lock (idle timer) — requires a valid JWT; never issues new tokens
         .route("/auth/lock", post(handlers::auth::lock_session))
         // Lock-screen unlock — requires a valid JWT; never issues new tokens
-        .route("/auth/verify-password", post(handlers::auth::verify_password_unlock))
+        .route(
+            "/auth/verify-password",
+            post(handlers::auth::verify_password_unlock),
+        )
         // PIN management — set, delete, and verify a 6-digit lock-screen PIN
-        .route("/auth/pin", post(handlers::pin::set_pin).delete(handlers::pin::delete_pin))
+        .route(
+            "/auth/pin",
+            post(handlers::pin::set_pin).delete(handlers::pin::delete_pin),
+        )
         .route("/auth/verify-pin", post(handlers::pin::verify_pin))
         // EULA — end-user routes
         // NOTE: /auth/eula/pending must be before /auth/eula/current (avoid path conflict)
         // NOTE: /auth/eula/accept-pending must be before /auth/eula/accept (avoid path conflict)
         .route("/auth/eula/pending", get(handlers::eula::get_pending_eulas))
         .route("/auth/eula/current", get(handlers::eula::get_current_eula))
-        .route("/auth/eula/accept-pending", post(handlers::eula::accept_eula_pending))
+        .route(
+            "/auth/eula/accept-pending",
+            post(handlers::eula::accept_eula_pending),
+        )
         .route("/auth/eula/accept", post(handlers::eula::accept_eula))
         .route("/auth/eula/status", get(handlers::eula::eula_status))
         // EULA — admin routes (RBAC enforced by API gateway)
@@ -267,8 +284,14 @@ async fn main() -> anyhow::Result<()> {
             delete(handlers::sessions::revoke_session),
         )
         // Sessions — current user's own sessions
-        .route("/auth/sessions/mine", get(handlers::sessions::list_my_sessions))
-        .route("/auth/sessions/mine/:id", delete(handlers::sessions::revoke_my_session))
+        .route(
+            "/auth/sessions/mine",
+            get(handlers::sessions::list_my_sessions),
+        )
+        .route(
+            "/auth/sessions/mine/:id",
+            delete(handlers::sessions::revoke_my_session),
+        )
         // Current user profile
         .route("/auth/me", get(handlers::users::get_me))
         // User management
@@ -292,133 +315,270 @@ async fn main() -> anyhow::Result<()> {
         .route("/groups/:id", get(handlers::groups::get_group))
         .route("/groups/:id", put(handlers::groups::update_group))
         .route("/groups/:id", delete(handlers::groups::delete_group))
-        .route("/groups/:id/members", get(handlers::groups::list_group_members))
-        .route("/groups/:id/members", post(handlers::groups::add_group_member))
-        .route("/groups/:id/members/:user_id", delete(handlers::groups::remove_group_member))
+        .route(
+            "/groups/:id/members",
+            get(handlers::groups::list_group_members),
+        )
+        .route(
+            "/groups/:id/members",
+            post(handlers::groups::add_group_member),
+        )
+        .route(
+            "/groups/:id/members/:user_id",
+            delete(handlers::groups::remove_group_member),
+        )
         // Settings
         .route("/settings", get(handlers::settings::list_settings))
         .route("/settings/:key", put(handlers::settings::update_setting))
         // WebSocket tickets (called by frontend after JWT auth; validated by Data Broker)
-        .route("/auth/ws-ticket", post(handlers::ws_ticket::create_ws_ticket))
+        .route(
+            "/auth/ws-ticket",
+            post(handlers::ws_ticket::create_ws_ticket),
+        )
         .route(
             "/auth/ws-ticket/:ticket/validate",
             get(handlers::ws_ticket::validate_ws_ticket),
         )
         // Custom expressions
         .route("/expressions", get(handlers::expressions::list_expressions))
-        .route("/expressions", post(handlers::expressions::create_expression))
+        .route(
+            "/expressions",
+            post(handlers::expressions::create_expression),
+        )
         // NOTE: /expressions/evaluate must be registered before /expressions/:id
         // so that the literal segment "evaluate" is not consumed as an id.
-        .route("/expressions/evaluate", post(handlers::expressions::evaluate_expression_inline))
-        .route("/expressions/:id", get(handlers::expressions::get_expression))
-        .route("/expressions/:id", put(handlers::expressions::update_expression))
-        .route("/expressions/:id", delete(handlers::expressions::delete_expression))
-        .route("/expressions/:id/evaluate", post(handlers::expressions::evaluate_expression_by_id))
+        .route(
+            "/expressions/evaluate",
+            post(handlers::expressions::evaluate_expression_inline),
+        )
+        .route(
+            "/expressions/:id",
+            get(handlers::expressions::get_expression),
+        )
+        .route(
+            "/expressions/:id",
+            put(handlers::expressions::update_expression),
+        )
+        .route(
+            "/expressions/:id",
+            delete(handlers::expressions::delete_expression),
+        )
+        .route(
+            "/expressions/:id/evaluate",
+            post(handlers::expressions::evaluate_expression_by_id),
+        )
         // Alarm definitions
-        .route("/alarm-definitions", get(handlers::alarms::list_alarm_definitions))
-        .route("/alarm-definitions", post(handlers::alarms::create_alarm_definition))
-        .route("/alarm-definitions/:id", get(handlers::alarms::get_alarm_definition))
-        .route("/alarm-definitions/:id", put(handlers::alarms::update_alarm_definition))
-        .route("/alarm-definitions/:id", delete(handlers::alarms::delete_alarm_definition))
+        .route(
+            "/alarm-definitions",
+            get(handlers::alarms::list_alarm_definitions),
+        )
+        .route(
+            "/alarm-definitions",
+            post(handlers::alarms::create_alarm_definition),
+        )
+        .route(
+            "/alarm-definitions/:id",
+            get(handlers::alarms::get_alarm_definition),
+        )
+        .route(
+            "/alarm-definitions/:id",
+            put(handlers::alarms::update_alarm_definition),
+        )
+        .route(
+            "/alarm-definitions/:id",
+            delete(handlers::alarms::delete_alarm_definition),
+        )
         // Report templates
-        .route("/reports/templates", get(handlers::reports::list_report_templates))
-        .route("/reports/templates", post(handlers::reports::create_report_template))
-        .route("/reports/templates/:id", get(handlers::reports::get_report_template))
-        .route("/reports/templates/:id", put(handlers::reports::update_report_template))
-        .route("/reports/templates/:id", delete(handlers::reports::delete_report_template))
+        .route(
+            "/reports/templates",
+            get(handlers::reports::list_report_templates),
+        )
+        .route(
+            "/reports/templates",
+            post(handlers::reports::create_report_template),
+        )
+        .route(
+            "/reports/templates/:id",
+            get(handlers::reports::get_report_template),
+        )
+        .route(
+            "/reports/templates/:id",
+            put(handlers::reports::update_report_template),
+        )
+        .route(
+            "/reports/templates/:id",
+            delete(handlers::reports::delete_report_template),
+        )
         // Export presets (per-template)
         // NOTE: /reports/templates/:id/presets must come before /reports/templates/:id
         // (axum resolves longer literal paths first)
-        .route("/reports/templates/:id/presets", get(handlers::reports::list_export_presets))
+        .route(
+            "/reports/templates/:id/presets",
+            get(handlers::reports::list_export_presets),
+        )
         // Report schedules
-        .route("/reports/schedules", get(handlers::reports::list_report_schedules))
-        .route("/reports/schedules", post(handlers::reports::create_report_schedule))
-        .route("/reports/schedules/:id", put(handlers::reports::update_report_schedule))
-        .route("/reports/schedules/:id", delete(handlers::reports::delete_report_schedule))
+        .route(
+            "/reports/schedules",
+            get(handlers::reports::list_report_schedules),
+        )
+        .route(
+            "/reports/schedules",
+            post(handlers::reports::create_report_schedule),
+        )
+        .route(
+            "/reports/schedules/:id",
+            put(handlers::reports::update_report_schedule),
+        )
+        .route(
+            "/reports/schedules/:id",
+            delete(handlers::reports::delete_report_schedule),
+        )
         // Export presets standalone (create / delete)
-        .route("/reports/presets", post(handlers::reports::create_export_preset))
-        .route("/reports/presets/:id", delete(handlers::reports::delete_export_preset))
+        .route(
+            "/reports/presets",
+            post(handlers::reports::create_export_preset),
+        )
+        .route(
+            "/reports/presets/:id",
+            delete(handlers::reports::delete_export_preset),
+        )
         // MFA (TOTP enrollment, verification, status, challenge, recovery)
         .route("/auth/mfa/enroll", post(handlers::mfa::enroll_totp))
-        .route("/auth/mfa/verify", post(handlers::mfa::verify_totp_enrollment))
+        .route(
+            "/auth/mfa/verify",
+            post(handlers::mfa::verify_totp_enrollment),
+        )
         .route("/auth/mfa/status", get(handlers::mfa::get_mfa_status))
         .route("/auth/mfa/challenge", post(handlers::mfa::mfa_challenge))
         .route("/auth/mfa/recover", post(handlers::mfa::use_recovery_code))
         .route("/auth/mfa/totp", delete(handlers::mfa::disable_totp))
         // MFA login-flow verify — completes login after primary auth when MFA is required.
         // Public: caller presents mfa_token (short-lived) + code, receives JWT on success.
-        .route("/auth/mfa/login-verify", post(handlers::mfa::mfa_verify_login))
+        .route(
+            "/auth/mfa/login-verify",
+            post(handlers::mfa::mfa_verify_login),
+        )
         // Duo Security MFA — Universal Prompt via OIDC Auth API
         // NOTE: static /auth/mfa/duo/callback must be before parameterised /:config_id/login
         // to avoid routing ambiguity.
         .route("/auth/mfa/duo/callback", get(handlers::duo::duo_callback))
-        .route("/auth/mfa/duo/:config_id/login", get(handlers::duo::duo_login))
+        .route(
+            "/auth/mfa/duo/:config_id/login",
+            get(handlers::duo::duo_login),
+        )
         // API key management
-        .route("/api-keys", get(handlers::api_keys::list_api_keys).post(handlers::api_keys::create_api_key))
+        .route(
+            "/api-keys",
+            get(handlers::api_keys::list_api_keys).post(handlers::api_keys::create_api_key),
+        )
         .route("/api-keys/:id", delete(handlers::api_keys::delete_api_key))
         // OIDC SSO flow (public — no JWT required; gateway whitelist covers these)
-        .route("/auth/oidc/:config_id/login", post(handlers::oidc::oidc_login))
+        .route(
+            "/auth/oidc/:config_id/login",
+            post(handlers::oidc::oidc_login),
+        )
         .route("/auth/oidc/callback", get(handlers::oidc::oidc_callback))
         // LDAP login (public — user submits credentials directly)
-        .route("/auth/ldap/:config_id/login", post(handlers::ldap_auth::ldap_login))
+        .route(
+            "/auth/ldap/:config_id/login",
+            post(handlers::ldap_auth::ldap_login),
+        )
         // SAML 2.0 SP flow (public — no JWT required; gateway whitelist covers these)
         // NOTE: static routes (/metadata, /acs) must be before parameterised (/:config_id/login)
         .route("/auth/saml/metadata", get(handlers::saml::saml_metadata))
         .route("/auth/saml/acs", post(handlers::saml::saml_acs))
-        .route("/auth/saml/:config_id/login", post(handlers::saml::saml_login))
+        .route(
+            "/auth/saml/:config_id/login",
+            post(handlers::saml::saml_login),
+        )
         // Admin: provider CRUD (authenticated — checked inside handlers via x-io-permissions)
         // NOTE: static route /auth/admin/providers must be before parameterised /:id variants
-        .route("/auth/admin/providers",
+        .route(
+            "/auth/admin/providers",
             get(handlers::auth_providers::list_providers)
-                .post(handlers::auth_providers::create_provider))
-        .route("/auth/admin/providers/:id",
+                .post(handlers::auth_providers::create_provider),
+        )
+        .route(
+            "/auth/admin/providers/:id",
             get(handlers::auth_providers::get_provider)
                 .put(handlers::auth_providers::update_provider)
-                .delete(handlers::auth_providers::delete_provider))
-        .route("/auth/admin/providers/:id/mappings",
+                .delete(handlers::auth_providers::delete_provider),
+        )
+        .route(
+            "/auth/admin/providers/:id/mappings",
             get(handlers::auth_providers::list_mappings)
-                .post(handlers::auth_providers::create_mapping))
-        .route("/auth/admin/providers/:id/mappings/:mapping_id",
-            delete(handlers::auth_providers::delete_mapping))
+                .post(handlers::auth_providers::create_mapping),
+        )
+        .route(
+            "/auth/admin/providers/:id/mappings/:mapping_id",
+            delete(handlers::auth_providers::delete_mapping),
+        )
         // SCIM token admin (JWT-protected, requires system:configure)
-        .route("/auth/admin/scim-tokens",
-            get(handlers::scim::list_scim_tokens)
-                .post(handlers::scim::create_scim_token))
-        .route("/auth/admin/scim-tokens/:id",
-            delete(handlers::scim::delete_scim_token))
+        .route(
+            "/auth/admin/scim-tokens",
+            get(handlers::scim::list_scim_tokens).post(handlers::scim::create_scim_token),
+        )
+        .route(
+            "/auth/admin/scim-tokens/:id",
+            delete(handlers::scim::delete_scim_token),
+        )
         // Email MFA (public — part of auth flow, SCIM handles own Bearer auth)
-        .route("/auth/mfa/email/send", post(handlers::email_mfa::send_email_code))
-        .route("/auth/mfa/email/verify", post(handlers::email_mfa::verify_email_code))
+        .route(
+            "/auth/mfa/email/send",
+            post(handlers::email_mfa::send_email_code),
+        )
+        .route(
+            "/auth/mfa/email/verify",
+            post(handlers::email_mfa::verify_email_code),
+        )
         // SMS MFA (public send + verify — part of auth flow)
         .route("/auth/mfa/sms/send", post(handlers::sms_mfa::send_sms_code))
-        .route("/auth/mfa/sms/verify", post(handlers::sms_mfa::verify_sms_code))
+        .route(
+            "/auth/mfa/sms/verify",
+            post(handlers::sms_mfa::verify_sms_code),
+        )
         // SMS provider management (requires JWT + system:configure permission)
-        .route("/auth/sms-providers",
-            get(handlers::sms_mfa::list_sms_providers)
-                .post(handlers::sms_mfa::create_sms_provider))
-        .route("/auth/sms-providers/:id",
-            delete(handlers::sms_mfa::delete_sms_provider))
+        .route(
+            "/auth/sms-providers",
+            get(handlers::sms_mfa::list_sms_providers).post(handlers::sms_mfa::create_sms_provider),
+        )
+        .route(
+            "/auth/sms-providers/:id",
+            delete(handlers::sms_mfa::delete_sms_provider),
+        )
         // SCIM 2.0 (own Bearer auth inside handlers — bypass JWT middleware at gateway)
-        .route("/scim/v2/ServiceProviderConfig", get(handlers::scim::service_provider_config))
+        .route(
+            "/scim/v2/ServiceProviderConfig",
+            get(handlers::scim::service_provider_config),
+        )
         .route("/scim/v2/Schemas", get(handlers::scim::list_schemas))
-        .route("/scim/v2/ResourceTypes", get(handlers::scim::list_resource_types))
-        .route("/scim/v2/Users",
-            get(handlers::scim::list_users)
-                .post(handlers::scim::create_user))
-        .route("/scim/v2/Users/:id",
+        .route(
+            "/scim/v2/ResourceTypes",
+            get(handlers::scim::list_resource_types),
+        )
+        .route(
+            "/scim/v2/Users",
+            get(handlers::scim::list_users).post(handlers::scim::create_user),
+        )
+        .route(
+            "/scim/v2/Users/:id",
             get(handlers::scim::get_user)
                 .put(handlers::scim::replace_user)
                 .patch(handlers::scim::patch_user)
-                .delete(handlers::scim::delete_user))
+                .delete(handlers::scim::delete_user),
+        )
         // SCIM 2.0 Groups (IdP role-membership sync)
-        .route("/scim/v2/Groups",
-            get(handlers::scim::list_groups)
-                .post(handlers::scim::create_group))
-        .route("/scim/v2/Groups/:id",
+        .route(
+            "/scim/v2/Groups",
+            get(handlers::scim::list_groups).post(handlers::scim::create_group),
+        )
+        .route(
+            "/scim/v2/Groups/:id",
             get(handlers::scim::get_group)
                 .put(handlers::scim::replace_group)
                 .patch(handlers::scim::patch_group)
-                .delete(handlers::scim::delete_group))
+                .delete(handlers::scim::delete_group),
+        )
         .with_state(state);
 
     let app = api
@@ -469,7 +629,13 @@ async fn seed_eula(db: &io_db::DbPool, eula_type: &str, version: &str, title: &s
             tracing::info!(eula_type, version, "Seeded EULA {} v{}", eula_type, version);
         }
         Ok(_) => {
-            tracing::debug!(eula_type, version, "EULA {} v{} already exists, skipping", eula_type, version);
+            tracing::debug!(
+                eula_type,
+                version,
+                "EULA {} v{} already exists, skipping",
+                eula_type,
+                version
+            );
         }
         Err(e) => {
             tracing::error!(error = %e, "Failed to seed EULA {} v{}", eula_type, version);
@@ -972,10 +1138,18 @@ By clicking **"I Accept"** below, you confirm that:
 
     match result {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!(version = EULA_VERSION, "Seeded EULA version {}", EULA_VERSION);
+            tracing::info!(
+                version = EULA_VERSION,
+                "Seeded EULA version {}",
+                EULA_VERSION
+            );
         }
         Ok(_) => {
-            tracing::debug!(version = EULA_VERSION, "EULA version {} already exists, skipping", EULA_VERSION);
+            tracing::debug!(
+                version = EULA_VERSION,
+                "EULA version {} already exists, skipping",
+                EULA_VERSION
+            );
         }
         Err(e) => {
             tracing::error!(error = %e, "Failed to seed EULA version {}", EULA_VERSION);

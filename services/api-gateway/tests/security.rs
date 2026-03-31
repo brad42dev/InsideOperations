@@ -30,10 +30,7 @@ use tokio::net::TcpListener;
 /// A self-contained JWT auth middleware for test purposes.
 /// Uses the secret stored in the `X-Test-JWT-Secret` extension (injected as
 /// an `Arc<String>` layer).
-async fn test_jwt_auth(
-    req: Request,
-    next: Next,
-) -> Response {
+async fn test_jwt_auth(req: Request, next: Next) -> Response {
     let secret = req
         .extensions()
         .get::<std::sync::Arc<String>>()
@@ -131,8 +128,8 @@ async fn test_expired_token_returns_401() {
         iat: now - 200,
         exp: now - 100, // 100 s in the past
     };
-    let token = generate_access_token(&expired, "test-secret")
-        .expect("should encode even if exp is past");
+    let token =
+        generate_access_token(&expired, "test-secret").expect("should encode even if exp is past");
 
     let client = Client::new();
     let url = format!("http://{}/api/users", addr);
@@ -179,11 +176,7 @@ async fn test_valid_token_returns_200() {
         .await
         .expect("request failed");
 
-    assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "Expected 200 for valid JWT"
-    );
+    assert_eq!(resp.status(), StatusCode::OK, "Expected 200 for valid JWT");
 
     let body: Value = resp.json().await.expect("response must be JSON");
     assert_eq!(body["success"], true);
@@ -202,8 +195,7 @@ async fn test_wrong_signing_secret_returns_401() {
 
     // Token signed with a *different* secret.
     let claims = build_claims("00000000-0000-0000-0000-000000000003", "attacker", vec![]);
-    let token = generate_access_token(&claims, "attacker-secret")
-        .expect("token generation failed");
+    let token = generate_access_token(&claims, "attacker-secret").expect("token generation failed");
 
     let client = Client::new();
     let url = format!("http://{}/api/users", addr);
@@ -328,7 +320,10 @@ async fn test_cors_restricted() {
         .request(Method::OPTIONS, &url)
         .header("Origin", "https://evil.example.com")
         .header("Access-Control-Request-Method", "POST")
-        .header("Access-Control-Request-Headers", "content-type,authorization")
+        .header(
+            "Access-Control-Request-Headers",
+            "content-type,authorization",
+        )
         .send()
         .await
         .expect("preflight request failed");

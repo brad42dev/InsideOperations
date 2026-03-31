@@ -18,11 +18,10 @@
 ///      storing them in the `properties` bag so callers see plain names.
 ///
 /// Output: `Vec<DcsElement>` using the shared intermediate representation.
-
 use serde_json::{json, Value};
 
-use super::dcs_import::DcsElement;
 use super::dcs_ge::ZipContents;
+use super::dcs_import::DcsElement;
 
 // Siemens namespace URI as it appears in WinCC Unified SVG exports.
 const SIEMENS_NS: &str = "siemens";
@@ -114,9 +113,7 @@ fn extract_siemens_elements(node: roxmltree::Node, depth: usize) -> Vec<DcsEleme
             .and_then(|v| v.parse().ok())
             .unwrap_or(60.0);
 
-        let symbol_class = object_type
-            .as_deref()
-            .map(siemens_type_to_symbol_class);
+        let symbol_class = object_type.as_deref().map(siemens_type_to_symbol_class);
 
         let label = if matches!(svg_tag, "text" | "tspan") {
             child.text().map(|t| t.trim().to_string())

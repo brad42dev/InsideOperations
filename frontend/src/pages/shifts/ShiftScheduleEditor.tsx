@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   shiftsApi,
   type ShiftDetail,
@@ -8,78 +8,78 @@ import {
   type ShiftPattern,
   type CreateShiftPayload,
   type UpdateShiftPayload,
-} from '../../api/shifts'
+} from "../../api/shifts";
 
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
 const fieldLabel: React.CSSProperties = {
-  display: 'block',
+  display: "block",
   fontSize: 12,
   fontWeight: 600,
-  color: 'var(--io-text-secondary)',
+  color: "var(--io-text-secondary)",
   marginBottom: 6,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-}
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
 
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  background: 'var(--io-bg)',
-  border: '1px solid var(--io-border)',
+  width: "100%",
+  padding: "8px 12px",
+  background: "var(--io-bg)",
+  border: "1px solid var(--io-border)",
   borderRadius: 6,
-  color: 'var(--io-text-primary)',
+  color: "var(--io-text-primary)",
   fontSize: 14,
-  boxSizing: 'border-box',
-}
+  boxSizing: "border-box",
+};
 
 const textareaStyle: React.CSSProperties = {
   ...inputStyle,
-  resize: 'vertical',
+  resize: "vertical",
   minHeight: 80,
-  fontFamily: 'inherit',
-}
+  fontFamily: "inherit",
+};
 
 const selectStyle: React.CSSProperties = {
   ...inputStyle,
-}
+};
 
 const errorBanner: React.CSSProperties = {
-  padding: '10px 14px',
-  background: 'rgba(239,68,68,0.1)',
-  border: '1px solid rgba(239,68,68,0.3)',
+  padding: "10px 14px",
+  background: "rgba(239,68,68,0.1)",
+  border: "1px solid rgba(239,68,68,0.3)",
   borderRadius: 6,
-  color: '#ef4444',
+  color: "#ef4444",
   fontSize: 13,
   marginBottom: 16,
-}
+};
 
 const successBanner: React.CSSProperties = {
-  padding: '10px 14px',
-  background: 'rgba(34,197,94,0.1)',
-  border: '1px solid rgba(34,197,94,0.3)',
+  padding: "10px 14px",
+  background: "rgba(34,197,94,0.1)",
+  border: "1px solid rgba(34,197,94,0.3)",
   borderRadius: 6,
-  color: '#22c55e',
+  color: "#22c55e",
   fontSize: 13,
   marginBottom: 16,
-}
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function toDatetimeLocal(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function fromDatetimeLocal(val: string): string {
-  if (!val) return ''
-  return new Date(val).toISOString()
+  if (!val) return "";
+  return new Date(val).toISOString();
 }
 
 // ---------------------------------------------------------------------------
@@ -87,197 +87,234 @@ function fromDatetimeLocal(val: string): string {
 // ---------------------------------------------------------------------------
 
 export default function ShiftScheduleEditor() {
-  const navigate = useNavigate()
-  const { id } = useParams<{ id?: string }>()
-  const isEdit = Boolean(id && id !== 'new')
-  const qc = useQueryClient()
+  const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
+  const isEdit = Boolean(id && id !== "new");
+  const qc = useQueryClient();
 
   // Form state
-  const [name, setName] = useState('')
-  const [crewId, setCrewId] = useState('')
-  const [patternId, setPatternId] = useState('')
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-  const [handoverMinutes, setHandoverMinutes] = useState<number>(30)
-  const [notes, setNotes] = useState('')
-  const [status, setStatus] = useState<string>('scheduled')
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [name, setName] = useState("");
+  const [crewId, setCrewId] = useState("");
+  const [patternId, setPatternId] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [handoverMinutes, setHandoverMinutes] = useState<number>(30);
+  const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState<string>("scheduled");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   // Load existing shift for edit
   const { data: shiftDetail } = useQuery<ShiftDetail>({
-    queryKey: ['shifts', 'detail', id],
+    queryKey: ["shifts", "detail", id],
     queryFn: async () => {
-      const res = await shiftsApi.getShift(id!)
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.getShift(id!);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
     enabled: isEdit,
-  })
+  });
 
   // Populate form from loaded shift
   useEffect(() => {
-    if (!shiftDetail) return
-    const s = shiftDetail.shift
-    setName(s.name)
-    setCrewId(s.crew_id ?? '')
-    setPatternId(s.pattern_id ?? '')
-    setStartTime(toDatetimeLocal(s.start_time))
-    setEndTime(toDatetimeLocal(s.end_time))
-    setHandoverMinutes(s.handover_minutes)
-    setNotes(s.notes ?? '')
-    setStatus(s.status)
-  }, [shiftDetail])
+    if (!shiftDetail) return;
+    const s = shiftDetail.shift;
+    setName(s.name);
+    setCrewId(s.crew_id ?? "");
+    setPatternId(s.pattern_id ?? "");
+    setStartTime(toDatetimeLocal(s.start_time));
+    setEndTime(toDatetimeLocal(s.end_time));
+    setHandoverMinutes(s.handover_minutes);
+    setNotes(s.notes ?? "");
+    setStatus(s.status);
+  }, [shiftDetail]);
 
   // Load crews for dropdown
   const { data: crewsData } = useQuery<ShiftCrew[]>({
-    queryKey: ['shifts', 'crews'],
+    queryKey: ["shifts", "crews"],
     queryFn: async () => {
-      const res = await shiftsApi.listCrews()
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.listCrews();
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
-  })
+  });
 
   // Load patterns for dropdown
   const { data: patternsData } = useQuery<ShiftPattern[]>({
-    queryKey: ['shifts', 'patterns'],
+    queryKey: ["shifts", "patterns"],
     queryFn: async () => {
-      const res = await shiftsApi.listPatterns()
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.listPatterns();
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
-  })
+  });
 
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (payload: CreateShiftPayload) => {
-      const res = await shiftsApi.createShift(payload)
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.createShift(payload);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shifts', 'list'] })
-      setSubmitSuccess(true)
-      setSubmitError(null)
-      setTimeout(() => navigate('/shifts/schedule'), 1200)
+      qc.invalidateQueries({ queryKey: ["shifts", "list"] });
+      setSubmitSuccess(true);
+      setSubmitError(null);
+      setTimeout(() => navigate("/shifts/schedule"), 1200);
     },
     onError: (e: Error) => {
-      setSubmitError(e.message)
+      setSubmitError(e.message);
     },
-  })
+  });
 
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async (payload: UpdateShiftPayload) => {
-      const res = await shiftsApi.updateShift(id!, payload)
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.updateShift(id!, payload);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shifts', 'list'] })
-      qc.invalidateQueries({ queryKey: ['shifts', 'detail', id] })
-      setSubmitSuccess(true)
-      setSubmitError(null)
-      setTimeout(() => navigate('/shifts/schedule'), 1200)
+      qc.invalidateQueries({ queryKey: ["shifts", "list"] });
+      qc.invalidateQueries({ queryKey: ["shifts", "detail", id] });
+      setSubmitSuccess(true);
+      setSubmitError(null);
+      setTimeout(() => navigate("/shifts/schedule"), 1200);
     },
     onError: (e: Error) => {
-      setSubmitError(e.message)
+      setSubmitError(e.message);
     },
-  })
+  });
 
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const isPending = createMutation.isPending || updateMutation.isPending;
   // Show skeleton while waiting for edit data to load
-  const formReady = !isEdit || Boolean(shiftDetail)
+  const formReady = !isEdit || Boolean(shiftDetail);
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitError(null)
-    setSubmitSuccess(false)
+    e.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(false);
 
-    if (!name.trim()) { setSubmitError('Shift name is required.'); return }
-    if (!startTime)   { setSubmitError('Start time is required.'); return }
-    if (!endTime)     { setSubmitError('End time is required.'); return }
+    if (!name.trim()) {
+      setSubmitError("Shift name is required.");
+      return;
+    }
+    if (!startTime) {
+      setSubmitError("Start time is required.");
+      return;
+    }
+    if (!endTime) {
+      setSubmitError("End time is required.");
+      return;
+    }
 
-    const startIso = fromDatetimeLocal(startTime)
-    const endIso   = fromDatetimeLocal(endTime)
+    const startIso = fromDatetimeLocal(startTime);
+    const endIso = fromDatetimeLocal(endTime);
 
     if (new Date(endIso) <= new Date(startIso)) {
-      setSubmitError('End time must be after start time.')
-      return
+      setSubmitError("End time must be after start time.");
+      return;
     }
 
     const payload = {
       name: name.trim(),
-      crew_id:          crewId || undefined,
-      pattern_id:       patternId || undefined,
-      start_time:       startIso,
-      end_time:         endIso,
+      crew_id: crewId || undefined,
+      pattern_id: patternId || undefined,
+      start_time: startIso,
+      end_time: endIso,
       handover_minutes: handoverMinutes,
-      notes:            notes.trim() || undefined,
+      notes: notes.trim() || undefined,
       ...(isEdit ? { status } : {}),
-    }
+    };
 
     if (isEdit) {
-      updateMutation.mutate(payload as UpdateShiftPayload)
+      updateMutation.mutate(payload as UpdateShiftPayload);
     } else {
-      createMutation.mutate(payload as CreateShiftPayload)
+      createMutation.mutate(payload as CreateShiftPayload);
     }
   }
 
-  const crews    = crewsData    ?? []
-  const patterns = patternsData ?? []
+  const crews = crewsData ?? [];
+  const patterns = patternsData ?? [];
 
   return (
-    <div style={{ padding: 'var(--io-space-6)', maxWidth: 680 }}>
+    <div style={{ padding: "var(--io-space-6)", maxWidth: 680 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 28,
+        }}
+      >
         <button
-          onClick={() => navigate('/shifts/schedule')}
+          onClick={() => navigate("/shifts/schedule")}
           style={{
-            background: 'none',
-            border: '1px solid var(--io-border)',
+            background: "none",
+            border: "1px solid var(--io-border)",
             borderRadius: 6,
-            padding: '6px 12px',
-            cursor: 'pointer',
-            color: 'var(--io-text-secondary)',
+            padding: "6px 12px",
+            cursor: "pointer",
+            color: "var(--io-text-secondary)",
             fontSize: 13,
           }}
         >
           ← Back
         </button>
         <div>
-          <h2 style={{ margin: 0, color: 'var(--io-text-primary)', fontSize: 20, fontWeight: 600 }}>
-            {isEdit ? 'Edit Shift' : 'New Shift'}
+          <h2
+            style={{
+              margin: 0,
+              color: "var(--io-text-primary)",
+              fontSize: 20,
+              fontWeight: 600,
+            }}
+          >
+            {isEdit ? "Edit Shift" : "New Shift"}
           </h2>
-          <p style={{ margin: '2px 0 0', color: 'var(--io-text-muted)', fontSize: 13 }}>
-            {isEdit ? 'Update shift details and status.' : 'Schedule a new shift on the calendar.'}
+          <p
+            style={{
+              margin: "2px 0 0",
+              color: "var(--io-text-muted)",
+              fontSize: 13,
+            }}
+          >
+            {isEdit
+              ? "Update shift details and status."
+              : "Schedule a new shift on the calendar."}
           </p>
         </div>
       </div>
 
       {/* Form card */}
       {!formReady ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: 40,
+            textAlign: "center",
+            color: "var(--io-text-muted)",
+          }}
+        >
           Loading…
         </div>
       ) : (
         <form
           onSubmit={handleSubmit}
           style={{
-            background: 'var(--io-surface)',
-            border: '1px solid var(--io-border)',
+            background: "var(--io-surface)",
+            border: "1px solid var(--io-border)",
             borderRadius: 8,
             padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
+            display: "flex",
+            flexDirection: "column",
             gap: 20,
           }}
         >
           {submitError && <div style={errorBanner}>{submitError}</div>}
           {submitSuccess && (
             <div style={successBanner}>
-              {isEdit ? 'Shift updated.' : 'Shift created.'} Redirecting…
+              {isEdit ? "Shift updated." : "Shift created."} Redirecting…
             </div>
           )}
 
@@ -294,7 +331,9 @@ export default function ShiftScheduleEditor() {
           </div>
 
           {/* Start / End */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
+          >
             <div>
               <label style={fieldLabel}>Start Time *</label>
               <input
@@ -362,7 +401,13 @@ export default function ShiftScheduleEditor() {
               value={handoverMinutes}
               onChange={(e) => setHandoverMinutes(Number(e.target.value))}
             />
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--io-text-muted)' }}>
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: 12,
+                color: "var(--io-text-muted)",
+              }}
+            >
               Overlap period for incoming and outgoing crews.
             </p>
           </div>
@@ -376,7 +421,7 @@ export default function ShiftScheduleEditor() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
               >
-                {['scheduled', 'active', 'completed', 'cancelled'].map((s) => (
+                {["scheduled", "active", "completed", "cancelled"].map((s) => (
                   <option key={s} value={s}>
                     {s.charAt(0).toUpperCase() + s.slice(1)}
                   </option>
@@ -397,17 +442,24 @@ export default function ShiftScheduleEditor() {
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              justifyContent: "flex-end",
+              paddingTop: 4,
+            }}
+          >
             <button
               type="button"
-              onClick={() => navigate('/shifts/schedule')}
+              onClick={() => navigate("/shifts/schedule")}
               style={{
-                padding: '8px 18px',
+                padding: "8px 18px",
                 borderRadius: 6,
-                border: '1px solid var(--io-border)',
-                background: 'var(--io-surface)',
-                color: 'var(--io-text-secondary)',
-                cursor: 'pointer',
+                border: "1px solid var(--io-border)",
+                background: "var(--io-surface)",
+                color: "var(--io-text-secondary)",
+                cursor: "pointer",
                 fontSize: 13,
               }}
             >
@@ -417,21 +469,21 @@ export default function ShiftScheduleEditor() {
               type="submit"
               disabled={isPending}
               style={{
-                padding: '8px 20px',
+                padding: "8px 20px",
                 borderRadius: 6,
-                border: 'none',
-                background: isPending ? 'var(--io-border)' : 'var(--io-accent)',
-                color: '#fff',
-                cursor: isPending ? 'not-allowed' : 'pointer',
+                border: "none",
+                background: isPending ? "var(--io-border)" : "var(--io-accent)",
+                color: "#fff",
+                cursor: isPending ? "not-allowed" : "pointer",
                 fontSize: 13,
                 fontWeight: 500,
               }}
             >
-              {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Shift'}
+              {isPending ? "Saving…" : isEdit ? "Save Changes" : "Create Shift"}
             </button>
           </div>
         </form>
       )}
     </div>
-  )
+  );
 }

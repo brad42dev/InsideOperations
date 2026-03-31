@@ -15,12 +15,12 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 use web_push_native::{
-    jwt_simple::algorithms::ES256KeyPair,
-    p256::PublicKey,
-    Auth, WebPushBuilder,
+    jwt_simple::algorithms::ES256KeyPair, p256::PublicKey, Auth, WebPushBuilder,
 };
 
-use super::{AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult};
+use super::{
+    AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult,
+};
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -126,28 +126,25 @@ impl BrowserPushAdapter {
         subscription: &PushSubscription,
     ) -> Result<(), String> {
         // Decode the VAPID private key (base64url-encoded raw bytes).
-        let private_key_bytes =
-            base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(&self.config.vapid_private_key)
-                .map_err(|e| format!("failed to decode VAPID private key: {}", e))?;
+        let private_key_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&self.config.vapid_private_key)
+            .map_err(|e| format!("failed to decode VAPID private key: {}", e))?;
 
         let key_pair = ES256KeyPair::from_bytes(&private_key_bytes)
             .map_err(|e| format!("invalid VAPID key pair: {}", e))?;
 
         // Decode the subscription public key (p256dh).
-        let p256dh_bytes =
-            base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(&subscription.p256dh)
-                .map_err(|e| format!("failed to decode p256dh: {}", e))?;
+        let p256dh_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&subscription.p256dh)
+            .map_err(|e| format!("failed to decode p256dh: {}", e))?;
 
         let subscriber_key = PublicKey::from_sec1_bytes(&p256dh_bytes)
             .map_err(|e| format!("invalid subscriber public key: {}", e))?;
 
         // Decode the push subscription auth secret (must be exactly 16 bytes).
-        let auth_bytes =
-            base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(&subscription.auth_secret)
-                .map_err(|e| format!("failed to decode auth secret: {}", e))?;
+        let auth_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&subscription.auth_secret)
+            .map_err(|e| format!("failed to decode auth secret: {}", e))?;
 
         if auth_bytes.len() != 16 {
             return Err(format!(
@@ -159,12 +156,13 @@ impl BrowserPushAdapter {
         let auth = Auth::clone_from_slice(&auth_bytes);
 
         // Parse the push endpoint URI (uses the `http` crate re-exported by axum).
-        let endpoint_uri: axum::http::Uri = subscription
-            .endpoint
-            .parse()
-            .map_err(|e: axum::http::uri::InvalidUri| {
-                format!("invalid push endpoint URI: {}", e)
-            })?;
+        let endpoint_uri: axum::http::Uri =
+            subscription
+                .endpoint
+                .parse()
+                .map_err(|e: axum::http::uri::InvalidUri| {
+                    format!("invalid push endpoint URI: {}", e)
+                })?;
 
         // Build the notification payload as JSON.
         let payload = serde_json::json!({
@@ -328,10 +326,11 @@ impl AlertChannel for BrowserPushAdapter {
             return Err(ChannelError::Config("vapid_public_key is required".into()));
         }
         // Attempt to decode and validate the private key.
-        let private_key_bytes =
-            base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(&self.config.vapid_private_key)
-                .map_err(|e| ChannelError::Config(format!("invalid vapid_private_key encoding: {}", e)))?;
+        let private_key_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(&self.config.vapid_private_key)
+            .map_err(|e| {
+                ChannelError::Config(format!("invalid vapid_private_key encoding: {}", e))
+            })?;
         ES256KeyPair::from_bytes(&private_key_bytes)
             .map_err(|e| ChannelError::Config(format!("invalid VAPID key pair: {}", e)))?;
         Ok(())

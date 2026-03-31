@@ -19,14 +19,19 @@ use crate::{file_scan, state::AppState, tiles};
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 // ---------------------------------------------------------------------------
 // Request / Response types
 // ---------------------------------------------------------------------------
 
-fn default_graphic_type() -> String { "graphic".to_string() }
+fn default_graphic_type() -> String {
+    "graphic".to_string()
+}
 
 #[derive(Debug, Deserialize)]
 pub struct DesignObjectTypeFilter {
@@ -122,7 +127,17 @@ fn row_to_detail(row: &sqlx::postgres::PgRow) -> Result<GraphicDetail, sqlx::Err
     let parent_id: Option<Uuid> = row.try_get("parent_id").ok().flatten();
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let created_by: Option<Uuid> = row.try_get("created_by").ok().flatten();
-    Ok(GraphicDetail { id, name, object_type, svg_data, bindings, metadata, parent_id, created_at, created_by })
+    Ok(GraphicDetail {
+        id,
+        name,
+        object_type,
+        svg_data,
+        bindings,
+        metadata,
+        parent_id,
+        created_at,
+        created_by,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +170,11 @@ pub async fn list_graphics(
     );
 
     let total: i64 = if let Some(m) = module_bind {
-        match sqlx::query_scalar(&count_sql).bind(m).fetch_one(&state.db).await {
+        match sqlx::query_scalar(&count_sql)
+            .bind(m)
+            .fetch_one(&state.db)
+            .await
+        {
             Ok(n) => n,
             Err(e) => {
                 tracing::error!(error = %e, "list_graphics count query failed");
@@ -173,8 +192,9 @@ pub async fn list_graphics(
     };
 
     let (data_sql, limit_param_idx) = if module_bind.is_some() {
-        (format!(
-            r#"
+        (
+            format!(
+                r#"
             SELECT
                 id,
                 name,
@@ -191,11 +211,14 @@ pub async fn list_graphics(
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
             "#,
-            extra_where = extra_where,
-        ), true)
+                extra_where = extra_where,
+            ),
+            true,
+        )
     } else {
-        (format!(
-            r#"
+        (
+            format!(
+                r#"
             SELECT
                 id,
                 name,
@@ -212,8 +235,10 @@ pub async fn list_graphics(
             ORDER BY created_at DESC
             LIMIT $1 OFFSET $2
             "#,
-            extra_where = extra_where,
-        ), false)
+                extra_where = extra_where,
+            ),
+            false,
+        )
     };
 
     let rows = if limit_param_idx {
@@ -264,7 +289,15 @@ pub async fn list_graphics(
         };
         let created_by: Option<Uuid> = row.try_get("created_by").ok().flatten();
         let bindings_count: i64 = row.try_get("bindings_count").unwrap_or(0);
-        items.push(GraphicSummary { id, name, object_type, module, created_at, created_by, bindings_count });
+        items.push(GraphicSummary {
+            id,
+            name,
+            object_type,
+            module,
+            created_at,
+            created_by,
+            bindings_count,
+        });
     }
 
     Json(PagedResponse::new(items, pg, limit, total as u64)).into_response()
@@ -303,8 +336,12 @@ pub async fn create_graphic(
     };
     let id = Uuid::new_v4();
     let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
-    let bindings = body.bindings.unwrap_or(JsonValue::Object(serde_json::Map::new()));
-    let metadata = body.metadata.unwrap_or(JsonValue::Object(serde_json::Map::new()));
+    let bindings = body
+        .bindings
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+    let metadata = body
+        .metadata
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
     let row = match sqlx::query(
         r#"
@@ -428,8 +465,12 @@ pub async fn update_graphic(
     }
 
     let bindings_for_index = body.bindings.clone();
-    let bindings = body.bindings.unwrap_or(JsonValue::Object(serde_json::Map::new()));
-    let metadata = body.metadata.unwrap_or(JsonValue::Object(serde_json::Map::new()));
+    let bindings = body
+        .bindings
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+    let metadata = body
+        .metadata
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
     let row = match sqlx::query(
         r#"
@@ -523,12 +564,10 @@ pub async fn delete_graphic(
         return IoError::Forbidden("designer:write permission required".into()).into_response();
     }
 
-    let result = match sqlx::query(
-        "DELETE FROM design_objects WHERE id = $1 RETURNING id",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
+    let result = match sqlx::query("DELETE FROM design_objects WHERE id = $1 RETURNING id")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
     {
         Ok(r) => r,
         Err(e) => {
@@ -739,7 +778,8 @@ pub async fn get_thumbnail(
                 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG header
                 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR chunk length + type
                 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // width=1, height=1
-                0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, // bit depth=8, colorType=6 (RGBA)
+                0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15,
+                0xc4, // bit depth=8, colorType=6 (RGBA)
                 0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, // IHDR crc, IDAT chunk
                 0x54, 0x78, 0x9c, 0x62, 0x00, 0x00, 0x00, 0x02, // IDAT: compressed 1-pixel
                 0x00, 0x01, 0xe2, 0x21, 0xbc, 0x33, 0x00, 0x00, // IDAT crc
@@ -820,7 +860,11 @@ pub async fn list_design_objects(
     // Only allow shape/stencil types on this endpoint
     let allowed_types = ["shape", "stencil", "symbol", "template"];
     let type_filter: Option<String> = filter.object_type.and_then(|t| {
-        if allowed_types.contains(&t.as_str()) { Some(t) } else { None }
+        if allowed_types.contains(&t.as_str()) {
+            Some(t)
+        } else {
+            None
+        }
     });
 
     let total: i64 = match &type_filter {
@@ -929,10 +973,8 @@ pub async fn create_design_object(
 
     let allowed_types = ["shape", "stencil", "symbol", "template"];
     if !allowed_types.contains(&body.object_type.as_str()) {
-        return IoError::BadRequest(
-            "type must be one of: shape, stencil, symbol, template".into(),
-        )
-        .into_response();
+        return IoError::BadRequest("type must be one of: shape, stencil, symbol, template".into())
+            .into_response();
     }
 
     // Scan SVG content for malicious payloads before storing
@@ -944,8 +986,12 @@ pub async fn create_design_object(
 
     let id = Uuid::new_v4();
     let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
-    let bindings = body.bindings.unwrap_or(JsonValue::Object(serde_json::Map::new()));
-    let metadata = body.metadata.unwrap_or(JsonValue::Object(serde_json::Map::new()));
+    let bindings = body
+        .bindings
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+    let metadata = body
+        .metadata
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
     let row = match sqlx::query(
         r#"
@@ -1038,12 +1084,10 @@ pub async fn delete_design_object(
         return IoError::Forbidden("designer:write permission required".into()).into_response();
     }
 
-    let result = match sqlx::query(
-        "DELETE FROM design_objects WHERE id = $1 RETURNING id",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
+    let result = match sqlx::query("DELETE FROM design_objects WHERE id = $1 RETURNING id")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
     {
         Ok(r) => r,
         Err(e) => {
@@ -1113,11 +1157,12 @@ pub async fn get_graphic_points(
         .filter_map(|entry| {
             let point_id = entry.get("pointId")?.as_str()?.to_string();
             let bbox = entry.get("bbox").cloned();
-            let lod_level = entry
-                .get("lodLevel")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0) as i32;
-            Some(PointBindingIndex { point_id, bbox, lod_level })
+            let lod_level = entry.get("lodLevel").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+            Some(PointBindingIndex {
+                point_id,
+                bbox,
+                lod_level,
+            })
         })
         .collect::<Vec<_>>();
 
@@ -1182,7 +1227,13 @@ pub async fn list_graphics_hierarchy(
             let name: String = row.try_get("name").ok()?;
             let parent_id: Option<Uuid> = row.try_get("parent_id").ok().flatten();
             let object_type: String = row.try_get("type").ok()?;
-            Some(HierarchyNode { id, name, parent_id, object_type, children: vec![] })
+            Some(HierarchyNode {
+                id,
+                name,
+                parent_id,
+                object_type,
+                children: vec![],
+            })
         })
         .collect();
 
@@ -1230,8 +1281,9 @@ pub async fn get_image_asset(
         Ok(c) => c,
         Err(_) => return IoError::NotFound("Asset content missing".into()).into_response(),
     };
-    let mime_type: String =
-        row.try_get("mime_type").unwrap_or_else(|_| "image/png".to_string());
+    let mime_type: String = row
+        .try_get("mime_type")
+        .unwrap_or_else(|_| "image/png".to_string());
 
     axum::response::Response::builder()
         .status(200)
@@ -1403,22 +1455,20 @@ pub async fn upload_image_asset(
 
     let mut file_data: Option<(Vec<u8>, String)> = None;
 
-    while let Ok(Some(field)) = multipart.next_field().await {
-        let content_type = field
-            .content_type()
-            .unwrap_or("image/png")
-            .to_string();
+    if let Ok(Some(field)) = multipart.next_field().await {
+        let content_type = field.content_type().unwrap_or("image/png").to_string();
         // Accept image/* only
         if !content_type.starts_with("image/") {
-            return IoError::BadRequest(format!("Unsupported file type: {}", content_type)).into_response();
+            return IoError::BadRequest(format!("Unsupported file type: {}", content_type))
+                .into_response();
         }
         match field.bytes().await {
             Ok(data) => {
                 if data.len() > 10 * 1024 * 1024 {
-                    return IoError::BadRequest("Image too large (max 10MB)".into()).into_response();
+                    return IoError::BadRequest("Image too large (max 10MB)".into())
+                        .into_response();
                 }
                 file_data = Some((data.to_vec(), content_type));
-                break;
             }
             Err(e) => {
                 return IoError::BadRequest(format!("Failed to read file: {e}")).into_response();
@@ -1428,13 +1478,15 @@ pub async fn upload_image_asset(
 
     let (bytes, mime_type) = match file_data {
         Some(f) => f,
-        None => return IoError::BadRequest("No file field in multipart body".into()).into_response(),
+        None => {
+            return IoError::BadRequest("No file field in multipart body".into()).into_response()
+        }
     };
 
     // Compute SHA-256 content hash for deduplication
     use std::fmt::Write;
     let hash = {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
         let result = hasher.finalize();
@@ -1492,29 +1544,29 @@ pub async fn get_image_asset_v1(
         return IoError::Forbidden("read permission required".into()).into_response();
     }
 
-    let row = match sqlx::query(
-        "SELECT content, mime_type FROM graphic_assets WHERE content_hash = $1",
-    )
-    .bind(&hash)
-    .fetch_optional(&state.db)
-    .await
-    {
-        Ok(Some(r)) => r,
-        Ok(None) => {
-            return IoError::NotFound(format!("Image asset {} not found", hash)).into_response()
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "get_image_asset_v1 query failed");
-            return IoError::Database(e).into_response();
-        }
-    };
+    let row =
+        match sqlx::query("SELECT content, mime_type FROM graphic_assets WHERE content_hash = $1")
+            .bind(&hash)
+            .fetch_optional(&state.db)
+            .await
+        {
+            Ok(Some(r)) => r,
+            Ok(None) => {
+                return IoError::NotFound(format!("Image asset {} not found", hash)).into_response()
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "get_image_asset_v1 query failed");
+                return IoError::Database(e).into_response();
+            }
+        };
 
     let content: Vec<u8> = match row.try_get("content") {
         Ok(c) => c,
         Err(_) => return IoError::NotFound("Asset content missing".into()).into_response(),
     };
-    let mime_type: String =
-        row.try_get("mime_type").unwrap_or_else(|_| "image/png".to_string());
+    let mime_type: String = row
+        .try_get("mime_type")
+        .unwrap_or_else(|_| "image/png".to_string());
 
     axum::response::Response::builder()
         .status(200)
@@ -1537,12 +1589,10 @@ async fn rebuild_graphic_indexes(db: &sqlx::PgPool, graphic_id: Uuid, scene_data
     let point_ids = collect_point_ids(scene_data);
 
     // Replace shape index
-    if let Err(e) = sqlx::query(
-        "DELETE FROM design_object_shapes WHERE design_object_id = $1",
-    )
-    .bind(graphic_id)
-    .execute(db)
-    .await
+    if let Err(e) = sqlx::query("DELETE FROM design_object_shapes WHERE design_object_id = $1")
+        .bind(graphic_id)
+        .execute(db)
+        .await
     {
         tracing::warn!(error = %e, graphic_id = %graphic_id, "Failed to clear shape index");
         return;
@@ -1558,12 +1608,10 @@ async fn rebuild_graphic_indexes(db: &sqlx::PgPool, graphic_id: Uuid, scene_data
     }
 
     // Replace point index
-    if let Err(e) = sqlx::query(
-        "DELETE FROM design_object_points WHERE design_object_id = $1",
-    )
-    .bind(graphic_id)
-    .execute(db)
-    .await
+    if let Err(e) = sqlx::query("DELETE FROM design_object_points WHERE design_object_id = $1")
+        .bind(graphic_id)
+        .execute(db)
+        .await
     {
         tracing::warn!(error = %e, graphic_id = %graphic_id, "Failed to clear point index");
         return;
@@ -1719,7 +1767,10 @@ pub async fn list_user_shapes(
         })
         .collect();
 
-    Json(ApiResponse::ok(serde_json::json!({ "data": items, "total": items.len() }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "data": items, "total": items.len() }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -1755,10 +1806,7 @@ pub async fn upload_user_shape(
                     ))
                     .into_response();
                 }
-                let filename = field
-                    .file_name()
-                    .map(|s| s.to_string())
-                    .unwrap_or_default();
+                let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
                 if shape_name.is_none() && !filename.is_empty() {
                     // Use filename stem as the default name
                     let stem = std::path::Path::new(&filename)
@@ -1783,10 +1831,8 @@ pub async fn upload_user_shape(
                         };
                         // Basic sanity check — must contain <svg
                         if !text.contains("<svg") {
-                            return IoError::BadRequest(
-                                "File does not appear to be an SVG".into(),
-                            )
-                            .into_response();
+                            return IoError::BadRequest("File does not appear to be an SVG".into())
+                                .into_response();
                         }
                         // Security scan
                         if let Err(e) = file_scan::check_upload(text.as_bytes(), "upload.svg") {
@@ -1838,10 +1884,7 @@ pub async fn upload_user_shape(
     let name = shape_name.unwrap_or_else(|| "Custom Shape".to_string());
 
     // Generate a user-scoped shape_id to avoid collisions with library IDs
-    let shape_id = format!(
-        ".custom.{}",
-        Uuid::new_v4().simple().to_string()
-    );
+    let shape_id = format!(".custom.{}", Uuid::new_v4().simple());
 
     let metadata = serde_json::json!({
         "shape_id": shape_id,
@@ -1915,9 +1958,7 @@ pub async fn delete_user_shape(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => {
-            return IoError::NotFound(format!("Shape {} not found", id)).into_response()
-        }
+        Ok(None) => return IoError::NotFound(format!("Shape {} not found", id)).into_response(),
         Err(e) => {
             tracing::error!(error = %e, "delete_user_shape lookup failed");
             return IoError::Database(e).into_response();
@@ -1934,8 +1975,10 @@ pub async fn delete_user_shape(
         .execute(&state.db)
         .await
     {
-        Ok(_) => Json(ApiResponse::ok(serde_json::json!({ "deleted": id.to_string() })))
-            .into_response(),
+        Ok(_) => Json(ApiResponse::ok(
+            serde_json::json!({ "deleted": id.to_string() }),
+        ))
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "delete_user_shape delete failed");
             IoError::Database(e).into_response()

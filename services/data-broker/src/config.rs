@@ -25,7 +25,6 @@ pub struct Config {
     // -----------------------------------------------------------------------
     // Adaptive throttling thresholds
     // -----------------------------------------------------------------------
-
     /// FPS below which the broker escalates a client's throttle level.
     /// Default: 30.0 (spec: "FPS dropping")
     pub throttle_fps_low: f64,

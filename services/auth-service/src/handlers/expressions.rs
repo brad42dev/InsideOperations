@@ -21,7 +21,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use io_error::{IoError, IoResult};
-use io_models::{ApiResponse, PageParams, PagedResponse};
+use io_models::{ApiResponse, PagedResponse};
 
 use crate::expression_eval;
 use crate::state::AppState;
@@ -41,7 +41,11 @@ fn has_permission(headers: &HeaderMap, perm: &str) -> bool {
     headers
         .get("x-io-permissions")
         .and_then(|v| v.to_str().ok())
-        .map(|perms| perms.split(',').any(|p| p.trim() == "*" || p.trim() == perm))
+        .map(|perms| {
+            perms
+                .split(',')
+                .any(|p| p.trim() == "*" || p.trim() == perm)
+        })
         .unwrap_or(false)
 }
 
@@ -150,8 +154,7 @@ pub async fn list_expressions(
     headers: HeaderMap,
     Query(filter): Query<ExpressionFilter>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     let page = filter.page.unwrap_or(1).max(1) as u32;
     let limit = filter.limit.unwrap_or(50).clamp(1, 100) as u32;
@@ -217,8 +220,7 @@ pub async fn get_expression(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     let row = sqlx::query(
         "SELECT id, name, description, expression, output_type, output_precision,
@@ -246,8 +248,7 @@ pub async fn create_expression(
     headers: HeaderMap,
     Json(req): Json<CreateExpressionRequest>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     if !has_permission(&headers, "system:expression_manage") {
         return Err(IoError::Forbidden(
@@ -262,16 +263,19 @@ pub async fn create_expression(
     let context = req
         .expression_context
         .unwrap_or_else(|| "custom".to_string());
-    let valid_contexts = ["conversion", "calculated_value", "alarm_condition", "custom"];
+    let valid_contexts = [
+        "conversion",
+        "calculated_value",
+        "alarm_condition",
+        "custom",
+    ];
     if !valid_contexts.contains(&context.as_str()) {
         return Err(IoError::BadRequest(
             "expression_context must be one of: conversion, calculated_value, alarm_condition, custom".into(),
         ));
     }
 
-    let output_type = req
-        .output_type
-        .unwrap_or_else(|| "float".to_string());
+    let output_type = req.output_type.unwrap_or_else(|| "float".to_string());
     if !["float", "integer"].contains(&output_type.as_str()) {
         return Err(IoError::BadRequest(
             "output_type must be 'float' or 'integer'".into(),
@@ -327,17 +331,14 @@ pub async fn update_expression(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateExpressionRequest>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     // Fetch to verify existence and ownership.
-    let row = sqlx::query(
-        "SELECT id, created_by FROM custom_expressions WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| IoError::NotFound(format!("Expression {id} not found")))?;
+    let row = sqlx::query("SELECT id, created_by FROM custom_expressions WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| IoError::NotFound(format!("Expression {id} not found")))?;
 
     let owner: Uuid = row.try_get("created_by").map_err(IoError::Database)?;
     let is_admin = has_permission(&headers, "system:admin");
@@ -351,13 +352,11 @@ pub async fn update_expression(
         if name.trim().is_empty() {
             return Err(IoError::BadRequest("name must not be empty".into()));
         }
-        sqlx::query(
-            "UPDATE custom_expressions SET name = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(name)
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE custom_expressions SET name = $1, updated_at = NOW() WHERE id = $2")
+            .bind(name)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
     }
 
     if let Some(description) = &req.description {
@@ -406,13 +405,11 @@ pub async fn update_expression(
     }
 
     if let Some(shared) = req.is_shared {
-        sqlx::query(
-            "UPDATE custom_expressions SET shared = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(shared)
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE custom_expressions SET shared = $1, updated_at = NOW() WHERE id = $2")
+            .bind(shared)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
     }
 
     if let Some(point_ids) = &req.referenced_point_ids {
@@ -437,16 +434,13 @@ pub async fn delete_expression(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
-    let row = sqlx::query(
-        "SELECT id, created_by FROM custom_expressions WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| IoError::NotFound(format!("Expression {id} not found")))?;
+    let row = sqlx::query("SELECT id, created_by FROM custom_expressions WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| IoError::NotFound(format!("Expression {id} not found")))?;
 
     let owner: Uuid = row.try_get("created_by").map_err(IoError::Database)?;
     let is_admin = has_permission(&headers, "system:admin");
@@ -457,12 +451,10 @@ pub async fn delete_expression(
     }
 
     // No deleted_at column — hard delete (expression table has no deleted_at).
-    let result = sqlx::query(
-        "DELETE FROM custom_expressions WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("DELETE FROM custom_expressions WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(IoError::NotFound(format!("Expression {id} not found")));
@@ -481,8 +473,7 @@ pub async fn evaluate_expression_by_id(
     Path(id): Path<Uuid>,
     Json(req): Json<EvaluateRequest>,
 ) -> IoResult<impl IntoResponse> {
-    let caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     let row = sqlx::query(
         "SELECT expression FROM custom_expressions
@@ -509,8 +500,7 @@ pub async fn evaluate_expression_inline(
     headers: HeaderMap,
     Json(req): Json<EvaluateInlineRequest>,
 ) -> IoResult<impl IntoResponse> {
-    let _caller = user_id_from_headers(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+    let _caller = user_id_from_headers(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     let result = expression_eval::evaluate_expression(&req.expression, &req.point_values)
         .map_err(|e| IoError::BadRequest(format!("Evaluation error: {e}")))?;

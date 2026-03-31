@@ -63,7 +63,9 @@ async fn main() -> anyhow::Result<()> {
     {
         let notify_state = state.clone();
         tokio::spawn(async move {
-            let mut listener = match sqlx::postgres::PgListener::connect_with(&notify_state.db).await {
+            let mut listener = match sqlx::postgres::PgListener::connect_with(&notify_state.db)
+                .await
+            {
                 Ok(l) => l,
                 Err(e) => {
                     tracing::error!(error = %e, "Failed to connect NOTIFY listener — pg_notify trigger disabled");
@@ -82,12 +84,29 @@ async fn main() -> anyhow::Result<()> {
                         // Parse as a SendRequest JSON object and insert into email_queue.
                         match serde_json::from_str::<serde_json::Value>(payload) {
                             Ok(req) => {
-                                let to = req.get("to").and_then(|v| v.as_array()).map(|arr| {
-                                    arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>()
-                                }).unwrap_or_default();
-                                let subject = req.get("subject").and_then(|v| v.as_str()).unwrap_or("(no subject)").to_string();
-                                let body_html = req.get("body_html").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let body_text: Option<String> = req.get("body_text").and_then(|v| v.as_str()).map(String::from);
+                                let to = req
+                                    .get("to")
+                                    .and_then(|v| v.as_array())
+                                    .map(|arr| {
+                                        arr.iter()
+                                            .filter_map(|v| v.as_str().map(String::from))
+                                            .collect::<Vec<_>>()
+                                    })
+                                    .unwrap_or_default();
+                                let subject = req
+                                    .get("subject")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("(no subject)")
+                                    .to_string();
+                                let body_html = req
+                                    .get("body_html")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let body_text: Option<String> = req
+                                    .get("body_text")
+                                    .and_then(|v| v.as_str())
+                                    .map(String::from);
 
                                 if to.is_empty() {
                                     tracing::warn!(payload = %payload, "NOTIFY email_send: missing 'to' field — skipping");
@@ -107,8 +126,12 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
 
                                 match insert_result {
-                                    Ok(_) => tracing::info!(to = ?to, subject = %subject, "NOTIFY email_send: queued email"),
-                                    Err(e) => tracing::error!(error = %e, "NOTIFY email_send: failed to insert into queue"),
+                                    Ok(_) => {
+                                        tracing::info!(to = ?to, subject = %subject, "NOTIFY email_send: queued email")
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(error = %e, "NOTIFY email_send: failed to insert into queue")
+                                    }
                                 }
                             }
                             Err(e) => {
@@ -155,7 +178,10 @@ async fn main() -> anyhow::Result<()> {
 
     let api = Router::new()
         // Providers
-        .route("/providers", get(handlers::email::list_providers).post(handlers::email::create_provider))
+        .route(
+            "/providers",
+            get(handlers::email::list_providers).post(handlers::email::create_provider),
+        )
         .route(
             "/providers/:id",
             get(handlers::email::get_provider)
@@ -163,9 +189,18 @@ async fn main() -> anyhow::Result<()> {
                 .delete(handlers::email::delete_provider),
         )
         .route("/providers/:id/test", post(handlers::email::test_provider))
-        .route("/providers/:id/default", put(handlers::email::set_default_provider))
-        .route("/providers/:id/fallback", put(handlers::email::set_fallback_provider))
-        .route("/providers/:id/enabled", put(handlers::email::set_provider_enabled))
+        .route(
+            "/providers/:id/default",
+            put(handlers::email::set_default_provider),
+        )
+        .route(
+            "/providers/:id/fallback",
+            put(handlers::email::set_fallback_provider),
+        )
+        .route(
+            "/providers/:id/enabled",
+            put(handlers::email::set_provider_enabled),
+        )
         // Templates
         .route(
             "/templates",
@@ -176,10 +211,19 @@ async fn main() -> anyhow::Result<()> {
             put(handlers::email::update_template).delete(handlers::email::delete_template),
         )
         // Canonical route per spec; keep old /render alias for compatibility.
-        .route("/templates/:id/preview", post(handlers::email::render_template_preview))
-        .route("/templates/:id/render", post(handlers::email::render_template_preview))
+        .route(
+            "/templates/:id/preview",
+            post(handlers::email::render_template_preview),
+        )
+        .route(
+            "/templates/:id/render",
+            post(handlers::email::render_template_preview),
+        )
         // Queue
-        .route("/queue", post(handlers::email::enqueue_email).get(handlers::email::list_queue))
+        .route(
+            "/queue",
+            post(handlers::email::enqueue_email).get(handlers::email::list_queue),
+        )
         .route("/queue/:id/retry", post(handlers::email::retry_queue_item))
         .route("/queue/:id", delete(handlers::email::cancel_queue_item))
         // Delivery log — /logs is canonical; /delivery-log kept for backwards compatibility.
@@ -190,12 +234,18 @@ async fn main() -> anyhow::Result<()> {
         .route("/stats", get(handlers::email::get_email_stats))
         // Suppression list
         .route("/suppressions", get(handlers::email::list_suppressions))
-        .route("/suppressions/:id", delete(handlers::email::delete_suppression))
+        .route(
+            "/suppressions/:id",
+            delete(handlers::email::delete_suppression),
+        )
         // Internal
         .route("/internal/send", post(handlers::email::internal_send))
         // Spec-compliant detailed health endpoint
         .route("/health", get(handlers::email::email_health))
-        .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            validate_service_secret,
+        ))
         .with_state(state);
 
     let app = api

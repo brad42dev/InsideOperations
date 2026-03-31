@@ -48,7 +48,11 @@ fn mask_email(email: &str) -> String {
         if local.is_empty() {
             return email.to_string();
         }
-        let first_char = &local[..local.char_indices().nth(1).map(|(i, _)| i).unwrap_or(local.len())];
+        let first_char = &local[..local
+            .char_indices()
+            .nth(1)
+            .map(|(i, _)| i)
+            .unwrap_or(local.len())];
         format!("{}***{}", first_char, domain)
     } else {
         email.to_string()
@@ -178,13 +182,12 @@ pub async fn verify_email_code(
         .await?;
 
     // Fetch user and permissions
-    let user_row = sqlx::query(
-        "SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(IoError::Unauthorized)?;
+    let user_row =
+        sqlx::query("SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(IoError::Unauthorized)?;
 
     let enabled: bool = user_row.get("enabled");
     if !enabled {
@@ -199,10 +202,7 @@ pub async fn verify_email_code(
 
     // Create a refresh token / session (reuse the same pattern as local login)
     let refresh_token = Uuid::new_v4().to_string();
-    let refresh_hash = format!(
-        "{:x}",
-        Sha256::digest(refresh_token.as_bytes())
-    );
+    let refresh_hash = format!("{:x}", Sha256::digest(refresh_token.as_bytes()));
     let ttl_secs = state.config.refresh_token_ttl_secs as i64;
     let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl_secs);
 

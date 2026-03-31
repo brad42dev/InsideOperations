@@ -193,7 +193,9 @@ pub async fn create_provider(
 
     // Encrypt secret fields before storing in the database.
     let mut config = body.config.clone();
-    if let Err(e) = crypto::encrypt_provider_secrets(&mut config, &body.provider_type, &state.config.master_key) {
+    if let Err(e) =
+        crypto::encrypt_provider_secrets(&mut config, &body.provider_type, &state.config.master_key)
+    {
         return server_err(format!("Failed to encrypt provider secrets: {e}")).into_response();
     }
 
@@ -239,7 +241,11 @@ pub async fn create_provider(
                 created_at: r.get("created_at"),
                 updated_at: r.get("updated_at"),
             };
-            (StatusCode::CREATED, Json(json!({ "success": true, "data": provider }))).into_response()
+            (
+                StatusCode::CREATED,
+                Json(json!({ "success": true, "data": provider })),
+            )
+                .into_response()
         }
     }
 }
@@ -282,7 +288,11 @@ pub async fn update_provider(
                 Ok(Some(r)) => r.get::<String, _>("provider_type"),
             }
         };
-        if let Err(e) = crypto::encrypt_provider_secrets(&mut new_cfg, &effective_type, &state.config.master_key) {
+        if let Err(e) = crypto::encrypt_provider_secrets(
+            &mut new_cfg,
+            &effective_type,
+            &state.config.master_key,
+        ) {
             return server_err(format!("Failed to encrypt provider secrets: {e}")).into_response();
         }
         Some(new_cfg)
@@ -350,12 +360,10 @@ pub async fn delete_provider(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     // Check: is this the only default provider?
-    let check = sqlx::query(
-        "SELECT is_default FROM email_providers WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let check = sqlx::query("SELECT is_default FROM email_providers WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
 
     match check {
         Err(e) => return server_err(e).into_response(),
@@ -375,7 +383,11 @@ pub async fn delete_provider(
                 if let Ok(cr) = count_res {
                     let cnt: i64 = cr.get("cnt");
                     if cnt == 0 {
-                        return err("CANNOT_DELETE_DEFAULT", "Cannot delete the only active provider. Add another provider first.").into_response();
+                        return err(
+                            "CANNOT_DELETE_DEFAULT",
+                            "Cannot delete the only active provider. Add another provider first.",
+                        )
+                        .into_response();
                     }
                 }
             }
@@ -438,7 +450,11 @@ pub async fn test_provider(
     let mut raw_config: serde_json::Value = provider_row.get("config");
 
     // Decrypt secrets before passing to the delivery adapter.
-    if let Err(e) = crate::crypto::decrypt_provider_secrets(&mut raw_config, &provider_type, &state.config.master_key) {
+    if let Err(e) = crate::crypto::decrypt_provider_secrets(
+        &mut raw_config,
+        &provider_type,
+        &state.config.master_key,
+    ) {
         return server_err(format!("Failed to decrypt provider secrets: {e}")).into_response();
     }
 
@@ -452,7 +468,7 @@ pub async fn test_provider(
     let send_result = crate::queue_worker::attempt_delivery(
         &state,
         Some(id),
-        &[to_address.clone()],
+        std::slice::from_ref(&to_address),
         subject,
         body_html,
         body_text,
@@ -644,7 +660,11 @@ pub async fn create_template(
                 created_at: r.get("created_at"),
                 updated_at: r.get("updated_at"),
             };
-            (StatusCode::CREATED, Json(json!({ "success": true, "data": template }))).into_response()
+            (
+                StatusCode::CREATED,
+                Json(json!({ "success": true, "data": template })),
+            )
+                .into_response()
         }
     }
 }
@@ -711,12 +731,11 @@ pub async fn delete_template(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     // Guard: system templates (category = 'system') may not be deleted via the API.
-    let cat_result = sqlx::query_scalar::<_, String>(
-        "SELECT category FROM email_templates WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let cat_result =
+        sqlx::query_scalar::<_, String>("SELECT category FROM email_templates WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await;
 
     match cat_result {
         Err(e) => return server_err(e).into_response(),
@@ -861,11 +880,23 @@ pub async fn enqueue_email(
     } else {
         let subject = match body.subject.as_deref() {
             Some(s) => s.to_string(),
-            None => return err("MISSING_SUBJECT", "subject is required when no template_id is provided").into_response(),
+            None => {
+                return err(
+                    "MISSING_SUBJECT",
+                    "subject is required when no template_id is provided",
+                )
+                .into_response()
+            }
         };
         let bhtml = match body.body_html.as_deref() {
             Some(h) => h.to_string(),
-            None => return err("MISSING_BODY", "body_html is required when no template_id is provided").into_response(),
+            None => {
+                return err(
+                    "MISSING_BODY",
+                    "body_html is required when no template_id is provided",
+                )
+                .into_response()
+            }
         };
         (subject, bhtml, body.body_text.clone())
     };
@@ -914,7 +945,11 @@ pub async fn enqueue_email(
         Err(e) => server_err(e).into_response(),
         Ok(r) => {
             let row = map_queue_row(&r);
-            (StatusCode::CREATED, Json(json!({ "success": true, "data": row }))).into_response()
+            (
+                StatusCode::CREATED,
+                Json(json!({ "success": true, "data": row })),
+            )
+                .into_response()
         }
     }
 }
@@ -1109,12 +1144,10 @@ pub async fn delete_suppression(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let result = sqlx::query(
-        "DELETE FROM email_suppressions WHERE id = $1 RETURNING id",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let result = sqlx::query("DELETE FROM email_suppressions WHERE id = $1 RETURNING id")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
 
     match result {
         Err(e) => server_err(e).into_response(),
@@ -1134,7 +1167,8 @@ pub async fn delete_suppression(
 pub async fn internal_send(State(state): State<AppState>) -> impl IntoResponse {
     match crate::queue_worker::process_one(&state).await {
         Ok(true) => ok(json!({ "processed": true })).into_response(),
-        Ok(false) => ok(json!({ "processed": false, "message": "No eligible items in queue" })).into_response(),
+        Ok(false) => ok(json!({ "processed": false, "message": "No eligible items in queue" }))
+            .into_response(),
         Err(e) => server_err(e).into_response(),
     }
 }
@@ -1219,9 +1253,10 @@ pub async fn set_default_provider(
     }
 
     // Clear all existing defaults.
-    if let Err(e) = sqlx::query("UPDATE email_providers SET is_default = false WHERE is_default = true")
-        .execute(&mut *tx)
-        .await
+    if let Err(e) =
+        sqlx::query("UPDATE email_providers SET is_default = false WHERE is_default = true")
+            .execute(&mut *tx)
+            .await
     {
         return server_err(e).into_response();
     }
@@ -1270,9 +1305,10 @@ pub async fn set_fallback_provider(
     }
 
     // Clear all existing fallbacks.
-    if let Err(e) = sqlx::query("UPDATE email_providers SET is_fallback = false WHERE is_fallback = true")
-        .execute(&mut *tx)
-        .await
+    if let Err(e) =
+        sqlx::query("UPDATE email_providers SET is_fallback = false WHERE is_fallback = true")
+            .execute(&mut *tx)
+            .await
     {
         return server_err(e).into_response();
     }
@@ -1304,13 +1340,11 @@ pub async fn set_provider_enabled(
     Path(id): Path<Uuid>,
     Json(body): Json<SetEnabledBody>,
 ) -> impl IntoResponse {
-    let result = sqlx::query(
-        "UPDATE email_providers SET enabled = $2 WHERE id = $1 RETURNING id",
-    )
-    .bind(id)
-    .bind(body.enabled)
-    .fetch_optional(&state.db)
-    .await;
+    let result = sqlx::query("UPDATE email_providers SET enabled = $2 WHERE id = $1 RETURNING id")
+        .bind(id)
+        .bind(body.enabled)
+        .fetch_optional(&state.db)
+        .await;
 
     match result {
         Err(e) => server_err(e).into_response(),
@@ -1480,7 +1514,9 @@ pub async fn get_email_stats(
     Query(params): Query<StatsParams>,
 ) -> impl IntoResponse {
     // Build dynamic date range filter. Default: last 30 days.
-    let from = params.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(30));
+    let from = params
+        .from
+        .unwrap_or_else(|| Utc::now() - chrono::Duration::days(30));
     let to = params.to.unwrap_or_else(Utc::now);
 
     // Overall totals (all providers).

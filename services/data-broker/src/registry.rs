@@ -30,10 +30,7 @@ impl SubscriptionRegistry {
     ) -> Vec<Uuid> {
         let mut subscribed = Vec::new();
 
-        let mut client_points = self
-            .client_to_points
-            .entry(client_id)
-            .or_default();
+        let mut client_points = self.client_to_points.entry(client_id).or_default();
 
         for &point_id in points {
             if client_points.len() >= max_per_client {
@@ -218,7 +215,11 @@ mod tests {
         reg.subscribe(client, &[p1, p2], 100);
         let removed = reg.remove_client(client);
 
-        assert_eq!(removed.len(), 2, "remove_client must return all subscribed points");
+        assert_eq!(
+            removed.len(),
+            2,
+            "remove_client must return all subscribed points"
+        );
         assert!(reg.get_clients_for_point(&p1).is_empty());
         assert!(reg.get_clients_for_point(&p2).is_empty());
         assert_eq!(reg.client_point_count(&client), 0);

@@ -1,9 +1,9 @@
+use crate::config::Config;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use crate::config::Config;
 
 /// Cached OAuth2 access token, keyed by provider UUID.
 pub struct CachedToken {

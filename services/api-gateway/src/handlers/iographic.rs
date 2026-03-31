@@ -26,7 +26,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 // ---------------------------------------------------------------------------
@@ -130,9 +133,15 @@ struct GraphicModelMeta {
     view_box_alt: Option<String>,
 }
 
-fn default_view_box() -> String { "0 0 1920 1080".to_string() }
-fn default_width() -> f64 { 1920.0 }
-fn default_height() -> f64 { 1080.0 }
+fn default_view_box() -> String {
+    "0 0 1920 1080".to_string()
+}
+fn default_width() -> f64 {
+    1920.0
+}
+fn default_height() -> f64 {
+    1080.0
+}
 
 #[derive(Debug, Deserialize)]
 struct ShapeInstance {
@@ -167,7 +176,9 @@ struct Scale2D {
 }
 
 impl Default for Scale2D {
-    fn default() -> Self { Scale2D { x: 1.0, y: 1.0 } }
+    fn default() -> Self {
+        Scale2D { x: 1.0, y: 1.0 }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -188,8 +199,12 @@ struct PipeInstance {
     label: Option<String>,
 }
 
-fn default_service_type() -> String { "process".to_string() }
-fn default_stroke_width() -> f64 { 2.0 }
+fn default_service_type() -> String {
+    "process".to_string()
+}
+fn default_stroke_width() -> f64 {
+    2.0
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IographicGraphicEntry {
@@ -223,14 +238,14 @@ pub struct LegacyGraphicMeta {
 /// Pipe stroke colours by service type (inspired by ISA-5.1 / typical DCS conventions)
 fn pipe_stroke(service_type: &str) -> &'static str {
     match service_type {
-        "process" | "liquid"    => "#71717A",   // zinc-500 — process fluid
-        "gas" | "vapor"         => "#A1A1AA",   // zinc-400 — gas / vapour
-        "steam"                 => "#E4E4E7",   // zinc-200 — steam
-        "cooling_water" | "cw"  => "#60A5FA",   // blue-400  — cooling water
-        "fuel_gas" | "fuel"     => "#FBBF24",   // amber-400 — fuel gas
-        "hydrogen" | "h2"       => "#34D399",   // emerald-400 — hydrogen
-        "instrument_air" | "ia" => "#C4B5FD",   // violet-300 — instrument air
-        _                       => "#71717A",
+        "process" | "liquid" => "#71717A",    // zinc-500 — process fluid
+        "gas" | "vapor" => "#A1A1AA",         // zinc-400 — gas / vapour
+        "steam" => "#E4E4E7",                 // zinc-200 — steam
+        "cooling_water" | "cw" => "#60A5FA",  // blue-400  — cooling water
+        "fuel_gas" | "fuel" => "#FBBF24",     // amber-400 — fuel gas
+        "hydrogen" | "h2" => "#34D399",       // emerald-400 — hydrogen
+        "instrument_air" | "ia" => "#C4B5FD", // violet-300 — instrument air
+        _ => "#71717A",
     }
 }
 
@@ -270,7 +285,8 @@ fn extract_view_box(svg: &str) -> Option<String> {
 
 /// Parse a viewBox string "minX minY width height" → (width, height).
 fn view_box_dims(vb: &str) -> (f64, f64) {
-    let parts: Vec<f64> = vb.split_whitespace()
+    let parts: Vec<f64> = vb
+        .split_whitespace()
         .filter_map(|s| s.parse().ok())
         .collect();
     if parts.len() >= 4 {
@@ -284,24 +300,31 @@ fn view_box_dims(vb: &str) -> (f64, f64) {
 /// Shapes have small native viewBoxes (e.g. 40×80), so we scale them up.
 const SHAPE_BASE_PX: f64 = 64.0;
 
-async fn render_model_to_svg(
-    db: &sqlx::PgPool,
-    model: &GraphicModel,
-) -> String {
-    let view_box = model.metadata.view_box_alt.as_deref()
+async fn render_model_to_svg(db: &sqlx::PgPool, model: &GraphicModel) -> String {
+    let view_box = model
+        .metadata
+        .view_box_alt
+        .as_deref()
         .unwrap_or(&model.metadata.view_box);
-    let bg = model.metadata.background_color.as_deref().unwrap_or("#09090B");
+    let bg = model
+        .metadata
+        .background_color
+        .as_deref()
+        .unwrap_or("#09090B");
 
     // Collect unique shape_ids needed
     let needed_ids: Vec<String> = {
-        let mut ids: Vec<String> = model.shapes.iter().map(|s| {
-            // Try shape_id + variant (e.g. "pump-centrifugal-opt1") first
-            match &s.variant {
-                Some(v) if !v.is_empty() && v != "default" =>
-                    format!("{}-{}", s.shape_id, v),
-                _ => s.shape_id.clone(),
-            }
-        }).collect();
+        let mut ids: Vec<String> = model
+            .shapes
+            .iter()
+            .map(|s| {
+                // Try shape_id + variant (e.g. "pump-centrifugal-opt1") first
+                match &s.variant {
+                    Some(v) if !v.is_empty() && v != "default" => format!("{}-{}", s.shape_id, v),
+                    _ => s.shape_id.clone(),
+                }
+            })
+            .collect();
         ids.sort();
         ids.dedup();
         ids
@@ -333,11 +356,12 @@ async fn render_model_to_svg(
         }
 
         // Fallback: for IDs that weren't found (variant form), try base shape_id
-        let base_ids: Vec<String> = model.shapes.iter()
+        let base_ids: Vec<String> = model
+            .shapes
+            .iter()
             .filter_map(|s| {
                 let lookup = match &s.variant {
-                    Some(v) if !v.is_empty() && v != "default" =>
-                        format!("{}-{}", s.shape_id, v),
+                    Some(v) if !v.is_empty() && v != "default" => format!("{}-{}", s.shape_id, v),
                     _ => s.shape_id.clone(),
                 };
                 if !shape_svgs.contains_key(&lookup) {
@@ -381,7 +405,10 @@ async fn render_model_to_svg(
 
     // Pipes layer (render behind shapes)
     for pipe in &model.pipes {
-        let color = pipe.color.as_deref().unwrap_or_else(|| pipe_stroke(&pipe.service_type));
+        let color = pipe
+            .color
+            .as_deref()
+            .unwrap_or_else(|| pipe_stroke(&pipe.service_type));
         let path_el = format!(
             r#"<path id="{id}" d="{d}" stroke="{color}" stroke-width="{sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>"#,
             id = pipe.element_id,
@@ -405,19 +432,42 @@ async fn render_model_to_svg(
 
     // Annotations layer — support both flat {text,x,y} and nested {content,position:{x,y}} formats
     for ann in &model.annotations {
-        let text = ann.get("text").and_then(|v| v.as_str())
+        let text = ann
+            .get("text")
+            .and_then(|v| v.as_str())
             .or_else(|| ann.get("content").and_then(|v| v.as_str()));
         if let Some(text) = text {
-            let x = ann.get("x").and_then(|v| v.as_f64())
-                .or_else(|| ann.get("position").and_then(|p| p.get("x")).and_then(|v| v.as_f64()))
+            let x = ann
+                .get("x")
+                .and_then(|v| v.as_f64())
+                .or_else(|| {
+                    ann.get("position")
+                        .and_then(|p| p.get("x"))
+                        .and_then(|v| v.as_f64())
+                })
                 .unwrap_or(0.0);
-            let y = ann.get("y").and_then(|v| v.as_f64())
-                .or_else(|| ann.get("position").and_then(|p| p.get("y")).and_then(|v| v.as_f64()))
+            let y = ann
+                .get("y")
+                .and_then(|v| v.as_f64())
+                .or_else(|| {
+                    ann.get("position")
+                        .and_then(|p| p.get("y"))
+                        .and_then(|v| v.as_f64())
+                })
                 .unwrap_or(0.0);
-            let font_size = ann.get("font_size").and_then(|v| v.as_f64()).unwrap_or(14.0);
+            let font_size = ann
+                .get("font_size")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(14.0);
             // "style" may be a colour string like "#A1A1AA"
-            let color = ann.get("color").and_then(|v| v.as_str())
-                .or_else(|| ann.get("style").and_then(|v| v.as_str()).filter(|s| s.starts_with('#')))
+            let color = ann
+                .get("color")
+                .and_then(|v| v.as_str())
+                .or_else(|| {
+                    ann.get("style")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| s.starts_with('#'))
+                })
                 .unwrap_or("#E4E4E7");
             svg_parts.push(format!(
                 "<text x=\"{}\" y=\"{}\" font-family=\"monospace\" font-size=\"{}\" fill=\"{}\">{}</text>",
@@ -429,18 +479,17 @@ async fn render_model_to_svg(
     // Shapes layer
     for shape in &model.shapes {
         let lookup_key = match &shape.variant {
-            Some(v) if !v.is_empty() && v != "default" =>
-                format!("{}-{}", shape.shape_id, v),
+            Some(v) if !v.is_empty() && v != "default" => format!("{}-{}", shape.shape_id, v),
             _ => shape.shape_id.clone(),
         };
-        let shape_svg_full = shape_svgs.get(&lookup_key)
+        let shape_svg_full = shape_svgs
+            .get(&lookup_key)
             .or_else(|| shape_svgs.get(&shape.shape_id))
             .cloned()
             .unwrap_or_default();
 
         let inner = extract_svg_inner(&shape_svg_full);
-        let vb = extract_view_box(&shape_svg_full)
-            .unwrap_or_else(|| "0 0 64 64".to_string());
+        let vb = extract_view_box(&shape_svg_full).unwrap_or_else(|| "0 0 64 64".to_string());
         let (vb_w, vb_h) = view_box_dims(&vb);
 
         // Scale: render shape at SHAPE_BASE_PX × user scale
@@ -462,9 +511,7 @@ async fn render_model_to_svg(
             let cy = vb_h / 2.0;
             transform = format!(
                 "translate({:.1},{:.1}) rotate({:.1},{:.1},{:.1}) scale({:.4},{:.4})",
-                shape.position.x, shape.position.y,
-                shape.rotation, cx, cy,
-                sx, sy,
+                shape.position.x, shape.position.y, shape.rotation, cx, cy, sx, sy,
             );
         }
 
@@ -619,10 +666,7 @@ fn transform_bindings_uuids_to_tags(
                                             "point_tag".to_string(),
                                             JsonValue::String(format!("<DELETED:{}>", s)),
                                         );
-                                        new_map.insert(
-                                            "source_hint".to_string(),
-                                            JsonValue::Null,
-                                        );
+                                        new_map.insert("source_hint".to_string(), JsonValue::Null);
                                     }
                                 }
                                 injected_source_hint = true;
@@ -657,43 +701,34 @@ fn transform_bindings_uuids_to_tags(
                                     if let JsonValue::String(ref s) = item {
                                         if let Ok(uuid) = Uuid::parse_str(s) {
                                             return match lookup.get(&uuid) {
-                                                Some((tag, _)) => {
-                                                    JsonValue::String(tag.clone())
+                                                Some((tag, _)) => JsonValue::String(tag.clone()),
+                                                None => {
+                                                    JsonValue::String(format!("<DELETED:{}>", s))
                                                 }
-                                                None => JsonValue::String(
-                                                    format!("<DELETED:{}>", s),
-                                                ),
                                             };
                                         }
                                     }
                                     item
                                 })
                                 .collect();
-                            new_map.insert(
-                                "equipment_point_tags".to_string(),
-                                JsonValue::Array(tags),
-                            );
+                            new_map
+                                .insert("equipment_point_tags".to_string(), JsonValue::Array(tags));
                             continue;
                         }
                         new_map.insert(key, child);
                     }
                     _ => {
-                        new_map.insert(
-                            key,
-                            transform_bindings_uuids_to_tags(child, lookup),
-                        );
+                        new_map.insert(key, transform_bindings_uuids_to_tags(child, lookup));
                     }
                 }
             }
             JsonValue::Object(new_map)
         }
-        JsonValue::Array(arr) => {
-            JsonValue::Array(
-                arr.into_iter()
-                    .map(|item| transform_bindings_uuids_to_tags(item, lookup))
-                    .collect(),
-            )
-        }
+        JsonValue::Array(arr) => JsonValue::Array(
+            arr.into_iter()
+                .map(|item| transform_bindings_uuids_to_tags(item, lookup))
+                .collect(),
+        ),
         other => other,
     }
 }
@@ -807,7 +842,8 @@ pub async fn export_graphic(
     Path(id): Path<Uuid>,
     Json(body): Json<ExportIographicBody>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "designer:export") && !check_permission(&claims, "designer:read") {
+    if !check_permission(&claims, "designer:export") && !check_permission(&claims, "designer:read")
+    {
         return IoError::Forbidden("designer:read permission required".into()).into_response();
     }
 
@@ -829,7 +865,9 @@ pub async fn export_graphic(
     };
 
     let name: String = row.try_get("name").unwrap_or_default();
-    let graphic_type: String = row.try_get("type").unwrap_or_else(|_| "graphic".to_string());
+    let graphic_type: String = row
+        .try_get("type")
+        .unwrap_or_else(|_| "graphic".to_string());
     let svg_data: Option<String> = row.try_get("svg_data").ok().flatten();
     let bindings: Option<JsonValue> = row.try_get("bindings").ok().flatten();
     let metadata_val: Option<JsonValue> = row.try_get("metadata").ok().flatten();
@@ -928,45 +966,51 @@ pub async fn export_graphic(
 
     // Extract sub-fields from the DB JSONB if it is a GraphicModel-style object
     // (top-level: shapes, pipes, annotations, bindings, metadata).
-    let (model_shapes, model_pipes, model_annotations, model_layers, inner_bindings, inner_expressions) =
-        if let JsonValue::Object(ref obj) = raw_bindings {
-            let shapes = obj
-                .get("shapes")
-                .cloned()
-                .unwrap_or(JsonValue::Array(vec![]));
-            let pipes = obj
-                .get("pipes")
-                .cloned()
-                .unwrap_or(JsonValue::Array(vec![]));
-            let annotations = obj
-                .get("annotations")
-                .cloned()
-                .unwrap_or(JsonValue::Array(vec![]));
-            let layers = obj
-                .get("layers")
-                .cloned()
-                .unwrap_or(JsonValue::Array(vec![]));
-            // The bindings sub-object holds per-element point references
-            let inner = obj
-                .get("bindings")
-                .cloned()
-                .unwrap_or(JsonValue::Object(serde_json::Map::new()));
-            // The expressions sub-object holds expression definitions keyed by local key
-            let exprs = obj
-                .get("expressions")
-                .cloned()
-                .unwrap_or(JsonValue::Object(serde_json::Map::new()));
-            (shapes, pipes, annotations, layers, inner, exprs)
-        } else {
-            (
-                JsonValue::Array(vec![]),
-                JsonValue::Array(vec![]),
-                JsonValue::Array(vec![]),
-                JsonValue::Array(vec![]),
-                raw_bindings.clone(),
-                JsonValue::Object(serde_json::Map::new()),
-            )
-        };
+    let (
+        model_shapes,
+        model_pipes,
+        model_annotations,
+        model_layers,
+        inner_bindings,
+        inner_expressions,
+    ) = if let JsonValue::Object(ref obj) = raw_bindings {
+        let shapes = obj
+            .get("shapes")
+            .cloned()
+            .unwrap_or(JsonValue::Array(vec![]));
+        let pipes = obj
+            .get("pipes")
+            .cloned()
+            .unwrap_or(JsonValue::Array(vec![]));
+        let annotations = obj
+            .get("annotations")
+            .cloned()
+            .unwrap_or(JsonValue::Array(vec![]));
+        let layers = obj
+            .get("layers")
+            .cloned()
+            .unwrap_or(JsonValue::Array(vec![]));
+        // The bindings sub-object holds per-element point references
+        let inner = obj
+            .get("bindings")
+            .cloned()
+            .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+        // The expressions sub-object holds expression definitions keyed by local key
+        let exprs = obj
+            .get("expressions")
+            .cloned()
+            .unwrap_or(JsonValue::Object(serde_json::Map::new()));
+        (shapes, pipes, annotations, layers, inner, exprs)
+    } else {
+        (
+            JsonValue::Array(vec![]),
+            JsonValue::Array(vec![]),
+            JsonValue::Array(vec![]),
+            JsonValue::Array(vec![]),
+            raw_bindings.clone(),
+            JsonValue::Object(serde_json::Map::new()),
+        )
+    };
 
     // Transform the inner bindings object: replace all UUID point references with tags
     let tag_based_bindings = transform_bindings_uuids_to_tags(inner_bindings, &uuid_to_tag);
@@ -1023,7 +1067,10 @@ pub async fn export_graphic(
         }
         // Ensure at minimum viewBox, width, height are present
         if !m.contains_key("viewBox") && !m.contains_key("view_box") {
-            m.insert("viewBox".to_string(), JsonValue::String("0 0 1920 1080".to_string()));
+            m.insert(
+                "viewBox".to_string(),
+                JsonValue::String("0 0 1920 1080".to_string()),
+            );
         }
         if !m.contains_key("width") {
             m.insert("width".to_string(), serde_json::json!(1920));
@@ -1051,8 +1098,8 @@ pub async fn export_graphic(
         "layers": model_layers
     });
 
-    let graphic_json = serde_json::to_string_pretty(&graphic_json_obj)
-        .unwrap_or_else(|_| "{}".to_string());
+    let graphic_json =
+        serde_json::to_string_pretty(&graphic_json_obj).unwrap_or_else(|_| "{}".to_string());
     file_map.insert(
         format!("graphics/{}/graphic.json", dir),
         graphic_json.into_bytes(),
@@ -1132,9 +1179,7 @@ pub async fn export_graphic(
             Ok(v) => v,
             Err(_) => continue,
         };
-        let shape_name: String = shape_row
-            .try_get::<String, _>("name")
-            .unwrap_or_default();
+        let shape_name: String = shape_row.try_get::<String, _>("name").unwrap_or_default();
         let shape_svg: String = shape_row
             .try_get::<Option<String>, _>("svg_data")
             .ok()
@@ -1181,13 +1226,16 @@ pub async fn export_graphic(
 
     // 3c. Compute SHA-256 checksum over all non-manifest files (sorted by path = BTreeMap order).
     let mut hasher = Sha256::new();
-    for (_, content) in &file_map {
+    for content in file_map.values() {
         hasher.update(content);
     }
     let hash_bytes = hasher.finalize();
     let checksum = format!(
         "sha256:{}",
-        hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+        hash_bytes
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
     );
 
     // 4. Build the manifest with all required fields.
@@ -1227,8 +1275,7 @@ pub async fn export_graphic(
     let mut zip_bytes: Vec<u8> = Vec::new();
     let cursor = std::io::Cursor::new(&mut zip_bytes);
     let mut zip = ZipWriter::new(cursor);
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     macro_rules! zip_write {
         ($path:expr, $bytes:expr) => {
@@ -1264,7 +1311,13 @@ pub async fn export_graphic(
     // 4. Build response
     let safe_name: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     let filename = format!("{}.iographic", safe_name);
     let content_disposition = format!("attachment; filename=\"{}\"", filename);
@@ -1276,7 +1329,9 @@ pub async fn export_graphic(
         HeaderValue::from_static("application/vnd.insideops.iographic+zip"),
     );
     if let Ok(val) = HeaderValue::from_str(&content_disposition) {
-        response.headers_mut().insert(header::CONTENT_DISPOSITION, val);
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, val);
     }
     response
 }
@@ -1316,7 +1371,8 @@ pub async fn import_graphic(
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "import_graphic: failed to read file field");
-                    return IoError::BadRequest("Failed to read uploaded file".into()).into_response();
+                    return IoError::BadRequest("Failed to read uploaded file".into())
+                        .into_response();
                 }
             }
         }
@@ -1325,8 +1381,7 @@ pub async fn import_graphic(
     let bytes = match file_bytes {
         Some(b) => b,
         None => {
-            return IoError::BadRequest("No file field in multipart request".into())
-                .into_response()
+            return IoError::BadRequest("No file field in multipart request".into()).into_response()
         }
     };
 
@@ -1336,10 +1391,8 @@ pub async fn import_graphic(
         Ok(z) => z,
         Err(e) => {
             tracing::error!(error = %e, "import_graphic: not a valid ZIP");
-            return IoError::BadRequest(
-                "Invalid .iographic file (not a valid ZIP archive)".into(),
-            )
-            .into_response();
+            return IoError::BadRequest("Invalid .iographic file (not a valid ZIP archive)".into())
+                .into_response();
         }
     };
 
@@ -1347,12 +1400,11 @@ pub async fn import_graphic(
     let manifest: IographicManifest = {
         let mut f = match zip.by_name("manifest.json") {
             Ok(f) => f,
-            Err(_) => {
-                return IoError::BadRequest(
-                    "manifest.json not found — this does not appear to be a valid .iographic package".into(),
-                )
-                .into_response()
-            }
+            Err(_) => return IoError::BadRequest(
+                "manifest.json not found — this does not appear to be a valid .iographic package"
+                    .into(),
+            )
+            .into_response(),
         };
         let mut content = String::new();
         use std::io::Read;
@@ -1397,10 +1449,8 @@ pub async fn import_graphic(
             path: None,
         }]
     } else {
-        return IoError::BadRequest(
-            "manifest.json contains no graphics entries".into(),
-        )
-        .into_response();
+        return IoError::BadRequest("manifest.json contains no graphics entries".into())
+            .into_response();
     };
 
     let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
@@ -1457,7 +1507,11 @@ pub async fn import_graphic(
 
         // Decide final SVG: if the file's SVG is a placeholder (or missing), try to
         // render it from graphic.json using the shape library.
-        let svg_content: Option<String> = if raw_svg.as_deref().map(is_placeholder_svg).unwrap_or(true) {
+        let svg_content: Option<String> = if raw_svg
+            .as_deref()
+            .map(is_placeholder_svg)
+            .unwrap_or(true)
+        {
             if let Some(ref json_str) = graphic_json_str {
                 match serde_json::from_str::<GraphicModel>(json_str) {
                     Ok(model) => {
@@ -1490,14 +1544,11 @@ pub async fn import_graphic(
         };
 
         // Extract bindings from graphic.json model (or parse as plain bindings JSON)
+        // If it looks like a graphic model (has "shapes" key), store the whole model
+        // as bindings so the Designer can re-open it later
         let bindings: JsonValue = graphic_json_str
             .as_deref()
             .and_then(|s| serde_json::from_str::<JsonValue>(s).ok())
-            .map(|v| {
-                // If it looks like a graphic model (has "shapes" key), store the whole model
-                // as bindings so the Designer can re-open it later
-                v
-            })
             .unwrap_or(JsonValue::Object(serde_json::Map::new()));
 
         let new_id = Uuid::new_v4();
@@ -1545,7 +1596,11 @@ pub async fn import_graphic(
                     }
                     // Legacy flat shapes: shapes/{uuid}.svg
                     if n.starts_with("shapes/") && n.ends_with(".svg") && !n.contains('/') {
-                        dirs.push(n.trim_end_matches(".svg").trim_start_matches("shapes/").to_string());
+                        dirs.push(
+                            n.trim_end_matches(".svg")
+                                .trim_start_matches("shapes/")
+                                .to_string(),
+                        );
                     }
                 }
             }
@@ -1626,22 +1681,22 @@ fn read_zip_entry_string(
 #[derive(Serialize)]
 struct TagResolution {
     tag: String,
-    status: String,          // "resolved", "ambiguous", "unresolved"
-    resolved_to: Option<String>,          // UUID string if resolved
-    candidates: Vec<serde_json::Value>,  // populated when ambiguous
+    status: String,                     // "resolved", "ambiguous", "unresolved"
+    resolved_to: Option<String>,        // UUID string if resolved
+    candidates: Vec<serde_json::Value>, // populated when ambiguous
 }
 
 #[derive(Serialize)]
 struct ShapeStatus {
     shape_id: String,
-    status: String,  // "available", "missing", "custom_new", "custom_exists"
+    status: String, // "available", "missing", "custom_new", "custom_exists"
 }
 
 #[derive(Serialize)]
 struct StencilStatus {
     stencil_id: String,
     name: String,
-    status: String,  // "new", "exists"
+    status: String, // "new", "exists"
 }
 
 #[derive(Serialize)]
@@ -1674,7 +1729,8 @@ pub async fn analyze_iographic(
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "analyze_iographic: failed to read file field");
-                    return IoError::BadRequest("Failed to read uploaded file".into()).into_response();
+                    return IoError::BadRequest("Failed to read uploaded file".into())
+                        .into_response();
                 }
             }
         }
@@ -1683,8 +1739,7 @@ pub async fn analyze_iographic(
     let bytes = match file_bytes {
         Some(b) => b,
         None => {
-            return IoError::BadRequest("No file field in multipart request".into())
-                .into_response()
+            return IoError::BadRequest("No file field in multipart request".into()).into_response()
         }
     };
 
@@ -1694,10 +1749,8 @@ pub async fn analyze_iographic(
         Ok(z) => z,
         Err(e) => {
             tracing::error!(error = %e, "analyze_iographic: not a valid ZIP");
-            return IoError::BadRequest(
-                "Invalid .iographic file (not a valid ZIP archive)".into(),
-            )
-            .into_response();
+            return IoError::BadRequest("Invalid .iographic file (not a valid ZIP archive)".into())
+                .into_response();
         }
     };
 
@@ -1706,12 +1759,11 @@ pub async fn analyze_iographic(
         use std::io::Read as _;
         let mut f = match zip.by_name("manifest.json") {
             Ok(f) => f,
-            Err(_) => {
-                return IoError::BadRequest(
-                    "manifest.json not found — this does not appear to be a valid .iographic package".into(),
-                )
-                .into_response()
-            }
+            Err(_) => return IoError::BadRequest(
+                "manifest.json not found — this does not appear to be a valid .iographic package"
+                    .into(),
+            )
+            .into_response(),
         };
         let mut content = String::new();
         if f.read_to_string(&mut content).is_err() {
@@ -1720,7 +1772,8 @@ pub async fn analyze_iographic(
         match serde_json::from_str::<IographicManifest>(&content) {
             Ok(m) => m,
             Err(e) => {
-                return IoError::BadRequest(format!("Invalid manifest.json: {}", e)).into_response();
+                return IoError::BadRequest(format!("Invalid manifest.json: {}", e))
+                    .into_response();
             }
         }
     };
@@ -1765,13 +1818,16 @@ pub async fn analyze_iographic(
 
                 // Compute SHA-256 over sorted file contents
                 let mut hasher = Sha256::new();
-                for (_, content) in &file_map {
+                for content in file_map.values() {
                     hasher.update(content);
                 }
                 let hash_bytes = hasher.finalize();
                 let computed = format!(
                     "sha256:{}",
-                    hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                    hash_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<String>()
                 );
 
                 if computed != manifest.checksum {
@@ -1784,7 +1840,10 @@ pub async fn analyze_iographic(
                 }
             }
             Err(e) => {
-                errors.push(format!("Failed to re-read ZIP for checksum verification: {}", e));
+                errors.push(format!(
+                    "Failed to re-read ZIP for checksum verification: {}",
+                    e
+                ));
             }
         }
     }
@@ -1803,45 +1862,43 @@ pub async fn analyze_iographic(
         .await;
 
         match rows_result {
-            Ok(rows) => {
-                match rows.len() {
-                    0 => {
-                        tag_resolutions.push(TagResolution {
-                            tag: tag.clone(),
-                            status: "unresolved".to_string(),
-                            resolved_to: None,
-                            candidates: vec![],
-                        });
-                    }
-                    1 => {
-                        let id: String = rows[0].try_get("id").unwrap_or_default();
-                        tag_resolutions.push(TagResolution {
-                            tag: tag.clone(),
-                            status: "resolved".to_string(),
-                            resolved_to: Some(id),
-                            candidates: vec![],
-                        });
-                    }
-                    _ => {
-                        let candidates: Vec<serde_json::Value> = rows
-                            .iter()
-                            .map(|r| {
-                                serde_json::json!({
-                                    "id": r.try_get::<String, _>("id").unwrap_or_default(),
-                                    "tagname": r.try_get::<String, _>("tagname").unwrap_or_default(),
-                                    "source": r.try_get::<String, _>("source").unwrap_or_default(),
-                                })
-                            })
-                            .collect();
-                        tag_resolutions.push(TagResolution {
-                            tag: tag.clone(),
-                            status: "ambiguous".to_string(),
-                            resolved_to: None,
-                            candidates,
-                        });
-                    }
+            Ok(rows) => match rows.len() {
+                0 => {
+                    tag_resolutions.push(TagResolution {
+                        tag: tag.clone(),
+                        status: "unresolved".to_string(),
+                        resolved_to: None,
+                        candidates: vec![],
+                    });
                 }
-            }
+                1 => {
+                    let id: String = rows[0].try_get("id").unwrap_or_default();
+                    tag_resolutions.push(TagResolution {
+                        tag: tag.clone(),
+                        status: "resolved".to_string(),
+                        resolved_to: Some(id),
+                        candidates: vec![],
+                    });
+                }
+                _ => {
+                    let candidates: Vec<serde_json::Value> = rows
+                        .iter()
+                        .map(|r| {
+                            serde_json::json!({
+                                "id": r.try_get::<String, _>("id").unwrap_or_default(),
+                                "tagname": r.try_get::<String, _>("tagname").unwrap_or_default(),
+                                "source": r.try_get::<String, _>("source").unwrap_or_default(),
+                            })
+                        })
+                        .collect();
+                    tag_resolutions.push(TagResolution {
+                        tag: tag.clone(),
+                        status: "ambiguous".to_string(),
+                        resolved_to: None,
+                        candidates,
+                    });
+                }
+            },
             Err(e) => {
                 tracing::warn!(error = %e, tag = %tag, "analyze_iographic: tag resolution query failed");
                 tag_resolutions.push(TagResolution {
@@ -1868,14 +1925,26 @@ pub async fn analyze_iographic(
         .await
         {
             Ok(Some(_)) => {
-                if is_custom { "custom_exists" } else { "available" }
+                if is_custom {
+                    "custom_exists"
+                } else {
+                    "available"
+                }
             }
             Ok(None) => {
-                if is_custom { "custom_new" } else { "missing" }
+                if is_custom {
+                    "custom_new"
+                } else {
+                    "missing"
+                }
             }
             Err(e) => {
                 tracing::warn!(error = %e, shape_id = %shape_id, "analyze_iographic: shape lookup failed");
-                if is_custom { "custom_new" } else { "missing" }
+                if is_custom {
+                    "custom_new"
+                } else {
+                    "missing"
+                }
             }
         };
         shape_statuses.push(ShapeStatus {
@@ -2099,24 +2168,26 @@ pub async fn commit_iographic(
 
     while let Ok(Some(field)) = multipart.next_field().await {
         match field.name() {
-            Some("file") => {
-                match field.bytes().await {
-                    Ok(bytes) => { file_bytes = Some(bytes.to_vec()); }
-                    Err(e) => {
-                        tracing::error!(error = %e, "commit_iographic: failed to read file field");
-                        return IoError::BadRequest("Failed to read uploaded file".into()).into_response();
-                    }
+            Some("file") => match field.bytes().await {
+                Ok(bytes) => {
+                    file_bytes = Some(bytes.to_vec());
                 }
-            }
-            Some("options") => {
-                match field.text().await {
-                    Ok(text) => { options_str = Some(text); }
-                    Err(e) => {
-                        tracing::error!(error = %e, "commit_iographic: failed to read options field");
-                        return IoError::BadRequest("Failed to read options field".into()).into_response();
-                    }
+                Err(e) => {
+                    tracing::error!(error = %e, "commit_iographic: failed to read file field");
+                    return IoError::BadRequest("Failed to read uploaded file".into())
+                        .into_response();
                 }
-            }
+            },
+            Some("options") => match field.text().await {
+                Ok(text) => {
+                    options_str = Some(text);
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "commit_iographic: failed to read options field");
+                    return IoError::BadRequest("Failed to read options field".into())
+                        .into_response();
+                }
+            },
             _ => {}
         }
         if file_bytes.is_some() && options_str.is_some() {
@@ -2127,7 +2198,9 @@ pub async fn commit_iographic(
 
     let bytes = match file_bytes {
         Some(b) => b,
-        None => return IoError::BadRequest("No file field in multipart request".into()).into_response(),
+        None => {
+            return IoError::BadRequest("No file field in multipart request".into()).into_response()
+        }
     };
 
     let options: IographicImportOptions = match options_str.as_deref() {
@@ -2154,9 +2227,11 @@ pub async fn commit_iographic(
     let mut zip = match zip::ZipArchive::new(cursor) {
         Ok(z) => z,
         Err(e) => {
-            return IoError::BadRequest(
-                format!("Invalid .iographic file (not a valid ZIP archive): {}", e),
-            ).into_response();
+            return IoError::BadRequest(format!(
+                "Invalid .iographic file (not a valid ZIP archive): {}",
+                e
+            ))
+            .into_response();
         }
     };
 
@@ -2167,7 +2242,8 @@ pub async fn commit_iographic(
             Err(_) => {
                 return IoError::BadRequest(
                     "manifest.json not found — not a valid .iographic package".into(),
-                ).into_response()
+                )
+                .into_response()
             }
         };
         let mut content = String::new();
@@ -2177,15 +2253,18 @@ pub async fn commit_iographic(
         match serde_json::from_str::<IographicManifest>(&content) {
             Ok(m) => m,
             Err(e) => {
-                return IoError::BadRequest(format!("Invalid manifest.json: {}", e)).into_response();
+                return IoError::BadRequest(format!("Invalid manifest.json: {}", e))
+                    .into_response();
             }
         }
     };
 
     if manifest.format != "iographic" {
-        return IoError::BadRequest(
-            format!("Unrecognised format '{}' — expected 'iographic'", manifest.format)
-        ).into_response();
+        return IoError::BadRequest(format!(
+            "Unrecognised format '{}' — expected 'iographic'",
+            manifest.format
+        ))
+        .into_response();
     }
 
     // 2b. Verify checksum if present.
@@ -2212,13 +2291,16 @@ pub async fn commit_iographic(
                     }
                 }
                 let mut hasher = Sha256::new();
-                for (_, content) in &file_map_cs {
+                for content in file_map_cs.values() {
                     hasher.update(content);
                 }
                 let hash_bytes = hasher.finalize();
                 let computed = format!(
                     "sha256:{}",
-                    hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                    hash_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<String>()
                 );
                 if computed != manifest.checksum {
                     tracing::warn!(
@@ -2226,12 +2308,14 @@ pub async fn commit_iographic(
                         computed = %computed,
                         "commit_iographic: checksum mismatch"
                     );
-                    return IoError::BadRequest("Package integrity check failed".into()).into_response();
+                    return IoError::BadRequest("Package integrity check failed".into())
+                        .into_response();
                 }
             }
             Err(e) => {
                 tracing::error!(error = %e, "commit_iographic: failed to re-open ZIP for checksum verification");
-                return IoError::Internal("Failed to verify package integrity".into()).into_response();
+                return IoError::Internal("Failed to verify package integrity".into())
+                    .into_response();
             }
         }
     }
@@ -2304,18 +2388,18 @@ pub async fn commit_iographic(
 
     // Pass 2: auto-resolve all tags from the manifest that are not already handled
     // For "keep" mappings and unmapped tags, try DB resolution.
-    let tags_to_auto_resolve: Vec<String> = manifest.point_tags.iter()
+    let tags_to_auto_resolve: Vec<String> = manifest
+        .point_tags
+        .iter()
         .filter(|tag| !resolved.contains_key(*tag) && !skipped.contains(*tag))
         .cloned()
         .collect();
 
     for tag in &tags_to_auto_resolve {
-        match sqlx::query(
-            "SELECT id::text FROM points_metadata WHERE tagname = $1 LIMIT 1",
-        )
-        .bind(tag)
-        .fetch_optional(&state.db)
-        .await
+        match sqlx::query("SELECT id::text FROM points_metadata WHERE tagname = $1 LIMIT 1")
+            .bind(tag)
+            .fetch_optional(&state.db)
+            .await
         {
             Ok(Some(row)) => {
                 let uuid_str: String = row.try_get("id").unwrap_or_default();
@@ -2344,11 +2428,16 @@ pub async fn commit_iographic(
             path: None,
         }]
     } else {
-        return IoError::BadRequest("manifest.json contains no graphics entries".into()).into_response();
+        return IoError::BadRequest("manifest.json contains no graphics entries".into())
+            .into_response();
     };
 
     let created_by: Option<Uuid> = Uuid::parse_str(&claims.sub).ok();
-    let version_type = if options.import_as == "published" { "published" } else { "draft" };
+    let version_type = if options.import_as == "published" {
+        "published"
+    } else {
+        "draft"
+    };
 
     let mut graphic_ids: Vec<String> = Vec::new();
     let mut shapes_imported_total: usize = 0;
@@ -2395,18 +2484,19 @@ pub async fn commit_iographic(
         let raw_svg = read_zip_entry_string(&mut zip, &svg_candidates);
 
         // Decide final SVG: render from model if SVG is placeholder/missing
-        let svg_content: Option<String> = if raw_svg.as_deref().map(is_placeholder_svg).unwrap_or(true) {
-            if let Some(ref json_str) = graphic_json_str {
-                match serde_json::from_str::<GraphicModel>(json_str) {
-                    Ok(model) => Some(render_model_to_svg(&state.db, &model).await),
-                    Err(_) => raw_svg,
+        let svg_content: Option<String> =
+            if raw_svg.as_deref().map(is_placeholder_svg).unwrap_or(true) {
+                if let Some(ref json_str) = graphic_json_str {
+                    match serde_json::from_str::<GraphicModel>(json_str) {
+                        Ok(model) => Some(render_model_to_svg(&state.db, &model).await),
+                        Err(_) => raw_svg,
+                    }
+                } else {
+                    raw_svg
                 }
             } else {
                 raw_svg
-            }
-        } else {
-            raw_svg
-        };
+            };
 
         // 5a. Parse graphic.json bindings (post DD-39-002: tag-based)
         let raw_bindings: JsonValue = graphic_json_str
@@ -2587,7 +2677,9 @@ pub async fn commit_iographic(
         for shape_dir in &shape_dirs {
             // Determine action for this shape directory
             // shape_dir may contain the shape_id encoded in it (e.g. "pump.custom.{uuid}")
-            let shape_action = options.shape_actions.iter()
+            let shape_action = options
+                .shape_actions
+                .iter()
                 .find(|sa| shape_dir.contains(&sa.shape_id))
                 .map(|sa| sa.action.as_str())
                 .unwrap_or("import"); // default: import
@@ -2649,7 +2741,9 @@ pub async fn commit_iographic(
 
         // 5f. Import stencils per stencil_actions
         for stencil in &manifest.stencils {
-            let action = options.stencil_actions.iter()
+            let action = options
+                .stencil_actions
+                .iter()
                 .find(|sa| sa.stencil_id == stencil.directory)
                 .map(|sa| sa.action.as_str())
                 .unwrap_or("import");

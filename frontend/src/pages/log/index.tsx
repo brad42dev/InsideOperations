@@ -1,10 +1,15 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { logsApi, type LogInstance, type LogTemplate, type SearchResult } from '../../api/logs'
-import { useAuthStore } from '../../store/auth'
-import { ExportButton } from '../../shared/components/ExportDialog'
-import { SkeletonBlock } from '../../shared/components/Skeleton'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  logsApi,
+  type LogInstance,
+  type LogTemplate,
+  type SearchResult,
+} from "../../api/logs";
+import { useAuthStore } from "../../store/auth";
+import { ExportButton } from "../../shared/components/ExportDialog";
+import { SkeletonBlock } from "../../shared/components/Skeleton";
 
 // ---------------------------------------------------------------------------
 // Skeleton loading states (CX-LOADING)
@@ -14,69 +19,87 @@ function LogInstanceCardSkeleton() {
   return (
     <div
       style={{
-        background: 'var(--io-surface)',
-        border: '1px solid var(--io-border)',
-        borderRadius: '8px',
-        padding: '16px',
+        background: "var(--io-surface)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "8px",
+        padding: "16px",
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}
+        >
           <SkeletonBlock height="18px" width="55%" />
           <SkeletonBlock height="13px" width="28%" />
         </div>
         <SkeletonBlock height="22px" width="64px" borderRadius="99px" />
       </div>
     </div>
-  )
+  );
 }
 
 function LogListSkeleton() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       {[1, 2, 3, 4].map((i) => (
         <LogInstanceCardSkeleton key={i} />
       ))}
     </div>
-  )
+  );
 }
 
 function CompletedTableSkeleton() {
   return (
     <div
       style={{
-        background: 'var(--io-surface)',
-        border: '1px solid var(--io-border)',
-        borderRadius: '8px',
-        overflow: 'hidden',
+        background: "var(--io-surface)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "8px",
+        overflow: "hidden",
       }}
     >
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+      <table
+        style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}
+      >
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--io-border)' }}>
-            {['Template', 'Date', 'Team', 'Completed At', 'Actions'].map((h) => (
-              <th
-                key={h}
-                style={{
-                  padding: '10px 16px',
-                  textAlign: 'left',
-                  fontWeight: 600,
-                  fontSize: '12px',
-                  color: 'var(--io-text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                {h}
-              </th>
-            ))}
+          <tr style={{ borderBottom: "1px solid var(--io-border)" }}>
+            {["Template", "Date", "Team", "Completed At", "Actions"].map(
+              (h) => (
+                <th
+                  key={h}
+                  style={{
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    color: "var(--io-text-secondary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {h}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody>
           {[1, 2, 3, 4].map((i) => (
-            <tr key={i} style={{ borderBottom: '1px solid var(--io-border)' }}>
+            <tr key={i} style={{ borderBottom: "1px solid var(--io-border)" }}>
               {[60, 35, 40, 45, 20].map((w, ci) => (
-                <td key={ci} style={{ padding: '12px 16px' }}>
+                <td key={ci} style={{ padding: "12px 16px" }}>
                   <SkeletonBlock height="14px" width={`${w}%`} />
                 </td>
               ))}
@@ -85,27 +108,34 @@ function CompletedTableSkeleton() {
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 
 function TemplatesListSkeleton() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       {[1, 2, 3].map((i) => (
         <div
           key={i}
           style={{
-            background: 'var(--io-surface)',
-            border: '1px solid var(--io-border)',
-            borderRadius: '8px',
-            padding: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
+            background: "var(--io-surface)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "8px",
+            padding: "16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
           }}
         >
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
             <SkeletonBlock height="16px" width="40%" />
             <SkeletonBlock height="13px" width="65%" />
           </div>
@@ -113,89 +143,103 @@ function TemplatesListSkeleton() {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ status }: { status: LogInstance['status'] }) {
-  const colors: Record<LogInstance['status'], { bg: string; text: string }> = {
+function StatusBadge({ status }: { status: LogInstance["status"] }) {
+  const colors: Record<LogInstance["status"], { bg: string; text: string }> = {
     draft: {
-      bg: 'var(--io-warning-subtle)',
-      text: 'var(--io-warning)',
+      bg: "var(--io-warning-subtle)",
+      text: "var(--io-warning)",
     },
     in_progress: {
-      bg: 'var(--io-accent-subtle, rgba(74,158,255,0.15))',
-      text: 'var(--io-accent, #4A9EFF)',
+      bg: "var(--io-accent-subtle, rgba(74,158,255,0.15))",
+      text: "var(--io-accent, #4A9EFF)",
     },
-    submitted: { bg: 'var(--io-success-subtle)', text: 'var(--io-success)' },
-    reviewed: { bg: 'var(--io-accent-subtle)', text: 'var(--io-accent)' },
-  }
-  const labels: Record<LogInstance['status'], string> = {
-    draft: 'Draft',
-    in_progress: 'In Progress',
-    submitted: 'Submitted',
-    reviewed: 'Reviewed',
-  }
-  const c = colors[status]
-  const label = labels[status] ?? status
+    submitted: { bg: "var(--io-success-subtle)", text: "var(--io-success)" },
+    reviewed: { bg: "var(--io-accent-subtle)", text: "var(--io-accent)" },
+  };
+  const labels: Record<LogInstance["status"], string> = {
+    draft: "Draft",
+    in_progress: "In Progress",
+    submitted: "Submitted",
+    reviewed: "Reviewed",
+  };
+  const c = colors[status];
+  const label = labels[status] ?? status;
   return (
     <span
       style={{
-        fontSize: '11px',
-        padding: '2px 8px',
-        borderRadius: '100px',
+        fontSize: "11px",
+        padding: "2px 8px",
+        borderRadius: "100px",
         background: c.bg,
         color: c.text,
         fontWeight: 700,
-        letterSpacing: '0.04em',
+        letterSpacing: "0.04em",
       }}
     >
       {label}
     </span>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Instance card
 // ---------------------------------------------------------------------------
 
-function InstanceCard({ instance, onClick }: { instance: LogInstance; onClick: () => void }) {
-  const date = new Date(instance.created_at).toLocaleDateString()
+function InstanceCard({
+  instance,
+  onClick,
+}: {
+  instance: LogInstance;
+  onClick: () => void;
+}) {
+  const date = new Date(instance.created_at).toLocaleDateString();
   return (
     <div
       onClick={onClick}
       style={{
-        background: 'var(--io-surface)',
-        border: '1px solid var(--io-border)',
-        borderRadius: '8px',
-        padding: '16px',
-        cursor: 'pointer',
-        transition: 'border-color 0.15s',
+        background: "var(--io-surface)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "8px",
+        padding: "16px",
+        cursor: "pointer",
+        transition: "border-color 0.15s",
       }}
       onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--io-accent)'
+        (e.currentTarget as HTMLDivElement).style.borderColor =
+          "var(--io-accent)";
       }}
       onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--io-border)'
+        (e.currentTarget as HTMLDivElement).style.borderColor =
+          "var(--io-border)";
       }}
     >
       <div
         style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: '12px',
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "12px",
         }}
       >
         <div>
-          <div style={{ fontWeight: 600, color: 'var(--io-text-primary)', marginBottom: '4px' }}>
-            {instance.template_name ?? 'Log Entry'} — {date}
+          <div
+            style={{
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+              marginBottom: "4px",
+            }}
+          >
+            {instance.template_name ?? "Log Entry"} — {date}
           </div>
           {instance.team_name && (
-            <div style={{ fontSize: '13px', color: 'var(--io-text-muted)' }}>
+            <div style={{ fontSize: "13px", color: "var(--io-text-muted)" }}>
               Team: {instance.team_name}
             </div>
           )}
@@ -203,7 +247,7 @@ function InstanceCard({ instance, onClick }: { instance: LogInstance; onClick: (
         <StatusBadge status={instance.status} />
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -216,24 +260,30 @@ function TemplatesList({
   onEdit,
   onDelete,
 }: {
-  templates: LogTemplate[]
-  onNewTemplate: () => void
-  onEdit: (id: string) => void
-  onDelete: (id: string) => void
+  templates: LogTemplate[];
+  onNewTemplate: () => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: "16px",
+        }}
+      >
         <button
           onClick={onNewTemplate}
           style={{
-            background: 'var(--io-accent)',
-            color: 'var(--io-accent-foreground)',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 16px',
-            cursor: 'pointer',
-            fontSize: '14px',
+            background: "var(--io-accent)",
+            color: "var(--io-accent-foreground)",
+            border: "none",
+            borderRadius: "6px",
+            padding: "8px 16px",
+            cursor: "pointer",
+            fontSize: "14px",
             fontWeight: 600,
           }}
         >
@@ -243,65 +293,70 @@ function TemplatesList({
       {templates.length === 0 ? (
         <div
           style={{
-            textAlign: 'center',
-            padding: '48px 0',
-            color: 'var(--io-text-muted)',
+            textAlign: "center",
+            padding: "48px 0",
+            color: "var(--io-text-muted)",
           }}
         >
           No templates yet. Create one to get started.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {templates.map((t) => (
             <div
               key={t.id}
               style={{
-                background: 'var(--io-surface)',
-                border: '1px solid var(--io-border)',
-                borderRadius: '8px',
-                padding: '14px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                background: "var(--io-surface)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "8px",
+                padding: "14px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
               }}
             >
               <div>
-                <span style={{ fontWeight: 600, color: 'var(--io-text-primary)' }}>{t.name}</span>
+                <span
+                  style={{ fontWeight: 600, color: "var(--io-text-primary)" }}
+                >
+                  {t.name}
+                </span>
                 <span
                   style={{
-                    marginLeft: '12px',
-                    fontSize: '12px',
-                    color: 'var(--io-text-muted)',
+                    marginLeft: "12px",
+                    fontSize: "12px",
+                    color: "var(--io-text-muted)",
                   }}
                 >
-                  {t.segment_ids.length} segment{t.segment_ids.length !== 1 ? 's' : ''}
+                  {t.segment_ids.length} segment
+                  {t.segment_ids.length !== 1 ? "s" : ""}
                 </span>
                 {!t.is_active && (
                   <span
                     style={{
-                      marginLeft: '8px',
-                      fontSize: '11px',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      background: 'var(--io-surface-secondary)',
-                      color: 'var(--io-text-muted)',
+                      marginLeft: "8px",
+                      fontSize: "11px",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      background: "var(--io-surface-secondary)",
+                      color: "var(--io-text-muted)",
                     }}
                   >
                     Inactive
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   onClick={() => onEdit(t.id)}
                   style={{
-                    background: 'none',
-                    border: '1px solid var(--io-border)',
-                    borderRadius: '6px',
-                    padding: '4px 12px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    color: 'var(--io-text-secondary)',
+                    background: "none",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "6px",
+                    padding: "4px 12px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    color: "var(--io-text-secondary)",
                   }}
                 >
                   Edit
@@ -309,13 +364,13 @@ function TemplatesList({
                 <button
                   onClick={() => onDelete(t.id)}
                   style={{
-                    background: 'none',
-                    border: '1px solid var(--io-border)',
-                    borderRadius: '6px',
-                    padding: '4px 12px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    color: 'var(--io-danger)',
+                    background: "none",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "6px",
+                    padding: "4px 12px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    color: "var(--io-danger)",
                   }}
                 >
                   Delete
@@ -326,7 +381,7 @@ function TemplatesList({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -337,27 +392,32 @@ function SearchResults({ results }: { results: SearchResult[] }) {
   return (
     <div
       style={{
-        marginTop: '16px',
-        background: 'var(--io-surface)',
-        border: '1px solid var(--io-border)',
-        borderRadius: '8px',
-        overflow: 'hidden',
+        marginTop: "16px",
+        background: "var(--io-surface)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "8px",
+        overflow: "hidden",
       }}
     >
       <div
         style={{
-          padding: '10px 16px',
-          borderBottom: '1px solid var(--io-border)',
-          fontSize: '13px',
+          padding: "10px 16px",
+          borderBottom: "1px solid var(--io-border)",
+          fontSize: "13px",
           fontWeight: 600,
-          color: 'var(--io-text-secondary)',
+          color: "var(--io-text-secondary)",
         }}
       >
-        {results.length} result{results.length !== 1 ? 's' : ''}
+        {results.length} result{results.length !== 1 ? "s" : ""}
       </div>
       {results.length === 0 ? (
         <div
-          style={{ padding: '24px', textAlign: 'center', color: 'var(--io-text-muted)', fontSize: '14px' }}
+          style={{
+            padding: "24px",
+            textAlign: "center",
+            color: "var(--io-text-muted)",
+            fontSize: "14px",
+          }}
         >
           No matching log entries found.
         </div>
@@ -366,45 +426,53 @@ function SearchResults({ results }: { results: SearchResult[] }) {
           <div
             key={r.id}
             style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid var(--io-border)',
-              fontSize: '13px',
+              padding: "12px 16px",
+              borderBottom: "1px solid var(--io-border)",
+              fontSize: "13px",
             }}
           >
             <div
               style={{
-                display: 'flex',
-                gap: '12px',
-                alignItems: 'center',
-                marginBottom: '4px',
+                display: "flex",
+                gap: "12px",
+                alignItems: "center",
+                marginBottom: "4px",
               }}
             >
-              <span style={{ fontWeight: 600, color: 'var(--io-text-primary)' }}>
-                {r.template_name ?? 'Log Entry'}
+              <span
+                style={{ fontWeight: 600, color: "var(--io-text-primary)" }}
+              >
+                {r.template_name ?? "Log Entry"}
               </span>
               {r.instance_status && (
-                <StatusBadge status={r.instance_status as LogInstance['status']} />
+                <StatusBadge
+                  status={r.instance_status as LogInstance["status"]}
+                />
               )}
-              <span style={{ color: 'var(--io-text-muted)', marginLeft: 'auto' }}>
+              <span
+                style={{ color: "var(--io-text-muted)", marginLeft: "auto" }}
+              >
                 {new Date(r.created_at).toLocaleString()}
               </span>
             </div>
             <div
               style={{
-                color: 'var(--io-text-secondary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                maxWidth: '700px',
+                color: "var(--io-text-secondary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: "700px",
               }}
             >
-              {typeof r.content === 'object' ? JSON.stringify(r.content).slice(0, 200) : String(r.content)}
+              {typeof r.content === "object"
+                ? JSON.stringify(r.content).slice(0, 200)
+                : String(r.content)}
             </div>
           </div>
         ))
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -412,43 +480,47 @@ function SearchResults({ results }: { results: SearchResult[] }) {
 // ---------------------------------------------------------------------------
 
 const LOG_EXPORT_COLUMNS = [
-  { id: 'template', label: 'Template' },
-  { id: 'date', label: 'Date' },
-  { id: 'team', label: 'Team' },
-  { id: 'completed_at', label: 'Completed At' },
-  { id: 'status', label: 'Status' },
-]
+  { id: "template", label: "Template" },
+  { id: "date", label: "Date" },
+  { id: "team", label: "Team" },
+  { id: "completed_at", label: "Completed At" },
+  { id: "status", label: "Status" },
+];
 
 function CompletedTable({ instances }: { instances: LogInstance[] }) {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   return (
     <div
       style={{
-        background: 'var(--io-surface)',
-        border: '1px solid var(--io-border)',
-        borderRadius: '8px',
-        overflow: 'hidden',
+        background: "var(--io-surface)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "8px",
+        overflow: "hidden",
       }}
     >
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+      <table
+        style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}
+      >
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--io-border)' }}>
-            {['Template', 'Date', 'Team', 'Completed At', 'Actions'].map((h) => (
-              <th
-                key={h}
-                style={{
-                  padding: '10px 16px',
-                  textAlign: 'left',
-                  fontWeight: 600,
-                  fontSize: '12px',
-                  color: 'var(--io-text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                {h}
-              </th>
-            ))}
+          <tr style={{ borderBottom: "1px solid var(--io-border)" }}>
+            {["Template", "Date", "Team", "Completed At", "Actions"].map(
+              (h) => (
+                <th
+                  key={h}
+                  style={{
+                    padding: "10px 16px",
+                    textAlign: "left",
+                    fontWeight: 600,
+                    fontSize: "12px",
+                    color: "var(--io-text-secondary)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {h}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody>
@@ -457,9 +529,9 @@ function CompletedTable({ instances }: { instances: LogInstance[] }) {
               <td
                 colSpan={5}
                 style={{
-                  padding: '32px',
-                  textAlign: 'center',
-                  color: 'var(--io-text-muted)',
+                  padding: "32px",
+                  textAlign: "center",
+                  color: "var(--io-text-muted)",
                 }}
               >
                 No completed logs yet.
@@ -469,31 +541,54 @@ function CompletedTable({ instances }: { instances: LogInstance[] }) {
             instances.map((inst) => (
               <tr
                 key={inst.id}
-                style={{ borderBottom: '1px solid var(--io-border)' }}
+                style={{ borderBottom: "1px solid var(--io-border)" }}
               >
-                <td style={{ padding: '10px 16px', color: 'var(--io-text-primary)', fontWeight: 500 }}>
-                  {inst.template_name ?? '—'}
+                <td
+                  style={{
+                    padding: "10px 16px",
+                    color: "var(--io-text-primary)",
+                    fontWeight: 500,
+                  }}
+                >
+                  {inst.template_name ?? "—"}
                 </td>
-                <td style={{ padding: '10px 16px', color: 'var(--io-text-secondary)' }}>
+                <td
+                  style={{
+                    padding: "10px 16px",
+                    color: "var(--io-text-secondary)",
+                  }}
+                >
                   {new Date(inst.created_at).toLocaleDateString()}
                 </td>
-                <td style={{ padding: '10px 16px', color: 'var(--io-text-secondary)' }}>
-                  {inst.team_name ?? '—'}
+                <td
+                  style={{
+                    padding: "10px 16px",
+                    color: "var(--io-text-secondary)",
+                  }}
+                >
+                  {inst.team_name ?? "—"}
                 </td>
-                <td style={{ padding: '10px 16px', color: 'var(--io-text-secondary)' }}>
-                  {inst.completed_at ? new Date(inst.completed_at).toLocaleString() : '—'}
+                <td
+                  style={{
+                    padding: "10px 16px",
+                    color: "var(--io-text-secondary)",
+                  }}
+                >
+                  {inst.completed_at
+                    ? new Date(inst.completed_at).toLocaleString()
+                    : "—"}
                 </td>
-                <td style={{ padding: '10px 16px' }}>
+                <td style={{ padding: "10px 16px" }}>
                   <button
                     onClick={() => navigate(`/log/${inst.id}`)}
                     style={{
-                      background: 'none',
-                      border: '1px solid var(--io-border)',
-                      borderRadius: '6px',
-                      padding: '4px 12px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      color: 'var(--io-text-secondary)',
+                      background: "none",
+                      border: "1px solid var(--io-border)",
+                      borderRadius: "6px",
+                      padding: "4px 12px",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      color: "var(--io-text-secondary)",
                     }}
                   >
                     View
@@ -505,70 +600,86 @@ function CompletedTable({ instances }: { instances: LogInstance[] }) {
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
-type Tab = 'active' | 'completed' | 'templates'
+type Tab = "active" | "completed" | "templates";
 
 export default function LogPage() {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const { user } = useAuthStore()
-  const isAdmin = user?.permissions.includes('log:admin') || user?.permissions.includes('*')
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin =
+    user?.permissions.includes("log:admin") || user?.permissions.includes("*");
 
-  const [tab, setTab] = useState<Tab>('active')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchSubmitted, setSearchSubmitted] = useState(false)
-  const [filterFrom, setFilterFrom] = useState('')
-  const [filterTo, setFilterTo] = useState('')
-  const [filterTemplateId, setFilterTemplateId] = useState('')
-  const [filterShiftId, setFilterShiftId] = useState('')
-  const [filterAuthor, setFilterAuthor] = useState('')
+  const [tab, setTab] = useState<Tab>("active");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchSubmitted, setSearchSubmitted] = useState(false);
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterTemplateId, setFilterTemplateId] = useState("");
+  const [filterShiftId, setFilterShiftId] = useState("");
+  const [filterAuthor, setFilterAuthor] = useState("");
 
   const { data: activeData, isLoading: activeLoading } = useQuery({
-    queryKey: ['log-instances', 'active'],
+    queryKey: ["log-instances", "active"],
     queryFn: async () => {
-      const res = await logsApi.listInstances({ status: 'draft' })
-      const res2 = await logsApi.listInstances({ status: 'in_progress' })
-      if (!res.success) throw new Error(res.error.message)
-      if (!res2.success) throw new Error(res2.error.message)
-      return [...res.data, ...res2.data]
+      const res = await logsApi.listInstances({ status: "draft" });
+      const res2 = await logsApi.listInstances({ status: "in_progress" });
+      if (!res.success) throw new Error(res.error.message);
+      if (!res2.success) throw new Error(res2.error.message);
+      return [...res.data, ...res2.data];
     },
-    enabled: tab === 'active',
-  })
+    enabled: tab === "active",
+  });
 
   const { data: completedData, isLoading: completedLoading } = useQuery({
-    queryKey: ['log-instances', 'completed'],
+    queryKey: ["log-instances", "completed"],
     queryFn: async () => {
-      const res = await logsApi.listInstances({ status: 'submitted' })
-      const res2 = await logsApi.listInstances({ status: 'reviewed' })
-      if (!res.success) throw new Error(res.error.message)
-      if (!res2.success) throw new Error(res2.error.message)
-      return [...res.data, ...res2.data]
+      const res = await logsApi.listInstances({ status: "submitted" });
+      const res2 = await logsApi.listInstances({ status: "reviewed" });
+      if (!res.success) throw new Error(res.error.message);
+      if (!res2.success) throw new Error(res2.error.message);
+      return [...res.data, ...res2.data];
     },
-    enabled: tab === 'completed',
-  })
+    enabled: tab === "completed",
+  });
 
   const { data: templatesData, isLoading: templatesLoading } = useQuery({
-    queryKey: ['log-templates'],
+    queryKey: ["log-templates"],
     queryFn: async () => {
-      const res = await logsApi.listTemplates()
-      if (!res.success) return [] as LogTemplate[]
+      const res = await logsApi.listTemplates();
+      if (!res.success) return [] as LogTemplate[];
       // listTemplates returns PaginatedResult<LogTemplate> — res.data has a .data array
-      const rows = Array.isArray(res.data) ? res.data : (res.data as { data: LogTemplate[] })?.data ?? []
-      return rows
+      const rows = Array.isArray(res.data)
+        ? res.data
+        : ((res.data as { data: LogTemplate[] })?.data ?? []);
+      return rows;
     },
     // Load always so templates are available for the search filter dropdown
-  })
+  });
 
-  const hasActiveFilters = filterFrom !== '' || filterTo !== '' || filterTemplateId !== '' || filterShiftId !== '' || filterAuthor !== ''
+  const hasActiveFilters =
+    filterFrom !== "" ||
+    filterTo !== "" ||
+    filterTemplateId !== "" ||
+    filterShiftId !== "" ||
+    filterAuthor !== "";
 
   const { data: searchData, isLoading: searchLoading } = useQuery({
-    queryKey: ['log-search', searchQuery, filterFrom, filterTo, filterTemplateId, filterShiftId, filterAuthor],
+    queryKey: [
+      "log-search",
+      searchQuery,
+      filterFrom,
+      filterTo,
+      filterTemplateId,
+      filterShiftId,
+      filterAuthor,
+    ],
     queryFn: async () => {
       const res = await logsApi.search({
         q: searchQuery || undefined,
@@ -577,103 +688,113 @@ export default function LogPage() {
         template_id: filterTemplateId || undefined,
         shift_id: filterShiftId || undefined,
         author: filterAuthor || undefined,
-      })
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      });
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
-    enabled: searchSubmitted && (searchQuery.trim().length > 0 || hasActiveFilters),
-  })
+    enabled:
+      searchSubmitted && (searchQuery.trim().length > 0 || hasActiveFilters),
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => logsApi.deleteTemplate(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['log-templates'] })
+      queryClient.invalidateQueries({ queryKey: ["log-templates"] });
     },
-  })
+  });
 
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim() || hasActiveFilters) setSearchSubmitted(true)
-  }
+    e.preventDefault();
+    if (searchQuery.trim() || hasActiveFilters) setSearchSubmitted(true);
+  };
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'active', label: 'Active Logs' },
-    { key: 'completed', label: 'Completed' },
-    ...(isAdmin ? [{ key: 'templates' as Tab, label: 'Templates' }] : []),
-  ]
+    { key: "active", label: "Active Logs" },
+    { key: "completed", label: "Completed" },
+    ...(isAdmin ? [{ key: "templates" as Tab, label: "Templates" }] : []),
+  ];
 
   return (
     <div
       style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--io-bg)',
-        overflow: 'hidden',
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--io-bg)",
+        overflow: "hidden",
       }}
     >
       {/* Header */}
       <div
         style={{
-          padding: '20px 24px 0',
-          borderBottom: '1px solid var(--io-border)',
-          background: 'var(--io-surface)',
+          padding: "20px 24px 0",
+          borderBottom: "1px solid var(--io-border)",
+          background: "var(--io-surface)",
           flexShrink: 0,
         }}
       >
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '16px',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "16px",
           }}
         >
           <h1
             style={{
               margin: 0,
-              fontSize: '22px',
+              fontSize: "22px",
               fontWeight: 700,
-              color: 'var(--io-text-primary)',
+              color: "var(--io-text-primary)",
             }}
           >
             Log
           </h1>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <ExportButton
               module="log"
               entity="Log Entries"
               filteredRowCount={
-                tab === 'completed'
+                tab === "completed"
                   ? (completedData ?? []).length
                   : (activeData ?? []).length
               }
               totalRowCount={
-                tab === 'completed'
+                tab === "completed"
                   ? (completedData ?? []).length
                   : (activeData ?? []).length
               }
               availableColumns={LOG_EXPORT_COLUMNS}
               visibleColumns={LOG_EXPORT_COLUMNS.map((c) => c.id)}
             />
-            <form onSubmit={handleSearch} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <form
+              onSubmit={handleSearch}
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "8px",
+                alignItems: "center",
+              }}
+            >
               {/* Text search */}
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  if (!e.target.value.trim() && !hasActiveFilters) setSearchSubmitted(false)
+                  setSearchQuery(e.target.value);
+                  if (!e.target.value.trim() && !hasActiveFilters)
+                    setSearchSubmitted(false);
                 }}
                 placeholder="Search log entries..."
                 style={{
-                  background: 'var(--io-bg)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '6px',
-                  padding: '7px 12px',
-                  fontSize: '14px',
-                  color: 'var(--io-text-primary)',
-                  width: '200px',
+                  background: "var(--io-bg)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "6px",
+                  padding: "7px 12px",
+                  fontSize: "14px",
+                  color: "var(--io-text-primary)",
+                  width: "200px",
                 }}
               />
               {/* Date range: from */}
@@ -683,12 +804,12 @@ export default function LogPage() {
                 onChange={(e) => setFilterFrom(e.target.value)}
                 title="From date"
                 style={{
-                  background: 'var(--io-bg)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '6px',
-                  padding: '7px 8px',
-                  fontSize: '13px',
-                  color: 'var(--io-text-primary)',
+                  background: "var(--io-bg)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "6px",
+                  padding: "7px 8px",
+                  fontSize: "13px",
+                  color: "var(--io-text-primary)",
                 }}
               />
               {/* Date range: to */}
@@ -698,12 +819,12 @@ export default function LogPage() {
                 onChange={(e) => setFilterTo(e.target.value)}
                 title="To date"
                 style={{
-                  background: 'var(--io-bg)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '6px',
-                  padding: '7px 8px',
-                  fontSize: '13px',
-                  color: 'var(--io-text-primary)',
+                  background: "var(--io-bg)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "6px",
+                  padding: "7px 8px",
+                  fontSize: "13px",
+                  color: "var(--io-text-primary)",
                 }}
               />
               {/* Template filter */}
@@ -711,18 +832,24 @@ export default function LogPage() {
                 value={filterTemplateId}
                 onChange={(e) => setFilterTemplateId(e.target.value)}
                 style={{
-                  background: 'var(--io-bg)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '6px',
-                  padding: '7px 8px',
-                  fontSize: '13px',
-                  color: filterTemplateId ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                  background: "var(--io-bg)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "6px",
+                  padding: "7px 8px",
+                  fontSize: "13px",
+                  color: filterTemplateId
+                    ? "var(--io-text-primary)"
+                    : "var(--io-text-muted)",
                 }}
               >
                 <option value="">All templates</option>
-                {(Array.isArray(templatesData) ? templatesData : []).map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
+                {(Array.isArray(templatesData) ? templatesData : []).map(
+                  (t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ),
+                )}
               </select>
               {/* Shift filter */}
               <input
@@ -731,13 +858,13 @@ export default function LogPage() {
                 onChange={(e) => setFilterShiftId(e.target.value)}
                 placeholder="Shift ID"
                 style={{
-                  background: 'var(--io-bg)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '6px',
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  color: 'var(--io-text-primary)',
-                  width: '100px',
+                  background: "var(--io-bg)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "6px",
+                  padding: "7px 10px",
+                  fontSize: "13px",
+                  color: "var(--io-text-primary)",
+                  width: "100px",
                 }}
               />
               {/* Author filter */}
@@ -748,25 +875,25 @@ export default function LogPage() {
                 placeholder="Author"
                 aria-label="Filter by author"
                 style={{
-                  background: 'var(--io-bg)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '6px',
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  color: 'var(--io-text-primary)',
-                  width: '120px',
+                  background: "var(--io-bg)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "6px",
+                  padding: "7px 10px",
+                  fontSize: "13px",
+                  color: "var(--io-text-primary)",
+                  width: "120px",
                 }}
               />
               <button
                 type="submit"
                 style={{
-                  background: 'var(--io-surface-secondary)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '6px',
-                  padding: '7px 14px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: 'var(--io-text-secondary)',
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "6px",
+                  padding: "7px 14px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  color: "var(--io-text-secondary)",
                 }}
               >
                 Search
@@ -776,21 +903,27 @@ export default function LogPage() {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '0' }}>
+        <div style={{ display: "flex", gap: "0" }}>
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               style={{
-                background: 'none',
-                border: 'none',
-                borderBottom: tab === t.key ? '2px solid var(--io-accent)' : '2px solid transparent',
-                padding: '8px 16px',
-                cursor: 'pointer',
-                fontSize: '14px',
+                background: "none",
+                border: "none",
+                borderBottom:
+                  tab === t.key
+                    ? "2px solid var(--io-accent)"
+                    : "2px solid transparent",
+                padding: "8px 16px",
+                cursor: "pointer",
+                fontSize: "14px",
                 fontWeight: tab === t.key ? 600 : 400,
-                color: tab === t.key ? 'var(--io-accent)' : 'var(--io-text-secondary)',
-                transition: 'color 0.15s',
+                color:
+                  tab === t.key
+                    ? "var(--io-accent)"
+                    : "var(--io-text-secondary)",
+                transition: "color 0.15s",
               }}
             >
               {t.label}
@@ -800,46 +933,50 @@ export default function LogPage() {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+      <div style={{ flex: 1, overflow: "auto", padding: "24px" }}>
         {/* Search results overlay */}
         {searchSubmitted && (searchQuery.trim() || hasActiveFilters) && (
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: "24px" }}>
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '8px',
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "8px",
               }}
             >
-              <span style={{ fontSize: '14px', color: 'var(--io-text-secondary)' }}>
+              <span
+                style={{ fontSize: "14px", color: "var(--io-text-secondary)" }}
+              >
                 {searchQuery.trim()
-                  ? `Search results for "${searchQuery}"${hasActiveFilters ? ' (filtered)' : ''}`
-                  : 'Filtered results'}
+                  ? `Search results for "${searchQuery}"${hasActiveFilters ? " (filtered)" : ""}`
+                  : "Filtered results"}
               </span>
               <button
                 onClick={() => {
-                  setSearchQuery('')
-                  setFilterFrom('')
-                  setFilterTo('')
-                  setFilterTemplateId('')
-                  setFilterShiftId('')
-                  setFilterAuthor('')
-                  setSearchSubmitted(false)
+                  setSearchQuery("");
+                  setFilterFrom("");
+                  setFilterTo("");
+                  setFilterTemplateId("");
+                  setFilterShiftId("");
+                  setFilterAuthor("");
+                  setSearchSubmitted(false);
                 }}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--io-text-muted)',
-                  fontSize: '13px',
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--io-text-muted)",
+                  fontSize: "13px",
                 }}
               >
                 Clear
               </button>
             </div>
             {searchLoading ? (
-              <div style={{ color: 'var(--io-text-muted)', fontSize: '14px' }}>Searching...</div>
+              <div style={{ color: "var(--io-text-muted)", fontSize: "14px" }}>
+                Searching...
+              </div>
             ) : (
               <SearchResults results={searchData ?? []} />
             )}
@@ -847,28 +984,40 @@ export default function LogPage() {
         )}
 
         {/* Active logs tab */}
-        {tab === 'active' && !searchSubmitted && (
+        {tab === "active" && !searchSubmitted && (
           <>
             {activeLoading ? (
               <LogListSkeleton />
             ) : !activeData || activeData.length === 0 ? (
               <div
                 style={{
-                  textAlign: 'center',
-                  padding: '64px 0',
-                  color: 'var(--io-text-muted)',
+                  textAlign: "center",
+                  padding: "64px 0",
+                  color: "var(--io-text-muted)",
                 }}
               >
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>📋</div>
-                <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '6px' }}>
+                <div style={{ fontSize: "40px", marginBottom: "12px" }}>📋</div>
+                <div
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    marginBottom: "6px",
+                  }}
+                >
                   No active logs
                 </div>
-                <div style={{ fontSize: '14px' }}>
+                <div style={{ fontSize: "14px" }}>
                   Active log instances will appear here.
                 </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
                 {activeData.map((inst) => (
                   <InstanceCard
                     key={inst.id}
@@ -882,7 +1031,7 @@ export default function LogPage() {
         )}
 
         {/* Completed tab */}
-        {tab === 'completed' && !searchSubmitted && (
+        {tab === "completed" && !searchSubmitted && (
           <>
             {completedLoading ? (
               <CompletedTableSkeleton />
@@ -893,18 +1042,18 @@ export default function LogPage() {
         )}
 
         {/* Templates tab */}
-        {tab === 'templates' && !searchSubmitted && (
+        {tab === "templates" && !searchSubmitted && (
           <>
             {templatesLoading ? (
               <TemplatesListSkeleton />
             ) : (
               <TemplatesList
                 templates={Array.isArray(templatesData) ? templatesData : []}
-                onNewTemplate={() => navigate('/log/templates/new/edit')}
+                onNewTemplate={() => navigate("/log/templates/new/edit")}
                 onEdit={(id) => navigate(`/log/templates/${id}/edit`)}
                 onDelete={(id) => {
-                  if (confirm('Delete this template?')) {
-                    deleteMutation.mutate(id)
+                  if (confirm("Delete this template?")) {
+                    deleteMutation.mutate(id);
                   }
                 }}
               />
@@ -913,5 +1062,5 @@ export default function LogPage() {
         )}
       </div>
     </div>
-  )
+  );
 }

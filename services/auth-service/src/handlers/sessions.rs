@@ -10,7 +10,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use io_error::{IoError, IoResult};
-use io_models::{PagedResponse, ApiResponse};
+use io_models::{ApiResponse, PagedResponse};
 
 use crate::state::AppState;
 
@@ -22,10 +22,12 @@ fn has_permission(headers: &HeaderMap, required: &str) -> bool {
     headers
         .get("x-io-permissions")
         .and_then(|v| v.to_str().ok())
-        .map(|perms| perms.split(',').any(|p| {
-            let p = p.trim();
-            p == required || p == "*"
-        }))
+        .map(|perms| {
+            perms.split(',').any(|p| {
+                let p = p.trim();
+                p == required || p == "*"
+            })
+        })
         .unwrap_or(false)
 }
 
@@ -91,7 +93,9 @@ pub async fn list_sessions(
     Query(filter): Query<SessionFilter>,
 ) -> IoResult<impl IntoResponse> {
     if !has_permission(&headers, "system:configure") {
-        return Err(IoError::Forbidden("Requires system:configure permission".to_string()));
+        return Err(IoError::Forbidden(
+            "Requires system:configure permission".to_string(),
+        ));
     }
 
     let pg = filter.page.unwrap_or(1).max(1);
@@ -160,7 +164,9 @@ pub async fn revoke_session(
     Path(session_id): Path<Uuid>,
 ) -> IoResult<impl IntoResponse> {
     if !has_permission(&headers, "system:configure") {
-        return Err(IoError::Forbidden("Requires system:configure permission".to_string()));
+        return Err(IoError::Forbidden(
+            "Requires system:configure permission".to_string(),
+        ));
     }
 
     let result = sqlx::query(
@@ -196,7 +202,9 @@ pub async fn revoke_user_sessions(
     Path(user_id): Path<Uuid>,
 ) -> IoResult<impl IntoResponse> {
     if !has_permission(&headers, "system:configure") {
-        return Err(IoError::Forbidden("Requires system:configure permission".to_string()));
+        return Err(IoError::Forbidden(
+            "Requires system:configure permission".to_string(),
+        ));
     }
 
     sqlx::query(

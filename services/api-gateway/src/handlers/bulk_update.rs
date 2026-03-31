@@ -24,7 +24,7 @@ use calamine::{open_workbook_from_rs, Data, Reader, Xlsx};
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
-use io_models::{ApiResponse, PagedResponse, PageParams};
+use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use sqlx::Row;
@@ -38,7 +38,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn user_id(claims: &Claims) -> Option<Uuid> {
@@ -326,7 +329,11 @@ async fn snapshot_target(
 
     let id = Uuid::new_v4();
     // snapshot_type: 'automatic' for pre-apply safety snapshots (label present), 'manual' for user-created
-    let snapshot_type = if label.is_some() { "automatic" } else { "manual" };
+    let snapshot_type = if label.is_some() {
+        "automatic"
+    } else {
+        "manual"
+    };
     sqlx::query(
         r#"INSERT INTO change_snapshots (id, table_name, snapshot_type, description, row_count, snapshot_data, created_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
@@ -463,17 +470,21 @@ async fn fetch_current_rows(db: &sqlx::PgPool, tt: &TargetType) -> Result<Vec<Js
                     let id: Uuid = r.try_get("id").unwrap_or_default();
                     let tagname: String = r.try_get("tagname").unwrap_or_default();
                     let description: Option<String> = r.try_get("description").ok().flatten();
-                    let engineering_units: Option<String> = r.try_get("engineering_units").ok().flatten();
+                    let engineering_units: Option<String> =
+                        r.try_get("engineering_units").ok().flatten();
                     let active: bool = r.try_get("active").unwrap_or(true);
                     let criticality: Option<String> = r.try_get("criticality").ok().flatten();
                     let area: Option<String> = r.try_get("area").ok().flatten();
-                    let aggregation_types: Option<String> = r.try_get("aggregation_types").ok().flatten();
+                    let aggregation_types: Option<String> =
+                        r.try_get("aggregation_types").ok().flatten();
                     let barcode: Option<String> = r.try_get("barcode").ok().flatten();
                     let notes: Option<String> = r.try_get("notes").ok().flatten();
                     let gps_latitude: Option<f64> = r.try_get("gps_latitude").ok().flatten();
                     let gps_longitude: Option<f64> = r.try_get("gps_longitude").ok().flatten();
-                    let write_frequency_seconds: Option<i32> = r.try_get("write_frequency_seconds").ok().flatten();
-                    let default_graphic_id: Option<Uuid> = r.try_get("default_graphic_id").ok().flatten();
+                    let write_frequency_seconds: Option<i32> =
+                        r.try_get("write_frequency_seconds").ok().flatten();
+                    let default_graphic_id: Option<Uuid> =
+                        r.try_get("default_graphic_id").ok().flatten();
                     Ok(json!({
                         "id": id.to_string(),
                         "tagname": tagname,
@@ -523,12 +534,10 @@ async fn fetch_current_rows(db: &sqlx::PgPool, tt: &TargetType) -> Result<Vec<Js
                 .collect()
         }
         TargetType::ApplicationSettings => {
-            let rows = sqlx::query(
-                "SELECT id, key, description, value FROM settings ORDER BY key",
-            )
-            .fetch_all(db)
-            .await
-            .map_err(IoError::Database)?;
+            let rows = sqlx::query("SELECT id, key, description, value FROM settings ORDER BY key")
+                .fetch_all(db)
+                .await
+                .map_err(IoError::Database)?;
             rows.iter()
                 .map(|r| {
                     let id: Uuid = r.try_get("id").unwrap_or_default();
@@ -567,12 +576,10 @@ async fn fetch_current_rows(db: &sqlx::PgPool, tt: &TargetType) -> Result<Vec<Js
                 .collect()
         }
         TargetType::DashboardMetadata => {
-            let rows = sqlx::query(
-                "SELECT id, name, published FROM dashboards ORDER BY name",
-            )
-            .fetch_all(db)
-            .await
-            .map_err(IoError::Database)?;
+            let rows = sqlx::query("SELECT id, name, published FROM dashboards ORDER BY name")
+                .fetch_all(db)
+                .await
+                .map_err(IoError::Database)?;
             rows.iter()
                 .map(|r| {
                     let id: Uuid = r.try_get("id").unwrap_or_default();
@@ -631,13 +638,17 @@ async fn fetch_updated_at_map(
         TargetType::Users => Some("SELECT id::text, updated_at FROM users"),
         TargetType::OpcSources => Some("SELECT id::text, updated_at FROM opc_sources"),
         TargetType::AlarmDefinitions => Some("SELECT id::text, updated_at FROM alarm_definitions"),
-        TargetType::ImportConnections => Some("SELECT id::text, updated_at FROM import_connections"),
+        TargetType::ImportConnections => {
+            Some("SELECT id::text, updated_at FROM import_connections")
+        }
         TargetType::PointsMetadata => Some("SELECT id::text, updated_at FROM points_metadata"),
         TargetType::UserRoles => None, // no updated_at column
         TargetType::ApplicationSettings => None, // settings table may not have updated_at
         TargetType::PointSources => Some("SELECT id::text, updated_at FROM point_sources"),
         TargetType::DashboardMetadata => Some("SELECT id::text, updated_at FROM dashboards"),
-        TargetType::ImportDefinitions => Some("SELECT id::text, updated_at FROM import_definitions"),
+        TargetType::ImportDefinitions => {
+            Some("SELECT id::text, updated_at FROM import_definitions")
+        }
     };
 
     let sql = match query {
@@ -670,23 +681,38 @@ fn compute_column_mapping(headers: &[String], tt: &TargetType) -> Vec<ColumnMapp
             &["__id", "username", "full_name", "email", "enabled"],
             &["username"],
         ),
-        TargetType::OpcSources => (
-            &["__id", "name", "endpoint_url", "enabled"],
-            &[],
-        ),
+        TargetType::OpcSources => (&["__id", "name", "endpoint_url", "enabled"], &[]),
         TargetType::AlarmDefinitions => (
-            &["__id", "name", "point_tag", "high_high", "high", "low", "low_low", "enabled"],
+            &[
+                "__id",
+                "name",
+                "point_tag",
+                "high_high",
+                "high",
+                "low",
+                "low_low",
+                "enabled",
+            ],
             &[],
         ),
-        TargetType::ImportConnections => (
-            &["__id", "name", "connector_type", "enabled"],
-            &[],
-        ),
+        TargetType::ImportConnections => (&["__id", "name", "connector_type", "enabled"], &[]),
         TargetType::PointsMetadata => (
-            &["__id", "tagname", "description", "engineering_units",
-              "active", "criticality", "area", "aggregation_types",
-              "barcode", "notes", "gps_latitude", "gps_longitude",
-              "write_frequency_seconds", "default_graphic_id"],
+            &[
+                "__id",
+                "tagname",
+                "description",
+                "engineering_units",
+                "active",
+                "criticality",
+                "area",
+                "aggregation_types",
+                "barcode",
+                "notes",
+                "gps_latitude",
+                "gps_longitude",
+                "write_frequency_seconds",
+                "default_graphic_id",
+            ],
             &["tagname", "description", "engineering_units"],
         ),
         TargetType::UserRoles => (
@@ -697,44 +723,51 @@ fn compute_column_mapping(headers: &[String], tt: &TargetType) -> Vec<ColumnMapp
             &["__id", "key", "description", "value"],
             &["key", "description"],
         ),
-        TargetType::PointSources => (
-            &["__id", "name", "description", "enabled"],
-            &[],
-        ),
-        TargetType::DashboardMetadata => (
-            &["__id", "name", "published"],
-            &[],
-        ),
+        TargetType::PointSources => (&["__id", "name", "description", "enabled"], &[]),
+        TargetType::DashboardMetadata => (&["__id", "name", "published"], &[]),
         TargetType::ImportDefinitions => (
-            &["__id", "name", "description", "enabled", "batch_size", "error_strategy"],
+            &[
+                "__id",
+                "name",
+                "description",
+                "enabled",
+                "batch_size",
+                "error_strategy",
+            ],
             &[],
         ),
     };
 
-    headers.iter().map(|h| {
-        // Strip " [READ-ONLY]" suffix to get the base field name
-        let base = h.trim_end_matches(" [READ-ONLY]").trim_end_matches(" [read-only]");
-        // _exported_at is a metadata column used for conflict detection — always read-only
-        let is_known = base == "_exported_at"
-            || all_fields.iter().any(|&f| f == base || f == h);
-        let is_read_only = base == "_exported_at"
-            || read_only_fields.iter().any(|&f| f == base)
-            || h.contains("[READ-ONLY]") || h.contains("[read-only]");
+    headers
+        .iter()
+        .map(|h| {
+            // Strip " [READ-ONLY]" suffix to get the base field name
+            let base = h
+                .trim_end_matches(" [READ-ONLY]")
+                .trim_end_matches(" [read-only]");
+            // _exported_at is a metadata column used for conflict detection — always read-only
+            let is_known =
+                base == "_exported_at" || all_fields.iter().any(|&f| f == base || f == h);
+            let is_read_only = base == "_exported_at"
+                || read_only_fields.contains(&base)
+                || h.contains("[READ-ONLY]")
+                || h.contains("[read-only]");
 
-        let status = if !is_known {
-            "unmapped".to_string()
-        } else if is_read_only {
-            "read_only".to_string()
-        } else {
-            "matched".to_string()
-        };
+            let status = if !is_known {
+                "unmapped".to_string()
+            } else if is_read_only {
+                "read_only".to_string()
+            } else {
+                "matched".to_string()
+            };
 
-        ColumnMapping {
-            file_column: h.clone(),
-            system_field: base.to_string(),
-            status,
-        }
-    }).collect()
+            ColumnMapping {
+                file_column: h.clone(),
+                system_field: base.to_string(),
+                status,
+            }
+        })
+        .collect()
 }
 
 /// Validate CSV rows and return a `ValidationSummary`.
@@ -799,7 +832,11 @@ fn validate_rows(
         let row_num = row_idx + 1; // 1-based
 
         // Get ID value — try __id first, then id
-        let id_val = row.get("__id").or_else(|| row.get("id")).map(|s| s.as_str()).unwrap_or("");
+        let id_val = row
+            .get("__id")
+            .or_else(|| row.get("id"))
+            .map(|s| s.as_str())
+            .unwrap_or("");
 
         // Validate ID is a valid UUID
         if id_val.is_empty() {
@@ -843,7 +880,8 @@ fn validate_rows(
         // Required field checks
         for &field in required_fields {
             // Try both the base field name and the " [READ-ONLY]" variant
-            let val = row.get(field)
+            let val = row
+                .get(field)
                 .or_else(|| row.get(&format!("{} [READ-ONLY]", field)))
                 .map(|s| s.as_str())
                 .unwrap_or("");
@@ -863,13 +901,21 @@ fn validate_rows(
             if let Some(val) = row.get(field) {
                 if !val.is_empty() {
                     let lower = val.to_lowercase();
-                    if lower != "true" && lower != "false" && lower != "1" && lower != "0"
-                        && lower != "yes" && lower != "no" {
+                    if lower != "true"
+                        && lower != "false"
+                        && lower != "1"
+                        && lower != "0"
+                        && lower != "yes"
+                        && lower != "no"
+                    {
                         type_error_count += 1;
                         errors.push(ValidationError {
                             row: row_num,
                             id: id_val.to_string(),
-                            error: format!("Field '{}' must be true/false but got '{}'", field, val),
+                            error: format!(
+                                "Field '{}' must be true/false but got '{}'",
+                                field, val
+                            ),
                             field: Some(field.to_string()),
                         });
                     }
@@ -949,28 +995,58 @@ fn compute_diff(
     // Build a map of id → row for current data
     let current_map: HashMap<String, &JsonValue> = current
         .iter()
-        .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|id| (id.to_string(), r)))
+        .filter_map(|r| {
+            r.get("id")
+                .and_then(|v| v.as_str())
+                .map(|id| (id.to_string(), r))
+        })
         .collect();
 
     let incoming_map: HashMap<String, &JsonValue> = incoming
         .iter()
-        .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|id| (id.to_string(), r)))
+        .filter_map(|r| {
+            r.get("id")
+                .and_then(|v| v.as_str())
+                .map(|id| (id.to_string(), r))
+        })
         .collect();
 
     let mutable_fields: &[&str] = match tt {
         TargetType::Users => &["full_name", "email", "enabled"],
         TargetType::OpcSources => &["name", "endpoint_url", "enabled"],
-        TargetType::AlarmDefinitions => &["name", "point_tag", "high_high", "high", "low", "low_low", "enabled"],
+        TargetType::AlarmDefinitions => &[
+            "name",
+            "point_tag",
+            "high_high",
+            "high",
+            "low",
+            "low_low",
+            "enabled",
+        ],
         TargetType::ImportConnections => &["name", "connector_type", "enabled"],
         TargetType::PointsMetadata => &[
-            "active", "criticality", "area", "aggregation_types", "barcode",
-            "notes", "gps_latitude", "gps_longitude", "write_frequency_seconds", "default_graphic_id",
+            "active",
+            "criticality",
+            "area",
+            "aggregation_types",
+            "barcode",
+            "notes",
+            "gps_latitude",
+            "gps_longitude",
+            "write_frequency_seconds",
+            "default_graphic_id",
         ],
         TargetType::UserRoles => &["role_id"],
         TargetType::ApplicationSettings => &["value"],
         TargetType::PointSources => &["name", "description", "enabled"],
         TargetType::DashboardMetadata => &["name", "published"],
-        TargetType::ImportDefinitions => &["name", "description", "enabled", "batch_size", "error_strategy"],
+        TargetType::ImportDefinitions => &[
+            "name",
+            "description",
+            "enabled",
+            "batch_size",
+            "error_strategy",
+        ],
     };
 
     let mut added = Vec::new();
@@ -994,11 +1070,12 @@ fn compute_diff(
                 .collect();
 
             // Conflict detection: check if this row was updated in the DB after template export
-            let is_conflicted = if let (Some(exp_at), Some(db_upd)) = (exported_at, db_updated_at.get(id)) {
-                *db_upd > exp_at
-            } else {
-                false
-            };
+            let is_conflicted =
+                if let (Some(exp_at), Some(db_upd)) = (exported_at, db_updated_at.get(id)) {
+                    *db_upd > exp_at
+                } else {
+                    false
+                };
 
             if changed_fields.is_empty() && !is_conflicted {
                 unchanged_count += 1;
@@ -1030,17 +1107,22 @@ fn compute_diff(
         }
     }
 
-    DiffPreview { added, modified, conflicted, removed, unchanged_count, column_mapping, validation }
+    DiffPreview {
+        added,
+        modified,
+        conflicted,
+        removed,
+        unchanged_count,
+        column_mapping,
+        validation,
+    }
 }
 
 // ---------------------------------------------------------------------------
 // CSV row → JsonValue conversion
 // ---------------------------------------------------------------------------
 
-fn csv_row_to_json(
-    row: &std::collections::HashMap<String, String>,
-    tt: &TargetType,
-) -> JsonValue {
+fn csv_row_to_json(row: &std::collections::HashMap<String, String>, tt: &TargetType) -> JsonValue {
     match tt {
         TargetType::Users => json!({
             "id": row.get("__id").or_else(|| row.get("id")).cloned().unwrap_or_default(),
@@ -1128,11 +1210,8 @@ fn csv_row_to_json(
 // Apply changes to the database
 // ---------------------------------------------------------------------------
 
-async fn apply_diff(
-    db: &sqlx::PgPool,
-    diff: &DiffPreview,
-    tt: &TargetType,
-) -> Result<(), IoError> {
+#[allow(dead_code)]
+async fn apply_diff(db: &sqlx::PgPool, diff: &DiffPreview, tt: &TargetType) -> Result<(), IoError> {
     // Apply modifications
     for modrow in &diff.modified {
         apply_update(db, tt, &modrow.after).await?;
@@ -1169,18 +1248,19 @@ async fn apply_update(db: &sqlx::PgPool, tt: &TargetType, row: &JsonValue) -> Re
         }
         TargetType::OpcSources => {
             let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let endpoint_url = row.get("endpoint_url").and_then(|v| v.as_str()).unwrap_or("");
+            let endpoint_url = row
+                .get("endpoint_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let enabled = row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
-            sqlx::query(
-                "UPDATE opc_sources SET name=$1, endpoint_url=$2, enabled=$3 WHERE id=$4",
-            )
-            .bind(name)
-            .bind(endpoint_url)
-            .bind(enabled)
-            .bind(id)
-            .execute(db)
-            .await
-            .map_err(IoError::Database)?;
+            sqlx::query("UPDATE opc_sources SET name=$1, endpoint_url=$2, enabled=$3 WHERE id=$4")
+                .bind(name)
+                .bind(endpoint_url)
+                .bind(enabled)
+                .bind(id)
+                .execute(db)
+                .await
+                .map_err(IoError::Database)?;
         }
         TargetType::AlarmDefinitions => {
             let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -1209,7 +1289,10 @@ async fn apply_update(db: &sqlx::PgPool, tt: &TargetType, row: &JsonValue) -> Re
         }
         TargetType::ImportConnections => {
             let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let connector_type = row.get("connector_type").and_then(|v| v.as_str()).unwrap_or("");
+            let connector_type = row
+                .get("connector_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let enabled = row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
             sqlx::query(
                 "UPDATE import_connections SET name=$1, connector_type=$2, enabled=$3 WHERE id=$4",
@@ -1233,7 +1316,10 @@ async fn apply_update(db: &sqlx::PgPool, tt: &TargetType, row: &JsonValue) -> Re
             let notes = row.get("notes").and_then(|v| v.as_str());
             let gps_latitude = row.get("gps_latitude").and_then(|v| v.as_f64());
             let gps_longitude = row.get("gps_longitude").and_then(|v| v.as_f64());
-            let write_frequency_seconds = row.get("write_frequency_seconds").and_then(|v| v.as_i64()).map(|v| v as i32);
+            let write_frequency_seconds = row
+                .get("write_frequency_seconds")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32);
             let default_graphic_id = row
                 .get("default_graphic_id")
                 .and_then(|v| v.as_str())
@@ -1263,8 +1349,9 @@ async fn apply_update(db: &sqlx::PgPool, tt: &TargetType, row: &JsonValue) -> Re
         TargetType::UserRoles => {
             // Update the role_id for this user-role pair
             let role_id_str = row.get("role_id").and_then(|v| v.as_str()).unwrap_or("");
-            let role_id = Uuid::parse_str(role_id_str)
-                .map_err(|_| IoError::BadRequest(format!("Invalid role_id UUID: {}", role_id_str)))?;
+            let role_id = Uuid::parse_str(role_id_str).map_err(|_| {
+                IoError::BadRequest(format!("Invalid role_id UUID: {}", role_id_str))
+            })?;
             sqlx::query("UPDATE user_roles SET role_id=$1 WHERE id=$2")
                 .bind(role_id)
                 .bind(id)
@@ -1298,7 +1385,10 @@ async fn apply_update(db: &sqlx::PgPool, tt: &TargetType, row: &JsonValue) -> Re
         TargetType::DashboardMetadata => {
             // Exclude layout, widgets JSONB
             let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let published = row.get("published").and_then(|v| v.as_bool()).unwrap_or(false);
+            let published = row
+                .get("published")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             sqlx::query("UPDATE dashboards SET name=$1, published=$2 WHERE id=$3")
                 .bind(name)
                 .bind(published)
@@ -1312,7 +1402,10 @@ async fn apply_update(db: &sqlx::PgPool, tt: &TargetType, row: &JsonValue) -> Re
             let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let description = row.get("description").and_then(|v| v.as_str());
             let enabled = row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
-            let batch_size = row.get("batch_size").and_then(|v| v.as_i64()).map(|v| v as i32);
+            let batch_size = row
+                .get("batch_size")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32);
             let error_strategy = row.get("error_strategy").and_then(|v| v.as_str());
             sqlx::query(
                 r#"UPDATE import_definitions
@@ -1358,12 +1451,15 @@ fn parse_xlsx_bytes(
     bytes: &[u8],
 ) -> Result<Vec<std::collections::HashMap<String, String>>, String> {
     let cursor = Cursor::new(bytes);
-    let mut workbook: Xlsx<_> = open_workbook_from_rs(cursor)
-        .map_err(|e| format!("Failed to open XLSX: {e}"))?;
+    let mut workbook: Xlsx<_> =
+        open_workbook_from_rs(cursor).map_err(|e| format!("Failed to open XLSX: {e}"))?;
 
     let sheet_name = {
         let names = workbook.sheet_names();
-        names.into_iter().next().ok_or_else(|| "XLSX has no sheets".to_string())?
+        names
+            .into_iter()
+            .next()
+            .ok_or_else(|| "XLSX has no sheets".to_string())?
     };
 
     let range = workbook
@@ -1385,17 +1481,20 @@ fn parse_xlsx_bytes(
     for row in rows_iter {
         let mut map = std::collections::HashMap::new();
         for (i, h) in headers.iter().enumerate() {
-            let val = row.get(i).map(|c| match c {
-                Data::Empty => String::new(),
-                Data::String(s) => s.clone(),
-                Data::Float(f) => f.to_string(),
-                Data::Int(n) => n.to_string(),
-                Data::Bool(b) => b.to_string(),
-                Data::DateTime(dt) => dt.to_string(),
-                Data::DateTimeIso(s) => s.clone(),
-                Data::DurationIso(s) => s.clone(),
-                Data::Error(e) => format!("{:?}", e),
-            }).unwrap_or_default();
+            let val = row
+                .get(i)
+                .map(|c| match c {
+                    Data::Empty => String::new(),
+                    Data::String(s) => s.clone(),
+                    Data::Float(f) => f.to_string(),
+                    Data::Int(n) => n.to_string(),
+                    Data::Bool(b) => b.to_string(),
+                    Data::DateTime(dt) => dt.to_string(),
+                    Data::DateTimeIso(s) => s.clone(),
+                    Data::DurationIso(s) => s.clone(),
+                    Data::Error(e) => format!("{:?}", e),
+                })
+                .unwrap_or_default();
             map.insert(h.clone(), val);
         }
         result.push(map);
@@ -1410,11 +1509,19 @@ fn parse_xlsx_bytes(
 /// plus the target type and a map of any extra text fields (e.g. "conflict_resolution").
 async fn extract_file_and_target(
     multipart: &mut Multipart,
-) -> Result<(Vec<std::collections::HashMap<String, String>>, TargetType, std::collections::HashMap<String, String>), Response> {
+) -> Result<
+    (
+        Vec<std::collections::HashMap<String, String>>,
+        TargetType,
+        std::collections::HashMap<String, String>,
+    ),
+    Response,
+> {
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut file_is_xlsx = false;
     let mut target_type_str: Option<String> = None;
-    let mut extra_fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut extra_fields: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
 
     while let Ok(Some(field)) = multipart.next_field().await {
         match field.name() {
@@ -1422,7 +1529,8 @@ async fn extract_file_and_target(
                 // Detect format from content_type or filename
                 let ct = field.content_type().unwrap_or("").to_lowercase();
                 let fname = field.file_name().unwrap_or("").to_lowercase();
-                if ct.contains("spreadsheetml") || ct.contains("excel") || fname.ends_with(".xlsx") {
+                if ct.contains("spreadsheetml") || ct.contains("excel") || fname.ends_with(".xlsx")
+                {
                     file_is_xlsx = true;
                 }
                 match field.bytes().await {
@@ -1430,7 +1538,8 @@ async fn extract_file_and_target(
                         file_bytes = Some(bytes.to_vec());
                     }
                     Err(_) => {
-                        return Err(IoError::BadRequest("Failed to read uploaded file".into()).into_response());
+                        return Err(IoError::BadRequest("Failed to read uploaded file".into())
+                            .into_response());
                     }
                 }
             }
@@ -1450,10 +1559,15 @@ async fn extract_file_and_target(
         }
     }
 
-    let bytes = file_bytes.ok_or_else(|| IoError::BadRequest("No 'file' field in multipart".into()).into_response())?;
-    let tt_str = target_type_str.ok_or_else(|| IoError::BadRequest("No 'target_type' field in multipart".into()).into_response())?;
-    let tt = TargetType::from_str(&tt_str)
-        .ok_or_else(|| IoError::BadRequest(format!("Unknown target_type: {}", tt_str)).into_response())?;
+    let bytes = file_bytes.ok_or_else(|| {
+        IoError::BadRequest("No 'file' field in multipart".into()).into_response()
+    })?;
+    let tt_str = target_type_str.ok_or_else(|| {
+        IoError::BadRequest("No 'target_type' field in multipart".into()).into_response()
+    })?;
+    let tt = TargetType::from_str(&tt_str).ok_or_else(|| {
+        IoError::BadRequest(format!("Unknown target_type: {}", tt_str)).into_response()
+    })?;
 
     let rows = if file_is_xlsx {
         parse_xlsx_bytes(&bytes)
@@ -1461,8 +1575,9 @@ async fn extract_file_and_target(
     } else {
         let text = String::from_utf8(bytes)
             .map_err(|_| IoError::BadRequest("CSV file must be UTF-8".into()).into_response())?;
-        parse_csv(&text)
-            .ok_or_else(|| IoError::BadRequest("Could not parse CSV — empty or malformed".into()).into_response())?
+        parse_csv(&text).ok_or_else(|| {
+            IoError::BadRequest("Could not parse CSV — empty or malformed".into()).into_response()
+        })?
     };
 
     Ok((rows, tt, extra_fields))
@@ -1651,7 +1766,9 @@ pub async fn restore_preview(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    if !check_permission(&claims, "system:bulk_update") && !check_permission(&claims, "settings:read") {
+    if !check_permission(&claims, "system:bulk_update")
+        && !check_permission(&claims, "settings:read")
+    {
         return IoError::Forbidden("settings:read permission required".into()).into_response();
     }
 
@@ -1669,14 +1786,21 @@ pub async fn restore_preview(
     };
 
     let target_type_str: String = snap_row.try_get("table_name").unwrap_or_default();
-    let snapshot_data: JsonValue = snap_row.try_get("snapshot_data").unwrap_or(JsonValue::Array(vec![]));
-    let snapshot_created_at: DateTime<Utc> = snap_row.try_get("created_at").unwrap_or_else(|_| Utc::now());
+    let snapshot_data: JsonValue = snap_row
+        .try_get("snapshot_data")
+        .unwrap_or(JsonValue::Array(vec![]));
+    let snapshot_created_at: DateTime<Utc> = snap_row
+        .try_get("created_at")
+        .unwrap_or_else(|_| Utc::now());
 
     let tt = match TargetType::from_str(&target_type_str) {
         Some(t) => t,
         None => {
-            return IoError::BadRequest(format!("Unknown table_name in snapshot: {}", target_type_str))
-                .into_response()
+            return IoError::BadRequest(format!(
+                "Unknown table_name in snapshot: {}",
+                target_type_str
+            ))
+            .into_response()
         }
     };
 
@@ -1692,7 +1816,11 @@ pub async fn restore_preview(
     // Build current rows map (id -> row)
     let current_map: std::collections::HashMap<String, &JsonValue> = current_rows
         .iter()
-        .filter_map(|r| r.get("id").and_then(|v| v.as_str()).map(|id_s| (id_s.to_string(), r)))
+        .filter_map(|r| {
+            r.get("id")
+                .and_then(|v| v.as_str())
+                .map(|id_s| (id_s.to_string(), r))
+        })
         .collect();
 
     let snapshot_arr = match snapshot_data.as_array() {
@@ -1704,17 +1832,39 @@ pub async fn restore_preview(
     let mutable_fields: &[&str] = match &tt {
         TargetType::Users => &["full_name", "email", "enabled"],
         TargetType::OpcSources => &["name", "endpoint_url", "enabled"],
-        TargetType::AlarmDefinitions => &["name", "point_tag", "high_high", "high", "low", "low_low", "enabled"],
+        TargetType::AlarmDefinitions => &[
+            "name",
+            "point_tag",
+            "high_high",
+            "high",
+            "low",
+            "low_low",
+            "enabled",
+        ],
         TargetType::ImportConnections => &["name", "connector_type", "enabled"],
         TargetType::PointsMetadata => &[
-            "active", "criticality", "area", "aggregation_types", "barcode",
-            "notes", "gps_latitude", "gps_longitude", "write_frequency_seconds", "default_graphic_id",
+            "active",
+            "criticality",
+            "area",
+            "aggregation_types",
+            "barcode",
+            "notes",
+            "gps_latitude",
+            "gps_longitude",
+            "write_frequency_seconds",
+            "default_graphic_id",
         ],
         TargetType::UserRoles => &["role_id"],
         TargetType::ApplicationSettings => &["value"],
         TargetType::PointSources => &["name", "description", "enabled"],
         TargetType::DashboardMetadata => &["name", "published"],
-        TargetType::ImportDefinitions => &["name", "description", "enabled", "batch_size", "error_strategy"],
+        TargetType::ImportDefinitions => &[
+            "name",
+            "description",
+            "enabled",
+            "batch_size",
+            "error_strategy",
+        ],
     };
 
     let mut preview_rows: Vec<RestorePreviewRow> = Vec::new();
@@ -1725,7 +1875,11 @@ pub async fn restore_preview(
             None => continue,
         };
 
-        let current_val = current_map.get(&row_id).copied().cloned().unwrap_or(JsonValue::Object(Default::default()));
+        let current_val = current_map
+            .get(&row_id)
+            .copied()
+            .cloned()
+            .unwrap_or(JsonValue::Object(Default::default()));
 
         // Find changed fields
         let mut changed_fields = Vec::new();
@@ -1811,26 +1965,32 @@ pub async fn restore_snapshot(
     });
 
     // 1. Load the snapshot to restore
-    let snap_row = match sqlx::query(
-        "SELECT table_name, snapshot_data FROM change_snapshots WHERE id=$1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
-    {
-        Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Snapshot {} not found", id)).into_response(),
-        Err(e) => return IoError::Database(e).into_response(),
-    };
+    let snap_row =
+        match sqlx::query("SELECT table_name, snapshot_data FROM change_snapshots WHERE id=$1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await
+        {
+            Ok(Some(r)) => r,
+            Ok(None) => {
+                return IoError::NotFound(format!("Snapshot {} not found", id)).into_response()
+            }
+            Err(e) => return IoError::Database(e).into_response(),
+        };
 
     let target_type_str: String = snap_row.try_get("table_name").unwrap_or_default();
-    let snapshot_data: JsonValue = snap_row.try_get("snapshot_data").unwrap_or(JsonValue::Array(vec![]));
+    let snapshot_data: JsonValue = snap_row
+        .try_get("snapshot_data")
+        .unwrap_or(JsonValue::Array(vec![]));
 
     let tt = match TargetType::from_str(&target_type_str) {
         Some(t) => t,
         None => {
-            return IoError::BadRequest(format!("Unknown table_name in snapshot: {}", target_type_str))
-                .into_response()
+            return IoError::BadRequest(format!(
+                "Unknown table_name in snapshot: {}",
+                target_type_str
+            ))
+            .into_response()
         }
     };
 
@@ -1838,14 +1998,7 @@ pub async fn restore_snapshot(
 
     // 2. Optionally create a safety snapshot of current state before overwriting
     let safety_snapshot_id = if body.create_safety_snapshot {
-        match snapshot_target(
-            &state.db,
-            &tt,
-            Some(&format!("pre-restore-{}", id)),
-            uid,
-        )
-        .await
-        {
+        match snapshot_target(&state.db, &tt, Some(&format!("pre-restore-{}", id)), uid).await {
             Ok(sid) => Some(sid),
             Err(e) => return e.into_response(),
         }
@@ -1861,7 +2014,8 @@ pub async fn restore_snapshot(
 
     let rows_to_restore: Vec<JsonValue> = if body.mode == "selective" {
         if let Some(ref row_ids) = body.row_ids {
-            let id_set: std::collections::HashSet<&str> = row_ids.iter().map(|s| s.as_str()).collect();
+            let id_set: std::collections::HashSet<&str> =
+                row_ids.iter().map(|s| s.as_str()).collect();
             all_rows
                 .into_iter()
                 .filter(|row| {
@@ -1942,7 +2096,11 @@ pub async fn get_template(
                 exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("endpoint_url").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("endpoint_url")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::AlarmDefinitions => format!(
@@ -1951,10 +2109,22 @@ pub async fn get_template(
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("point_tag").and_then(|v| v.as_str()).unwrap_or("")),
-                row.get("high_high").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
-                row.get("high").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
-                row.get("low").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
-                row.get("low_low").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
+                row.get("high_high")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f.to_string())
+                    .unwrap_or_default(),
+                row.get("high")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f.to_string())
+                    .unwrap_or_default(),
+                row.get("low")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f.to_string())
+                    .unwrap_or_default(),
+                row.get("low_low")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f.to_string())
+                    .unwrap_or_default(),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::ImportConnections => format!(
@@ -1962,7 +2132,11 @@ pub async fn get_template(
                 exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("connector_type").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("connector_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::PointsMetadata => format!(
@@ -1970,18 +2144,45 @@ pub async fn get_template(
                 exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("tagname").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("engineering_units").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
+                csv_escape(
+                    row.get("engineering_units")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 row.get("active").and_then(|v| v.as_bool()).unwrap_or(true),
-                csv_escape(row.get("criticality").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("criticality")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 csv_escape(row.get("area").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("aggregation_types").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("aggregation_types")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 csv_escape(row.get("barcode").and_then(|v| v.as_str()).unwrap_or("")),
                 csv_escape(row.get("notes").and_then(|v| v.as_str()).unwrap_or("")),
-                row.get("gps_latitude").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
-                row.get("gps_longitude").and_then(|v| v.as_f64()).map(|f| f.to_string()).unwrap_or_default(),
-                row.get("write_frequency_seconds").and_then(|v| v.as_i64()).map(|n| n.to_string()).unwrap_or_default(),
-                row.get("default_graphic_id").and_then(|v| v.as_str()).unwrap_or(""),
+                row.get("gps_latitude")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f.to_string())
+                    .unwrap_or_default(),
+                row.get("gps_longitude")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f.to_string())
+                    .unwrap_or_default(),
+                row.get("write_frequency_seconds")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n.to_string())
+                    .unwrap_or_default(),
+                row.get("default_graphic_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(""),
             ),
             TargetType::UserRoles => format!(
                 "{},{},{},{},{},{}",
@@ -1997,7 +2198,11 @@ pub async fn get_template(
                 exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("key").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 csv_escape(row.get("value").and_then(|v| v.as_str()).unwrap_or("")),
             ),
             TargetType::PointSources => format!(
@@ -2005,7 +2210,11 @@ pub async fn get_template(
                 exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
             ),
             TargetType::DashboardMetadata => format!(
@@ -2013,17 +2222,30 @@ pub async fn get_template(
                 exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
-                row.get("published").and_then(|v| v.as_bool()).unwrap_or(false),
+                row.get("published")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
             ),
             TargetType::ImportDefinitions => format!(
                 "{},{},{},{},{},{},{}",
                 exported_at_str,
                 row.get("id").and_then(|v| v.as_str()).unwrap_or(""),
                 csv_escape(row.get("name").and_then(|v| v.as_str()).unwrap_or("")),
-                csv_escape(row.get("description").and_then(|v| v.as_str()).unwrap_or("")),
+                csv_escape(
+                    row.get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
                 row.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
-                row.get("batch_size").and_then(|v| v.as_i64()).map(|n| n.to_string()).unwrap_or_default(),
-                csv_escape(row.get("error_strategy").and_then(|v| v.as_str()).unwrap_or("")),
+                row.get("batch_size")
+                    .and_then(|v| v.as_i64())
+                    .map(|n| n.to_string())
+                    .unwrap_or_default(),
+                csv_escape(
+                    row.get("error_strategy")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                ),
             ),
         };
         csv.push_str(&line);
@@ -2035,11 +2257,14 @@ pub async fn get_template(
 
     let mut response = Response::new(Body::from(csv));
     *response.status_mut() = StatusCode::OK;
-    response
-        .headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
     if let Ok(val) = HeaderValue::from_str(&content_disposition) {
-        response.headers_mut().insert(header::CONTENT_DISPOSITION, val);
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, val);
     }
     response
 }
@@ -2104,7 +2329,15 @@ pub async fn preview_bulk_update(
 
     let incoming: Vec<JsonValue> = csv_rows.iter().map(|r| csv_row_to_json(r, &tt)).collect();
 
-    let diff = compute_diff(&current, &incoming, &tt, column_mapping, validation, &db_updated_at, exported_at);
+    let diff = compute_diff(
+        &current,
+        &incoming,
+        &tt,
+        column_mapping,
+        validation,
+        &db_updated_at,
+        exported_at,
+    );
     Json(ApiResponse::ok(diff)).into_response()
 }
 
@@ -2156,24 +2389,30 @@ pub async fn apply_bulk_update(
     let validation = validate_rows(&csv_rows, &current_ids, &tt);
 
     // Collect IDs that had validation errors — they will be skipped
-    let invalid_ids: std::collections::HashSet<String> = validation.errors
+    let invalid_ids: std::collections::HashSet<String> = validation
+        .errors
         .iter()
-        .filter(|e| e.id != "")
+        .filter(|e| !e.id.is_empty())
         .map(|e| e.id.clone())
         .collect();
 
     // Build failed_rows list from validation errors
-    let mut failed_rows: Vec<FailedRow> = validation.errors.iter().map(|e| FailedRow {
-        row: e.row,
-        id: e.id.clone(),
-        reason_type: "validation_error".to_string(),
-        reason: e.error.clone(),
-    }).collect();
+    let mut failed_rows: Vec<FailedRow> = validation
+        .errors
+        .iter()
+        .map(|e| FailedRow {
+            row: e.row,
+            id: e.id.clone(),
+            reason_type: "validation_error".to_string(),
+            reason: e.error.clone(),
+        })
+        .collect();
 
     let incoming: Vec<JsonValue> = csv_rows.iter().map(|r| csv_row_to_json(r, &tt)).collect();
 
     // Filter out incoming rows with validation errors before computing diff
-    let valid_incoming: Vec<JsonValue> = incoming.iter()
+    let valid_incoming: Vec<JsonValue> = incoming
+        .iter()
         .filter(|row| {
             let id = row.get("id").and_then(|v| v.as_str()).unwrap_or("");
             id.is_empty() || !invalid_ids.contains(id)
@@ -2183,10 +2422,22 @@ pub async fn apply_bulk_update(
 
     let empty_headers = vec![];
     let empty_validation = ValidationSummary {
-        valid_id_count: 0, duplicate_id_count: 0, invalid_id_count: 0,
-        type_error_count: 0, required_field_error_count: 0, errors: vec![],
+        valid_id_count: 0,
+        duplicate_id_count: 0,
+        invalid_id_count: 0,
+        type_error_count: 0,
+        required_field_error_count: 0,
+        errors: vec![],
     };
-    let diff = compute_diff(&current, &valid_incoming, &tt, empty_headers, empty_validation, &db_updated_at, exported_at);
+    let diff = compute_diff(
+        &current,
+        &valid_incoming,
+        &tt,
+        empty_headers,
+        empty_validation,
+        &db_updated_at,
+        exported_at,
+    );
 
     // Create safety snapshot before applying
     let uid = user_id(&claims);
@@ -2199,7 +2450,9 @@ pub async fn apply_bulk_update(
     let modified_count = diff.modified.len();
     let removed_count = diff.removed.len();
     let unchanged = diff.unchanged_count;
-    let validation_failed = validation.invalid_id_count + validation.type_error_count + validation.required_field_error_count;
+    let validation_failed = validation.invalid_id_count
+        + validation.type_error_count
+        + validation.required_field_error_count;
 
     // Handle conflicted rows per the user's preference
     if overwrite_conflicts {
@@ -2281,17 +2534,19 @@ pub async fn get_error_report(
     }
 
     // Look up the snapshot to get table name and description
-    let snap_row = match sqlx::query(
-        "SELECT table_name, description FROM change_snapshots WHERE id=$1",
-    )
-    .bind(snapshot_id)
-    .fetch_optional(&state.db)
-    .await
-    {
-        Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Snapshot {} not found", snapshot_id)).into_response(),
-        Err(e) => return IoError::Database(e).into_response(),
-    };
+    let snap_row =
+        match sqlx::query("SELECT table_name, description FROM change_snapshots WHERE id=$1")
+            .bind(snapshot_id)
+            .fetch_optional(&state.db)
+            .await
+        {
+            Ok(Some(r)) => r,
+            Ok(None) => {
+                return IoError::NotFound(format!("Snapshot {} not found", snapshot_id))
+                    .into_response()
+            }
+            Err(e) => return IoError::Database(e).into_response(),
+        };
 
     let table_name: String = snap_row.try_get("table_name").unwrap_or_default();
     let description: Option<String> = snap_row.try_get("description").ok().flatten();
@@ -2310,11 +2565,14 @@ pub async fn get_error_report(
 
     let mut response = Response::new(Body::from(csv));
     *response.status_mut() = StatusCode::OK;
-    response
-        .headers_mut()
-        .insert(header::CONTENT_TYPE, HeaderValue::from_static("text/csv; charset=utf-8"));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/csv; charset=utf-8"),
+    );
     if let Ok(val) = HeaderValue::from_str(&content_disposition) {
-        response.headers_mut().insert(header::CONTENT_DISPOSITION, val);
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, val);
     }
     response
 }

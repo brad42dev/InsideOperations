@@ -5,17 +5,17 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use std::net::SocketAddr;
 use chrono::Utc;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use serde_json::json;
+use sqlx::Row;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Instant;
-use sqlx::Row;
 
-use io_auth::{validate_token, Claims};
 use crate::state::AppState;
+use io_auth::{validate_token, Claims};
 
 // ---------------------------------------------------------------------------
 // JWT extraction middleware
@@ -24,11 +24,7 @@ use crate::state::AppState;
 // inserts Claims into request extensions. Skips unprotected paths.
 // ---------------------------------------------------------------------------
 
-pub async fn jwt_auth(
-    State(state): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Response {
+pub async fn jwt_auth(State(state): State<AppState>, mut req: Request, next: Next) -> Response {
     // Paths that don't require JWT validation
     let path = req.uri().path();
     if is_public_path(path) {
@@ -74,12 +70,11 @@ pub async fn jwt_auth(
             // lockout when an admin disables an account — the 15-min access-token
             // window is bypassed. We only reject if the DB confirms enabled=false;
             // on DB error we allow the request through to avoid service disruption.
-            if let Ok(Some(row)) = sqlx::query(
-                "SELECT enabled FROM users WHERE id = $1::uuid AND deleted_at IS NULL",
-            )
-            .bind(&claims.sub)
-            .fetch_optional(&state.db)
-            .await
+            if let Ok(Some(row)) =
+                sqlx::query("SELECT enabled FROM users WHERE id = $1::uuid AND deleted_at IS NULL")
+                    .bind(&claims.sub)
+                    .fetch_optional(&state.db)
+                    .await
             {
                 let enabled: bool = row.get("enabled");
                 if !enabled {
@@ -106,7 +101,8 @@ pub async fn jwt_auth(
 }
 
 fn is_public_path(path: &str) -> bool {
-    matches!(path,
+    matches!(
+        path,
         "/api/auth/login"
         | "/api/auth/refresh"
         | "/api/auth/providers"
@@ -125,9 +121,9 @@ fn is_public_path(path: &str) -> bool {
         // Internal certificate renewal — called by systemd timer as root with no token.
         | "/api/internal/certs/renew"
     ) || path.starts_with("/api/auth/oidc/")
-      || path.starts_with("/api/auth/saml/")
-      || path.starts_with("/api/auth/ldap/")
-      || path.starts_with("/scim/v2/")
+        || path.starts_with("/api/auth/saml/")
+        || path.starts_with("/api/auth/ldap/")
+        || path.starts_with("/scim/v2/")
 }
 
 fn extract_bearer(headers: &axum::http::HeaderMap) -> Option<&str> {
@@ -152,7 +148,10 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.bytes()
+        .zip(b.bytes())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 // ---------------------------------------------------------------------------
@@ -223,7 +222,9 @@ async fn handle_api_key_auth(
 
     let key_id: uuid::Uuid = row.get("id");
     let user_id: uuid::Uuid = row.get("user_id");
-    let scopes: Vec<String> = row.get::<Option<Vec<String>>, _>("scopes").unwrap_or_default();
+    let scopes: Vec<String> = row
+        .get::<Option<Vec<String>>, _>("scopes")
+        .unwrap_or_default();
 
     // Look up the username so the synthetic claims include a meaningful identity.
     let username = match sqlx::query(
@@ -324,7 +325,9 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
         .map(|ci| ci.0.ip().to_string());
 
     let (key, limit, window_secs) = if is_auth_endpoint(path) {
-        let ip = socket_ip.clone().unwrap_or_else(|| client_ip(req.headers()));
+        let ip = socket_ip
+            .clone()
+            .unwrap_or_else(|| client_ip(req.headers()));
         // Localhost (dev/UAT) is exempt from auth rate limiting — no credential-stuffing risk.
         if ip == "127.0.0.1" || ip == "::1" {
             return next.run(req).await;
@@ -379,10 +382,8 @@ pub async fn rate_limit(req: Request, next: Next) -> Response {
             "x-ratelimit-limit",
             HeaderValue::from_str(&(limit as u64).to_string()).unwrap(),
         );
-        resp.headers_mut().insert(
-            "x-ratelimit-remaining",
-            HeaderValue::from_str("0").unwrap(),
-        );
+        resp.headers_mut()
+            .insert("x-ratelimit-remaining", HeaderValue::from_str("0").unwrap());
         resp.headers_mut().insert(
             "x-ratelimit-reset",
             HeaderValue::from_str(&reset_ts.to_string()).unwrap(),

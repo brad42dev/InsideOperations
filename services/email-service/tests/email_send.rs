@@ -1,12 +1,12 @@
-/// Integration tests for the email-service.
-///
-/// The email-service handles transactional email via lettre (SMTP), template
-/// rendering with minijinja, queue management, and bounce handling.
-///
-/// Tests that require a live SMTP relay or email-service process are marked
-/// `#[ignore]`.  Stub tests use wiremock to intercept HTTP callbacks.
-///
-///   cargo test -p email-service --test email_send -- --ignored
+// Integration tests for the email-service.
+//
+// The email-service handles transactional email via lettre (SMTP), template
+// rendering with minijinja, queue management, and bounce handling.
+//
+// Tests that require a live SMTP relay or email-service process are marked
+// `#[ignore]`.  Stub tests use wiremock to intercept HTTP callbacks.
+//
+// cargo test -p email-service --test email_send -- --ignored
 
 // ---------------------------------------------------------------------------
 // Template rendering — pure logic using minijinja directly
@@ -49,8 +49,7 @@ fn test_email_template_with_missing_variable_returns_error() {
 // ---------------------------------------------------------------------------
 
 fn email_url() -> String {
-    std::env::var("TEST_EMAIL_SERVICE_URL")
-        .unwrap_or_else(|_| "http://localhost:3008".to_string())
+    std::env::var("TEST_EMAIL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:3008".to_string())
 }
 
 #[tokio::test]

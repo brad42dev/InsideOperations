@@ -1,4 +1,4 @@
-import React from 'react'
+import React from "react";
 
 // ---------------------------------------------------------------------------
 // SkeletonBlock
@@ -8,16 +8,16 @@ import React from 'react'
 // ---------------------------------------------------------------------------
 
 interface SkeletonBlockProps {
-  width?: string
-  height?: string
-  borderRadius?: string
-  style?: React.CSSProperties
+  width?: string;
+  height?: string;
+  borderRadius?: string;
+  style?: React.CSSProperties;
 }
 
 export function SkeletonBlock({
-  width = '100%',
-  height = '16px',
-  borderRadius = '4px',
+  width = "100%",
+  height = "16px",
+  borderRadius = "4px",
   style,
 }: SkeletonBlockProps) {
   return (
@@ -31,5 +31,5 @@ export function SkeletonBlock({
         ...style,
       }}
     />
-  )
+  );
 }

@@ -9,8 +9,8 @@
  * spec: design-docs/10_DASHBOARDS_MODULE.md §UOM Conversion
  * "Real-time widget values: client-side conversion using cached UOM catalog"
  */
-import { create } from 'zustand'
-import { api } from '../api/client'
+import { create } from "zustand";
+import { api } from "../api/client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,29 +19,29 @@ import { api } from '../api/client'
 /** A single unit-of-measure conversion entry from the catalog. */
 export interface UomEntry {
   /** Source unit symbol (e.g. "°C", "bar", "m/s") */
-  from_unit: string
+  from_unit: string;
   /** Target unit symbol (e.g. "°F", "psi", "ft/s") */
-  to_unit: string
+  to_unit: string;
   /**
    * Multiply the source value by this factor before adding the offset.
    * Converted value = (raw * factor) + offset
    */
-  factor: number
+  factor: number;
   /** Additive offset applied after the factor multiplication. */
-  offset: number
+  offset: number;
 }
 
 /** Full catalog keyed as `${fromUnit}:${toUnit}` for O(1) lookup. */
-export type UomCatalog = Map<string, UomEntry>
+export type UomCatalog = Map<string, UomEntry>;
 
 interface UomState {
-  catalog: UomCatalog
-  loaded: boolean
-  loading: boolean
-  error: string | null
+  catalog: UomCatalog;
+  loaded: boolean;
+  loading: boolean;
+  error: string | null;
 
   /** Fetch the catalog from the server and populate the store. */
-  fetchCatalog: () => Promise<void>
+  fetchCatalog: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,23 +56,23 @@ export const useUomStore = create<UomState>((set, get) => ({
 
   fetchCatalog: async () => {
     // Only fetch once — idempotent if already loaded or in-flight
-    if (get().loaded || get().loading) return
-    set({ loading: true, error: null })
+    if (get().loaded || get().loading) return;
+    set({ loading: true, error: null });
 
-    const result = await api.get<UomEntry[]>('/api/v1/uom/catalog')
+    const result = await api.get<UomEntry[]>("/api/v1/uom/catalog");
     if (!result.success) {
       // Catalog is best-effort; widgets fall back to raw values on failure
-      set({ loading: false, error: result.error.message })
-      return
+      set({ loading: false, error: result.error.message });
+      return;
     }
 
-    const catalog: UomCatalog = new Map()
+    const catalog: UomCatalog = new Map();
     for (const entry of result.data) {
-      catalog.set(`${entry.from_unit}:${entry.to_unit}`, entry)
+      catalog.set(`${entry.from_unit}:${entry.to_unit}`, entry);
     }
-    set({ catalog, loaded: true, loading: false, error: null })
+    set({ catalog, loaded: true, loading: false, error: null });
   },
-}))
+}));
 
 // ---------------------------------------------------------------------------
 // Conversion helper
@@ -93,8 +93,8 @@ export function convertUom(
   toUnit: string,
   catalog: UomCatalog,
 ): number {
-  if (fromUnit === toUnit) return value
-  const entry = catalog.get(`${fromUnit}:${toUnit}`)
-  if (!entry) return value
-  return value * entry.factor + entry.offset
+  if (fromUnit === toUnit) return value;
+  const entry = catalog.get(`${fromUnit}:${toUnit}`);
+  if (!entry) return value;
+  return value * entry.factor + entry.offset;
 }

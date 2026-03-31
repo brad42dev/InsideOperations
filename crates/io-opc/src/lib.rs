@@ -173,7 +173,10 @@ mod tests {
     #[test]
     fn opc_value_preserves_special_float_values() {
         let v_nan = OpcValue::good(f64::NAN);
-        assert!(v_nan.value.is_nan(), "NaN value must round-trip through OpcValue");
+        assert!(
+            v_nan.value.is_nan(),
+            "NaN value must round-trip through OpcValue"
+        );
 
         let v_inf = OpcValue::good(f64::INFINITY);
         assert!(v_inf.value.is_infinite());
@@ -185,7 +188,10 @@ mod tests {
     fn new_opc_point_has_no_value_by_default() {
         let src = Uuid::new_v4();
         let pt = OpcPoint::new(Uuid::new_v4(), "FI-101", src);
-        assert!(pt.value.is_none(), "Freshly constructed OpcPoint must have no cached value");
+        assert!(
+            pt.value.is_none(),
+            "Freshly constructed OpcPoint must have no cached value"
+        );
         assert_eq!(pt.tagname, "FI-101");
         assert_eq!(pt.source_id, src);
     }
@@ -217,6 +223,9 @@ mod tests {
     fn opc_error_point_not_found_message_contains_tagname() {
         let err = OpcError::PointNotFound("FI-999".to_string());
         let msg = err.to_string();
-        assert!(msg.contains("FI-999"), "PointNotFound error must include tagname: {msg}");
+        assert!(
+            msg.contains("FI-999"),
+            "PointNotFound error must include tagname: {msg}"
+        );
     }
 }

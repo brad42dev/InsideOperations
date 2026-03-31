@@ -14,7 +14,10 @@ use uuid::Uuid;
 use crate::state::AppState;
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +71,9 @@ fn row_to_cert(row: &sqlx::postgres::PgRow) -> OpcServerCert {
         not_before: row.try_get("not_before").ok().flatten(),
         not_after,
         expired,
-        status: row.try_get("status").unwrap_or_else(|_| "pending".to_string()),
+        status: row
+            .try_get("status")
+            .unwrap_or_else(|_| "pending".to_string()),
         auto_trusted: row.try_get("auto_trusted").unwrap_or(false),
         reviewed_by: row.try_get("reviewed_by").ok().flatten(),
         reviewed_at: row.try_get("reviewed_at").ok().flatten(),
@@ -153,7 +158,9 @@ pub async fn get_server_cert(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Certificate {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Certificate {} not found", id)).into_response()
+        }
         Err(e) => return IoError::Database(e).into_response(),
     };
 
@@ -221,7 +228,9 @@ async fn review_cert(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Certificate {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Certificate {} not found", id)).into_response()
+        }
         Err(e) => return IoError::Database(e).into_response(),
     };
 
@@ -248,14 +257,14 @@ fn move_cert_file(pki_dir: &str, fingerprint: &str, new_status: &str) {
     use std::path::Path;
 
     let (from_subdir, to_subdir) = match new_status {
-        "trusted"  => ("rejected/certs", "trusted/certs"),
-        "rejected" => ("trusted/certs",  "rejected/certs"),
-        _          => return,
+        "trusted" => ("rejected/certs", "trusted/certs"),
+        "rejected" => ("trusted/certs", "rejected/certs"),
+        _ => return,
     };
 
     let base = Path::new(pki_dir);
     let from_dir = base.join(from_subdir);
-    let to_dir   = base.join(to_subdir);
+    let to_dir = base.join(to_subdir);
 
     // Try both fingerprint and uppercase variants as filename
     for name in &[
@@ -312,7 +321,9 @@ pub async fn delete_server_cert(
         .fetch_optional(&state.db)
         .await
     {
-        Ok(Some(_)) => Json(ApiResponse::ok(serde_json::json!({ "deleted": true }))).into_response(),
+        Ok(Some(_)) => {
+            Json(ApiResponse::ok(serde_json::json!({ "deleted": true }))).into_response()
+        }
         Ok(None) => IoError::NotFound(format!("Certificate {} not found", id)).into_response(),
         Err(e) => IoError::Database(e).into_response(),
     }

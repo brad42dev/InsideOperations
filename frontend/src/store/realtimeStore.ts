@@ -7,49 +7,63 @@
  * - No temporal middleware.
  */
 
-import { create } from 'zustand'
+import { create } from "zustand";
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
+export type ConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
 /**
  * Mutable point value buffer.
  * Lives outside React state — mutated directly by the WebSocket/SharedWorker data path.
  * Never triggers re-renders. Read via ref in the RAF loop.
  */
-export const pointValueBuffer: Map<string, { value: unknown; quality: string; timestamp: number }> =
-  new Map()
+export const pointValueBuffer: Map<
+  string,
+  { value: unknown; quality: string; timestamp: number }
+> = new Map();
 
 export interface RealtimeState {
   /** Current WebSocket connection status (drives the status-bar dot). */
-  connectionStatus: ConnectionStatus
+  connectionStatus: ConnectionStatus;
   /** Count of actively subscribed point IDs (drives the status-bar counter). */
-  subscribedPointCount: number
+  subscribedPointCount: number;
 
   // Actions
-  setConnectionStatus: (status: ConnectionStatus) => void
-  setSubscribedPointCount: (count: number) => void
-  incrementSubscribedPointCount: (delta: number) => void
+  setConnectionStatus: (status: ConnectionStatus) => void;
+  setSubscribedPointCount: (count: number) => void;
+  incrementSubscribedPointCount: (delta: number) => void;
 
   /**
    * Update a point value in the mutable buffer.
    * Does NOT call set() — no React re-render triggered.
    */
-  updatePointValue: (pointId: string, value: unknown, quality: string, timestamp: number) => void
+  updatePointValue: (
+    pointId: string,
+    value: unknown,
+    quality: string,
+    timestamp: number,
+  ) => void;
 }
 
 export const useRealtimeStore = create<RealtimeState>()((set) => ({
-  connectionStatus: 'disconnected',
+  connectionStatus: "disconnected",
   subscribedPointCount: 0,
 
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
 
-  setSubscribedPointCount: (subscribedPointCount) => set({ subscribedPointCount }),
+  setSubscribedPointCount: (subscribedPointCount) =>
+    set({ subscribedPointCount }),
 
   incrementSubscribedPointCount: (delta) =>
-    set((s) => ({ subscribedPointCount: Math.max(0, s.subscribedPointCount + delta) })),
+    set((s) => ({
+      subscribedPointCount: Math.max(0, s.subscribedPointCount + delta),
+    })),
 
   updatePointValue: (pointId, value, quality, timestamp) => {
     // Mutate the buffer directly — no setState, no re-render
-    pointValueBuffer.set(pointId, { value, quality, timestamp })
+    pointValueBuffer.set(pointId, { value, quality, timestamp });
   },
-}))
+}));

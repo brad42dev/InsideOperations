@@ -116,11 +116,7 @@ pub fn validate_token(token: &str, secret: &str) -> Result<Claims, AuthError> {
 // ---------------------------------------------------------------------------
 
 /// Build a Claims struct with the standard 15-minute access token lifetime.
-pub fn build_claims(
-    user_id: &str,
-    username: &str,
-    permissions: Vec<String>,
-) -> Claims {
+pub fn build_claims(user_id: &str, username: &str, permissions: Vec<String>) -> Claims {
     let now = chrono::Utc::now().timestamp();
     Claims {
         sub: user_id.to_string(),
@@ -187,14 +183,11 @@ mod tests {
 
     #[test]
     fn token_round_trip_returns_original_claims() {
-        let claims = build_claims(
-            "aabbcc",
-            "bob",
-            vec!["alerts.view".to_string()],
-        );
+        let claims = build_claims("aabbcc", "bob", vec!["alerts.view".to_string()]);
         let secret = "test-secret-key";
 
-        let token = generate_access_token(&claims, secret).expect("token generation should succeed");
+        let token =
+            generate_access_token(&claims, secret).expect("token generation should succeed");
         let decoded = validate_token(&token, secret).expect("token validation should succeed");
 
         assert_eq!(decoded.sub, claims.sub);
@@ -205,8 +198,8 @@ mod tests {
     #[test]
     fn token_wrong_secret_returns_error() {
         let claims = build_claims("u1", "carol", vec![]);
-        let token = generate_access_token(&claims, "correct-secret")
-            .expect("should generate token");
+        let token =
+            generate_access_token(&claims, "correct-secret").expect("should generate token");
 
         let result = validate_token(&token, "wrong-secret");
         assert!(result.is_err(), "validation with wrong secret must fail");
@@ -224,8 +217,8 @@ mod tests {
             exp: now - 100, // expired 100 s ago
         };
         let secret = "s";
-        let token = generate_access_token(&expired, secret)
-            .expect("should encode even if exp is past");
+        let token =
+            generate_access_token(&expired, secret).expect("should encode even if exp is past");
 
         let result = validate_token(&token, secret);
         assert!(result.is_err(), "expired token must be rejected");
@@ -281,6 +274,10 @@ mod tests {
     fn recovery_codes_are_all_unique() {
         let codes = generate_recovery_codes(10, 16);
         let unique: std::collections::HashSet<_> = codes.iter().collect();
-        assert_eq!(unique.len(), codes.len(), "all recovery codes must be unique");
+        assert_eq!(
+            unique.len(),
+            codes.len(),
+            "all recovery codes must be unique"
+        );
     }
 }

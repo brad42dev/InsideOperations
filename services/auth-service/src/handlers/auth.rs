@@ -24,7 +24,12 @@ use crate::state::{AppState, EulaPendingEntry, MfaPendingEntry};
 // Failures are logged but do not fail the calling handler.
 // ---------------------------------------------------------------------------
 
-async fn publish_session_event(state: &AppState, event_type: &str, user_id: Uuid, session_id: Uuid) {
+async fn publish_session_event(
+    state: &AppState,
+    event_type: &str,
+    user_id: Uuid,
+    session_id: Uuid,
+) {
     let url = format!("{}/internal/publish", state.config.data_broker_url);
     let body = serde_json::json!({
         "event_type": event_type,
@@ -134,8 +139,13 @@ pub async fn login(
         Some(r) => r,
         None => {
             // Constant-time: still verify a dummy hash to prevent timing attacks
-            let _ = verify_password("dummy", "$argon2id$v=19$m=19456,t=2,p=1$fake/hash/placeholder==");
-            return Err(IoError::BadRequest("Invalid username or password".to_string()));
+            let _ = verify_password(
+                "dummy",
+                "$argon2id$v=19$m=19456,t=2,p=1$fake/hash/placeholder==",
+            );
+            return Err(IoError::BadRequest(
+                "Invalid username or password".to_string(),
+            ));
         }
     };
 
@@ -172,7 +182,9 @@ pub async fn login(
     if let Some(locked_until) = locked_until {
         if locked_until > Utc::now() {
             let secs = (locked_until - Utc::now()).num_seconds().max(1) as u64;
-            return Err(IoError::RateLimited { retry_after_secs: secs });
+            return Err(IoError::RateLimited {
+                retry_after_secs: secs,
+            });
         }
     }
 
@@ -180,18 +192,20 @@ pub async fn login(
     let hash = match &password_hash {
         Some(h) => h.as_str(),
         None => {
-            return Err(IoError::BadRequest("Invalid username or password".to_string()));
+            return Err(IoError::BadRequest(
+                "Invalid username or password".to_string(),
+            ));
         }
     };
 
-    let valid = verify_password(&req.password, hash)
-        .map_err(|e| IoError::Internal(e.to_string()))?;
+    let valid =
+        verify_password(&req.password, hash).map_err(|e| IoError::Internal(e.to_string()))?;
 
     if !valid {
         let new_count = failed_login_count + 1;
         if new_count >= state.config.max_failed_logins {
-            let lockout_until = Utc::now()
-                + chrono::Duration::seconds(state.config.lockout_duration_secs as i64);
+            let lockout_until =
+                Utc::now() + chrono::Duration::seconds(state.config.lockout_duration_secs as i64);
             sqlx::query(
                 "UPDATE users SET failed_login_count = $1, locked_until = $2 WHERE id = $3",
             )
@@ -227,15 +241,15 @@ pub async fn login(
             serde_json::json!({ "ip": extract_client_ip(&headers) }),
         )
         .await;
-        return Err(IoError::BadRequest("Invalid username or password".to_string()));
+        return Err(IoError::BadRequest(
+            "Invalid username or password".to_string(),
+        ));
     }
 
     // --- 5. MFA gate ---
     // Service accounts use API keys and bypass MFA entirely.
     if !is_service_account {
-        if let Some((mfa_token, allowed_methods)) =
-            check_mfa_required(&state.db, user_id).await?
-        {
+        if let Some((mfa_token, allowed_methods)) = check_mfa_required(&state.db, user_id).await? {
             state.mfa_pending_tokens.insert(
                 mfa_token.clone(),
                 MfaPendingEntry {
@@ -287,8 +301,10 @@ pub async fn login(
 
             let (eula_version, eula_title) = match eula_row {
                 Ok(Some(r)) => (
-                    r.try_get::<String, _>("version").unwrap_or_else(|_| "1.0".to_string()),
-                    r.try_get::<String, _>("title").unwrap_or_else(|_| "End User License Agreement".to_string()),
+                    r.try_get::<String, _>("version")
+                        .unwrap_or_else(|_| "1.0".to_string()),
+                    r.try_get::<String, _>("title")
+                        .unwrap_or_else(|_| "End User License Agreement".to_string()),
                 ),
                 _ => ("1.0".to_string(), "End User License Agreement".to_string()),
             };
@@ -400,7 +416,13 @@ pub async fn login(
         access_token,
         token_type: "Bearer".to_string(),
         expires_in: 900, // 15 minutes
-        user: UserSummary { id: user_id, username: db_username, full_name, email, eula_accepted: true },
+        user: UserSummary {
+            id: user_id,
+            username: db_username,
+            full_name,
+            email,
+            eula_accepted: true,
+        },
     });
 
     let cookie = format!(
@@ -410,7 +432,9 @@ pub async fn login(
     let mut response = (StatusCode::OK, Json(body)).into_response();
     response.headers_mut().insert(
         header::SET_COOKIE,
-        cookie.parse().map_err(|_| IoError::Internal("cookie encoding error".to_string()))?,
+        cookie
+            .parse()
+            .map_err(|_| IoError::Internal("cookie encoding error".to_string()))?,
     );
     Ok(response)
 }
@@ -420,12 +444,8 @@ pub async fn login(
 // Rotates the refresh token. Old token is revoked, new one issued.
 // ---------------------------------------------------------------------------
 
-pub async fn refresh(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> IoResult<Response> {
-    let refresh_token = extract_refresh_cookie(&headers)
-        .ok_or_else(|| IoError::Unauthorized)?;
+pub async fn refresh(State(state): State<AppState>, headers: HeaderMap) -> IoResult<Response> {
+    let refresh_token = extract_refresh_cookie(&headers).ok_or_else(|| IoError::Unauthorized)?;
 
     let token_hash = sha256_hex(&refresh_token);
 
@@ -446,12 +466,11 @@ pub async fn refresh(
     let user_id: Uuid = row.get("user_id");
 
     // Verify user still active
-    let user_row = sqlx::query(
-        "SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let user_row =
+        sqlx::query("SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?;
 
     let user_row = user_row.ok_or(IoError::Unauthorized)?;
     let db_username: String = user_row.get("username");
@@ -491,10 +510,12 @@ pub async fn refresh(
     // Revoke old, create new — in a transaction
     let mut tx = state.db.begin().await?;
 
-    sqlx::query("UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = 'rotated' WHERE id = $1")
-        .bind(session_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE user_sessions SET revoked_at = NOW(), revoked_reason = 'rotated' WHERE id = $1",
+    )
+    .bind(session_id)
+    .execute(&mut *tx)
+    .await?;
 
     sqlx::query(
         "INSERT INTO user_sessions
@@ -527,7 +548,9 @@ pub async fn refresh(
     let mut response = (StatusCode::OK, Json(body)).into_response();
     response.headers_mut().insert(
         header::SET_COOKIE,
-        cookie.parse().map_err(|_| IoError::Internal("cookie error".to_string()))?,
+        cookie
+            .parse()
+            .map_err(|_| IoError::Internal("cookie error".to_string()))?,
     );
     Ok(response)
 }
@@ -583,7 +606,9 @@ pub async fn logout(
     let mut response = (StatusCode::OK, Json(body)).into_response();
     response.headers_mut().insert(
         header::SET_COOKIE,
-        clear_cookie.parse().map_err(|_| IoError::Internal("cookie error".to_string()))?,
+        clear_cookie
+            .parse()
+            .map_err(|_| IoError::Internal("cookie error".to_string()))?,
     );
     Ok(response)
 }
@@ -625,7 +650,10 @@ pub async fn lock_session(
         None => {
             // No active session found — user may have refreshed from another tab;
             // return 200 so the frontend's idle timer doesn't see an error.
-            return Ok((StatusCode::OK, Json(serde_json::json!({ "locked": false, "reason": "no_active_session" }))));
+            return Ok((
+                StatusCode::OK,
+                Json(serde_json::json!({ "locked": false, "reason": "no_active_session" })),
+            ));
         }
     };
 
@@ -688,9 +716,7 @@ pub async fn verify_password_unlock(
         .get("x-io-user-id")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    let user_id: uuid::Uuid = user_id_str
-        .parse()
-        .map_err(|_| IoError::Unauthorized)?;
+    let user_id: uuid::Uuid = user_id_str.parse().map_err(|_| IoError::Unauthorized)?;
 
     let ip = extract_client_ip(&headers);
 
@@ -751,8 +777,7 @@ pub async fn verify_password_unlock(
 
         if window_active && soft_count >= SOFT_FAIL_LIMIT {
             let ws = window_start.unwrap();
-            let retry_after =
-                (SOFT_WINDOW_SECS - (Utc::now() - ws).num_seconds()).max(1) as u64;
+            let retry_after = (SOFT_WINDOW_SECS - (Utc::now() - ws).num_seconds()).max(1) as u64;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,
                 Json(serde_json::json!({
@@ -788,8 +813,8 @@ pub async fn verify_password_unlock(
     }
 
     // --- 5. Verify password ---
-    let valid = verify_password(&req.password, hash)
-        .map_err(|e| IoError::Internal(e.to_string()))?;
+    let valid =
+        verify_password(&req.password, hash).map_err(|e| IoError::Internal(e.to_string()))?;
 
     if !valid {
         // Increment failure counters in the session row.
@@ -900,11 +925,7 @@ pub async fn verify_password_unlock(
     )
     .await;
 
-    Ok((
-        StatusCode::OK,
-        Json(serde_json::json!({ "success": true })),
-    )
-        .into_response())
+    Ok((StatusCode::OK, Json(serde_json::json!({ "success": true }))).into_response())
 }
 
 // ---------------------------------------------------------------------------
@@ -912,10 +933,7 @@ pub async fn verify_password_unlock(
 // ---------------------------------------------------------------------------
 
 /// Fetch all permissions for a user via their role assignments.
-pub async fn fetch_user_permissions(
-    db: &io_db::DbPool,
-    user_id: Uuid,
-) -> IoResult<Vec<String>> {
+pub async fn fetch_user_permissions(db: &io_db::DbPool, user_id: Uuid) -> IoResult<Vec<String>> {
     let rows = sqlx::query(
         "SELECT DISTINCT p.name
          FROM permissions p
@@ -928,15 +946,14 @@ pub async fn fetch_user_permissions(
     .fetch_all(db)
     .await?;
 
-    Ok(rows.into_iter().map(|r| r.get::<String, _>("name")).collect())
+    Ok(rows
+        .into_iter()
+        .map(|r| r.get::<String, _>("name"))
+        .collect())
 }
 
 /// Enforce max concurrent sessions. Revokes oldest sessions if limit exceeded.
-async fn enforce_session_limit(
-    db: &io_db::DbPool,
-    user_id: Uuid,
-    max: u32,
-) -> IoResult<()> {
+async fn enforce_session_limit(db: &io_db::DbPool, user_id: Uuid, max: u32) -> IoResult<()> {
     let rows = sqlx::query(
         "SELECT id FROM user_sessions
          WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()

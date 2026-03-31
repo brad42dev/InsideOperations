@@ -59,9 +59,7 @@ impl ObservabilityHandle {
             }
             None => Router::new().route(
                 "/metrics",
-                get(|| async {
-                    (StatusCode::NOT_FOUND, "metrics disabled").into_response()
-                }),
+                get(|| async { (StatusCode::NOT_FOUND, "metrics disabled").into_response() }),
             ),
         }
     }

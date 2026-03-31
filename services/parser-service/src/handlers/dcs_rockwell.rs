@@ -15,11 +15,10 @@
 /// ```
 ///
 /// Output: `Vec<DcsElement>` using the shared intermediate representation.
-
 use serde_json::{json, Value};
 
-use super::dcs_import::DcsElement;
 use super::dcs_ge::ZipContents;
+use super::dcs_import::DcsElement;
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -184,16 +183,10 @@ fn classify_ft_type(
             Some("faceplate".to_string()),
         ),
         // Static shapes
-        "Line" | "Polyline" | "Pipe" | "PipeLine" => (
-            "pipe".to_string(),
-            None,
-            Some("pipe".to_string()),
-        ),
-        "Rectangle" | "Ellipse" | "Polygon" | "FilledShape" => (
-            "pipe".to_string(),
-            None,
-            None,
-        ),
+        "Line" | "Polyline" | "Pipe" | "PipeLine" => {
+            ("pipe".to_string(), None, Some("pipe".to_string()))
+        }
+        "Rectangle" | "Ellipse" | "Polygon" | "FilledShape" => ("pipe".to_string(), None, None),
         // Text
         "Text" | "Label" | "Caption" => {
             let et = if tag.is_some() {

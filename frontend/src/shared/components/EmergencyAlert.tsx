@@ -1,9 +1,9 @@
-import { useUiStore } from '../../store/ui'
+import { useUiStore } from "../../store/ui";
 
 export default function EmergencyAlert() {
-  const { emergencyAlert, dismissEmergencyAlert } = useUiStore()
+  const { emergencyAlert, dismissEmergencyAlert } = useUiStore();
 
-  if (!emergencyAlert.active) return null
+  if (!emergencyAlert.active) return null;
 
   return (
     <div
@@ -12,58 +12,58 @@ export default function EmergencyAlert() {
       aria-modal="true"
       aria-label="Emergency alert"
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
         zIndex: 2000,
-        background: '#7f1d1d',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '32px',
-        gap: '32px',
+        background: "#7f1d1d",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "32px",
+        gap: "32px",
       }}
     >
       {/* Flashing border accent */}
       <div
         style={{
-          position: 'absolute',
+          position: "absolute",
           inset: 0,
-          border: '6px solid #ef4444',
-          pointerEvents: 'none',
-          animation: 'emergency-pulse 1s ease-in-out infinite',
+          border: "6px solid #ef4444",
+          pointerEvents: "none",
+          animation: "emergency-pulse 1s ease-in-out infinite",
         }}
       />
 
       {/* Warning icon */}
       <div
         style={{
-          fontSize: '64px',
+          fontSize: "64px",
           lineHeight: 1,
-          userSelect: 'none',
+          userSelect: "none",
         }}
       >
         ⚠
       </div>
 
-      <div style={{ textAlign: 'center', maxWidth: '640px' }}>
+      <div style={{ textAlign: "center", maxWidth: "640px" }}>
         <div
           style={{
-            fontSize: '13px',
+            fontSize: "13px",
             fontWeight: 700,
-            color: '#fca5a5',
-            textTransform: 'uppercase',
-            letterSpacing: '0.15em',
-            marginBottom: '16px',
+            color: "#fca5a5",
+            textTransform: "uppercase",
+            letterSpacing: "0.15em",
+            marginBottom: "16px",
           }}
         >
           Emergency Alert
         </div>
         <div
           style={{
-            fontSize: '28px',
+            fontSize: "28px",
             fontWeight: 700,
-            color: '#ffffff',
+            color: "#ffffff",
             lineHeight: 1.3,
           }}
         >
@@ -74,23 +74,23 @@ export default function EmergencyAlert() {
       <button
         onClick={dismissEmergencyAlert}
         style={{
-          padding: '12px 32px',
-          background: 'rgba(255, 255, 255, 0.15)',
-          border: '2px solid rgba(255, 255, 255, 0.5)',
-          borderRadius: '6px',
-          color: '#ffffff',
-          fontSize: '15px',
+          padding: "12px 32px",
+          background: "rgba(255, 255, 255, 0.15)",
+          border: "2px solid rgba(255, 255, 255, 0.5)",
+          borderRadius: "6px",
+          color: "#ffffff",
+          fontSize: "15px",
           fontWeight: 600,
-          cursor: 'pointer',
-          transition: 'background 0.15s',
+          cursor: "pointer",
+          transition: "background 0.15s",
         }}
         onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.background =
-            'rgba(255, 255, 255, 0.25)'
+          (e.currentTarget as HTMLButtonElement).style.background =
+            "rgba(255, 255, 255, 0.25)";
         }}
         onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLButtonElement).style.background =
-            'rgba(255, 255, 255, 0.15)'
+          (e.currentTarget as HTMLButtonElement).style.background =
+            "rgba(255, 255, 255, 0.15)";
         }}
       >
         Dismiss
@@ -103,5 +103,5 @@ export default function EmergencyAlert() {
         }
       `}</style>
     </div>
-  )
+  );
 }

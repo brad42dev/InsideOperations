@@ -25,7 +25,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
@@ -77,6 +80,7 @@ fn normalize_variables(raw: JsonValue) -> Vec<JsonValue> {
 /// structured TemplateVariable object sent by the frontend.
 ///   "location"  → "location"
 ///   {"name": "location", ...} → "location"
+#[allow(dead_code)]
 fn extract_var_name(v: &JsonValue) -> Option<String> {
     if let Some(s) = v.as_str() {
         return Some(s.to_string());
@@ -276,15 +280,24 @@ pub struct MarkMusterBody {
 // ---------------------------------------------------------------------------
 
 fn error_response(status: StatusCode, code: &str, message: &str) -> impl IntoResponse {
-    (status, Json(json!({ "success": false, "error": { "code": code, "message": message } })))
+    (
+        status,
+        Json(json!({ "success": false, "error": { "code": code, "message": message } })),
+    )
 }
 
 fn ok(data: impl serde::Serialize) -> impl IntoResponse {
-    (StatusCode::OK, Json(json!({ "success": true, "data": data })))
+    (
+        StatusCode::OK,
+        Json(json!({ "success": true, "data": data })),
+    )
 }
 
 fn created(data: impl serde::Serialize) -> impl IntoResponse {
-    (StatusCode::CREATED, Json(json!({ "success": true, "data": data })))
+    (
+        StatusCode::CREATED,
+        Json(json!({ "success": true, "data": data })),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -297,8 +310,12 @@ pub async fn list_messages(
     Query(q): Query<MessagesQuery>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let page = q.page.unwrap_or(1).max(1) as u32;
@@ -377,8 +394,12 @@ pub async fn list_messages(
         }
         Err(e) => {
             tracing::error!(error = %e, "list_messages query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch messages")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch messages",
+            )
+            .into_response()
         }
     }
 }
@@ -393,15 +414,23 @@ pub async fn send_notification(
     Json(body): Json<SendNotificationBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:send") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:send permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:send permission required",
+        )
+        .into_response();
     }
 
     let sender_id = match user_id_from_claims(&claims) {
         Some(id) => id,
         None => {
-            return error_response(StatusCode::UNAUTHORIZED, "INVALID_TOKEN", "Cannot resolve user from token")
-                .into_response()
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "Cannot resolve user from token",
+            )
+            .into_response()
         }
     };
 
@@ -430,13 +459,21 @@ pub async fn send_notification(
                 )
             }
             Ok(None) => {
-                return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Template not found or disabled")
-                    .into_response()
+                return error_response(
+                    StatusCode::NOT_FOUND,
+                    "NOT_FOUND",
+                    "Template not found or disabled",
+                )
+                .into_response()
             }
             Err(e) => {
                 tracing::error!(error = %e, "template lookup failed");
-                return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to load template")
-                    .into_response();
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "DB_ERROR",
+                    "Failed to load template",
+                )
+                .into_response();
             }
         }
     } else {
@@ -444,30 +481,39 @@ pub async fn send_notification(
         let title = match body.title {
             Some(t) => substitute_variables(&t, &variables),
             None => {
-                return error_response(StatusCode::BAD_REQUEST, "MISSING_FIELD", "title is required for ad-hoc notifications")
-                    .into_response()
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "MISSING_FIELD",
+                    "title is required for ad-hoc notifications",
+                )
+                .into_response()
             }
         };
         let msg_body = match body.body {
             Some(b) => substitute_variables(&b, &variables),
             None => {
-                return error_response(StatusCode::BAD_REQUEST, "MISSING_FIELD", "body is required for ad-hoc notifications")
-                    .into_response()
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "MISSING_FIELD",
+                    "body is required for ad-hoc notifications",
+                )
+                .into_response()
             }
         };
         let severity = body.severity.unwrap_or_else(|| "info".to_string());
-        let channels = body.channels.unwrap_or_else(|| vec!["websocket".to_string()]);
+        let channels = body
+            .channels
+            .unwrap_or_else(|| vec!["websocket".to_string()]);
         (title, msg_body, severity, channels)
     };
 
     // Resolve recipients
     let recipient_ids: Vec<Uuid> = if let Some(group_id) = body.group_id {
-        let group_type_row = sqlx::query(
-            "SELECT group_type FROM notification_groups WHERE id = $1",
-        )
-        .bind(group_id)
-        .fetch_optional(&state.db)
-        .await;
+        let group_type_row =
+            sqlx::query("SELECT group_type FROM notification_groups WHERE id = $1")
+                .bind(group_id)
+                .fetch_optional(&state.db)
+                .await;
 
         match group_type_row {
             Ok(Some(row)) => {
@@ -492,13 +538,21 @@ pub async fn send_notification(
                 }
             }
             Ok(None) => {
-                return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Notification group not found")
-                    .into_response()
+                return error_response(
+                    StatusCode::NOT_FOUND,
+                    "NOT_FOUND",
+                    "Notification group not found",
+                )
+                .into_response()
             }
             Err(e) => {
                 tracing::error!(error = %e, "group lookup failed");
-                return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to resolve group")
-                    .into_response();
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "DB_ERROR",
+                    "Failed to resolve group",
+                )
+                .into_response();
             }
         }
     } else if let Some(ref ids) = body.recipient_user_ids {
@@ -511,7 +565,11 @@ pub async fn send_notification(
 
     // Insert notification_messages record
     let channels_ref: Vec<&str> = channels.iter().map(|s| s.as_str()).collect();
-    let variables_json = if variables == json!({}) { None } else { Some(variables.clone()) };
+    let variables_json = if variables == json!({}) {
+        None
+    } else {
+        Some(variables.clone())
+    };
 
     let msg_row = sqlx::query(
         r#"
@@ -537,8 +595,12 @@ pub async fn send_notification(
         Ok(ref r) => r.get("id"),
         Err(e) => {
             tracing::error!(error = %e, "insert notification_message failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to save notification")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to save notification",
+            )
+            .into_response();
         }
     };
 
@@ -556,7 +618,9 @@ pub async fn send_notification(
     }
 
     // Broadcast log for emergency/critical with websocket channel
-    if (severity == "emergency" || severity == "critical") && channels.contains(&"websocket".to_string()) {
+    if (severity == "emergency" || severity == "critical")
+        && channels.contains(&"websocket".to_string())
+    {
         tracing::warn!(
             message_id = %msg_id,
             severity = %severity,
@@ -602,8 +666,12 @@ pub async fn get_message(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -647,10 +715,17 @@ pub async fn get_message(
             status: r.get("status"),
         })
         .into_response(),
-        Ok(None) => error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Message not found").into_response(),
+        Ok(None) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Message not found").into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "get_message query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch message").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch message",
+            )
+            .into_response()
         }
     }
 }
@@ -665,8 +740,12 @@ pub async fn list_templates(
     Query(q): Query<TemplatesQuery>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let rows = sqlx::query(
@@ -706,7 +785,12 @@ pub async fn list_templates(
         }
         Err(e) => {
             tracing::error!(error = %e, "list_templates query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch templates").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch templates",
+            )
+            .into_response()
         }
     }
 }
@@ -721,14 +805,20 @@ pub async fn create_template(
     Json(body): Json<CreateTemplateBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_templates") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_templates permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_templates permission required",
+        )
+        .into_response();
     }
 
     let creator_id = user_id_from_claims(&claims);
     let category = body.category.unwrap_or_else(|| "custom".to_string());
     let severity = body.severity.unwrap_or_else(|| "info".to_string());
-    let channels = body.channels.unwrap_or_else(|| vec!["websocket".to_string()]);
+    let channels = body
+        .channels
+        .unwrap_or_else(|| vec!["websocket".to_string()]);
     // Accept either plain string names or structured TemplateVariable objects from the frontend.
     // Normalize to structured format and store as JSONB.
     let variables_json: JsonValue = match body.variables {
@@ -778,11 +868,21 @@ pub async fn create_template(
         })
         .into_response(),
         Err(e) if e.to_string().contains("unique") || e.to_string().contains("duplicate") => {
-            error_response(StatusCode::CONFLICT, "CONFLICT", "A template with that name already exists").into_response()
+            error_response(
+                StatusCode::CONFLICT,
+                "CONFLICT",
+                "A template with that name already exists",
+            )
+            .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "create_template insert failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to create template").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to create template",
+            )
+            .into_response()
         }
     }
 }
@@ -797,8 +897,12 @@ pub async fn get_template(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -829,10 +933,17 @@ pub async fn get_template(
             created_by: r.get("created_by"),
         })
         .into_response(),
-        Ok(None) => error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Template not found").into_response(),
+        Ok(None) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Template not found").into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "get_template query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch template").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch template",
+            )
+            .into_response()
         }
     }
 }
@@ -848,27 +959,34 @@ pub async fn update_template(
     Json(body): Json<UpdateTemplateBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_templates") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_templates permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_templates permission required",
+        )
+        .into_response();
     }
 
     // Check if template exists and whether it is a system template
-    let existing = sqlx::query(
-        "SELECT is_system FROM notification_templates WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let existing = sqlx::query("SELECT is_system FROM notification_templates WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
 
     let is_system: bool = match existing {
         Ok(Some(r)) => r.get("is_system"),
         Ok(None) => {
-            return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Template not found").into_response()
+            return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Template not found")
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "update_template select failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch template")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch template",
+            )
+            .into_response();
         }
     };
 
@@ -923,7 +1041,12 @@ pub async fn update_template(
                 .into_response(),
                 Err(e) => {
                     tracing::error!(error = %e, "update system template failed");
-                    error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Update failed").into_response()
+                    error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "DB_ERROR",
+                        "Update failed",
+                    )
+                    .into_response()
                 }
             };
         }
@@ -939,7 +1062,9 @@ pub async fn update_template(
         let normalized = normalize_variables(JsonValue::Array(vars.clone()));
         JsonValue::Array(normalized)
     });
-    let channels_ref: Option<Vec<&str>> = channels_owned.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
+    let channels_ref: Option<Vec<&str>> = channels_owned
+        .as_ref()
+        .map(|v| v.iter().map(|s| s.as_str()).collect());
 
     let row = sqlx::query(
         r#"
@@ -989,7 +1114,12 @@ pub async fn update_template(
         .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "update_template update failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to update template").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to update template",
+            )
+            .into_response()
         }
     }
 }
@@ -1004,8 +1134,12 @@ pub async fn delete_template(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_templates") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_templates permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_templates permission required",
+        )
+        .into_response();
     }
 
     let existing = sqlx::query("SELECT is_system FROM notification_templates WHERE id = $1")
@@ -1026,12 +1160,17 @@ pub async fn delete_template(
             }
         }
         Ok(None) => {
-            return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Template not found").into_response()
+            return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Template not found")
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "delete_template select failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch template")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch template",
+            )
+            .into_response();
         }
     }
 
@@ -1043,7 +1182,12 @@ pub async fn delete_template(
         Ok(_) => (StatusCode::OK, Json(json!({ "success": true }))).into_response(),
         Err(e) => {
             tracing::error!(error = %e, "delete_template delete failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to delete template").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to delete template",
+            )
+            .into_response()
         }
     }
 }
@@ -1058,8 +1202,12 @@ pub async fn list_groups(
     Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let pg = page.page();
@@ -1073,7 +1221,12 @@ pub async fn list_groups(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_groups count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count groups").into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count groups",
+            )
+            .into_response();
         }
     };
 
@@ -1111,11 +1264,20 @@ pub async fn list_groups(
                     member_count: r.get("member_count"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(groups, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(groups, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_groups query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch groups").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch groups",
+            )
+            .into_response()
         }
     }
 }
@@ -1130,8 +1292,12 @@ pub async fn create_group(
     Json(body): Json<CreateGroupBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_groups") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_groups permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_groups permission required",
+        )
+        .into_response();
     }
 
     let creator_id = user_id_from_claims(&claims);
@@ -1166,11 +1332,21 @@ pub async fn create_group(
         })
         .into_response(),
         Err(e) if e.to_string().contains("unique") || e.to_string().contains("duplicate") => {
-            error_response(StatusCode::CONFLICT, "CONFLICT", "A group with that name already exists").into_response()
+            error_response(
+                StatusCode::CONFLICT,
+                "CONFLICT",
+                "A group with that name already exists",
+            )
+            .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "create_group insert failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to create group").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to create group",
+            )
+            .into_response()
         }
     }
 }
@@ -1185,8 +1361,12 @@ pub async fn get_group(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let group_row = sqlx::query(
@@ -1211,11 +1391,18 @@ pub async fn get_group(
             created_by: r.get("created_by"),
             member_count: None,
         },
-        Ok(None) => return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Group not found").into_response(),
+        Ok(None) => {
+            return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Group not found")
+                .into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "get_group select failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch group")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch group",
+            )
+            .into_response();
         }
     };
 
@@ -1285,8 +1472,12 @@ pub async fn update_group(
     Json(body): Json<UpdateGroupBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_groups") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_groups permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_groups permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -1332,10 +1523,17 @@ pub async fn update_group(
             })
             .into_response()
         }
-        Ok(None) => error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Group not found").into_response(),
+        Ok(None) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Group not found").into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "update_group update failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to update group").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to update group",
+            )
+            .into_response()
         }
     }
 }
@@ -1350,8 +1548,12 @@ pub async fn delete_group(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_groups") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_groups permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_groups permission required",
+        )
+        .into_response();
     }
 
     match sqlx::query("DELETE FROM notification_groups WHERE id = $1 RETURNING id")
@@ -1360,10 +1562,17 @@ pub async fn delete_group(
         .await
     {
         Ok(Some(_)) => (StatusCode::OK, Json(json!({ "success": true }))).into_response(),
-        Ok(None) => error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Group not found").into_response(),
+        Ok(None) => {
+            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Group not found").into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "delete_group failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to delete group").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to delete group",
+            )
+            .into_response()
         }
     }
 }
@@ -1379,8 +1588,12 @@ pub async fn add_group_member(
     Json(body): Json<AddMemberBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_groups") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_groups permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_groups permission required",
+        )
+        .into_response();
     }
 
     let adder_id = user_id_from_claims(&claims);
@@ -1399,12 +1612,20 @@ pub async fn add_group_member(
     .await
     {
         Ok(_) => (StatusCode::OK, Json(json!({ "success": true }))).into_response(),
-        Err(e) if e.to_string().contains("foreign key") => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Group or user not found").into_response()
-        }
+        Err(e) if e.to_string().contains("foreign key") => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Group or user not found",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "add_group_member insert failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to add member").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to add member",
+            )
+            .into_response()
         }
     }
 }
@@ -1419,8 +1640,12 @@ pub async fn remove_group_member(
     Path((group_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:manage_groups") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:manage_groups permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:manage_groups permission required",
+        )
+        .into_response();
     }
 
     match sqlx::query(
@@ -1432,12 +1657,20 @@ pub async fn remove_group_member(
     .await
     {
         Ok(Some(_)) => (StatusCode::OK, Json(json!({ "success": true }))).into_response(),
-        Ok(None) => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Member not found in group").into_response()
-        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Member not found in group",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "remove_group_member delete failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to remove member").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to remove member",
+            )
+            .into_response()
         }
     }
 }
@@ -1452,8 +1685,12 @@ pub async fn get_muster_status(
     Path(message_id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let rows = sqlx::query(
@@ -1513,8 +1750,12 @@ pub async fn get_muster_status(
         }
         Err(e) => {
             tracing::error!(error = %e, "get_muster_status query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch muster status")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch muster status",
+            )
+            .into_response()
         }
     }
 }
@@ -1530,8 +1771,12 @@ pub async fn mark_muster(
     Json(body): Json<MarkMusterBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:muster") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:muster permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:muster permission required",
+        )
+        .into_response();
     }
 
     let marker_id = user_id_from_claims(&claims);
@@ -1577,13 +1822,12 @@ pub async fn mark_muster(
                     .ok()
                     .flatten();
 
-            let email: Option<String> =
-                sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
-                    .bind(body.user_id)
-                    .fetch_optional(&state.db)
-                    .await
-                    .ok()
-                    .flatten();
+            let email: Option<String> = sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
+                .bind(body.user_id)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
 
             ok(MusterMarkRow {
                 id: r.get("id"),
@@ -1598,12 +1842,20 @@ pub async fn mark_muster(
             })
             .into_response()
         }
-        Err(e) if e.to_string().contains("foreign key") => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Message or user not found").into_response()
-        }
+        Err(e) if e.to_string().contains("foreign key") => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Message or user not found",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "mark_muster upsert failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to mark muster status").into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to mark muster status",
+            )
+            .into_response()
         }
     }
 }
@@ -1617,8 +1869,12 @@ pub async fn get_active_notifications(
     Extension(claims): Extension<Claims>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let rows = sqlx::query(
@@ -1670,8 +1926,12 @@ pub async fn get_active_notifications(
         }
         Err(e) => {
             tracing::error!(error = %e, "get_active_notifications query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch active notifications")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch active notifications",
+            )
+            .into_response()
         }
     }
 }
@@ -1685,8 +1945,12 @@ pub async fn get_enabled_channels(
     Extension(claims): Extension<Claims>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "alerts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "alerts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "alerts:read permission required",
+        )
+        .into_response();
     }
 
     let rows = sqlx::query(
@@ -1711,4 +1975,3 @@ pub async fn get_enabled_channels(
         }
     }
 }
-

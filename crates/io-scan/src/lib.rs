@@ -20,6 +20,8 @@
 //! assert_eq!(result.action, ScanAction::Allow);
 //! ```
 
+#![allow(clippy::items_after_test_module)]
+
 use anyhow::Result;
 #[cfg(feature = "yara")]
 use tracing::warn;
@@ -95,17 +97,7 @@ fn scan_bytes_yara(data: &[u8], filename: &str) -> Result<ScanResult> {
         });
     }
 
-    let rules = match compiler.build() {
-        Ok(r) => r,
-        Err(e) => {
-            warn!(error = ?e, "Failed to build YARA rules, allowing file");
-            return Ok(ScanResult {
-                matched: false,
-                rule_names: vec![],
-                action: ScanAction::Allow,
-            });
-        }
-    };
+    let rules = compiler.build();
 
     let mut scanner = yara_x::Scanner::new(&rules);
 
@@ -162,7 +154,11 @@ mod tests {
     fn scan_bytes_with_clean_data_returns_allow() {
         let data = b"This is ordinary process monitoring telemetry data. Nothing suspicious here.";
         let result = scan_bytes(data, "telemetry.bin").expect("scan should not error");
-        assert_eq!(result.action, ScanAction::Allow, "clean data must be allowed");
+        assert_eq!(
+            result.action,
+            ScanAction::Allow,
+            "clean data must be allowed"
+        );
         assert!(!result.matched, "clean data must not match any rules");
     }
 
@@ -176,8 +172,7 @@ mod tests {
     fn scan_bytes_with_eicar_string_behaves_correctly() {
         // The EICAR test string: safe to include in source — it is a well-known
         // antivirus test artifact with no actual malicious payload.
-        let eicar: &[u8] =
-            b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
+        let eicar: &[u8] = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
 
         let result = scan_bytes(eicar, "eicar.com").expect("scan should not error");
 

@@ -209,32 +209,25 @@ pub async fn acknowledge_alarm(
     let event_ts: DateTime<Utc> = state_row.try_get("event_ts").map_err(IoError::Database)?;
 
     // Build a dummy instance just to pass through transition.
-    let def_row = sqlx::query(
-        "SELECT name, point_id FROM alarm_definitions WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| IoError::NotFound(format!("Alarm definition {id} not found")))?;
+    let def_row = sqlx::query("SELECT name, point_id FROM alarm_definitions WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| IoError::NotFound(format!("Alarm definition {id} not found")))?;
 
     let name: String = def_row.try_get("name").map_err(IoError::Database)?;
     let point_id: Option<Uuid> = def_row.try_get("point_id").map_err(IoError::Database)?;
 
-    let mut instance = crate::alarm_state::AlarmInstance::new(
-        id,
-        point_id.unwrap_or(Uuid::nil()),
-        3,
-        &name,
-    );
+    let mut instance =
+        crate::alarm_state::AlarmInstance::new(id, point_id.unwrap_or(Uuid::nil()), 3, &name);
     instance.state = current_state.clone();
 
     let event = AlarmEvent::OperatorAcknowledge { user_id };
-    let next = transition(&current_state, &event, &mut instance, now)
-        .ok_or_else(|| {
-            IoError::BadRequest(format!(
-                "Cannot acknowledge alarm in state '{current_state_str}'"
-            ))
-        })?;
+    let next = transition(&current_state, &event, &mut instance, now).ok_or_else(|| {
+        IoError::BadRequest(format!(
+            "Cannot acknowledge alarm in state '{current_state_str}'"
+        ))
+    })?;
 
     let new_state_db = alarm_state_to_db(&next);
     let prev_state_db = alarm_state_to_db(&current_state);
@@ -384,7 +377,9 @@ pub async fn get_alarm_history(
     let limit = filter.per_page.unwrap_or(50).clamp(1, 500);
     let offset = (page - 1) * limit;
 
-    let from = filter.from.unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
+    let from = filter
+        .from
+        .unwrap_or_else(|| Utc::now() - chrono::Duration::days(7));
     let to = filter.to.unwrap_or_else(Utc::now);
 
     let total: i64 = sqlx::query(
@@ -417,7 +412,7 @@ pub async fn get_alarm_history(
     .bind(from)
     .bind(to)
     .bind(filter.definition_id)
-    .bind(limit as i64)
+    .bind(limit)
     .bind(offset)
     .fetch_all(&state.db)
     .await?;
@@ -438,7 +433,12 @@ pub async fn get_alarm_history(
         })
         .collect();
 
-    Ok(Json(PagedResponse::new(items, page as u32, limit as u32, total as u64)))
+    Ok(Json(PagedResponse::new(
+        items,
+        page as u32,
+        limit as u32,
+        total as u64,
+    )))
 }
 
 // ---------------------------------------------------------------------------

@@ -98,16 +98,18 @@ pub async fn generate_report(
         Err(_) => return IoError::Unauthorized.into_response(),
     };
 
-    if !claims.permissions.iter().any(|p| p == "*" || p == "reports:export") {
+    if !claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == "reports:export")
+    {
         return IoError::Forbidden("reports:export permission required".into()).into_response();
     }
 
     let valid_formats = ["csv", "xlsx", "html", "json", "pdf"];
     if !valid_formats.contains(&req.format.as_str()) {
-        return IoError::BadRequest(
-            "format must be one of: csv, xlsx, html, json, pdf".into(),
-        )
-        .into_response();
+        return IoError::BadRequest("format must be one of: csv, xlsx, html, json, pdf".into())
+            .into_response();
     }
 
     // Verify template exists
@@ -409,7 +411,10 @@ pub async fn list_report_history(
     };
 
     // Admins can see all jobs; regular users see only their own
-    let is_admin = claims.permissions.iter().any(|p| p == "*" || p == "system:admin");
+    let is_admin = claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == "system:admin");
 
     let page = filter.page.page();
     let limit = filter.page.per_page();

@@ -1,8 +1,8 @@
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc};
 
 use crate::ModelInfo;
 
@@ -301,10 +301,7 @@ impl ModelManager {
     ///
     /// Returns `None` if no slot exists for the domain or no session has been
     /// installed yet.
-    pub async fn session_for_domain(
-        &self,
-        domain: &str,
-    ) -> Option<Arc<ort::session::Session>> {
+    pub async fn session_for_domain(&self, domain: &str) -> Option<Arc<ort::session::Session>> {
         let slot = match domain {
             "pid" => self.pid_domain.as_ref(),
             "dcs" => self.dcs_domain.as_ref(),

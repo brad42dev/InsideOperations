@@ -121,7 +121,9 @@ pub async fn twilio_status(
     // Read body bytes
     let body_bytes = match axum::body::to_bytes(request.into_body(), 65_536).await {
         Ok(b) => b,
-        Err(_) => return IoError::BadRequest("Failed to read request body".to_string()).into_response(),
+        Err(_) => {
+            return IoError::BadRequest("Failed to read request body".to_string()).into_response()
+        }
     };
     let body_str = match std::str::from_utf8(&body_bytes) {
         Ok(s) => s,
@@ -166,7 +168,10 @@ pub async fn twilio_status(
         }
     };
 
-    let twilio_status = params.get("MessageStatus").map(|s| s.as_str()).unwrap_or("unknown");
+    let twilio_status = params
+        .get("MessageStatus")
+        .map(|s| s.as_str())
+        .unwrap_or("unknown");
     let internal_status = match twilio_status {
         "queued" | "accepted" | "sending" | "scheduled" => "sending",
         "sent" => "sent",
@@ -230,7 +235,9 @@ pub async fn twilio_voice(
     // Read body bytes
     let body_bytes = match axum::body::to_bytes(request.into_body(), 65_536).await {
         Ok(b) => b,
-        Err(_) => return IoError::BadRequest("Failed to read request body".to_string()).into_response(),
+        Err(_) => {
+            return IoError::BadRequest("Failed to read request body".to_string()).into_response()
+        }
     };
     let body_str = match std::str::from_utf8(&body_bytes) {
         Ok(s) => s,
@@ -285,12 +292,11 @@ pub async fn twilio_voice(
     }
 
     // Digit "1" pressed — find the alert via the delivery's external_id
-    let alert_id_result: Result<Option<uuid::Uuid>, _> = sqlx::query_scalar(
-        "SELECT alert_id FROM alert_deliveries WHERE external_id = $1 LIMIT 1",
-    )
-    .bind(&call_sid)
-    .fetch_optional(&state.db)
-    .await;
+    let alert_id_result: Result<Option<uuid::Uuid>, _> =
+        sqlx::query_scalar("SELECT alert_id FROM alert_deliveries WHERE external_id = $1 LIMIT 1")
+            .bind(&call_sid)
+            .fetch_optional(&state.db)
+            .await;
 
     let alert_id = match alert_id_result {
         Ok(Some(id)) => id,
@@ -373,11 +379,10 @@ pub async fn twilio_voice(
 /// Fetch the Twilio auth token from the `alert_channels` table (SMS config).
 /// Returns an empty string if the channel is not configured (dev mode).
 async fn get_twilio_auth_token(state: &AppState) -> String {
-    let config_result: Result<Option<serde_json::Value>, _> = sqlx::query_scalar(
-        "SELECT config FROM alert_channels WHERE channel_type = 'sms' LIMIT 1",
-    )
-    .fetch_optional(&state.db)
-    .await;
+    let config_result: Result<Option<serde_json::Value>, _> =
+        sqlx::query_scalar("SELECT config FROM alert_channels WHERE channel_type = 'sms' LIMIT 1")
+            .fetch_optional(&state.db)
+            .await;
 
     match config_result {
         Ok(Some(cfg)) => cfg
@@ -400,7 +405,12 @@ mod tests {
     #[test]
     fn validate_signature_empty_token_always_passes() {
         let params = BTreeMap::new();
-        assert!(validate_twilio_signature("", "https://example.com/cb", &params, "anything"));
+        assert!(validate_twilio_signature(
+            "",
+            "https://example.com/cb",
+            &params,
+            "anything"
+        ));
     }
 
     #[test]

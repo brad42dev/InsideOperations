@@ -1,38 +1,45 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { logsApi } from '../../api/logs'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { logsApi } from "../../api/logs";
 
 export default function LogNew() {
-  const navigate = useNavigate()
-  const [selectedTemplateId, setSelectedTemplateId] = useState('')
-  const [teamName, setTeamName] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate();
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [teamName, setTeamName] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const { data: templates = [], isLoading, isError, error: queryError } = useQuery({
-    queryKey: ['log', 'templates', 'active'],
+  const {
+    data: templates = [],
+    isLoading,
+    isError,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["log", "templates", "active"],
     queryFn: async () => {
       try {
-        const res = await logsApi.listTemplates({ is_active: true })
-        console.log('[LogNew] API response success:', res.success)
+        const res = await logsApi.listTemplates({ is_active: true });
+        console.log("[LogNew] API response success:", res.success);
 
         if (!res.success) {
-          console.error('[LogNew] API failed:', res.error?.message)
-          return []
+          console.error("[LogNew] API failed:", res.error?.message);
+          return [];
         }
 
         // API client returns either:
         // 1. Array directly: res.data = [LogTemplate, ...]
         // 2. Paginated result: res.data = { data: [LogTemplate, ...], pagination: ... }
-        const templates = Array.isArray(res.data) ? res.data : (res.data as { data: unknown[] })?.data ?? []
-        console.log('[LogNew] Fetched templates:', templates.length, templates)
-        return templates
+        const templates = Array.isArray(res.data)
+          ? res.data
+          : ((res.data as { data: unknown[] })?.data ?? []);
+        console.log("[LogNew] Fetched templates:", templates.length, templates);
+        return templates;
       } catch (error) {
-        console.error('[LogNew] Fetch error:', error)
-        return []
+        console.error("[LogNew] Fetch error:", error);
+        return [];
       }
     },
-  })
+  });
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -42,66 +49,79 @@ export default function LogNew() {
       }),
     onSuccess: (result) => {
       if (!result.success) {
-        setError(result.error.message)
-        return
+        setError(result.error.message);
+        return;
       }
-      navigate(`/log/${result.data.id}`)
+      navigate(`/log/${result.data.id}`);
     },
     onError: (err: Error) => setError(err.message),
-  })
+  });
 
   const containerStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '100%',
-    padding: 'var(--io-space-6)',
-    background: 'var(--io-bg)',
-  }
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: "100%",
+    padding: "var(--io-space-6)",
+    background: "var(--io-bg)",
+  };
 
   const cardStyle: React.CSSProperties = {
-    background: 'var(--io-surface)',
-    border: '1px solid var(--io-border)',
-    borderRadius: '12px',
-    padding: '32px',
-    width: '100%',
-    maxWidth: '520px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-  }
+    background: "var(--io-surface)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "12px",
+    padding: "32px",
+    width: "100%",
+    maxWidth: "520px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px",
+  };
 
   const labelStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-    fontSize: '12px',
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    fontSize: "12px",
     fontWeight: 600,
-    color: 'var(--io-text-secondary)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  }
+    color: "var(--io-text-secondary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  };
 
   const inputStyle: React.CSSProperties = {
-    padding: '10px 12px',
-    background: 'var(--io-surface-secondary)',
-    border: '1px solid var(--io-border)',
-    borderRadius: '6px',
-    color: 'var(--io-text-primary)',
-    fontSize: '14px',
-    width: '100%',
-    boxSizing: 'border-box',
-  }
+    padding: "10px 12px",
+    background: "var(--io-surface-secondary)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "6px",
+    color: "var(--io-text-primary)",
+    fontSize: "14px",
+    width: "100%",
+    boxSizing: "border-box",
+  };
 
   return (
     <div style={containerStyle}>
       <div style={cardStyle}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--io-text-primary)' }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "20px",
+              fontWeight: 700,
+              color: "var(--io-text-primary)",
+            }}
+          >
             New Log Entry
           </h2>
-          <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--io-text-secondary)' }}>
+          <p
+            style={{
+              margin: "6px 0 0",
+              fontSize: "14px",
+              color: "var(--io-text-secondary)",
+            }}
+          >
             Select a template to start a new operational log entry.
           </p>
         </div>
@@ -115,7 +135,7 @@ export default function LogNew() {
             disabled={isLoading}
           >
             <option value="">
-              {isLoading ? 'Loading templates…' : '— Select a template —'}
+              {isLoading ? "Loading templates…" : "— Select a template —"}
             </option>
             {templates.map((t: any) => (
               <option key={t.id} value={t.id}>
@@ -136,36 +156,69 @@ export default function LogNew() {
         </label>
 
         {error && (
-          <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: '#ef4444' }}>
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: "6px",
+              fontSize: "13px",
+              color: "#ef4444",
+            }}
+          >
             {error}
           </div>
         )}
 
         {isError && (
-          <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: '#ef4444' }}>
-            Failed to load templates: {queryError ? String(queryError) : 'Unknown error'}
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: "6px",
+              fontSize: "13px",
+              color: "#ef4444",
+            }}
+          >
+            Failed to load templates:{" "}
+            {queryError ? String(queryError) : "Unknown error"}
             <br />
-            {queryError && <small>Error details: {JSON.stringify(queryError)}</small>}
+            {queryError && (
+              <small>Error details: {JSON.stringify(queryError)}</small>
+            )}
           </div>
         )}
 
         {!isLoading && !isError && templates.length === 0 && (
-          <div style={{ padding: '10px 14px', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', fontSize: '13px', color: '#3b82f6' }}>
-            No active templates available. Create a template in Settings to get started.
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "rgba(59,130,246,0.1)",
+              border: "1px solid rgba(59,130,246,0.3)",
+              borderRadius: "6px",
+              fontSize: "13px",
+              color: "#3b82f6",
+            }}
+          >
+            No active templates available. Create a template in Settings to get
+            started.
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+        <div
+          style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}
+        >
           <button
-            onClick={() => navigate('/log')}
+            onClick={() => navigate("/log")}
             style={{
-              padding: '9px 18px',
-              background: 'none',
-              border: '1px solid var(--io-border)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              color: 'var(--io-text-secondary)',
+              padding: "9px 18px",
+              background: "none",
+              border: "1px solid var(--io-border)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "14px",
+              color: "var(--io-text-secondary)",
             }}
           >
             Cancel
@@ -174,20 +227,22 @@ export default function LogNew() {
             onClick={() => createMutation.mutate()}
             disabled={!selectedTemplateId || createMutation.isPending}
             style={{
-              padding: '9px 18px',
-              background: selectedTemplateId ? 'var(--io-accent)' : 'var(--io-surface-secondary)',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: selectedTemplateId ? 'pointer' : 'not-allowed',
-              fontSize: '14px',
+              padding: "9px 18px",
+              background: selectedTemplateId
+                ? "var(--io-accent)"
+                : "var(--io-surface-secondary)",
+              border: "none",
+              borderRadius: "6px",
+              cursor: selectedTemplateId ? "pointer" : "not-allowed",
+              fontSize: "14px",
               fontWeight: 600,
-              color: selectedTemplateId ? '#fff' : 'var(--io-text-muted)',
+              color: selectedTemplateId ? "#fff" : "var(--io-text-muted)",
             }}
           >
-            {createMutation.isPending ? 'Creating…' : 'Start Entry'}
+            {createMutation.isPending ? "Creating…" : "Start Entry"}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

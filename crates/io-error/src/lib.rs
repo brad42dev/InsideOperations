@@ -20,7 +20,10 @@ pub struct FieldError {
 
 impl FieldError {
     pub fn new(field: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { field: field.into(), message: message.into() }
+        Self {
+            field: field.into(),
+            message: message.into(),
+        }
     }
 }
 
@@ -76,15 +79,21 @@ impl IntoResponse for IoError {
         let (status, code, message, details, retry_after) = match &self {
             IoError::Database(e) => {
                 tracing::error!(error = %e, "database error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
-                 "A database error occurred".to_string(), None, None)
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    "A database error occurred".to_string(),
+                    None,
+                    None,
+                )
             }
-            IoError::NotFound(msg) => {
-                (StatusCode::NOT_FOUND, "NOT_FOUND", msg.clone(), None, None)
-            }
+            IoError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg.clone(), None, None),
             IoError::Unauthorized => (
-                StatusCode::UNAUTHORIZED, "UNAUTHORIZED",
-                "Authentication required".to_string(), None, None,
+                StatusCode::UNAUTHORIZED,
+                "UNAUTHORIZED",
+                "Authentication required".to_string(),
+                None,
+                None,
             ),
             IoError::Forbidden(msg) => {
                 (StatusCode::FORBIDDEN, "FORBIDDEN", msg.clone(), None, None)
@@ -94,29 +103,49 @@ impl IntoResponse for IoError {
                     .iter()
                     .map(|f| json!({ "field": f.field, "message": f.message }))
                     .collect();
-                (StatusCode::BAD_REQUEST, "VALIDATION_ERROR",
-                 "Validation failed".to_string(), Some(details), None)
+                (
+                    StatusCode::BAD_REQUEST,
+                    "VALIDATION_ERROR",
+                    "Validation failed".to_string(),
+                    Some(details),
+                    None,
+                )
             }
-            IoError::BadRequest(msg) => {
-                (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone(), None, None)
-            }
-            IoError::Conflict(msg) => {
-                (StatusCode::CONFLICT, "CONFLICT", msg.clone(), None, None)
-            }
-            IoError::Gone(msg) => {
-                (StatusCode::GONE, "GONE", msg.clone(), None, None)
-            }
+            IoError::BadRequest(msg) => (
+                StatusCode::BAD_REQUEST,
+                "VALIDATION_ERROR",
+                msg.clone(),
+                None,
+                None,
+            ),
+            IoError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", msg.clone(), None, None),
+            IoError::Gone(msg) => (StatusCode::GONE, "GONE", msg.clone(), None, None),
             IoError::RateLimited { retry_after_secs } => (
-                StatusCode::TOO_MANY_REQUESTS, "RATE_LIMITED",
-                format!("Too many requests. Retry after {} seconds.", retry_after_secs),
-                None, Some(*retry_after_secs),
+                StatusCode::TOO_MANY_REQUESTS,
+                "RATE_LIMITED",
+                format!(
+                    "Too many requests. Retry after {} seconds.",
+                    retry_after_secs
+                ),
+                None,
+                Some(*retry_after_secs),
             ),
             IoError::Internal(msg) => {
                 tracing::error!(error = %msg, "internal error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", msg.clone(), None, None)
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    msg.clone(),
+                    None,
+                    None,
+                )
             }
             IoError::ServiceUnavailable(msg) => (
-                StatusCode::SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE", msg.clone(), None, None,
+                StatusCode::SERVICE_UNAVAILABLE,
+                "SERVICE_UNAVAILABLE",
+                msg.clone(),
+                None,
+                None,
             ),
         };
 
@@ -135,10 +164,8 @@ impl IntoResponse for IoError {
         let mut resp = (status, Json(body)).into_response();
 
         if let Some(secs) = retry_after {
-            resp.headers_mut().insert(
-                "retry-after",
-                secs.to_string().parse().unwrap(),
-            );
+            resp.headers_mut()
+                .insert("retry-after", secs.to_string().parse().unwrap());
         }
 
         resp
@@ -163,7 +190,10 @@ mod tests {
 
     #[test]
     fn not_found_error_yields_404() {
-        assert_eq!(status_of(IoError::NotFound("thing".into())), StatusCode::NOT_FOUND);
+        assert_eq!(
+            status_of(IoError::NotFound("thing".into())),
+            StatusCode::NOT_FOUND
+        );
     }
 
     #[test]
@@ -173,12 +203,18 @@ mod tests {
 
     #[test]
     fn forbidden_error_yields_403() {
-        assert_eq!(status_of(IoError::Forbidden("no".into())), StatusCode::FORBIDDEN);
+        assert_eq!(
+            status_of(IoError::Forbidden("no".into())),
+            StatusCode::FORBIDDEN
+        );
     }
 
     #[test]
     fn bad_request_error_yields_400() {
-        assert_eq!(status_of(IoError::BadRequest("bad".into())), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            status_of(IoError::BadRequest("bad".into())),
+            StatusCode::BAD_REQUEST
+        );
     }
 
     #[test]
@@ -189,20 +225,28 @@ mod tests {
 
     #[test]
     fn internal_error_yields_500() {
-        assert_eq!(status_of(IoError::Internal("oops".into())), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            status_of(IoError::Internal("oops".into())),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
     }
 
     #[test]
     fn rate_limited_yields_429() {
         assert_eq!(
-            status_of(IoError::RateLimited { retry_after_secs: 60 }),
+            status_of(IoError::RateLimited {
+                retry_after_secs: 60
+            }),
             StatusCode::TOO_MANY_REQUESTS,
         );
     }
 
     #[test]
     fn conflict_yields_409() {
-        assert_eq!(status_of(IoError::Conflict("dup".into())), StatusCode::CONFLICT);
+        assert_eq!(
+            status_of(IoError::Conflict("dup".into())),
+            StatusCode::CONFLICT
+        );
     }
 
     #[test]
@@ -241,8 +285,14 @@ mod tests {
 
     #[test]
     fn rate_limited_response_includes_retry_after_header() {
-        let resp = IoError::RateLimited { retry_after_secs: 30 }.into_response();
-        let header_val = resp.headers().get("retry-after").expect("retry-after header must be present");
+        let resp = IoError::RateLimited {
+            retry_after_secs: 30,
+        }
+        .into_response();
+        let header_val = resp
+            .headers()
+            .get("retry-after")
+            .expect("retry-after header must be present");
         assert_eq!(header_val, "30");
     }
 }

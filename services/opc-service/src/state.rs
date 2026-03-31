@@ -1,6 +1,5 @@
 use io_db::DbPool;
-use opcua::client::prelude::Session;
-use opcua::sync::RwLock;
+use opcua::client::Session;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Notify;
@@ -13,10 +12,11 @@ use crate::config::Config;
 /// HTTP handlers that need to invoke OPC UA methods (acknowledge, shelve, etc.)
 /// look up the active session here. The outer `Mutex` is a std (not async) lock
 /// and is held only briefly to clone the `Arc` — never while doing I/O.
-pub type SessionRegistry = Arc<std::sync::Mutex<HashMap<Uuid, Arc<RwLock<Session>>>>>;
+pub type SessionRegistry = Arc<std::sync::Mutex<HashMap<Uuid, Arc<Session>>>>;
 
 /// Shared application state threaded through the HTTP server.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct AppState {
     pub db: DbPool,
     pub config: Arc<Config>,

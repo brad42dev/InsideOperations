@@ -96,9 +96,7 @@ async fn duo_health_check(
     client_id: &str,
     client_secret: &str,
 ) -> IoResult<()> {
-    let url = format!(
-        "https://{api_hostname}/oauth/v1/health_check"
-    );
+    let url = format!("https://{api_hostname}/oauth/v1/health_check");
 
     // Duo health check uses HTTP Basic auth: base64(client_id:client_secret)
     let resp = http
@@ -106,9 +104,7 @@ async fn duo_health_check(
         .basic_auth(client_id, Some(client_secret))
         .send()
         .await
-        .map_err(|e| {
-            IoError::ServiceUnavailable(format!("Duo health check unreachable: {e}"))
-        })?;
+        .map_err(|e| IoError::ServiceUnavailable(format!("Duo health check unreachable: {e}")))?;
 
     if !resp.status().is_success() {
         return Err(IoError::ServiceUnavailable(format!(
@@ -189,7 +185,13 @@ pub async fn duo_login(
         .to_string();
 
     // --- 3. Duo health check (per spec: call before redirecting) ---
-    duo_health_check(&state.http, &api_hostname, &duo_client_id, &duo_client_secret).await?;
+    duo_health_check(
+        &state.http,
+        &api_hostname,
+        &duo_client_id,
+        &duo_client_secret,
+    )
+    .await?;
 
     // --- 4. Look up the username for the duo_uname parameter ---
     let user_row = sqlx::query("SELECT username FROM users WHERE id = $1 AND deleted_at IS NULL")
@@ -254,10 +256,7 @@ pub async fn duo_callback(
     }
 }
 
-async fn duo_callback_inner(
-    state: AppState,
-    params: DuoCallbackParams,
-) -> IoResult<Response> {
+async fn duo_callback_inner(state: AppState, params: DuoCallbackParams) -> IoResult<Response> {
     // Handle Duo-side errors
     if let Some(err) = params.error {
         let desc = params.error_description.unwrap_or_default();
@@ -383,13 +382,12 @@ async fn duo_callback_inner(
     state.mfa_pending_tokens.remove(mfa_pending_token);
 
     // --- 7. Issue I/O JWT + refresh token ---
-    let user_row = sqlx::query(
-        "SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(IoError::Unauthorized)?;
+    let user_row =
+        sqlx::query("SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(IoError::Unauthorized)?;
 
     let enabled: bool = user_row.get("enabled");
     if !enabled {
@@ -513,11 +511,10 @@ async fn verify_duo_id_token(
     validation.validate_exp = true;
     validation.set_issuer(&[expected_issuer]);
 
-    let token_data =
-        jsonwebtoken::decode::<IdTokenClaims>(id_token, &decoding_key, &validation)
-            .map_err(|e| {
-                IoError::BadRequest(format!("Duo id_token signature validation failed: {e}"))
-            })?;
+    let token_data = jsonwebtoken::decode::<IdTokenClaims>(id_token, &decoding_key, &validation)
+        .map_err(|e| {
+            IoError::BadRequest(format!("Duo id_token signature validation failed: {e}"))
+        })?;
 
     let claims = token_data.claims;
 
@@ -532,9 +529,7 @@ async fn verify_duo_id_token(
     // Audience check.
     let aud_ok = match &claims.aud {
         serde_json::Value::String(s) => s == expected_client_id,
-        serde_json::Value::Array(arr) => arr
-            .iter()
-            .any(|v| v.as_str() == Some(expected_client_id)),
+        serde_json::Value::Array(arr) => arr.iter().any(|v| v.as_str() == Some(expected_client_id)),
         _ => false,
     };
     if !aud_ok {

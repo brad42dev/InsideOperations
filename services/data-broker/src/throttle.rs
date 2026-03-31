@@ -71,17 +71,26 @@ mod tests {
 
     #[test]
     fn normal_escalates_on_low_fps() {
-        assert_eq!(compute(ThrottleLevel::Normal, 25.0, 0), ThrottleLevel::Batch);
+        assert_eq!(
+            compute(ThrottleLevel::Normal, 25.0, 0),
+            ThrottleLevel::Batch
+        );
     }
 
     #[test]
     fn normal_escalates_on_high_pending() {
-        assert_eq!(compute(ThrottleLevel::Normal, 60.0, 60), ThrottleLevel::Batch);
+        assert_eq!(
+            compute(ThrottleLevel::Normal, 60.0, 60),
+            ThrottleLevel::Batch
+        );
     }
 
     #[test]
     fn batch_escalates_to_deduplicate() {
-        assert_eq!(compute(ThrottleLevel::Batch, 20.0, 0), ThrottleLevel::Deduplicate);
+        assert_eq!(
+            compute(ThrottleLevel::Batch, 20.0, 0),
+            ThrottleLevel::Deduplicate
+        );
     }
 
     #[test]

@@ -10,7 +10,9 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
-use super::{AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult};
+use super::{
+    AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult,
+};
 
 // ---------------------------------------------------------------------------
 // Config
@@ -123,7 +125,9 @@ impl AlertChannel for RadioAdapter {
 
             match talkgroup {
                 Some(tg) => {
-                    let result = self.dispatch_to_talkgroup(alert, &tg, recipient.user_id).await;
+                    let result = self
+                        .dispatch_to_talkgroup(alert, &tg, recipient.user_id)
+                        .await;
                     results.push(result);
                 }
                 None => {
@@ -153,7 +157,13 @@ impl AlertChannel for RadioAdapter {
                 }
             }
             RadioAuthMode::Basic => {
-                if self.config.basic_username.as_deref().unwrap_or("").is_empty() {
+                if self
+                    .config
+                    .basic_username
+                    .as_deref()
+                    .unwrap_or("")
+                    .is_empty()
+                {
                     return Err(ChannelError::Config(
                         "basic_username required when auth_mode is basic".into(),
                     ));

@@ -98,7 +98,10 @@ pub async fn oidc_login(
         ep.to_string()
     } else {
         // Attempt discovery — fetch the well-known configuration
-        let discovery_url = format!("{}/.well-known/openid-configuration", issuer_url.trim_end_matches('/'));
+        let discovery_url = format!(
+            "{}/.well-known/openid-configuration",
+            issuer_url.trim_end_matches('/')
+        );
         let client = reqwest::Client::new();
         let discovery_resp = client
             .get(&discovery_url)
@@ -107,9 +110,10 @@ pub async fn oidc_login(
             .map_err(|e| IoError::ServiceUnavailable(format!("OIDC discovery failed: {e}")))?;
 
         if !discovery_resp.status().is_success() {
-            return Err(IoError::ServiceUnavailable(
-                format!("OIDC discovery returned {}", discovery_resp.status()),
-            ));
+            return Err(IoError::ServiceUnavailable(format!(
+                "OIDC discovery returned {}",
+                discovery_resp.status()
+            )));
         }
 
         let metadata: serde_json::Value = discovery_resp
@@ -119,7 +123,9 @@ pub async fn oidc_login(
 
         metadata["authorization_endpoint"]
             .as_str()
-            .ok_or_else(|| IoError::Internal("OIDC metadata missing authorization_endpoint".into()))?
+            .ok_or_else(|| {
+                IoError::Internal("OIDC metadata missing authorization_endpoint".into())
+            })?
             .to_string()
     };
 
@@ -163,7 +169,9 @@ pub async fn oidc_login(
         percent_encode(&pkce_challenge),
     );
 
-    Ok(Json(ApiResponse::ok(OidcLoginResponse { authorization_url: auth_url })))
+    Ok(Json(ApiResponse::ok(OidcLoginResponse {
+        authorization_url: auth_url,
+    })))
 }
 
 // ---------------------------------------------------------------------------
@@ -182,18 +190,19 @@ pub async fn oidc_callback(
     }
 }
 
-async fn oidc_callback_inner(
-    state: AppState,
-    params: OidcCallbackParams,
-) -> IoResult<Response> {
+async fn oidc_callback_inner(state: AppState, params: OidcCallbackParams) -> IoResult<Response> {
     // Handle IdP-side errors
     if let Some(err) = params.error {
         let desc = params.error_description.unwrap_or_default();
         return Err(IoError::BadRequest(format!("OIDC error: {err} — {desc}")));
     }
 
-    let code = params.code.ok_or_else(|| IoError::BadRequest("Missing authorization code".into()))?;
-    let state_param = params.state.ok_or_else(|| IoError::BadRequest("Missing state parameter".into()))?;
+    let code = params
+        .code
+        .ok_or_else(|| IoError::BadRequest("Missing authorization code".into()))?;
+    let state_param = params
+        .state
+        .ok_or_else(|| IoError::BadRequest("Missing state parameter".into()))?;
 
     // Look up state record — verify and consume (single-use)
     let state_row = sqlx::query(
@@ -261,9 +270,7 @@ async fn oidc_callback_inner(
         .ok_or_else(|| IoError::Internal("OIDC metadata missing token_endpoint".into()))?
         .to_string();
 
-    let userinfo_endpoint = metadata["userinfo_endpoint"]
-        .as_str()
-        .map(String::from);
+    let userinfo_endpoint = metadata["userinfo_endpoint"].as_str().map(String::from);
 
     let jwks_uri = metadata["jwks_uri"]
         .as_str()
@@ -290,7 +297,9 @@ async fn oidc_callback_inner(
 
     if let Some(err) = token_resp["error"].as_str() {
         let desc = token_resp["error_description"].as_str().unwrap_or("");
-        return Err(IoError::BadRequest(format!("Token exchange error: {err} — {desc}")));
+        return Err(IoError::BadRequest(format!(
+            "Token exchange error: {err} — {desc}"
+        )));
     }
 
     let access_token_oidc = token_resp["access_token"]
@@ -299,9 +308,7 @@ async fn oidc_callback_inner(
         .to_string();
 
     // Verify id_token signature against JWKS, and validate iss, aud, exp, nonce.
-    let id_token_str = token_resp["id_token"]
-        .as_str()
-        .unwrap_or("");
+    let id_token_str = token_resp["id_token"].as_str().unwrap_or("");
     let id_claims = verify_id_token(
         &state.http,
         &state.jwks_cache,
@@ -318,7 +325,12 @@ async fn oidc_callback_inner(
 
     // Try userinfo endpoint first for richer claims, fall back to ID token.
     let user_claims: serde_json::Value = if let Some(ref ui_endpoint) = userinfo_endpoint {
-        match http.get(ui_endpoint).bearer_auth(&access_token_oidc).send().await {
+        match http
+            .get(ui_endpoint)
+            .bearer_auth(&access_token_oidc)
+            .send()
+            .await
+        {
             Ok(resp) if resp.status().is_success() => {
                 resp.json::<serde_json::Value>().await.unwrap_or_else(|_| {
                     serde_json::json!({
@@ -350,28 +362,29 @@ async fn oidc_callback_inner(
 
     let email = user_claims["email"]
         .as_str()
-        .or_else(|| id_claims.email.as_deref())
+        .or(id_claims.email.as_deref())
         .unwrap_or(&oidc_sub)
         .to_string();
 
-    let full_name = user_claims["name"]
-        .as_str()
-        .map(String::from)
-        .or_else(|| {
-            let given = user_claims["given_name"].as_str().unwrap_or("");
-            let family = user_claims["family_name"].as_str().unwrap_or("");
-            if !given.is_empty() || !family.is_empty() {
-                Some(format!("{} {}", given, family).trim().to_string())
-            } else {
-                None
-            }
-        });
+    let full_name = user_claims["name"].as_str().map(String::from).or_else(|| {
+        let given = user_claims["given_name"].as_str().unwrap_or("");
+        let family = user_claims["family_name"].as_str().unwrap_or("");
+        if !given.is_empty() || !family.is_empty() {
+            Some(format!("{} {}", given, family).trim().to_string())
+        } else {
+            None
+        }
+    });
 
     // Extract groups claim (varies by IdP: "groups", "roles", custom)
     let groups: Vec<String> = user_claims["groups"]
         .as_array()
         .or_else(|| user_claims["roles"].as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
     // Look up existing user
@@ -458,13 +471,17 @@ async fn oidc_callback_inner(
     }
 
     // Get username for JWT
-    let username_row = sqlx::query("SELECT username, is_service_account, is_emergency_account FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_one(&state.db)
-        .await?;
+    let username_row = sqlx::query(
+        "SELECT username, is_service_account, is_emergency_account FROM users WHERE id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
     let username: String = username_row.get("username");
     let is_service_account: bool = username_row.try_get("is_service_account").unwrap_or(false);
-    let is_emergency_account: bool = username_row.try_get("is_emergency_account").unwrap_or(false);
+    let is_emergency_account: bool = username_row
+        .try_get("is_emergency_account")
+        .unwrap_or(false);
 
     // EULA gate — check acceptance before issuing JWT.
     // Service accounts and emergency accounts are exempt.
@@ -502,13 +519,16 @@ async fn oidc_callback_inner(
 
             let frontend_url = std::env::var("FRONTEND_URL")
                 .unwrap_or_else(|_| "http://localhost:5173".to_string());
-            let redirect = format!("{}/eula-required?pending_token={}", frontend_url, pending_token);
+            let redirect = format!(
+                "{}/eula-required?pending_token={}",
+                frontend_url, pending_token
+            );
 
-            return Ok(axum::response::Response::builder()
+            return axum::response::Response::builder()
                 .status(StatusCode::FOUND)
                 .header(header::LOCATION, redirect)
                 .body(axum::body::Body::empty())
-                .map_err(|e| IoError::Internal(e.to_string()))?);
+                .map_err(|e| IoError::Internal(e.to_string()));
         }
     }
 
@@ -565,13 +585,12 @@ async fn oidc_callback_inner(
     Ok(response)
 }
 
-
 // ---------------------------------------------------------------------------
 // Helper: BASE64URL encode (no padding)
 // ---------------------------------------------------------------------------
 
 fn base64_url_encode(data: &[u8]) -> String {
-    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     URL_SAFE_NO_PAD.encode(data)
 }
 
@@ -584,14 +603,21 @@ fn percent_encode(input: &str) -> String {
     for byte in input.bytes() {
         match byte {
             // Unreserved characters per RFC 3986
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
-            | b'-' | b'_' | b'.' | b'~' => {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
                 output.push(byte as char);
             }
             _ => {
                 output.push('%');
-                output.push(char::from_digit((byte >> 4) as u32, 16).unwrap().to_ascii_uppercase());
-                output.push(char::from_digit((byte & 0xf) as u32, 16).unwrap().to_ascii_uppercase());
+                output.push(
+                    char::from_digit((byte >> 4) as u32, 16)
+                        .unwrap()
+                        .to_ascii_uppercase(),
+                );
+                output.push(
+                    char::from_digit((byte & 0xf) as u32, 16)
+                        .unwrap()
+                        .to_ascii_uppercase(),
+                );
             }
         }
     }
@@ -602,10 +628,7 @@ fn percent_encode(input: &str) -> String {
 // Helper: ensure username is unique by appending a numeric suffix
 // ---------------------------------------------------------------------------
 
-async fn ensure_unique_username(
-    db: &io_db::DbPool,
-    base: &str,
-) -> IoResult<String> {
+async fn ensure_unique_username(db: &io_db::DbPool, base: &str) -> IoResult<String> {
     let base = if base.is_empty() { "user" } else { base };
     // Try the base username first
     let exists: bool = sqlx::query_scalar(
@@ -633,7 +656,10 @@ async fn ensure_unique_username(
         }
     }
 
-    Ok(format!("{base}{}", Uuid::new_v4().to_string().replace('-', "")))
+    Ok(format!(
+        "{base}{}",
+        Uuid::new_v4().to_string().replace('-', "")
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -663,11 +689,9 @@ pub async fn apply_group_role_mappings(
         let matched = groups.iter().any(|g| match match_type.as_str() {
             "exact" => g == &match_value,
             "prefix" => g.starts_with(&match_value),
-            "regex" => {
-                regex::Regex::new(&match_value)
-                    .map(|re| re.is_match(g))
-                    .unwrap_or(false)
-            }
+            "regex" => regex::Regex::new(&match_value)
+                .map(|re| re.is_match(g))
+                .unwrap_or(false),
             _ => false,
         });
 

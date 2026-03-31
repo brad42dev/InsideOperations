@@ -88,7 +88,8 @@ pub fn pearson_correlation(a: &[f64], b: &[f64]) -> f64 {
 fn rank_vec(v: &[f64]) -> Vec<f64> {
     let n = v.len();
     // Build (value, original_index) pairs and sort by value.
-    let mut indexed: Vec<(f64, usize)> = v.iter().copied().enumerate().map(|(i, x)| (x, i)).collect();
+    let mut indexed: Vec<(f64, usize)> =
+        v.iter().copied().enumerate().map(|(i, x)| (x, i)).collect();
     indexed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut ranks = vec![0.0_f64; n];
@@ -184,7 +185,11 @@ pub fn cross_correlate(a: &[f64], b: &[f64]) -> (f64, i64) {
         .enumerate()
         .map(|(i, c)| (i, c.re / scale))
         .fold((0usize, f64::NEG_INFINITY), |(mi, mv), (i, v)| {
-            if v > mv { (i, v) } else { (mi, mv) }
+            if v > mv {
+                (i, v)
+            } else {
+                (mi, mv)
+            }
         });
 
     // Convert circular index to a signed lag in [-n+1, n-1].
@@ -229,11 +234,8 @@ pub fn detect_spikes(series: &[TimeSeriesPoint], threshold: f64) -> Vec<SpikeRes
         }
 
         let mean = window.iter().map(|p| p.value).sum::<f64>() / window.len() as f64;
-        let variance = window
-            .iter()
-            .map(|p| (p.value - mean).powi(2))
-            .sum::<f64>()
-            / window.len() as f64;
+        let variance =
+            window.iter().map(|p| (p.value - mean).powi(2)).sum::<f64>() / window.len() as f64;
         let std_dev = variance.sqrt();
 
         if std_dev == 0.0 {
@@ -448,7 +450,12 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[allow(dead_code)]
-    fn flat_series(value: f64, count: usize, start_ts: i64, interval_ms: i64) -> Vec<TimeSeriesPoint> {
+    fn flat_series(
+        value: f64,
+        count: usize,
+        start_ts: i64,
+        interval_ms: i64,
+    ) -> Vec<TimeSeriesPoint> {
         (0..count)
             .map(|i| TimeSeriesPoint {
                 timestamp: start_ts + i as i64 * interval_ms,
@@ -470,7 +477,10 @@ mod tests {
     fn pearson_of_identical_series_is_1() {
         let a: Vec<f64> = (0..20).map(|i| i as f64).collect();
         let r = pearson_correlation(&a, &a);
-        assert!((r - 1.0).abs() < 1e-10, "identical series must correlate at 1.0, got {r}");
+        assert!(
+            (r - 1.0).abs() < 1e-10,
+            "identical series must correlate at 1.0, got {r}"
+        );
     }
 
     #[test]
@@ -478,7 +488,10 @@ mod tests {
         let a: Vec<f64> = (0..20).map(|i| i as f64).collect();
         let b: Vec<f64> = (0..20).map(|i| -(i as f64)).collect();
         let r = pearson_correlation(&a, &b);
-        assert!((r - (-1.0)).abs() < 1e-10, "perfectly anti-correlated must be -1.0, got {r}");
+        assert!(
+            (r - (-1.0)).abs() < 1e-10,
+            "perfectly anti-correlated must be -1.0, got {r}"
+        );
     }
 
     #[test]
@@ -505,7 +518,10 @@ mod tests {
         let a = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let b = vec![2.0, 4.0, 5.0, 4.0, 5.0];
         let r = pearson_correlation(&a, &b);
-        assert!((r - 0.7746).abs() < 1e-3, "hand-calculated pearson should be ~0.7746, got {r}");
+        assert!(
+            (r - 0.7746).abs() < 1e-3,
+            "hand-calculated pearson should be ~0.7746, got {r}"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -537,8 +553,7 @@ mod tests {
 
         assert_eq!(spikes.len(), 1, "exactly one spike should be detected");
         assert_eq!(
-            spikes[0].timestamp,
-            series[40].timestamp,
+            spikes[0].timestamp, series[40].timestamp,
             "spike timestamp must match planted outlier"
         );
     }
@@ -546,7 +561,10 @@ mod tests {
     #[test]
     fn detect_spikes_flat_series_without_outlier_returns_empty() {
         let series: Vec<TimeSeriesPoint> = (0..50)
-            .map(|i| TimeSeriesPoint { timestamp: i as i64 * 1000, value: 5.0 })
+            .map(|i| TimeSeriesPoint {
+                timestamp: i as i64 * 1000,
+                value: 5.0,
+            })
             .collect();
         let spikes = detect_spikes(&series, 3.0);
         assert!(spikes.is_empty(), "flat series must produce no spikes");
@@ -556,11 +574,20 @@ mod tests {
     fn detect_spikes_too_short_series_returns_empty() {
         // Window requires at least 3 points before the current index.
         let series: Vec<TimeSeriesPoint> = vec![
-            TimeSeriesPoint { timestamp: 0, value: 1.0 },
-            TimeSeriesPoint { timestamp: 1000, value: 1.0 },
+            TimeSeriesPoint {
+                timestamp: 0,
+                value: 1.0,
+            },
+            TimeSeriesPoint {
+                timestamp: 1000,
+                value: 1.0,
+            },
         ];
         let spikes = detect_spikes(&series, 1.0);
-        assert!(spikes.is_empty(), "series too short to form a window must return no spikes");
+        assert!(
+            spikes.is_empty(),
+            "series too short to form a window must return no spikes"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -574,16 +601,25 @@ mod tests {
         let n = 20usize;
         // Low variance first half
         for i in 0..n {
-            series.push(TimeSeriesPoint { timestamp: i as i64 * 1000, value: 1.0 });
+            series.push(TimeSeriesPoint {
+                timestamp: i as i64 * 1000,
+                value: 1.0,
+            });
         }
         // High variance second half — alternating ±100
         for i in n..2 * n {
             let v = if i % 2 == 0 { 100.0 } else { -100.0 };
-            series.push(TimeSeriesPoint { timestamp: i as i64 * 1000, value: v });
+            series.push(TimeSeriesPoint {
+                timestamp: i as i64 * 1000,
+                value: v,
+            });
         }
 
         let cps = variance_ratio_change_points("pt1", &series);
-        assert!(!cps.is_empty(), "a clear variance step must produce at least one change point");
+        assert!(
+            !cps.is_empty(),
+            "a clear variance step must produce at least one change point"
+        );
 
         // The change point should be near the midpoint.
         let mid_ts = series[n].timestamp;
@@ -596,7 +632,10 @@ mod tests {
     #[test]
     fn change_points_not_detected_for_uniformly_flat_series() {
         let series: Vec<TimeSeriesPoint> = (0..20)
-            .map(|i| TimeSeriesPoint { timestamp: i as i64 * 1000, value: 42.0 })
+            .map(|i| TimeSeriesPoint {
+                timestamp: i as i64 * 1000,
+                value: 42.0,
+            })
             .collect();
         let cps = variance_ratio_change_points("pt2", &series);
         assert!(cps.is_empty(), "flat series must not produce change points");
@@ -605,9 +644,15 @@ mod tests {
     #[test]
     fn change_points_too_short_series_returns_empty() {
         let series: Vec<TimeSeriesPoint> = (0..5)
-            .map(|i| TimeSeriesPoint { timestamp: i as i64, value: i as f64 })
+            .map(|i| TimeSeriesPoint {
+                timestamp: i as i64,
+                value: i as f64,
+            })
             .collect();
         let cps = variance_ratio_change_points("pt3", &series);
-        assert!(cps.is_empty(), "series shorter than MIN_LEN must return no change points");
+        assert!(
+            cps.is_empty(),
+            "series shorter than MIN_LEN must return no change points"
+        );
     }
 }

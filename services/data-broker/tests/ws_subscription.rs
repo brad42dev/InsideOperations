@@ -50,7 +50,10 @@ impl RegistryMirror {
                 break;
             }
             if client_pts.insert(p) {
-                self.point_to_clients.entry(p).or_default().insert(client_id);
+                self.point_to_clients
+                    .entry(p)
+                    .or_default()
+                    .insert(client_id);
                 subscribed.push(p);
             }
         }
@@ -127,7 +130,10 @@ fn test_duplicate_subscription_is_idempotent() {
     reg.subscribe(client, &[point], 100);
     let second = reg.subscribe(client, &[point], 100);
 
-    assert!(second.is_empty(), "re-subscribing to the same point must be a no-op");
+    assert!(
+        second.is_empty(),
+        "re-subscribing to the same point must be a no-op"
+    );
     assert_eq!(reg.total_subscriptions(), 1);
 }
 
@@ -183,7 +189,10 @@ fn test_disconnected_client_is_removed_from_fanout() {
         1,
         "only c2 should remain after c1 disconnects"
     );
-    assert!(!clients.contains(&c1), "c1 must not receive fanout after disconnect");
+    assert!(
+        !clients.contains(&c1),
+        "c1 must not receive fanout after disconnect"
+    );
     assert!(clients.contains(&c2), "c2 must still receive fanout");
 }
 

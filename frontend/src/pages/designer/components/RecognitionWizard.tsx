@@ -15,29 +15,29 @@
  * Spec: design-docs/26_PID_RECOGNITION.md §Designer Module Integration
  */
 
-import React, { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   recognitionApi,
   type Detection,
   type RecognitionStatus,
   type RecognitionClass,
-} from '../../../api/recognition'
+} from "../../../api/recognition";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type WizardStep = 'upload' | 'review' | 'generate'
-type Domain = 'pid' | 'dcs'
+type WizardStep = "upload" | "review" | "generate";
+type Domain = "pid" | "dcs";
 
 interface ReviewDetection extends Detection {
   /** Unique index used as a stable key */
-  _idx: number
-  accepted: boolean
-  rejected: boolean
+  _idx: number;
+  accepted: boolean;
+  rejected: boolean;
   /** If corrected, the new class name chosen by the user */
-  correctedClass?: string
+  correctedClass?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,9 +45,9 @@ interface ReviewDetection extends Detection {
 // ---------------------------------------------------------------------------
 
 export interface RecognitionWizardProps {
-  onClose: () => void
+  onClose: () => void;
   /** When provided, the wizard opens in a degraded state showing this message in step 1. */
-  serviceUnavailableReason?: string
+  serviceUnavailableReason?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,15 +55,15 @@ export interface RecognitionWizardProps {
 // ---------------------------------------------------------------------------
 
 function confidenceColor(confidence: number): string {
-  if (confidence > 0.9) return '#22c55e'
-  if (confidence >= 0.7) return '#eab308'
-  return '#ef4444'
+  if (confidence > 0.9) return "#22c55e";
+  if (confidence >= 0.7) return "#eab308";
+  return "#ef4444";
 }
 
 function confidenceLabel(confidence: number): string {
-  if (confidence > 0.9) return 'High'
-  if (confidence >= 0.7) return 'Medium'
-  return 'Low'
+  if (confidence > 0.9) return "High";
+  if (confidence >= 0.7) return "Medium";
+  return "Low";
 }
 
 // ---------------------------------------------------------------------------
@@ -79,109 +79,124 @@ function WizardShell({
   nextDisabled,
   onClose,
 }: {
-  step: WizardStep
-  children: React.ReactNode
-  onBack?: () => void
-  onNext?: () => void
-  nextLabel?: string
-  nextDisabled?: boolean
-  onClose: () => void
+  step: WizardStep;
+  children: React.ReactNode;
+  onBack?: () => void;
+  onNext?: () => void;
+  nextLabel?: string;
+  nextDisabled?: boolean;
+  onClose: () => void;
 }) {
-  const STEPS: WizardStep[] = ['upload', 'review', 'generate']
-  const stepIndex = STEPS.indexOf(step)
-  const STEP_LABELS = ['Upload', 'Review', 'Generate']
+  const STEPS: WizardStep[] = ["upload", "review", "generate"];
+  const stepIndex = STEPS.indexOf(step);
+  const STEP_LABELS = ["Upload", "Review", "Generate"];
 
   return (
     <div
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
         zIndex: 1200,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.6)',
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.6)",
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Recognize Image"
         style={{
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
           width: 760,
-          maxWidth: '96vw',
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          maxWidth: "96vw",
+          maxHeight: "92vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
         {/* Header */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
+            display: "flex",
+            alignItems: "center",
             gap: 12,
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--io-border)',
+            padding: "14px 20px",
+            borderBottom: "1px solid var(--io-border)",
             flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--io-text-primary)', flex: 1 }}>
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: "var(--io-text-primary)",
+              flex: 1,
+            }}
+          >
             Recognize Image
           </span>
           {/* Step pills */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             {STEP_LABELS.map((label, i) => {
-              const active = i === stepIndex
-              const done = i < stepIndex
+              const active = i === stepIndex;
+              const done = i < stepIndex;
               return (
                 <React.Fragment key={label}>
                   {i > 0 && (
-                    <div style={{ width: 16, height: 1, background: 'var(--io-border)' }} />
+                    <div
+                      style={{
+                        width: 16,
+                        height: 1,
+                        background: "var(--io-border)",
+                      }}
+                    />
                   )}
                   <div
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
+                      display: "flex",
+                      alignItems: "center",
                       gap: 4,
-                      padding: '3px 8px',
-                      borderRadius: 'var(--io-radius)',
+                      padding: "3px 8px",
+                      borderRadius: "var(--io-radius)",
                       background: active
-                        ? 'var(--io-accent)'
+                        ? "var(--io-accent)"
                         : done
-                        ? 'rgba(34,197,94,0.15)'
-                        : 'var(--io-surface)',
+                          ? "rgba(34,197,94,0.15)"
+                          : "var(--io-surface)",
                       color: active
-                        ? '#09090b'
+                        ? "#09090b"
                         : done
-                        ? '#22c55e'
-                        : 'var(--io-text-muted)',
+                          ? "#22c55e"
+                          : "var(--io-text-muted)",
                       fontSize: 11,
                       fontWeight: 600,
                     }}
                   >
-                    <span>{done ? '✓' : i + 1}</span>
+                    <span>{done ? "✓" : i + 1}</span>
                     <span>{label}</span>
                   </div>
                 </React.Fragment>
-              )
+              );
             })}
           </div>
           <button
             onClick={onClose}
             style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--io-text-muted)',
-              cursor: 'pointer',
+              background: "none",
+              border: "none",
+              color: "var(--io-text-muted)",
+              cursor: "pointer",
               fontSize: 18,
               lineHeight: 1,
-              padding: '0 4px',
+              padding: "0 4px",
             }}
             title="Close"
           >
@@ -190,18 +205,18 @@ function WizardShell({
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+        <div style={{ flex: 1, overflow: "auto", padding: "20px" }}>
           {children}
         </div>
 
         {/* Footer — always rendered so Cancel/Close is always accessible */}
         <div
           style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
+            display: "flex",
+            justifyContent: "flex-end",
             gap: 8,
-            padding: '12px 20px',
-            borderTop: '1px solid var(--io-border)',
+            padding: "12px 20px",
+            borderTop: "1px solid var(--io-border)",
             flexShrink: 0,
           }}
         >
@@ -209,29 +224,29 @@ function WizardShell({
             onClick={onClose}
             style={{
               height: 32,
-              padding: '0 16px',
-              background: 'var(--io-surface)',
-              border: '1px solid var(--io-border)',
-              borderRadius: 'var(--io-radius)',
-              color: 'var(--io-text-secondary)',
+              padding: "0 16px",
+              background: "var(--io-surface)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              color: "var(--io-text-secondary)",
               fontSize: 13,
-              cursor: 'pointer',
+              cursor: "pointer",
             }}
           >
-            {onBack || onNext ? 'Cancel' : 'Close'}
+            {onBack || onNext ? "Cancel" : "Close"}
           </button>
           {onBack && (
             <button
               onClick={onBack}
               style={{
                 height: 32,
-                padding: '0 16px',
-                background: 'var(--io-surface)',
-                border: '1px solid var(--io-border)',
-                borderRadius: 'var(--io-radius)',
-                color: 'var(--io-text-secondary)',
+                padding: "0 16px",
+                background: "var(--io-surface)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                color: "var(--io-text-secondary)",
                 fontSize: 13,
-                cursor: 'pointer',
+                cursor: "pointer",
               }}
             >
               Back
@@ -243,24 +258,26 @@ function WizardShell({
               disabled={nextDisabled}
               style={{
                 height: 32,
-                padding: '0 16px',
-                background: nextDisabled ? 'var(--io-surface-elevated)' : 'var(--io-accent)',
-                border: 'none',
-                borderRadius: 'var(--io-radius)',
-                color: nextDisabled ? 'var(--io-text-muted)' : '#09090b',
+                padding: "0 16px",
+                background: nextDisabled
+                  ? "var(--io-surface-elevated)"
+                  : "var(--io-accent)",
+                border: "none",
+                borderRadius: "var(--io-radius)",
+                color: nextDisabled ? "var(--io-text-muted)" : "#09090b",
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: nextDisabled ? 'not-allowed' : 'pointer',
+                cursor: nextDisabled ? "not-allowed" : "pointer",
                 opacity: nextDisabled ? 0.6 : 1,
               }}
             >
-              {nextLabel ?? 'Next'}
+              {nextLabel ?? "Next"}
             </button>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -268,62 +285,72 @@ function WizardShell({
 // ---------------------------------------------------------------------------
 
 interface UploadStepProps {
-  onDetected: (imageUrl: string, detections: ReviewDetection[], domain: Domain) => void
-  onClose: () => void
-  serviceUnavailableReason?: string
+  onDetected: (
+    imageUrl: string,
+    detections: ReviewDetection[],
+    domain: Domain,
+  ) => void;
+  onClose: () => void;
+  serviceUnavailableReason?: string;
 }
 
-function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadStepProps) {
-  const [file, setFile] = useState<File | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+function UploadStep({
+  onDetected,
+  onClose,
+  serviceUnavailableReason,
+}: UploadStepProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
+    const f = e.target.files?.[0];
     if (f) {
-      setFile(f)
-      setError(null)
+      setFile(f);
+      setError(null);
     }
   }
 
   async function handleDetect() {
-    if (!file) return
-    setLoading(true)
-    setError(null)
+    if (!file) return;
+    setLoading(true);
+    setError(null);
 
-    const result = await recognitionApi.runInference(file, { domain: 'auto' })
+    const result = await recognitionApi.runInference(file, { domain: "auto" });
 
-    setLoading(false)
+    setLoading(false);
 
     if (!result.success) {
-      setError(result.error.message)
-      return
+      setError(result.error.message);
+      return;
     }
 
-    const data = result.data
-    const detectedDomain: Domain = (data.domain === 'dcs' ? 'dcs' : 'pid') as Domain
+    const data = result.data;
+    const detectedDomain: Domain = (
+      data.domain === "dcs" ? "dcs" : "pid"
+    ) as Domain;
     const reviews: ReviewDetection[] = data.detections.map((d, i) => ({
       ...d,
       _idx: i,
       accepted: true,
       rejected: false,
-    }))
+    }));
 
     // Build a data URL for the image so we can display it in the review step
-    const imageUrl = URL.createObjectURL(file)
-    onDetected(imageUrl, reviews, detectedDomain)
+    const imageUrl = URL.createObjectURL(file);
+    onDetected(imageUrl, reviews, detectedDomain);
   }
 
-  const [dragOver, setDragOver] = useState(false)
+  const [dragOver, setDragOver] = useState(false);
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault()
-    setDragOver(false)
-    const f = e.dataTransfer.files?.[0]
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
     if (f) {
-      setFile(f)
-      setError(null)
+      setFile(f);
+      setError(null);
     }
   }
 
@@ -331,22 +358,24 @@ function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadSte
     <WizardShell
       step="upload"
       onClose={onClose}
-      onNext={!serviceUnavailableReason && file && !loading ? handleDetect : undefined}
-      nextLabel={loading ? 'Detecting...' : 'Detect Symbols'}
+      onNext={
+        !serviceUnavailableReason && file && !loading ? handleDetect : undefined
+      }
+      nextLabel={loading ? "Detecting..." : "Detect Symbols"}
       nextDisabled={!!serviceUnavailableReason || !file || loading}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {serviceUnavailableReason && (
           <div
             style={{
-              padding: '12px 16px',
-              background: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.25)',
-              borderRadius: 'var(--io-radius)',
-              color: '#ef4444',
+              padding: "12px 16px",
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.25)",
+              borderRadius: "var(--io-radius)",
+              color: "#ef4444",
               fontSize: 13,
-              display: 'flex',
-              alignItems: 'flex-start',
+              display: "flex",
+              alignItems: "flex-start",
               gap: 10,
             }}
           >
@@ -354,50 +383,80 @@ function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadSte
             <span>{serviceUnavailableReason}</span>
           </div>
         )}
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--io-text-secondary)' }}>
-          Upload a P&amp;ID or DCS image to detect symbols. Supported formats: PNG, JPEG, PDF, TIFF.
+        <p
+          style={{ margin: 0, fontSize: 13, color: "var(--io-text-secondary)" }}
+        >
+          Upload a P&amp;ID or DCS image to detect symbols. Supported formats:
+          PNG, JPEG, PDF, TIFF.
         </p>
 
         {/* Drop zone */}
         <div
           onDrop={handleDrop}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
           onDragLeave={() => setDragOver(false)}
           onClick={() => inputRef.current?.click()}
           style={{
-            border: `2px dashed ${dragOver ? 'var(--io-accent)' : 'var(--io-border)'}`,
-            borderRadius: 'var(--io-radius)',
-            padding: '40px 24px',
-            textAlign: 'center',
-            cursor: 'pointer',
-            background: dragOver ? 'rgba(99,102,241,0.06)' : 'var(--io-surface)',
-            transition: 'border-color 0.15s, background 0.15s',
+            border: `2px dashed ${dragOver ? "var(--io-accent)" : "var(--io-border)"}`,
+            borderRadius: "var(--io-radius)",
+            padding: "40px 24px",
+            textAlign: "center",
+            cursor: "pointer",
+            background: dragOver
+              ? "rgba(99,102,241,0.06)"
+              : "var(--io-surface)",
+            transition: "border-color 0.15s, background 0.15s",
           }}
         >
           <input
             ref={inputRef}
             type="file"
             accept=".png,.jpg,.jpeg,.pdf,.tif,.tiff"
-            style={{ display: 'none' }}
+            style={{ display: "none" }}
             onChange={handleFileChange}
           />
           {file ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
               <span style={{ fontSize: 32 }}>🖼</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--io-text-primary)' }}>
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--io-text-primary)",
+                }}
+              >
                 {file.name}
               </span>
-              <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
+              <span style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
                 {(file.size / 1024).toFixed(0)} KB — click to change
               </span>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 32, color: 'var(--io-text-muted)' }}>⬆</span>
-              <span style={{ fontSize: 14, color: 'var(--io-text-secondary)' }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 32, color: "var(--io-text-muted)" }}>
+                ⬆
+              </span>
+              <span style={{ fontSize: 14, color: "var(--io-text-secondary)" }}>
                 Drag and drop or click to select
               </span>
-              <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
+              <span style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
                 PNG, JPEG, PDF, TIFF supported
               </span>
             </div>
@@ -407,17 +466,17 @@ function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadSte
         {loading && (
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               gap: 10,
-              padding: '12px 16px',
-              background: 'rgba(99,102,241,0.08)',
-              borderRadius: 'var(--io-radius)',
-              border: '1px solid rgba(99,102,241,0.2)',
+              padding: "12px 16px",
+              background: "rgba(99,102,241,0.08)",
+              borderRadius: "var(--io-radius)",
+              border: "1px solid rgba(99,102,241,0.2)",
             }}
           >
             <SpinnerIcon />
-            <span style={{ fontSize: 13, color: 'var(--io-text-secondary)' }}>
+            <span style={{ fontSize: 13, color: "var(--io-text-secondary)" }}>
               Running symbol detection...
             </span>
           </div>
@@ -426,11 +485,11 @@ function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadSte
         {error && (
           <div
             style={{
-              padding: '10px 14px',
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 'var(--io-radius)',
-              color: '#ef4444',
+              padding: "10px 14px",
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: "var(--io-radius)",
+              color: "#ef4444",
               fontSize: 13,
             }}
           >
@@ -439,7 +498,7 @@ function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadSte
         )}
       </div>
     </WizardShell>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -447,14 +506,14 @@ function UploadStep({ onDetected, onClose, serviceUnavailableReason }: UploadSte
 // ---------------------------------------------------------------------------
 
 interface ReviewStepProps {
-  imageUrl: string
-  detections: ReviewDetection[]
-  domain: Domain
-  onDetectionsChange: (detections: ReviewDetection[]) => void
-  onDomainChange: (domain: Domain) => void
-  onBack: () => void
-  onNext: () => void
-  onClose: () => void
+  imageUrl: string;
+  detections: ReviewDetection[];
+  domain: Domain;
+  onDetectionsChange: (detections: ReviewDetection[]) => void;
+  onDomainChange: (domain: Domain) => void;
+  onBack: () => void;
+  onNext: () => void;
+  onClose: () => void;
 }
 
 function ReviewStep({
@@ -467,51 +526,62 @@ function ReviewStep({
   onNext,
   onClose,
 }: ReviewStepProps) {
-  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null)
-  const [classes, setClasses] = useState<RecognitionClass[]>([])
-  const [openCorrectionIdx, setOpenCorrectionIdx] = useState<number | null>(null)
-  const imgRef = useRef<HTMLImageElement>(null)
+  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
+  const [classes, setClasses] = useState<RecognitionClass[]>([]);
+  const [openCorrectionIdx, setOpenCorrectionIdx] = useState<number | null>(
+    null,
+  );
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // Load class list for corrections
   useEffect(() => {
     recognitionApi.getClasses(domain).then((res) => {
-      if (res.success) setClasses(res.data.classes)
-    })
-  }, [domain])
+      if (res.success) setClasses(res.data.classes);
+    });
+  }, [domain]);
 
   function handleImageLoad() {
-    const img = imgRef.current
+    const img = imgRef.current;
     if (img) {
-      setImgSize({ w: img.naturalWidth, h: img.naturalHeight })
+      setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
     }
   }
 
   function setDetection(idx: number, patch: Partial<ReviewDetection>) {
-    onDetectionsChange(detections.map((d) => (d._idx === idx ? { ...d, ...patch } : d)))
+    onDetectionsChange(
+      detections.map((d) => (d._idx === idx ? { ...d, ...patch } : d)),
+    );
   }
 
   function handleAccept(idx: number) {
-    setDetection(idx, { accepted: true, rejected: false })
-    setOpenCorrectionIdx(null)
+    setDetection(idx, { accepted: true, rejected: false });
+    setOpenCorrectionIdx(null);
   }
 
   function handleReject(idx: number) {
-    setDetection(idx, { accepted: false, rejected: true })
-    setOpenCorrectionIdx(null)
+    setDetection(idx, { accepted: false, rejected: true });
+    setOpenCorrectionIdx(null);
   }
 
   function handleCorrect(idx: number, newClass: string) {
-    setDetection(idx, { accepted: true, rejected: false, correctedClass: newClass, class_name: newClass })
-    setOpenCorrectionIdx(null)
+    setDetection(idx, {
+      accepted: true,
+      rejected: false,
+      correctedClass: newClass,
+      class_name: newClass,
+    });
+    setOpenCorrectionIdx(null);
   }
 
-  const acceptedCount = detections.filter((d) => d.accepted && !d.rejected).length
+  const acceptedCount = detections.filter(
+    (d) => d.accepted && !d.rejected,
+  ).length;
 
   // Container dimensions for SVG overlay
-  const containerWidth = 680
+  const containerWidth = 680;
   const containerHeight = imgSize
     ? Math.round((containerWidth / imgSize.w) * imgSize.h)
-    : 400
+    : 400;
 
   return (
     <WizardShell
@@ -522,34 +592,35 @@ function ReviewStep({
       nextLabel={`Generate (${acceptedCount} accepted)`}
       nextDisabled={acceptedCount === 0}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Domain selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 13, color: 'var(--io-text-secondary)' }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 13, color: "var(--io-text-secondary)" }}>
             Domain detected:
           </span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {(['pid', 'dcs'] as Domain[]).map((d) => (
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["pid", "dcs"] as Domain[]).map((d) => (
               <button
                 key={d}
                 onClick={() => onDomainChange(d)}
                 style={{
-                  padding: '4px 12px',
-                  borderRadius: 'var(--io-radius)',
-                  border: `1px solid ${domain === d ? 'var(--io-accent)' : 'var(--io-border)'}`,
-                  background: domain === d ? 'var(--io-accent)' : 'var(--io-surface)',
-                  color: domain === d ? '#09090b' : 'var(--io-text-secondary)',
+                  padding: "4px 12px",
+                  borderRadius: "var(--io-radius)",
+                  border: `1px solid ${domain === d ? "var(--io-accent)" : "var(--io-border)"}`,
+                  background:
+                    domain === d ? "var(--io-accent)" : "var(--io-surface)",
+                  color: domain === d ? "#09090b" : "var(--io-text-secondary)",
                   fontSize: 12,
                   fontWeight: domain === d ? 700 : 400,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
+                  cursor: "pointer",
+                  textTransform: "uppercase",
                 }}
               >
-                {d === 'pid' ? 'P&ID' : 'DCS'}
+                {d === "pid" ? "P&ID" : "DCS"}
               </button>
             ))}
           </div>
-          <span style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>
+          <span style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
             ({detections.length} symbols detected)
           </span>
         </div>
@@ -557,14 +628,14 @@ function ReviewStep({
         {/* Image + SVG overlay */}
         <div
           style={{
-            position: 'relative',
+            position: "relative",
             width: containerWidth,
             height: containerHeight,
-            maxWidth: '100%',
-            background: '#000',
-            borderRadius: 'var(--io-radius)',
-            overflow: 'hidden',
-            alignSelf: 'center',
+            maxWidth: "100%",
+            background: "#000",
+            borderRadius: "var(--io-radius)",
+            overflow: "hidden",
+            alignSelf: "center",
           }}
         >
           <img
@@ -573,10 +644,10 @@ function ReviewStep({
             alt="Uploaded P&ID / DCS image"
             onLoad={handleImageLoad}
             style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              display: 'block',
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              display: "block",
             }}
           />
 
@@ -585,22 +656,22 @@ function ReviewStep({
             <svg
               viewBox={`0 0 ${imgSize.w} ${imgSize.h}`}
               style={{
-                position: 'absolute',
+                position: "absolute",
                 inset: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
               }}
             >
               {detections
                 .filter((d) => !d.rejected)
                 .map((d) => {
-                  const [x1, y1, x2, y2] = d.bbox
-                  const bx = x1 * imgSize.w
-                  const by = y1 * imgSize.h
-                  const bw = (x2 - x1) * imgSize.w
-                  const bh = (y2 - y1) * imgSize.h
-                  const color = confidenceColor(d.confidence)
+                  const [x1, y1, x2, y2] = d.bbox;
+                  const bx = x1 * imgSize.w;
+                  const by = y1 * imgSize.h;
+                  const bw = (x2 - x1) * imgSize.w;
+                  const bh = (y2 - y1) * imgSize.h;
+                  const color = confidenceColor(d.confidence);
                   return (
                     <g key={d._idx}>
                       <rect
@@ -632,7 +703,7 @@ function ReviewStep({
                         {d.correctedClass ?? d.class_name}
                       </text>
                     </g>
-                  )
+                  );
                 })}
             </svg>
           )}
@@ -642,17 +713,17 @@ function ReviewStep({
         <div
           style={{
             maxHeight: 260,
-            overflowY: 'auto',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
+            overflowY: "auto",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
           }}
         >
           {detections.length === 0 && (
             <div
               style={{
-                padding: '24px',
-                textAlign: 'center',
-                color: 'var(--io-text-muted)',
+                padding: "24px",
+                textAlign: "center",
+                color: "var(--io-text-muted)",
                 fontSize: 13,
               }}
             >
@@ -660,22 +731,22 @@ function ReviewStep({
             </div>
           )}
           {detections.map((d) => {
-            const color = confidenceColor(d.confidence)
-            const isOpen = openCorrectionIdx === d._idx
+            const color = confidenceColor(d.confidence);
+            const isOpen = openCorrectionIdx === d._idx;
             return (
               <div
                 key={d._idx}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
+                  display: "flex",
+                  alignItems: "center",
                   gap: 8,
-                  padding: '8px 12px',
-                  borderBottom: '1px solid var(--io-border)',
+                  padding: "8px 12px",
+                  borderBottom: "1px solid var(--io-border)",
                   background: d.rejected
-                    ? 'rgba(239,68,68,0.05)'
+                    ? "rgba(239,68,68,0.05)"
                     : d.accepted
-                    ? 'transparent'
-                    : 'rgba(234,179,8,0.05)',
+                      ? "transparent"
+                      : "rgba(234,179,8,0.05)",
                   opacity: d.rejected ? 0.5 : 1,
                 }}
               >
@@ -684,7 +755,7 @@ function ReviewStep({
                   style={{
                     width: 8,
                     height: 8,
-                    borderRadius: '50%',
+                    borderRadius: "50%",
                     background: color,
                     flexShrink: 0,
                   }}
@@ -696,16 +767,25 @@ function ReviewStep({
                   style={{
                     flex: 1,
                     fontSize: 13,
-                    color: 'var(--io-text-primary)',
+                    color: "var(--io-text-primary)",
                     fontWeight: d.correctedClass ? 600 : 400,
-                    textDecoration: d.rejected ? 'line-through' : 'none',
+                    textDecoration: d.rejected ? "line-through" : "none",
                   }}
                 >
-                  {d.correctedClass ? `${d.correctedClass} (corrected)` : d.class_name}
+                  {d.correctedClass
+                    ? `${d.correctedClass} (corrected)`
+                    : d.class_name}
                 </span>
 
                 {/* Confidence % */}
-                <span style={{ fontSize: 11, color: 'var(--io-text-muted)', flexShrink: 0, fontFamily: 'var(--io-font-mono)' }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--io-text-muted)",
+                    flexShrink: 0,
+                    fontFamily: "var(--io-font-mono)",
+                  }}
+                >
                   {(d.confidence * 100).toFixed(0)}%
                 </span>
 
@@ -716,14 +796,20 @@ function ReviewStep({
                   style={{
                     width: 26,
                     height: 26,
-                    borderRadius: 'var(--io-radius)',
-                    border: `1px solid ${d.accepted && !d.rejected ? '#22c55e' : 'var(--io-border)'}`,
-                    background: d.accepted && !d.rejected ? 'rgba(34,197,94,0.15)' : 'transparent',
-                    color: d.accepted && !d.rejected ? '#22c55e' : 'var(--io-text-muted)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    borderRadius: "var(--io-radius)",
+                    border: `1px solid ${d.accepted && !d.rejected ? "#22c55e" : "var(--io-border)"}`,
+                    background:
+                      d.accepted && !d.rejected
+                        ? "rgba(34,197,94,0.15)"
+                        : "transparent",
+                    color:
+                      d.accepted && !d.rejected
+                        ? "#22c55e"
+                        : "var(--io-text-muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     flexShrink: 0,
                     fontSize: 13,
                   }}
@@ -738,14 +824,16 @@ function ReviewStep({
                   style={{
                     width: 26,
                     height: 26,
-                    borderRadius: 'var(--io-radius)',
-                    border: `1px solid ${d.rejected ? '#ef4444' : 'var(--io-border)'}`,
-                    background: d.rejected ? 'rgba(239,68,68,0.15)' : 'transparent',
-                    color: d.rejected ? '#ef4444' : 'var(--io-text-muted)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    borderRadius: "var(--io-radius)",
+                    border: `1px solid ${d.rejected ? "#ef4444" : "var(--io-border)"}`,
+                    background: d.rejected
+                      ? "rgba(239,68,68,0.15)"
+                      : "transparent",
+                    color: d.rejected ? "#ef4444" : "var(--io-text-muted)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     flexShrink: 0,
                     fontSize: 13,
                   }}
@@ -754,21 +842,25 @@ function ReviewStep({
                 </button>
 
                 {/* Correct button */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div style={{ position: "relative", flexShrink: 0 }}>
                   <button
                     onClick={() => setOpenCorrectionIdx(isOpen ? null : d._idx)}
                     title="Correct class"
                     style={{
                       width: 26,
                       height: 26,
-                      borderRadius: 'var(--io-radius)',
-                      border: `1px solid ${isOpen ? 'var(--io-accent)' : 'var(--io-border)'}`,
-                      background: isOpen ? 'rgba(99,102,241,0.1)' : 'transparent',
-                      color: isOpen ? 'var(--io-accent)' : 'var(--io-text-muted)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      borderRadius: "var(--io-radius)",
+                      border: `1px solid ${isOpen ? "var(--io-accent)" : "var(--io-border)"}`,
+                      background: isOpen
+                        ? "rgba(99,102,241,0.1)"
+                        : "transparent",
+                      color: isOpen
+                        ? "var(--io-accent)"
+                        : "var(--io-text-muted)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       fontSize: 11,
                     }}
                   >
@@ -777,21 +869,27 @@ function ReviewStep({
                   {isOpen && (
                     <div
                       style={{
-                        position: 'absolute',
+                        position: "absolute",
                         right: 0,
                         top: 28,
                         zIndex: 10,
-                        background: 'var(--io-surface-elevated)',
-                        border: '1px solid var(--io-border)',
-                        borderRadius: 'var(--io-radius)',
+                        background: "var(--io-surface-elevated)",
+                        border: "1px solid var(--io-border)",
+                        borderRadius: "var(--io-radius)",
                         minWidth: 200,
                         maxHeight: 220,
-                        overflowY: 'auto',
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                        overflowY: "auto",
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
                       }}
                     >
                       {classes.length === 0 && (
-                        <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+                        <div
+                          style={{
+                            padding: "10px 12px",
+                            fontSize: 12,
+                            color: "var(--io-text-muted)",
+                          }}
+                        >
                           Loading classes...
                         </div>
                       )}
@@ -800,24 +898,27 @@ function ReviewStep({
                           key={cls.id}
                           onClick={() => handleCorrect(d._idx, cls.name)}
                           style={{
-                            display: 'block',
-                            width: '100%',
-                            textAlign: 'left',
-                            padding: '7px 12px',
-                            background: 'none',
-                            border: 'none',
-                            borderBottom: '1px solid var(--io-border)',
-                            color: 'var(--io-text-secondary)',
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "7px 12px",
+                            background: "none",
+                            border: "none",
+                            borderBottom: "1px solid var(--io-border)",
+                            color: "var(--io-text-secondary)",
                             fontSize: 12,
-                            cursor: 'pointer',
+                            cursor: "pointer",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'var(--io-surface)'
-                            e.currentTarget.style.color = 'var(--io-text-primary)'
+                            e.currentTarget.style.background =
+                              "var(--io-surface)";
+                            e.currentTarget.style.color =
+                              "var(--io-text-primary)";
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'none'
-                            e.currentTarget.style.color = 'var(--io-text-secondary)'
+                            e.currentTarget.style.background = "none";
+                            e.currentTarget.style.color =
+                              "var(--io-text-secondary)";
                           }}
                         >
                           {cls.display_name || cls.name}
@@ -827,28 +928,59 @@ function ReviewStep({
                   )}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
 
         {/* Legend */}
-        <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--io-text-muted)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            fontSize: 11,
+            color: "var(--io-text-muted)",
+          }}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#22c55e",
+                display: "inline-block",
+              }}
+            />
             High (&gt;90%)
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#eab308', display: 'inline-block' }} />
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#eab308",
+                display: "inline-block",
+              }}
+            />
             Medium (70–90%)
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#ef4444",
+                display: "inline-block",
+              }}
+            />
             Low (&lt;70%)
           </span>
         </div>
       </div>
     </WizardShell>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -856,38 +988,47 @@ function ReviewStep({
 // ---------------------------------------------------------------------------
 
 interface GenerateStepProps {
-  detections: ReviewDetection[]
-  domain: Domain
-  imageUrl: string
-  onBack: () => void
-  onClose: () => void
+  detections: ReviewDetection[];
+  domain: Domain;
+  imageUrl: string;
+  onBack: () => void;
+  onClose: () => void;
 }
 
-function GenerateStep({ detections, domain, imageUrl, onBack, onClose }: GenerateStepProps) {
-  const navigate = useNavigate()
-  const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+function GenerateStep({
+  detections,
+  domain,
+  imageUrl,
+  onBack,
+  onClose,
+}: GenerateStepProps) {
+  const navigate = useNavigate();
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const accepted = detections.filter((d) => d.accepted && !d.rejected)
-  const corrected = detections.filter((d) => !d.rejected && d.correctedClass)
-  const rejected = detections.filter((d) => d.rejected)
+  const accepted = detections.filter((d) => d.accepted && !d.rejected);
+  const corrected = detections.filter((d) => !d.rejected && d.correctedClass);
+  const rejected = detections.filter((d) => d.rejected);
 
   async function handleGenerate() {
-    setGenerating(true)
-    setError(null)
+    setGenerating(true);
+    setError(null);
 
     // Build payload for generate — use a hash of the imageUrl blob URL as source identifier
-    const sourceHash = btoa(imageUrl).slice(0, 32)
+    const sourceHash = btoa(imageUrl).slice(0, 32);
     const generateResult = await recognitionApi.generateGraphic({
-      detections: accepted.map(({ _idx: _i, accepted: _a, rejected: _r, correctedClass: _c, ...d }) => d),
+      detections: accepted.map(
+        ({ _idx: _i, accepted: _a, rejected: _r, correctedClass: _c, ...d }) =>
+          d,
+      ),
       domain,
       source_image_hash: sourceHash,
-    })
+    });
 
     if (!generateResult.success) {
-      setGenerating(false)
-      setError(generateResult.error.message)
-      return
+      setGenerating(false);
+      setError(generateResult.error.message);
+      return;
     }
 
     // Submit corrections feedback (fire-and-forget — do not block navigation on failure)
@@ -898,97 +1039,112 @@ function GenerateStep({ detections, domain, imageUrl, onBack, onClose }: Generat
           corrected_class: d.correctedClass ?? d.class_name,
           confidence: d.confidence,
           domain,
-          correction_type: 'wrong_class',
+          correction_type: "wrong_class",
         })),
         ...rejected.map((d) => ({
           original_class: d.class_name,
           corrected_class: null,
           confidence: d.confidence,
           domain,
-          correction_type: 'false_positive',
+          correction_type: "false_positive",
         })),
-      ]
-      recognitionApi.submitCorrections({ corrections: feedbackItems }).catch(() => {
-        // non-critical
-      })
+      ];
+      recognitionApi
+        .submitCorrections({ corrections: feedbackItems })
+        .catch(() => {
+          // non-critical
+        });
     }
 
-    setGenerating(false)
+    setGenerating(false);
 
     // Navigate to the new graphic in Designer
-    const graphicId = generateResult.data.graphic_id
-    navigate(`/designer/graphics/${graphicId}/edit`)
-    onClose()
+    const graphicId = generateResult.data.graphic_id;
+    navigate(`/designer/graphics/${graphicId}/edit`);
+    onClose();
   }
 
   return (
-    <WizardShell
-      step="generate"
-      onClose={onClose}
-      onBack={onBack}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--io-text-secondary)' }}>
-          Review the summary below. Clicking "Generate Graphic" will create a new process graphic
-          in the Designer with all accepted symbols placed at their detected positions.
+    <WizardShell step="generate" onClose={onClose} onBack={onBack}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <p
+          style={{ margin: 0, fontSize: 13, color: "var(--io-text-secondary)" }}
+        >
+          Review the summary below. Clicking "Generate Graphic" will create a
+          new process graphic in the Designer with all accepted symbols placed
+          at their detected positions.
         </p>
 
         {/* Summary */}
         <div
           style={{
-            background: 'var(--io-surface)',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            padding: '16px',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+            background: "var(--io-surface)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            padding: "16px",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
             gap: 16,
           }}
         >
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#22c55e' }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "#22c55e" }}>
               {accepted.length}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>Accepted</div>
+            <div style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+              Accepted
+            </div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#eab308' }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "#eab308" }}>
               {corrected.length}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>Corrected</div>
+            <div style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+              Corrected
+            </div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#ef4444' }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "#ef4444" }}>
               {rejected.length}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>Rejected</div>
+            <div style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+              Rejected
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--io-text-secondary)' }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 13,
+            color: "var(--io-text-secondary)",
+          }}
+        >
           <span>Domain:</span>
           <span
             style={{
-              padding: '2px 8px',
-              borderRadius: 'var(--io-radius)',
-              background: 'var(--io-surface)',
-              border: '1px solid var(--io-border)',
+              padding: "2px 8px",
+              borderRadius: "var(--io-radius)",
+              background: "var(--io-surface)",
+              border: "1px solid var(--io-border)",
               fontWeight: 600,
-              textTransform: 'uppercase',
+              textTransform: "uppercase",
             }}
           >
-            {domain === 'pid' ? 'P&ID' : 'DCS'}
+            {domain === "pid" ? "P&ID" : "DCS"}
           </span>
         </div>
 
         {error && (
           <div
             style={{
-              padding: '10px 14px',
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 'var(--io-radius)',
-              color: '#ef4444',
+              padding: "10px 14px",
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: "var(--io-radius)",
+              color: "#ef4444",
               fontSize: 13,
             }}
           >
@@ -1001,35 +1157,38 @@ function GenerateStep({ detections, domain, imageUrl, onBack, onClose }: Generat
           onClick={handleGenerate}
           disabled={generating}
           style={{
-            alignSelf: 'flex-start',
+            alignSelf: "flex-start",
             height: 36,
-            padding: '0 20px',
-            background: generating ? 'var(--io-surface-elevated)' : 'var(--io-accent)',
-            border: 'none',
-            borderRadius: 'var(--io-radius)',
-            color: generating ? 'var(--io-text-muted)' : '#09090b',
+            padding: "0 20px",
+            background: generating
+              ? "var(--io-surface-elevated)"
+              : "var(--io-accent)",
+            border: "none",
+            borderRadius: "var(--io-radius)",
+            color: generating ? "var(--io-text-muted)" : "#09090b",
             fontSize: 14,
             fontWeight: 600,
-            cursor: generating ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
+            cursor: generating ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
             gap: 8,
             opacity: generating ? 0.7 : 1,
           }}
         >
           {generating && <SpinnerIcon />}
-          {generating ? 'Generating...' : 'Generate Graphic'}
+          {generating ? "Generating..." : "Generate Graphic"}
         </button>
 
-        <p style={{ margin: 0, fontSize: 12, color: 'var(--io-text-muted)' }}>
-          After generation, the graphic will open in the Designer for manual refinement.
+        <p style={{ margin: 0, fontSize: 12, color: "var(--io-text-muted)" }}>
+          After generation, the graphic will open in the Designer for manual
+          refinement.
           {corrected.length + rejected.length > 0
-            ? ' Corrections and rejections will be submitted as feedback to improve the model.'
-            : ''}
+            ? " Corrections and rejections will be submitted as feedback to improve the model."
+            : ""}
         </p>
       </div>
     </WizardShell>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1043,7 +1202,10 @@ function SpinnerIcon() {
       height="14"
       viewBox="0 0 14 14"
       fill="none"
-      style={{ animation: 'io-spin 0.8s linear infinite', display: 'inline-block' }}
+      style={{
+        animation: "io-spin 0.8s linear infinite",
+        display: "inline-block",
+      }}
     >
       <circle
         cx="7"
@@ -1057,38 +1219,51 @@ function SpinnerIcon() {
         opacity="0.8"
       />
     </svg>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // RecognitionWizard — main exported component
 // ---------------------------------------------------------------------------
 
-export default function RecognitionWizard({ onClose, serviceUnavailableReason }: RecognitionWizardProps) {
-  const [step, setStep] = useState<WizardStep>('upload')
-  const [imageUrl, setImageUrl] = useState<string>('')
-  const [detections, setDetections] = useState<ReviewDetection[]>([])
-  const [domain, setDomain] = useState<Domain>('pid')
+export default function RecognitionWizard({
+  onClose,
+  serviceUnavailableReason,
+}: RecognitionWizardProps) {
+  const [step, setStep] = useState<WizardStep>("upload");
+  const [imageUrl, setImageUrl] = useState<string>("");
+  const [detections, setDetections] = useState<ReviewDetection[]>([]);
+  const [domain, setDomain] = useState<Domain>("pid");
 
   // Revoke the object URL on unmount to free memory
   useEffect(() => {
     return () => {
-      if (imageUrl) URL.revokeObjectURL(imageUrl)
-    }
-  }, [imageUrl])
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+    };
+  }, [imageUrl]);
 
-  function handleDetected(url: string, dets: ReviewDetection[], detectedDomain: Domain) {
-    setImageUrl(url)
-    setDetections(dets)
-    setDomain(detectedDomain)
-    setStep('review')
+  function handleDetected(
+    url: string,
+    dets: ReviewDetection[],
+    detectedDomain: Domain,
+  ) {
+    setImageUrl(url);
+    setDetections(dets);
+    setDomain(detectedDomain);
+    setStep("review");
   }
 
-  if (step === 'upload') {
-    return <UploadStep onDetected={handleDetected} onClose={onClose} serviceUnavailableReason={serviceUnavailableReason} />
+  if (step === "upload") {
+    return (
+      <UploadStep
+        onDetected={handleDetected}
+        onClose={onClose}
+        serviceUnavailableReason={serviceUnavailableReason}
+      />
+    );
   }
 
-  if (step === 'review') {
+  if (step === "review") {
     return (
       <ReviewStep
         imageUrl={imageUrl}
@@ -1096,11 +1271,11 @@ export default function RecognitionWizard({ onClose, serviceUnavailableReason }:
         domain={domain}
         onDetectionsChange={setDetections}
         onDomainChange={setDomain}
-        onBack={() => setStep('upload')}
-        onNext={() => setStep('generate')}
+        onBack={() => setStep("upload")}
+        onNext={() => setStep("generate")}
         onClose={onClose}
       />
-    )
+    );
   }
 
   return (
@@ -1108,10 +1283,10 @@ export default function RecognitionWizard({ onClose, serviceUnavailableReason }:
       detections={detections}
       domain={domain}
       imageUrl={imageUrl}
-      onBack={() => setStep('review')}
+      onBack={() => setStep("review")}
       onClose={onClose}
     />
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1130,35 +1305,41 @@ export default function RecognitionWizard({ onClose, serviceUnavailableReason }:
  *               'inline' renders only the button text variant for integration
  */
 export interface RecognitionWizardTriggerProps {
-  canImport: boolean
-  renderAs?: 'button' | 'inline'
+  canImport: boolean;
+  renderAs?: "button" | "inline";
 }
 
-export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: RecognitionWizardTriggerProps) {
-  const [status, setStatus] = useState<RecognitionStatus | null>(null)
-  const [statusLoaded, setStatusLoaded] = useState(false)
-  const [statusError, setStatusError] = useState(false)
-  const [wizardOpen, setWizardOpen] = useState(false)
+export function RecognitionWizardTrigger({
+  canImport,
+  renderAs = "button",
+}: RecognitionWizardTriggerProps) {
+  const [status, setStatus] = useState<RecognitionStatus | null>(null);
+  const [statusLoaded, setStatusLoaded] = useState(false);
+  const [statusError, setStatusError] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Check recognition service availability on mount.
   // The trigger is always rendered — we never hide it due to API failure.
   useEffect(() => {
-    if (!canImport) return
-    recognitionApi.getStatus().then((res) => {
-      if (res.success) {
-        setStatus(res.data)
-      } else {
-        setStatusError(true)
-      }
-      setStatusLoaded(true)
-    }).catch(() => {
-      setStatusError(true)
-      setStatusLoaded(true)
-    })
-  }, [canImport])
+    if (!canImport) return;
+    recognitionApi
+      .getStatus()
+      .then((res) => {
+        if (res.success) {
+          setStatus(res.data);
+        } else {
+          setStatusError(true);
+        }
+        setStatusLoaded(true);
+      })
+      .catch(() => {
+        setStatusError(true);
+        setStatusLoaded(true);
+      });
+  }, [canImport]);
 
   // Do not render anything if user lacks permission
-  if (!canImport) return null
+  if (!canImport) return null;
 
   // Check if recognition is explicitly unavailable (both domains disabled and status loaded)
   // When the API fails or is still loading, do NOT hide — show the button as available.
@@ -1166,28 +1347,28 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
     statusLoaded &&
     !statusError &&
     status !== null &&
-    status.domains.pid.mode === 'disabled' &&
-    status.domains.dcs.mode === 'disabled'
+    status.domains.pid.mode === "disabled" &&
+    status.domains.dcs.mode === "disabled";
 
   // Determine if service is degraded and what message to show inside the wizard
   const serviceUnavailableReason: string | undefined =
     statusLoaded && statusError
-      ? 'Recognition service is currently unavailable. The service may not be running. Contact your administrator.'
+      ? "Recognition service is currently unavailable. The service may not be running. Contact your administrator."
       : bothDisabled
-      ? 'Symbol recognition is currently unavailable — no recognition model is loaded. Contact your administrator.'
-      : undefined
+        ? "Symbol recognition is currently unavailable — no recognition model is loaded. Contact your administrator."
+        : undefined;
 
-  if (renderAs === 'inline') {
+  if (renderAs === "inline") {
     return (
       <>
         <button
           onClick={() => setWizardOpen(true)}
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--io-accent)',
-            cursor: 'pointer',
-            fontSize: '13px',
+            background: "none",
+            border: "none",
+            color: "var(--io-accent)",
+            cursor: "pointer",
+            fontSize: "13px",
             padding: 0,
           }}
         >
@@ -1200,7 +1381,7 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
           />
         )}
       </>
-    )
+    );
   }
 
   return (
@@ -1208,25 +1389,25 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
       <button
         onClick={() => setWizardOpen(true)}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '7px 14px',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          color: 'var(--io-text-secondary)',
-          fontSize: '13px',
-          cursor: 'pointer',
-          transition: 'border-color 0.1s, color 0.1s',
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "7px 14px",
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          color: "var(--io-text-secondary)",
+          fontSize: "13px",
+          cursor: "pointer",
+          transition: "border-color 0.1s, color 0.1s",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = 'var(--io-accent)'
-          e.currentTarget.style.color = 'var(--io-accent)'
+          e.currentTarget.style.borderColor = "var(--io-accent)";
+          e.currentTarget.style.color = "var(--io-accent)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'var(--io-border)'
-          e.currentTarget.style.color = 'var(--io-text-secondary)'
+          e.currentTarget.style.borderColor = "var(--io-border)";
+          e.currentTarget.style.color = "var(--io-text-secondary)";
         }}
       >
         <span>⬡</span>
@@ -1239,5 +1420,5 @@ export function RecognitionWizardTrigger({ canImport, renderAs = 'button' }: Rec
         />
       )}
     </>
-  )
+  );
 }

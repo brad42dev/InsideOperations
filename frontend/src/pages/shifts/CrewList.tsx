@@ -1,43 +1,43 @@
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   shiftsApi,
   type ShiftCrew,
   type ShiftCrewDetail,
   type ShiftCrewMember,
   type CreateCrewPayload,
-} from '../../api/shifts'
+} from "../../api/shifts";
 
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
 const surface: React.CSSProperties = {
-  background: 'var(--io-surface)',
-  border: '1px solid var(--io-border)',
+  background: "var(--io-surface)",
+  border: "1px solid var(--io-border)",
   borderRadius: 8,
-}
+};
 
 const fieldLabel: React.CSSProperties = {
-  display: 'block',
+  display: "block",
   fontSize: 11,
   fontWeight: 600,
-  color: 'var(--io-text-secondary)',
+  color: "var(--io-text-secondary)",
   marginBottom: 5,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-}
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
 
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '7px 11px',
-  background: 'var(--io-bg)',
-  border: '1px solid var(--io-border)',
+  width: "100%",
+  padding: "7px 11px",
+  background: "var(--io-bg)",
+  border: "1px solid var(--io-border)",
   borderRadius: 6,
-  color: 'var(--io-text-primary)',
+  color: "var(--io-text-primary)",
   fontSize: 13,
-  boxSizing: 'border-box',
-}
+  boxSizing: "border-box",
+};
 
 // ---------------------------------------------------------------------------
 // Avatar
@@ -45,19 +45,24 @@ const inputStyle: React.CSSProperties = {
 
 function Avatar({ name, color }: { name: string | null; color?: string }) {
   const initials = name
-    ? name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
-    : '?'
+    ? name
+        .split(" ")
+        .map((p) => p[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "?";
   return (
     <span
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
         width: 32,
         height: 32,
-        borderRadius: '50%',
-        background: color ?? 'var(--io-accent)',
-        color: '#fff',
+        borderRadius: "50%",
+        background: color ?? "var(--io-accent)",
+        color: "#fff",
         fontSize: 12,
         fontWeight: 700,
         flexShrink: 0,
@@ -65,7 +70,7 @@ function Avatar({ name, color }: { name: string | null; color?: string }) {
     >
       {initials}
     </span>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -76,16 +81,16 @@ function ColorDot({ color }: { color: string }) {
   return (
     <span
       style={{
-        display: 'inline-block',
+        display: "inline-block",
         width: 10,
         height: 10,
-        borderRadius: '50%',
+        borderRadius: "50%",
         background: color,
-        border: '1px solid rgba(0,0,0,0.15)',
+        border: "1px solid rgba(0,0,0,0.15)",
         flexShrink: 0,
       }}
     />
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -97,79 +102,87 @@ function CrewMemberRow({
   crewId,
   onRemoved,
 }: {
-  member: ShiftCrewMember
-  crewId: string
-  onRemoved: () => void
+  member: ShiftCrewMember;
+  crewId: string;
+  onRemoved: () => void;
 }) {
-  const [confirming, setConfirming] = useState(false)
+  const [confirming, setConfirming] = useState(false);
 
   const removeMutation = useMutation({
     mutationFn: async () => {
-      const res = await shiftsApi.removeCrewMember(crewId, member.user_id)
-      if (!res.success) throw new Error(res.error.message)
+      const res = await shiftsApi.removeCrewMember(crewId, member.user_id);
+      if (!res.success) throw new Error(res.error.message);
     },
     onSuccess: onRemoved,
-  })
+  });
 
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
+        display: "flex",
+        alignItems: "center",
         gap: 12,
-        padding: '10px 16px',
-        borderBottom: '1px solid var(--io-border)',
+        padding: "10px 16px",
+        borderBottom: "1px solid var(--io-border)",
       }}
     >
       <Avatar name={member.display_name} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: 'var(--io-text-primary)', fontSize: 13, fontWeight: 500 }}>
-          {member.display_name ?? member.email ?? 'Unknown'}
+        <div
+          style={{
+            color: "var(--io-text-primary)",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          {member.display_name ?? member.email ?? "Unknown"}
         </div>
         {member.email && (
-          <div style={{ color: 'var(--io-text-muted)', fontSize: 12 }}>{member.email}</div>
+          <div style={{ color: "var(--io-text-muted)", fontSize: 12 }}>
+            {member.email}
+          </div>
         )}
       </div>
       {member.role_label && (
         <span
           style={{
             fontSize: 11,
-            padding: '2px 8px',
+            padding: "2px 8px",
             borderRadius: 100,
-            background: 'var(--io-surface-secondary)',
-            color: 'var(--io-text-secondary)',
-            border: '1px solid var(--io-border)',
+            background: "var(--io-surface-secondary)",
+            color: "var(--io-text-secondary)",
+            border: "1px solid var(--io-border)",
           }}
         >
           {member.role_label}
         </span>
       )}
       {confirming ? (
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: "flex", gap: 6 }}>
           <button
             onClick={() => removeMutation.mutate()}
             disabled={removeMutation.isPending}
             style={{
-              padding: '4px 10px',
+              padding: "4px 10px",
               borderRadius: 5,
-              border: 'none',
-              background: '#ef4444',
-              color: '#fff',
-              cursor: 'pointer',
+              border: "none",
+              background: "#ef4444",
+              color: "#fff",
+              cursor: "pointer",
               fontSize: 12,
             }}
           >
-            {removeMutation.isPending ? '…' : 'Remove'}
+            {removeMutation.isPending ? "…" : "Remove"}
           </button>
           <button
             onClick={() => setConfirming(false)}
             style={{
-              padding: '4px 10px',
+              padding: "4px 10px",
               borderRadius: 5,
-              border: '1px solid var(--io-border)',
-              background: 'transparent',
-              color: 'var(--io-text-secondary)',
-              cursor: 'pointer',
+              border: "1px solid var(--io-border)",
+              background: "transparent",
+              color: "var(--io-text-secondary)",
+              cursor: "pointer",
               fontSize: 12,
             }}
           >
@@ -180,12 +193,12 @@ function CrewMemberRow({
         <button
           onClick={() => setConfirming(true)}
           style={{
-            padding: '4px 10px',
+            padding: "4px 10px",
             borderRadius: 5,
-            border: '1px solid var(--io-border)',
-            background: 'transparent',
-            color: 'var(--io-text-muted)',
-            cursor: 'pointer',
+            border: "1px solid var(--io-border)",
+            background: "transparent",
+            color: "var(--io-text-muted)",
+            cursor: "pointer",
             fontSize: 12,
           }}
         >
@@ -193,49 +206,61 @@ function CrewMemberRow({
         </button>
       )}
     </div>
-  )
+  );
 }
 
 function CrewDetailPanel({ crew }: { crew: ShiftCrew }) {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery<ShiftCrewDetail>({
-    queryKey: ['shifts', 'crew', crew.id],
+    queryKey: ["shifts", "crew", crew.id],
     queryFn: async () => {
-      const res = await shiftsApi.getCrew(crew.id)
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.getCrew(crew.id);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
-  })
+  });
 
-  const members = data?.members ?? []
+  const members = data?.members ?? [];
 
   return (
     <div
       style={{
-        borderTop: '1px solid var(--io-border)',
-        background: 'var(--io-bg)',
+        borderTop: "1px solid var(--io-border)",
+        background: "var(--io-bg)",
       }}
     >
       <div
         style={{
-          padding: '10px 16px',
+          padding: "10px 16px",
           fontSize: 11,
           fontWeight: 700,
-          color: 'var(--io-text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          borderBottom: '1px solid var(--io-border)',
+          color: "var(--io-text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          borderBottom: "1px solid var(--io-border)",
         }}
       >
-        Members ({isLoading ? '…' : members.length})
+        Members ({isLoading ? "…" : members.length})
       </div>
       {isLoading ? (
-        <div style={{ padding: '20px 16px', color: 'var(--io-text-muted)', fontSize: 13 }}>
+        <div
+          style={{
+            padding: "20px 16px",
+            color: "var(--io-text-muted)",
+            fontSize: 13,
+          }}
+        >
           Loading members…
         </div>
       ) : members.length === 0 ? (
-        <div style={{ padding: '20px 16px', color: 'var(--io-text-muted)', fontSize: 13 }}>
+        <div
+          style={{
+            padding: "20px 16px",
+            color: "var(--io-text-muted)",
+            fontSize: 13,
+          }}
+        >
           No members assigned to this crew.
         </div>
       ) : (
@@ -244,12 +269,14 @@ function CrewDetailPanel({ crew }: { crew: ShiftCrew }) {
             key={m.id}
             member={m}
             crewId={crew.id}
-            onRemoved={() => qc.invalidateQueries({ queryKey: ['shifts', 'crew', crew.id] })}
+            onRemoved={() =>
+              qc.invalidateQueries({ queryKey: ["shifts", "crew", crew.id] })
+            }
           />
         ))
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -257,36 +284,49 @@ function CrewDetailPanel({ crew }: { crew: ShiftCrew }) {
 // ---------------------------------------------------------------------------
 
 const CREW_COLORS = [
-  '#4a9eff', '#22c55e', '#f97316', '#a855f7',
-  '#ef4444', '#eab308', '#06b6d4', '#ec4899',
-]
+  "#4a9eff",
+  "#22c55e",
+  "#f97316",
+  "#a855f7",
+  "#ef4444",
+  "#eab308",
+  "#06b6d4",
+  "#ec4899",
+];
 
 function CreateCrewForm({ onCreated }: { onCreated: () => void }) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [color, setColor] = useState(CREW_COLORS[0])
-  const [error, setError] = useState<string | null>(null)
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState(CREW_COLORS[0]);
+  const [error, setError] = useState<string | null>(null);
 
   const createMutation = useMutation({
     mutationFn: async (payload: CreateCrewPayload) => {
-      const res = await shiftsApi.createCrew(payload)
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.createCrew(payload);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
     onSuccess: () => {
-      setName('')
-      setDescription('')
-      setColor(CREW_COLORS[0])
-      setError(null)
-      onCreated()
+      setName("");
+      setDescription("");
+      setColor(CREW_COLORS[0]);
+      setError(null);
+      onCreated();
     },
     onError: (e: Error) => setError(e.message),
-  })
+  });
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!name.trim()) { setError('Crew name is required.'); return }
-    createMutation.mutate({ name: name.trim(), description: description.trim() || undefined, color })
+    e.preventDefault();
+    if (!name.trim()) {
+      setError("Crew name is required.");
+      return;
+    }
+    createMutation.mutate({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      color,
+    });
   }
 
   return (
@@ -294,17 +334,24 @@ function CreateCrewForm({ onCreated }: { onCreated: () => void }) {
       onSubmit={handleSubmit}
       style={{ ...surface, padding: 20, marginBottom: 24 }}
     >
-      <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: 'var(--io-text-primary)' }}>
+      <h3
+        style={{
+          margin: "0 0 16px",
+          fontSize: 14,
+          fontWeight: 600,
+          color: "var(--io-text-primary)",
+        }}
+      >
         New Crew
       </h3>
       {error && (
         <div
           style={{
-            padding: '8px 12px',
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.3)',
+            padding: "8px 12px",
+            background: "rgba(239,68,68,0.1)",
+            border: "1px solid rgba(239,68,68,0.3)",
             borderRadius: 6,
-            color: '#ef4444',
+            color: "#ef4444",
             fontSize: 12,
             marginBottom: 14,
           }}
@@ -312,7 +359,7 @@ function CreateCrewForm({ onCreated }: { onCreated: () => void }) {
           {error}
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <div>
           <label style={fieldLabel}>Name *</label>
           <input
@@ -334,7 +381,7 @@ function CreateCrewForm({ onCreated }: { onCreated: () => void }) {
       </div>
       <div style={{ marginTop: 14 }}>
         <label style={fieldLabel}>Color</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {CREW_COLORS.map((c: string) => (
             <button
               key={c}
@@ -343,77 +390,102 @@ function CreateCrewForm({ onCreated }: { onCreated: () => void }) {
               style={{
                 width: 28,
                 height: 28,
-                borderRadius: '50%',
+                borderRadius: "50%",
                 background: c,
-                border: color === c ? '2px solid var(--io-text-primary)' : '2px solid transparent',
-                cursor: 'pointer',
+                border:
+                  color === c
+                    ? "2px solid var(--io-text-primary)"
+                    : "2px solid transparent",
+                cursor: "pointer",
                 padding: 0,
               }}
             />
           ))}
         </div>
       </div>
-      <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+      <div
+        style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}
+      >
         <button
           type="submit"
           disabled={createMutation.isPending}
           style={{
-            padding: '7px 18px',
+            padding: "7px 18px",
             borderRadius: 6,
-            border: 'none',
-            background: createMutation.isPending ? 'var(--io-border)' : 'var(--io-accent)',
-            color: '#fff',
-            cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
+            border: "none",
+            background: createMutation.isPending
+              ? "var(--io-border)"
+              : "var(--io-accent)",
+            color: "#fff",
+            cursor: createMutation.isPending ? "not-allowed" : "pointer",
             fontSize: 13,
             fontWeight: 500,
           }}
         >
-          {createMutation.isPending ? 'Creating…' : 'Create Crew'}
+          {createMutation.isPending ? "Creating…" : "Create Crew"}
         </button>
       </div>
     </form>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Crew card
 // ---------------------------------------------------------------------------
 
-function CrewCard({ crew, onDeleted }: { crew: ShiftCrew; onDeleted: () => void }) {
-  const [expanded, setExpanded] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const qc = useQueryClient()
+function CrewCard({
+  crew,
+  onDeleted,
+}: {
+  crew: ShiftCrew;
+  onDeleted: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const qc = useQueryClient();
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const res = await shiftsApi.deleteCrew(crew.id)
-      if (!res.success) throw new Error(res.error.message)
+      const res = await shiftsApi.deleteCrew(crew.id);
+      if (!res.success) throw new Error(res.error.message);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shifts', 'crews'] })
-      onDeleted()
+      qc.invalidateQueries({ queryKey: ["shifts", "crews"] });
+      onDeleted();
     },
-  })
+  });
 
   return (
-    <div style={{ ...surface, marginBottom: 12, overflow: 'hidden' }}>
+    <div style={{ ...surface, marginBottom: 12, overflow: "hidden" }}>
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
+          display: "flex",
+          alignItems: "center",
           gap: 12,
-          padding: '14px 16px',
-          cursor: 'pointer',
+          padding: "14px 16px",
+          cursor: "pointer",
         }}
         onClick={() => setExpanded((v) => !v)}
       >
         <ColorDot color={crew.color} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: 'var(--io-text-primary)', fontWeight: 600, fontSize: 14 }}>
+          <div
+            style={{
+              color: "var(--io-text-primary)",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
             {crew.name}
           </div>
           {crew.description && (
-            <div style={{ color: 'var(--io-text-muted)', fontSize: 12, marginTop: 1 }}>
+            <div
+              style={{
+                color: "var(--io-text-muted)",
+                fontSize: 12,
+                marginTop: 1,
+              }}
+            >
               {crew.description}
             </div>
           )}
@@ -421,44 +493,44 @@ function CrewCard({ crew, onDeleted }: { crew: ShiftCrew; onDeleted: () => void 
         <span
           style={{
             fontSize: 12,
-            color: 'var(--io-text-muted)',
-            background: 'var(--io-surface-secondary)',
-            padding: '2px 8px',
+            color: "var(--io-text-muted)",
+            background: "var(--io-surface-secondary)",
+            padding: "2px 8px",
             borderRadius: 100,
-            border: '1px solid var(--io-border)',
+            border: "1px solid var(--io-border)",
           }}
         >
-          {crew.member_count ?? 0} member{crew.member_count !== 1 ? 's' : ''}
+          {crew.member_count ?? 0} member{crew.member_count !== 1 ? "s" : ""}
         </span>
         {confirming ? (
           <div
-            style={{ display: 'flex', gap: 6 }}
+            style={{ display: "flex", gap: 6 }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => deleteMutation.mutate()}
               disabled={deleteMutation.isPending}
               style={{
-                padding: '4px 10px',
+                padding: "4px 10px",
                 borderRadius: 5,
-                border: 'none',
-                background: '#ef4444',
-                color: '#fff',
-                cursor: 'pointer',
+                border: "none",
+                background: "#ef4444",
+                color: "#fff",
+                cursor: "pointer",
                 fontSize: 12,
               }}
             >
-              {deleteMutation.isPending ? '…' : 'Delete'}
+              {deleteMutation.isPending ? "…" : "Delete"}
             </button>
             <button
               onClick={() => setConfirming(false)}
               style={{
-                padding: '4px 10px',
+                padding: "4px 10px",
                 borderRadius: 5,
-                border: '1px solid var(--io-border)',
-                background: 'transparent',
-                color: 'var(--io-text-secondary)',
-                cursor: 'pointer',
+                border: "1px solid var(--io-border)",
+                background: "transparent",
+                color: "var(--io-text-secondary)",
+                cursor: "pointer",
                 fontSize: 12,
               }}
             >
@@ -467,27 +539,36 @@ function CrewCard({ crew, onDeleted }: { crew: ShiftCrew; onDeleted: () => void 
           </div>
         ) : (
           <button
-            onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirming(true);
+            }}
             style={{
-              padding: '4px 10px',
+              padding: "4px 10px",
               borderRadius: 5,
-              border: '1px solid var(--io-border)',
-              background: 'transparent',
-              color: 'var(--io-text-muted)',
-              cursor: 'pointer',
+              border: "1px solid var(--io-border)",
+              background: "transparent",
+              color: "var(--io-text-muted)",
+              cursor: "pointer",
               fontSize: 12,
             }}
           >
             Delete
           </button>
         )}
-        <span style={{ color: 'var(--io-text-muted)', fontSize: 16, userSelect: 'none' }}>
-          {expanded ? '▲' : '▼'}
+        <span
+          style={{
+            color: "var(--io-text-muted)",
+            fontSize: 16,
+            userSelect: "none",
+          }}
+        >
+          {expanded ? "▲" : "▼"}
         </span>
       </div>
       {expanded && <CrewDetailPanel crew={crew} />}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -495,77 +576,101 @@ function CrewCard({ crew, onDeleted }: { crew: ShiftCrew; onDeleted: () => void 
 // ---------------------------------------------------------------------------
 
 export default function CrewList() {
-  const qc = useQueryClient()
-  const [showCreate, setShowCreate] = useState(false)
+  const qc = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery<ShiftCrew[]>({
-    queryKey: ['shifts', 'crews'],
+    queryKey: ["shifts", "crews"],
     queryFn: async () => {
-      const res = await shiftsApi.listCrews()
-      if (!res.success) throw new Error(res.error.message)
-      return res.data
+      const res = await shiftsApi.listCrews();
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
     },
-  })
+  });
 
-  const crews = data ?? []
+  const crews = data ?? [];
 
   return (
-    <div style={{ padding: 'var(--io-space-6)' }}>
+    <div style={{ padding: "var(--io-space-6)" }}>
       {/* Header */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           marginBottom: 24,
           gap: 16,
-          flexWrap: 'wrap',
+          flexWrap: "wrap",
         }}
       >
         <div>
-          <h2 style={{ margin: 0, color: 'var(--io-text-primary)', fontSize: 20, fontWeight: 600 }}>
+          <h2
+            style={{
+              margin: 0,
+              color: "var(--io-text-primary)",
+              fontSize: 20,
+              fontWeight: 600,
+            }}
+          >
             Crews
           </h2>
-          <p style={{ margin: '4px 0 0', color: 'var(--io-text-muted)', fontSize: 13 }}>
+          <p
+            style={{
+              margin: "4px 0 0",
+              color: "var(--io-text-muted)",
+              fontSize: 13,
+            }}
+          >
             Manage shift crews and their members.
           </p>
         </div>
         <button
           onClick={() => setShowCreate((v) => !v)}
           style={{
-            padding: '8px 16px',
-            background: showCreate ? 'var(--io-surface)' : 'var(--io-accent)',
-            color: showCreate ? 'var(--io-text-secondary)' : '#fff',
-            border: showCreate ? '1px solid var(--io-border)' : 'none',
+            padding: "8px 16px",
+            background: showCreate ? "var(--io-surface)" : "var(--io-accent)",
+            color: showCreate ? "var(--io-text-secondary)" : "#fff",
+            border: showCreate ? "1px solid var(--io-border)" : "none",
             borderRadius: 6,
-            cursor: 'pointer',
+            cursor: "pointer",
             fontSize: 13,
             fontWeight: 500,
           }}
         >
-          {showCreate ? 'Cancel' : '+ New Crew'}
+          {showCreate ? "Cancel" : "+ New Crew"}
         </button>
       </div>
 
       {showCreate && (
         <CreateCrewForm
           onCreated={() => {
-            qc.invalidateQueries({ queryKey: ['shifts', 'crews'] })
-            setShowCreate(false)
+            qc.invalidateQueries({ queryKey: ["shifts", "crews"] });
+            setShowCreate(false);
           }}
         />
       )}
 
       {isLoading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: 40,
+            textAlign: "center",
+            color: "var(--io-text-muted)",
+          }}
+        >
           Loading crews…
         </div>
       ) : isError ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>
-          Failed to load crews.{' '}
+        <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>
+          Failed to load crews.{" "}
           <button
             onClick={() => refetch()}
-            style={{ background: 'none', border: 'none', color: 'var(--io-accent)', cursor: 'pointer' }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--io-accent)",
+              cursor: "pointer",
+            }}
           >
             Retry
           </button>
@@ -575,8 +680,8 @@ export default function CrewList() {
           style={{
             ...surface,
             padding: 40,
-            textAlign: 'center',
-            color: 'var(--io-text-muted)',
+            textAlign: "center",
+            color: "var(--io-text-muted)",
             fontSize: 13,
           }}
         >
@@ -588,14 +693,22 @@ export default function CrewList() {
             <CrewCard
               key={crew.id}
               crew={crew}
-              onDeleted={() => qc.invalidateQueries({ queryKey: ['shifts', 'crews'] })}
+              onDeleted={() =>
+                qc.invalidateQueries({ queryKey: ["shifts", "crews"] })
+              }
             />
           ))}
-          <p style={{ fontSize: 12, color: 'var(--io-text-muted)', marginTop: 8 }}>
-            {crews.length} crew{crews.length !== 1 ? 's' : ''}
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--io-text-muted)",
+              marginTop: 8,
+            }}
+          >
+            {crews.length} crew{crews.length !== 1 ? "s" : ""}
           </p>
         </div>
       )}
     </div>
-  )
+  );
 }

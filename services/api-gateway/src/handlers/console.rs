@@ -118,7 +118,12 @@ pub async fn list_workspaces(
         let name: String = row.try_get("name").unwrap_or_default();
         let metadata: Option<JsonValue> = row.try_get("metadata").ok().flatten();
         let created_at: DateTime<Utc> = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
-        items.push(WorkspaceSummary { id, name, metadata, created_at });
+        items.push(WorkspaceSummary {
+            id,
+            name,
+            metadata,
+            created_at,
+        });
     }
 
     Json(PagedResponse::new(items, pg, limit, total as u64)).into_response()
@@ -212,7 +217,9 @@ pub async fn get_workspace(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Workspace {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Workspace {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "get_workspace query failed");
             return IoError::Database(e).into_response();
@@ -305,7 +312,9 @@ pub async fn update_workspace(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Workspace {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Workspace {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "update_workspace query failed");
             return IoError::Database(e).into_response();
@@ -367,7 +376,10 @@ pub async fn publish_workspace(
         return IoError::NotFound(format!("Workspace {} not found", id)).into_response();
     }
 
-    Json(ApiResponse::ok(serde_json::json!({ "id": id, "published": true }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "id": id, "published": true }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -417,7 +429,10 @@ pub async fn share_workspace(
         return IoError::NotFound(format!("Workspace {} not found", id)).into_response();
     }
 
-    Json(ApiResponse::ok(serde_json::json!({ "id": id, "shared": true }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "id": id, "shared": true }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +465,9 @@ pub async fn duplicate_workspace(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Workspace {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Workspace {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "duplicate_workspace source query failed");
             return IoError::Database(e).into_response();
@@ -459,9 +476,7 @@ pub async fn duplicate_workspace(
 
     let src_name: String = src.try_get("name").unwrap_or_default();
     let src_meta: Option<JsonValue> = src.try_get("metadata").ok().flatten();
-    let new_name = body
-        .name
-        .unwrap_or_else(|| format!("{} (Copy)", src_name));
+    let new_name = body.name.unwrap_or_else(|| format!("{} (Copy)", src_name));
     let new_id = Uuid::new_v4();
 
     // Strip sharing / published flags from the copy
@@ -511,5 +526,8 @@ pub async fn duplicate_workspace(
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }

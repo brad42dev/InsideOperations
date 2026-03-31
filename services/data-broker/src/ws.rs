@@ -289,9 +289,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, user_id: Uuid) {
 
     // Update gauges to reflect the post-disconnect counts.
     metrics::gauge!("io_ws_connections").set(state.connections.len() as f64);
-    metrics::gauge!("io_ws_subscriptions").set(
-        state.registry.total_subscription_count() as f64,
-    );
+    metrics::gauge!("io_ws_subscriptions").set(state.registry.total_subscription_count() as f64);
 
     info!(
         client_id = %client_id,

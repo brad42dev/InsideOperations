@@ -154,7 +154,10 @@ mod tests {
 
     #[test]
     fn parquet_format_has_correct_mime_type_and_extension() {
-        assert_eq!(ExportFormat::Parquet.mime_type(), "application/octet-stream");
+        assert_eq!(
+            ExportFormat::Parquet.mime_type(),
+            "application/octet-stream"
+        );
         assert_eq!(ExportFormat::Parquet.extension(), "parquet");
     }
 

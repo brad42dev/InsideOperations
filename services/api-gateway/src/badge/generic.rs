@@ -22,6 +22,7 @@ use super::{BadgeAdapter, BadgeAdapterError, BadgeAdapterType, BadgeEvent, Exter
 /// Used as a safe fallback for source types that have no concrete
 /// implementation yet.
 pub struct NoOpAdapter {
+    #[allow(dead_code)]
     name: String,
 }
 

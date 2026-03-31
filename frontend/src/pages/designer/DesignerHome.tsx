@@ -1,10 +1,10 @@
-import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { reportsApi, type ReportTemplate } from '../../api/reports'
-import { dashboardsApi, type Dashboard } from '../../api/dashboards'
-import { graphicsApi, type DesignObjectSummary } from '../../api/graphics'
-import { useDesignerPermissions } from '../../shared/hooks/usePermission'
-import { RecognitionWizardTrigger } from './components/RecognitionWizard'
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { reportsApi, type ReportTemplate } from "../../api/reports";
+import { dashboardsApi, type Dashboard } from "../../api/dashboards";
+import { graphicsApi, type DesignObjectSummary } from "../../api/graphics";
+import { useDesignerPermissions } from "../../shared/hooks/usePermission";
+import { RecognitionWizardTrigger } from "./components/RecognitionWizard";
 
 // ---------------------------------------------------------------------------
 // Hub card
@@ -19,64 +19,76 @@ function HubCard({
   newHref,
   isLoading,
 }: {
-  icon: string
-  title: string
-  count: number
-  description: string
-  browseHref: string
-  newHref: string
-  isLoading: boolean
+  icon: string;
+  title: string;
+  count: number;
+  description: string;
+  browseHref: string;
+  newHref: string;
+  isLoading: boolean;
 }) {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   return (
     <div
       style={{
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        padding: '24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
+        background: "var(--io-surface-elevated)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "var(--io-radius)",
+        padding: "24px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px",
         minWidth: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '24px' }}>{icon}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <span style={{ fontSize: "24px" }}>{icon}</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
+          >
             {title}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--io-text-secondary)', marginTop: '2px' }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-secondary)",
+              marginTop: "2px",
+            }}
+          >
             {description}
           </div>
         </div>
         <div
           style={{
-            fontSize: '28px',
+            fontSize: "28px",
             fontWeight: 700,
-            color: 'var(--io-accent)',
-            minWidth: '40px',
-            textAlign: 'right',
+            color: "var(--io-accent)",
+            minWidth: "40px",
+            textAlign: "right",
           }}
         >
-          {isLoading ? '—' : count}
+          {isLoading ? "—" : count}
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div style={{ display: "flex", gap: "8px" }}>
         <button
           onClick={() => navigate(browseHref)}
           style={{
             flex: 1,
-            padding: '7px 0',
-            background: 'var(--io-surface-secondary)',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            color: 'var(--io-text-secondary)',
-            fontSize: '12px',
+            padding: "7px 0",
+            background: "var(--io-surface-secondary)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            color: "var(--io-text-secondary)",
+            fontSize: "12px",
             fontWeight: 500,
-            cursor: 'pointer',
+            cursor: "pointer",
           }}
         >
           Browse
@@ -85,21 +97,21 @@ function HubCard({
           onClick={() => navigate(newHref)}
           style={{
             flex: 1,
-            padding: '7px 0',
-            background: 'var(--io-accent)',
-            border: 'none',
-            borderRadius: 'var(--io-radius)',
-            color: '#09090b',
-            fontSize: '12px',
+            padding: "7px 0",
+            background: "var(--io-accent)",
+            border: "none",
+            borderRadius: "var(--io-radius)",
+            color: "#09090b",
+            fontSize: "12px",
             fontWeight: 600,
-            cursor: 'pointer',
+            cursor: "pointer",
           }}
         >
           + New
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -112,50 +124,57 @@ function RecentItem({
   subtitle,
   href,
 }: {
-  icon: string
-  name: string
-  subtitle: string
-  href: string
+  icon: string;
+  name: string;
+  subtitle: string;
+  href: string;
 }) {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   return (
     <div
       onClick={() => navigate(href)}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        padding: '8px 12px',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'pointer',
-        transition: 'background 0.1s',
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "8px 12px",
+        borderRadius: "var(--io-radius)",
+        cursor: "pointer",
+        transition: "background 0.1s",
       }}
       onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLDivElement).style.background = 'var(--io-surface-elevated)'
+        (e.currentTarget as HTMLDivElement).style.background =
+          "var(--io-surface-elevated)";
       }}
       onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLDivElement).style.background = 'transparent'
+        (e.currentTarget as HTMLDivElement).style.background = "transparent";
       }}
     >
-      <span style={{ fontSize: '16px', flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: "16px", flexShrink: 0 }}>{icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            fontSize: '13px',
+            fontSize: "13px",
             fontWeight: 500,
-            color: 'var(--io-text-primary)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            color: "var(--io-text-primary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           {name}
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>{subtitle}</div>
+        <div style={{ fontSize: "11px", color: "var(--io-text-muted)" }}>
+          {subtitle}
+        </div>
       </div>
-      <span style={{ fontSize: '11px', color: 'var(--io-accent)', fontWeight: 500 }}>Open</span>
+      <span
+        style={{ fontSize: "11px", color: "var(--io-accent)", fontWeight: 500 }}
+      >
+        Open
+      </span>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -163,100 +182,139 @@ function RecentItem({
 // ---------------------------------------------------------------------------
 
 export default function DesignerHome() {
-  const perms = useDesignerPermissions()
+  const perms = useDesignerPermissions();
   const reportsQuery = useQuery({
-    queryKey: ['report-templates', { is_system: false }],
+    queryKey: ["report-templates", { is_system: false }],
     queryFn: async () => {
-      const r = await reportsApi.listTemplates({ is_system: false, limit: 100 })
-      if (!r.success) throw new Error(r.error.message)
-      return r.data.data
+      const r = await reportsApi.listTemplates({
+        is_system: false,
+        limit: 100,
+      });
+      if (!r.success) throw new Error(r.error.message);
+      return r.data.data;
     },
-  })
+  });
 
   const dashboardsQuery = useQuery({
-    queryKey: ['dashboards'],
+    queryKey: ["dashboards"],
     queryFn: async () => {
-      const r = await dashboardsApi.list()
-      if (!r.success) throw new Error(r.error.message)
-      return r.data.data
+      const r = await dashboardsApi.list();
+      if (!r.success) throw new Error(r.error.message);
+      return r.data.data;
     },
-  })
+  });
 
   const graphicsQuery = useQuery({
-    queryKey: ['design-objects', { mode: 'graphic' }],
+    queryKey: ["design-objects", { mode: "graphic" }],
     queryFn: async () => {
-      const r = await graphicsApi.list({ mode: 'graphic' })
-      if (!r.success) throw new Error(r.error.message)
-      return r.data.data
+      const r = await graphicsApi.list({ mode: "graphic" });
+      if (!r.success) throw new Error(r.error.message);
+      return r.data.data;
     },
-  })
+  });
 
-  const reports: ReportTemplate[] = reportsQuery.data ?? []
-  const dashboards: Dashboard[] = dashboardsQuery.data ?? []
-  const graphics: DesignObjectSummary[] = graphicsQuery.data ?? []
+  const reports: ReportTemplate[] = reportsQuery.data ?? [];
+  const dashboards: Dashboard[] = dashboardsQuery.data ?? [];
+  const graphics: DesignObjectSummary[] = graphicsQuery.data ?? [];
 
   // Recent items: combine and sort by updated_at desc, take top 8
-  type RecentEntry = { type: 'graphic' | 'dashboard' | 'report'; id: string; name: string; updated_at: string }
+  type RecentEntry = {
+    type: "graphic" | "dashboard" | "report";
+    id: string;
+    name: string;
+    updated_at: string;
+  };
   const recentItems: RecentEntry[] = [
-    ...graphics.map((g): RecentEntry => ({ type: 'graphic', id: g.id, name: g.name, updated_at: g.updatedAt })),
-    ...dashboards.map((d): RecentEntry => ({ type: 'dashboard', id: d.id, name: d.name, updated_at: d.updated_at })),
-    ...reports.map((r): RecentEntry => ({ type: 'report', id: r.id, name: r.name, updated_at: r.updated_at })),
+    ...graphics.map(
+      (g): RecentEntry => ({
+        type: "graphic",
+        id: g.id,
+        name: g.name,
+        updated_at: g.updatedAt,
+      }),
+    ),
+    ...dashboards.map(
+      (d): RecentEntry => ({
+        type: "dashboard",
+        id: d.id,
+        name: d.name,
+        updated_at: d.updated_at,
+      }),
+    ),
+    ...reports.map(
+      (r): RecentEntry => ({
+        type: "report",
+        id: r.id,
+        name: r.name,
+        updated_at: r.updated_at,
+      }),
+    ),
   ]
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-    .slice(0, 8)
+    .sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    )
+    .slice(0, 8);
 
   const typeIcon: Record<string, string> = {
-    graphic: '🖼',
-    dashboard: '▦',
-    report: '📄',
-  }
+    graphic: "🖼",
+    dashboard: "▦",
+    report: "📄",
+  };
 
   const typeHref = (type: string, id: string) => {
-    if (type === 'graphic') return `/designer/graphics/${id}`
-    if (type === 'dashboard') return `/designer/dashboards/${id}/edit`
-    return `/designer/reports/${id}/edit`
-  }
+    if (type === "graphic") return `/designer/graphics/${id}`;
+    if (type === "dashboard") return `/designer/dashboards/${id}/edit`;
+    return `/designer/reports/${id}/edit`;
+  };
 
   const typeLabel = (type: string) => {
-    if (type === 'graphic') return 'Process Graphic'
-    if (type === 'dashboard') return 'Dashboard'
-    return 'Report Template'
-  }
+    if (type === "graphic") return "Process Graphic";
+    if (type === "dashboard") return "Dashboard";
+    return "Report Template";
+  };
 
   return (
     <div
       style={{
-        height: '100%',
-        overflowY: 'auto',
-        background: 'var(--io-surface-primary)',
-        padding: '24px',
+        height: "100%",
+        overflowY: "auto",
+        background: "var(--io-surface-primary)",
+        padding: "24px",
       }}
     >
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ maxWidth: "900px", margin: "0 auto" }}>
         {/* Page title */}
-        <div style={{ marginBottom: '24px' }}>
+        <div style={{ marginBottom: "24px" }}>
           <h1
             style={{
               margin: 0,
-              fontSize: '20px',
+              fontSize: "20px",
               fontWeight: 700,
-              color: 'var(--io-text-primary)',
+              color: "var(--io-text-primary)",
             }}
           >
             Designer
           </h1>
-          <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--io-text-secondary)' }}>
-            Create and manage process graphics, dashboards, and report templates.
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: "13px",
+              color: "var(--io-text-secondary)",
+            }}
+          >
+            Create and manage process graphics, dashboards, and report
+            templates.
           </p>
         </div>
 
         {/* Hub cards */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: '16px',
-            marginBottom: '32px',
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: "16px",
+            marginBottom: "32px",
           }}
         >
           <HubCard
@@ -291,68 +349,77 @@ export default function DesignerHome() {
         {/* Quick actions */}
         <div
           style={{
-            display: 'flex',
-            gap: '8px',
-            flexWrap: 'wrap',
-            marginBottom: '32px',
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap",
+            marginBottom: "32px",
           }}
         >
           {[
-            { label: 'Symbol Library', href: '/designer/symbols', icon: '⬡' },
-            { label: 'Import DCS Graphics', href: '/designer/import', icon: '⬆' },
+            { label: "Symbol Library", href: "/designer/symbols", icon: "⬡" },
+            {
+              label: "Import DCS Graphics",
+              href: "/designer/import",
+              icon: "⬆",
+            },
           ].map((action) => {
-            return (
-              <QuickAction key={action.href} {...action} />
-            )
+            return <QuickAction key={action.href} {...action} />;
           })}
-          <RecognitionWizardTrigger canImport={perms.canImport} renderAs="button" />
+          <RecognitionWizardTrigger
+            canImport={perms.canImport}
+            renderAs="button"
+          />
         </div>
 
         {/* Recent items */}
         <div>
           <div
             style={{
-              fontSize: '12px',
+              fontSize: "12px",
               fontWeight: 700,
-              color: 'var(--io-text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              marginBottom: '8px',
+              color: "var(--io-text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: "8px",
             }}
           >
             Recently Modified
           </div>
 
-          {recentItems.length === 0 && !graphicsQuery.isLoading && !dashboardsQuery.isLoading && !reportsQuery.isLoading && (
-            <div
-              style={{
-                padding: '24px',
-                textAlign: 'center',
-                color: 'var(--io-text-muted)',
-                fontSize: '13px',
-                background: 'var(--io-surface-elevated)',
-                borderRadius: 'var(--io-radius)',
-                border: '1px solid var(--io-border)',
-              }}
-            >
-              No items yet. Create your first graphic, dashboard, or report template.
-            </div>
-          )}
+          {recentItems.length === 0 &&
+            !graphicsQuery.isLoading &&
+            !dashboardsQuery.isLoading &&
+            !reportsQuery.isLoading && (
+              <div
+                style={{
+                  padding: "24px",
+                  textAlign: "center",
+                  color: "var(--io-text-muted)",
+                  fontSize: "13px",
+                  background: "var(--io-surface-elevated)",
+                  borderRadius: "var(--io-radius)",
+                  border: "1px solid var(--io-border)",
+                }}
+              >
+                No items yet. Create your first graphic, dashboard, or report
+                template.
+              </div>
+            )}
 
           {recentItems.length > 0 && (
             <div
               style={{
-                background: 'var(--io-surface)',
-                border: '1px solid var(--io-border)',
-                borderRadius: 'var(--io-radius)',
-                overflow: 'hidden',
-                padding: '4px',
+                background: "var(--io-surface)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                overflow: "hidden",
+                padding: "4px",
               }}
             >
               {recentItems.map((item) => (
                 <RecentItem
                   key={`${item.type}-${item.id}`}
-                  icon={typeIcon[item.type] ?? '📄'}
+                  icon={typeIcon[item.type] ?? "📄"}
                   name={item.name}
                   subtitle={typeLabel(item.type)}
                   href={typeHref(item.type, item.id)}
@@ -363,38 +430,49 @@ export default function DesignerHome() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-function QuickAction({ label, href, icon }: { label: string; href: string; icon: string }) {
-  const navigate = useNavigate()
+function QuickAction({
+  label,
+  href,
+  icon,
+}: {
+  label: string;
+  href: string;
+  icon: string;
+}) {
+  const navigate = useNavigate();
   return (
     <button
       onClick={() => navigate(href)}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '7px 14px',
-        background: 'var(--io-surface-elevated)',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        color: 'var(--io-text-secondary)',
-        fontSize: '13px',
-        cursor: 'pointer',
-        transition: 'border-color 0.1s, color 0.1s',
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "7px 14px",
+        background: "var(--io-surface-elevated)",
+        border: "1px solid var(--io-border)",
+        borderRadius: "var(--io-radius)",
+        color: "var(--io-text-secondary)",
+        fontSize: "13px",
+        cursor: "pointer",
+        transition: "border-color 0.1s, color 0.1s",
       }}
       onMouseEnter={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--io-accent)'
-        ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--io-accent)'
+        (e.currentTarget as HTMLButtonElement).style.borderColor =
+          "var(--io-accent)";
+        (e.currentTarget as HTMLButtonElement).style.color = "var(--io-accent)";
       }}
       onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--io-border)'
-        ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--io-text-secondary)'
+        (e.currentTarget as HTMLButtonElement).style.borderColor =
+          "var(--io-border)";
+        (e.currentTarget as HTMLButtonElement).style.color =
+          "var(--io-text-secondary)";
       }}
     >
       <span>{icon}</span>
       {label}
     </button>
-  )
+  );
 }

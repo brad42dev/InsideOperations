@@ -59,26 +59,90 @@ pub async fn broadcast_handler(
             payload: req.payload,
         },
         "presence_headcount" => WsServerMessage::PresenceHeadcount {
-            on_site: req.payload.get("on_site").and_then(|v| v.as_i64()).unwrap_or(0),
-            on_shift: req.payload.get("on_shift").and_then(|v| v.as_i64()).unwrap_or(0),
+            on_site: req
+                .payload
+                .get("on_site")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0),
+            on_shift: req
+                .payload
+                .get("on_shift")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0),
         },
         "presence_badge_event" => WsServerMessage::PresenceBadgeEvent {
-            person_name: req.payload.get("person_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            event_type: req.payload.get("event_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            area: req.payload.get("area").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            time: req.payload.get("time").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            person_name: req
+                .payload
+                .get("person_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            event_type: req
+                .payload
+                .get("event_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            area: req
+                .payload
+                .get("area")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            time: req
+                .payload
+                .get("time")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
         },
         "muster_status" => WsServerMessage::MusterStatus {
-            muster_event_id: req.payload.get("muster_event_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            accounted: req.payload.get("accounted").and_then(|v| v.as_i64()).unwrap_or(0),
-            unaccounted: req.payload.get("unaccounted").and_then(|v| v.as_i64()).unwrap_or(0),
-            total: req.payload.get("total").and_then(|v| v.as_i64()).unwrap_or(0),
-            status: req.payload.get("status").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            muster_event_id: req
+                .payload
+                .get("muster_event_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            accounted: req
+                .payload
+                .get("accounted")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0),
+            unaccounted: req
+                .payload
+                .get("unaccounted")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0),
+            total: req
+                .payload
+                .get("total")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0),
+            status: req
+                .payload
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
         },
         "muster_person_accounted" => WsServerMessage::MusterPersonAccounted {
-            person_name: req.payload.get("person_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            muster_point: req.payload.get("muster_point").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            method: req.payload.get("method").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            person_name: req
+                .payload
+                .get("person_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            muster_point: req
+                .payload
+                .get("muster_point")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            method: req
+                .payload
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
         },
         other => {
             warn!(event_type = other, "broadcast_handler: unknown event type");

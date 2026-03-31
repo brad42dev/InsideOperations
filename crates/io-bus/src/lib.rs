@@ -243,7 +243,7 @@ pub struct NotifyAlarmState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyPointMetadataChanged {
     #[serde(rename = "type")]
-    pub msg_type: String,    // always "point_metadata_changed"
+    pub msg_type: String, // always "point_metadata_changed"
     pub point_id: Uuid,
     pub change_type: String, // "new", "updated", "removed"
     pub source_id: Uuid,
@@ -253,10 +253,10 @@ pub struct NotifyPointMetadataChanged {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyEvent {
     #[serde(rename = "type")]
-    pub msg_type: String,       // always "event"
+    pub msg_type: String, // always "event"
     pub event_id: Uuid,
-    pub event_type: String,     // "alarm", "system", "user_action", etc.
-    pub severity: String,       // "emergency", "critical", "warning", "info"
+    pub event_type: String, // "alarm", "system", "user_action", etc.
+    pub severity: String,   // "emergency", "critical", "warning", "info"
     pub point_id: Option<Uuid>,
     pub summary: String,
 }
@@ -265,7 +265,7 @@ pub struct NotifyEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyAlert {
     #[serde(rename = "type")]
-    pub msg_type: String,       // always "alert"
+    pub msg_type: String, // always "alert"
     pub alert_id: Uuid,
     pub severity: String,
     pub template_name: String,
@@ -278,7 +278,7 @@ pub struct NotifyAlert {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyAlertTrigger {
     #[serde(rename = "type")]
-    pub msg_type: String,       // always "alert_trigger"
+    pub msg_type: String, // always "alert_trigger"
     pub source_event_id: Uuid,
     pub trigger_type: String,
     pub severity: String,
@@ -290,9 +290,9 @@ pub struct NotifyAlertTrigger {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyImportStatus {
     #[serde(rename = "type")]
-    pub msg_type: String,       // always "import_status"
+    pub msg_type: String, // always "import_status"
     pub run_id: Uuid,
-    pub status: String,         // "running", "completed", "failed"
+    pub status: String, // "running", "completed", "failed"
     pub progress_pct: u8,
     pub error_message: Option<String>,
 }
@@ -301,10 +301,10 @@ pub struct NotifyImportStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyExportProgress {
     #[serde(rename = "type")]
-    pub msg_type: String,       // always "export_progress"
+    pub msg_type: String, // always "export_progress"
     pub job_id: Uuid,
     pub user_id: Uuid,
-    pub status: String,         // "queued", "processing", "completed", "failed"
+    pub status: String, // "queued", "processing", "completed", "failed"
     pub progress_pct: u8,
 }
 
@@ -312,24 +312,24 @@ pub struct NotifyExportProgress {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyPresenceUpdate {
     #[serde(rename = "type")]
-    pub msg_type: String,       // always "presence_update"
+    pub msg_type: String, // always "presence_update"
     pub user_id: Uuid,
     pub presence_state: String, // "on_site", "off_site"
     pub badge_event_type: Option<String>,
-    pub timestamp: String,      // RFC 3339
+    pub timestamp: String, // RFC 3339
 }
 
 /// Sent on channel `email_send` by any service; consumed by Email Service.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotifyEmailSend {
     #[serde(rename = "type")]
-    pub msg_type: String,       // always "email_send"
+    pub msg_type: String, // always "email_send"
     pub template_id: Option<Uuid>,
     pub to: Vec<String>,
     pub subject: Option<String>,
     pub template_variables: Option<serde_json::Value>,
-    pub priority: String,       // "normal", "critical", "high", "low"
-    pub context_type: String,   // "report", "alert", "export", "round", "auth", "test"
+    pub priority: String,     // "normal", "critical", "high", "low"
+    pub context_type: String, // "report", "alert", "export", "round", "auth", "test"
     pub context_id: Option<Uuid>,
 }
 
@@ -345,9 +345,9 @@ pub struct WsEmpty {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WsPresenceUpdate {
     pub user_id: Uuid,
-    pub presence_state: String,        // "on_site", "off_site"
+    pub presence_state: String, // "on_site", "off_site"
     pub badge_event_type: Option<String>,
-    pub timestamp: String,             // RFC 3339
+    pub timestamp: String, // RFC 3339
 }
 
 /// Batch of point value updates sent from broker to client.
@@ -581,7 +581,10 @@ mod tests {
         let mut buf = vec![0xFFu8]; // unknown type tag
         buf.extend_from_slice(&(payload.len() as u32).to_be_bytes());
         buf.extend_from_slice(&payload);
-        assert!(decode_frame(&buf).is_err(), "unknown frame type must be an error");
+        assert!(
+            decode_frame(&buf).is_err(),
+            "unknown frame type must be an error"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -592,8 +595,8 @@ mod tests {
     fn ws_client_subscribe_deserializes_from_json() {
         let id = Uuid::new_v4();
         let json = format!(r#"{{"type":"subscribe","points":["{}"]}}"#, id);
-        let msg: WsClientMessage = serde_json::from_str(&json)
-            .expect("subscribe message should deserialize");
+        let msg: WsClientMessage =
+            serde_json::from_str(&json).expect("subscribe message should deserialize");
 
         match msg {
             WsClientMessage::Subscribe { points } => {
@@ -607,16 +610,15 @@ mod tests {
     #[test]
     fn ws_client_pong_deserializes_from_json() {
         let json = r#"{"type":"pong"}"#;
-        let msg: WsClientMessage = serde_json::from_str(json)
-            .expect("pong should deserialize");
+        let msg: WsClientMessage = serde_json::from_str(json).expect("pong should deserialize");
         assert!(matches!(msg, WsClientMessage::Pong));
     }
 
     #[test]
     fn ws_client_unsubscribe_deserializes_with_empty_list() {
         let json = r#"{"type":"unsubscribe","points":[]}"#;
-        let msg: WsClientMessage = serde_json::from_str(json)
-            .expect("unsubscribe should deserialize");
+        let msg: WsClientMessage =
+            serde_json::from_str(json).expect("unsubscribe should deserialize");
         match msg {
             WsClientMessage::Unsubscribe { points } => {
                 assert!(points.is_empty());

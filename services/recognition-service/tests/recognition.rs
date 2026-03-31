@@ -1,13 +1,13 @@
-/// Integration tests for the recognition-service.
-///
-/// The recognition-service performs P&ID and DCS symbol recognition using
-/// ONNX Runtime inference on uploaded .iomodel packages.
-///
-/// Tests that require a running recognition-service or GPU/ONNX model files
-/// are marked `#[ignore]`.  Unit-style tests verify package format parsing
-/// and hash computation.
-///
-///   cargo test -p recognition-service --test recognition -- --ignored
+// Integration tests for the recognition-service.
+//
+// The recognition-service performs P&ID and DCS symbol recognition using
+// ONNX Runtime inference on uploaded .iomodel packages.
+//
+// Tests that require a running recognition-service or GPU/ONNX model files
+// are marked `#[ignore]`.  Unit-style tests verify package format parsing
+// and hash computation.
+//
+// cargo test -p recognition-service --test recognition -- --ignored
 
 // ---------------------------------------------------------------------------
 // SHA-256 hash computation — pure logic, no service needed
@@ -97,8 +97,8 @@ async fn test_health_live_returns_200() {
 async fn test_iomodel_inference_returns_symbols() {
     // Requires TEST_RECOGNITION_SERVICE_URL pointing to a service with a
     // loaded ONNX model and a test .iomodel file at TEST_IOMODEL_PATH.
-    let _path = std::env::var("TEST_IOMODEL_PATH")
-        .unwrap_or_else(|_| "/tmp/test.iomodel".to_string());
+    let _path =
+        std::env::var("TEST_IOMODEL_PATH").unwrap_or_else(|_| "/tmp/test.iomodel".to_string());
 
     todo!("implement .iomodel upload and inference assertion");
 }

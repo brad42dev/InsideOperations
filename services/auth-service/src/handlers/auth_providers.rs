@@ -33,7 +33,9 @@ fn require_configure(headers: &HeaderMap) -> IoResult<()> {
     if perms.iter().any(|p| p == "system:configure" || p == "*") {
         Ok(())
     } else {
-        Err(IoError::Forbidden("system:configure permission required".into()))
+        Err(IoError::Forbidden(
+            "system:configure permission required".into(),
+        ))
     }
 }
 
@@ -109,9 +111,7 @@ pub struct CreateMappingBody {
 // Returns enabled providers for the login page.
 // ---------------------------------------------------------------------------
 
-pub async fn list_public_providers(
-    State(state): State<AppState>,
-) -> IoResult<impl IntoResponse> {
+pub async fn list_public_providers(State(state): State<AppState>) -> IoResult<impl IntoResponse> {
     let rows = sqlx::query(
         "SELECT id, name, display_name, provider_type, display_order
          FROM auth_provider_configs
@@ -155,10 +155,7 @@ pub async fn list_providers(
     .fetch_all(&state.db)
     .await?;
 
-    let providers: Vec<AuthProviderConfig> = rows
-        .into_iter()
-        .map(row_to_provider_config)
-        .collect();
+    let providers: Vec<AuthProviderConfig> = rows.into_iter().map(row_to_provider_config).collect();
 
     Ok(Json(ApiResponse::ok(providers)))
 }
@@ -329,7 +326,9 @@ pub async fn delete_provider(
         return Err(IoError::NotFound(format!("Provider {} not found", id)));
     }
 
-    Ok(Json(ApiResponse::ok(serde_json::json!({ "deleted": true }))))
+    Ok(Json(ApiResponse::ok(
+        serde_json::json!({ "deleted": true }),
+    )))
 }
 
 // ---------------------------------------------------------------------------
@@ -344,12 +343,11 @@ pub async fn list_mappings(
     require_configure(&headers)?;
 
     // Verify provider exists
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM auth_provider_configs WHERE id = $1)",
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM auth_provider_configs WHERE id = $1)")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await?;
 
     if !exists {
         return Err(IoError::NotFound(format!("Provider {} not found", id)));
@@ -443,19 +441,23 @@ pub async fn delete_mapping(
 ) -> IoResult<impl IntoResponse> {
     require_configure(&headers)?;
 
-    let result = sqlx::query(
-        "DELETE FROM idp_role_mappings WHERE id = $1 AND provider_config_id = $2",
-    )
-    .bind(mapping_id)
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    let result =
+        sqlx::query("DELETE FROM idp_role_mappings WHERE id = $1 AND provider_config_id = $2")
+            .bind(mapping_id)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
 
     if result.rows_affected() == 0 {
-        return Err(IoError::NotFound(format!("Mapping {} not found", mapping_id)));
+        return Err(IoError::NotFound(format!(
+            "Mapping {} not found",
+            mapping_id
+        )));
     }
 
-    Ok(Json(ApiResponse::ok(serde_json::json!({ "deleted": true }))))
+    Ok(Json(ApiResponse::ok(
+        serde_json::json!({ "deleted": true }),
+    )))
 }
 
 // ---------------------------------------------------------------------------

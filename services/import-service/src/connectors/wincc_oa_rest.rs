@@ -140,7 +140,10 @@ impl DcsConnector for WinccOaConnector {
                 event_type: "process_alarm".to_string(),
                 source_name,
                 timestamp,
-                severity: item.get("severity").and_then(|v| v.as_i64()).map(|s| s as i32),
+                severity: item
+                    .get("severity")
+                    .and_then(|v| v.as_i64())
+                    .map(|s| s as i32),
                 message: item
                     .get("message")
                     .and_then(|v| v.as_str())

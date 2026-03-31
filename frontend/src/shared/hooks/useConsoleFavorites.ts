@@ -18,8 +18,8 @@
  * and point favorites are stored independently.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { api } from '../../api/client'
+import { useState, useCallback, useEffect, useRef } from "react";
+import { api } from "../../api/client";
 
 // ---------------------------------------------------------------------------
 // localStorage helpers (optimistic cache + offline fallback)
@@ -27,19 +27,19 @@ import { api } from '../../api/client'
 
 function loadFromStorage(lsKey: string): Set<string> {
   try {
-    const raw = localStorage.getItem(lsKey)
-    if (!raw) return new Set()
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) return new Set<string>(parsed as string[])
-    return new Set()
+    const raw = localStorage.getItem(lsKey);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return new Set<string>(parsed as string[]);
+    return new Set();
   } catch {
-    return new Set()
+    return new Set();
   }
 }
 
 function saveToStorage(lsKey: string, ids: Set<string>): void {
   try {
-    localStorage.setItem(lsKey, JSON.stringify([...ids]))
+    localStorage.setItem(lsKey, JSON.stringify([...ids]));
   } catch {
     // ignore quota errors
   }
@@ -50,27 +50,30 @@ function saveToStorage(lsKey: string, ids: Set<string>): void {
 // ---------------------------------------------------------------------------
 
 interface UserPreferencesData {
-  user_id: string
-  preferences: Record<string, unknown>
+  user_id: string;
+  preferences: Record<string, unknown>;
 }
 
 async function fetchServerFavorites(prefKey: string): Promise<string[] | null> {
   try {
-    const result = await api.get<UserPreferencesData>('/api/user/preferences')
-    if (!result.success) return null
-    const raw = result.data.preferences[prefKey]
-    if (Array.isArray(raw)) return raw as string[]
-    return null
+    const result = await api.get<UserPreferencesData>("/api/user/preferences");
+    if (!result.success) return null;
+    const raw = result.data.preferences[prefKey];
+    if (Array.isArray(raw)) return raw as string[];
+    return null;
   } catch {
-    return null
+    return null;
   }
 }
 
-async function saveServerFavorites(prefKey: string, ids: Set<string>): Promise<void> {
+async function saveServerFavorites(
+  prefKey: string,
+  ids: Set<string>,
+): Promise<void> {
   try {
-    await api.patch<UserPreferencesData>('/api/user/preferences', {
+    await api.patch<UserPreferencesData>("/api/user/preferences", {
       preferences: { [prefKey]: [...ids] },
-    })
+    });
   } catch {
     // ignore — localStorage remains as fallback
   }
@@ -81,93 +84,118 @@ async function saveServerFavorites(prefKey: string, ids: Set<string>): Promise<v
 // ---------------------------------------------------------------------------
 
 export interface UseConsoleFavoritesReturn {
-  favoriteIds: Set<string>
-  isFavorite: (id: string) => boolean
-  toggleFavorite: (id: string) => void
-  addFavorite: (id: string) => void
-  removeFavorite: (id: string) => void
+  favoriteIds: Set<string>;
+  isFavorite: (id: string) => boolean;
+  toggleFavorite: (id: string) => void;
+  addFavorite: (id: string) => void;
+  removeFavorite: (id: string) => void;
 }
 
 export function useConsoleFavorites(lsKey: string): UseConsoleFavoritesReturn {
   // Seed from localStorage for instant initial render
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => loadFromStorage(lsKey))
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() =>
+    loadFromStorage(lsKey),
+  );
 
   // Preference key for the server-side JSONB column (e.g. "console_workspace_favorites")
-  const prefKey = `console_${lsKey.replace('io-console-', '').replace(/-/g, '_')}`
+  const prefKey = `console_${lsKey.replace("io-console-", "").replace(/-/g, "_")}`;
 
   // Debounce timer ref for server writes
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch from server on mount and reconcile
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
     fetchServerFavorites(prefKey).then((serverIds) => {
-      if (cancelled || serverIds === null) return
+      if (cancelled || serverIds === null) return;
       setFavoriteIds((prev: Set<string>) => {
         // Union of local and server — server wins for items in both
-        const merged = new Set<string>([...prev, ...serverIds])
+        const merged = new Set<string>([...prev, ...serverIds]);
         // Trim to server set if server is definitive (non-empty server response)
         // Use server list as truth but keep local additions not yet synced
-        const next = serverIds.length > 0 ? new Set<string>(serverIds) : merged
-        saveToStorage(lsKey, next)
-        return next
-      })
-    })
-    return () => { cancelled = true }
-  }, [lsKey, prefKey])
+        const next = serverIds.length > 0 ? new Set<string>(serverIds) : merged;
+        saveToStorage(lsKey, next);
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [lsKey, prefKey]);
 
-  const scheduleServerSave = useCallback((ids: Set<string>) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      void saveServerFavorites(prefKey, ids)
-    }, 400)
-  }, [prefKey])
+  const scheduleServerSave = useCallback(
+    (ids: Set<string>) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        void saveServerFavorites(prefKey, ids);
+      }, 400);
+    },
+    [prefKey],
+  );
 
-  const toggleFavorite = useCallback((id: string) => {
-    setFavoriteIds((prev: Set<string>) => {
-      const next = new Set<string>(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      saveToStorage(lsKey, next)
-      scheduleServerSave(next)
-      return next
-    })
-  }, [lsKey, scheduleServerSave])
+  const toggleFavorite = useCallback(
+    (id: string) => {
+      setFavoriteIds((prev: Set<string>) => {
+        const next = new Set<string>(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        saveToStorage(lsKey, next);
+        scheduleServerSave(next);
+        return next;
+      });
+    },
+    [lsKey, scheduleServerSave],
+  );
 
-  const addFavorite = useCallback((id: string) => {
-    setFavoriteIds((prev: Set<string>) => {
-      if (prev.has(id)) return prev
-      const next = new Set<string>(prev)
-      next.add(id)
-      saveToStorage(lsKey, next)
-      scheduleServerSave(next)
-      return next
-    })
-  }, [lsKey, scheduleServerSave])
+  const addFavorite = useCallback(
+    (id: string) => {
+      setFavoriteIds((prev: Set<string>) => {
+        if (prev.has(id)) return prev;
+        const next = new Set<string>(prev);
+        next.add(id);
+        saveToStorage(lsKey, next);
+        scheduleServerSave(next);
+        return next;
+      });
+    },
+    [lsKey, scheduleServerSave],
+  );
 
-  const removeFavorite = useCallback((id: string) => {
-    setFavoriteIds((prev: Set<string>) => {
-      if (!prev.has(id)) return prev
-      const next = new Set<string>(prev)
-      next.delete(id)
-      saveToStorage(lsKey, next)
-      scheduleServerSave(next)
-      return next
-    })
-  }, [lsKey, scheduleServerSave])
+  const removeFavorite = useCallback(
+    (id: string) => {
+      setFavoriteIds((prev: Set<string>) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set<string>(prev);
+        next.delete(id);
+        saveToStorage(lsKey, next);
+        scheduleServerSave(next);
+        return next;
+      });
+    },
+    [lsKey, scheduleServerSave],
+  );
 
-  const isFavorite = useCallback((id: string) => favoriteIds.has(id), [favoriteIds])
+  const isFavorite = useCallback(
+    (id: string) => favoriteIds.has(id),
+    [favoriteIds],
+  );
 
-  return { favoriteIds, isFavorite, toggleFavorite, addFavorite, removeFavorite }
+  return {
+    favoriteIds,
+    isFavorite,
+    toggleFavorite,
+    addFavorite,
+    removeFavorite,
+  };
 }
 
 // Convenience constants for each Console section
 export const CONSOLE_FAVORITES_KEYS = {
-  workspaces: 'io-console-workspace-favorites',
-  graphics: 'io-console-graphic-favorites',
-  widgets: 'io-console-widget-favorites',
-  points: 'io-console-point-favorites',
-} as const
+  workspaces: "io-console-workspace-favorites",
+  graphics: "io-console-graphic-favorites",
+  widgets: "io-console-widget-favorites",
+  points: "io-console-point-favorites",
+} as const;

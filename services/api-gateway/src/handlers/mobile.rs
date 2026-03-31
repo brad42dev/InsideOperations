@@ -9,12 +9,7 @@
 //! - Config endpoint (mobile PWA startup configuration, no DB required)
 //! - Lightweight health check (no auth, minimal payload)
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Extension, Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
@@ -24,18 +19,21 @@ use serde_json::{json, Value as JsonValue};
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::state::AppState;
 use super::rounds::{
-    evaluate_thresholds, row_to_instance, row_to_template, row_to_response,
-    RoundInstanceDetail, RoundResponseRow,
+    evaluate_thresholds, row_to_instance, row_to_response, row_to_template, RoundInstanceDetail,
+    RoundResponseRow,
 };
+use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
 // Permission helpers (mirror rounds.rs pattern)
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
@@ -129,19 +127,14 @@ pub async fn batch_sync_rounds(
 
             if let Some(owner) = locked {
                 if owner != user_id {
-                    return IoError::Forbidden(
-                        "Round is locked to a different user".into(),
-                    )
-                    .into_response();
+                    return IoError::Forbidden("Round is locked to a different user".into())
+                        .into_response();
                 }
             }
         }
         Ok(None) => {
-            return IoError::NotFound(format!(
-                "Round instance {} not found",
-                body.instance_id
-            ))
-            .into_response();
+            return IoError::NotFound(format!("Round instance {} not found", body.instance_id))
+                .into_response();
         }
         Err(e) => return IoError::Database(e).into_response(),
     }
@@ -173,9 +166,9 @@ pub async fn batch_sync_rounds(
         // Build a serde_json::Value from the string payload.
         // Attempt numeric parse; fall back to string.
         let response_value: JsonValue = if let Ok(n) = item.response_value.parse::<f64>() {
-            JsonValue::Number(serde_json::Number::from_f64(n).unwrap_or_else(|| {
-                serde_json::Number::from(0)
-            }))
+            JsonValue::Number(
+                serde_json::Number::from_f64(n).unwrap_or_else(|| serde_json::Number::from(0)),
+            )
         } else {
             JsonValue::String(item.response_value.clone())
         };
@@ -268,16 +261,14 @@ pub async fn batch_sync_rounds(
     }
 
     // Determine resulting instance status.
-    let instance_status = sqlx::query(
-        "SELECT status FROM round_instances WHERE id = $1",
-    )
-    .bind(body.instance_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .and_then(|r| r.try_get::<String, _>("status").ok())
-    .unwrap_or_else(|| "in_progress".to_string());
+    let instance_status = sqlx::query("SELECT status FROM round_instances WHERE id = $1")
+        .bind(body.instance_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|r| r.try_get::<String, _>("status").ok())
+        .unwrap_or_else(|| "in_progress".to_string());
 
     let payload = json!({
         "synced": synced,
@@ -288,14 +279,17 @@ pub async fn batch_sync_rounds(
 
     if failed > 0 && synced == 0 {
         // Everything failed — return 422 so the client knows to retry
-        return (StatusCode::UNPROCESSABLE_ENTITY, Json(json!({
-            "success": false,
-            "error": {
-                "code": "SYNC_FAILED",
-                "message": format!("All {} responses failed to sync", total),
-            }
-        })))
-        .into_response();
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "success": false,
+                "error": {
+                    "code": "SYNC_FAILED",
+                    "message": format!("All {} responses failed to sync", total),
+                }
+            })),
+        )
+            .into_response();
     }
 
     Json(ApiResponse::ok(payload)).into_response()
@@ -359,7 +353,10 @@ pub async fn get_active_rounds(
         .fetch_optional(&state.db)
         .await;
 
-        let template = template_row.ok().flatten().and_then(|r| row_to_template(&r).ok());
+        let template = template_row
+            .ok()
+            .flatten()
+            .and_then(|r| row_to_template(&r).ok());
 
         // Fetch existing responses so partially-completed rounds are resumable.
         let response_rows = sqlx::query(
@@ -374,11 +371,18 @@ pub async fn get_active_rounds(
         .await;
 
         let responses: Vec<RoundResponseRow> = match response_rows {
-            Ok(rows) => rows.iter().filter_map(|r| row_to_response(r).ok()).collect(),
+            Ok(rows) => rows
+                .iter()
+                .filter_map(|r| row_to_response(r).ok())
+                .collect(),
             Err(e) => return IoError::Database(e).into_response(),
         };
 
-        details.push(RoundInstanceDetail { instance, template, responses });
+        details.push(RoundInstanceDetail {
+            instance,
+            template,
+            responses,
+        });
     }
 
     Json(ApiResponse::ok(details)).into_response()
@@ -444,9 +448,7 @@ pub async fn update_presence(
 // Permission: none beyond being authenticated.
 // ---------------------------------------------------------------------------
 
-pub async fn get_config(
-    Extension(_claims): Extension<Claims>,
-) -> impl IntoResponse {
+pub async fn get_config(Extension(_claims): Extension<Claims>) -> impl IntoResponse {
     let config = MobileConfig {
         sync_interval_ms: std::env::var("MOBILE_SYNC_INTERVAL_MS")
             .ok()

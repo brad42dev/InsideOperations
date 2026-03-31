@@ -25,7 +25,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
@@ -646,8 +649,11 @@ pub async fn update_investigation(
     {
         Ok(Some(r)) => r,
         Ok(None) => {
-            return IoError::NotFound(format!("Investigation {} not found or not owned by you", id))
-                .into_response()
+            return IoError::NotFound(format!(
+                "Investigation {} not found or not owned by you",
+                id
+            ))
+            .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "update_investigation query failed");
@@ -698,9 +704,10 @@ pub async fn close_investigation(
     {
         Ok(Some(r)) => r,
         Ok(None) => {
-            return IoError::NotFound(
-                format!("Investigation {} not found or not in active state", id),
-            )
+            return IoError::NotFound(format!(
+                "Investigation {} not found or not in active state",
+                id
+            ))
             .into_response()
         }
         Err(e) => {
@@ -746,9 +753,10 @@ pub async fn cancel_investigation(
     {
         Ok(Some(r)) => r,
         Ok(None) => {
-            return IoError::NotFound(
-                format!("Investigation {} not found or not in active state", id),
-            )
+            return IoError::NotFound(format!(
+                "Investigation {} not found or not in active state",
+                id
+            ))
             .into_response()
         }
         Err(e) => {
@@ -805,8 +813,11 @@ pub async fn delete_investigation(
     };
 
     if result.is_none() {
-        return IoError::NotFound(format!("Investigation {} not found or not owned by you", id))
-            .into_response();
+        return IoError::NotFound(format!(
+            "Investigation {} not found or not owned by you",
+            id
+        ))
+        .into_response();
     }
 
     (StatusCode::NO_CONTENT, ()).into_response()
@@ -1268,18 +1279,17 @@ pub async fn run_correlation(
 
     // Run correlation analysis (CPU-bound — spawn_blocking keeps Tokio healthy).
     let series_clone = series_map.clone();
-    let (correlations, change_points) =
-        match tokio::task::spawn_blocking(move || {
-            correlation::run_correlation_analysis(&series_clone, sample_interval_ms)
-        })
-        .await
-        {
-            Ok(result) => result,
-            Err(e) => {
-                tracing::error!(error = %e, "correlation analysis task failed");
-                return IoError::Internal("Correlation analysis failed".into()).into_response();
-            }
-        };
+    let (correlations, change_points) = match tokio::task::spawn_blocking(move || {
+        correlation::run_correlation_analysis(&series_clone, sample_interval_ms)
+    })
+    .await
+    {
+        Ok(result) => result,
+        Err(e) => {
+            tracing::error!(error = %e, "correlation analysis task failed");
+            return IoError::Internal("Correlation analysis failed".into()).into_response();
+        }
+    };
 
     // Detect spikes per series.
     let mut all_spikes: Vec<correlation::SpikeResult> = Vec::new();
@@ -1340,22 +1350,14 @@ pub async fn threshold_search(
     // Fetch rows matching the threshold condition from 5-minute history.
     // We use a dynamic operator — build the query string carefully.
     // sqlx doesn't support dynamic operators natively so we branch on op.
-    let rows = match fetch_threshold_rows(
-        &state.db,
-        point_id,
-        op_sql,
-        body.threshold,
-        start,
-        end,
-    )
-    .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::error!(error = %e, "threshold_search data query failed");
-            return IoError::Database(e).into_response();
-        }
-    };
+    let rows =
+        match fetch_threshold_rows(&state.db, point_id, op_sql, body.threshold, start, end).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "threshold_search data query failed");
+                return IoError::Database(e).into_response();
+            }
+        };
 
     // Build exceedance windows by collapsing consecutive timestamps.
     let windows = build_exceedance_windows(&rows, body.threshold);
@@ -1467,7 +1469,9 @@ pub async fn alarm_search(
     }
 
     let end = body.end.unwrap_or_else(Utc::now);
-    let start = body.start.unwrap_or_else(|| end - chrono::Duration::days(30));
+    let start = body
+        .start
+        .unwrap_or_else(|| end - chrono::Duration::days(30));
 
     let rows = match sqlx::query(
         r#"
@@ -1517,9 +1521,7 @@ pub async fn alarm_search(
             event_type: row.try_get("event_type").unwrap_or_default(),
             severity: row.try_get("severity").unwrap_or(500i16),
             message: row.try_get("message").unwrap_or_default(),
-            timestamp: row
-                .try_get("timestamp")
-                .unwrap_or_else(|_| Utc::now()),
+            timestamp: row.try_get("timestamp").unwrap_or_else(|_| Utc::now()),
         });
     }
 

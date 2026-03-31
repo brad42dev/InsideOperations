@@ -5,6 +5,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use chrono::{DateTime, Utc};
 use digest::Digest;
 use io_error::IoError;
 use io_models::ApiResponse;
@@ -16,7 +17,6 @@ use tokio::net::TcpListener;
 use tower_http::catch_panic::CatchPanicLayer;
 use tracing::info;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 mod config;
 mod model_manager;
@@ -31,7 +31,7 @@ use state::AppState;
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelInfo {
     pub id: String,
-    pub domain: String,       // "pid" or "dcs"
+    pub domain: String, // "pid" or "dcs"
     pub version: String,
     pub filename: String,
     pub class_count: i32,
@@ -55,14 +55,14 @@ pub struct RecognitionResult {
 pub struct Detection {
     pub class_name: String,
     pub confidence: f32,
-    pub bbox: [f32; 4],  // [x1, y1, x2, y2] normalized 0..1
+    pub bbox: [f32; 4], // [x1, y1, x2, y2] normalized 0..1
     pub class_id: i32,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct InferenceOptions {
     pub confidence_threshold: Option<f32>,
-    pub domain: Option<String>,  // "pid" | "dcs" | "auto"
+    pub domain: Option<String>, // "pid" | "dcs" | "auto"
 }
 
 // ---------------------------------------------------------------------------
@@ -96,10 +96,7 @@ async fn list_models(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 // GET /recognition/models/:id — get model info
-async fn get_model(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn get_model(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     match state.model_manager.read().await.find_by_id(&id).await {
         Some(m) => Json(ApiResponse::ok(m)).into_response(),
         None => IoError::NotFound(format!("Model {} not found", id)).into_response(),
@@ -173,10 +170,8 @@ async fn upload_model(
 
     // Open as ZIP and parse manifest
     let zip_data = data;
-    let parse_result = tokio::task::spawn_blocking(move || {
-        parse_and_verify_iomodel(&zip_data)
-    })
-    .await;
+    let parse_result =
+        tokio::task::spawn_blocking(move || parse_and_verify_iomodel(&zip_data)).await;
 
     // Clean up temp file regardless of outcome
     let _ = tokio::fs::remove_file(&tmp_path).await;
@@ -305,10 +300,7 @@ fn parse_and_verify_iomodel(zip_data: &[u8]) -> anyhow::Result<IomodelManifest> 
 }
 
 // DELETE /recognition/models/:id — remove model
-async fn delete_model(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn delete_model(State(state): State<AppState>, Path(id): Path<String>) -> impl IntoResponse {
     let removed = state.model_manager.write().await.remove_by_id(&id).await;
     if !removed {
         return IoError::NotFound(format!("Model {} not found", id)).into_response();
@@ -365,7 +357,7 @@ async fn run_inference(
                     "pid".to_string()
                 } else {
                     tracing::warn!("Inference requested for pid domain but no model is loaded");
-                    "pid".to_string()  // return stub 200; no model loaded is acceptable per spec
+                    "pid".to_string() // return stub 200; no model loaded is acceptable per spec
                 }
             }
             "dcs" => {
@@ -376,7 +368,7 @@ async fn run_inference(
                     "dcs".to_string()
                 }
             }
-            "auto" | _ => {
+            _ => {
                 if mgr.domain_has_model("pid") {
                     "pid".to_string()
                 } else if mgr.domain_has_model("dcs") {
@@ -437,7 +429,10 @@ async fn import_gap_report(
         }
     }
     tracing::info!(filename = %filename, "Gap report imported (stub)");
-    Json(ApiResponse::ok(serde_json::json!({"imported": true, "filename": filename}))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({"imported": true, "filename": filename}),
+    ))
+    .into_response()
 }
 
 // GET /recognition/status — service status
@@ -505,7 +500,10 @@ async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
 // GET /recognition/classes?domain=pid|dcs
 async fn list_classes(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
     let domain = params.get("domain").map(|s| s.as_str()).unwrap_or("all");
-    Json(ApiResponse::ok(serde_json::json!({ "classes": [], "domain": domain }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "classes": [], "domain": domain }),
+    ))
+    .into_response()
 }
 
 // POST /recognition/generate
@@ -535,7 +533,10 @@ async fn export_feedback() -> impl IntoResponse {
 
 // POST /recognition/feedback/corrections
 async fn submit_corrections(Json(_body): Json<serde_json::Value>) -> impl IntoResponse {
-    Json(ApiResponse::ok(serde_json::json!({ "correction_id": Uuid::new_v4() }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "correction_id": Uuid::new_v4() }),
+    ))
+    .into_response()
 }
 
 // DELETE /recognition/feedback
@@ -590,21 +591,33 @@ async fn main() -> anyhow::Result<()> {
     let api = Router::new()
         .route("/recognition/status", get(get_status))
         .route("/recognition/models", get(list_models).post(upload_model))
-        .route("/recognition/models/:id", get(get_model).delete(delete_model))
+        .route(
+            "/recognition/models/:id",
+            get(get_model).delete(delete_model),
+        )
         .route("/recognition/detect", post(run_inference))
         .route("/recognition/classes", get(list_classes))
         .route("/recognition/generate", post(generate_graphic))
         .route("/recognition/feedback/stats", get(get_feedback_stats))
         .route("/recognition/feedback/export", post(export_feedback))
-        .route("/recognition/feedback/corrections", post(submit_corrections))
+        .route(
+            "/recognition/feedback/corrections",
+            post(submit_corrections),
+        )
         .route("/recognition/feedback", delete(clear_feedback))
         .route("/recognition/model/history", get(get_model_history))
-        .route("/recognition/gap-reports", get(list_gap_reports).post(import_gap_report))
+        .route(
+            "/recognition/gap-reports",
+            get(list_gap_reports).post(import_gap_report),
+        )
         .route(
             "/recognition/gap-reports/:id",
             get(get_gap_report).delete(delete_gap_report),
         )
-        .layer(middleware::from_fn_with_state(state.clone(), validate_service_secret))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            validate_service_secret,
+        ))
         .with_state(state);
 
     let app = api

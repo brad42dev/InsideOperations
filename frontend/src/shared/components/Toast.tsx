@@ -1,40 +1,43 @@
-import { useEffect } from 'react'
-import * as ToastPrimitive from '@radix-ui/react-toast'
-import { create } from 'zustand'
-import { uuidv4 } from '../../lib/uuid'
+import { useEffect } from "react";
+import * as ToastPrimitive from "@radix-ui/react-toast";
+import { create } from "zustand";
+import { uuidv4 } from "../../lib/uuid";
 
 // ---------------------------------------------------------------------------
 // Toast store — call showToast() from anywhere
 // ---------------------------------------------------------------------------
 
-export type ToastVariant = 'info' | 'success' | 'error' | 'warning'
+export type ToastVariant = "info" | "success" | "error" | "warning";
 
 export interface ToastItem {
-  id: string
-  title: string
-  description?: string
-  variant: ToastVariant
-  action?: { label: string; onClick: () => void }
-  duration?: number
+  id: string;
+  title: string;
+  description?: string;
+  variant: ToastVariant;
+  action?: { label: string; onClick: () => void };
+  duration?: number;
 }
 
-export interface ToastHistoryItem extends Omit<ToastItem, 'action' | 'duration'> {
-  firedAt: number // Date.now() when the toast was shown
+export interface ToastHistoryItem extends Omit<
+  ToastItem,
+  "action" | "duration"
+> {
+  firedAt: number; // Date.now() when the toast was shown
 }
 
 // Maximum number of history entries to retain
-const HISTORY_MAX = 50
+const HISTORY_MAX = 50;
 
 interface ToastState {
-  toasts: ToastItem[]
-  history: ToastHistoryItem[]
-  notifPanelOpen: boolean
-  show: (item: Omit<ToastItem, 'id'>) => void
-  dismiss: (id: string) => void
-  openNotifPanel: () => void
-  closeNotifPanel: () => void
-  toggleNotifPanel: () => void
-  clearHistory: () => void
+  toasts: ToastItem[];
+  history: ToastHistoryItem[];
+  notifPanelOpen: boolean;
+  show: (item: Omit<ToastItem, "id">) => void;
+  dismiss: (id: string) => void;
+  openNotifPanel: () => void;
+  closeNotifPanel: () => void;
+  toggleNotifPanel: () => void;
+  clearHistory: () => void;
 }
 
 export const useToastStore = create<ToastState>((set) => ({
@@ -42,18 +45,18 @@ export const useToastStore = create<ToastState>((set) => ({
   history: [],
   notifPanelOpen: false,
   show: (item) => {
-    const id = uuidv4()
+    const id = uuidv4();
     const historyEntry: ToastHistoryItem = {
       id,
       title: item.title,
       description: item.description,
       variant: item.variant,
       firedAt: Date.now(),
-    }
+    };
     set((s) => ({
       toasts: [...s.toasts, { ...item, id }],
       history: [historyEntry, ...s.history].slice(0, HISTORY_MAX),
-    }))
+    }));
   },
   dismiss: (id) =>
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
@@ -61,10 +64,10 @@ export const useToastStore = create<ToastState>((set) => ({
   closeNotifPanel: () => set({ notifPanelOpen: false }),
   toggleNotifPanel: () => set((s) => ({ notifPanelOpen: !s.notifPanelOpen })),
   clearHistory: () => set({ history: [] }),
-}))
+}));
 
-export function showToast(item: Omit<ToastItem, 'id'>) {
-  useToastStore.getState().show(item)
+export function showToast(item: Omit<ToastItem, "id">) {
+  useToastStore.getState().show(item);
 }
 
 // ---------------------------------------------------------------------------
@@ -73,26 +76,26 @@ export function showToast(item: Omit<ToastItem, 'id'>) {
 
 function variantStyle(variant: ToastVariant): React.CSSProperties {
   switch (variant) {
-    case 'success':
+    case "success":
       return {
-        borderLeft: '3px solid var(--io-success)',
-        background: 'var(--io-surface-elevated)',
-      }
-    case 'error':
+        borderLeft: "3px solid var(--io-success)",
+        background: "var(--io-surface-elevated)",
+      };
+    case "error":
       return {
-        borderLeft: '3px solid var(--io-danger)',
-        background: 'var(--io-surface-elevated)',
-      }
-    case 'warning':
+        borderLeft: "3px solid var(--io-danger)",
+        background: "var(--io-surface-elevated)",
+      };
+    case "warning":
       return {
-        borderLeft: '3px solid var(--io-warning)',
-        background: 'var(--io-surface-elevated)',
-      }
+        borderLeft: "3px solid var(--io-warning)",
+        background: "var(--io-surface-elevated)",
+      };
     default:
       return {
-        borderLeft: '3px solid var(--io-accent)',
-        background: 'var(--io-surface-elevated)',
-      }
+        borderLeft: "3px solid var(--io-accent)",
+        background: "var(--io-surface-elevated)",
+      };
   }
 }
 
@@ -101,49 +104,56 @@ function variantStyle(variant: ToastVariant): React.CSSProperties {
 // ---------------------------------------------------------------------------
 
 function ToastItem({ toast }: { toast: ToastItem }) {
-  const { dismiss } = useToastStore()
+  const { dismiss } = useToastStore();
 
   useEffect(() => {
     // Error toasts persist until manually dismissed — no auto-dismiss timer
     // duration === 0 means "persist until manually dismissed" — no auto-dismiss timer
-    const defaultDuration = toast.variant === 'error' ? 0 : 5000
-    const duration = toast.duration ?? defaultDuration
-    if (duration === 0) return
-    const timer = setTimeout(() => dismiss(toast.id), duration)
-    return () => clearTimeout(timer)
-  }, [toast.id, toast.variant, toast.duration, dismiss])
+    const defaultDuration = toast.variant === "error" ? 0 : 5000;
+    const duration = toast.duration ?? defaultDuration;
+    if (duration === 0) return;
+    const timer = setTimeout(() => dismiss(toast.id), duration);
+    return () => clearTimeout(timer);
+  }, [toast.id, toast.variant, toast.duration, dismiss]);
 
   // For error toasts, pass Infinity to Radix so its internal timer never fires.
   // The custom useEffect above already handles auto-dismiss for other variants.
-  const radixDuration = toast.variant === 'error' ? Infinity : undefined
+  const radixDuration = toast.variant === "error" ? Infinity : undefined;
 
   return (
     <ToastPrimitive.Root
       open
       duration={radixDuration}
       onOpenChange={(open) => {
-        if (!open) dismiss(toast.id)
+        if (!open) dismiss(toast.id);
       }}
       style={{
         ...variantStyle(toast.variant),
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        padding: '12px 14px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-        minWidth: '280px',
-        maxWidth: '360px',
-        pointerEvents: 'auto',
+        border: "1px solid var(--io-border)",
+        borderRadius: "var(--io-radius)",
+        padding: "12px 14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "4px",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+        minWidth: "280px",
+        maxWidth: "360px",
+        pointerEvents: "auto",
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "8px",
+        }}
+      >
         <ToastPrimitive.Title
           style={{
-            fontSize: '13px',
+            fontSize: "13px",
             fontWeight: 600,
-            color: 'var(--io-text-primary)',
+            color: "var(--io-text-primary)",
             margin: 0,
           }}
         >
@@ -151,13 +161,13 @@ function ToastItem({ toast }: { toast: ToastItem }) {
         </ToastPrimitive.Title>
         <ToastPrimitive.Close
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--io-text-muted)',
-            cursor: 'pointer',
-            fontSize: '14px',
+            background: "none",
+            border: "none",
+            color: "var(--io-text-muted)",
+            cursor: "pointer",
+            fontSize: "14px",
             lineHeight: 1,
-            padding: '0 2px',
+            padding: "0 2px",
             flexShrink: 0,
           }}
           aria-label="Dismiss"
@@ -168,8 +178,8 @@ function ToastItem({ toast }: { toast: ToastItem }) {
       {toast.description && (
         <ToastPrimitive.Description
           style={{
-            fontSize: '12px',
-            color: 'var(--io-text-secondary)',
+            fontSize: "12px",
+            color: "var(--io-text-secondary)",
             margin: 0,
             lineHeight: 1.4,
           }}
@@ -178,23 +188,20 @@ function ToastItem({ toast }: { toast: ToastItem }) {
         </ToastPrimitive.Description>
       )}
       {toast.action && (
-        <ToastPrimitive.Action
-          altText={toast.action.label}
-          asChild
-        >
+        <ToastPrimitive.Action altText={toast.action.label} asChild>
           <button
             onClick={toast.action.onClick}
             style={{
-              marginTop: '4px',
-              padding: '4px 10px',
-              background: 'var(--io-accent-subtle)',
-              border: '1px solid var(--io-accent)',
-              borderRadius: 'var(--io-radius)',
-              color: 'var(--io-accent)',
-              fontSize: '12px',
+              marginTop: "4px",
+              padding: "4px 10px",
+              background: "var(--io-accent-subtle)",
+              border: "1px solid var(--io-accent)",
+              borderRadius: "var(--io-radius)",
+              color: "var(--io-accent)",
+              fontSize: "12px",
               fontWeight: 600,
-              cursor: 'pointer',
-              alignSelf: 'flex-start',
+              cursor: "pointer",
+              alignSelf: "flex-start",
             }}
           >
             {toast.action.label}
@@ -202,7 +209,7 @@ function ToastItem({ toast }: { toast: ToastItem }) {
         </ToastPrimitive.Action>
       )}
     </ToastPrimitive.Root>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +217,7 @@ function ToastItem({ toast }: { toast: ToastItem }) {
 // ---------------------------------------------------------------------------
 
 export default function ToastProvider() {
-  const { toasts } = useToastStore()
+  const { toasts } = useToastStore();
 
   return (
     <ToastPrimitive.Provider swipeDirection="right">
@@ -219,20 +226,20 @@ export default function ToastProvider() {
       ))}
       <ToastPrimitive.Viewport
         style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
+          position: "fixed",
+          bottom: "24px",
+          right: "24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
           zIndex: 9999,
           padding: 0,
           margin: 0,
-          listStyle: 'none',
-          outline: 'none',
-          pointerEvents: 'none',
+          listStyle: "none",
+          outline: "none",
+          pointerEvents: "none",
         }}
       />
     </ToastPrimitive.Provider>
-  )
+  );
 }

@@ -1,42 +1,44 @@
-import { useQuery } from '@tanstack/react-query'
-import { useWebSocket } from '../../../shared/hooks/useWebSocket'
-import { useHistoricalValues } from '../../../shared/hooks/useHistoricalValues'
-import { usePlaybackStore } from '../../../store/playback'
-import DataTable, { type ColumnDef } from '../../../shared/components/DataTable'
-import { pointsApi } from '../../../api/points'
-import type { PaneConfig } from '../types'
+import { useQuery } from "@tanstack/react-query";
+import { useWebSocket } from "../../../shared/hooks/useWebSocket";
+import { useHistoricalValues } from "../../../shared/hooks/useHistoricalValues";
+import { usePlaybackStore } from "../../../store/playback";
+import DataTable, {
+  type ColumnDef,
+} from "../../../shared/components/DataTable";
+import { pointsApi } from "../../../api/points";
+import type { PaneConfig } from "../types";
 
 interface PointTablePaneProps {
-  config: PaneConfig
-  editMode: boolean
-  onConfigurePoints?: (paneId: string) => void
+  config: PaneConfig;
+  editMode: boolean;
+  onConfigurePoints?: (paneId: string) => void;
 }
 
 interface PointRow {
-  id: string
-  name: string
-  value: string
-  units: string
-  quality: string
-  lastUpdated: string
+  id: string;
+  name: string;
+  value: string;
+  units: string;
+  quality: string;
+  lastUpdated: string;
 }
 
 function QualityBadge({ quality }: { quality: string }) {
-  const q = quality.toLowerCase()
+  const q = quality.toLowerCase();
   const color =
-    q === 'good'
-      ? '#10B981'
-      : q === 'uncertain'
-        ? '#F59E0B'
-        : q === 'bad'
-          ? '#EF4444'
-          : 'var(--io-text-muted)'
+    q === "good"
+      ? "#10B981"
+      : q === "uncertain"
+        ? "#F59E0B"
+        : q === "bad"
+          ? "#EF4444"
+          : "var(--io-text-muted)";
 
   return (
     <span
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
+        display: "inline-flex",
+        alignItems: "center",
         gap: 4,
         fontSize: 11,
         fontWeight: 500,
@@ -47,14 +49,14 @@ function QualityBadge({ quality }: { quality: string }) {
         style={{
           width: 6,
           height: 6,
-          borderRadius: '50%',
+          borderRadius: "50%",
           background: color,
-          display: 'inline-block',
+          display: "inline-block",
         }}
       />
       {quality}
     </span>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -63,26 +65,28 @@ function QualityBadge({ quality }: { quality: string }) {
 
 function usePointsMeta(pointIds: string[]) {
   return useQuery({
-    queryKey: ['point-meta-batch', pointIds.join(',')],
+    queryKey: ["point-meta-batch", pointIds.join(",")],
     queryFn: async () => {
-      const results = await Promise.all(pointIds.map((id) => pointsApi.getMeta(id)))
-      const map = new Map<string, { name: string; units: string }>()
+      const results = await Promise.all(
+        pointIds.map((id) => pointsApi.getMeta(id)),
+      );
+      const map = new Map<string, { name: string; units: string }>();
       results.forEach((r, idx) => {
         if (r.success) {
           map.set(pointIds[idx], {
             name: r.data.name,
-            units: r.data.engineering_unit ?? '',
-          })
+            units: r.data.engineering_unit ?? "",
+          });
         } else {
-          map.set(pointIds[idx], { name: pointIds[idx], units: '' })
+          map.set(pointIds[idx], { name: pointIds[idx], units: "" });
         }
-      })
-      return map
+      });
+      return map;
     },
     enabled: pointIds.length > 0,
     staleTime: Infinity,
     gcTime: Infinity,
-  })
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -91,37 +95,37 @@ function usePointsMeta(pointIds: string[]) {
 
 const columns: ColumnDef<PointRow>[] = [
   {
-    id: 'name',
-    header: 'Name',
-    accessorKey: 'name',
+    id: "name",
+    header: "Name",
+    accessorKey: "name",
     sortable: true,
   },
   {
-    id: 'value',
-    header: 'Value',
-    accessorKey: 'value',
+    id: "value",
+    header: "Value",
+    accessorKey: "value",
     width: 100,
   },
   {
-    id: 'units',
-    header: 'Units',
-    accessorKey: 'units',
+    id: "units",
+    header: "Units",
+    accessorKey: "units",
     width: 80,
   },
   {
-    id: 'quality',
-    header: 'Quality',
-    accessorKey: 'quality',
+    id: "quality",
+    header: "Quality",
+    accessorKey: "quality",
     width: 110,
     cell: (value) => <QualityBadge quality={String(value)} />,
   },
   {
-    id: 'lastUpdated',
-    header: 'Last Updated',
-    accessorKey: 'lastUpdated',
+    id: "lastUpdated",
+    header: "Last Updated",
+    accessorKey: "lastUpdated",
     width: 140,
   },
-]
+];
 
 // ---------------------------------------------------------------------------
 // PointTablePane
@@ -132,29 +136,32 @@ export default function PointTablePane({
   editMode,
   onConfigurePoints,
 }: PointTablePaneProps) {
-  const pointIds = config.tablePointIds ?? []
+  const pointIds = config.tablePointIds ?? [];
 
-  const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore()
-  const isHistorical = playbackMode === 'historical'
+  const { mode: playbackMode, timestamp: playbackTs } = usePlaybackStore();
+  const isHistorical = playbackMode === "historical";
 
-  const { data: metaMap } = usePointsMeta(pointIds)
-  const { values: wsValues } = useWebSocket(isHistorical ? [] : pointIds)
-  const historicalValues = useHistoricalValues(isHistorical ? pointIds : [], isHistorical ? playbackTs : undefined)
-  const values = isHistorical ? historicalValues : wsValues
+  const { data: metaMap } = usePointsMeta(pointIds);
+  const { values: wsValues } = useWebSocket(isHistorical ? [] : pointIds);
+  const historicalValues = useHistoricalValues(
+    isHistorical ? pointIds : [],
+    isHistorical ? playbackTs : undefined,
+  );
+  const values = isHistorical ? historicalValues : wsValues;
 
   if (pointIds.length === 0) {
     return (
       <div
         style={{
           flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
           gap: 12,
-          color: 'var(--io-text-muted)',
+          color: "var(--io-text-muted)",
           fontSize: 13,
-          background: 'var(--io-surface)',
+          background: "var(--io-surface)",
         }}
       >
         <svg
@@ -175,12 +182,12 @@ export default function PointTablePane({
           <button
             onClick={() => onConfigurePoints?.(config.id)}
             style={{
-              background: 'var(--io-accent)',
-              color: '#fff',
-              border: 'none',
+              background: "var(--io-accent)",
+              color: "#fff",
+              border: "none",
               borderRadius: 6,
-              padding: '7px 14px',
-              cursor: 'pointer',
+              padding: "7px 14px",
+              cursor: "pointer",
               fontSize: 13,
               fontWeight: 500,
             }}
@@ -189,42 +196,46 @@ export default function PointTablePane({
           </button>
         )}
       </div>
-    )
+    );
   }
 
   const tableData: PointRow[] = pointIds.map((id) => {
-    const meta = metaMap?.get(id)
-    const lv = values.get(id)
-    const lvTs = (lv as { timestamp?: string } | undefined)?.timestamp
+    const meta = metaMap?.get(id);
+    const lv = values.get(id);
+    const lvTs = (lv as { timestamp?: string } | undefined)?.timestamp;
     const ts = lvTs
       ? new Date(lvTs).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
         })
       : isHistorical
-        ? new Date(playbackTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        : '—'
+        ? new Date(playbackTs).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+        : "—";
 
     return {
       id,
       name: meta?.name ?? id,
-      value: lv != null ? String(lv.value) : '—',
-      units: meta?.units ?? '',
-      quality: lv?.quality ?? 'unknown',
+      value: lv != null ? String(lv.value) : "—",
+      units: meta?.units ?? "",
+      quality: lv?.quality ?? "unknown",
       lastUpdated: ts,
-    }
-  })
+    };
+  });
 
   return (
     <div
       style={{
         flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--io-surface)',
-        overflow: 'hidden',
-        position: 'relative',
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--io-surface)",
+        overflow: "hidden",
+        position: "relative",
       }}
     >
       <DataTable
@@ -239,15 +250,15 @@ export default function PointTablePane({
         <button
           onClick={() => onConfigurePoints?.(config.id)}
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 8,
             right: 8,
-            background: 'rgba(0,0,0,0.7)',
-            color: '#fff',
-            border: '1px solid rgba(255,255,255,0.2)',
+            background: "rgba(0,0,0,0.7)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.2)",
             borderRadius: 6,
-            padding: '5px 10px',
-            cursor: 'pointer',
+            padding: "5px 10px",
+            cursor: "pointer",
             fontSize: 12,
             zIndex: 10,
           }}
@@ -256,5 +267,5 @@ export default function PointTablePane({
         </button>
       )}
     </div>
-  )
+  );
 }

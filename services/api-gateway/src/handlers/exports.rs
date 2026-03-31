@@ -55,6 +55,7 @@ pub struct CreateExportRequest {
     pub format: String,
     /// "all" or "filtered"
     #[serde(default = "default_scope")]
+    #[allow(dead_code)]
     pub scope: String,
     /// Arbitrary filter criteria — passed through to the query builder
     #[serde(default)]
@@ -244,10 +245,7 @@ pub async fn create_export(
     let now = Utc::now();
     let timestamp = now.format("%Y-%m-%d_%H%M").to_string();
     let file_ext = format_extension(&req.format);
-    let original_filename = format!(
-        "{}_{}_{}.{}",
-        req.module, req.entity, timestamp, file_ext
-    );
+    let original_filename = format!("{}_{}_{}.{}", req.module, req.entity, timestamp, file_ext);
 
     let sort_field = req.sort.as_ref().map(|s| s.field.clone());
     let sort_order = req
@@ -300,13 +298,11 @@ pub async fn create_export(
         let filename = original_filename.clone();
 
         // Mark as processing
-        sqlx::query(
-            "UPDATE export_jobs SET status='processing', started_at=NOW() WHERE id=$1",
-        )
-        .bind(job_id)
-        .execute(&state.db)
-        .await
-        .ok();
+        sqlx::query("UPDATE export_jobs SET status='processing', started_at=NOW() WHERE id=$1")
+            .bind(job_id)
+            .execute(&state.db)
+            .await
+            .ok();
 
         match run_export_job(
             &db,
@@ -356,9 +352,7 @@ pub async fn create_export(
                         format!("attachment; filename=\"{original_filename}\""),
                     )
                     .header(header::CONTENT_LENGTH, file_size)
-                    .body(Body::from(
-                        std::fs::read(&file_path).unwrap_or_default(),
-                    ))
+                    .body(Body::from(std::fs::read(&file_path).unwrap_or_default()))
                     .unwrap_or_else(|_| {
                         IoError::Internal("Response build failed".into()).into_response()
                     })
@@ -391,13 +385,11 @@ pub async fn create_export(
         let filename = original_filename.clone();
 
         tokio::spawn(async move {
-            sqlx::query(
-                "UPDATE export_jobs SET status='processing', started_at=NOW() WHERE id=$1",
-            )
-            .bind(job_id)
-            .execute(&db)
-            .await
-            .ok();
+            sqlx::query("UPDATE export_jobs SET status='processing', started_at=NOW() WHERE id=$1")
+                .bind(job_id)
+                .execute(&db)
+                .await
+                .ok();
 
             match run_export_job(
                 &db,
@@ -540,15 +532,10 @@ pub async fn delete_export(
         }
     };
 
-    let status: String = row.try_get("status").unwrap_or_default();
     let file_path: Option<String> = row.try_get("file_path").unwrap_or_default();
 
-    // If job is queued or processing, cancel it; otherwise mark cancelled
-    let new_status = if status == "queued" || status == "processing" {
-        "cancelled"
-    } else {
-        "cancelled"
-    };
+    // Cancel regardless of current state
+    let new_status = "cancelled";
 
     if let Err(e) = sqlx::query(
         "UPDATE export_jobs SET status=$1, completed_at=COALESCE(completed_at, NOW())
@@ -570,7 +557,10 @@ pub async fn delete_export(
         }
     }
 
-    Json(ApiResponse::ok(serde_json::json!({ "id": id, "status": "cancelled" }))).into_response()
+    Json(ApiResponse::ok(
+        serde_json::json!({ "id": id, "status": "cancelled" }),
+    ))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -625,7 +615,8 @@ pub async fn download_export(
         .unwrap_or_else(|| "csv".to_string());
 
     let original_filename: Option<String> = row.try_get("original_filename").unwrap_or_default();
-    let download_name = original_filename.unwrap_or_else(|| format!("export-{id}.{}", format_extension(&format)));
+    let download_name =
+        original_filename.unwrap_or_else(|| format!("export-{id}.{}", format_extension(&format)));
 
     let content = match std::fs::read(&file_path) {
         Ok(c) => c,
@@ -652,6 +643,7 @@ pub async fn download_export(
 // ---------------------------------------------------------------------------
 
 /// Generate the export file and return (file_path, file_size_bytes).
+#[allow(clippy::too_many_arguments)]
 async fn run_export_job(
     db: &sqlx::PgPool,
     export_dir: &str,
@@ -663,7 +655,7 @@ async fn run_export_job(
     columns: Option<&[String]>,
     sort_field: Option<&str>,
     sort_order: &str,
-    original_filename: &str,
+    _original_filename: &str,
 ) -> Result<(String, u64), String> {
     // Query the database for the requested module/entity data
     let (headers, rows) =
@@ -686,23 +678,13 @@ async fn run_export_job(
         "json" => report_generator::generate_json(&headers, &rows),
         "parquet" => write_parquet(&headers, &rows, &file_path)
             .map_err(|e| format!("Parquet generation failed: {e}"))?,
-        "pdf" => report_generator::generate_pdf_report(
-            &title,
-            "",
-            &headers,
-            &rows,
-            &JsonValue::Null,
-        ),
+        "pdf" => {
+            report_generator::generate_pdf_report(&title, "", &headers, &rows, &JsonValue::Null)
+        }
         _ => {
             // html
-            report_generator::generate_html_report(
-                &title,
-                "",
-                &headers,
-                &rows,
-                &JsonValue::Null,
-            )
-            .into_bytes()
+            report_generator::generate_html_report(&title, "", &headers, &rows, &JsonValue::Null)
+                .into_bytes()
         }
     };
 
@@ -714,9 +696,7 @@ async fn run_export_job(
         Ok((file_path, file_size))
     } else {
         // Parquet was already written; content is empty, get size from disk.
-        let file_size = std::fs::metadata(&file_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
         Ok((file_path, file_size))
     }
 }
@@ -729,11 +709,7 @@ async fn run_export_job(
 /// Returns empty Vec on success (file is written to disk, not buffered in memory).
 /// Type mapping per §3.2: all string columns map to Utf8 (since query_export_data
 /// returns Vec<Vec<String>>); a future typed-row variant can use proper Arrow types.
-fn write_parquet(
-    headers: &[String],
-    rows: &[Vec<String>],
-    path: &str,
-) -> Result<Vec<u8>, String> {
+fn write_parquet(headers: &[String], rows: &[Vec<String>], path: &str) -> Result<Vec<u8>, String> {
     use parquet::data_type::ByteArray;
     use parquet::file::properties::WriterProperties;
     use parquet::file::writer::SerializedFileWriter;
@@ -754,7 +730,13 @@ fn write_parquet(
             // Sanitise column name: replace non-alphanumeric chars with underscore
             let safe: String = h
                 .chars()
-                .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+                .map(|c| {
+                    if c.is_alphanumeric() || c == '_' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
             format!("  OPTIONAL BYTE_ARRAY {} (UTF8);", safe)
         })
@@ -763,8 +745,8 @@ fn write_parquet(
 
     let schema_str = format!("message export_data {{\n{schema_fields}\n}}");
 
-    let schema = parse_message_type(&schema_str)
-        .map_err(|e| format!("Parquet schema parse failed: {e}"))?;
+    let schema =
+        parse_message_type(&schema_str).map_err(|e| format!("Parquet schema parse failed: {e}"))?;
     let schema = Arc::new(schema);
 
     let props = WriterProperties::builder()
@@ -842,9 +824,7 @@ async fn estimate_row_count(
     }
     // Use reltuples from pg_class for a fast estimate; fall back to COUNT.
     // Wrapping the table name via a safe lookup (module_entity_to_table) prevents injection.
-    let sql = format!(
-        "SELECT reltuples::bigint FROM pg_class WHERE relname = '{table}'"
-    );
+    let sql = format!("SELECT reltuples::bigint FROM pg_class WHERE relname = '{table}'");
     match sqlx::query(&sql).fetch_optional(db).await {
         Ok(Some(r)) => {
             let estimate: i64 = r.try_get::<i64, _>(0).unwrap_or(0);
@@ -900,9 +880,12 @@ async fn query_export_data(
     let table = module_entity_to_table(module, entity);
     if table.is_empty() {
         // Unknown module/entity — return empty result rather than error
-        return Ok((vec!["message".to_string()], vec![
-            vec![format!("No data connector registered for {module}/{entity}")]
-        ]));
+        return Ok((
+            vec!["message".to_string()],
+            vec![vec![format!(
+                "No data connector registered for {module}/{entity}"
+            )]],
+        ));
     }
 
     // Build dynamic query using only safe, allowlisted column/table names.
@@ -910,18 +893,19 @@ async fn query_export_data(
     // by allowed_columns_for_table(); unknown column names are silently dropped.
     let allowed = allowed_columns_for_table(table);
     if allowed.is_empty() {
-        return Ok((vec!["message".to_string()], vec![
-            vec!["Data export not yet implemented for this entity".to_string()]
-        ]));
+        return Ok((
+            vec!["message".to_string()],
+            vec![vec![
+                "Data export not yet implemented for this entity".to_string()
+            ]],
+        ));
     }
 
     // Resolve requested columns — default to all allowed columns
     let resolved_cols: Vec<&str> = if let Some(requested) = columns {
         requested
             .iter()
-            .filter_map(|c| {
-                allowed.iter().find(|&&a| a == c.as_str()).copied()
-            })
+            .filter_map(|c| allowed.iter().find(|&&a| a == c.as_str()).copied())
             .collect()
     } else {
         allowed.to_vec()
@@ -945,7 +929,7 @@ async fn query_export_data(
     let safe_sort_order = if sort_order == "desc" { "DESC" } else { "ASC" };
 
     // Build WHERE clause from filters (simple key=value equality; keys validated against allowlist)
-    let (where_clause, bind_values) = build_where_clause(filters, &allowed);
+    let (where_clause, bind_values) = build_where_clause(filters, allowed);
 
     let sql = format!(
         "SELECT {col_list} FROM {table}{} ORDER BY {safe_sort_field} {safe_sort_order} LIMIT 500000",
@@ -1002,59 +986,124 @@ async fn query_export_data(
 fn allowed_columns_for_table(table: &str) -> &'static [&'static str] {
     match table {
         "points" => &[
-            "id", "tag_path", "name", "description", "data_type", "unit",
-            "source_id", "node_id", "scan_rate_ms", "deadband", "enabled",
-            "created_at", "updated_at",
+            "id",
+            "tag_path",
+            "name",
+            "description",
+            "data_type",
+            "unit",
+            "source_id",
+            "node_id",
+            "scan_rate_ms",
+            "deadband",
+            "enabled",
+            "created_at",
+            "updated_at",
         ],
         "users" => &[
-            "id", "username", "display_name", "email", "role_id",
-            "is_active", "created_at", "updated_at",
+            "id",
+            "username",
+            "display_name",
+            "email",
+            "role_id",
+            "is_active",
+            "created_at",
+            "updated_at",
         ],
-        "roles" => &[
-            "id", "name", "description", "is_system", "created_at",
-        ],
+        "roles" => &["id", "name", "description", "is_system", "created_at"],
         "point_sources" => &[
-            "id", "name", "protocol", "endpoint_url", "enabled",
-            "scan_rate_ms", "created_at", "updated_at",
+            "id",
+            "name",
+            "protocol",
+            "endpoint_url",
+            "enabled",
+            "scan_rate_ms",
+            "created_at",
+            "updated_at",
         ],
         "console_workspaces" => &[
-            "id", "name", "description", "owner_id", "is_published",
-            "created_at", "updated_at",
+            "id",
+            "name",
+            "description",
+            "owner_id",
+            "is_published",
+            "created_at",
+            "updated_at",
         ],
         "graphics" => &[
-            "id", "name", "description", "type", "created_by",
-            "created_at", "updated_at",
+            "id",
+            "name",
+            "description",
+            "type",
+            "created_by",
+            "created_at",
+            "updated_at",
         ],
         "dashboards" => &[
-            "id", "name", "description", "owner_id", "is_public",
-            "created_at", "updated_at",
+            "id",
+            "name",
+            "description",
+            "owner_id",
+            "is_public",
+            "created_at",
+            "updated_at",
         ],
-        "report_templates" => &[
-            "id", "name", "description", "category", "created_at",
-        ],
+        "report_templates" => &["id", "name", "description", "category", "created_at"],
         "round_templates" => &[
-            "id", "name", "description", "frequency", "enabled",
-            "created_at", "updated_at",
+            "id",
+            "name",
+            "description",
+            "frequency",
+            "enabled",
+            "created_at",
+            "updated_at",
         ],
         "round_instances" => &[
-            "id", "template_id", "status", "scheduled_at", "due_at",
-            "started_at", "completed_at", "assigned_to",
+            "id",
+            "template_id",
+            "status",
+            "scheduled_at",
+            "due_at",
+            "started_at",
+            "completed_at",
+            "assigned_to",
         ],
         "round_observations" => &[
-            "id", "instance_id", "checkpoint_id", "value_text",
-            "is_exception", "recorded_at", "recorded_by",
+            "id",
+            "instance_id",
+            "checkpoint_id",
+            "value_text",
+            "is_exception",
+            "recorded_at",
+            "recorded_by",
         ],
         "log_instances" => &[
-            "id", "template_id", "status", "submitted_at", "created_by",
-            "created_at", "updated_at",
+            "id",
+            "template_id",
+            "status",
+            "submitted_at",
+            "created_by",
+            "created_at",
+            "updated_at",
         ],
         "investigations" => &[
-            "id", "title", "description", "status", "created_by",
-            "created_at", "updated_at",
+            "id",
+            "title",
+            "description",
+            "status",
+            "created_by",
+            "created_at",
+            "updated_at",
         ],
         "alarm_definitions" => &[
-            "id", "name", "tag_path", "condition_type", "priority",
-            "enabled", "created_at", "updated_at",
+            "id",
+            "name",
+            "tag_path",
+            "condition_type",
+            "priority",
+            "enabled",
+            "created_at",
+            "updated_at",
         ],
         _ => &[],
     }
@@ -1063,10 +1112,7 @@ fn allowed_columns_for_table(table: &str) -> &'static [&'static str] {
 /// Build a safe parameterised WHERE clause from filter JSON.
 /// Only keys present in the column allowlist are accepted; values are bound
 /// as query parameters to prevent SQL injection.
-fn build_where_clause(
-    filters: &JsonValue,
-    allowed: &[&str],
-) -> (String, Vec<String>) {
+fn build_where_clause(filters: &JsonValue, allowed: &[&str]) -> (String, Vec<String>) {
     let mut conditions: Vec<String> = Vec::new();
     let mut values: Vec<String> = Vec::new();
 
@@ -1154,9 +1200,7 @@ pub async fn run_export_cleanup_task(db: sqlx::PgPool, export_dir: String) {
                 let path = entry.path();
                 if let Ok(meta) = entry.metadata() {
                     if let Ok(modified) = meta.modified() {
-                        if let Ok(age) =
-                            std::time::SystemTime::now().duration_since(modified)
-                        {
+                        if let Ok(age) = std::time::SystemTime::now().duration_since(modified) {
                             if age.as_secs() > retention_hours * 3600 {
                                 let _ = std::fs::remove_file(&path);
                             }

@@ -4,52 +4,52 @@
 // grid, no legend. Uses a 60-value ring buffer fed from WebSocket.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef, useState } from 'react'
-import { useWebSocket } from '../../../hooks/useWebSocket'
-import { type ChartConfig } from '../chart-config-types'
+import { useEffect, useRef, useState } from "react";
+import { useWebSocket } from "../../../hooks/useWebSocket";
+import { type ChartConfig } from "../chart-config-types";
 
 interface RendererProps {
-  config: ChartConfig
-  bufferKey: string
+  config: ChartConfig;
+  bufferKey: string;
 }
 
-const BUFFER_SIZE = 60
+const BUFFER_SIZE = 60;
 
 export default function Chart09Sparkline({ config }: RendererProps) {
-  const pointSlot = config.points.find((p) => p.role === 'point')
-  const pointId = pointSlot?.pointId ?? null
-  const pointIds = pointId ? [pointId] : []
-  const strokeColor = pointSlot?.color ?? '#4A9EFF'
+  const pointSlot = config.points.find((p) => p.role === "point");
+  const pointId = pointSlot?.pointId ?? null;
+  const pointIds = pointId ? [pointId] : [];
+  const strokeColor = pointSlot?.color ?? "#4A9EFF";
 
-  const { values } = useWebSocket(pointIds)
-  const liveEntry = pointId ? values.get(pointId) : undefined
-  const liveValue = liveEntry?.value
+  const { values } = useWebSocket(pointIds);
+  const liveEntry = pointId ? values.get(pointId) : undefined;
+  const liveValue = liveEntry?.value;
 
-  const bufRef = useRef<number[]>([])
-  const [buf, setBuf] = useState<number[]>([])
+  const bufRef = useRef<number[]>([]);
+  const [buf, setBuf] = useState<number[]>([]);
 
   useEffect(() => {
     if (liveValue !== undefined) {
-      bufRef.current = [...bufRef.current, liveValue].slice(-BUFFER_SIZE)
-      setBuf([...bufRef.current])
+      bufRef.current = [...bufRef.current, liveValue].slice(-BUFFER_SIZE);
+      setBuf([...bufRef.current]);
     }
-  }, [liveValue])
+  }, [liveValue]);
 
   if (!pointSlot) {
     return (
       <div
         style={{
           flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--io-text-muted)',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--io-text-muted)",
           fontSize: 13,
         }}
       >
         No point configured
       </div>
-    )
+    );
   }
 
   if (buf.length < 2) {
@@ -57,32 +57,32 @@ export default function Chart09Sparkline({ config }: RendererProps) {
       <div
         style={{
           flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--io-text-muted)',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--io-text-muted)",
           fontSize: 11,
         }}
       >
         Waiting for data…
       </div>
-    )
+    );
   }
 
-  const minV = Math.min(...buf)
-  const maxV = Math.max(...buf)
-  const range = maxV - minV || 1
-  const W = 100
-  const H = 100
-  const step = W / (buf.length - 1)
+  const minV = Math.min(...buf);
+  const maxV = Math.max(...buf);
+  const range = maxV - minV || 1;
+  const W = 100;
+  const H = 100;
+  const step = W / (buf.length - 1);
 
   const points = buf
     .map((v, i) => {
-      const x = i * step
-      const y = H - ((v - minV) / range) * H
-      return `${x.toFixed(2)},${y.toFixed(2)}`
+      const x = i * step;
+      const y = H - ((v - minV) / range) * H;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
-    .join(' ')
+    .join(" ");
 
   return (
     <svg
@@ -90,7 +90,7 @@ export default function Chart09Sparkline({ config }: RendererProps) {
       height="100%"
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
-      style={{ display: 'block', background: 'transparent' }}
+      style={{ display: "block", background: "transparent" }}
     >
       <polyline
         points={points}
@@ -102,5 +102,5 @@ export default function Chart09Sparkline({ config }: RendererProps) {
         strokeLinecap="round"
       />
     </svg>
-  )
+  );
 }

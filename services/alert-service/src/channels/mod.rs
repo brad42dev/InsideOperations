@@ -115,7 +115,11 @@ pub struct DeliveryResult {
 }
 
 impl DeliveryResult {
-    pub fn sent(user_id: Option<Uuid>, contact: Option<String>, external_id: Option<String>) -> Self {
+    pub fn sent(
+        user_id: Option<Uuid>,
+        contact: Option<String>,
+        external_id: Option<String>,
+    ) -> Self {
         DeliveryResult {
             recipient_user_id: user_id,
             recipient_contact: contact,
@@ -125,7 +129,11 @@ impl DeliveryResult {
         }
     }
 
-    pub fn failed(user_id: Option<Uuid>, contact: Option<String>, reason: impl Into<String>) -> Self {
+    pub fn failed(
+        user_id: Option<Uuid>,
+        contact: Option<String>,
+        reason: impl Into<String>,
+    ) -> Self {
         DeliveryResult {
             recipient_user_id: user_id,
             recipient_contact: contact,

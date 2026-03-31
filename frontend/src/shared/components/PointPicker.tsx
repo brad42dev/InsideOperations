@@ -20,31 +20,31 @@
  *   />
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { pointsApi } from '../../api/points'
-import { api } from '../../api/client'
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { pointsApi } from "../../api/points";
+import { api } from "../../api/client";
 
 // ---------------------------------------------------------------------------
 // localStorage helpers
 // ---------------------------------------------------------------------------
 
-const LS_FAVORITES = 'io:point-picker:favorites'
-const LS_RECENT = 'io:point-picker:recent'
+const LS_FAVORITES = "io:point-picker:favorites";
+const LS_RECENT = "io:point-picker:recent";
 
 function loadFavorites(): Set<string> {
   try {
-    const raw = localStorage.getItem(LS_FAVORITES)
-    if (!raw) return new Set()
-    return new Set(JSON.parse(raw) as string[])
+    const raw = localStorage.getItem(LS_FAVORITES);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
   } catch {
-    return new Set()
+    return new Set();
   }
 }
 
 function saveFavorites(ids: Set<string>): void {
   try {
-    localStorage.setItem(LS_FAVORITES, JSON.stringify([...ids]))
+    localStorage.setItem(LS_FAVORITES, JSON.stringify([...ids]));
   } catch {
     // ignore quota errors
   }
@@ -52,25 +52,25 @@ function saveFavorites(ids: Set<string>): void {
 
 function loadRecent(): string[] {
   try {
-    const raw = localStorage.getItem(LS_RECENT)
-    if (!raw) return []
-    return JSON.parse(raw) as string[]
+    const raw = localStorage.getItem(LS_RECENT);
+    if (!raw) return [];
+    return JSON.parse(raw) as string[];
   } catch {
-    return []
+    return [];
   }
 }
 
 function saveRecent(ids: string[]): void {
   try {
-    localStorage.setItem(LS_RECENT, JSON.stringify(ids))
+    localStorage.setItem(LS_RECENT, JSON.stringify(ids));
   } catch {
     // ignore quota errors
   }
 }
 
 function prependRecent(id: string, current: string[]): string[] {
-  const next = [id, ...current.filter((x) => x !== id)]
-  return next.slice(0, 20)
+  const next = [id, ...current.filter((x) => x !== id)];
+  return next.slice(0, 20);
 }
 
 // ---------------------------------------------------------------------------
@@ -78,33 +78,33 @@ function prependRecent(id: string, current: string[]): string[] {
 // ---------------------------------------------------------------------------
 
 interface PointEntry {
-  id: string
-  tag: string
-  name: string
-  unit?: string | null
-  data_type?: string | null
+  id: string;
+  tag: string;
+  name: string;
+  unit?: string | null;
+  data_type?: string | null;
 }
 
 interface EquipmentEntry {
-  id: string
-  name: string
-  points: PointEntry[]
+  id: string;
+  name: string;
+  points: PointEntry[];
 }
 
 interface UnitEntry {
-  id: string
-  name: string
-  equipment: EquipmentEntry[]
+  id: string;
+  name: string;
+  equipment: EquipmentEntry[];
 }
 
 interface AreaEntry {
-  id: string
-  name: string
-  units: UnitEntry[]
+  id: string;
+  name: string;
+  units: UnitEntry[];
 }
 
 interface HierarchyResponse {
-  areas: AreaEntry[]
+  areas: AreaEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -112,25 +112,25 @@ interface HierarchyResponse {
 // ---------------------------------------------------------------------------
 
 async function fetchHierarchy(): Promise<HierarchyResponse> {
-  const result = await api.get<HierarchyResponse>('/api/v1/points/hierarchy')
-  if (result.success) return result.data
+  const result = await api.get<HierarchyResponse>("/api/v1/points/hierarchy");
+  if (result.success) return result.data;
 
   // Fallback: build a flat hierarchy from /api/points
-  const flat = await pointsApi.list({ limit: 500 })
-  if (!flat.success) return { areas: [] }
+  const flat = await pointsApi.list({ limit: 500 });
+  if (!flat.success) return { areas: [] };
 
   // Group points under a single synthetic area
   const area: AreaEntry = {
-    id: 'all',
-    name: 'All Points',
+    id: "all",
+    name: "All Points",
     units: [
       {
-        id: 'all-unit',
-        name: 'All Units',
+        id: "all-unit",
+        name: "All Units",
         equipment: [
           {
-            id: 'all-equip',
-            name: 'All Equipment',
+            id: "all-equip",
+            name: "All Equipment",
             points: flat.data.data.map((p) => ({
               id: p.id,
               tag: p.tagname,
@@ -142,8 +142,8 @@ async function fetchHierarchy(): Promise<HierarchyResponse> {
         ],
       },
     ],
-  }
-  return { areas: [area] }
+  };
+  return { areas: [area] };
 }
 
 // ---------------------------------------------------------------------------
@@ -151,16 +151,16 @@ async function fetchHierarchy(): Promise<HierarchyResponse> {
 // ---------------------------------------------------------------------------
 
 const inputStyle: React.CSSProperties = {
-  background: 'var(--io-surface-secondary)',
-  border: '1px solid var(--io-border)',
+  background: "var(--io-surface-secondary)",
+  border: "1px solid var(--io-border)",
   borderRadius: 6,
-  padding: '7px 10px',
+  padding: "7px 10px",
   fontSize: 13,
-  color: 'var(--io-text-primary)',
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-}
+  color: "var(--io-text-primary)",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};
 
 // ---------------------------------------------------------------------------
 // PointRow — single selectable point
@@ -176,28 +176,28 @@ function PointRow({
   onToggleFavorite,
   onHoverPoint,
 }: {
-  point: PointEntry
-  isSelected: boolean
-  isDisabled: boolean
-  onToggle: (id: string) => void
-  singleSelect?: boolean
-  isFavorite: boolean
-  onToggleFavorite: (id: string) => void
-  onHoverPoint: (id: string | null) => void
+  point: PointEntry;
+  isSelected: boolean;
+  isDisabled: boolean;
+  onToggle: (id: string) => void;
+  singleSelect?: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: (id: string) => void;
+  onHoverPoint: (id: string | null) => void;
 }) {
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
+        display: "flex",
+        alignItems: "center",
         gap: 6,
-        padding: '4px 8px 4px 10px',
+        padding: "4px 8px 4px 10px",
         background: isSelected
-          ? 'var(--io-accent-subtle, rgba(74,158,255,0.1))'
-          : 'transparent',
-        border: `1px solid ${isSelected ? 'var(--io-accent)' : 'transparent'}`,
+          ? "var(--io-accent-subtle, rgba(74,158,255,0.1))"
+          : "transparent",
+        border: `1px solid ${isSelected ? "var(--io-accent)" : "transparent"}`,
         borderRadius: 6,
-        cursor: isDisabled ? 'not-allowed' : 'pointer',
+        cursor: isDisabled ? "not-allowed" : "pointer",
         opacity: isDisabled ? 0.5 : 1,
         fontSize: 13,
       }}
@@ -206,27 +206,31 @@ function PointRow({
     >
       {/* Checkbox / radio */}
       <input
-        type={singleSelect ? 'radio' : 'checkbox'}
+        type={singleSelect ? "radio" : "checkbox"}
         checked={isSelected}
         disabled={isDisabled}
         onChange={() => onToggle(point.id)}
-        style={{ accentColor: 'var(--io-accent)', flexShrink: 0, cursor: 'pointer' }}
+        style={{
+          accentColor: "var(--io-accent)",
+          flexShrink: 0,
+          cursor: "pointer",
+        }}
       />
 
       {/* Point name + tag */}
       <span
-        style={{ flex: 1, overflow: 'hidden', minWidth: 0, cursor: 'pointer' }}
+        style={{ flex: 1, overflow: "hidden", minWidth: 0, cursor: "pointer" }}
         onClick={() => !isDisabled && onToggle(point.id)}
       >
-        <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>
+        <span style={{ fontWeight: 500, color: "var(--io-text-primary)" }}>
           {point.name}
         </span>
         <span
           style={{
-            color: 'var(--io-text-muted)',
+            color: "var(--io-text-muted)",
             marginLeft: 6,
             fontSize: 11,
-            fontFamily: 'monospace',
+            fontFamily: "monospace",
           }}
         >
           {point.tag}
@@ -235,7 +239,9 @@ function PointRow({
 
       {/* Engineering unit */}
       {point.unit && (
-        <span style={{ color: 'var(--io-text-muted)', fontSize: 11, flexShrink: 0 }}>
+        <span
+          style={{ color: "var(--io-text-muted)", fontSize: 11, flexShrink: 0 }}
+        >
           {point.unit}
         </span>
       )}
@@ -243,27 +249,29 @@ function PointRow({
       {/* Favorite star */}
       <button
         onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onToggleFavorite(point.id)
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleFavorite(point.id);
         }}
-        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
         style={{
-          background: 'none',
-          border: 'none',
-          padding: '2px 3px',
-          cursor: 'pointer',
+          background: "none",
+          border: "none",
+          padding: "2px 3px",
+          cursor: "pointer",
           fontSize: 14,
           lineHeight: 1,
-          color: isFavorite ? 'var(--io-warning, #f59e0b)' : 'var(--io-text-muted)',
+          color: isFavorite
+            ? "var(--io-warning, #f59e0b)"
+            : "var(--io-text-muted)",
           flexShrink: 0,
           opacity: isFavorite ? 1 : 0.5,
         }}
       >
-        {isFavorite ? '★' : '☆'}
+        {isFavorite ? "★" : "☆"}
       </button>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -271,22 +279,22 @@ function PointRow({
 // ---------------------------------------------------------------------------
 
 function MiniSparkline({ values }: { values: number[] }) {
-  const W = 200
-  const H = 60
-  const pad = 4
+  const W = 200;
+  const H = 60;
+  const pad = 4;
 
-  let pathD = ''
+  let pathD = "";
   if (values.length >= 2) {
-    const min = Math.min(...values)
-    const max = Math.max(...values)
-    const range = max - min || 1
-    const step = (W - pad * 2) / (values.length - 1)
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const step = (W - pad * 2) / (values.length - 1);
     const points = values.map((v, i) => {
-      const px = pad + i * step
-      const py = pad + (1 - (v - min) / range) * (H - pad * 2)
-      return `${px.toFixed(1)},${py.toFixed(1)}`
-    })
-    pathD = `M ${points.join(' L ')}`
+      const px = pad + i * step;
+      const py = pad + (1 - (v - min) / range) * (H - pad * 2);
+      return `${px.toFixed(1)},${py.toFixed(1)}`;
+    });
+    pathD = `M ${points.join(" L ")}`;
   }
 
   return (
@@ -294,9 +302,9 @@ function MiniSparkline({ values }: { values: number[] }) {
       width={W}
       height={H}
       style={{
-        display: 'block',
+        display: "block",
         borderRadius: 4,
-        background: 'var(--io-surface-secondary)',
+        background: "var(--io-surface-secondary)",
       }}
     >
       {pathD ? (
@@ -320,7 +328,7 @@ function MiniSparkline({ values }: { values: number[] }) {
         />
       )}
     </svg>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -329,104 +337,106 @@ function MiniSparkline({ values }: { values: number[] }) {
 
 function PointPreview({ hoveredId }: { hoveredId: string | null }) {
   // Debounce: only trigger queries after 300ms of stable hover
-  const [debouncedId, setDebouncedId] = useState<string | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [debouncedId, setDebouncedId] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current)
+    if (timerRef.current) clearTimeout(timerRef.current);
     if (hoveredId === null) {
       // Clear immediately on mouse leave to avoid stale data flash
-      setDebouncedId(null)
+      setDebouncedId(null);
     } else {
-      timerRef.current = setTimeout(() => setDebouncedId(hoveredId), 300)
+      timerRef.current = setTimeout(() => setDebouncedId(hoveredId), 300);
     }
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [hoveredId])
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [hoveredId]);
 
   const { data: latest, isLoading: latestLoading } = useQuery({
-    queryKey: ['point-preview-latest', debouncedId],
+    queryKey: ["point-preview-latest", debouncedId],
     queryFn: () => pointsApi.getLatest(debouncedId!),
     enabled: debouncedId !== null,
     staleTime: 10_000,
-  })
+  });
 
   const { data: history } = useQuery({
-    queryKey: ['point-preview-history', debouncedId],
+    queryKey: ["point-preview-history", debouncedId],
     queryFn: async () => {
-      const end = new Date().toISOString()
-      const start = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-      return pointsApi.getHistory(debouncedId!, { start, end, limit: 30 })
+      const end = new Date().toISOString();
+      const start = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      return pointsApi.getHistory(debouncedId!, { start, end, limit: 30 });
     },
     enabled: debouncedId !== null,
     staleTime: 30_000,
-  })
+  });
 
   const { data: meta } = useQuery({
-    queryKey: ['point-preview-meta', debouncedId],
+    queryKey: ["point-preview-meta", debouncedId],
     queryFn: () => pointsApi.getMeta(debouncedId!),
     enabled: debouncedId !== null,
     staleTime: 300_000,
-  })
+  });
 
   if (!hoveredId && !debouncedId) {
     return (
       <div
         style={{
-          flex: '0 0 220px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--io-text-muted)',
+          flex: "0 0 220px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--io-text-muted)",
           fontSize: 12,
-          borderLeft: '1px solid var(--io-border)',
-          padding: '12px 14px',
-          textAlign: 'center',
+          borderLeft: "1px solid var(--io-border)",
+          padding: "12px 14px",
+          textAlign: "center",
         }}
       >
         Hover a point to preview
       </div>
-    )
+    );
   }
 
-  const latestData = latest?.success ? latest.data : null
-  const historyData = history?.success ? history.data : []
-  const metaData = meta?.success ? meta.data : null
+  const latestData = latest?.success ? latest.data : null;
+  const historyData = history?.success ? history.data : [];
+  const metaData = meta?.success ? meta.data : null;
 
-  const sparkValues = historyData.map((e) => e.value)
+  const sparkValues = historyData.map((e) => e.value);
 
   const qualityColor =
-    latestData?.quality === 'good'
-      ? 'var(--io-success, #22c55e)'
-      : latestData?.quality === 'bad'
-        ? 'var(--io-danger, #ef4444)'
-        : 'var(--io-warning, #f59e0b)'
+    latestData?.quality === "good"
+      ? "var(--io-success, #22c55e)"
+      : latestData?.quality === "bad"
+        ? "var(--io-danger, #ef4444)"
+        : "var(--io-warning, #f59e0b)";
 
   return (
     <div
       style={{
-        flex: '0 0 220px',
-        borderLeft: '1px solid var(--io-border)',
-        padding: '12px 14px',
-        display: 'flex',
-        flexDirection: 'column',
+        flex: "0 0 220px",
+        borderLeft: "1px solid var(--io-border)",
+        padding: "12px 14px",
+        display: "flex",
+        flexDirection: "column",
         gap: 8,
         minHeight: 0,
-        overflowY: 'auto',
+        overflowY: "auto",
       }}
     >
       {latestLoading && debouncedId ? (
-        <div style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>Loading…</div>
+        <div style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+          Loading…
+        </div>
       ) : (
         <>
           {/* Tag name */}
           <div
             style={{
               fontSize: 11,
-              fontFamily: 'monospace',
-              color: 'var(--io-text-muted)',
-              wordBreak: 'break-all',
+              fontFamily: "monospace",
+              color: "var(--io-text-muted)",
+              wordBreak: "break-all",
             }}
           >
             {metaData?.name ?? debouncedId}
@@ -438,11 +448,11 @@ function PointPreview({ hoveredId }: { hoveredId: string | null }) {
               style={{
                 fontSize: 22,
                 fontWeight: 700,
-                color: 'var(--io-text-primary)',
+                color: "var(--io-text-primary)",
                 lineHeight: 1.1,
               }}
             >
-              {typeof latestData.value === 'number'
+              {typeof latestData.value === "number"
                 ? latestData.value.toFixed(2)
                 : String(latestData.value)}
               {metaData?.engineering_unit && (
@@ -450,7 +460,7 @@ function PointPreview({ hoveredId }: { hoveredId: string | null }) {
                   style={{
                     fontSize: 12,
                     fontWeight: 400,
-                    color: 'var(--io-text-muted)',
+                    color: "var(--io-text-muted)",
                     marginLeft: 4,
                   }}
                 >
@@ -462,23 +472,32 @@ function PointPreview({ hoveredId }: { hoveredId: string | null }) {
 
           {/* Quality badge + timestamp */}
           {latestData && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                flexWrap: "wrap",
+              }}
+            >
               <span
                 style={{
                   fontSize: 10,
                   fontWeight: 600,
-                  padding: '2px 6px',
+                  padding: "2px 6px",
                   borderRadius: 999,
                   background: qualityColor,
-                  color: '#fff',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
+                  color: "#fff",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
                 }}
               >
                 {latestData.quality}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--io-text-muted)' }}>
-                {latestData.timestamp ? new Date(latestData.timestamp).toLocaleTimeString() : '—'}
+              <span style={{ fontSize: 11, color: "var(--io-text-muted)" }}>
+                {latestData.timestamp
+                  ? new Date(latestData.timestamp).toLocaleTimeString()
+                  : "—"}
               </span>
             </div>
           )}
@@ -487,12 +506,14 @@ function PointPreview({ hoveredId }: { hoveredId: string | null }) {
           <MiniSparkline values={sparkValues} />
 
           {!latestData && !latestLoading && (
-            <div style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>No data available</div>
+            <div style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+              No data available
+            </div>
           )}
         </>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -508,79 +529,79 @@ function BrowseTab({
   onToggleFavorite,
   onHoverPoint,
 }: {
-  selected: string[]
-  onToggle: (id: string) => void
-  maxSelect?: number
-  singleSelect?: boolean
-  favorites: Set<string>
-  onToggleFavorite: (id: string) => void
-  onHoverPoint: (id: string | null) => void
+  selected: string[];
+  onToggle: (id: string) => void;
+  maxSelect?: number;
+  singleSelect?: boolean;
+  favorites: Set<string>;
+  onToggleFavorite: (id: string) => void;
+  onHoverPoint: (id: string | null) => void;
 }) {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['point-hierarchy'],
+    queryKey: ["point-hierarchy"],
     queryFn: fetchHierarchy,
     staleTime: 60_000,
-  })
+  });
 
   // Expanded state — track open areas, units, equipment by id
-  const [openAreas, setOpenAreas] = useState<Set<string>>(new Set())
-  const [openUnits, setOpenUnits] = useState<Set<string>>(new Set())
-  const [openEquip, setOpenEquip] = useState<Set<string>>(new Set())
+  const [openAreas, setOpenAreas] = useState<Set<string>>(new Set());
+  const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
+  const [openEquip, setOpenEquip] = useState<Set<string>>(new Set());
 
   const toggle = (set: Set<string>, id: string): Set<string> => {
-    const next = new Set(set)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return next
-  }
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  };
 
   if (isLoading) {
     return (
-      <div style={{ padding: 16, color: 'var(--io-text-muted)', fontSize: 13 }}>
+      <div style={{ padding: 16, color: "var(--io-text-muted)", fontSize: 13 }}>
         Loading hierarchy…
       </div>
-    )
+    );
   }
 
   if (isError || !data || data.areas.length === 0) {
     return (
-      <div style={{ padding: 16, color: 'var(--io-text-muted)', fontSize: 13 }}>
+      <div style={{ padding: 16, color: "var(--io-text-muted)", fontSize: 13 }}>
         No hierarchy data available. Use Search tab instead.
       </div>
-    )
+    );
   }
 
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         gap: 2,
-        overflowY: 'auto',
+        overflowY: "auto",
         maxHeight: 340,
       }}
     >
       {data.areas.map((area) => {
-        const areaOpen = openAreas.has(area.id)
+        const areaOpen = openAreas.has(area.id);
         return (
           <div key={area.id}>
             {/* Area row */}
             <button
               onClick={() => setOpenAreas(toggle(openAreas, area.id))}
               style={{
-                display: 'flex',
-                alignItems: 'center',
+                display: "flex",
+                alignItems: "center",
                 gap: 6,
-                width: '100%',
-                background: 'transparent',
-                border: 'none',
-                padding: '5px 8px',
-                cursor: 'pointer',
+                width: "100%",
+                background: "transparent",
+                border: "none",
+                padding: "5px 8px",
+                cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
-                color: 'var(--io-text-primary)',
+                color: "var(--io-text-primary)",
                 borderRadius: 4,
-                textAlign: 'left',
+                textAlign: "left",
               }}
             >
               <ChevronIcon open={areaOpen} />
@@ -590,26 +611,26 @@ function BrowseTab({
 
             {areaOpen &&
               area.units.map((unit) => {
-                const unitOpen = openUnits.has(unit.id)
+                const unitOpen = openUnits.has(unit.id);
                 return (
                   <div key={unit.id} style={{ paddingLeft: 16 }}>
                     {/* Unit row */}
                     <button
                       onClick={() => setOpenUnits(toggle(openUnits, unit.id))}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
+                        display: "flex",
+                        alignItems: "center",
                         gap: 6,
-                        width: '100%',
-                        background: 'transparent',
-                        border: 'none',
-                        padding: '4px 8px',
-                        cursor: 'pointer',
+                        width: "100%",
+                        background: "transparent",
+                        border: "none",
+                        padding: "4px 8px",
+                        cursor: "pointer",
                         fontSize: 13,
                         fontWeight: 500,
-                        color: 'var(--io-text-primary)',
+                        color: "var(--io-text-primary)",
                         borderRadius: 4,
-                        textAlign: 'left',
+                        textAlign: "left",
                       }}
                     >
                       <ChevronIcon open={unitOpen} />
@@ -619,25 +640,27 @@ function BrowseTab({
 
                     {unitOpen &&
                       unit.equipment.map((equip) => {
-                        const equipOpen = openEquip.has(equip.id)
+                        const equipOpen = openEquip.has(equip.id);
                         return (
                           <div key={equip.id} style={{ paddingLeft: 16 }}>
                             {/* Equipment row */}
                             <button
-                              onClick={() => setOpenEquip(toggle(openEquip, equip.id))}
+                              onClick={() =>
+                                setOpenEquip(toggle(openEquip, equip.id))
+                              }
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
+                                display: "flex",
+                                alignItems: "center",
                                 gap: 6,
-                                width: '100%',
-                                background: 'transparent',
-                                border: 'none',
-                                padding: '4px 8px',
-                                cursor: 'pointer',
+                                width: "100%",
+                                background: "transparent",
+                                border: "none",
+                                padding: "4px 8px",
+                                cursor: "pointer",
                                 fontSize: 13,
-                                color: 'var(--io-text-muted)',
+                                color: "var(--io-text-muted)",
                                 borderRadius: 4,
-                                textAlign: 'left',
+                                textAlign: "left",
                               }}
                             >
                               <ChevronIcon open={equipOpen} />
@@ -647,7 +670,7 @@ function BrowseTab({
                                 style={{
                                   marginLeft: 4,
                                   fontSize: 11,
-                                  color: 'var(--io-text-muted)',
+                                  color: "var(--io-text-muted)",
                                   opacity: 0.7,
                                 }}
                               >
@@ -658,12 +681,12 @@ function BrowseTab({
                             {equipOpen && (
                               <div style={{ paddingLeft: 20 }}>
                                 {equip.points.map((pt) => {
-                                  const isSelected = selected.includes(pt.id)
+                                  const isSelected = selected.includes(pt.id);
                                   const isDisabled =
                                     !isSelected &&
                                     !singleSelect &&
                                     maxSelect != null &&
-                                    selected.length >= maxSelect
+                                    selected.length >= maxSelect;
                                   return (
                                     <PointRow
                                       key={pt.id}
@@ -676,14 +699,14 @@ function BrowseTab({
                                       onToggleFavorite={onToggleFavorite}
                                       onHoverPoint={onHoverPoint}
                                     />
-                                  )
+                                  );
                                 })}
                                 {equip.points.length === 0 && (
                                   <div
                                     style={{
-                                      padding: '4px 10px',
+                                      padding: "4px 10px",
                                       fontSize: 12,
-                                      color: 'var(--io-text-muted)',
+                                      color: "var(--io-text-muted)",
                                     }}
                                   >
                                     No points
@@ -692,16 +715,16 @@ function BrowseTab({
                               </div>
                             )}
                           </div>
-                        )
+                        );
                       })}
                   </div>
-                )
+                );
               })}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -717,28 +740,31 @@ function SearchTab({
   onToggleFavorite,
   onHoverPoint,
 }: {
-  selected: string[]
-  onToggle: (id: string) => void
-  maxSelect?: number
-  singleSelect?: boolean
-  favorites: Set<string>
-  onToggleFavorite: (id: string) => void
-  onHoverPoint: (id: string | null) => void
+  selected: string[];
+  onToggle: (id: string) => void;
+  maxSelect?: number;
+  singleSelect?: boolean;
+  favorites: Set<string>;
+  onToggleFavorite: (id: string) => void;
+  onHoverPoint: (id: string | null) => void;
 }) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState("");
 
   const { data, isFetching } = useQuery({
-    queryKey: ['points-picker-search', query],
+    queryKey: ["points-picker-search", query],
     queryFn: async () => {
-      const result = await pointsApi.list({ search: query || undefined, limit: 50 })
-      if (!result.success) throw new Error(result.error.message)
-      return result.data.data
+      const result = await pointsApi.list({
+        search: query || undefined,
+        limit: 50,
+      });
+      if (!result.success) throw new Error(result.error.message);
+      return result.data.data;
     },
     staleTime: 15_000,
-  })
+  });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <input
         type="text"
         placeholder="Search points by name or tag…"
@@ -749,22 +775,27 @@ function SearchTab({
       />
 
       {isFetching && (
-        <div style={{ fontSize: 12, color: 'var(--io-text-muted)' }}>Searching…</div>
+        <div style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+          Searching…
+        </div>
       )}
 
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
+          display: "flex",
+          flexDirection: "column",
           gap: 4,
           maxHeight: 280,
-          overflowY: 'auto',
+          overflowY: "auto",
         }}
       >
         {data?.map((pt) => {
-          const isSelected = selected.includes(pt.id)
+          const isSelected = selected.includes(pt.id);
           const isDisabled =
-            !isSelected && !singleSelect && maxSelect != null && selected.length >= maxSelect
+            !isSelected &&
+            !singleSelect &&
+            maxSelect != null &&
+            selected.length >= maxSelect;
           return (
             <PointRow
               key={pt.id}
@@ -783,14 +814,14 @@ function SearchTab({
               onToggleFavorite={onToggleFavorite}
               onHoverPoint={onHoverPoint}
             />
-          )
+          );
         })}
         {data?.length === 0 && !isFetching && (
           <div
             style={{
               fontSize: 12,
-              color: 'var(--io-text-muted)',
-              textAlign: 'center',
+              color: "var(--io-text-muted)",
+              textAlign: "center",
               padding: 12,
             }}
           >
@@ -799,7 +830,7 @@ function SearchTab({
         )}
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -815,68 +846,71 @@ function FavoritesTab({
   onToggleFavorite,
   onHoverPoint,
 }: {
-  selected: string[]
-  onToggle: (id: string) => void
-  maxSelect?: number
-  singleSelect?: boolean
-  favorites: Set<string>
-  onToggleFavorite: (id: string) => void
-  onHoverPoint: (id: string | null) => void
+  selected: string[];
+  onToggle: (id: string) => void;
+  maxSelect?: number;
+  singleSelect?: boolean;
+  favorites: Set<string>;
+  onToggleFavorite: (id: string) => void;
+  onHoverPoint: (id: string | null) => void;
 }) {
   // Fetch metadata for all favorited points so we can render them
   const { data, isFetching } = useQuery({
-    queryKey: ['points-picker-favorites', [...favorites].sort().join(',')],
+    queryKey: ["points-picker-favorites", [...favorites].sort().join(",")],
     queryFn: async () => {
-      if (favorites.size === 0) return []
-      const result = await pointsApi.list({ limit: 500 })
-      if (!result.success) return []
-      return result.data.data.filter((p) => favorites.has(p.id))
+      if (favorites.size === 0) return [];
+      const result = await pointsApi.list({ limit: 500 });
+      if (!result.success) return [];
+      return result.data.data.filter((p) => favorites.has(p.id));
     },
     staleTime: 30_000,
     enabled: favorites.size > 0,
-  })
+  });
 
   if (favorites.size === 0) {
     return (
       <div
         style={{
           padding: 24,
-          textAlign: 'center',
-          color: 'var(--io-text-muted)',
+          textAlign: "center",
+          color: "var(--io-text-muted)",
           fontSize: 13,
         }}
       >
         No favorites yet.
         <br />
-        <span style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+        <span style={{ fontSize: 12, marginTop: 4, display: "block" }}>
           Click the ☆ star on any point to add it here.
         </span>
       </div>
-    )
+    );
   }
 
   if (isFetching) {
     return (
-      <div style={{ padding: 16, color: 'var(--io-text-muted)', fontSize: 13 }}>
+      <div style={{ padding: 16, color: "var(--io-text-muted)", fontSize: 13 }}>
         Loading favorites…
       </div>
-    )
+    );
   }
 
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         gap: 4,
         maxHeight: 340,
-        overflowY: 'auto',
+        overflowY: "auto",
       }}
     >
       {data?.map((pt) => {
-        const isSelected = selected.includes(pt.id)
+        const isSelected = selected.includes(pt.id);
         const isDisabled =
-          !isSelected && !singleSelect && maxSelect != null && selected.length >= maxSelect
+          !isSelected &&
+          !singleSelect &&
+          maxSelect != null &&
+          selected.length >= maxSelect;
         return (
           <PointRow
             key={pt.id}
@@ -895,15 +929,17 @@ function FavoritesTab({
             onToggleFavorite={onToggleFavorite}
             onHoverPoint={onHoverPoint}
           />
-        )
+        );
       })}
       {data?.length === 0 && !isFetching && (
-        <div style={{ padding: 16, color: 'var(--io-text-muted)', fontSize: 13 }}>
+        <div
+          style={{ padding: 16, color: "var(--io-text-muted)", fontSize: 13 }}
+        >
           Favorites not found in current dataset.
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -920,73 +956,76 @@ function RecentTab({
   onHoverPoint,
   recentIds,
 }: {
-  selected: string[]
-  onToggle: (id: string) => void
-  maxSelect?: number
-  singleSelect?: boolean
-  favorites: Set<string>
-  onToggleFavorite: (id: string) => void
-  onHoverPoint: (id: string | null) => void
-  recentIds: string[]
+  selected: string[];
+  onToggle: (id: string) => void;
+  maxSelect?: number;
+  singleSelect?: boolean;
+  favorites: Set<string>;
+  onToggleFavorite: (id: string) => void;
+  onHoverPoint: (id: string | null) => void;
+  recentIds: string[];
 }) {
   // Fetch metadata for recent points
   const { data, isFetching } = useQuery({
-    queryKey: ['points-picker-recent', recentIds.slice(0, 20).join(',')],
+    queryKey: ["points-picker-recent", recentIds.slice(0, 20).join(",")],
     queryFn: async () => {
-      if (recentIds.length === 0) return []
-      const result = await pointsApi.list({ limit: 500 })
-      if (!result.success) return []
-      const metaById = new Map(result.data.data.map((p) => [p.id, p]))
+      if (recentIds.length === 0) return [];
+      const result = await pointsApi.list({ limit: 500 });
+      if (!result.success) return [];
+      const metaById = new Map(result.data.data.map((p) => [p.id, p]));
       // Preserve the recency order
       return recentIds
         .map((id) => metaById.get(id))
-        .filter((p): p is NonNullable<typeof p> => p !== undefined)
+        .filter((p): p is NonNullable<typeof p> => p !== undefined);
     },
     staleTime: 30_000,
     enabled: recentIds.length > 0,
-  })
+  });
 
   if (recentIds.length === 0) {
     return (
       <div
         style={{
           padding: 24,
-          textAlign: 'center',
-          color: 'var(--io-text-muted)',
+          textAlign: "center",
+          color: "var(--io-text-muted)",
           fontSize: 13,
         }}
       >
         No recently selected points.
         <br />
-        <span style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+        <span style={{ fontSize: 12, marginTop: 4, display: "block" }}>
           Points you select will appear here for quick re-access.
         </span>
       </div>
-    )
+    );
   }
 
   if (isFetching) {
     return (
-      <div style={{ padding: 16, color: 'var(--io-text-muted)', fontSize: 13 }}>
+      <div style={{ padding: 16, color: "var(--io-text-muted)", fontSize: 13 }}>
         Loading recent points…
       </div>
-    )
+    );
   }
 
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         gap: 4,
         maxHeight: 340,
-        overflowY: 'auto',
+        overflowY: "auto",
       }}
     >
       {data?.map((pt) => {
-        const isSelected = selected.includes(pt.id)
+        const isSelected = selected.includes(pt.id);
         const isDisabled =
-          !isSelected && !singleSelect && maxSelect != null && selected.length >= maxSelect
+          !isSelected &&
+          !singleSelect &&
+          maxSelect != null &&
+          selected.length >= maxSelect;
         return (
           <PointRow
             key={pt.id}
@@ -1005,10 +1044,10 @@ function RecentTab({
             onToggleFavorite={onToggleFavorite}
             onHoverPoint={onHoverPoint}
           />
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1026,14 +1065,14 @@ function ChevronIcon({ open }: { open: boolean }) {
       strokeWidth="2.5"
       style={{
         flexShrink: 0,
-        transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
-        transition: 'transform 150ms',
-        color: 'var(--io-text-muted)',
+        transform: open ? "rotate(90deg)" : "rotate(0deg)",
+        transition: "transform 150ms",
+        color: "var(--io-text-muted)",
       }}
     >
       <polyline points="9 18 15 12 9 6" />
     </svg>
-  )
+  );
 }
 
 function AreaIcon() {
@@ -1045,11 +1084,11 @@ function AreaIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      style={{ flexShrink: 0, color: 'var(--io-accent)' }}
+      style={{ flexShrink: 0, color: "var(--io-accent)" }}
     >
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
-  )
+  );
 }
 
 function UnitIcon() {
@@ -1061,12 +1100,12 @@ function UnitIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      style={{ flexShrink: 0, color: 'var(--io-text-muted)' }}
+      style={{ flexShrink: 0, color: "var(--io-text-muted)" }}
     >
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
     </svg>
-  )
+  );
 }
 
 function EquipIcon() {
@@ -1078,12 +1117,12 @@ function EquipIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      style={{ flexShrink: 0, color: 'var(--io-text-muted)' }}
+      style={{ flexShrink: 0, color: "var(--io-text-muted)" }}
     >
       <circle cx="12" cy="12" r="3" />
       <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" />
     </svg>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1092,15 +1131,15 @@ function EquipIcon() {
 
 export interface PointPickerProps {
   /** Currently selected point IDs */
-  selected: string[]
+  selected: string[];
   /** Called with updated selection whenever user toggles a point */
-  onChange: (ids: string[]) => void
+  onChange: (ids: string[]) => void;
   /** Maximum number of selectable points (multi-select mode) */
-  maxSelect?: number
+  maxSelect?: number;
   /** Force single-select mode — onChange always receives an array of at most 1 id */
-  singleSelect?: boolean
+  singleSelect?: boolean;
   /** Optional className for the root container */
-  className?: string
+  className?: string;
 }
 
 export default function PointPicker({
@@ -1109,66 +1148,75 @@ export default function PointPicker({
   maxSelect,
   singleSelect = false,
 }: PointPickerProps) {
-  const [tab, setTab] = useState<'browse' | 'search' | 'favorites' | 'recent'>('browse')
-  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites())
-  const [recentIds, setRecentIds] = useState<string[]>(() => loadRecent())
-  const [hoveredPointId, setHoveredPointId] = useState<string | null>(null)
+  const [tab, setTab] = useState<"browse" | "search" | "favorites" | "recent">(
+    "browse",
+  );
+  const [favorites, setFavorites] = useState<Set<string>>(() =>
+    loadFavorites(),
+  );
+  const [recentIds, setRecentIds] = useState<string[]>(() => loadRecent());
+  const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
 
-  const handleToggle = useCallback((id: string) => {
-    if (singleSelect) {
-      const isCurrentlySelected = selected[0] === id
-      const newSelection = isCurrentlySelected ? [] : [id]
-      onChange(newSelection)
-      if (!isCurrentlySelected) {
-        // Adding — prepend to recent
-        setRecentIds((prev) => {
-          const next = prependRecent(id, prev)
-          saveRecent(next)
-          return next
-        })
+  const handleToggle = useCallback(
+    (id: string) => {
+      if (singleSelect) {
+        const isCurrentlySelected = selected[0] === id;
+        const newSelection = isCurrentlySelected ? [] : [id];
+        onChange(newSelection);
+        if (!isCurrentlySelected) {
+          // Adding — prepend to recent
+          setRecentIds((prev) => {
+            const next = prependRecent(id, prev);
+            saveRecent(next);
+            return next;
+          });
+        }
+        return;
       }
-      return
-    }
-    if (selected.includes(id)) {
-      onChange(selected.filter((x) => x !== id))
-    } else {
-      if (maxSelect != null && selected.length >= maxSelect) return
-      onChange([...selected, id])
-      // Prepend to recent
-      setRecentIds((prev) => {
-        const next = prependRecent(id, prev)
-        saveRecent(next)
-        return next
-      })
-    }
-  }, [selected, onChange, singleSelect, maxSelect])
+      if (selected.includes(id)) {
+        onChange(selected.filter((x) => x !== id));
+      } else {
+        if (maxSelect != null && selected.length >= maxSelect) return;
+        onChange([...selected, id]);
+        // Prepend to recent
+        setRecentIds((prev) => {
+          const next = prependRecent(id, prev);
+          saveRecent(next);
+          return next;
+        });
+      }
+    },
+    [selected, onChange, singleSelect, maxSelect],
+  );
 
   const handleToggleFavorite = useCallback((id: string) => {
     setFavorites((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      saveFavorites(next)
-      return next
-    })
-  }, [])
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      saveFavorites(next);
+      return next;
+    });
+  }, []);
 
   const handleHoverPoint = useCallback((id: string | null) => {
-    setHoveredPointId(id)
-  }, [])
+    setHoveredPointId(id);
+  }, []);
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
-    padding: '6px 0',
-    background: active ? 'var(--io-surface)' : 'transparent',
-    border: 'none',
-    borderBottom: active ? '2px solid var(--io-accent)' : '2px solid transparent',
-    cursor: 'pointer',
+    padding: "6px 0",
+    background: active ? "var(--io-surface)" : "transparent",
+    border: "none",
+    borderBottom: active
+      ? "2px solid var(--io-accent)"
+      : "2px solid transparent",
+    cursor: "pointer",
     fontSize: 12,
     fontWeight: active ? 600 : 400,
-    color: active ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
-    whiteSpace: 'nowrap',
-  })
+    color: active ? "var(--io-text-primary)" : "var(--io-text-muted)",
+    whiteSpace: "nowrap",
+  });
 
   const sharedTabProps = {
     selected,
@@ -1178,29 +1226,41 @@ export default function PointPicker({
     favorites,
     onToggleFavorite: handleToggleFavorite,
     onHoverPoint: handleHoverPoint,
-  }
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       {/* Tab header */}
       <div
         style={{
-          display: 'flex',
-          borderBottom: '1px solid var(--io-border)',
+          display: "flex",
+          borderBottom: "1px solid var(--io-border)",
           marginBottom: 8,
         }}
       >
-        <button style={tabBtnStyle(tab === 'browse')} onClick={() => setTab('browse')}>
+        <button
+          style={tabBtnStyle(tab === "browse")}
+          onClick={() => setTab("browse")}
+        >
           Browse
         </button>
-        <button style={tabBtnStyle(tab === 'search')} onClick={() => setTab('search')}>
+        <button
+          style={tabBtnStyle(tab === "search")}
+          onClick={() => setTab("search")}
+        >
           Search
         </button>
-        <button style={tabBtnStyle(tab === 'favorites')} onClick={() => setTab('favorites')}>
-          Favorites{favorites.size > 0 ? ` (${favorites.size})` : ''}
+        <button
+          style={tabBtnStyle(tab === "favorites")}
+          onClick={() => setTab("favorites")}
+        >
+          Favorites{favorites.size > 0 ? ` (${favorites.size})` : ""}
         </button>
-        <button style={tabBtnStyle(tab === 'recent')} onClick={() => setTab('recent')}>
-          Recent{recentIds.length > 0 ? ` (${recentIds.length})` : ''}
+        <button
+          style={tabBtnStyle(tab === "recent")}
+          onClick={() => setTab("recent")}
+        >
+          Recent{recentIds.length > 0 ? ` (${recentIds.length})` : ""}
         </button>
       </div>
 
@@ -1209,9 +1269,9 @@ export default function PointPicker({
         <div
           style={{
             fontSize: 11,
-            color: 'var(--io-text-muted)',
+            color: "var(--io-text-muted)",
             marginBottom: 6,
-            textAlign: 'right',
+            textAlign: "right",
           }}
         >
           {selected.length} selected
@@ -1220,13 +1280,13 @@ export default function PointPicker({
       )}
 
       {/* Main content: tab content + preview panel side by side */}
-      <div style={{ display: 'flex', gap: 0, minHeight: 0 }}>
+      <div style={{ display: "flex", gap: 0, minHeight: 0 }}>
         {/* Left: tab content */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {tab === 'browse' && <BrowseTab {...sharedTabProps} />}
-          {tab === 'search' && <SearchTab {...sharedTabProps} />}
-          {tab === 'favorites' && <FavoritesTab {...sharedTabProps} />}
-          {tab === 'recent' && (
+          {tab === "browse" && <BrowseTab {...sharedTabProps} />}
+          {tab === "search" && <SearchTab {...sharedTabProps} />}
+          {tab === "favorites" && <FavoritesTab {...sharedTabProps} />}
+          {tab === "recent" && (
             <RecentTab {...sharedTabProps} recentIds={recentIds} />
           )}
         </div>
@@ -1235,5 +1295,5 @@ export default function PointPicker({
         <PointPreview hoveredId={hoveredPointId} />
       </div>
     </div>
-  )
+  );
 }

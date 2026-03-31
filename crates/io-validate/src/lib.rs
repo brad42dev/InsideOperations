@@ -34,10 +34,7 @@ pub fn validate_username(username: &str) -> Result<(), ValidationError> {
             "must be between 3 and 50 characters",
         ));
     }
-    if !username
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '_')
-    {
+    if !username.chars().all(|c| c.is_alphanumeric() || c == '_') {
         return Err(ValidationError::new(
             "username",
             "must contain only alphanumeric characters and underscores",
@@ -50,7 +47,10 @@ pub fn validate_username(username: &str) -> Result<(), ValidationError> {
 pub fn validate_email(email: &str) -> Result<(), ValidationError> {
     let parts: Vec<&str> = email.splitn(2, '@').collect();
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
-        return Err(ValidationError::new("email", "must be a valid email address"));
+        return Err(ValidationError::new(
+            "email",
+            "must be a valid email address",
+        ));
     }
     if !parts[1].contains('.') {
         return Err(ValidationError::new("email", "domain must contain a dot"));
@@ -99,9 +99,9 @@ pub fn validate_password(password: &str) -> Result<(), ValidationError> {
 
 /// Validate that a string is a valid UUID (any version).
 pub fn validate_uuid_str(s: &str) -> Result<(), ValidationError> {
-    uuid::Uuid::parse_str(s).map(|_| ()).map_err(|_| {
-        ValidationError::new("id", format!("`{s}` is not a valid UUID"))
-    })
+    uuid::Uuid::parse_str(s)
+        .map(|_| ())
+        .map_err(|_| ValidationError::new("id", format!("`{s}` is not a valid UUID")))
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,10 @@ pub struct ValidatedPagination {
 
 impl Default for ValidatedPagination {
     fn default() -> Self {
-        Self { page: 1, per_page: 25 }
+        Self {
+            page: 1,
+            per_page: 25,
+        }
     }
 }
 
@@ -148,11 +151,7 @@ impl ValidatedPagination {
 ///
 /// * `page` is clamped to a minimum of 1 (zero becomes 1).
 /// * `per_page` is clamped to the range `[1, max_per_page]` (zero becomes 25).
-pub fn validate_pagination(
-    page: u32,
-    per_page: u32,
-    max_per_page: u32,
-) -> ValidatedPagination {
+pub fn validate_pagination(page: u32, per_page: u32, max_per_page: u32) -> ValidatedPagination {
     let max = max_per_page.max(1);
     ValidatedPagination {
         page: page.max(1),
@@ -315,13 +314,19 @@ mod tests {
 
     #[test]
     fn validated_pagination_offset_for_page_3_per_page_10() {
-        let p = ValidatedPagination { page: 3, per_page: 10 };
+        let p = ValidatedPagination {
+            page: 3,
+            per_page: 10,
+        };
         assert_eq!(p.offset(), 20);
     }
 
     #[test]
     fn validated_pagination_offset_page_1_is_zero() {
-        let p = ValidatedPagination { page: 1, per_page: 25 };
+        let p = ValidatedPagination {
+            page: 1,
+            per_page: 25,
+        };
         assert_eq!(p.offset(), 0);
     }
 }

@@ -62,8 +62,12 @@ pub struct AcceptEulaBody {
     pub acceptance_context: String,
 }
 
-fn default_eula_type() -> String { "end_user".to_string() }
-fn default_context()   -> String { "login".to_string() }
+fn default_eula_type() -> String {
+    "end_user".to_string()
+}
+fn default_context() -> String {
+    "login".to_string()
+}
 
 #[derive(Debug, Deserialize)]
 pub struct EulaTypeQuery {
@@ -93,10 +97,12 @@ fn has_permission(headers: &HeaderMap, required: &str) -> bool {
     headers
         .get("x-io-permissions")
         .and_then(|v| v.to_str().ok())
-        .map(|perms| perms.split(',').any(|p| {
-            let p = p.trim();
-            p == required || p == "*"
-        }))
+        .map(|perms| {
+            perms.split(',').any(|p| {
+                let p = p.trim();
+                p == required || p == "*"
+            })
+        })
         .unwrap_or(false)
 }
 
@@ -164,7 +170,8 @@ pub async fn get_pending_eulas(
 
             let admin_accepted_version: String = match accepted_setting {
                 Ok(Some(r)) => {
-                    let v: serde_json::Value = r.try_get("value").unwrap_or(serde_json::Value::Null);
+                    let v: serde_json::Value =
+                        r.try_get("value").unwrap_or(serde_json::Value::Null);
                     v.as_str().unwrap_or("").to_string()
                 }
                 _ => String::new(),
@@ -238,15 +245,21 @@ pub async fn get_current_eula(
         Ok(Some(r)) => {
             let eula = EulaVersion {
                 id: r.try_get("id").unwrap_or_else(|_| Uuid::nil()),
-                eula_type: r.try_get::<String, _>("eula_type").unwrap_or_else(|_| "end_user".to_string()),
+                eula_type: r
+                    .try_get::<String, _>("eula_type")
+                    .unwrap_or_else(|_| "end_user".to_string()),
                 version: r.try_get::<String, _>("version").unwrap_or_default(),
-                title: r.try_get::<String, _>("title").unwrap_or_else(|_| "End User License Agreement".to_string()),
+                title: r
+                    .try_get::<String, _>("title")
+                    .unwrap_or_else(|_| "End User License Agreement".to_string()),
                 content: r.try_get::<String, _>("content").unwrap_or_default(),
                 published_at: r.try_get("published_at").ok(),
             };
             Json(ApiResponse::ok(eula)).into_response()
         }
-        _ => IoError::NotFound(format!("No active {} EULA found", params.eula_type)).into_response(),
+        _ => {
+            IoError::NotFound(format!("No active {} EULA found", params.eula_type)).into_response()
+        }
     }
 }
 
@@ -272,7 +285,8 @@ pub async fn accept_eula(
 
     let valid_types = ["installer", "end_user"];
     if !valid_types.contains(&body.eula_type.as_str()) {
-        return IoError::BadRequest("eula_type must be 'installer' or 'end_user'".into()).into_response();
+        return IoError::BadRequest("eula_type must be 'installer' or 'end_user'".into())
+            .into_response();
     }
 
     let valid_contexts = ["installer", "installer_admin", "login", "version_update"];
@@ -300,9 +314,11 @@ pub async fn accept_eula(
         Ok(None) => {
             tracing::warn!(eula_type = %body.eula_type, version = %body.version,
                 "accept_eula: version not found or not active");
-            return IoError::NotFound(
-                format!("EULA {} v'{}' not found or not active", body.eula_type, body.version)
-            ).into_response();
+            return IoError::NotFound(format!(
+                "EULA {} v'{}' not found or not active",
+                body.eula_type, body.version
+            ))
+            .into_response();
         }
         Err(e) => {
             tracing::error!(error = %e, "accept_eula: version lookup failed");
@@ -310,18 +326,30 @@ pub async fn accept_eula(
         }
     };
 
-    let user_agent  = extract_header_str(&headers, "user-agent");
-    let forwarded   = extract_header_str(&headers, "x-forwarded-for");
-    let client_ip   = if forwarded.is_empty() { "127.0.0.1" } else { forwarded };
-    let username    = extract_header_str(&headers, "x-io-username");
-    let role        = extract_header_str(&headers, "x-user-role");
-    let email       = extract_header_str(&headers, "x-io-email");
+    let user_agent = extract_header_str(&headers, "user-agent");
+    let forwarded = extract_header_str(&headers, "x-forwarded-for");
+    let client_ip = if forwarded.is_empty() {
+        "127.0.0.1"
+    } else {
+        forwarded
+    };
+    let username = extract_header_str(&headers, "x-io-username");
+    let role = extract_header_str(&headers, "x-user-role");
+    let email = extract_header_str(&headers, "x-io-email");
     let display_name = extract_header_str(&headers, "x-io-display-name");
 
-    let role_str     = if role.is_empty()         { "operator" } else { role };
-    let username_str = if username.is_empty()      { "unknown"  } else { username };
-    let email_str    = if email.is_empty()         { ""         } else { email };
-    let name_str     = if display_name.is_empty()  { ""         } else { display_name };
+    let role_str = if role.is_empty() { "operator" } else { role };
+    let username_str = if username.is_empty() {
+        "unknown"
+    } else {
+        username
+    };
+    let email_str = if email.is_empty() { "" } else { email };
+    let name_str = if display_name.is_empty() {
+        ""
+    } else {
+        display_name
+    };
 
     // Fetch the row_hash of the most recent acceptance for chain continuity
     let prev_row = sqlx::query(
@@ -415,7 +443,8 @@ pub async fn accept_eula(
             Json(ApiResponse::ok(serde_json::json!({
                 "accepted": true,
                 "receipt_token": receipt_token,
-            }))).into_response()
+            })))
+            .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "accept_eula insert failed");
@@ -451,24 +480,37 @@ pub async fn accept_eula_pending(
     headers: HeaderMap,
     Json(body): Json<AcceptEulaPendingBody>,
 ) -> impl IntoResponse {
-
     // --- 1. Validate the pending token ---
     let entry = {
         match state.eula_pending_tokens.get(&body.eula_pending_token) {
             Some(e) => e.clone(),
-            None => return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "invalid_or_expired_token"}))).into_response(),
+            None => {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({"error": "invalid_or_expired_token"})),
+                )
+                    .into_response()
+            }
         }
     };
 
     if entry.used {
         // Single-use: reject
         state.eula_pending_tokens.remove(&body.eula_pending_token);
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "token_already_used"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "token_already_used"})),
+        )
+            .into_response();
     }
 
     if entry.expires_at < Utc::now() {
         state.eula_pending_tokens.remove(&body.eula_pending_token);
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "token_expired"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "token_expired"})),
+        )
+            .into_response();
     }
 
     let user_id = entry.user_id;
@@ -504,7 +546,8 @@ pub async fn accept_eula_pending(
         }
         Ok(None) => {
             tracing::warn!(version = %version, "accept_eula_pending: EULA version not found or not active");
-            return IoError::NotFound(format!("EULA v'{}' not found or not active", version)).into_response();
+            return IoError::NotFound(format!("EULA v'{}' not found or not active", version))
+                .into_response();
         }
         Err(e) => {
             tracing::error!(error = %e, "accept_eula_pending: version lookup failed");
@@ -550,11 +593,10 @@ pub async fn accept_eula_pending(
         .to_string();
 
     // Fetch prior hash for chain continuity
-    let prev_row = sqlx::query(
-        "SELECT row_hash FROM eula_acceptances ORDER BY accepted_at DESC LIMIT 1",
-    )
-    .fetch_optional(&state.db)
-    .await;
+    let prev_row =
+        sqlx::query("SELECT row_hash FROM eula_acceptances ORDER BY accepted_at DESC LIMIT 1")
+            .fetch_optional(&state.db)
+            .await;
 
     let previous_hash: Option<String> = prev_row
         .ok()
@@ -598,7 +640,7 @@ pub async fn accept_eula_pending(
     .bind(receipt_token)
     .bind(&body.acceptance_context)
     .bind(&email)
-    .bind("")           // display_name_snapshot — not available without JWT
+    .bind("") // display_name_snapshot — not available without JWT
     .bind(&previous_hash)
     .bind(&row_hash)
     .execute(&state.db)
@@ -677,7 +719,9 @@ pub async fn accept_eula_pending(
 
     let mut response = (StatusCode::OK, Json(body_resp)).into_response();
     if let Ok(cookie_val) = cookie.parse() {
-        response.headers_mut().insert(header::SET_COOKIE, cookie_val);
+        response
+            .headers_mut()
+            .insert(header::SET_COOKIE, cookie_val);
     }
 
     response
@@ -688,10 +732,7 @@ pub async fn accept_eula_pending(
 // (Legacy endpoint — prefer /auth/eula/pending for the full picture)
 // ---------------------------------------------------------------------------
 
-pub async fn eula_status(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+pub async fn eula_status(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
     let user_id = match extract_user_id(&headers) {
         Some(id) => id,
         None => return IoError::Unauthorized.into_response(),
@@ -719,7 +760,11 @@ pub async fn eula_status(
             accepted_at: r.try_get("accepted_at").ok(),
             version: r.try_get::<Option<String>, _>("version").ok().flatten(),
         },
-        Ok(None) => EulaStatus { accepted: false, accepted_at: None, version: None },
+        Ok(None) => EulaStatus {
+            accepted: false,
+            accepted_at: None,
+            version: None,
+        },
         Err(e) => {
             tracing::error!(error = %e, "eula_status query failed");
             return IoError::Database(e).into_response();
@@ -848,7 +893,8 @@ pub async fn create_eula_version(
 
     let valid_types = ["installer", "end_user"];
     if !valid_types.contains(&body.eula_type.as_str()) {
-        return IoError::BadRequest("eula_type must be 'installer' or 'end_user'".into()).into_response();
+        return IoError::BadRequest("eula_type must be 'installer' or 'end_user'".into())
+            .into_response();
     }
     if body.version.trim().is_empty() {
         return IoError::BadRequest("version is required".into()).into_response();
@@ -930,16 +976,16 @@ pub async fn publish_eula_version(
     };
 
     // Get the eula_type of the version being published
-    let type_row = sqlx::query(
-        "SELECT eula_type FROM eula_versions WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&mut *tx)
-    .await;
+    let type_row = sqlx::query("SELECT eula_type FROM eula_versions WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await;
 
     let eula_type = match type_row {
         Ok(Some(r)) => r.try_get::<String, _>("eula_type").unwrap_or_default(),
-        Ok(None) => return IoError::NotFound(format!("EULA version {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("EULA version {} not found", id)).into_response()
+        }
         Err(e) => return IoError::Database(e).into_response(),
     };
 
@@ -1020,9 +1066,9 @@ pub async fn list_eula_acceptances(
     if !has_permission(&headers, "system:configure") {
         return IoError::Forbidden("Requires system:configure permission".into()).into_response();
     }
-    let page     = params.page.unwrap_or(1).max(1);
-    let per_page = params.per_page.unwrap_or(50).min(200).max(1);
-    let offset   = (page - 1) * per_page;
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(50).clamp(1, 200);
+    let offset = (page - 1) * per_page;
 
     let base_query = r#"
         SELECT ea.id, ea.user_id, u.username, u.full_name, u.email,
@@ -1073,9 +1119,15 @@ pub async fn list_eula_acceptances(
                     eula_version: r.try_get::<String, _>("eula_version").unwrap_or_default(),
                     eula_version_id: r.try_get("eula_version_id").unwrap_or_else(|_| Uuid::nil()),
                     accepted_at: r.try_get("accepted_at").unwrap_or_else(|_| Utc::now()),
-                    accepted_from_ip: r.try_get::<String, _>("accepted_from_ip").unwrap_or_default(),
-                    accepted_as_role: r.try_get::<String, _>("accepted_as_role").unwrap_or_default(),
-                    acceptance_context: r.try_get::<String, _>("acceptance_context").unwrap_or_default(),
+                    accepted_from_ip: r
+                        .try_get::<String, _>("accepted_from_ip")
+                        .unwrap_or_default(),
+                    accepted_as_role: r
+                        .try_get::<String, _>("accepted_as_role")
+                        .unwrap_or_default(),
+                    acceptance_context: r
+                        .try_get::<String, _>("acceptance_context")
+                        .unwrap_or_default(),
                     content_hash: r.try_get::<String, _>("content_hash").unwrap_or_default(),
                     receipt_token: r.try_get("receipt_token").ok(),
                 })

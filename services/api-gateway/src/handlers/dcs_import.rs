@@ -183,9 +183,7 @@ pub async fn create_import_job(
     let mut body: Vec<u8> = Vec::new();
     // -- platform field
     body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
-    body.extend_from_slice(
-        b"Content-Disposition: form-data; name=\"platform\"\r\n\r\n",
-    );
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"platform\"\r\n\r\n");
     body.extend_from_slice(platform.as_bytes());
     body.extend_from_slice(b"\r\n");
     // -- file field
@@ -217,10 +215,8 @@ pub async fn create_import_job(
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, "Failed to reach parser-service for DCS import");
-            return IoError::ServiceUnavailable(
-                "parser-service is unreachable".to_string(),
-            )
-            .into_response();
+            return IoError::ServiceUnavailable("parser-service is unreachable".to_string())
+                .into_response();
         }
     };
 
@@ -439,11 +435,7 @@ pub async fn generate_graphic(
         .elements
         .iter()
         .map(|el| {
-            let io_point_id = el
-                .tag
-                .as_ref()
-                .and_then(|t| tag_map.get(t))
-                .cloned();
+            let io_point_id = el.tag.as_ref().and_then(|t| tag_map.get(t)).cloned();
             let template_id = symbol_map.get(&el.id).cloned();
 
             json!({

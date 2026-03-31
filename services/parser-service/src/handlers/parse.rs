@@ -119,7 +119,10 @@ fn node_to_parsed_element(node: roxmltree::Node) -> Option<ParsedElement> {
 
     let tag = node.tag_name().name();
     // Skip defs, style, script tags
-    if matches!(tag, "defs" | "style" | "script" | "metadata" | "title" | "desc") {
+    if matches!(
+        tag,
+        "defs" | "style" | "script" | "metadata" | "title" | "desc"
+    ) {
         return None;
     }
 
@@ -134,16 +137,15 @@ fn node_to_parsed_element(node: roxmltree::Node) -> Option<ParsedElement> {
 
     // Extract text content for text elements
     let label = if tag == "text" || tag == "tspan" {
-        node.text().map(|t| t.trim().to_string()).filter(|s| !s.is_empty())
+        node.text()
+            .map(|t| t.trim().to_string())
+            .filter(|s| !s.is_empty())
     } else {
         None
     };
 
     // Recurse into children
-    let children: Vec<ParsedElement> = node
-        .children()
-        .filter_map(node_to_parsed_element)
-        .collect();
+    let children: Vec<ParsedElement> = node.children().filter_map(node_to_parsed_element).collect();
 
     Some(ParsedElement {
         id,
@@ -155,9 +157,9 @@ fn node_to_parsed_element(node: roxmltree::Node) -> Option<ParsedElement> {
 }
 
 fn count_elements(elements: &[ParsedElement]) -> usize {
-    elements.iter().fold(0, |acc, el| {
-        acc + 1 + count_elements(&el.children)
-    })
+    elements
+        .iter()
+        .fold(0, |acc, el| acc + 1 + count_elements(&el.children))
 }
 
 // ---------------------------------------------------------------------------
@@ -190,10 +192,7 @@ pub async fn parse_svg(
     let height = root.attribute("height").map(|s| s.to_string());
 
     // Parse all child elements
-    let elements: Vec<ParsedElement> = root
-        .children()
-        .filter_map(node_to_parsed_element)
-        .collect();
+    let elements: Vec<ParsedElement> = root.children().filter_map(node_to_parsed_element).collect();
 
     let element_count = count_elements(&elements);
 
@@ -368,7 +367,10 @@ fn parse_dxf_content(content: &str) -> (Vec<String>, Vec<DxfEntity>) {
 
         // Parse entity
         if code == "0"
-            && matches!(value, "LINE" | "CIRCLE" | "ARC" | "TEXT" | "MTEXT" | "LWPOLYLINE")
+            && matches!(
+                value,
+                "LINE" | "CIRCLE" | "ARC" | "TEXT" | "MTEXT" | "LWPOLYLINE"
+            )
         {
             let entity_type = value.to_string();
             let mut attrs = serde_json::Map::new();
@@ -390,15 +392,33 @@ fn parse_dxf_content(content: &str) -> (Vec<String>, Vec<DxfEntity>) {
                         layer = Some(ev.to_string());
                         layers.insert(ev.to_string());
                     }
-                    "10" => { attrs.insert("x".to_string(), json!(ev)); }
-                    "20" => { attrs.insert("y".to_string(), json!(ev)); }
-                    "11" => { attrs.insert("x2".to_string(), json!(ev)); }
-                    "21" => { attrs.insert("y2".to_string(), json!(ev)); }
-                    "40" => { attrs.insert("radius".to_string(), json!(ev)); }
-                    "50" => { attrs.insert("start_angle".to_string(), json!(ev)); }
-                    "51" => { attrs.insert("end_angle".to_string(), json!(ev)); }
-                    "1" => { attrs.insert("text".to_string(), json!(ev)); }
-                    "7" => { attrs.insert("style".to_string(), json!(ev)); }
+                    "10" => {
+                        attrs.insert("x".to_string(), json!(ev));
+                    }
+                    "20" => {
+                        attrs.insert("y".to_string(), json!(ev));
+                    }
+                    "11" => {
+                        attrs.insert("x2".to_string(), json!(ev));
+                    }
+                    "21" => {
+                        attrs.insert("y2".to_string(), json!(ev));
+                    }
+                    "40" => {
+                        attrs.insert("radius".to_string(), json!(ev));
+                    }
+                    "50" => {
+                        attrs.insert("start_angle".to_string(), json!(ev));
+                    }
+                    "51" => {
+                        attrs.insert("end_angle".to_string(), json!(ev));
+                    }
+                    "1" => {
+                        attrs.insert("text".to_string(), json!(ev));
+                    }
+                    "7" => {
+                        attrs.insert("style".to_string(), json!(ev));
+                    }
                     _ => {}
                 }
             }

@@ -5,76 +5,82 @@
 // Active (value > 0) = colored band; inactive = gray.
 // ---------------------------------------------------------------------------
 
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { pointsApi } from '../../../../api/points'
-import { type ChartConfig, autoColor } from '../chart-config-types'
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { pointsApi } from "../../../../api/points";
+import { type ChartConfig, autoColor } from "../chart-config-types";
 
 interface RendererProps {
-  config: ChartConfig
-  bufferKey: string
+  config: ChartConfig;
+  bufferKey: string;
 }
 
 interface Segment {
-  startMs: number
-  endMs: number
-  active: boolean
+  startMs: number;
+  endMs: number;
+  active: boolean;
 }
 
-const ROW_H = 24
-const TIME_AXIS_H = 28
-const LEFT_PAD = 80
+const ROW_H = 24;
+const TIME_AXIS_H = 28;
+const LEFT_PAD = 80;
 
-function deriveSegments(rows: { timestamp: string; value: number | null }[]): Segment[] {
-  if (rows.length === 0) return []
-  const segments: Segment[] = []
+function deriveSegments(
+  rows: { timestamp: string; value: number | null }[],
+): Segment[] {
+  if (rows.length === 0) return [];
+  const segments: Segment[] = [];
   for (let i = 0; i < rows.length - 1; i++) {
-    const val = rows[i].value
+    const val = rows[i].value;
     segments.push({
       startMs: new Date(rows[i].timestamp).getTime(),
       endMs: new Date(rows[i + 1].timestamp).getTime(),
       active: val !== null && val > 0,
-    })
+    });
   }
   // Last row — extend 1 minute forward
-  const last = rows[rows.length - 1]
+  const last = rows[rows.length - 1];
   segments.push({
     startMs: new Date(last.timestamp).getTime(),
     endMs: new Date(last.timestamp).getTime() + 60_000,
     active: last.value !== null && last.value > 0,
-  })
-  return segments
+  });
+  return segments;
 }
 
 function formatAxisTime(ms: number): string {
-  const d = new Date(ms)
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const d = new Date(ms);
+  return d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function Chart14EventTimeline({ config }: RendererProps) {
-  const seriesSlots = config.points.filter((p) => p.role === 'series')
-  const pointIds = seriesSlots.map((s) => s.pointId)
-  const durationMinutes = config.durationMinutes ?? 60
+  const seriesSlots = config.points.filter((p) => p.role === "series");
+  const pointIds = seriesSlots.map((s) => s.pointId);
+  const durationMinutes = config.durationMinutes ?? 60;
 
-  const nowMs = Date.now()
-  const startMs = Math.floor((nowMs - durationMinutes * 60_000) / 60_000) * 60_000  // truncated to minute for stable query key
-  const startISO = new Date(startMs).toISOString()
-  const endISO = new Date(nowMs).toISOString()
+  const nowMs = Date.now();
+  const startMs =
+    Math.floor((nowMs - durationMinutes * 60_000) / 60_000) * 60_000; // truncated to minute for stable query key
+  const startISO = new Date(startMs).toISOString();
+  const endISO = new Date(nowMs).toISOString();
 
   const { data: histData, isFetching } = useQuery({
-    queryKey: ['chart14-timeline', pointIds.join(','), startISO],
+    queryKey: ["chart14-timeline", pointIds.join(","), startISO],
     queryFn: async () => {
-      if (pointIds.length === 0) return []
+      if (pointIds.length === 0) return [];
       const results = await Promise.all(
         pointIds.map((id) =>
           pointsApi.history(id, {
             start: startISO,
             end: endISO,
-            resolution: 'auto',
+            resolution: "auto",
             limit: 2000,
           }),
         ),
-      )
+      );
       return results.map((r, i) => ({
         pointId: pointIds[i],
         rows:
@@ -84,73 +90,73 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
                 value: row.value ?? row.avg ?? null,
               }))
             : [],
-      }))
+      }));
     },
     enabled: pointIds.length > 0,
     staleTime: 30_000,
-  })
+  });
 
   const rowData = useMemo(() => {
-    if (!histData) return []
+    if (!histData) return [];
     return histData.map((d, i) => ({
       pointId: d.pointId,
       color: seriesSlots[i]?.color ?? autoColor(i),
       label: seriesSlots[i]?.pointId ?? d.pointId,
       segments: deriveSegments(d.rows),
-    }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [histData])
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histData]);
 
   if (seriesSlots.length === 0) {
     return (
       <div
         style={{
           flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--io-text-muted)',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--io-text-muted)",
           fontSize: 13,
         }}
       >
         No points configured
       </div>
-    )
+    );
   }
 
-  const svgH = seriesSlots.length * ROW_H + TIME_AXIS_H
-  const timeSpanMs = nowMs - startMs
+  const svgH = seriesSlots.length * ROW_H + TIME_AXIS_H;
+  const timeSpanMs = nowMs - startMs;
 
   function msToX(ms: number, totalW: number): number {
-    return LEFT_PAD + ((ms - startMs) / timeSpanMs) * (totalW - LEFT_PAD)
+    return LEFT_PAD + ((ms - startMs) / timeSpanMs) * (totalW - LEFT_PAD);
   }
 
   // Build 5 time axis ticks
-  const ticks: number[] = []
+  const ticks: number[] = [];
   for (let i = 0; i <= 4; i++) {
-    ticks.push(startMs + (i / 4) * timeSpanMs)
+    ticks.push(startMs + (i / 4) * timeSpanMs);
   }
 
   return (
     <div
       style={{
         flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         minHeight: 0,
-        position: 'relative',
+        position: "relative",
       }}
     >
       {isFetching && (
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 4,
             right: 8,
             fontSize: 11,
-            color: 'var(--io-text-muted)',
+            color: "var(--io-text-muted)",
             zIndex: 10,
-            pointerEvents: 'none',
+            pointerEvents: "none",
           }}
         >
           Loading…
@@ -161,11 +167,11 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
         height={svgH}
         viewBox={`0 0 600 ${svgH}`}
         preserveAspectRatio="none"
-        style={{ display: 'block' }}
+        style={{ display: "block" }}
       >
         {/* Rows */}
         {rowData.map((row, ri) => {
-          const rowY = ri * ROW_H
+          const rowY = ri * ROW_H;
           return (
             <g key={row.pointId}>
               {/* Row label */}
@@ -176,14 +182,16 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
                 fontSize={9}
                 fill="var(--io-text-muted)"
               >
-                {row.label.length > 10 ? row.label.slice(0, 10) + '…' : row.label}
+                {row.label.length > 10
+                  ? row.label.slice(0, 10) + "…"
+                  : row.label}
               </text>
 
               {/* Row segments */}
               {row.segments.map((seg, si) => {
-                const x1 = msToX(seg.startMs, 600)
-                const x2 = msToX(seg.endMs, 600)
-                const segW = Math.max(0, x2 - x1)
+                const x1 = msToX(seg.startMs, 600);
+                const x2 = msToX(seg.endMs, 600);
+                const segW = Math.max(0, x2 - x1);
                 return (
                   <rect
                     key={si}
@@ -191,11 +199,11 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
                     y={rowY + 3}
                     width={segW}
                     height={ROW_H - 6}
-                    fill={seg.active ? row.color : 'var(--io-border)'}
+                    fill={seg.active ? row.color : "var(--io-border)"}
                     rx={1}
                     opacity={seg.active ? 0.85 : 0.4}
                   />
-                )
+                );
               })}
 
               {/* Row separator */}
@@ -208,7 +216,7 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
                 strokeWidth={0.5}
               />
             </g>
-          )
+          );
         })}
 
         {/* Time axis */}
@@ -222,10 +230,17 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
             strokeWidth={1}
           />
           {ticks.map((ts) => {
-            const x = msToX(ts, 600)
+            const x = msToX(ts, 600);
             return (
               <g key={ts}>
-                <line x1={x} y1={0} x2={x} y2={6} stroke="var(--io-border)" strokeWidth={1} />
+                <line
+                  x1={x}
+                  y1={0}
+                  x2={x}
+                  y2={6}
+                  stroke="var(--io-border)"
+                  strokeWidth={1}
+                />
                 <text
                   x={x}
                   y={18}
@@ -236,10 +251,10 @@ export default function Chart14EventTimeline({ config }: RendererProps) {
                   {formatAxisTime(ts)}
                 </text>
               </g>
-            )
+            );
           })}
         </g>
       </svg>
     </div>
-  )
+  );
 }

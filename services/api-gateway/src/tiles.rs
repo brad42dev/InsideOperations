@@ -6,10 +6,10 @@
 //! Zoom 0 = entire graphic in one tile (scaled to tile_size × tile_size)
 //! Zoom N = 2^N × 2^N grid of tiles covering the full graphic at higher resolution.
 
-use resvg::usvg::{Options, Tree};
 use resvg::render;
-use tiny_skia::{Pixmap, Transform};
+use resvg::usvg::{Options, Tree};
 use std::path::PathBuf;
+use tiny_skia::{Pixmap, Transform};
 
 // ---------------------------------------------------------------------------
 // Public config type
@@ -34,8 +34,7 @@ pub fn generate_tiles(
     config: &TileConfig,
 ) -> Result<(usize, u32, u32), String> {
     let opt = Options::default();
-    let tree = Tree::from_str(svg_data, &opt)
-        .map_err(|e| format!("SVG parse error: {e}"))?;
+    let tree = Tree::from_str(svg_data, &opt).map_err(|e| format!("SVG parse error: {e}"))?;
 
     let svg_size = tree.size();
     let svg_w = svg_size.width() as u32;
@@ -45,8 +44,7 @@ pub fn generate_tiles(
         .join("graphics")
         .join(graphic_id);
 
-    std::fs::create_dir_all(&base_dir)
-        .map_err(|e| format!("mkdir failed: {e}"))?;
+    std::fs::create_dir_all(&base_dir).map_err(|e| format!("mkdir failed: {e}"))?;
 
     let mut total = 0usize;
 
@@ -55,8 +53,7 @@ pub fn generate_tiles(
         let rows = 1u32 << zoom;
 
         let zoom_dir = base_dir.join(format!("z{zoom}"));
-        std::fs::create_dir_all(&zoom_dir)
-            .map_err(|e| format!("mkdir zoom dir: {e}"))?;
+        std::fs::create_dir_all(&zoom_dir).map_err(|e| format!("mkdir zoom dir: {e}"))?;
 
         // Scale the entire SVG to fill (cols × tile_size) × (rows × tile_size)
         let target_w = cols * config.tile_size;
@@ -85,8 +82,7 @@ pub fn generate_tiles(
                 let stride = target_w as usize * 4; // RGBA bytes per row
 
                 for ty in 0..config.tile_size as usize {
-                    let src_row_start =
-                        ((y as usize + ty) * stride) + (x as usize * 4);
+                    let src_row_start = ((y as usize + ty) * stride) + (x as usize * 4);
                     let dst_row_start = ty * config.tile_size as usize * 4;
                     let len = config.tile_size as usize * 4;
                     if src_row_start + len <= src_data.len() {
@@ -112,9 +108,7 @@ pub fn generate_tiles(
 
 /// Remove all tiles for a graphic (call on delete or overwrite).
 pub fn delete_tiles(graphic_id: &str, storage_dir: &str) -> std::io::Result<()> {
-    let path = PathBuf::from(storage_dir)
-        .join("graphics")
-        .join(graphic_id);
+    let path = PathBuf::from(storage_dir).join("graphics").join(graphic_id);
     if path.exists() {
         std::fs::remove_dir_all(path)?;
     }

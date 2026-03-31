@@ -138,8 +138,7 @@ pub async fn set_pin(
     // For SSO-only: accept even empty current_password — no check needed.
 
     // --- Hash the PIN with Argon2 ---
-    let pin_hash = hash_password(&req.pin)
-        .map_err(|e| IoError::Internal(e.to_string()))?;
+    let pin_hash = hash_password(&req.pin).map_err(|e| IoError::Internal(e.to_string()))?;
 
     // --- Persist ---
     sqlx::query("UPDATE users SET lock_pin_hash = $1 WHERE id = $2")
@@ -243,13 +242,11 @@ pub async fn verify_pin(
     let ip = extract_client_ip(&headers);
 
     // --- Fetch user's PIN hash ---
-    let row = sqlx::query(
-        "SELECT lock_pin_hash FROM users WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(IoError::Unauthorized)?;
+    let row = sqlx::query("SELECT lock_pin_hash FROM users WHERE id = $1 AND deleted_at IS NULL")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(IoError::Unauthorized)?;
 
     let lock_pin_hash: Option<String> = row.get("lock_pin_hash");
 
@@ -293,8 +290,7 @@ pub async fn verify_pin(
 
         if window_active && soft_count >= SOFT_FAIL_LIMIT {
             let ws = window_start.unwrap();
-            let retry_after =
-                (SOFT_WINDOW_SECS - (Utc::now() - ws).num_seconds()).max(1) as u64;
+            let retry_after = (SOFT_WINDOW_SECS - (Utc::now() - ws).num_seconds()).max(1) as u64;
             return Ok((
                 StatusCode::TOO_MANY_REQUESTS,
                 Json(serde_json::json!({
@@ -328,8 +324,8 @@ pub async fn verify_pin(
     }
 
     // --- Verify PIN ---
-    let valid = verify_password(&req.pin, &pin_hash)
-        .map_err(|e| IoError::Internal(e.to_string()))?;
+    let valid =
+        verify_password(&req.pin, &pin_hash).map_err(|e| IoError::Internal(e.to_string()))?;
 
     if !valid {
         if let Some(ref s) = session_row {
@@ -450,9 +446,5 @@ pub async fn verify_pin(
     )
     .await;
 
-    Ok((
-        StatusCode::OK,
-        Json(serde_json::json!({ "success": true })),
-    )
-        .into_response())
+    Ok((StatusCode::OK, Json(serde_json::json!({ "success": true }))).into_response())
 }

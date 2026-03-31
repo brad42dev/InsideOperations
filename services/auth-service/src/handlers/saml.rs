@@ -89,8 +89,7 @@ pub async fn saml_login(
     {
         Ok(Some(r)) => r,
         Ok(None) => {
-            return IoError::NotFound("SAML provider not found or disabled".into())
-                .into_response()
+            return IoError::NotFound("SAML provider not found or disabled".into()).into_response()
         }
         Err(e) => return IoError::Internal(e.to_string()).into_response(),
     };
@@ -214,9 +213,7 @@ pub async fn saml_acs(
     .await
     {
         Ok(Some(r)) => r,
-        _ => {
-            return IoError::NotFound("SAML provider config not found".into()).into_response()
-        }
+        _ => return IoError::NotFound("SAML provider config not found".into()).into_response(),
     };
 
     let config: serde_json::Value = config_row.try_get("config").unwrap_or_default();
@@ -225,12 +222,11 @@ pub async fn saml_acs(
     // Extract the IdP certificate from config — stored as a PEM string or raw base64 DER.
     // Strip PEM headers/footers and whitespace to get raw base64 for samael's KeyDescriptor.
     let idp_cert_b64 = match config["idp_certificate"].as_str() {
-        Some(pem) if !pem.is_empty() => {
-            pem.lines()
-                .filter(|l| !l.starts_with("-----"))
-                .collect::<Vec<_>>()
-                .join("")
-        }
+        Some(pem) if !pem.is_empty() => pem
+            .lines()
+            .filter(|l| !l.starts_with("-----"))
+            .collect::<Vec<_>>()
+            .join(""),
         _ => {
             tracing::warn!(config_id = %config_id, "SAML provider config missing idp_certificate");
             return IoError::BadRequest(
@@ -324,7 +320,8 @@ pub async fn saml_acs(
     };
 
     // Extract claims from the cryptographically validated assertion
-    let (name_id, email, display_name, groups) = extract_saml_claims_from_assertion(&assertion, &config);
+    let (name_id, email, display_name, groups) =
+        extract_saml_claims_from_assertion(&assertion, &config);
 
     let email_str = email.as_deref().unwrap_or(name_id.as_str());
     if email_str.is_empty() {
@@ -362,11 +359,7 @@ pub async fn saml_acs(
                 .into_response();
             }
             // JIT provision
-            let username = email_str
-                .split('@')
-                .next()
-                .unwrap_or(email_str)
-                .to_string();
+            let username = email_str.split('@').next().unwrap_or(email_str).to_string();
             let full_name = display_name.as_deref();
             let new_id = Uuid::new_v4();
             sqlx::query(
@@ -390,9 +383,10 @@ pub async fn saml_acs(
 
     // Apply group→role mappings
     if !groups.is_empty() {
-        let _ =
-            crate::handlers::oidc::apply_group_role_mappings(&state.db, config_id, user_id, &groups)
-                .await;
+        let _ = crate::handlers::oidc::apply_group_role_mappings(
+            &state.db, config_id, user_id, &groups,
+        )
+        .await;
     }
 
     // Look up permissions and issue JWT
@@ -539,20 +533,24 @@ async fn issue_saml_jwt(state: &AppState, user_id: Uuid) -> Response {
 
             let frontend_url = std::env::var("FRONTEND_URL")
                 .unwrap_or_else(|_| "http://localhost:5173".to_string());
-            let redirect = format!("{}/eula-required?pending_token={}", frontend_url, pending_token);
+            let redirect = format!(
+                "{}/eula-required?pending_token={}",
+                frontend_url, pending_token
+            );
 
             return axum::response::Response::builder()
                 .status(axum::http::StatusCode::FOUND)
                 .header(axum::http::header::LOCATION, redirect)
                 .body(axum::body::Body::empty())
-                .unwrap_or_else(|_| IoError::Internal("redirect build failed".into()).into_response());
+                .unwrap_or_else(|_| {
+                    IoError::Internal("redirect build failed".into()).into_response()
+                });
         }
     }
 
-    let permissions =
-        crate::handlers::auth::fetch_user_permissions(&state.db, user_id)
-            .await
-            .unwrap_or_default();
+    let permissions = crate::handlers::auth::fetch_user_permissions(&state.db, user_id)
+        .await
+        .unwrap_or_default();
 
     let claims = build_claims(&user_id.to_string(), &username, permissions);
     let token = match generate_access_token(&claims, &state.config.jwt_secret) {
@@ -583,8 +581,8 @@ async fn issue_saml_jwt(state: &AppState, user_id: Uuid) -> Response {
     tracing::info!(user_id = %user_id, "SAML login successful");
 
     // Redirect to frontend with access token
-    let frontend_url = std::env::var("FRONTEND_URL")
-        .unwrap_or_else(|_| "http://localhost:5173".to_string());
+    let frontend_url =
+        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
     let redirect = format!("{}/oidc-callback?access_token={}", frontend_url, token);
 
     axum::response::Response::builder()

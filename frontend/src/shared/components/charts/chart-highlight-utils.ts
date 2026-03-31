@@ -1,6 +1,6 @@
-import type { EChartsOption } from 'echarts'
+import type { EChartsOption } from "echarts";
 
-type SeriesObj = Record<string, unknown>
+type SeriesObj = Record<string, unknown>;
 
 /**
  * Post-process an ECharts option to apply highlight dimming/boosting.
@@ -19,19 +19,19 @@ export function applyEChartsHighlight(
   option: EChartsOption,
   highlighted: Set<string>,
 ): EChartsOption {
-  if (highlighted.size === 0) return option
+  if (highlighted.size === 0) return option;
 
   const rawSeries = Array.isArray(option.series)
     ? option.series
     : option.series
-    ? [option.series]
-    : []
+      ? [option.series]
+      : [];
 
   const patchedSeries = (rawSeries as SeriesObj[]).map((s) => {
-    const name = typeof s.name === 'string' ? s.name : ''
-    const isHighlighted = highlighted.has(name)
-    const lineStyle = (s.lineStyle as SeriesObj | undefined) ?? {}
-    const itemStyle = (s.itemStyle as SeriesObj | undefined) ?? {}
+    const name = typeof s.name === "string" ? s.name : "";
+    const isHighlighted = highlighted.has(name);
+    const lineStyle = (s.lineStyle as SeriesObj | undefined) ?? {};
+    const itemStyle = (s.itemStyle as SeriesObj | undefined) ?? {};
 
     if (isHighlighted) {
       return {
@@ -43,7 +43,7 @@ export function applyEChartsHighlight(
           opacity: 1,
         },
         itemStyle: { ...itemStyle, opacity: 1 },
-      }
+      };
     }
 
     return {
@@ -51,10 +51,10 @@ export function applyEChartsHighlight(
       z: 1,
       lineStyle: { ...lineStyle, opacity: 0.12 },
       itemStyle: { ...itemStyle, opacity: 0.15 },
-    }
-  })
+    };
+  });
 
-  return { ...option, series: patchedSeries as EChartsOption['series'] }
+  return { ...option, series: patchedSeries as EChartsOption["series"] };
 }
 
 /**
@@ -62,14 +62,16 @@ export function applyEChartsHighlight(
  * Tries seriesName first (named-series charts), then name (item-keyed charts like pie/bar).
  */
 export function getEChartsClickKey(params: unknown): string {
-  const p = params as { seriesName?: string; name?: string }
-  return p.seriesName ?? p.name ?? ''
+  const p = params as { seriesName?: string; name?: string };
+  return p.seriesName ?? p.name ?? "";
 }
 
 /**
  * Extract multi-select flag (Ctrl or Meta) from ECharts click event params.
  */
 export function getEChartsClickMulti(params: unknown): boolean {
-  const p = params as { event?: { event?: { ctrlKey?: boolean; metaKey?: boolean } } }
-  return (p.event?.event?.ctrlKey || p.event?.event?.metaKey) ?? false
+  const p = params as {
+    event?: { event?: { ctrlKey?: boolean; metaKey?: boolean } };
+  };
+  return (p.event?.event?.ctrlKey || p.event?.event?.metaKey) ?? false;
 }

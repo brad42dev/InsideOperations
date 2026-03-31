@@ -10,7 +10,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use io_error::{IoError, IoResult};
-use io_models::{PageParams, PagedResponse, ApiResponse};
+use io_models::{ApiResponse, PageParams, PagedResponse};
 
 use crate::state::AppState;
 
@@ -76,11 +76,9 @@ pub async fn list_roles(
     let limit = page.per_page();
     let offset = page.offset();
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM roles WHERE deleted_at IS NULL",
-    )
-    .fetch_one(&state.db)
-    .await?;
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM roles WHERE deleted_at IS NULL")
+        .fetch_one(&state.db)
+        .await?;
 
     let rows = sqlx::query(
         "SELECT r.id, r.name, r.display_name, r.description, r.is_predefined, r.created_at,
@@ -178,7 +176,9 @@ pub async fn create_role(
     Json(req): Json<CreateRoleRequest>,
 ) -> IoResult<impl IntoResponse> {
     if req.name.is_empty() || req.display_name.is_empty() {
-        return Err(IoError::BadRequest("name and display_name are required".to_string()));
+        return Err(IoError::BadRequest(
+            "name and display_name are required".to_string(),
+        ));
     }
 
     let exists: bool = sqlx::query_scalar(
@@ -188,7 +188,10 @@ pub async fn create_role(
     .fetch_one(&state.db)
     .await?;
     if exists {
-        return Err(IoError::Conflict(format!("Role '{}' already exists", req.name)));
+        return Err(IoError::Conflict(format!(
+            "Role '{}' already exists",
+            req.name
+        )));
     }
 
     let role_id = Uuid::new_v4();
@@ -294,14 +297,11 @@ pub async fn delete_role(
 // List all 118 permissions, grouped by module.
 // ---------------------------------------------------------------------------
 
-pub async fn list_permissions(
-    State(state): State<AppState>,
-) -> IoResult<impl IntoResponse> {
-    let rows = sqlx::query(
-        "SELECT id, module, name, description FROM permissions ORDER BY module, name",
-    )
-    .fetch_all(&state.db)
-    .await?;
+pub async fn list_permissions(State(state): State<AppState>) -> IoResult<impl IntoResponse> {
+    let rows =
+        sqlx::query("SELECT id, module, name, description FROM permissions ORDER BY module, name")
+            .fetch_all(&state.db)
+            .await?;
 
     let permissions: Vec<PermissionSummary> = rows
         .into_iter()

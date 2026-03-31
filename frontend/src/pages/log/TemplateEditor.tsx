@@ -1,21 +1,21 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { logsApi, type LogSegment, type LogTemplate } from '../../api/logs'
-import PointPicker from '../../shared/components/PointPicker'
-import { SkeletonBlock } from '../../shared/components/Skeleton'
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { logsApi, type LogSegment, type LogTemplate } from "../../api/logs";
+import PointPicker from "../../shared/components/PointPicker";
+import { SkeletonBlock } from "../../shared/components/Skeleton";
 
 // ---------------------------------------------------------------------------
 // Field definition (for field_table / field_list segments)
 // ---------------------------------------------------------------------------
 
-type FieldType = 'text' | 'number' | 'select'
+type FieldType = "text" | "number" | "select";
 
 interface FieldDef {
-  name: string
-  label: string
-  type: FieldType
-  options?: string
+  name: string;
+  label: string;
+  type: FieldType;
+  options?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -28,100 +28,105 @@ function NewSegmentForm({
   loading,
 }: {
   onSave: (data: {
-    name: string
-    segment_type: string
-    content_config: Record<string, unknown>
-    is_reusable: boolean
-  }) => void
-  onCancel: () => void
-  loading: boolean
+    name: string;
+    segment_type: string;
+    content_config: Record<string, unknown>;
+    is_reusable: boolean;
+  }) => void;
+  onCancel: () => void;
+  loading: boolean;
 }) {
-  const [name, setName] = useState('')
-  const [segmentType, setSegmentType] = useState<string>('wysiwyg')
-  const [isReusable, setIsReusable] = useState(true)
-  const [fields, setFields] = useState<FieldDef[]>([])
-  const [newFieldName, setNewFieldName] = useState('')
-  const [newFieldLabel, setNewFieldLabel] = useState('')
-  const [newFieldType, setNewFieldType] = useState<FieldType>('text')
-  const [pointIds, setPointIds] = useState<string[]>([])
+  const [name, setName] = useState("");
+  const [segmentType, setSegmentType] = useState<string>("wysiwyg");
+  const [isReusable, setIsReusable] = useState(true);
+  const [fields, setFields] = useState<FieldDef[]>([]);
+  const [newFieldName, setNewFieldName] = useState("");
+  const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<FieldType>("text");
+  const [pointIds, setPointIds] = useState<string[]>([]);
 
   const addField = () => {
-    if (!newFieldName.trim()) return
+    if (!newFieldName.trim()) return;
     setFields([
       ...fields,
       {
-        name: newFieldName.trim().toLowerCase().replace(/\s+/g, '_'),
+        name: newFieldName.trim().toLowerCase().replace(/\s+/g, "_"),
         label: newFieldLabel.trim() || newFieldName.trim(),
         type: newFieldType,
       },
-    ])
-    setNewFieldName('')
-    setNewFieldLabel('')
-    setNewFieldType('text')
-  }
+    ]);
+    setNewFieldName("");
+    setNewFieldLabel("");
+    setNewFieldType("text");
+  };
 
   const removeField = (idx: number) => {
-    setFields(fields.filter((_, i) => i !== idx))
-  }
-
+    setFields(fields.filter((_, i) => i !== idx));
+  };
 
   const buildConfig = (): Record<string, unknown> => {
-    if (segmentType === 'field_table' || segmentType === 'field_list') {
-      return { fields }
+    if (segmentType === "field_table" || segmentType === "field_list") {
+      return { fields };
     }
-    if (segmentType === 'point_data') {
-      return { point_ids: pointIds }
+    if (segmentType === "point_data") {
+      return { point_ids: pointIds };
     }
-    return {}
-  }
+    return {};
+  };
 
   const handleSave = () => {
-    if (!name.trim()) return
+    if (!name.trim()) return;
     onSave({
       name: name.trim(),
       segment_type: segmentType,
       content_config: buildConfig(),
       is_reusable: isReusable,
-    })
-  }
+    });
+  };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: '12px',
+    fontSize: "12px",
     fontWeight: 600,
-    color: 'var(--io-text-secondary)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    marginBottom: '4px',
-    display: 'block',
-  }
+    color: "var(--io-text-secondary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    marginBottom: "4px",
+    display: "block",
+  };
 
   const inputStyle: React.CSSProperties = {
-    background: 'var(--io-bg)',
-    border: '1px solid var(--io-border)',
-    borderRadius: '6px',
-    padding: '7px 10px',
-    fontSize: '13px',
-    color: 'var(--io-text-primary)',
-    width: '100%',
-  }
+    background: "var(--io-bg)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "6px",
+    padding: "7px 10px",
+    fontSize: "13px",
+    color: "var(--io-text-primary)",
+    width: "100%",
+  };
 
   return (
     <div
       style={{
-        background: 'var(--io-surface-secondary)',
-        border: '1px solid var(--io-accent)',
-        borderRadius: '8px',
-        padding: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
+        background: "var(--io-surface-secondary)",
+        border: "1px solid var(--io-accent)",
+        borderRadius: "8px",
+        padding: "16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "14px",
       }}
     >
-      <div style={{ fontWeight: 700, color: 'var(--io-text-primary)', fontSize: '14px' }}>
+      <div
+        style={{
+          fontWeight: 700,
+          color: "var(--io-text-primary)",
+          fontSize: "14px",
+        }}
+      >
         New Segment
       </div>
 
-      <div style={{ display: 'flex', gap: '12px' }}>
+      <div style={{ display: "flex", gap: "12px" }}>
         <div style={{ flex: 2 }}>
           <label style={labelStyle}>Name</label>
           <input
@@ -144,15 +149,22 @@ function NewSegmentForm({
             <option value="point_data">Point Data</option>
           </select>
         </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "flex-end",
+          }}
+        >
           <label
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              color: 'var(--io-text-secondary)',
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+              fontSize: "13px",
+              color: "var(--io-text-secondary)",
             }}
           >
             <input
@@ -166,41 +178,47 @@ function NewSegmentForm({
       </div>
 
       {/* Field builder for table/list types */}
-      {(segmentType === 'field_table' || segmentType === 'field_list') && (
+      {(segmentType === "field_table" || segmentType === "field_list") && (
         <div>
           <label style={labelStyle}>Fields</label>
           {fields.length > 0 && (
             <div
               style={{
-                marginBottom: '10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
+                marginBottom: "10px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
               }}
             >
               {fields.map((f, idx) => (
                 <div
                   key={idx}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    background: 'var(--io-surface)',
-                    borderRadius: '6px',
-                    padding: '6px 10px',
-                    fontSize: '13px',
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    background: "var(--io-surface)",
+                    borderRadius: "6px",
+                    padding: "6px 10px",
+                    fontSize: "13px",
                   }}
                 >
-                  <span style={{ flex: 1, color: 'var(--io-text-primary)', fontWeight: 500 }}>
+                  <span
+                    style={{
+                      flex: 1,
+                      color: "var(--io-text-primary)",
+                      fontWeight: 500,
+                    }}
+                  >
                     {f.label}
                   </span>
                   <span
                     style={{
-                      fontSize: '11px',
-                      color: 'var(--io-text-muted)',
-                      background: 'var(--io-surface-secondary)',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
+                      fontSize: "11px",
+                      color: "var(--io-text-muted)",
+                      background: "var(--io-surface-secondary)",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
                     }}
                   >
                     {f.type}
@@ -209,11 +227,11 @@ function NewSegmentForm({
                     type="button"
                     onClick={() => removeField(idx)}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--io-danger)',
-                      fontSize: '16px',
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--io-danger)",
+                      fontSize: "16px",
                       lineHeight: 1,
                     }}
                   >
@@ -223,19 +241,23 @@ function NewSegmentForm({
               ))}
             </div>
           )}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
             <div style={{ flex: 2 }}>
-              <label style={{ ...labelStyle, marginBottom: '3px' }}>Field name</label>
+              <label style={{ ...labelStyle, marginBottom: "3px" }}>
+                Field name
+              </label>
               <input
                 style={inputStyle}
                 value={newFieldName}
                 onChange={(e) => setNewFieldName(e.target.value)}
                 placeholder="e.g. temperature"
-                onKeyDown={(e) => e.key === 'Enter' && addField()}
+                onKeyDown={(e) => e.key === "Enter" && addField()}
               />
             </div>
             <div style={{ flex: 2 }}>
-              <label style={{ ...labelStyle, marginBottom: '3px' }}>Label</label>
+              <label style={{ ...labelStyle, marginBottom: "3px" }}>
+                Label
+              </label>
               <input
                 style={inputStyle}
                 value={newFieldLabel}
@@ -244,7 +266,7 @@ function NewSegmentForm({
               />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ ...labelStyle, marginBottom: '3px' }}>Type</label>
+              <label style={{ ...labelStyle, marginBottom: "3px" }}>Type</label>
               <select
                 style={inputStyle}
                 value={newFieldType}
@@ -259,13 +281,13 @@ function NewSegmentForm({
               type="button"
               onClick={addField}
               style={{
-                background: 'var(--io-surface)',
-                border: '1px solid var(--io-border)',
-                borderRadius: '6px',
-                padding: '7px 12px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                color: 'var(--io-text-secondary)',
+                background: "var(--io-surface)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "6px",
+                padding: "7px 12px",
+                cursor: "pointer",
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
                 flexShrink: 0,
               }}
             >
@@ -276,31 +298,35 @@ function NewSegmentForm({
       )}
 
       {/* Point ID configurator for point_data segments */}
-      {segmentType === 'point_data' && (
+      {segmentType === "point_data" && (
         <div>
           <label style={labelStyle}>OPC Points to Snapshot</label>
-          <p style={{ fontSize: '12px', color: 'var(--io-text-muted)', margin: '0 0 8px' }}>
-            These point values are automatically captured when a log entry is created from this template.
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              margin: "0 0 8px",
+            }}
+          >
+            These point values are automatically captured when a log entry is
+            created from this template.
           </p>
-          <PointPicker
-            selected={pointIds}
-            onChange={setPointIds}
-          />
+          <PointPicker selected={pointIds} onChange={setPointIds} />
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
         <button
           type="button"
           onClick={onCancel}
           style={{
-            background: 'none',
-            border: '1px solid var(--io-border)',
-            borderRadius: '6px',
-            padding: '7px 16px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            color: 'var(--io-text-secondary)',
+            background: "none",
+            border: "1px solid var(--io-border)",
+            borderRadius: "6px",
+            padding: "7px 16px",
+            cursor: "pointer",
+            fontSize: "13px",
+            color: "var(--io-text-secondary)",
           }}
         >
           Cancel
@@ -310,22 +336,22 @@ function NewSegmentForm({
           onClick={handleSave}
           disabled={!name.trim() || loading}
           style={{
-            background: 'var(--io-accent)',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '7px 16px',
-            cursor: !name.trim() || loading ? 'not-allowed' : 'pointer',
-            fontSize: '13px',
+            background: "var(--io-accent)",
+            border: "none",
+            borderRadius: "6px",
+            padding: "7px 16px",
+            cursor: !name.trim() || loading ? "not-allowed" : "pointer",
+            fontSize: "13px",
             fontWeight: 600,
-            color: 'var(--io-accent-foreground)',
+            color: "var(--io-accent-foreground)",
             opacity: !name.trim() || loading ? 0.6 : 1,
           }}
         >
-          {loading ? 'Saving...' : 'Create Segment'}
+          {loading ? "Saving..." : "Create Segment"}
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -334,17 +360,29 @@ function NewSegmentForm({
 
 function TemplateEditorSkeleton() {
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: '28px 24px', maxWidth: '800px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div
+      style={{
+        flex: 1,
+        overflow: "auto",
+        padding: "28px 24px",
+        maxWidth: "800px",
+        width: "100%",
+        margin: "0 auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: "24px",
+      }}
+    >
       {/* Basic info card skeleton */}
       <div
         style={{
-          background: 'var(--io-surface)',
-          border: '1px solid var(--io-border)',
-          borderRadius: '8px',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
+          background: "var(--io-surface)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "8px",
+          padding: "20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
         }}
       >
         <SkeletonBlock height="16px" width="30%" />
@@ -355,13 +393,13 @@ function TemplateEditorSkeleton() {
       {/* Segments card skeleton */}
       <div
         style={{
-          background: 'var(--io-surface)',
-          border: '1px solid var(--io-border)',
-          borderRadius: '8px',
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
+          background: "var(--io-surface)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "8px",
+          padding: "20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
         }}
       >
         <SkeletonBlock height="16px" width="20%" />
@@ -369,12 +407,12 @@ function TemplateEditorSkeleton() {
           <div
             key={i}
             style={{
-              border: '1px solid var(--io-border)',
-              borderRadius: '6px',
-              padding: '14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
+              border: "1px solid var(--io-border)",
+              borderRadius: "6px",
+              padding: "14px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
             }}
           >
             <SkeletonBlock height="14px" width="40%" />
@@ -383,7 +421,7 @@ function TemplateEditorSkeleton() {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -391,45 +429,45 @@ function TemplateEditorSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function TemplateEditor() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const isNew = id === 'new'
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const isNew = id === "new";
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([])
-  const [segmentSearch, setSegmentSearch] = useState('')
-  const [showNewSegmentForm, setShowNewSegmentForm] = useState(false)
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
+  const [segmentSearch, setSegmentSearch] = useState("");
+  const [showNewSegmentForm, setShowNewSegmentForm] = useState(false);
 
   const { data: allSegments = [], isLoading: segmentsLoading } = useQuery({
-    queryKey: ['log-segments'],
+    queryKey: ["log-segments"],
     queryFn: async () => {
-      const res = await logsApi.listSegments()
-      if (!res.success) throw new Error(res.error.message)
-      return Array.isArray(res.data) ? res.data : []
+      const res = await logsApi.listSegments();
+      if (!res.success) throw new Error(res.error.message);
+      return Array.isArray(res.data) ? res.data : [];
     },
-  })
+  });
 
   const { data: template, isLoading: templateLoading } = useQuery({
-    queryKey: ['log-template', id],
+    queryKey: ["log-template", id],
     queryFn: async () => {
-      const res = await logsApi.listTemplates()
-      if (!res.success) throw new Error(res.error.message)
-      const templates = Array.isArray(res.data) ? res.data : []
-      return templates.find((t: LogTemplate) => t.id === id) ?? null
+      const res = await logsApi.listTemplates();
+      if (!res.success) throw new Error(res.error.message);
+      const templates = Array.isArray(res.data) ? res.data : [];
+      return templates.find((t: LogTemplate) => t.id === id) ?? null;
     },
     enabled: !isNew && !!id,
-  })
+  });
 
   // Populate form when editing existing template
   useEffect(() => {
     if (template) {
-      setName(template.name)
-      setDescription(template.description ?? '')
-      setSelectedSegmentIds(template.segment_ids)
+      setName(template.name);
+      setDescription(template.description ?? "");
+      setSelectedSegmentIds(template.segment_ids);
     }
-  }, [template])
+  }, [template]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -439,127 +477,127 @@ export default function TemplateEditor() {
           description: description || undefined,
           segment_ids: selectedSegmentIds,
           is_active: true,
-        })
+        });
       } else {
         return logsApi.updateTemplate(id!, {
           name,
           description: description || undefined,
           segment_ids: selectedSegmentIds,
           is_active: true,
-        })
+        });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['log-templates'] })
-      navigate('/log')
+      queryClient.invalidateQueries({ queryKey: ["log-templates"] });
+      navigate("/log");
     },
-  })
+  });
 
   const createSegmentMutation = useMutation({
     mutationFn: (data: {
-      name: string
-      segment_type: string
-      content_config: Record<string, unknown>
-      is_reusable: boolean
+      name: string;
+      segment_type: string;
+      content_config: Record<string, unknown>;
+      is_reusable: boolean;
     }) => logsApi.createSegment(data),
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['log-segments'] })
-      setShowNewSegmentForm(false)
+      queryClient.invalidateQueries({ queryKey: ["log-segments"] });
+      setShowNewSegmentForm(false);
       if (result.success) {
-        setSelectedSegmentIds((prev) => [...prev, result.data.id])
+        setSelectedSegmentIds((prev) => [...prev, result.data.id]);
       }
     },
-  })
+  });
 
   const moveUp = (idx: number) => {
-    if (idx === 0) return
-    const next = [...selectedSegmentIds]
-    ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
-    setSelectedSegmentIds(next)
-  }
+    if (idx === 0) return;
+    const next = [...selectedSegmentIds];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    setSelectedSegmentIds(next);
+  };
 
   const moveDown = (idx: number) => {
-    if (idx === selectedSegmentIds.length - 1) return
-    const next = [...selectedSegmentIds]
-    ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
-    setSelectedSegmentIds(next)
-  }
+    if (idx === selectedSegmentIds.length - 1) return;
+    const next = [...selectedSegmentIds];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    setSelectedSegmentIds(next);
+  };
 
   const removeSegment = (segId: string) => {
-    setSelectedSegmentIds((prev) => prev.filter((s) => s !== segId))
-  }
+    setSelectedSegmentIds((prev) => prev.filter((s) => s !== segId));
+  };
 
   const addSegment = (segId: string) => {
     if (!selectedSegmentIds.includes(segId)) {
-      setSelectedSegmentIds((prev) => [...prev, segId])
+      setSelectedSegmentIds((prev) => [...prev, segId]);
     }
-    setSegmentSearch('')
-  }
+    setSegmentSearch("");
+  };
 
   const filteredSegments = allSegments.filter(
     (s: LogSegment) =>
       !selectedSegmentIds.includes(s.id) &&
       s.name.toLowerCase().includes(segmentSearch.toLowerCase()),
-  )
+  );
 
-  const selectedSegments: (LogSegment | undefined)[] = selectedSegmentIds.map((id) =>
-    allSegments.find((s: LogSegment) => s.id === id),
-  )
+  const selectedSegments: (LogSegment | undefined)[] = selectedSegmentIds.map(
+    (id) => allSegments.find((s: LogSegment) => s.id === id),
+  );
 
-  const loading = templateLoading || segmentsLoading
+  const loading = templateLoading || segmentsLoading;
 
   const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: '12px',
+    display: "block",
+    fontSize: "12px",
     fontWeight: 600,
-    color: 'var(--io-text-secondary)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    marginBottom: '6px',
-  }
+    color: "var(--io-text-secondary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    marginBottom: "6px",
+  };
 
   const inputStyle: React.CSSProperties = {
-    background: 'var(--io-bg)',
-    border: '1px solid var(--io-border)',
-    borderRadius: '6px',
-    padding: '8px 12px',
-    fontSize: '14px',
-    color: 'var(--io-text-primary)',
-    width: '100%',
-  }
+    background: "var(--io-bg)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "6px",
+    padding: "8px 12px",
+    fontSize: "14px",
+    color: "var(--io-text-primary)",
+    width: "100%",
+  };
 
   return (
     <div
       style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--io-bg)',
-        overflow: 'hidden',
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--io-bg)",
+        overflow: "hidden",
       }}
     >
       {/* Header */}
       <div
         style={{
-          padding: '16px 24px',
-          borderBottom: '1px solid var(--io-border)',
-          background: 'var(--io-surface)',
+          padding: "16px 24px",
+          borderBottom: "1px solid var(--io-border)",
+          background: "var(--io-surface)",
           flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
+          display: "flex",
+          alignItems: "center",
+          gap: "16px",
         }}
       >
         <button
-          onClick={() => navigate('/log')}
+          onClick={() => navigate("/log")}
           style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--io-text-muted)',
-            fontSize: '20px',
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--io-text-muted)",
+            fontSize: "20px",
             lineHeight: 1,
-            padding: '0 4px',
+            padding: "0 4px",
           }}
           title="Back to Log"
         >
@@ -568,49 +606,63 @@ export default function TemplateEditor() {
         <h2
           style={{
             margin: 0,
-            fontSize: '18px',
+            fontSize: "18px",
             fontWeight: 700,
-            color: 'var(--io-text-primary)',
+            color: "var(--io-text-primary)",
             flex: 1,
           }}
         >
-          {isNew ? 'New Template' : 'Edit Template'}
+          {isNew ? "New Template" : "Edit Template"}
         </h2>
         <button
           onClick={() => saveMutation.mutate()}
           disabled={!name.trim() || saveMutation.isPending}
           style={{
-            background: 'var(--io-accent)',
-            color: 'var(--io-accent-foreground)',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 20px',
-            cursor: !name.trim() || saveMutation.isPending ? 'not-allowed' : 'pointer',
-            fontSize: '14px',
+            background: "var(--io-accent)",
+            color: "var(--io-accent-foreground)",
+            border: "none",
+            borderRadius: "6px",
+            padding: "8px 20px",
+            cursor:
+              !name.trim() || saveMutation.isPending
+                ? "not-allowed"
+                : "pointer",
+            fontSize: "14px",
             fontWeight: 600,
             opacity: !name.trim() || saveMutation.isPending ? 0.7 : 1,
           }}
         >
-          {saveMutation.isPending ? 'Saving...' : 'Save Template'}
+          {saveMutation.isPending ? "Saving..." : "Save Template"}
         </button>
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '28px 24px', maxWidth: '800px', width: '100%', margin: '0 auto' }}>
+      <div
+        style={{
+          flex: 1,
+          overflow: "auto",
+          padding: "28px 24px",
+          maxWidth: "800px",
+          width: "100%",
+          margin: "0 auto",
+        }}
+      >
         {loading && !isNew ? (
           <TemplateEditorSkeleton />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "24px" }}
+          >
             {/* Basic info */}
             <div
               style={{
-                background: 'var(--io-surface)',
-                border: '1px solid var(--io-border)',
-                borderRadius: '8px',
-                padding: '20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '16px',
+                background: "var(--io-surface)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "8px",
+                padding: "20px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
               }}
             >
               <div>
@@ -627,9 +679,9 @@ export default function TemplateEditor() {
                 <textarea
                   style={{
                     ...inputStyle,
-                    resize: 'vertical',
-                    minHeight: '72px',
-                    fontFamily: 'inherit',
+                    resize: "vertical",
+                    minHeight: "72px",
+                    fontFamily: "inherit",
                   }}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -641,26 +693,26 @@ export default function TemplateEditor() {
             {/* Segments section */}
             <div
               style={{
-                background: 'var(--io-surface)',
-                border: '1px solid var(--io-border)',
-                borderRadius: '8px',
-                padding: '20px',
+                background: "var(--io-surface)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "8px",
+                padding: "20px",
               }}
             >
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: '16px',
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "16px",
                 }}
               >
                 <h3
                   style={{
                     margin: 0,
-                    fontSize: '14px',
+                    fontSize: "14px",
                     fontWeight: 700,
-                    color: 'var(--io-text-primary)',
+                    color: "var(--io-text-primary)",
                   }}
                 >
                   Segments
@@ -669,13 +721,13 @@ export default function TemplateEditor() {
                   type="button"
                   onClick={() => setShowNewSegmentForm(true)}
                   style={{
-                    background: 'none',
-                    border: '1px solid var(--io-border)',
-                    borderRadius: '6px',
-                    padding: '5px 12px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    color: 'var(--io-text-secondary)',
+                    background: "none",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "6px",
+                    padding: "5px 12px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    color: "var(--io-text-secondary)",
                   }}
                 >
                   + New Segment
@@ -683,12 +735,12 @@ export default function TemplateEditor() {
               </div>
 
               {/* Search / add existing segments */}
-              <div style={{ position: 'relative', marginBottom: '12px' }}>
+              <div style={{ position: "relative", marginBottom: "12px" }}>
                 <input
                   style={{
                     ...inputStyle,
-                    fontSize: '13px',
-                    padding: '7px 10px',
+                    fontSize: "13px",
+                    padding: "7px 10px",
                   }}
                   value={segmentSearch}
                   onChange={(e) => setSegmentSearch(e.target.value)}
@@ -697,17 +749,17 @@ export default function TemplateEditor() {
                 {segmentSearch && filteredSegments.length > 0 && (
                   <div
                     style={{
-                      position: 'absolute',
-                      top: '100%',
+                      position: "absolute",
+                      top: "100%",
                       left: 0,
                       right: 0,
-                      background: 'var(--io-surface)',
-                      border: '1px solid var(--io-border)',
-                      borderRadius: '6px',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                      background: "var(--io-surface)",
+                      border: "1px solid var(--io-border)",
+                      borderRadius: "6px",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
                       zIndex: 100,
-                      maxHeight: '200px',
-                      overflow: 'auto',
+                      maxHeight: "200px",
+                      overflow: "auto",
                     }}
                   >
                     {filteredSegments.map((seg: LogSegment) => (
@@ -715,26 +767,27 @@ export default function TemplateEditor() {
                         key={seg.id}
                         onClick={() => addSegment(seg.id)}
                         style={{
-                          padding: '9px 12px',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                          color: 'var(--io-text-primary)',
-                          borderBottom: '1px solid var(--io-border)',
+                          padding: "9px 12px",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                          color: "var(--io-text-primary)",
+                          borderBottom: "1px solid var(--io-border)",
                         }}
                         onMouseEnter={(e) => {
-                          ;(e.currentTarget as HTMLDivElement).style.background =
-                            'var(--io-surface-secondary)'
+                          (e.currentTarget as HTMLDivElement).style.background =
+                            "var(--io-surface-secondary)";
                         }}
                         onMouseLeave={(e) => {
-                          ;(e.currentTarget as HTMLDivElement).style.background = 'transparent'
+                          (e.currentTarget as HTMLDivElement).style.background =
+                            "transparent";
                         }}
                       >
                         <span style={{ fontWeight: 500 }}>{seg.name}</span>
                         <span
                           style={{
-                            marginLeft: '8px',
-                            fontSize: '11px',
-                            color: 'var(--io-text-muted)',
+                            marginLeft: "8px",
+                            fontSize: "11px",
+                            color: "var(--io-text-muted)",
                           }}
                         >
                           {seg.segment_type}
@@ -747,7 +800,7 @@ export default function TemplateEditor() {
 
               {/* New segment inline form */}
               {showNewSegmentForm && (
-                <div style={{ marginBottom: '12px' }}>
+                <div style={{ marginBottom: "12px" }}>
                   <NewSegmentForm
                     onSave={(data) => createSegmentMutation.mutate(data)}
                     onCancel={() => setShowNewSegmentForm(false)}
@@ -760,41 +813,56 @@ export default function TemplateEditor() {
               {selectedSegments.length === 0 ? (
                 <div
                   style={{
-                    textAlign: 'center',
-                    padding: '24px 0',
-                    color: 'var(--io-text-muted)',
-                    fontSize: '14px',
+                    textAlign: "center",
+                    padding: "24px 0",
+                    color: "var(--io-text-muted)",
+                    fontSize: "14px",
                   }}
                 >
                   No segments added yet. Search above or create a new one.
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
                   {selectedSegments.map((seg, idx) => (
                     <div
                       key={selectedSegmentIds[idx]}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        background: 'var(--io-surface-secondary)',
-                        borderRadius: '6px',
-                        padding: '10px 12px',
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        background: "var(--io-surface-secondary)",
+                        borderRadius: "6px",
+                        padding: "10px 12px",
                       }}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px",
+                        }}
+                      >
                         <button
                           type="button"
                           onClick={() => moveUp(idx)}
                           disabled={idx === 0}
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: idx === 0 ? 'not-allowed' : 'pointer',
-                            color: idx === 0 ? 'var(--io-text-muted)' : 'var(--io-text-secondary)',
+                            background: "none",
+                            border: "none",
+                            cursor: idx === 0 ? "not-allowed" : "pointer",
+                            color:
+                              idx === 0
+                                ? "var(--io-text-muted)"
+                                : "var(--io-text-secondary)",
                             lineHeight: 1,
-                            padding: '1px 4px',
-                            fontSize: '12px',
+                            padding: "1px 4px",
+                            fontSize: "12px",
                           }}
                         >
                           ▲
@@ -804,17 +872,19 @@ export default function TemplateEditor() {
                           onClick={() => moveDown(idx)}
                           disabled={idx === selectedSegments.length - 1}
                           style={{
-                            background: 'none',
-                            border: 'none',
+                            background: "none",
+                            border: "none",
                             cursor:
-                              idx === selectedSegments.length - 1 ? 'not-allowed' : 'pointer',
+                              idx === selectedSegments.length - 1
+                                ? "not-allowed"
+                                : "pointer",
                             color:
                               idx === selectedSegments.length - 1
-                                ? 'var(--io-text-muted)'
-                                : 'var(--io-text-secondary)',
+                                ? "var(--io-text-muted)"
+                                : "var(--io-text-secondary)",
                             lineHeight: 1,
-                            padding: '1px 4px',
-                            fontSize: '12px',
+                            padding: "1px 4px",
+                            fontSize: "12px",
                           }}
                         >
                           ▼
@@ -822,10 +892,10 @@ export default function TemplateEditor() {
                       </div>
                       <span
                         style={{
-                          fontSize: '13px',
-                          color: 'var(--io-text-muted)',
-                          minWidth: '24px',
-                          textAlign: 'right',
+                          fontSize: "13px",
+                          color: "var(--io-text-muted)",
+                          minWidth: "24px",
+                          textAlign: "right",
                         }}
                       >
                         {idx + 1}.
@@ -834,8 +904,8 @@ export default function TemplateEditor() {
                         <span
                           style={{
                             fontWeight: 600,
-                            color: 'var(--io-text-primary)',
-                            fontSize: '14px',
+                            color: "var(--io-text-primary)",
+                            fontSize: "14px",
                           }}
                         >
                           {seg?.name ?? selectedSegmentIds[idx]}
@@ -843,12 +913,12 @@ export default function TemplateEditor() {
                         {seg && (
                           <span
                             style={{
-                              marginLeft: '10px',
-                              fontSize: '11px',
-                              color: 'var(--io-text-muted)',
-                              background: 'var(--io-surface)',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
+                              marginLeft: "10px",
+                              fontSize: "11px",
+                              color: "var(--io-text-muted)",
+                              background: "var(--io-surface)",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
                             }}
                           >
                             {seg.segment_type}
@@ -859,13 +929,13 @@ export default function TemplateEditor() {
                         type="button"
                         onClick={() => removeSegment(selectedSegmentIds[idx])}
                         style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: 'var(--io-danger)',
-                          fontSize: '18px',
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--io-danger)",
+                          fontSize: "18px",
                           lineHeight: 1,
-                          padding: '0 4px',
+                          padding: "0 4px",
                         }}
                         title="Remove segment"
                       >
@@ -880,5 +950,5 @@ export default function TemplateEditor() {
         )}
       </div>
     </div>
-  )
+  );
 }

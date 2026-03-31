@@ -96,8 +96,7 @@ impl Config {
                 .unwrap_or_else(|_| "256".to_string())
                 .parse()
                 .unwrap_or(256),
-            cert_dir: std::env::var("IO_CERT_DIR")
-                .unwrap_or_else(|_| "/tmp/io-certs".to_string()),
+            cert_dir: std::env::var("IO_CERT_DIR").unwrap_or_else(|_| "/tmp/io-certs".to_string()),
             backup_dir: std::env::var("IO_BACKUP_DIR")
                 .unwrap_or_else(|_| "/tmp/io-backups".to_string()),
             cert_renew_days: std::env::var("IO_CERT_RENEW_DAYS")

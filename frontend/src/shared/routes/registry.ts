@@ -21,46 +21,50 @@ import {
   Users,
   Settings as SettingsIcon,
   type LucideIcon,
-} from 'lucide-react'
+} from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type SidebarGroup = 'monitoring' | 'analysis' | 'operations' | 'management'
+export type SidebarGroup =
+  | "monitoring"
+  | "analysis"
+  | "operations"
+  | "management";
 
 export interface RouteConfig {
   /** Absolute path for this module (e.g. "/console") */
-  path: string
+  path: string;
   /** Component name string — intentionally NOT a React component reference */
-  component: string
+  component: string;
   /** RBAC permission required to access this route; null = any authenticated user */
-  permission: string | null
+  permission: string | null;
   /** Which sidebar group this route belongs to */
-  sidebar_group: SidebarGroup
+  sidebar_group: SidebarGroup;
   /** Display label shown in the sidebar */
-  sidebar_label: string
+  sidebar_label: string;
   /** Lucide icon name string (e.g. "Monitor") */
-  sidebar_icon: string
+  sidebar_icon: string;
   /** G-key shortcut sequence (e.g. "G C") */
-  g_key: string
+  g_key: string;
   /** Root segment shown in breadcrumbs */
-  breadcrumb_root: string
+  breadcrumb_root: string;
   /** Whether this route is available on the mobile PWA */
-  mobile: boolean
+  mobile: boolean;
 }
 
 /** Subset of RouteConfig used by the sidebar renderer — icon resolved to LucideIcon */
 export interface NavItem {
-  path: string
-  label: string
-  icon: LucideIcon
-  permission: string | null
+  path: string;
+  label: string;
+  icon: LucideIcon;
+  permission: string | null;
 }
 
 export interface NavGroup {
-  label: string
-  items: NavItem[]
+  label: string;
+  items: NavItem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +83,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Bell,
   Users,
   Settings: SettingsIcon,
-}
+};
 
 // ---------------------------------------------------------------------------
 // ROUTE_REGISTRY — all 11 top-level module entries
@@ -89,144 +93,149 @@ const ICON_MAP: Record<string, LucideIcon> = {
 export const ROUTE_REGISTRY: RouteConfig[] = [
   // Monitoring
   {
-    path: '/console',
-    component: 'ConsoleModule',
-    permission: 'console:read',
-    sidebar_group: 'monitoring',
-    sidebar_label: 'Console',
-    sidebar_icon: 'Monitor',
-    g_key: 'G C',
-    breadcrumb_root: 'Console',
+    path: "/console",
+    component: "ConsoleModule",
+    permission: "console:read",
+    sidebar_group: "monitoring",
+    sidebar_label: "Console",
+    sidebar_icon: "Monitor",
+    g_key: "G C",
+    breadcrumb_root: "Console",
     mobile: false,
   },
   {
-    path: '/process',
-    component: 'ProcessModule',
-    permission: 'process:read',
-    sidebar_group: 'monitoring',
-    sidebar_label: 'Process',
-    sidebar_icon: 'Layers',
-    g_key: 'G P',
-    breadcrumb_root: 'Process',
+    path: "/process",
+    component: "ProcessModule",
+    permission: "process:read",
+    sidebar_group: "monitoring",
+    sidebar_label: "Process",
+    sidebar_icon: "Layers",
+    g_key: "G P",
+    breadcrumb_root: "Process",
     mobile: false,
   },
   // Analysis
   {
-    path: '/dashboards',
-    component: 'DashboardsModule',
-    permission: 'dashboards:read',
-    sidebar_group: 'analysis',
-    sidebar_label: 'Dashboards',
-    sidebar_icon: 'LayoutDashboard',
-    g_key: 'G B',
-    breadcrumb_root: 'Dashboards',
+    path: "/dashboards",
+    component: "DashboardsModule",
+    permission: "dashboards:read",
+    sidebar_group: "analysis",
+    sidebar_label: "Dashboards",
+    sidebar_icon: "LayoutDashboard",
+    g_key: "G B",
+    breadcrumb_root: "Dashboards",
     mobile: false,
   },
   {
-    path: '/reports',
-    component: 'ReportsModule',
-    permission: 'reports:read',
-    sidebar_group: 'analysis',
-    sidebar_label: 'Reports',
-    sidebar_icon: 'FileText',
-    g_key: 'G R',
-    breadcrumb_root: 'Reports',
+    path: "/reports",
+    component: "ReportsModule",
+    permission: "reports:read",
+    sidebar_group: "analysis",
+    sidebar_label: "Reports",
+    sidebar_icon: "FileText",
+    g_key: "G R",
+    breadcrumb_root: "Reports",
     mobile: false,
   },
   {
-    path: '/forensics',
-    component: 'ForensicsModule',
-    permission: 'forensics:read',
-    sidebar_group: 'analysis',
-    sidebar_label: 'Forensics',
-    sidebar_icon: 'Search',
-    g_key: 'G F',
-    breadcrumb_root: 'Forensics',
+    path: "/forensics",
+    component: "ForensicsModule",
+    permission: "forensics:read",
+    sidebar_group: "analysis",
+    sidebar_label: "Forensics",
+    sidebar_icon: "Search",
+    g_key: "G F",
+    breadcrumb_root: "Forensics",
     mobile: false,
   },
   // Operations
   {
-    path: '/log',
-    component: 'LogModule',
-    permission: 'log:read',
-    sidebar_group: 'operations',
-    sidebar_label: 'Log',
-    sidebar_icon: 'BookOpen',
-    g_key: 'G L',
-    breadcrumb_root: 'Log',
+    path: "/log",
+    component: "LogModule",
+    permission: "log:read",
+    sidebar_group: "operations",
+    sidebar_label: "Log",
+    sidebar_icon: "BookOpen",
+    g_key: "G L",
+    breadcrumb_root: "Log",
     mobile: true,
   },
   {
-    path: '/rounds',
-    component: 'RoundsModule',
-    permission: 'rounds:read',
-    sidebar_group: 'operations',
-    sidebar_label: 'Rounds',
-    sidebar_icon: 'CheckSquare',
-    g_key: 'G O',
-    breadcrumb_root: 'Rounds',
+    path: "/rounds",
+    component: "RoundsModule",
+    permission: "rounds:read",
+    sidebar_group: "operations",
+    sidebar_label: "Rounds",
+    sidebar_icon: "CheckSquare",
+    g_key: "G O",
+    breadcrumb_root: "Rounds",
     mobile: true,
   },
   {
-    path: '/alerts',
-    component: 'AlertsModule',
-    permission: 'alerts:read',
-    sidebar_group: 'operations',
-    sidebar_label: 'Alerts',
-    sidebar_icon: 'Bell',
-    g_key: 'G A',
-    breadcrumb_root: 'Alerts',
+    path: "/alerts",
+    component: "AlertsModule",
+    permission: "alerts:read",
+    sidebar_group: "operations",
+    sidebar_label: "Alerts",
+    sidebar_icon: "Bell",
+    g_key: "G A",
+    breadcrumb_root: "Alerts",
     mobile: false,
   },
   // Management
   {
-    path: '/shifts',
-    component: 'ShiftsModule',
-    permission: 'shifts:read',
-    sidebar_group: 'management',
-    sidebar_label: 'Shifts',
-    sidebar_icon: 'Users',
-    g_key: 'G H',
-    breadcrumb_root: 'Shifts',
+    path: "/shifts",
+    component: "ShiftsModule",
+    permission: "shifts:read",
+    sidebar_group: "management",
+    sidebar_label: "Shifts",
+    sidebar_icon: "Users",
+    g_key: "G H",
+    breadcrumb_root: "Shifts",
     mobile: false,
   },
   {
-    path: '/settings',
-    component: 'SettingsModule',
-    permission: 'settings:read',
-    sidebar_group: 'management',
-    sidebar_label: 'Settings',
-    sidebar_icon: 'Settings',
-    g_key: 'G S',
-    breadcrumb_root: 'Settings',
+    path: "/settings",
+    component: "SettingsModule",
+    permission: "settings:read",
+    sidebar_group: "management",
+    sidebar_label: "Settings",
+    sidebar_icon: "Settings",
+    g_key: "G S",
+    breadcrumb_root: "Settings",
     mobile: false,
   },
   {
-    path: '/designer',
-    component: 'DesignerModule',
-    permission: 'designer:read',
-    sidebar_group: 'management',
-    sidebar_label: 'Designer',
-    sidebar_icon: 'PenTool',
-    g_key: 'G D',
-    breadcrumb_root: 'Designer',
+    path: "/designer",
+    component: "DesignerModule",
+    permission: "designer:read",
+    sidebar_group: "management",
+    sidebar_label: "Designer",
+    sidebar_icon: "PenTool",
+    g_key: "G D",
+    breadcrumb_root: "Designer",
     mobile: false,
   },
-]
+];
 
 // ---------------------------------------------------------------------------
 // Sidebar group label map — sidebar_group key → display label
 // ---------------------------------------------------------------------------
 
 const GROUP_LABELS: Record<SidebarGroup, string> = {
-  monitoring: 'Monitoring',
-  analysis: 'Analysis',
-  operations: 'Operations',
-  management: 'Management',
-}
+  monitoring: "Monitoring",
+  analysis: "Analysis",
+  operations: "Operations",
+  management: "Management",
+};
 
 // Canonical group order for sidebar rendering
-const GROUP_ORDER: SidebarGroup[] = ['monitoring', 'analysis', 'operations', 'management']
+const GROUP_ORDER: SidebarGroup[] = [
+  "monitoring",
+  "analysis",
+  "operations",
+  "management",
+];
 
 // ---------------------------------------------------------------------------
 // getSidebarGroups — filters registry by permission and groups by sidebar_group
@@ -237,28 +246,30 @@ const GROUP_ORDER: SidebarGroup[] = ['monitoring', 'analysis', 'operations', 'ma
 // ---------------------------------------------------------------------------
 
 export function getSidebarGroups(permissions: string[]): NavGroup[] {
-  const permSet = new Set(permissions)
+  const permSet = new Set(permissions);
 
   const filtered = ROUTE_REGISTRY.filter(
-    (r) => r.permission === null || permSet.has(r.permission)
-  )
+    (r) => r.permission === null || permSet.has(r.permission),
+  );
 
-  const groups: NavGroup[] = []
+  const groups: NavGroup[] = [];
 
   for (const groupKey of GROUP_ORDER) {
     const items = filtered
       .filter((r) => r.sidebar_group === groupKey)
-      .map((r): NavItem => ({
-        path: r.path,
-        label: r.sidebar_label,
-        icon: ICON_MAP[r.sidebar_icon] ?? Monitor,
-        permission: r.permission,
-      }))
+      .map(
+        (r): NavItem => ({
+          path: r.path,
+          label: r.sidebar_label,
+          icon: ICON_MAP[r.sidebar_icon] ?? Monitor,
+          permission: r.permission,
+        }),
+      );
 
     if (items.length > 0) {
-      groups.push({ label: GROUP_LABELS[groupKey], items })
+      groups.push({ label: GROUP_LABELS[groupKey], items });
     }
   }
 
-  return groups
+  return groups;
 }

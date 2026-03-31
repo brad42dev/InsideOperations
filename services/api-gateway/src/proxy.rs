@@ -47,17 +47,17 @@ pub async fn proxy(
         if matches!(
             name_str.as_str(),
             "content-type"
-            | "accept"
-            | "accept-language"
-            | "authorization"
-            | "cookie"
-            | "x-request-id"
-            | "x-forwarded-for"
-            | "x-real-ip"
-            | "user-agent"
-            | "x-io-user-id"
-            | "x-io-username"
-            | "x-io-permissions"
+                | "accept"
+                | "accept-language"
+                | "authorization"
+                | "cookie"
+                | "x-request-id"
+                | "x-forwarded-for"
+                | "x-real-ip"
+                | "user-agent"
+                | "x-io-user-id"
+                | "x-io-username"
+                | "x-io-permissions"
         ) {
             if let Ok(v) = reqwest::header::HeaderValue::from_bytes(value.as_bytes()) {
                 builder = builder.header(name.as_str(), v);
@@ -66,10 +66,7 @@ pub async fn proxy(
     }
 
     // Add service secret so downstream knows this is from the gateway
-    builder = builder.header(
-        "x-io-service-secret",
-        &state.config.service_secret,
-    );
+    builder = builder.header("x-io-service-secret", &state.config.service_secret);
 
     // Forward body
     if !body_bytes.is_empty() {

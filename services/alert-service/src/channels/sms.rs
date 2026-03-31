@@ -12,7 +12,9 @@ use minijinja::Environment;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
-use super::{AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult};
+use super::{
+    AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult,
+};
 
 const DEFAULT_MAX_LENGTH: usize = 160;
 const DEFAULT_BODY_TEMPLATE: &str =
@@ -186,11 +188,7 @@ impl AlertChannel for SmsAdapter {
                 }
                 Err(primary_err) => {
                     // Try fallback if configured.
-                    let fallback_result = if let (
-                        Some(fb_sid),
-                        Some(fb_token),
-                        Some(fb_from),
-                    ) = (
+                    let fallback_result = if let (Some(fb_sid), Some(fb_token), Some(fb_from)) = (
                         &self.config.fallback_account_sid,
                         &self.config.fallback_auth_token,
                         &self.config.fallback_from_number,

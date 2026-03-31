@@ -9,41 +9,41 @@
  * - Lightweight health check (no auth, used for connectivity detection)
  */
 
-import { api, type ApiResult } from './client'
-import type { RoundInstanceDetail } from './rounds'
+import { api, type ApiResult } from "./client";
+import type { RoundInstanceDetail } from "./rounds";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface MobileConfig {
-  sync_interval_ms: number
-  heartbeat_interval_ms: number
-  offline_cache_duration_mins: number
-  gps_required: boolean
-  min_touch_target_px: number
+  sync_interval_ms: number;
+  heartbeat_interval_ms: number;
+  offline_cache_duration_mins: number;
+  gps_required: boolean;
+  min_touch_target_px: number;
 }
 
 export interface MobileSyncPayload {
-  checkpoint_index: number
-  response_value: string
-  notes?: string
-  captured_at?: string
-  gps_lat?: number
-  gps_lon?: number
-  idempotency_key?: string
+  checkpoint_index: number;
+  response_value: string;
+  notes?: string;
+  captured_at?: string;
+  gps_lat?: number;
+  gps_lon?: number;
+  idempotency_key?: string;
 }
 
 export interface BatchSyncResult {
-  synced: number
-  failed: number
-  instance_id: string
-  instance_status: string
+  synced: number;
+  failed: number;
+  instance_id: string;
+  instance_status: string;
 }
 
 export interface MobileHealthResult {
-  ok: boolean
-  ts: string
+  ok: boolean;
+  ts: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ export const mobileApi = {
    * cache the result in memory for the session.
    */
   async getConfig(): Promise<ApiResult<MobileConfig>> {
-    return api.get<MobileConfig>('/api/mobile/config')
+    return api.get<MobileConfig>("/api/mobile/config");
   },
 
   /**
@@ -71,7 +71,7 @@ export const mobileApi = {
    * starting a round.
    */
   async getActiveRounds(): Promise<ApiResult<RoundInstanceDetail[]>> {
-    return api.get<RoundInstanceDetail[]>('/api/mobile/rounds/active')
+    return api.get<RoundInstanceDetail[]>("/api/mobile/rounds/active");
   },
 
   /**
@@ -88,10 +88,10 @@ export const mobileApi = {
     instanceId: string,
     responses: MobileSyncPayload[],
   ): Promise<ApiResult<BatchSyncResult>> {
-    return api.post<BatchSyncResult>('/api/mobile/rounds/sync', {
+    return api.post<BatchSyncResult>("/api/mobile/rounds/sync", {
       instance_id: instanceId,
       responses,
-    })
+    });
   },
 
   /**
@@ -112,12 +112,12 @@ export const mobileApi = {
     lon?: number,
     accuracyMeters?: number,
   ): Promise<ApiResult<{ acknowledged: boolean }>> {
-    return api.post<{ acknowledged: boolean }>('/api/mobile/presence', {
+    return api.post<{ acknowledged: boolean }>("/api/mobile/presence", {
       status,
       gps_lat: lat,
       gps_lon: lon,
       accuracy_meters: accuracyMeters,
-    })
+    });
   },
 
   /**
@@ -132,11 +132,11 @@ export const mobileApi = {
    */
   async health(): Promise<MobileHealthResult | null> {
     try {
-      const res = await fetch('/api/mobile/health')
-      if (!res.ok) return null
-      return (await res.json()) as MobileHealthResult
+      const res = await fetch("/api/mobile/health");
+      if (!res.ok) return null;
+      return (await res.json()) as MobileHealthResult;
     } catch {
-      return null
+      return null;
     }
   },
-}
+};

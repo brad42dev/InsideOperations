@@ -9,39 +9,39 @@
  * following the same pattern as useConsoleWorkspaceFavorites.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback } from "react";
 
-export type SectionViewMode = 'list' | 'thumbnails' | 'grid'
+export type SectionViewMode = "list" | "thumbnails" | "grid";
 
-const LS_KEY = 'io-console-section-view-modes'
+const LS_KEY = "io-console-section-view-modes";
 
-type ViewModeMap = Record<string, SectionViewMode>
+type ViewModeMap = Record<string, SectionViewMode>;
 
 function loadViewModes(): ViewModeMap {
   try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as ViewModeMap
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as ViewModeMap;
     }
-    return {}
+    return {};
   } catch {
-    return {}
+    return {};
   }
 }
 
 function saveViewModes(modes: ViewModeMap): void {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(modes))
+    localStorage.setItem(LS_KEY, JSON.stringify(modes));
   } catch {
     // ignore quota errors
   }
 }
 
 export interface UseConsoleSectionViewModeReturn {
-  viewMode: SectionViewMode
-  setViewMode: (mode: SectionViewMode) => void
+  viewMode: SectionViewMode;
+  setViewMode: (mode: SectionViewMode) => void;
 }
 
 /**
@@ -53,22 +53,22 @@ export interface UseConsoleSectionViewModeReturn {
  */
 export function useConsoleSectionViewMode(
   sectionKey: string,
-  defaultMode: SectionViewMode = 'list',
+  defaultMode: SectionViewMode = "list",
 ): UseConsoleSectionViewModeReturn {
   const [viewMode, setViewModeState] = useState<SectionViewMode>(() => {
-    const stored = loadViewModes()
-    return stored[sectionKey] ?? defaultMode
-  })
+    const stored = loadViewModes();
+    return stored[sectionKey] ?? defaultMode;
+  });
 
   const setViewMode = useCallback(
     (mode: SectionViewMode) => {
-      setViewModeState(mode)
-      const stored = loadViewModes()
-      stored[sectionKey] = mode
-      saveViewModes(stored)
+      setViewModeState(mode);
+      const stored = loadViewModes();
+      stored[sectionKey] = mode;
+      saveViewModes(stored);
     },
     [sectionKey],
-  )
+  );
 
-  return { viewMode, setViewMode }
+  return { viewMode, setViewMode };
 }

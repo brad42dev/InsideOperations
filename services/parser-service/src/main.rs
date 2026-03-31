@@ -1,6 +1,6 @@
 use axum::{
-    Router,
     routing::{get, post},
+    Router,
 };
 use std::net::SocketAddr;
 use tower_http::catch_panic::CatchPanicLayer;
@@ -33,8 +33,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!(service = "parser-service", "Starting up");
 
-    let health =
-        io_health::HealthRegistry::new("parser-service", env!("CARGO_PKG_VERSION"));
+    let health = io_health::HealthRegistry::new("parser-service", env!("CARGO_PKG_VERSION"));
     health.mark_startup_complete();
 
     let state = AppState { config: cfg };

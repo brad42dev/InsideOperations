@@ -117,19 +117,13 @@ pub(crate) fn tiles_to_rhai(
                 } else {
                     point_id
                 };
-                let val = point_values
-                    .get(lookup_key)
-                    .copied()
-                    .unwrap_or(f64::NAN);
+                let val = point_values.get(lookup_key).copied().unwrap_or(f64::NAN);
                 let operand = format_f64(val);
                 result = apply_op(result, pending_op.take(), &operand);
             }
 
             "constant" => {
-                let val = tile
-                    .get("value")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
+                let val = tile.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let operand = format_f64(val);
                 result = apply_op(result, pending_op.take(), &operand);
             }

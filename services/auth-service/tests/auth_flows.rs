@@ -10,7 +10,9 @@
 ///
 /// Tests that require a fully running auth-service HTTP stack are marked
 /// `#[ignore]` and can be run with `-- --ignored`.
-use io_auth::{build_claims, generate_access_token, validate_token, hash_password, verify_password, Claims};
+use io_auth::{
+    build_claims, generate_access_token, hash_password, validate_token, verify_password, Claims,
+};
 use serde_json::{json, Value};
 
 // ---------------------------------------------------------------------------
@@ -27,11 +29,9 @@ async fn test_valid_access_token_round_trips() {
         vec!["users.view".to_string(), "alarms.view".to_string()],
     );
 
-    let token = generate_access_token(&claims, secret)
-        .expect("token generation must succeed");
+    let token = generate_access_token(&claims, secret).expect("token generation must succeed");
 
-    let decoded = validate_token(&token, secret)
-        .expect("valid token must be accepted");
+    let decoded = validate_token(&token, secret).expect("valid token must be accepted");
 
     assert_eq!(decoded.sub, claims.sub);
     assert_eq!(decoded.username, claims.username);
@@ -51,8 +51,7 @@ async fn test_expired_token_is_rejected() {
         exp: now - 500, // 500 s in the past
     };
 
-    let token = generate_access_token(&expired, secret)
-        .expect("should encode even with past exp");
+    let token = generate_access_token(&expired, secret).expect("should encode even with past exp");
 
     let result = validate_token(&token, secret);
     assert!(result.is_err(), "expired token must be rejected");
@@ -62,11 +61,13 @@ async fn test_expired_token_is_rejected() {
 #[tokio::test]
 async fn test_wrong_secret_token_is_rejected() {
     let claims = build_claims("00000000-0000-0000-0000-000000000012", "carol", vec![]);
-    let token = generate_access_token(&claims, "correct-secret")
-        .expect("should generate token");
+    let token = generate_access_token(&claims, "correct-secret").expect("should generate token");
 
     let result = validate_token(&token, "wrong-secret");
-    assert!(result.is_err(), "token signed with wrong secret must be rejected");
+    assert!(
+        result.is_err(),
+        "token signed with wrong secret must be rejected"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -100,8 +101,14 @@ fn test_password_hashes_are_salted_uniquely() {
 
     assert_ne!(hash1, hash2, "distinct salt must produce distinct hashes");
 
-    assert!(verify_password(password, &hash1).unwrap(), "hash1 must verify");
-    assert!(verify_password(password, &hash2).unwrap(), "hash2 must verify");
+    assert!(
+        verify_password(password, &hash1).unwrap(),
+        "hash1 must verify"
+    );
+    assert!(
+        verify_password(password, &hash2).unwrap(),
+        "hash2 must verify"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -109,8 +116,7 @@ fn test_password_hashes_are_salted_uniquely() {
 // ---------------------------------------------------------------------------
 
 fn auth_service_url() -> String {
-    std::env::var("TEST_AUTH_SERVICE_URL")
-        .unwrap_or_else(|_| "http://localhost:3009".to_string())
+    std::env::var("TEST_AUTH_SERVICE_URL").unwrap_or_else(|_| "http://localhost:3009".to_string())
 }
 
 /// POST /auth/login with correct credentials must return 200 + access_token.
@@ -130,7 +136,11 @@ async fn test_local_login_correct_credentials_returns_200() {
         .await
         .expect("login request must succeed");
 
-    assert_eq!(resp.status(), reqwest::StatusCode::OK, "correct credentials must return 200");
+    assert_eq!(
+        resp.status(),
+        reqwest::StatusCode::OK,
+        "correct credentials must return 200"
+    );
 
     let body: Value = resp.json().await.expect("response must be JSON");
     assert!(
@@ -181,7 +191,10 @@ async fn test_token_refresh_with_valid_token_returns_200() {
         .await
         .expect("login must succeed");
 
-    let login_body: Value = login_resp.json().await.expect("login response must be JSON");
+    let login_body: Value = login_resp
+        .json()
+        .await
+        .expect("login response must be JSON");
     let refresh_token = login_body
         .pointer("/data/refresh_token")
         .and_then(|v| v.as_str())

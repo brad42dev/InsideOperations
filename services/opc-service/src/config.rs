@@ -35,8 +35,9 @@ pub struct Config {
     pub reconnect_max_secs: u64,
 
     /// Directory for OPC UA PKI trust store (client keypair + server cert storage).
-    /// Sub-directories trusted/certs/ and rejected/certs/ are created automatically
-    /// by the opcua crate. Defaults to /tmp/io-opc-pki in dev.
+    /// Sub-directories trusted/ and rejected/ are created automatically by the
+    /// async-opcua crate (flat layout — no certs/ sub-level). Defaults to
+    /// /tmp/io-opc-pki in dev.
     pub pki_dir: String,
 
     /// When true, server certificates are auto-trusted on first connect (dev default).
@@ -93,8 +94,7 @@ impl Config {
                 .parse()
                 .context("RECONNECT_MAX_SECS must be a valid integer")?,
 
-            pki_dir: std::env::var("OPC_PKI_DIR")
-                .unwrap_or_else(|_| "/tmp/io-opc-pki".to_string()),
+            pki_dir: std::env::var("OPC_PKI_DIR").unwrap_or_else(|_| "/tmp/io-opc-pki".to_string()),
 
             auto_trust_server_certs: std::env::var("OPC_AUTO_TRUST_CERTS")
                 .unwrap_or_else(|_| "true".to_string())

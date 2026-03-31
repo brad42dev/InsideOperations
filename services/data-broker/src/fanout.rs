@@ -243,7 +243,11 @@ pub async fn run_fanout_flusher(
         clients_with_work.sort_unstable();
 
         let count = clients_with_work.len() as u64;
-        let stagger_ms = if count > 1 { batch_window_ms / count } else { 0 };
+        let stagger_ms = if count > 1 {
+            batch_window_ms / count
+        } else {
+            0
+        };
 
         let flush_start = Instant::now();
 
@@ -366,9 +370,8 @@ pub async fn run_heartbeat_task(
     pending: PendingMap,
 ) {
     // Sweep at half the silence window so we never miss a window.
-    let sweep_interval = tokio::time::Duration::from_secs(max_silence_secs / 2).max(
-        tokio::time::Duration::from_secs(1),
-    );
+    let sweep_interval = tokio::time::Duration::from_secs(max_silence_secs / 2)
+        .max(tokio::time::Duration::from_secs(1));
     let silence_dur = chrono::Duration::seconds(max_silence_secs as i64);
 
     loop {
@@ -400,10 +403,7 @@ pub async fn run_heartbeat_task(
             };
 
             for client_id in client_ids {
-                pending
-                    .entry(client_id)
-                    .or_default()
-                    .push(pv.clone());
+                pending.entry(client_id).or_default().push(pv.clone());
             }
         }
     }
@@ -483,7 +483,15 @@ mod tests {
         let connections = make_connections();
 
         let batch = make_batch(point, 42.5, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
 
         flush_to_channel(c1, &pending, &tx1);
         flush_to_channel(c2, &pending, &tx2);
@@ -525,7 +533,15 @@ mod tests {
         let connections = make_connections();
 
         let batch = make_batch(point, 1.0, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
         flush_to_channel(c1, &pending, &tx1);
 
         assert!(
@@ -544,9 +560,19 @@ mod tests {
         let connections = make_connections();
 
         let batch = make_batch(point, 99.9, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
 
-        let entry = cache.get(&point).expect("Cache must have entry after fanout");
+        let entry = cache
+            .get(&point)
+            .expect("Cache must have entry after fanout");
         assert!((entry.value - 99.9).abs() < f64::EPSILON);
         assert_eq!(entry.quality, "good");
         assert!(!entry.stale);
@@ -567,7 +593,15 @@ mod tests {
         let connections = make_connections();
 
         let batch = make_batch(point, 0.0, PointQuality::Bad);
-        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
         flush_to_channel(client, &pending, &tx);
 
         match rx.try_recv() {
@@ -599,13 +633,29 @@ mod tests {
 
         // First update — must pass through.
         let batch1 = make_batch(point, 10.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch1,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
         flush_to_channel(client, &pending, &tx);
         assert!(rx.try_recv().is_ok(), "First update must reach client");
 
         // Second identical update — must be suppressed.
         let batch2 = make_batch(point, 10.0, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch2,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_err(),
@@ -630,13 +680,29 @@ mod tests {
 
         // Seed the cache with value 100.0.
         let batch1 = make_batch(point, 100.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states()); // 1% deadband
+        fanout_batch(
+            &batch1,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.01,
+            &make_throttle_states(),
+        ); // 1% deadband
         flush_to_channel(client, &pending, &tx);
         let _ = rx.try_recv(); // consume first
 
         // New value 105.0 — delta = 5.0, band = 100.0 * 0.01 = 1.0 → exceeds band.
         let batch2 = make_batch(point, 105.0, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states());
+        fanout_batch(
+            &batch2,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.01,
+            &make_throttle_states(),
+        );
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_ok(),
@@ -660,13 +726,29 @@ mod tests {
 
         // Seed cache with 100.0.
         let batch1 = make_batch(point, 100.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states()); // 1% deadband
+        fanout_batch(
+            &batch1,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.01,
+            &make_throttle_states(),
+        ); // 1% deadband
         flush_to_channel(client, &pending, &tx);
         let _ = rx.try_recv(); // consume first
 
         // New value 100.5 — delta = 0.5, band = 100.0 * 0.01 = 1.0 → within band.
         let batch2 = make_batch(point, 100.5, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.01, &make_throttle_states());
+        fanout_batch(
+            &batch2,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.01,
+            &make_throttle_states(),
+        );
         flush_to_channel(client, &pending, &tx);
         assert!(
             rx.try_recv().is_err(),
@@ -711,11 +793,21 @@ mod tests {
 
         // Fanout a new value for the stale point.
         let batch = make_batch(point, 20.0, PointQuality::Good);
-        fanout_batch(&batch, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
 
         // Must receive a PointFresh directly (not via accumulator flush).
         match rx.try_recv().expect("client must receive PointFresh") {
-            WsServerMessage::PointFresh { point_id, value, .. } => {
+            WsServerMessage::PointFresh {
+                point_id, value, ..
+            } => {
                 assert_eq!(point_id, point);
                 assert!((value - 20.0).abs() < f64::EPSILON);
             }
@@ -723,11 +815,11 @@ mod tests {
         }
 
         // The accumulator must NOT have an Update pending for this point.
-        let has_pending = pending
-            .get(&client)
-            .map(|e| !e.is_empty())
-            .unwrap_or(false);
-        assert!(!has_pending, "No Update should be queued for a stale-recovery point");
+        let has_pending = pending.get(&client).map(|e| !e.is_empty()).unwrap_or(false);
+        assert!(
+            !has_pending,
+            "No Update should be queued for a stale-recovery point"
+        );
 
         // Cache stale flag must be cleared.
         let entry = cache.get(&point).expect("cache entry must exist");
@@ -765,14 +857,36 @@ mod tests {
 
         // First batch — stale recovery: should produce PointFresh.
         let batch1 = make_batch(point, 15.0, PointQuality::Good);
-        fanout_batch(&batch1, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch1,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
         let msg = rx.try_recv().expect("must receive PointFresh");
-        assert!(matches!(msg, WsServerMessage::PointFresh { .. }), "First update after stale must be PointFresh");
+        assert!(
+            matches!(msg, WsServerMessage::PointFresh { .. }),
+            "First update after stale must be PointFresh"
+        );
 
         // Second batch with the same value — should be suppressed by change-only filter.
         let batch2 = make_batch(point, 15.0, PointQuality::Good);
-        fanout_batch(&batch2, &cache, &registry, &connections, &pending, 0.0, &make_throttle_states());
+        fanout_batch(
+            &batch2,
+            &cache,
+            &registry,
+            &connections,
+            &pending,
+            0.0,
+            &make_throttle_states(),
+        );
         // Neither a PointFresh (point is no longer stale) nor an Update (value unchanged).
-        assert!(rx.try_recv().is_err(), "Identical follow-up must be suppressed");
+        assert!(
+            rx.try_recv().is_err(),
+            "Identical follow-up must be suppressed"
+        );
     }
 }

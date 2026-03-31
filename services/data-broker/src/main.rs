@@ -1,4 +1,7 @@
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use cache::ShadowCache;
 use dashmap::DashMap;
 use fanout::{LastFanoutMap, PendingMap};
@@ -98,7 +101,9 @@ async fn main() -> anyhow::Result<()> {
         let cx = Arc::clone(&connections);
         let uc = Arc::clone(&user_connections);
         let ts = Arc::clone(&throttle_states);
-        tokio::spawn(notify::run_notify_listener(db2, c, r, p, db_val, cx, uc, ts));
+        tokio::spawn(notify::run_notify_listener(
+            db2, c, r, p, db_val, cx, uc, ts,
+        ));
     }
 
     // Spawn batched fanout flusher.
@@ -191,7 +196,9 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn graceful_shutdown(
-    connections: Arc<DashMap<registry::ClientId, tokio::sync::mpsc::Sender<io_bus::WsServerMessage>>>,
+    connections: Arc<
+        DashMap<registry::ClientId, tokio::sync::mpsc::Sender<io_bus::WsServerMessage>>,
+    >,
 ) {
     use tokio::signal;
 
@@ -218,7 +225,11 @@ async fn graceful_shutdown(
 
     // Broadcast to all connected clients.
     for entry in connections.iter() {
-        let _ = entry.value().try_send(io_bus::WsServerMessage::ServerRestarting(io_bus::WsEmpty::default()));
+        let _ = entry
+            .value()
+            .try_send(io_bus::WsServerMessage::ServerRestarting(
+                io_bus::WsEmpty::default(),
+            ));
     }
 
     // Give clients up to 5 seconds to receive and act on the message.
@@ -230,11 +241,9 @@ async fn graceful_shutdown(
 async fn warm_cache(cache: &ShadowCache, db: &io_db::DbPool) {
     use sqlx::Row;
 
-    let result = sqlx::query(
-        "SELECT point_id, value, quality, timestamp FROM points_current",
-    )
-    .fetch_all(db)
-    .await;
+    let result = sqlx::query("SELECT point_id, value, quality, timestamp FROM points_current")
+        .fetch_all(db)
+        .await;
 
     match result {
         Ok(rows) => {

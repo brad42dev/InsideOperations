@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use io_auth::hash_password;
 use io_error::{FieldError, IoError, IoResult};
-use io_models::{PageParams, PagedResponse, ApiResponse};
+use io_models::{ApiResponse, PagedResponse};
 use io_validate;
 
 use crate::state::AppState;
@@ -260,8 +260,8 @@ pub async fn create_user(
         )));
     }
 
-    let password_hash = hash_password(&req.password)
-        .map_err(|e| IoError::Internal(e.to_string()))?;
+    let password_hash =
+        hash_password(&req.password).map_err(|e| IoError::Internal(e.to_string()))?;
 
     let user_id = Uuid::new_v4();
     sqlx::query(
@@ -372,8 +372,7 @@ pub async fn update_user(
         }
     }
     if let Some(password) = &req.password {
-        let hash = hash_password(password)
-            .map_err(|e| IoError::Internal(e.to_string()))?;
+        let hash = hash_password(password).map_err(|e| IoError::Internal(e.to_string()))?;
         sqlx::query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2")
             .bind(&hash)
             .bind(user_id)
@@ -460,9 +459,7 @@ pub async fn get_me(
         .get("x-io-user-id")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    let user_id: Uuid = user_id_str
-        .parse()
-        .map_err(|_| IoError::Unauthorized)?;
+    let user_id: Uuid = user_id_str.parse().map_err(|_| IoError::Unauthorized)?;
 
     // Fetch user + roles (delegates to get_user response extraction inline).
     let row = sqlx::query(

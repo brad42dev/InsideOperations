@@ -53,13 +53,9 @@ pub async fn get_about(State(_state): State<AppState>) -> impl IntoResponse {
 
     let info = AboutInfo {
         version: env!("CARGO_PKG_VERSION").into(),
-        build: option_env!("IO_BUILD_COMMIT")
-            .unwrap_or("dev")
-            .into(),
+        build: option_env!("IO_BUILD_COMMIT").unwrap_or("dev").into(),
         server_hostname: hostname,
-        eula_version: option_env!("IO_EULA_VERSION")
-            .unwrap_or("1.0")
-            .into(),
+        eula_version: option_env!("IO_EULA_VERSION").unwrap_or("1.0").into(),
     };
 
     Json(serde_json::json!({ "success": true, "data": info }))

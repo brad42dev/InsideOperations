@@ -1,50 +1,62 @@
-import { api } from './client'
-import type { GraphicDocument, GraphicSummary } from '../shared/types/graphics'
+import { api } from "./client";
+import type { GraphicDocument, GraphicSummary } from "../shared/types/graphics";
 
 export interface DesignObjectSummary extends GraphicSummary {}
 
 export interface DesignObjectCreateRequest {
-  name: string
-  scene_data: GraphicDocument
-  type?: 'graphic' | 'dashboard' | 'report'
-  metadata?: Record<string, unknown>
+  name: string;
+  scene_data: GraphicDocument;
+  type?: "graphic" | "dashboard" | "report";
+  metadata?: Record<string, unknown>;
 }
 
 export interface DesignObjectUpdateRequest {
-  name?: string
-  scene_data?: GraphicDocument
+  name?: string;
+  scene_data?: GraphicDocument;
 }
 
 export interface ShapeBatchResponse {
   [shapeId: string]: {
-    svg: string
-    sidecar: Record<string, unknown>
-  }
+    svg: string;
+    sidecar: Record<string, unknown>;
+  };
 }
 
 export interface GraphicHierarchyNode {
-  id: string
-  name: string
-  graphicId?: string
-  children: GraphicHierarchyNode[]
+  id: string;
+  name: string;
+  graphicId?: string;
+  children: GraphicHierarchyNode[];
 }
 
 export const graphicsApi = {
   /** Get the view hierarchy tree for navigation (scope=process) */
   getHierarchy: () =>
-    api.get<{ tree: GraphicHierarchyNode[] }>('/api/graphics/hierarchy?scope=process'),
+    api.get<{ tree: GraphicHierarchyNode[] }>(
+      "/api/graphics/hierarchy?scope=process",
+    ),
 
   /** List graphics, optionally filtered by module scope */
-  list: (params?: { scope?: 'console' | 'process'; mode?: 'graphic' | 'dashboard' | 'report' }) =>
+  list: (params?: {
+    scope?: "console" | "process";
+    mode?: "graphic" | "dashboard" | "report";
+  }) =>
     api.get<{ data: DesignObjectSummary[]; total: number }>(
-      params?.scope ? `/api/graphics?module=${params.scope}` : '/api/graphics'
+      params?.scope ? `/api/graphics?module=${params.scope}` : "/api/graphics",
     ),
 
   /** Get a single graphic by ID */
   get: (id: string) =>
-    api.get<{ id: string; name: string; scene_data: GraphicDocument; version: number; updatedAt: string; locked_by: string | null; locked_by_name: string | null; locked_at: string | null }>(
-      `/api/v1/design-objects/${id}`
-    ),
+    api.get<{
+      id: string;
+      name: string;
+      scene_data: GraphicDocument;
+      version: number;
+      updatedAt: string;
+      locked_by: string | null;
+      locked_by_name: string | null;
+      locked_at: string | null;
+    }>(`/api/v1/design-objects/${id}`),
 
   /**
    * Acquire pessimistic edit lock on a design object.
@@ -52,29 +64,32 @@ export const graphicsApi = {
    * { acquired: false; locked_by_name: string; locked_at: string } if already locked.
    */
   acquireLock: (id: string) =>
-    api.post<{ data: { acquired: boolean; locked_by_name?: string; locked_at?: string } }>(
-      `/api/v1/design-objects/${id}/lock`, {}
-    ),
+    api.post<{
+      data: { acquired: boolean; locked_by_name?: string; locked_at?: string };
+    }>(`/api/v1/design-objects/${id}/lock`, {}),
 
   /** Release the edit lock on a design object. */
-  releaseLock: (id: string) =>
-    api.delete(`/api/v1/design-objects/${id}/lock`),
+  releaseLock: (id: string) => api.delete(`/api/v1/design-objects/${id}/lock`),
 
   /** Create a new graphic */
   create: (payload: DesignObjectCreateRequest) =>
-    api.post<{ id: string }>('/api/v1/design-objects', payload),
+    api.post<{ id: string }>("/api/v1/design-objects", payload),
 
   /** Update an existing graphic */
   update: (id: string, payload: DesignObjectUpdateRequest) =>
-    api.put<{ data: { id: string; version: number } }>(`/api/v1/design-objects/${id}`, payload),
+    api.put<{ data: { id: string; version: number } }>(
+      `/api/v1/design-objects/${id}`,
+      payload,
+    ),
 
   /** Delete a graphic */
-  remove: (id: string) =>
-    api.delete(`/api/v1/design-objects/${id}`),
+  remove: (id: string) => api.delete(`/api/v1/design-objects/${id}`),
 
   /** Batch fetch shapes from the shape library */
   batchShapes: (shapeIds: string[]) =>
-    api.post<ShapeBatchResponse>('/api/v1/shapes/batch', { shape_ids: shapeIds }),
+    api.post<ShapeBatchResponse>("/api/v1/shapes/batch", {
+      shape_ids: shapeIds,
+    }),
 
   /** Get a graphic's thumbnail URL */
   thumbnailUrl: (id: string) => `/api/v1/design-objects/${id}/thumbnail.png`,
@@ -87,24 +102,43 @@ export const graphicsApi = {
 
   /** List stencils from the design_objects table */
   listStencils: () =>
-    api.get<{ data: Array<{ id: string; name: string; type: string; svg_data?: string; metadata?: Record<string, unknown> }> }>(
-      '/api/v1/design-objects?type=stencil'
-    ),
+    api.get<{
+      data: Array<{
+        id: string;
+        name: string;
+        type: string;
+        svg_data?: string;
+        metadata?: Record<string, unknown>;
+      }>;
+    }>("/api/v1/design-objects?type=stencil"),
 
   /** Save selected elements as a stencil */
-  createStencil: (payload: { name: string; category: string; tags?: string; svgData?: string; nodes?: unknown }) =>
-    api.post<{ data: { id: string } }>('/api/v1/design-objects', {
+  createStencil: (payload: {
+    name: string;
+    category: string;
+    tags?: string;
+    svgData?: string;
+    nodes?: unknown;
+  }) =>
+    api.post<{ data: { id: string } }>("/api/v1/design-objects", {
       name: payload.name,
-      type: 'stencil',
-      svg_data: payload.svgData ?? '',
-      metadata: { category: payload.category, tags: payload.tags ?? '', nodes: payload.nodes ?? null },
+      type: "stencil",
+      svg_data: payload.svgData ?? "",
+      metadata: {
+        category: payload.category,
+        tags: payload.tags ?? "",
+        nodes: payload.nodes ?? null,
+      },
     }),
 
   /** Upload an image asset */
   uploadImage: (file: File) => {
-    const form = new FormData()
-    form.append('file', file)
-    return api.post<{ data: { hash: string; url: string } }>('/api/v1/image-assets', form)
+    const form = new FormData();
+    form.append("file", file);
+    return api.post<{ data: { hash: string; url: string } }>(
+      "/api/v1/image-assets",
+      form,
+    );
   },
 
   /** Get image asset URL by hash */
@@ -117,11 +151,11 @@ export const graphicsApi = {
    */
   exportShapeSvg: async (shapeId: string): Promise<string> => {
     const resp = await fetch(`/api/v1/shapes/${shapeId}/svg`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!resp.ok) throw new Error(`Export failed: ${resp.statusText}`)
-    return resp.text()
+      method: "GET",
+      credentials: "include",
+    });
+    if (!resp.ok) throw new Error(`Export failed: ${resp.statusText}`);
+    return resp.text();
   },
 
   /**
@@ -130,10 +164,9 @@ export const graphicsApi = {
    * Sidecar metadata is preserved — only the visual geometry changes.
    */
   reimportShapeSvg: (shapeId: string, svgContent: string) =>
-    api.put<{ data: { viewBoxChanged: boolean; oldViewBox: string; newViewBox: string } }>(
-      `/api/v1/shapes/${shapeId}/svg`,
-      { svg_content: svgContent }
-    ),
+    api.put<{
+      data: { viewBoxChanged: boolean; oldViewBox: string; newViewBox: string };
+    }>(`/api/v1/shapes/${shapeId}/svg`, { svg_content: svgContent }),
 
   /**
    * Resolve point tag names to their internal UUIDs.
@@ -141,34 +174,41 @@ export const graphicsApi = {
    * Unrecognised tags are silently omitted.
    */
   resolveTags: (tags: string[]) =>
-    api.post<{ data: Record<string, string> }>('/api/points/resolve-tags', { tags }),
+    api.post<{ data: Record<string, string> }>("/api/points/resolve-tags", {
+      tags,
+    }),
 
   // ── Versioning ──────────────────────────────────────────────────────────
 
   /** List all versions (drafts + published) for a graphic. */
   getVersions: (id: string) =>
-    api.get<{ data: Array<{
-      id: string
-      version: number
-      type: 'published' | 'draft'
-      author: string
-      author_name: string
-      timestamp: string
-      isCurrent?: boolean
-    }> }>(`/api/v1/design-objects/${id}/versions`),
+    api.get<{
+      data: Array<{
+        id: string;
+        version: number;
+        type: "published" | "draft";
+        author: string;
+        author_name: string;
+        timestamp: string;
+        isCurrent?: boolean;
+      }>;
+    }>(`/api/v1/design-objects/${id}/versions`),
 
   /** Get the scene_data for a specific version. */
   getVersionContent: (id: string, versionId: string) =>
-    api.get<{ data: { scene_data: import('../shared/types/graphics').GraphicDocument } }>(
-      `/api/v1/design-objects/${id}/versions/${versionId}`
-    ),
+    api.get<{
+      data: { scene_data: import("../shared/types/graphics").GraphicDocument };
+    }>(`/api/v1/design-objects/${id}/versions/${versionId}`),
 
   /**
    * Publish the current draft as a permanent immutable snapshot.
    * Returns the new version number.
    */
   publishGraphic: (id: string) =>
-    api.post<{ data: { version: number } }>(`/api/v1/design-objects/${id}/publish`, {}),
+    api.post<{ data: { version: number } }>(
+      `/api/v1/design-objects/${id}/publish`,
+      {},
+    ),
 
   /**
    * Restore a previous version — creates a new draft from the old version's content.
@@ -176,7 +216,8 @@ export const graphicsApi = {
    */
   restoreVersion: (id: string, versionId: string) =>
     api.post<{ data: { version: number } }>(
-      `/api/v1/design-objects/${id}/versions/${versionId}/restore`, {}
+      `/api/v1/design-objects/${id}/versions/${versionId}/restore`,
+      {},
     ),
 
   // ── User (custom) shapes ────────────────────────────────────────────────
@@ -186,145 +227,181 @@ export const graphicsApi = {
    * Returns an array of { id, shape_id, name, category, source, created_at }.
    */
   listUserShapes: () =>
-    api.get<{ data: Array<{ id: string; shape_id: string; name: string; category: string; source: 'user'; created_at: string | null }> }>(
-      '/api/v1/shapes/user'
-    ),
+    api.get<{
+      data: Array<{
+        id: string;
+        shape_id: string;
+        name: string;
+        category: string;
+        source: "user";
+        created_at: string | null;
+      }>;
+    }>("/api/v1/shapes/user"),
 
   /**
    * Upload an SVG file as a new custom shape.
    * `name` and `category` are optional metadata; defaults to filename stem / "custom".
    */
-  uploadUserShape: async (file: File, name?: string, category?: string): Promise<{ id: string; shape_id: string; name: string; category: string; source: 'user' }> => {
-    const form = new FormData()
-    form.append('svg', file)
-    if (name) form.append('name', name)
-    if (category) form.append('category', category)
-    const resp = await fetch('/api/v1/shapes/user', {
-      method: 'POST',
+  uploadUserShape: async (
+    file: File,
+    name?: string,
+    category?: string,
+  ): Promise<{
+    id: string;
+    shape_id: string;
+    name: string;
+    category: string;
+    source: "user";
+  }> => {
+    const form = new FormData();
+    form.append("svg", file);
+    if (name) form.append("name", name);
+    if (category) form.append("category", category);
+    const resp = await fetch("/api/v1/shapes/user", {
+      method: "POST",
       body: form,
-      credentials: 'include',
-    })
+      credentials: "include",
+    });
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ message: resp.statusText }))
-      throw new Error(err.message ?? 'Upload failed')
+      const err = await resp.json().catch(() => ({ message: resp.statusText }));
+      throw new Error(err.message ?? "Upload failed");
     }
-    const json = await resp.json()
-    return json.data
+    const json = await resp.json();
+    return json.data;
   },
 
   /**
    * Delete a user-created custom shape by its design_objects UUID.
    * Only user shapes (source=user) can be deleted; library shapes are immutable.
    */
-  deleteUserShape: (id: string) =>
-    api.delete(`/api/v1/shapes/user/${id}`),
+  deleteUserShape: (id: string) => api.delete(`/api/v1/shapes/user/${id}`),
 
   /** Export a graphic as a .iographic ZIP (returns Blob) */
   exportIographic: async (id: string, description?: string): Promise<Blob> => {
     const resp = await fetch(`/api/v1/design-objects/${id}/export/iographic`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: description ?? '' }),
-      credentials: 'include',
-    })
-    if (!resp.ok) throw new Error(`Export failed: ${resp.statusText}`)
-    return resp.blob()
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: description ?? "" }),
+      credentials: "include",
+    });
+    if (!resp.ok) throw new Error(`Export failed: ${resp.statusText}`);
+    return resp.blob();
   },
 
   /** Analyze a .iographic file before import (returns structured analysis) */
   analyzeIographic: async (file: File): Promise<IographicAnalysis> => {
-    const form = new FormData()
-    form.append('file', file)
-    const resp = await fetch('/api/v1/design-objects/import/iographic/analyze', {
-      method: 'POST',
-      body: form,
-      credentials: 'include',
-    })
+    const form = new FormData();
+    form.append("file", file);
+    const resp = await fetch(
+      "/api/v1/design-objects/import/iographic/analyze",
+      {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      },
+    );
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ message: resp.statusText }))
-      throw new Error(err.message ?? 'Analysis failed')
+      const err = await resp.json().catch(() => ({ message: resp.statusText }));
+      throw new Error(err.message ?? "Analysis failed");
     }
-    const json = await resp.json()
-    return json.data as IographicAnalysis
+    const json = await resp.json();
+    return json.data as IographicAnalysis;
   },
 
   /** Commit an import after user resolves decisions */
-  commitIographic: async (file: File, options: IographicImportOptions): Promise<IographicImportResult> => {
-    const form = new FormData()
-    form.append('file', file)
-    form.append('options', JSON.stringify(options))
-    const resp = await fetch('/api/v1/design-objects/import/iographic', {
-      method: 'POST',
+  commitIographic: async (
+    file: File,
+    options: IographicImportOptions,
+  ): Promise<IographicImportResult> => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("options", JSON.stringify(options));
+    const resp = await fetch("/api/v1/design-objects/import/iographic", {
+      method: "POST",
       body: form,
-      credentials: 'include',
-    })
+      credentials: "include",
+    });
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ message: resp.statusText }))
-      throw new Error(err.message ?? 'Import failed')
+      const err = await resp.json().catch(() => ({ message: resp.statusText }));
+      throw new Error(err.message ?? "Import failed");
     }
-    const json = await resp.json()
-    return json.data as IographicImportResult
+    const json = await resp.json();
+    return json.data as IographicImportResult;
   },
-}
+};
 
 // ── .iographic import/export types ──────────────────────────────────────────
 
 export interface IographicManifest {
-  format: 'iographic'
-  format_version: string
-  generator: { application: string; version: string; instance_id?: string }
-  exported_at: string
-  exported_by: string
-  description?: string
-  graphics: Array<{ directory: string; name: string; type: string }>
-  shapes: Array<{ directory: string; name: string; shape_id: string }>
-  stencils: Array<{ directory: string; name: string }>
-  shape_dependencies: string[]
-  point_tags: string[]
-  checksum: string
+  format: "iographic";
+  format_version: string;
+  generator: { application: string; version: string; instance_id?: string };
+  exported_at: string;
+  exported_by: string;
+  description?: string;
+  graphics: Array<{ directory: string; name: string; type: string }>;
+  shapes: Array<{ directory: string; name: string; shape_id: string }>;
+  stencils: Array<{ directory: string; name: string }>;
+  shape_dependencies: string[];
+  point_tags: string[];
+  checksum: string;
 }
 
 export interface IographicTagResolution {
-  tag: string
-  source_hint?: string
-  status: 'resolved' | 'ambiguous' | 'unresolved'
-  resolved_to?: string  // point UUID if resolved
-  candidates?: Array<{ id: string; tagname: string; source: string }>
+  tag: string;
+  source_hint?: string;
+  status: "resolved" | "ambiguous" | "unresolved";
+  resolved_to?: string; // point UUID if resolved
+  candidates?: Array<{ id: string; tagname: string; source: string }>;
 }
 
 export interface IographicShapeStatus {
-  shape_id: string
-  name?: string
-  status: 'available' | 'missing' | 'custom_new' | 'custom_exists'
-  action?: 'import' | 'use_existing' | 'import_as_copy' | 'skip'
+  shape_id: string;
+  name?: string;
+  status: "available" | "missing" | "custom_new" | "custom_exists";
+  action?: "import" | "use_existing" | "import_as_copy" | "skip";
 }
 
 export interface IographicAnalysis {
-  manifest: IographicManifest
-  tag_resolutions: IographicTagResolution[]
-  shape_statuses: IographicShapeStatus[]
-  stencil_statuses: Array<{ stencil_id: string; name: string; status: 'new' | 'exists' }>
-  valid: boolean
-  errors: string[]
+  manifest: IographicManifest;
+  tag_resolutions: IographicTagResolution[];
+  shape_statuses: IographicShapeStatus[];
+  stencil_statuses: Array<{
+    stencil_id: string;
+    name: string;
+    status: "new" | "exists";
+  }>;
+  valid: boolean;
+  errors: string[];
 }
 
 export interface IographicImportOptions {
-  tag_mappings: Array<{ original_tag: string; mapped_tag?: string; action: 'keep' | 'remap' | 'skip' }>
-  shape_actions: Array<{ shape_id: string; action: 'import' | 'use_existing' | 'import_as_copy' | 'skip' }>
-  stencil_actions: Array<{ stencil_id: string; action: 'import' | 'use_existing' | 'skip' }>
-  target_name?: string
-  import_as: 'draft' | 'published'
-  overwrite: boolean
+  tag_mappings: Array<{
+    original_tag: string;
+    mapped_tag?: string;
+    action: "keep" | "remap" | "skip";
+  }>;
+  shape_actions: Array<{
+    shape_id: string;
+    action: "import" | "use_existing" | "import_as_copy" | "skip";
+  }>;
+  stencil_actions: Array<{
+    stencil_id: string;
+    action: "import" | "use_existing" | "skip";
+  }>;
+  target_name?: string;
+  import_as: "draft" | "published";
+  overwrite: boolean;
 }
 
 export interface IographicImportResult {
-  graphics_imported: number
-  shapes_imported: number
-  stencils_imported: number
-  bindings_resolved: number
-  bindings_unresolved: number
-  bindings_total: number
-  unresolved_tags: string[]
-  missing_shapes: string[]
-  graphic_ids: string[]
+  graphics_imported: number;
+  shapes_imported: number;
+  stencils_imported: number;
+  bindings_resolved: number;
+  bindings_unresolved: number;
+  bindings_total: number;
+  unresolved_tags: string[];
+  missing_shapes: string[];
+  graphic_ids: string[];
 }

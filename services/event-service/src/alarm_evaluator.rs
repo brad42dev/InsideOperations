@@ -96,12 +96,8 @@ async fn warm_cache(db: &PgPool, cache: &AlarmCache) -> anyhow::Result<()> {
         let state = parse_state(&state_str);
         let priority = priority_to_int(&priority_str);
 
-        let mut instance = AlarmInstance::new(
-            def_id,
-            point_id.unwrap_or(Uuid::nil()),
-            priority,
-            name,
-        );
+        let mut instance =
+            AlarmInstance::new(def_id, point_id.unwrap_or(Uuid::nil()), priority, name);
         instance.state = state;
         guard.insert(def_id, instance);
     }
@@ -157,8 +153,7 @@ async fn evaluate_all(db: &PgPool, cache: &AlarmCache) -> anyhow::Result<()> {
             let threshold_config: Option<serde_json::Value> =
                 row.try_get("threshold_config").unwrap_or(None);
 
-            let condition_active =
-                evaluate_threshold(value, threshold_config.as_ref());
+            let condition_active = evaluate_threshold(value, threshold_config.as_ref());
 
             // Get or create instance in cache.
             let mut guard = cache.lock().await;
@@ -198,14 +193,9 @@ async fn evaluate_all(db: &PgPool, cache: &AlarmCache) -> anyhow::Result<()> {
                 let instance_snapshot = instance.clone();
                 drop(guard); // Release lock before async DB writes.
 
-                if let Err(e) = persist_transition(
-                    db,
-                    &instance_snapshot,
-                    &current_state,
-                    &new_state,
-                    now,
-                )
-                .await
+                if let Err(e) =
+                    persist_transition(db, &instance_snapshot, &current_state, &new_state, now)
+                        .await
                 {
                     error!(
                         definition_id = %def_id,
@@ -253,14 +243,8 @@ async fn check_shelve_expirations(db: &PgPool, cache: &AlarmCache, now: chrono::
     drop(guard);
 
     for (_def_id, instance) in &to_transition {
-        if let Err(e) = persist_transition(
-            db,
-            instance,
-            &AlarmState::Shelved,
-            &instance.state,
-            now,
-        )
-        .await
+        if let Err(e) =
+            persist_transition(db, instance, &AlarmState::Shelved, &instance.state, now).await
         {
             error!(definition_id = %instance.definition_id, error = %e, "Shelve expiry persist failed");
         }
@@ -282,9 +266,7 @@ async fn persist_transition(
     let event_id = Uuid::new_v4();
     let message = format!(
         "Alarm '{}' transitioned {} → {}",
-        instance.message,
-        previous,
-        new_state,
+        instance.message, previous, new_state,
     );
 
     sqlx::query(
@@ -339,9 +321,18 @@ async fn persist_transition(
         } else {
             instance.priority
         },
-        active: matches!(new_state, AlarmState::Unacknowledged | AlarmState::Acknowledged),
-        unacknowledged: matches!(new_state, AlarmState::Unacknowledged | AlarmState::ReturnToNormal),
-        suppressed: matches!(new_state, AlarmState::Shelved | AlarmState::Suppressed | AlarmState::Disabled),
+        active: matches!(
+            new_state,
+            AlarmState::Unacknowledged | AlarmState::Acknowledged
+        ),
+        unacknowledged: matches!(
+            new_state,
+            AlarmState::Unacknowledged | AlarmState::ReturnToNormal
+        ),
+        suppressed: matches!(
+            new_state,
+            AlarmState::Shelved | AlarmState::Suppressed | AlarmState::Disabled
+        ),
         message: Some(instance.message.clone()),
         timestamp: now.to_rfc3339(),
     };
@@ -386,7 +377,10 @@ async fn persist_transition(
         AlarmState::Normal | AlarmState::Acknowledged => {
             // Normal means the condition cleared and was silently resolved;
             // Acknowledged after RTN also counts as resolution.
-            if matches!(previous, AlarmState::Acknowledged | AlarmState::ReturnToNormal) {
+            if matches!(
+                previous,
+                AlarmState::Acknowledged | AlarmState::ReturnToNormal
+            ) {
                 metrics::counter!("io_alarms_resolved_total").increment(1);
             }
         }
@@ -496,7 +490,7 @@ fn parse_state(s: &str) -> AlarmState {
 
 fn alarm_state_to_db_str(s: &AlarmState) -> &'static str {
     match s {
-        AlarmState::Normal => "cleared",         // maps to closest DB enum value
+        AlarmState::Normal => "cleared", // maps to closest DB enum value
         AlarmState::Unacknowledged => "active",
         AlarmState::Acknowledged => "acknowledged",
         AlarmState::ReturnToNormal => "rtn",
@@ -575,7 +569,10 @@ pub async fn run_external_alarm_processor(db: PgPool) {
                 None => continue,
             };
 
-            let active = meta.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+            let active = meta
+                .get("active")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let acked = meta.get("acked").and_then(|v| v.as_bool()).unwrap_or(false);
             let suppressed_or_shelved = meta
                 .get("suppressed_or_shelved")
@@ -625,7 +622,11 @@ pub async fn run_external_alarm_processor(db: PgPool) {
         }
 
         if !rows.is_empty() {
-            info!(count = rows.len(), "External alarm processor: broadcast {} alarm state(s)", rows.len());
+            info!(
+                count = rows.len(),
+                "External alarm processor: broadcast {} alarm state(s)",
+                rows.len()
+            );
         }
     }
 }

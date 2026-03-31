@@ -30,12 +30,8 @@ use uuid::Uuid;
 
 use crate::{
     channels::{
-        browser_push::BrowserPushAdapter,
-        pa::PaAdapter,
-        radio::RadioAdapter,
-        sms::SmsAdapter,
-        voice::VoiceAdapter,
-        AlertChannel, AlertSummary, ChannelRecipient,
+        browser_push::BrowserPushAdapter, pa::PaAdapter, radio::RadioAdapter, sms::SmsAdapter,
+        voice::VoiceAdapter, AlertChannel, AlertSummary, ChannelRecipient,
     },
     state::AppState,
 };
@@ -125,12 +121,10 @@ pub async fn update_channel(
     Json(body): Json<UpdateChannelBody>,
 ) -> impl IntoResponse {
     // Load existing config.
-    let existing = sqlx::query(
-        "SELECT config FROM alert_channels WHERE channel_type = $1",
-    )
-    .bind(&channel_type)
-    .fetch_optional(&state.db)
-    .await;
+    let existing = sqlx::query("SELECT config FROM alert_channels WHERE channel_type = $1")
+        .bind(&channel_type)
+        .fetch_optional(&state.db)
+        .await;
 
     match existing {
         Err(e) => return IoError::Database(e).into_response(),
@@ -179,7 +173,10 @@ pub async fn update_channel(
     match result {
         Ok(_) => {
             info!(channel_type = %channel_type, "channel_config: updated");
-            (StatusCode::OK, Json(ApiResponse::ok(serde_json::json!({ "updated": true }))))
+            (
+                StatusCode::OK,
+                Json(ApiResponse::ok(serde_json::json!({ "updated": true }))),
+            )
                 .into_response()
         }
         Err(e) => IoError::Database(e).into_response(),
@@ -240,12 +237,10 @@ pub async fn test_channel(
     };
 
     // Load channel config.
-    let row = sqlx::query(
-        "SELECT enabled, config FROM alert_channels WHERE channel_type = $1",
-    )
-    .bind(&channel_type)
-    .fetch_optional(&state.db)
-    .await;
+    let row = sqlx::query("SELECT enabled, config FROM alert_channels WHERE channel_type = $1")
+        .bind(&channel_type)
+        .fetch_optional(&state.db)
+        .await;
 
     let row = match row {
         Err(e) => return IoError::Database(e).into_response(),
@@ -283,12 +278,10 @@ pub async fn test_channel(
     }
 
     // Load the user's contact details for the test.
-    let user_row = sqlx::query(
-        "SELECT email, display_name, phone FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await;
+    let user_row = sqlx::query("SELECT email, display_name, phone FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await;
 
     let user_row = match user_row {
         Err(e) => return IoError::Database(e).into_response(),
@@ -325,9 +318,7 @@ pub async fn test_channel(
         info!(channel_type = %channel_type, user_id = %user_id, "test_channel: test delivered");
         (
             StatusCode::OK,
-            Json(ApiResponse::ok(
-                serde_json::json!({ "sent": true }),
-            )),
+            Json(ApiResponse::ok(serde_json::json!({ "sent": true }))),
         )
             .into_response()
     } else {
@@ -383,66 +374,64 @@ async fn dispatch_test(
 ) -> Vec<crate::channels::DeliveryResult> {
     match channel_type {
         "sms" => {
-            let cfg: crate::channels::sms::SmsConfig =
-                match serde_json::from_value(config_val) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        error!(error = %e, "test_channel/sms: invalid config");
-                        return vec![crate::channels::DeliveryResult::failed(
-                            None,
-                            None,
-                            format!("invalid SMS config: {}", e),
-                        )];
-                    }
-                };
+            let cfg: crate::channels::sms::SmsConfig = match serde_json::from_value(config_val) {
+                Ok(c) => c,
+                Err(e) => {
+                    error!(error = %e, "test_channel/sms: invalid config");
+                    return vec![crate::channels::DeliveryResult::failed(
+                        None,
+                        None,
+                        format!("invalid SMS config: {}", e),
+                    )];
+                }
+            };
             SmsAdapter::new(cfg, state.http.clone())
                 .deliver(alert, recipients)
                 .await
         }
         "voice" => {
-            let cfg: crate::channels::voice::VoiceConfig =
-                match serde_json::from_value(config_val) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        return vec![crate::channels::DeliveryResult::failed(
-                            None,
-                            None,
-                            format!("invalid Voice config: {}", e),
-                        )];
-                    }
-                };
+            let cfg: crate::channels::voice::VoiceConfig = match serde_json::from_value(config_val)
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    return vec![crate::channels::DeliveryResult::failed(
+                        None,
+                        None,
+                        format!("invalid Voice config: {}", e),
+                    )];
+                }
+            };
             VoiceAdapter::new(cfg, state.http.clone())
                 .deliver(alert, recipients)
                 .await
         }
         "radio" => {
-            let cfg: crate::channels::radio::RadioConfig =
-                match serde_json::from_value(config_val) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        return vec![crate::channels::DeliveryResult::failed(
-                            None,
-                            None,
-                            format!("invalid Radio config: {}", e),
-                        )];
-                    }
-                };
+            let cfg: crate::channels::radio::RadioConfig = match serde_json::from_value(config_val)
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    return vec![crate::channels::DeliveryResult::failed(
+                        None,
+                        None,
+                        format!("invalid Radio config: {}", e),
+                    )];
+                }
+            };
             RadioAdapter::new(cfg, state.http.clone())
                 .deliver(alert, recipients)
                 .await
         }
         "pa" => {
-            let cfg: crate::channels::pa::PaConfig =
-                match serde_json::from_value(config_val) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        return vec![crate::channels::DeliveryResult::failed(
-                            None,
-                            None,
-                            format!("invalid PA config: {}", e),
-                        )];
-                    }
-                };
+            let cfg: crate::channels::pa::PaConfig = match serde_json::from_value(config_val) {
+                Ok(c) => c,
+                Err(e) => {
+                    return vec![crate::channels::DeliveryResult::failed(
+                        None,
+                        None,
+                        format!("invalid PA config: {}", e),
+                    )];
+                }
+            };
             PaAdapter::new(cfg, state.http.clone())
                 .deliver(alert, recipients)
                 .await
@@ -488,7 +477,9 @@ fn mask_secrets(cfg: &mut serde_json::Value) {
         for (k, v) in obj.iter_mut() {
             let lower = k.to_lowercase();
             if secret_suffixes.iter().any(|suffix| lower.contains(suffix))
-                && v.is_string() && !v.as_str().unwrap_or("").is_empty() {
+                && v.is_string()
+                && !v.as_str().unwrap_or("").is_empty()
+            {
                 *v = serde_json::Value::String("***".to_string());
             }
         }
@@ -562,9 +553,10 @@ fn decrypt_secrets(state: &AppState, cfg: &mut serde_json::Value) -> Result<(), 
 /// Load the 32-byte master key from `ALERT_MASTER_KEY` environment variable
 /// (hex-encoded 32 bytes, i.e. 64 hex chars).
 fn get_master_key(_state: &AppState) -> Result<[u8; 32], String> {
-    let hex_key = std::env::var("ALERT_MASTER_KEY")
-        .map_err(|_| "ALERT_MASTER_KEY not set".to_string())?;
-    let bytes = hex::decode(&hex_key).map_err(|e| format!("invalid ALERT_MASTER_KEY hex: {}", e))?;
+    let hex_key =
+        std::env::var("ALERT_MASTER_KEY").map_err(|_| "ALERT_MASTER_KEY not set".to_string())?;
+    let bytes =
+        hex::decode(&hex_key).map_err(|e| format!("invalid ALERT_MASTER_KEY hex: {}", e))?;
     if bytes.len() != 32 {
         return Err(format!(
             "ALERT_MASTER_KEY must be 32 bytes (64 hex chars), got {}",
@@ -583,8 +575,8 @@ fn aes_gcm_encrypt(plaintext: &[u8], key: &[u8; 32]) -> Result<String, String> {
         aead::{Aead, KeyInit},
         Aes256Gcm, Nonce,
     };
-    use rand::RngCore;
     use base64::Engine;
+    use rand::RngCore;
 
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
 

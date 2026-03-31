@@ -1,3 +1,4 @@
+use axum::http::{header, Method};
 use axum::{
     extract::{Request, State},
     middleware,
@@ -8,7 +9,6 @@ use axum::{
 use io_auth::Claims;
 use std::{net::SocketAddr, sync::Arc};
 use tower_http::catch_panic::CatchPanicLayer;
-use axum::http::{header, Method};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
@@ -53,8 +53,13 @@ async fn main() -> anyhow::Result<()> {
     info!(export_dir = %cfg.export_dir, "Export directory ready");
 
     // Ensure the tile storage directory exists
-    std::fs::create_dir_all(&cfg.tile_storage_dir)
-        .map_err(|e| anyhow::anyhow!("Failed to create tile_storage_dir {}: {}", cfg.tile_storage_dir, e))?;
+    std::fs::create_dir_all(&cfg.tile_storage_dir).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to create tile_storage_dir {}: {}",
+            cfg.tile_storage_dir,
+            e
+        )
+    })?;
     info!(tile_storage_dir = %cfg.tile_storage_dir, "Tile storage directory ready");
 
     // Ensure the backup directory exists
@@ -153,10 +158,8 @@ async fn main() -> anyhow::Result<()> {
             header::ORIGIN,
         ];
         if let Some(origins) = &cors_origins {
-            let parsed: Vec<axum::http::HeaderValue> = origins
-                .iter()
-                .filter_map(|o| o.parse().ok())
-                .collect();
+            let parsed: Vec<axum::http::HeaderValue> =
+                origins.iter().filter_map(|o| o.parse().ok()).collect();
             CorsLayer::new()
                 .allow_origin(AllowOrigin::list(parsed))
                 .allow_methods(allowed_methods)
@@ -205,15 +208,24 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/saml/:config_id/login", post(proxy_auth))
         // User management
         .route("/api/users", get(proxy_auth).post(proxy_auth))
-        .route("/api/users/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
+        .route(
+            "/api/users/:id",
+            get(proxy_auth).put(proxy_auth).delete(proxy_auth),
+        )
         // Role / permission management
         .route("/api/roles", get(proxy_auth).post(proxy_auth))
-        .route("/api/roles/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
+        .route(
+            "/api/roles/:id",
+            get(proxy_auth).put(proxy_auth).delete(proxy_auth),
+        )
         .route("/api/permissions", get(proxy_auth))
         // Group management (RBAC groups — proxied to auth-service)
         // NOTE: static sub-paths (/members) must be before parameterised /:id
         .route("/api/groups", get(proxy_auth).post(proxy_auth))
-        .route("/api/groups/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
+        .route(
+            "/api/groups/:id",
+            get(proxy_auth).put(proxy_auth).delete(proxy_auth),
+        )
         .route("/api/groups/:id/members", get(proxy_auth).post(proxy_auth))
         .route("/api/groups/:id/members/:user_id", delete(proxy_auth))
         // Settings
@@ -221,10 +233,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/settings/:key", put(proxy_auth))
         // Point sources (OPC UA / Modbus / MQTT data source management)
         // IMPORTANT: static /sources path must come before parameterised /:id routes
-        .route(
-            "/api/points",
-            get(handlers::points::list_points),
-        )
+        .route("/api/points", get(handlers::points::list_points))
         .route(
             "/api/points/resolve-tags",
             post(handlers::points::resolve_tags),
@@ -240,10 +249,7 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::points::get_point_current),
         )
         // Single point metadata — must come AFTER all static /api/points/* routes
-        .route(
-            "/api/points/:id",
-            get(handlers::points::get_point),
-        )
+        .route("/api/points/:id", get(handlers::points::get_point))
         .route(
             "/api/points/sources",
             get(handlers::points::list_sources).post(handlers::points::create_source),
@@ -347,13 +353,18 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::graphics::get_graphic_points),
         )
         // Batch shape / stencil loaders
-        .route("/api/v1/shapes/batch", post(handlers::graphics::batch_shapes))
-        .route("/api/v1/stencils/batch", post(handlers::graphics::batch_stencils))
+        .route(
+            "/api/v1/shapes/batch",
+            post(handlers::graphics::batch_shapes),
+        )
+        .route(
+            "/api/v1/stencils/batch",
+            post(handlers::graphics::batch_stencils),
+        )
         // User (custom) shape management — static sub-paths before /:id
         .route(
             "/api/v1/shapes/user",
-            get(handlers::graphics::list_user_shapes)
-                .post(handlers::graphics::upload_user_shape),
+            get(handlers::graphics::list_user_shapes).post(handlers::graphics::upload_user_shape),
         )
         .route(
             "/api/v1/shapes/user/:id",
@@ -384,8 +395,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/api/v1/design-objects",
-            get(handlers::graphics::list_design_objects)
-                .post(handlers::graphics::create_graphic),
+            get(handlers::graphics::list_design_objects).post(handlers::graphics::create_graphic),
         )
         // Static sub-paths MUST come before parameterised /:id routes
         .route(
@@ -418,8 +428,7 @@ async fn main() -> anyhow::Result<()> {
         // Console workspaces
         .route(
             "/api/console/workspaces",
-            get(handlers::console::list_workspaces)
-                .post(handlers::console::create_workspace),
+            get(handlers::console::list_workspaces).post(handlers::console::create_workspace),
         )
         .route(
             "/api/console/workspaces/:id",
@@ -442,8 +451,7 @@ async fn main() -> anyhow::Result<()> {
         // Bookmarks
         .route(
             "/api/bookmarks",
-            get(handlers::bookmarks::list_bookmarks)
-                .post(handlers::bookmarks::add_bookmark),
+            get(handlers::bookmarks::list_bookmarks).post(handlers::bookmarks::add_bookmark),
         )
         .route(
             "/api/bookmarks/:id",
@@ -452,8 +460,7 @@ async fn main() -> anyhow::Result<()> {
         // Dashboards — static routes MUST come before parameterised /:id routes
         .route(
             "/api/dashboards/playlists",
-            get(handlers::dashboards::list_playlists)
-                .post(handlers::dashboards::create_playlist),
+            get(handlers::dashboards::list_playlists).post(handlers::dashboards::create_playlist),
         )
         .route(
             "/api/dashboards/playlists/:id",
@@ -463,8 +470,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/api/dashboards",
-            get(handlers::dashboards::list_dashboards)
-                .post(handlers::dashboards::create_dashboard),
+            get(handlers::dashboards::list_dashboards).post(handlers::dashboards::create_dashboard),
         )
         .route(
             "/api/dashboards/:id",
@@ -492,14 +498,32 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/api-keys/:id", delete(proxy_auth))
         // Auth provider admin (proxied to auth-service — requires system:configure)
         // NOTE: static /auth/admin/providers before parameterised /:id variants
-        .route("/api/auth/admin/providers", get(proxy_auth).post(proxy_auth))
-        .route("/api/auth/admin/providers/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
-        .route("/api/auth/admin/providers/:id/mappings", get(proxy_auth).post(proxy_auth))
-        .route("/api/auth/admin/providers/:id/mappings/:mapping_id", delete(proxy_auth))
+        .route(
+            "/api/auth/admin/providers",
+            get(proxy_auth).post(proxy_auth),
+        )
+        .route(
+            "/api/auth/admin/providers/:id",
+            get(proxy_auth).put(proxy_auth).delete(proxy_auth),
+        )
+        .route(
+            "/api/auth/admin/providers/:id/mappings",
+            get(proxy_auth).post(proxy_auth),
+        )
+        .route(
+            "/api/auth/admin/providers/:id/mappings/:mapping_id",
+            delete(proxy_auth),
+        )
         // EULA admin (proxied to auth-service — requires JWT auth; RBAC enforced by gateway)
         // NOTE: static /auth/admin/eula/versions must be before parameterised /:id/publish
-        .route("/api/auth/admin/eula/versions", get(proxy_auth).post(proxy_auth))
-        .route("/api/auth/admin/eula/versions/:id/publish", post(proxy_auth))
+        .route(
+            "/api/auth/admin/eula/versions",
+            get(proxy_auth).post(proxy_auth),
+        )
+        .route(
+            "/api/auth/admin/eula/versions/:id/publish",
+            post(proxy_auth),
+        )
         .route("/api/auth/admin/eula/acceptances", get(proxy_auth))
         // Sessions admin (proxied to auth-service — requires system:configure)
         // NOTE: static /auth/admin/sessions/user/:user_id MUST be before parameterised /:id
@@ -516,14 +540,20 @@ async fn main() -> anyhow::Result<()> {
             "/api/expressions/evaluate",
             post(handlers::expressions::evaluate_expression_handler),
         )
-        .route("/api/expressions/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
+        .route(
+            "/api/expressions/:id",
+            get(proxy_auth).put(proxy_auth).delete(proxy_auth),
+        )
         .route(
             "/api/expressions/:id/evaluate",
             post(handlers::expressions::evaluate_saved_expression_handler),
         )
         // Alarm definitions (proxied to auth-service)
         .route("/api/alarm-definitions", get(proxy_auth).post(proxy_auth))
-        .route("/api/alarm-definitions/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
+        .route(
+            "/api/alarm-definitions/:id",
+            get(proxy_auth).put(proxy_auth).delete(proxy_auth),
+        )
         // Active alarms (proxied to event-service)
         .route("/api/alarms/active", get(proxy_event))
         .route("/api/alarms/history", get(proxy_event))
@@ -532,10 +562,16 @@ async fn main() -> anyhow::Result<()> {
         // Report templates (proxied to auth-service)
         .route("/api/reports/templates", get(proxy_auth).post(proxy_auth))
         .route("/api/reports/templates/:id/presets", get(proxy_auth))
-        .route("/api/reports/templates/:id", get(proxy_auth).put(proxy_auth).delete(proxy_auth))
+        .route(
+            "/api/reports/templates/:id",
+            get(proxy_auth).put(proxy_auth).delete(proxy_auth),
+        )
         // Report schedules (proxied to auth-service)
         .route("/api/reports/schedules", get(proxy_auth).post(proxy_auth))
-        .route("/api/reports/schedules/:id", put(proxy_auth).delete(proxy_auth))
+        .route(
+            "/api/reports/schedules/:id",
+            put(proxy_auth).delete(proxy_auth),
+        )
         // Export presets (proxied to auth-service)
         .route("/api/reports/presets", post(proxy_auth))
         .route("/api/reports/presets/:id", delete(proxy_auth))
@@ -543,15 +579,39 @@ async fn main() -> anyhow::Result<()> {
         // IMPORTANT: static segments (/generate, /history, /exports) must be
         // registered before parameterised segments (/:id/...) to avoid routing
         // ambiguity in axum.
-        .route("/api/reports/generate", post(handlers::reports::generate_report))
-        .route("/api/reports/history", get(handlers::reports::list_report_history))
-        .route("/api/reports/exports", get(handlers::reports::list_my_exports))
-        .route("/api/reports/:id/status", get(handlers::reports::get_report_status))
-        .route("/api/reports/:id/download", get(handlers::reports::download_report))
+        .route(
+            "/api/reports/generate",
+            post(handlers::reports::generate_report),
+        )
+        .route(
+            "/api/reports/history",
+            get(handlers::reports::list_report_history),
+        )
+        .route(
+            "/api/reports/exports",
+            get(handlers::reports::list_my_exports),
+        )
+        .route(
+            "/api/reports/:id/status",
+            get(handlers::reports::get_report_status),
+        )
+        .route(
+            "/api/reports/:id/download",
+            get(handlers::reports::download_report),
+        )
         // Forensics — static paths before parameterised
-        .route("/api/forensics/correlate", post(handlers::forensics::run_correlation))
-        .route("/api/forensics/threshold-search", post(handlers::forensics::threshold_search))
-        .route("/api/forensics/alarm-search", post(handlers::forensics::alarm_search))
+        .route(
+            "/api/forensics/correlate",
+            post(handlers::forensics::run_correlation),
+        )
+        .route(
+            "/api/forensics/threshold-search",
+            post(handlers::forensics::threshold_search),
+        )
+        .route(
+            "/api/forensics/alarm-search",
+            post(handlers::forensics::alarm_search),
+        )
         .route(
             "/api/forensics/investigations",
             get(handlers::forensics::list_investigations)
@@ -585,8 +645,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/api/forensics/investigations/:id/stages/:stage_id",
-            put(handlers::forensics::update_stage)
-                .delete(handlers::forensics::delete_stage),
+            put(handlers::forensics::update_stage).delete(handlers::forensics::delete_stage),
         )
         .route(
             "/api/forensics/investigations/:id/stages/:stage_id/evidence",
@@ -594,8 +653,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/api/forensics/investigations/:id/stages/:stage_id/evidence/:evidence_id",
-            put(handlers::forensics::update_evidence)
-                .delete(handlers::forensics::delete_evidence),
+            put(handlers::forensics::update_evidence).delete(handlers::forensics::delete_evidence),
         )
         // Log module — static paths before parameterised
         .route(
@@ -611,7 +669,10 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::logs::list_segments).post(handlers::logs::create_segment),
         )
         .route("/api/logs/search", get(handlers::logs::search_logs))
-        .route("/api/logs/instances", get(handlers::logs::list_instances).post(handlers::logs::create_instance))
+        .route(
+            "/api/logs/instances",
+            get(handlers::logs::list_instances).post(handlers::logs::create_instance),
+        )
         .route(
             "/api/logs/instances/:id/submit",
             post(handlers::logs::submit_instance),
@@ -633,9 +694,15 @@ async fn main() -> anyhow::Result<()> {
             "/api/rounds/schedules",
             get(handlers::rounds::list_schedules).post(handlers::rounds::create_schedule),
         )
-        .route("/api/rounds/schedules/:id", put(handlers::rounds::update_schedule))
+        .route(
+            "/api/rounds/schedules/:id",
+            put(handlers::rounds::update_schedule),
+        )
         .route("/api/rounds/history", get(handlers::rounds::get_history))
-        .route("/api/rounds/instances", get(handlers::rounds::list_instances))
+        .route(
+            "/api/rounds/instances",
+            get(handlers::rounds::list_instances),
+        )
         .route(
             "/api/rounds/instances/:id/start",
             post(handlers::rounds::start_instance),
@@ -653,13 +720,17 @@ async fn main() -> anyhow::Result<()> {
             get(handlers::rounds::get_instance),
         )
         // Stub: AppShell polls this for active-rounds badge count (full impl in future phase)
-        .route("/api/v1/rounds", get(|| async {
-            axum::Json(serde_json::json!({ "data": [], "total": 0, "success": true }))
-        }))
+        .route(
+            "/api/v1/rounds",
+            get(|| async {
+                axum::Json(serde_json::json!({ "data": [], "total": 0, "success": true }))
+            }),
+        )
         // Stub: UOM catalog (widgets fall back to raw values until UOM service is implemented)
-        .route("/api/v1/uom/catalog", get(|| async {
-            axum::Json(serde_json::json!({ "data": [], "success": true }))
-        }))
+        .route(
+            "/api/v1/uom/catalog",
+            get(|| async { axum::Json(serde_json::json!({ "data": [], "success": true })) }),
+        )
         // Email service proxy
         .route("/api/email/providers", any(proxy_email))
         .route("/api/email/providers/:id", any(proxy_email))
@@ -720,7 +791,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/scim/v2/Schemas", any(proxy_scim))
         .route("/scim/v2/ResourceTypes", any(proxy_scim))
         // SCIM token admin (JWT-protected — proxied to auth-service)
-        .route("/api/auth/admin/scim-tokens", get(proxy_auth).post(proxy_auth))
+        .route(
+            "/api/auth/admin/scim-tokens",
+            get(proxy_auth).post(proxy_auth),
+        )
         .route("/api/auth/admin/scim-tokens/:id", delete(proxy_auth))
         // Email MFA (public — part of auth flow)
         .route("/api/auth/mfa/email/send", post(proxy_auth))
@@ -734,14 +808,30 @@ async fn main() -> anyhow::Result<()> {
         // Notifications (Alerts Module — human-initiated, Phase 14)
         // IMPORTANT: static routes (channels/enabled) registered BEFORE parameterized routes (:id)
         // to ensure they have highest priority and are matched on cold start (Axum route precedence)
-        .route("/api/notifications/channels/enabled", get(handlers::notifications::get_enabled_channels))
-        .route("/api/notifications/active", get(handlers::notifications::get_active_notifications))
-        .route("/api/notifications/messages", get(handlers::notifications::list_messages))
-        .route("/api/notifications/send", post(handlers::notifications::send_notification))
-        .route("/api/notifications/messages/:id", get(handlers::notifications::get_message))
+        .route(
+            "/api/notifications/channels/enabled",
+            get(handlers::notifications::get_enabled_channels),
+        )
+        .route(
+            "/api/notifications/active",
+            get(handlers::notifications::get_active_notifications),
+        )
+        .route(
+            "/api/notifications/messages",
+            get(handlers::notifications::list_messages),
+        )
+        .route(
+            "/api/notifications/send",
+            post(handlers::notifications::send_notification),
+        )
+        .route(
+            "/api/notifications/messages/:id",
+            get(handlers::notifications::get_message),
+        )
         .route(
             "/api/notifications/templates",
-            get(handlers::notifications::list_templates).post(handlers::notifications::create_template),
+            get(handlers::notifications::list_templates)
+                .post(handlers::notifications::create_template),
         )
         .route(
             "/api/notifications/templates/:id",
@@ -767,7 +857,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/notifications/groups/:id/members/:user_id",
             delete(handlers::notifications::remove_group_member),
         )
-        .route("/api/notifications/muster/:message_id", get(handlers::notifications::get_muster_status))
+        .route(
+            "/api/notifications/muster/:message_id",
+            get(handlers::notifications::get_muster_status),
+        )
         .route(
             "/api/notifications/muster/:message_id/mark",
             post(handlers::notifications::mark_muster),
@@ -778,23 +871,50 @@ async fn main() -> anyhow::Result<()> {
         // NOTE: /api/mobile/health is public (whitelisted in mw::is_public_path).
         // Remaining mobile routes require JWT (enforced by the jwt_auth middleware layer).
         .route("/api/mobile/health", get(handlers::mobile::health))
-        .route("/api/mobile/rounds/sync", post(handlers::mobile::batch_sync_rounds))
-        .route("/api/mobile/rounds/active", get(handlers::mobile::get_active_rounds))
-        .route("/api/mobile/presence", post(handlers::mobile::update_presence))
+        .route(
+            "/api/mobile/rounds/sync",
+            post(handlers::mobile::batch_sync_rounds),
+        )
+        .route(
+            "/api/mobile/rounds/active",
+            get(handlers::mobile::get_active_rounds),
+        )
+        .route(
+            "/api/mobile/presence",
+            post(handlers::mobile::update_presence),
+        )
         .route("/api/mobile/config", get(handlers::mobile::get_config))
         // Backup & Restore (Phase 4 — doc 15)
         // IMPORTANT: static routes must come before parameterised /:filename routes.
         .route("/api/backup/list", get(handlers::backup::list_backups))
         .route("/api/backup/create", post(handlers::backup::create_backup))
-        .route("/api/backup/restore", post(handlers::backup::restore_backup))
-        .route("/api/backup/download/:filename", get(handlers::backup::download_backup))
-        .route("/api/backup/:filename", delete(handlers::backup::delete_backup))
+        .route(
+            "/api/backup/restore",
+            post(handlers::backup::restore_backup),
+        )
+        .route(
+            "/api/backup/download/:filename",
+            get(handlers::backup::download_backup),
+        )
+        .route(
+            "/api/backup/:filename",
+            delete(handlers::backup::delete_backup),
+        )
         // Certificates (TLS/SSL certificate lifecycle management — settings:admin)
         // IMPORTANT: static paths (/upload) must be before parameterised (/:name/...) routes
         .route("/api/certificates", get(handlers::certificates::list_certs))
-        .route("/api/certificates/upload", post(handlers::certificates::upload_cert))
-        .route("/api/certificates/:name/info", get(handlers::certificates::get_cert_info))
-        .route("/api/certificates/:name", delete(handlers::certificates::delete_cert))
+        .route(
+            "/api/certificates/upload",
+            post(handlers::certificates::upload_cert),
+        )
+        .route(
+            "/api/certificates/:name/info",
+            get(handlers::certificates::get_cert_info),
+        )
+        .route(
+            "/api/certificates/:name",
+            delete(handlers::certificates::delete_cert),
+        )
         // Internal certificate renewal — called by systemd io-cert-renew.timer (no JWT required;
         // whitelisted in mw::is_public_path so the JWT middleware skips validation).
         .route(
@@ -802,15 +922,39 @@ async fn main() -> anyhow::Result<()> {
             post(handlers::certificates::renew_cert),
         )
         // Change Snapshots (Phase 9 — doc 25)
-        .route("/api/snapshots", get(handlers::bulk_update::list_snapshots).post(handlers::bulk_update::create_snapshot))
-        .route("/api/snapshots/:id", get(handlers::bulk_update::get_snapshot).delete(handlers::bulk_update::delete_snapshot))
-        .route("/api/snapshots/:id/restore-preview", get(handlers::bulk_update::restore_preview))
-        .route("/api/snapshots/:id/restore", post(handlers::bulk_update::restore_snapshot))
+        .route(
+            "/api/snapshots",
+            get(handlers::bulk_update::list_snapshots).post(handlers::bulk_update::create_snapshot),
+        )
+        .route(
+            "/api/snapshots/:id",
+            get(handlers::bulk_update::get_snapshot).delete(handlers::bulk_update::delete_snapshot),
+        )
+        .route(
+            "/api/snapshots/:id/restore-preview",
+            get(handlers::bulk_update::restore_preview),
+        )
+        .route(
+            "/api/snapshots/:id/restore",
+            post(handlers::bulk_update::restore_snapshot),
+        )
         // Bulk Update (Phase 9 — doc 25)
-        .route("/api/bulk-update/template/:target_type", get(handlers::bulk_update::get_template))
-        .route("/api/bulk-update/preview", post(handlers::bulk_update::preview_bulk_update))
-        .route("/api/bulk-update/apply", post(handlers::bulk_update::apply_bulk_update))
-        .route("/api/bulk-update/:id/error-report", get(handlers::bulk_update::get_error_report))
+        .route(
+            "/api/bulk-update/template/:target_type",
+            get(handlers::bulk_update::get_template),
+        )
+        .route(
+            "/api/bulk-update/preview",
+            post(handlers::bulk_update::preview_bulk_update),
+        )
+        .route(
+            "/api/bulk-update/apply",
+            post(handlers::bulk_update::apply_bulk_update),
+        )
+        .route(
+            "/api/bulk-update/:id/error-report",
+            get(handlers::bulk_update::get_error_report),
+        )
         // Universal Export (Phase 9 — doc 25)
         // IMPORTANT: static sub-paths (/exports/:id/download) must be before parameterised (/:id)
         .route(
@@ -833,14 +977,23 @@ async fn main() -> anyhow::Result<()> {
         )
         // System info (About page data, licenses, SBOM — any authenticated user)
         .route("/api/system/about", get(handlers::system::get_about))
-        .route("/api/system/licenses/backend", get(handlers::system::get_licenses_backend))
-        .route("/api/system/licenses/frontend", get(handlers::system::get_licenses_frontend))
+        .route(
+            "/api/system/licenses/backend",
+            get(handlers::system::get_licenses_backend),
+        )
+        .route(
+            "/api/system/licenses/frontend",
+            get(handlers::system::get_licenses_frontend),
+        )
         .route("/api/system/sbom", get(handlers::system::download_sbom))
         // System health aggregation
         .route("/api/health/services", get(service_health_handler))
         .route("/api/health/websocket", get(health_websocket_handler))
         .route("/api/health/database", get(health_database_handler))
-        .route("/api/health/services/detail", get(health_services_detail_handler))
+        .route(
+            "/api/health/services/detail",
+            get(health_services_detail_handler),
+        )
         // Middleware — tower layers are applied outermost-last, so the last
         // layer listed here is the FIRST to see each request.
         // Order: inject_secrets → rate_limit → jwt_auth → metrics → handler
@@ -850,7 +1003,10 @@ async fn main() -> anyhow::Result<()> {
         // explosion. Do NOT move it outside the router or MatchedPath will be absent.
         .layer(middleware::from_fn_with_state(state.clone(), mw::jwt_auth))
         .layer(middleware::from_fn(mw::rate_limit))
-        .layer(middleware::from_fn_with_state(state.clone(), inject_secrets))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            inject_secrets,
+        ))
         .layer(middleware::from_fn(mw::metrics_middleware))
         .with_state(state);
 
@@ -906,9 +1062,11 @@ async fn inject_secrets(
     mut req: Request,
     next: middleware::Next,
 ) -> Response {
-    req.extensions_mut().insert(Arc::new(state.config.jwt_secret.clone()));
     req.extensions_mut()
-        .insert(Arc::new(mw::ServiceSecret(state.config.service_secret.clone())));
+        .insert(Arc::new(state.config.jwt_secret.clone()));
+    req.extensions_mut().insert(Arc::new(mw::ServiceSecret(
+        state.config.service_secret.clone(),
+    )));
     next.run(req).await
 }
 
@@ -989,7 +1147,10 @@ async fn proxy_import(
             .into_response();
     }
 
-    let downstream = path.strip_prefix("/api/import").unwrap_or(&path).to_string();
+    let downstream = path
+        .strip_prefix("/api/import")
+        .unwrap_or(&path)
+        .to_string();
     proxy::proxy(&state, req, &state.config.import_service_url, &downstream).await
 }
 
@@ -1001,8 +1162,12 @@ async fn proxy_import(
 /// This ensures the Designer's "Recognize Image" button is always shown (in disabled state)
 /// rather than being hidden due to an API error.
 async fn get_recognition_status(State(state): State<AppState>) -> Response {
-    let url = format!("{}/recognition/status", state.config.recognition_service_url);
-    match state.http_client
+    let url = format!(
+        "{}/recognition/status",
+        state.config.recognition_service_url
+    );
+    match state
+        .http_client
         .get(&url)
         .timeout(std::time::Duration::from_secs(3))
         .send()
@@ -1020,7 +1185,8 @@ async fn get_recognition_status(State(state): State<AppState>) -> Response {
                             "dcs": { "model_loaded": false, "hardware": "cpu", "mode": "disabled" }
                         }
                     }
-                })).into_response(),
+                }))
+                .into_response(),
             }
         }
         _ => {
@@ -1034,7 +1200,8 @@ async fn get_recognition_status(State(state): State<AppState>) -> Response {
                         "dcs": { "model_loaded": false, "hardware": "cpu", "mode": "disabled" }
                     }
                 }
-            })).into_response()
+            }))
+            .into_response()
         }
     }
 }
@@ -1042,8 +1209,17 @@ async fn get_recognition_status(State(state): State<AppState>) -> Response {
 /// Proxy all `/api/recognition/...` requests to the recognition-service, stripping `/api/recognition`.
 async fn proxy_recognition(State(state): State<AppState>, req: Request) -> Response {
     let path = req.uri().path().to_string();
-    let downstream = path.strip_prefix("/api/recognition").unwrap_or(&path).to_string();
-    proxy::proxy(&state, req, &state.config.recognition_service_url, &downstream).await
+    let downstream = path
+        .strip_prefix("/api/recognition")
+        .unwrap_or(&path)
+        .to_string();
+    proxy::proxy(
+        &state,
+        req,
+        &state.config.recognition_service_url,
+        &downstream,
+    )
+    .await
 }
 
 /// Proxy all `/api/alerts/...` requests to the alert-service, stripping `/api`.
@@ -1092,38 +1268,55 @@ async fn proxy_dcs_import(
             .into_response();
     }
 
-    proxy::proxy(&state, req, &state.config.parser_service_url, "/parse/dcs-import").await
+    proxy::proxy(
+        &state,
+        req,
+        &state.config.parser_service_url,
+        "/parse/dcs-import",
+    )
+    .await
 }
 
 /// Proxy all `/api/archive/...` requests to the archive-service, stripping `/api/archive`.
 async fn proxy_archive(State(state): State<AppState>, req: Request) -> Response {
     let path = req.uri().path().to_string();
-    let downstream = path.strip_prefix("/api/archive").unwrap_or(&path).to_string();
+    let downstream = path
+        .strip_prefix("/api/archive")
+        .unwrap_or(&path)
+        .to_string();
     proxy::proxy(&state, req, &state.config.archive_service_url, &downstream).await
 }
 
 /// Proxy `POST /api/points/history-batch` → archive-service `/history/points/batch`.
 /// Convenience alias for batch historical data fetching (Console §8.4, Process §8.3).
 async fn proxy_history_batch(State(state): State<AppState>, req: Request) -> Response {
-    proxy::proxy(&state, req, &state.config.archive_service_url, "/history/points/batch").await
+    proxy::proxy(
+        &state,
+        req,
+        &state.config.archive_service_url,
+        "/history/points/batch",
+    )
+    .await
 }
 
 /// GET /api/health/services — fan out to all 11 service /health/live endpoints
 /// and return their aggregated status. Requires authentication (JWT middleware).
-async fn service_health_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+async fn service_health_handler(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
     use serde_json::{json, Value};
 
     let services: &[(&str, &str)] = &[
-        ("api-gateway",         "http://127.0.0.1:3000"),
-        ("data-broker",         "http://127.0.0.1:3001"),
-        ("opc-service",         "http://127.0.0.1:3002"),
-        ("event-service",       "http://127.0.0.1:3003"),
-        ("parser-service",      "http://127.0.0.1:3004"),
-        ("archive-service",     "http://127.0.0.1:3005"),
-        ("import-service",      "http://127.0.0.1:3006"),
-        ("alert-service",       "http://127.0.0.1:3007"),
-        ("email-service",       "http://127.0.0.1:3008"),
-        ("auth-service",        "http://127.0.0.1:3009"),
+        ("api-gateway", "http://127.0.0.1:3000"),
+        ("data-broker", "http://127.0.0.1:3001"),
+        ("opc-service", "http://127.0.0.1:3002"),
+        ("event-service", "http://127.0.0.1:3003"),
+        ("parser-service", "http://127.0.0.1:3004"),
+        ("archive-service", "http://127.0.0.1:3005"),
+        ("import-service", "http://127.0.0.1:3006"),
+        ("alert-service", "http://127.0.0.1:3007"),
+        ("email-service", "http://127.0.0.1:3008"),
+        ("auth-service", "http://127.0.0.1:3009"),
         ("recognition-service", "http://127.0.0.1:3010"),
     ];
 
@@ -1132,14 +1325,15 @@ async fn service_health_handler(State(state): State<AppState>) -> impl axum::res
 
     for (name, base) in services {
         let url = format!("{}/health/live", base);
-        let status = match client.get(&url)
+        let status = match client
+            .get(&url)
             .timeout(std::time::Duration::from_secs(2))
             .send()
             .await
         {
             Ok(resp) if resp.status().is_success() => "healthy",
-            Ok(_)                                   => "unhealthy",
-            Err(_)                                   => "unhealthy",
+            Ok(_) => "unhealthy",
+            Err(_) => "unhealthy",
         };
         results.push(json!({ "name": name, "status": status }));
     }
@@ -1149,7 +1343,9 @@ async fn service_health_handler(State(state): State<AppState>) -> impl axum::res
 }
 
 /// GET /api/health/websocket — returns live WebSocket stats from the data-broker.
-async fn health_websocket_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+async fn health_websocket_handler(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
     use serde_json::json;
     let url = "http://127.0.0.1:3001/internal/ws-stats";
     match state.http_client.get(url)
@@ -1168,7 +1364,9 @@ async fn health_websocket_handler(State(state): State<AppState>) -> impl axum::r
 }
 
 /// GET /api/health/database — returns DB size and TimescaleDB info.
-async fn health_database_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+async fn health_database_handler(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
     use serde_json::json;
     use sqlx::Row;
 
@@ -1176,14 +1374,17 @@ async fn health_database_handler(State(state): State<AppState>) -> impl axum::re
         .fetch_one(&state.db)
         .await;
 
-    let ts_result = sqlx::query(
-        "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'"
-    )
-    .fetch_optional(&state.db)
-    .await;
+    let ts_result =
+        sqlx::query("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")
+            .fetch_optional(&state.db)
+            .await;
 
-    let db_size_bytes: Option<i64> = size_result.ok().and_then(|r| r.try_get("db_size_bytes").ok());
-    let timescaledb_version: Option<String> = ts_result.ok().flatten()
+    let db_size_bytes: Option<i64> = size_result
+        .ok()
+        .and_then(|r| r.try_get("db_size_bytes").ok());
+    let timescaledb_version: Option<String> = ts_result
+        .ok()
+        .flatten()
         .and_then(|r| r.try_get::<String, _>("extversion").ok());
 
     axum::Json(json!({
@@ -1196,20 +1397,22 @@ async fn health_database_handler(State(state): State<AppState>) -> impl axum::re
 }
 
 /// GET /api/health/services/detail — fan out to all 11 services, measure round-trip latency.
-async fn health_services_detail_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
+async fn health_services_detail_handler(
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
     use serde_json::json;
 
     let services: &[(&str, &str)] = &[
-        ("api-gateway",         "http://127.0.0.1:3000"),
-        ("data-broker",         "http://127.0.0.1:3001"),
-        ("opc-service",         "http://127.0.0.1:3002"),
-        ("event-service",       "http://127.0.0.1:3003"),
-        ("parser-service",      "http://127.0.0.1:3004"),
-        ("archive-service",     "http://127.0.0.1:3005"),
-        ("import-service",      "http://127.0.0.1:3006"),
-        ("alert-service",       "http://127.0.0.1:3007"),
-        ("email-service",       "http://127.0.0.1:3008"),
-        ("auth-service",        "http://127.0.0.1:3009"),
+        ("api-gateway", "http://127.0.0.1:3000"),
+        ("data-broker", "http://127.0.0.1:3001"),
+        ("opc-service", "http://127.0.0.1:3002"),
+        ("event-service", "http://127.0.0.1:3003"),
+        ("parser-service", "http://127.0.0.1:3004"),
+        ("archive-service", "http://127.0.0.1:3005"),
+        ("import-service", "http://127.0.0.1:3006"),
+        ("alert-service", "http://127.0.0.1:3007"),
+        ("email-service", "http://127.0.0.1:3008"),
+        ("auth-service", "http://127.0.0.1:3009"),
         ("recognition-service", "http://127.0.0.1:3010"),
     ];
 
@@ -1219,7 +1422,8 @@ async fn health_services_detail_handler(State(state): State<AppState>) -> impl a
     for (name, base) in services {
         let url = format!("{}/health/live", base);
         let start = std::time::Instant::now();
-        let outcome = client.get(&url)
+        let outcome = client
+            .get(&url)
             .timeout(std::time::Duration::from_secs(2))
             .send()
             .await;

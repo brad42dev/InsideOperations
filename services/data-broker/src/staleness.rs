@@ -19,10 +19,8 @@ pub async fn run_staleness_sweeper(
     registry: Arc<SubscriptionRegistry>,
     connections: Arc<DashMap<ClientId, mpsc::Sender<WsServerMessage>>>,
 ) {
-    let threshold_duration =
-        chrono::Duration::seconds(stale_threshold_secs as i64);
-    let sweep_interval =
-        tokio::time::Duration::from_secs(sweep_interval_secs);
+    let threshold_duration = chrono::Duration::seconds(stale_threshold_secs as i64);
+    let sweep_interval = tokio::time::Duration::from_secs(sweep_interval_secs);
 
     loop {
         tokio::time::sleep(sweep_interval).await;
@@ -34,7 +32,10 @@ pub async fn run_staleness_sweeper(
             continue;
         }
 
-        debug!(count = candidates.len(), "Staleness sweep found stale points");
+        debug!(
+            count = candidates.len(),
+            "Staleness sweep found stale points"
+        );
 
         for (point_id, last_updated_at) in candidates {
             // mark_stale returns true only on a fresh → stale transition.

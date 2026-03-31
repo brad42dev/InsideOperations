@@ -4,7 +4,11 @@ mod commands;
 
 /// Inside/Operations administration CLI
 #[derive(Parser)]
-#[command(name = "io-ctl", about = "Inside/Operations administration CLI", version)]
+#[command(
+    name = "io-ctl",
+    about = "Inside/Operations administration CLI",
+    version
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

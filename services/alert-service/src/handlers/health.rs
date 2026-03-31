@@ -15,25 +15,24 @@ use crate::state::AppState;
 /// Channel data is optional — failures there yield an empty array.
 pub async fn health_handler(State(state): State<AppState>) -> Response {
     // Count active alerts — this is the critical query; 503 on failure.
-    let active_alerts: i64 = match sqlx::query_scalar(
-        "SELECT COUNT(*) FROM alerts WHERE status = 'active'",
-    )
-    .fetch_one(&state.db)
-    .await
-    {
-        Ok(count) => count,
-        Err(err) => {
-            tracing::error!(error = %err, "health: failed to query active alert count");
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({
-                    "status": "unhealthy",
-                    "error": "db_query_failed"
-                })),
-            )
-                .into_response();
-        }
-    };
+    let active_alerts: i64 =
+        match sqlx::query_scalar("SELECT COUNT(*) FROM alerts WHERE status = 'active'")
+            .fetch_one(&state.db)
+            .await
+        {
+            Ok(count) => count,
+            Err(err) => {
+                tracing::error!(error = %err, "health: failed to query active alert count");
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(json!({
+                        "status": "unhealthy",
+                        "error": "db_query_failed"
+                    })),
+                )
+                    .into_response();
+            }
+        };
 
     // Pending escalations — count of in-memory escalation tokens (best effort, never fails).
     let pending_escalations = state.escalation_tokens.len() as i64;
@@ -50,8 +49,7 @@ pub async fn health_handler(State(state): State<AppState>) -> Response {
         use sqlx::Row;
         rows.iter()
             .map(|r| {
-                let last_test_ok: Option<bool> =
-                    r.try_get("last_test_ok").ok().flatten();
+                let last_test_ok: Option<bool> = r.try_get("last_test_ok").ok().flatten();
                 let mut obj = json!({
                     "type":    r.get::<String, _>("channel_type"),
                     "enabled": r.get::<bool, _>("enabled"),

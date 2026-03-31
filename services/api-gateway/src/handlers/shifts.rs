@@ -24,7 +24,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
@@ -43,7 +46,10 @@ fn error_response(status: StatusCode, code: &str, message: &str) -> impl IntoRes
 }
 
 fn ok(data: impl serde::Serialize) -> impl IntoResponse {
-    (StatusCode::OK, Json(json!({ "success": true, "data": data })))
+    (
+        StatusCode::OK,
+        Json(json!({ "success": true, "data": data })),
+    )
 }
 
 fn created(data: impl serde::Serialize) -> impl IntoResponse {
@@ -368,8 +374,12 @@ pub async fn list_patterns(
     Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let pg = page.page();
@@ -383,8 +393,12 @@ pub async fn list_patterns(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_patterns count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count shift patterns")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count shift patterns",
+            )
+            .into_response();
         }
     };
 
@@ -412,12 +426,20 @@ pub async fn list_patterns(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(data, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_patterns query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shift patterns")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch shift patterns",
+            )
+            .into_response()
         }
     }
 }
@@ -432,8 +454,12 @@ pub async fn create_pattern(
     Json(body): Json<CreatePatternBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
@@ -465,8 +491,12 @@ pub async fn create_pattern(
         .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "create_pattern failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to create shift pattern")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to create shift pattern",
+            )
+            .into_response()
         }
     }
 }
@@ -481,8 +511,12 @@ pub async fn get_pattern(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -504,14 +538,20 @@ pub async fn get_pattern(
             created_by: r.get("created_by"),
         })
         .into_response(),
-        Ok(None) => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
-                .into_response()
-        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Shift pattern not found",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "get_pattern query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shift pattern")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch shift pattern",
+            )
+            .into_response()
         }
     }
 }
@@ -527,8 +567,12 @@ pub async fn update_pattern(
     Json(body): Json<UpdatePatternBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -559,14 +603,20 @@ pub async fn update_pattern(
             created_by: r.get("created_by"),
         })
         .into_response(),
-        Ok(None) => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
-                .into_response()
-        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Shift pattern not found",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "update_pattern failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to update shift pattern")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to update shift pattern",
+            )
+            .into_response()
         }
     }
 }
@@ -581,8 +631,12 @@ pub async fn delete_pattern(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let result = sqlx::query("DELETE FROM shift_patterns WHERE id = $1")
@@ -592,14 +646,20 @@ pub async fn delete_pattern(
 
     match result {
         Ok(r) if r.rows_affected() > 0 => ok(json!({ "deleted": true })).into_response(),
-        Ok(_) => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
-                .into_response()
-        }
+        Ok(_) => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Shift pattern not found",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "delete_pattern failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to delete shift pattern")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to delete shift pattern",
+            )
+            .into_response()
         }
     }
 }
@@ -615,30 +675,41 @@ pub async fn generate_from_pattern(
     Json(body): Json<GenerateFromPatternBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
 
     // Fetch the pattern
-    let pattern_row = sqlx::query(
-        "SELECT id, name, pattern_type, config FROM shift_patterns WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let pattern_row =
+        sqlx::query("SELECT id, name, pattern_type, config FROM shift_patterns WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await;
 
     let pattern = match pattern_row {
         Ok(Some(r)) => r,
         Ok(None) => {
-            return error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Shift pattern not found")
-                .into_response()
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "NOT_FOUND",
+                "Shift pattern not found",
+            )
+            .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "generate_from_pattern fetch pattern failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shift pattern")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch shift pattern",
+            )
+            .into_response();
         }
     };
 
@@ -658,13 +729,48 @@ pub async fn generate_from_pattern(
 
     let slots: Vec<ShiftSlot> = match pattern_type.as_str() {
         "8x3" => vec![
-            ShiftSlot { name: "Day",   start_hour: 6,  start_min: 0, end_hour: 14, end_min: 0, crosses_midnight: false },
-            ShiftSlot { name: "Swing", start_hour: 14, start_min: 0, end_hour: 22, end_min: 0, crosses_midnight: false },
-            ShiftSlot { name: "Night", start_hour: 22, start_min: 0, end_hour: 6,  end_min: 0, crosses_midnight: true  },
+            ShiftSlot {
+                name: "Day",
+                start_hour: 6,
+                start_min: 0,
+                end_hour: 14,
+                end_min: 0,
+                crosses_midnight: false,
+            },
+            ShiftSlot {
+                name: "Swing",
+                start_hour: 14,
+                start_min: 0,
+                end_hour: 22,
+                end_min: 0,
+                crosses_midnight: false,
+            },
+            ShiftSlot {
+                name: "Night",
+                start_hour: 22,
+                start_min: 0,
+                end_hour: 6,
+                end_min: 0,
+                crosses_midnight: true,
+            },
         ],
         "12x2" => vec![
-            ShiftSlot { name: "Day",   start_hour: 6,  start_min: 0, end_hour: 18, end_min: 0, crosses_midnight: false },
-            ShiftSlot { name: "Night", start_hour: 18, start_min: 0, end_hour: 6,  end_min: 0, crosses_midnight: true  },
+            ShiftSlot {
+                name: "Day",
+                start_hour: 6,
+                start_min: 0,
+                end_hour: 18,
+                end_min: 0,
+                crosses_midnight: false,
+            },
+            ShiftSlot {
+                name: "Night",
+                start_hour: 18,
+                start_min: 0,
+                end_hour: 6,
+                end_min: 0,
+                crosses_midnight: true,
+            },
         ],
         "dupont" | "pitman" => {
             return (
@@ -792,8 +898,12 @@ pub async fn list_crews(
     Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let pg = page.page();
@@ -807,8 +917,12 @@ pub async fn list_crews(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_crews count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count crews")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count crews",
+            )
+            .into_response();
         }
     };
 
@@ -842,12 +956,20 @@ pub async fn list_crews(
                     member_count: r.get("member_count"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(data, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_crews query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch crews")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch crews",
+            )
+            .into_response()
         }
     }
 }
@@ -862,8 +984,12 @@ pub async fn create_crew(
     Json(body): Json<CreateCrewBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
@@ -894,8 +1020,12 @@ pub async fn create_crew(
         .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "create_crew failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to create crew")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to create crew",
+            )
+            .into_response()
         }
     }
 }
@@ -910,8 +1040,12 @@ pub async fn get_crew(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let crew_row = sqlx::query(
@@ -942,8 +1076,12 @@ pub async fn get_crew(
         }
         Err(e) => {
             tracing::error!(error = %e, "get_crew query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch crew")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch crew",
+            )
+            .into_response();
         }
     };
 
@@ -977,8 +1115,12 @@ pub async fn get_crew(
         }
         Err(e) => {
             tracing::error!(error = %e, "get_crew members query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch crew members")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch crew members",
+            )
+            .into_response()
         }
     }
 }
@@ -994,8 +1136,12 @@ pub async fn update_crew(
     Json(body): Json<UpdateCrewBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -1029,8 +1175,12 @@ pub async fn update_crew(
         }
         Err(e) => {
             tracing::error!(error = %e, "update_crew failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to update crew")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to update crew",
+            )
+            .into_response()
         }
     }
 }
@@ -1045,8 +1195,12 @@ pub async fn delete_crew(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let result = sqlx::query("DELETE FROM shift_crews WHERE id = $1")
@@ -1055,16 +1209,18 @@ pub async fn delete_crew(
         .await;
 
     match result {
-        Ok(r) if r.rows_affected() > 0 => {
-            ok(json!({ "deleted": true })).into_response()
-        }
+        Ok(r) if r.rows_affected() > 0 => ok(json!({ "deleted": true })).into_response(),
         Ok(_) => {
             error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Crew not found").into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "delete_crew failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to delete crew")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to delete crew",
+            )
+            .into_response()
         }
     }
 }
@@ -1080,8 +1236,12 @@ pub async fn add_crew_member(
     Json(body): Json<AddCrewMemberBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -1125,8 +1285,12 @@ pub async fn add_crew_member(
         }
         Err(e) => {
             tracing::error!(error = %e, "add_crew_member failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to add crew member")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to add crew member",
+            )
+            .into_response()
         }
     }
 }
@@ -1141,17 +1305,19 @@ pub async fn remove_crew_member(
     Path((crew_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
-    let result = sqlx::query(
-        "DELETE FROM shift_crew_members WHERE crew_id = $1 AND user_id = $2",
-    )
-    .bind(crew_id)
-    .bind(user_id)
-    .execute(&state.db)
-    .await;
+    let result = sqlx::query("DELETE FROM shift_crew_members WHERE crew_id = $1 AND user_id = $2")
+        .bind(crew_id)
+        .bind(user_id)
+        .execute(&state.db)
+        .await;
 
     match result {
         Ok(r) if r.rows_affected() > 0 => ok(json!({ "deleted": true })).into_response(),
@@ -1160,8 +1326,12 @@ pub async fn remove_crew_member(
         }
         Err(e) => {
             tracing::error!(error = %e, "remove_crew_member failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to remove crew member")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to remove crew member",
+            )
+            .into_response()
         }
     }
 }
@@ -1176,8 +1346,12 @@ pub async fn list_shifts(
     Query(q): Query<ShiftsQuery>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let pg = q.page.unwrap_or(1).max(1);
@@ -1201,8 +1375,12 @@ pub async fn list_shifts(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_shifts count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count shifts")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count shifts",
+            )
+            .into_response();
         }
     };
 
@@ -1249,12 +1427,20 @@ pub async fn list_shifts(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(data, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_shifts query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shifts")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch shifts",
+            )
+            .into_response()
         }
     }
 }
@@ -1269,8 +1455,12 @@ pub async fn create_shift(
     Json(body): Json<CreateShiftBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
@@ -1329,8 +1519,12 @@ pub async fn create_shift(
         }
         Err(e) => {
             tracing::error!(error = %e, "create_shift failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to create shift")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to create shift",
+            )
+            .into_response()
         }
     }
 }
@@ -1345,8 +1539,12 @@ pub async fn get_shift(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let shift_row = sqlx::query(
@@ -1382,8 +1580,12 @@ pub async fn get_shift(
         }
         Err(e) => {
             tracing::error!(error = %e, "get_shift query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shift")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch shift",
+            )
+            .into_response();
         }
     };
 
@@ -1418,8 +1620,12 @@ pub async fn get_shift(
         }
         Err(e) => {
             tracing::error!(error = %e, "get_shift assignments query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch shift assignments")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch shift assignments",
+            )
+            .into_response()
         }
     }
 }
@@ -1435,8 +1641,12 @@ pub async fn update_shift(
     Json(body): Json<UpdateShiftBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -1486,8 +1696,12 @@ pub async fn update_shift(
         }
         Err(e) => {
             tracing::error!(error = %e, "update_shift failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to update shift")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to update shift",
+            )
+            .into_response()
         }
     }
 }
@@ -1502,8 +1716,12 @@ pub async fn delete_shift(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let result = sqlx::query("DELETE FROM shifts WHERE id = $1")
@@ -1518,8 +1736,12 @@ pub async fn delete_shift(
         }
         Err(e) => {
             tracing::error!(error = %e, "delete_shift failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to delete shift")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to delete shift",
+            )
+            .into_response()
         }
     }
 }
@@ -1534,8 +1756,12 @@ pub async fn list_presence(
     Query(q): Query<PresenceQuery>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let pg = q.page.unwrap_or(1).max(1);
@@ -1551,8 +1777,12 @@ pub async fn list_presence(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_presence count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count presence")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count presence",
+            )
+            .into_response();
         }
     };
 
@@ -1592,12 +1822,20 @@ pub async fn list_presence(
                     updated_at: r.get("updated_at"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(data, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_presence query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch presence")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch presence",
+            )
+            .into_response()
         }
     }
 }
@@ -1612,8 +1850,12 @@ pub async fn get_presence(
     Path(uid): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -1644,14 +1886,20 @@ pub async fn get_presence(
             updated_at: r.get("updated_at"),
         })
         .into_response(),
-        Ok(None) => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Presence record not found")
-                .into_response()
-        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Presence record not found",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "get_presence query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch presence")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch presence",
+            )
+            .into_response()
         }
     }
 }
@@ -1666,8 +1914,12 @@ pub async fn clear_presence(
     Path(badge_id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "presence:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "presence:manage required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "presence:manage required",
+        )
+        .into_response();
     }
 
     let result = sqlx::query(
@@ -1689,8 +1941,12 @@ pub async fn clear_presence(
         }
         Err(e) => {
             tracing::error!(error = %e, "clear_presence failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to clear presence")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to clear presence",
+            )
+            .into_response()
         }
     }
 }
@@ -1705,8 +1961,12 @@ pub async fn list_muster_points(
     Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let pg = page.page();
@@ -1720,8 +1980,12 @@ pub async fn list_muster_points(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_muster_points count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count muster points")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count muster points",
+            )
+            .into_response();
         }
     };
 
@@ -1755,12 +2019,20 @@ pub async fn list_muster_points(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(data, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_muster_points query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch muster points")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch muster points",
+            )
+            .into_response()
         }
     }
 }
@@ -1775,8 +2047,12 @@ pub async fn create_muster_point(
     Json(body): Json<CreateMusterPointBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:write") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:write permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:write permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
@@ -1816,8 +2092,12 @@ pub async fn create_muster_point(
         .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "create_muster_point failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to create muster point")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to create muster point",
+            )
+            .into_response()
         }
     }
 }
@@ -1832,8 +2112,12 @@ pub async fn list_muster_events(
     Query(q): Query<MusterEventsQuery>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let pg = q.page.unwrap_or(1).max(1);
@@ -1850,8 +2134,12 @@ pub async fn list_muster_events(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_muster_events count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count muster events")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count muster events",
+            )
+            .into_response();
         }
     };
 
@@ -1901,12 +2189,20 @@ pub async fn list_muster_events(
                     accounting_accounted: r.get("accounting_accounted"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(data, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_muster_events query failed");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to fetch muster events")
-                .into_response()
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch muster events",
+            )
+            .into_response()
         }
     }
 }
@@ -1921,8 +2217,12 @@ pub async fn declare_muster_event(
     Json(body): Json<DeclareMusterBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "muster:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "muster:manage permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "muster:manage permission required",
+        )
+        .into_response();
     }
 
     let actor_id = match user_id_from_claims(&claims) {
@@ -1936,12 +2236,11 @@ pub async fn declare_muster_event(
     let trigger_type = body.trigger_type.unwrap_or_else(|| "manual".to_string());
 
     // Count on-site personnel
-    let on_site_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM presence_status WHERE on_site = true",
-    )
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(0);
+    let on_site_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM presence_status WHERE on_site = true")
+            .fetch_one(&state.db)
+            .await
+            .unwrap_or(0);
 
     // Insert muster event
     let event_row = sqlx::query(
@@ -2049,8 +2348,12 @@ pub async fn get_muster_event(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let event_row = sqlx::query(
@@ -2162,8 +2465,12 @@ pub async fn resolve_muster_event(
     Json(body): Json<ResolveMusterBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "muster:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "muster:manage permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "muster:manage permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
@@ -2242,14 +2549,12 @@ pub async fn resolve_muster_event(
             }))
             .into_response()
         }
-        Ok(None) => {
-            error_response(
-                StatusCode::NOT_FOUND,
-                "NOT_FOUND",
-                "Muster event not found or already resolved",
-            )
-            .into_response()
-        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "Muster event not found or already resolved",
+        )
+        .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "resolve_muster_event failed");
             error_response(
@@ -2273,8 +2578,12 @@ pub async fn account_person(
     Json(body): Json<AccountPersonBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "muster:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "muster:manage permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "muster:manage permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
@@ -2308,13 +2617,11 @@ pub async fn account_person(
             let muster_point_id: Option<Uuid> = r.get("muster_point_id");
 
             // Fetch user details for the response and for the WS publish payload
-            let user_row = sqlx::query(
-                "SELECT full_name, email FROM users WHERE id = $1",
-            )
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .unwrap_or(None);
+            let user_row = sqlx::query("SELECT full_name, email FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_optional(&state.db)
+                .await
+                .unwrap_or(None);
 
             let person_name: String = user_row
                 .as_ref()
@@ -2436,8 +2743,12 @@ pub async fn list_badge_sources(
     Query(page): Query<PageParams>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "badge_config:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "badge_config:manage permission required",
+        )
+        .into_response();
     }
 
     let pg = page.page();
@@ -2451,8 +2762,12 @@ pub async fn list_badge_sources(
         Ok(n) => n,
         Err(e) => {
             tracing::error!(error = %e, "list_badge_sources count query failed");
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "Failed to count badge sources")
-                .into_response();
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to count badge sources",
+            )
+            .into_response();
         }
     };
 
@@ -2487,7 +2802,11 @@ pub async fn list_badge_sources(
                     created_by: r.get("created_by"),
                 })
                 .collect();
-            (StatusCode::OK, Json(PagedResponse::new(data, pg, limit, total as u64))).into_response()
+            (
+                StatusCode::OK,
+                Json(PagedResponse::new(data, pg, limit, total as u64)),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "list_badge_sources query failed");
@@ -2511,8 +2830,12 @@ pub async fn create_badge_source(
     Json(body): Json<CreateBadgeSourceBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "badge_config:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "badge_config:manage permission required",
+        )
+        .into_response();
     }
 
     let actor_id = user_id_from_claims(&claims);
@@ -2574,8 +2897,12 @@ pub async fn update_badge_source(
     Json(body): Json<UpdateBadgeSourceBody>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "badge_config:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "badge_config:manage permission required",
+        )
+        .into_response();
     }
 
     let row = sqlx::query(
@@ -2614,10 +2941,8 @@ pub async fn update_badge_source(
             created_by: r.get("created_by"),
         })
         .into_response(),
-        Ok(None) => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Badge source not found")
-                .into_response()
-        }
+        Ok(None) => error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Badge source not found")
+            .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "update_badge_source failed");
             error_response(
@@ -2640,8 +2965,12 @@ pub async fn delete_badge_source(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "badge_config:manage") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "badge_config:manage permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "badge_config:manage permission required",
+        )
+        .into_response();
     }
 
     let result = sqlx::query("DELETE FROM access_control_sources WHERE id = $1")
@@ -2651,10 +2980,8 @@ pub async fn delete_badge_source(
 
     match result {
         Ok(r) if r.rows_affected() > 0 => ok(json!({ "deleted": true })).into_response(),
-        Ok(_) => {
-            error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Badge source not found")
-                .into_response()
-        }
+        Ok(_) => error_response(StatusCode::NOT_FOUND, "NOT_FOUND", "Badge source not found")
+            .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "delete_badge_source failed");
             error_response(
@@ -2676,8 +3003,12 @@ pub async fn get_current_shifts(
     Extension(claims): Extension<Claims>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let rows = sqlx::query(
@@ -2737,8 +3068,12 @@ pub async fn get_current_personnel(
     Extension(claims): Extension<Claims>,
 ) -> impl IntoResponse {
     if !check_permission(&claims, "shifts:read") {
-        return error_response(StatusCode::FORBIDDEN, "FORBIDDEN", "shifts:read permission required")
-            .into_response();
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "FORBIDDEN",
+            "shifts:read permission required",
+        )
+        .into_response();
     }
 
     let rows = sqlx::query(
@@ -2789,22 +3124,25 @@ pub fn shifts_routes() -> axum::Router<AppState> {
 
     axum::Router::new()
         // Shift patterns (static before /:id)
-        .route("/api/shifts/patterns", get(list_patterns).post(create_pattern))
+        .route(
+            "/api/shifts/patterns",
+            get(list_patterns).post(create_pattern),
+        )
         .route(
             "/api/shifts/patterns/:id",
             get(get_pattern).put(update_pattern).delete(delete_pattern),
         )
-        .route("/api/shifts/patterns/:id/generate", post(generate_from_pattern))
+        .route(
+            "/api/shifts/patterns/:id/generate",
+            post(generate_from_pattern),
+        )
         // Shift crews (static before /:id)
         .route("/api/shifts/crews", get(list_crews).post(create_crew))
         .route(
             "/api/shifts/crews/:id",
             get(get_crew).put(update_crew).delete(delete_crew),
         )
-        .route(
-            "/api/shifts/crews/:id/members",
-            post(add_crew_member),
-        )
+        .route("/api/shifts/crews/:id/members", post(add_crew_member))
         .route(
             "/api/shifts/crews/:id/members/:user_id",
             delete(remove_crew_member),

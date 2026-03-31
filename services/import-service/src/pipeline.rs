@@ -74,10 +74,7 @@ pub struct RunStats {
 /// `[{"source": "col_a", "target": "name"}, ...]`
 /// or an object `{"col_a": "name"}`.
 /// If empty / null, all fields pass through unchanged.
-fn apply_field_mappings(
-    record: &SourceRecord,
-    mappings: &JsonValue,
-) -> Result<MappedRecord> {
+fn apply_field_mappings(record: &SourceRecord, mappings: &JsonValue) -> Result<MappedRecord> {
     let mut out = std::collections::HashMap::new();
 
     match mappings {
@@ -87,10 +84,7 @@ fn apply_field_mappings(
                     .get("source")
                     .and_then(|v| v.as_str())
                     .unwrap_or_default();
-                let tgt = entry
-                    .get("target")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(src);
+                let tgt = entry.get("target").and_then(|v| v.as_str()).unwrap_or(src);
                 if let Some(val) = record.fields.get(src) {
                     out.insert(tgt.to_string(), val.clone());
                 }
@@ -143,7 +137,10 @@ fn apply_transforms(record: &mut MappedRecord, transforms: &JsonValue) -> Vec<Er
 
     for step in arr {
         let op = step.get("op").and_then(|v| v.as_str()).unwrap_or_default();
-        let field = step.get("field").and_then(|v| v.as_str()).unwrap_or_default();
+        let field = step
+            .get("field")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
 
         match op {
             "set_null_if_empty" => {
@@ -162,23 +159,25 @@ fn apply_transforms(record: &mut MappedRecord, transforms: &JsonValue) -> Vec<Er
             }
             "to_lowercase" => {
                 if let Some(JsonValue::String(s)) = record.fields.get(field).cloned() {
-                    record.fields.insert(
-                        field.to_string(),
-                        JsonValue::String(s.to_lowercase()),
-                    );
+                    record
+                        .fields
+                        .insert(field.to_string(), JsonValue::String(s.to_lowercase()));
                 }
             }
             "to_uppercase" => {
                 if let Some(JsonValue::String(s)) = record.fields.get(field).cloned() {
-                    record.fields.insert(
-                        field.to_string(),
-                        JsonValue::String(s.to_uppercase()),
-                    );
+                    record
+                        .fields
+                        .insert(field.to_string(), JsonValue::String(s.to_uppercase()));
                 }
             }
             "" | "noop" => {}
             unknown => {
-                warn!(op = unknown, row = record.row_number, "unknown transform op; skipping");
+                warn!(
+                    op = unknown,
+                    row = record.row_number,
+                    "unknown transform op; skipping"
+                );
                 errors.push(ErrorRecord {
                     row_number: record.row_number,
                     error_type: "transform_warning".to_string(),
@@ -200,10 +199,7 @@ fn apply_transforms(record: &mut MappedRecord, transforms: &JsonValue) -> Vec<Er
 ///
 /// Checks that required fields (listed in `source_config.required_fields`)
 /// are present and non-null.
-fn validate_record(
-    record: &MappedRecord,
-    source_config: &JsonValue,
-) -> Result<(), ErrorRecord> {
+fn validate_record(record: &MappedRecord, source_config: &JsonValue) -> Result<(), ErrorRecord> {
     let required: Vec<&str> = source_config
         .get("required_fields")
         .and_then(|v| v.as_array())
@@ -544,12 +540,7 @@ async fn run_pipeline_in_tx(
 ///   3. Executes Extract → Map → Transform → Validate → Load inside a transaction
 ///   4. If `dry_run`: rolls back the transaction but still records statistics
 ///   5. Updates `import_runs` with final status, row counts, and timing metadata
-pub async fn execute(
-    db: &PgPool,
-    run_id: Uuid,
-    def_id: Uuid,
-    dry_run: bool,
-) -> Result<()> {
+pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> Result<()> {
     // Count this import run being started.
     metrics::counter!("io_import_runs_total").increment(1);
 
@@ -781,12 +772,10 @@ pub async fn execute(
 
     // Emit import metrics.
     if stats.rows_loaded > 0 {
-        metrics::counter!("io_import_rows_processed_total")
-            .increment(stats.rows_loaded as u64);
+        metrics::counter!("io_import_rows_processed_total").increment(stats.rows_loaded as u64);
     }
     if stats.rows_errored > 0 {
-        metrics::counter!("io_import_errors_total")
-            .increment(stats.rows_errored as u64);
+        metrics::counter!("io_import_errors_total").increment(stats.rows_errored as u64);
     }
 
     // NOTIFY import_status — completed / partial

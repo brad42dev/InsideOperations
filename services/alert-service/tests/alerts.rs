@@ -1,15 +1,14 @@
-/// Integration tests for the alert-service.
-///
-/// The alert-service implements ISA-18.2 alarm processing, escalation
-/// policies, shift-aware routing, and human-initiated emergency notifications.
-///
-/// Tests that require a live alert-service process are marked `#[ignore]`.
-///
-///   cargo test -p alert-service --test alerts -- --ignored
+// Integration tests for the alert-service.
+//
+// The alert-service implements ISA-18.2 alarm processing, escalation
+// policies, shift-aware routing, and human-initiated emergency notifications.
+//
+// Tests that require a live alert-service process are marked `#[ignore]`.
+//
+// cargo test -p alert-service --test alerts -- --ignored
 
 fn alert_url() -> String {
-    std::env::var("TEST_ALERT_SERVICE_URL")
-        .unwrap_or_else(|_| "http://localhost:3007".to_string())
+    std::env::var("TEST_ALERT_SERVICE_URL").unwrap_or_else(|_| "http://localhost:3007".to_string())
 }
 
 // ---------------------------------------------------------------------------

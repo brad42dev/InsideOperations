@@ -11,10 +11,10 @@ use std::io::Read;
 use io_error::{IoError, IoResult};
 use io_models::ApiResponse;
 
-use crate::AppState;
 use super::dcs_ge::{self, ZipContents};
 use super::dcs_rockwell;
 use super::dcs_siemens;
+use crate::AppState;
 
 // ---------------------------------------------------------------------------
 // Output types
@@ -166,7 +166,11 @@ fn intermediate_elem_to_dcs(el: &IntermediateElement, idx: usize) -> DcsElement 
         "equipment" => "equipment",
         "dynamic_text" | "text" => {
             if el.tag_binding.is_some()
-                || el.tag_bindings.as_ref().map(|b| !b.is_empty()).unwrap_or(false)
+                || el
+                    .tag_bindings
+                    .as_ref()
+                    .map(|b| !b.is_empty())
+                    .unwrap_or(false)
             {
                 "dynamic_text"
             } else {
@@ -297,11 +301,10 @@ fn parse_svg_from_bytes(
     svg_bytes: &[u8],
     source_name: &str,
 ) -> Result<(String, u32, u32, Vec<DcsElement>), String> {
-    let content = std::str::from_utf8(svg_bytes)
-        .map_err(|_| "SVG content is not valid UTF-8".to_string())?;
+    let content =
+        std::str::from_utf8(svg_bytes).map_err(|_| "SVG content is not valid UTF-8".to_string())?;
 
-    let doc = roxmltree::Document::parse(content)
-        .map_err(|e| format!("Invalid SVG: {}", e))?;
+    let doc = roxmltree::Document::parse(content).map_err(|e| format!("Invalid SVG: {}", e))?;
 
     let root = doc.root_element();
     let width: u32 = root
@@ -333,7 +336,10 @@ fn extract_svg_elements(node: roxmltree::Node, depth: usize) -> Vec<DcsElement> 
             continue;
         }
         let tag = child.tag_name().name();
-        if matches!(tag, "defs" | "style" | "script" | "metadata" | "title" | "desc") {
+        if matches!(
+            tag,
+            "defs" | "style" | "script" | "metadata" | "title" | "desc"
+        ) {
             continue;
         }
 
@@ -385,9 +391,7 @@ fn extract_svg_elements(node: roxmltree::Node, depth: usize) -> Vec<DcsElement> 
             .unwrap_or(60.0);
 
         let tag_val = child.attribute("data-tag").map(|s| s.to_string());
-        let symbol_class = child
-            .attribute("data-symbol")
-            .map(|s| s.to_uppercase());
+        let symbol_class = child.attribute("data-symbol").map(|s| s.to_uppercase());
         let label = if tag == "text" || tag == "tspan" {
             child.text().map(|t| t.trim().to_string())
         } else {
@@ -503,18 +507,16 @@ pub async fn dcs_import(
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
             "platform" => {
-                let val = field
-                    .text()
-                    .await
-                    .map_err(|e| IoError::BadRequest(format!("Failed to read platform field: {}", e)))?;
+                let val = field.text().await.map_err(|e| {
+                    IoError::BadRequest(format!("Failed to read platform field: {}", e))
+                })?;
                 platform = Some(val);
             }
             "file" => {
                 file_name = field.file_name().map(|s| s.to_string());
-                let bytes = field
-                    .bytes()
-                    .await
-                    .map_err(|e| IoError::BadRequest(format!("Failed to read file bytes: {}", e)))?;
+                let bytes = field.bytes().await.map_err(|e| {
+                    IoError::BadRequest(format!("Failed to read file bytes: {}", e))
+                })?;
                 file_bytes = Some(bytes.to_vec());
             }
             _ => {
@@ -524,8 +526,10 @@ pub async fn dcs_import(
         }
     }
 
-    let platform = platform.ok_or_else(|| IoError::BadRequest("platform field is required".to_string()))?;
-    let file_bytes = file_bytes.ok_or_else(|| IoError::BadRequest("file field is required".to_string()))?;
+    let platform =
+        platform.ok_or_else(|| IoError::BadRequest("platform field is required".to_string()))?;
+    let file_bytes =
+        file_bytes.ok_or_else(|| IoError::BadRequest("file field is required".to_string()))?;
     let file_name = file_name.unwrap_or_else(|| "upload.zip".to_string());
 
     if !is_valid_platform(&platform) {
@@ -542,11 +546,7 @@ pub async fn dcs_import(
     Ok(Json(ApiResponse::ok(result)))
 }
 
-fn parse_zip(
-    bytes: &[u8],
-    file_name: &str,
-    platform: &str,
-) -> IoResult<DcsImportResult> {
+fn parse_zip(bytes: &[u8], file_name: &str, platform: &str) -> IoResult<DcsImportResult> {
     use std::io::Cursor;
 
     let cursor = Cursor::new(bytes);
@@ -572,45 +572,42 @@ fn parse_zip(
         let lower = raw_name.to_lowercase();
 
         // Match by base file name (ignore directory prefix)
-        let base = lower
-            .rsplit('/')
-            .next()
-            .unwrap_or(lower.as_str());
+        let base = lower.rsplit('/').next().unwrap_or(lower.as_str());
 
         match base {
             "display.json" => {
                 if display_json_bytes.is_none() {
                     let mut buf = Vec::new();
-                    entry
-                        .read_to_end(&mut buf)
-                        .map_err(|e| IoError::BadRequest(format!("Failed to read display.json: {}", e)))?;
+                    entry.read_to_end(&mut buf).map_err(|e| {
+                        IoError::BadRequest(format!("Failed to read display.json: {}", e))
+                    })?;
                     display_json_bytes = Some(buf);
                 }
             }
             "manifest.json" => {
                 if manifest_bytes.is_none() {
                     let mut buf = Vec::new();
-                    entry
-                        .read_to_end(&mut buf)
-                        .map_err(|e| IoError::BadRequest(format!("Failed to read manifest.json: {}", e)))?;
+                    entry.read_to_end(&mut buf).map_err(|e| {
+                        IoError::BadRequest(format!("Failed to read manifest.json: {}", e))
+                    })?;
                     manifest_bytes = Some(buf);
                 }
             }
             "tags.json" => {
                 if tags_bytes.is_none() {
                     let mut buf = Vec::new();
-                    entry
-                        .read_to_end(&mut buf)
-                        .map_err(|e| IoError::BadRequest(format!("Failed to read tags.json: {}", e)))?;
+                    entry.read_to_end(&mut buf).map_err(|e| {
+                        IoError::BadRequest(format!("Failed to read tags.json: {}", e))
+                    })?;
                     tags_bytes = Some(buf);
                 }
             }
             "import_report.json" => {
                 if import_report_bytes.is_none() {
                     let mut buf = Vec::new();
-                    entry
-                        .read_to_end(&mut buf)
-                        .map_err(|e| IoError::BadRequest(format!("Failed to read import_report.json: {}", e)))?;
+                    entry.read_to_end(&mut buf).map_err(|e| {
+                        IoError::BadRequest(format!("Failed to read import_report.json: {}", e))
+                    })?;
                     import_report_bytes = Some(buf);
                 }
             }
@@ -625,9 +622,9 @@ fn parse_zip(
             _ if lower.ends_with(".xtg") => {
                 if xtg_bytes.is_none() {
                     let mut buf = Vec::new();
-                    entry
-                        .read_to_end(&mut buf)
-                        .map_err(|e| IoError::BadRequest(format!("Failed to read .xtg file: {}", e)))?;
+                    entry.read_to_end(&mut buf).map_err(|e| {
+                        IoError::BadRequest(format!("Failed to read .xtg file: {}", e))
+                    })?;
                     xtg_bytes = Some(buf);
                 }
             }
@@ -635,9 +632,9 @@ fn parse_zip(
             _ if lower.ends_with(".xml") => {
                 if gfx_xml_bytes.is_none() {
                     let mut buf = Vec::new();
-                    entry
-                        .read_to_end(&mut buf)
-                        .map_err(|e| IoError::BadRequest(format!("Failed to read XML file: {}", e)))?;
+                    entry.read_to_end(&mut buf).map_err(|e| {
+                        IoError::BadRequest(format!("Failed to read XML file: {}", e))
+                    })?;
                     gfx_xml_bytes = Some(buf);
                 }
             }
@@ -670,9 +667,7 @@ fn parse_zip(
         .unwrap_or_default();
 
     // Effective platform: manifest takes precedence over multipart field
-    let effective_platform = manifest_platform
-        .as_deref()
-        .unwrap_or(platform);
+    let effective_platform = manifest_platform.as_deref().unwrap_or(platform);
 
     if let Some(json_bytes) = display_json_bytes {
         // Parse intermediate JSON format (generic_json and kit-provided display.json)
@@ -693,12 +688,9 @@ fn parse_zip(
     // Dispatch by effective platform.
     match effective_platform {
         "ge_proficy" => {
-            let elements = dcs_ge::parse(&zip_contents)
-                .map_err(IoError::BadRequest)?;
-            let (display_name, width, height) = svg_display_dimensions(
-                zip_contents.svgs.first(),
-                file_name,
-            );
+            let elements = dcs_ge::parse(&zip_contents).map_err(IoError::BadRequest)?;
+            let (display_name, width, height) =
+                svg_display_dimensions(zip_contents.svgs.first(), file_name);
             let element_count = elements.len();
             return Ok(DcsImportResult {
                 display_name,
@@ -714,8 +706,7 @@ fn parse_zip(
             });
         }
         "rockwell_factorytalk" => {
-            let elements = dcs_rockwell::parse(&zip_contents)
-                .map_err(IoError::BadRequest)?;
+            let elements = dcs_rockwell::parse(&zip_contents).map_err(IoError::BadRequest)?;
             let element_count = elements.len();
             return Ok(DcsImportResult {
                 display_name: file_name
@@ -734,12 +725,9 @@ fn parse_zip(
             });
         }
         "siemens_wincc_unified" => {
-            let elements = dcs_siemens::parse(&zip_contents)
-                .map_err(IoError::BadRequest)?;
-            let (display_name, width, height) = svg_display_dimensions(
-                zip_contents.svgs.first(),
-                file_name,
-            );
+            let elements = dcs_siemens::parse(&zip_contents).map_err(IoError::BadRequest)?;
+            let (display_name, width, height) =
+                svg_display_dimensions(zip_contents.svgs.first(), file_name);
             let element_count = elements.len();
             return Ok(DcsImportResult {
                 display_name,

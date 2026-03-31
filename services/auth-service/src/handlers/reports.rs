@@ -40,7 +40,11 @@ fn has_permission(headers: &HeaderMap, perm: &str) -> bool {
     headers
         .get("x-io-permissions")
         .and_then(|v| v.to_str().ok())
-        .map(|perms| perms.split(',').any(|p| p.trim() == "*" || p.trim() == perm))
+        .map(|perms| {
+            perms
+                .split(',')
+                .any(|p| p.trim() == "*" || p.trim() == perm)
+        })
         .unwrap_or(false)
 }
 
@@ -105,8 +109,12 @@ fn map_schedule_row(r: &sqlx::postgres::PgRow) -> Result<ReportScheduleRow, sqlx
         cron_expression: r.try_get("cron_expression")?,
         format: r.try_get("format")?,
         params: r.try_get("params")?,
-        recipient_user_ids: r.try_get::<Vec<Uuid>, _>("recipient_user_ids").unwrap_or_default(),
-        recipient_emails: r.try_get::<Vec<String>, _>("recipient_emails").unwrap_or_default(),
+        recipient_user_ids: r
+            .try_get::<Vec<Uuid>, _>("recipient_user_ids")
+            .unwrap_or_default(),
+        recipient_emails: r
+            .try_get::<Vec<String>, _>("recipient_emails")
+            .unwrap_or_default(),
         enabled: r.try_get("enabled")?,
         last_run_at: r.try_get("last_run_at")?,
         next_run_at: r.try_get("next_run_at")?,
@@ -210,7 +218,9 @@ pub async fn list_report_templates(
     let _caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:read") {
-        return Err(IoError::Forbidden("reports:read permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:read permission required".into(),
+        ));
     }
 
     let page = filter.page.unwrap_or(1).max(1) as u32;
@@ -277,7 +287,9 @@ pub async fn get_report_template(
     let _caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:read") {
-        return Err(IoError::Forbidden("reports:read permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:read permission required".into(),
+        ));
     }
 
     let row = sqlx::query(
@@ -307,7 +319,9 @@ pub async fn create_report_template(
     let caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:create") {
-        return Err(IoError::Forbidden("reports:create permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:create permission required".into(),
+        ));
     }
 
     if req.name.trim().is_empty() {
@@ -316,11 +330,13 @@ pub async fn create_report_template(
 
     let new_id = Uuid::new_v4();
     let template_config = req.template_config.unwrap_or_else(|| serde_json::json!({}));
-    let default_params = req.default_params.unwrap_or_else(|| serde_json::json!({
-        "time_range": "last_24h",
-        "area": "all",
-        "priority": "all"
-    }));
+    let default_params = req.default_params.unwrap_or_else(|| {
+        serde_json::json!({
+            "time_range": "last_24h",
+            "area": "all",
+            "priority": "all"
+        })
+    });
 
     sqlx::query(
         "INSERT INTO report_templates
@@ -363,7 +379,9 @@ pub async fn update_report_template(
     let caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:create") {
-        return Err(IoError::Forbidden("reports:create permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:create permission required".into(),
+        ));
     }
 
     let row = sqlx::query(
@@ -374,7 +392,9 @@ pub async fn update_report_template(
     .await?
     .ok_or_else(|| IoError::NotFound(format!("Report template {id} not found")))?;
 
-    let is_system: bool = row.try_get("is_system_template").map_err(IoError::Database)?;
+    let is_system: bool = row
+        .try_get("is_system_template")
+        .map_err(IoError::Database)?;
     let is_admin = has_permission(&headers, "system:admin");
 
     // System templates can only be modified by admins
@@ -467,7 +487,9 @@ pub async fn delete_report_template(
     let caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:delete") {
-        return Err(IoError::Forbidden("reports:delete permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:delete permission required".into(),
+        ));
     }
 
     let row = sqlx::query(
@@ -478,9 +500,13 @@ pub async fn delete_report_template(
     .await?
     .ok_or_else(|| IoError::NotFound(format!("Report template {id} not found")))?;
 
-    let is_system: bool = row.try_get("is_system_template").map_err(IoError::Database)?;
+    let is_system: bool = row
+        .try_get("is_system_template")
+        .map_err(IoError::Database)?;
     if is_system {
-        return Err(IoError::Forbidden("System templates cannot be deleted".into()));
+        return Err(IoError::Forbidden(
+            "System templates cannot be deleted".into(),
+        ));
     }
 
     let owner: Uuid = row.try_get("created_by").map_err(IoError::Database)?;
@@ -491,12 +517,10 @@ pub async fn delete_report_template(
         ));
     }
 
-    sqlx::query(
-        "UPDATE report_templates SET deleted_at = NOW() WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE report_templates SET deleted_at = NOW() WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -513,19 +537,19 @@ pub async fn list_report_schedules(
     let _caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:admin") {
-        return Err(IoError::Forbidden("reports:admin permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:admin permission required".into(),
+        ));
     }
 
     let pg = page.page();
     let limit = page.per_page();
     let offset = page.offset();
 
-    let total: i64 = sqlx::query(
-        "SELECT COUNT(*) FROM report_schedules WHERE deleted_at IS NULL",
-    )
-    .fetch_one(&state.db)
-    .await
-    .map(|r| r.get::<i64, _>(0))?;
+    let total: i64 = sqlx::query("SELECT COUNT(*) FROM report_schedules WHERE deleted_at IS NULL")
+        .fetch_one(&state.db)
+        .await
+        .map(|r| r.get::<i64, _>(0))?;
 
     let rows = sqlx::query(
         "SELECT id, template_id, name, cron_expression, format, params,
@@ -567,7 +591,9 @@ pub async fn create_report_schedule(
     let caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:admin") {
-        return Err(IoError::Forbidden("reports:admin permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:admin permission required".into(),
+        ));
     }
 
     if req.name.trim().is_empty() {
@@ -653,7 +679,9 @@ pub async fn update_report_schedule(
     let _caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:admin") {
-        return Err(IoError::Forbidden("reports:admin permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:admin permission required".into(),
+        ));
     }
 
     // Verify schedule exists
@@ -667,18 +695,18 @@ pub async fn update_report_schedule(
         if name.trim().is_empty() {
             return Err(IoError::BadRequest("name must not be empty".into()));
         }
-        sqlx::query(
-            "UPDATE report_schedules SET name = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(name)
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE report_schedules SET name = $1, updated_at = NOW() WHERE id = $2")
+            .bind(name)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
     }
 
     if let Some(cron) = &req.cron_expression {
         if cron.trim().is_empty() {
-            return Err(IoError::BadRequest("cron_expression must not be empty".into()));
+            return Err(IoError::BadRequest(
+                "cron_expression must not be empty".into(),
+            ));
         }
         sqlx::query(
             "UPDATE report_schedules SET cron_expression = $1, updated_at = NOW() WHERE id = $2",
@@ -696,23 +724,19 @@ pub async fn update_report_schedule(
                 "format must be one of: pdf, csv, xlsx, html, json".into(),
             ));
         }
-        sqlx::query(
-            "UPDATE report_schedules SET format = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(format)
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE report_schedules SET format = $1, updated_at = NOW() WHERE id = $2")
+            .bind(format)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
     }
 
     if let Some(params) = &req.params {
-        sqlx::query(
-            "UPDATE report_schedules SET params = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(params)
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE report_schedules SET params = $1, updated_at = NOW() WHERE id = $2")
+            .bind(params)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
     }
 
     if let Some(user_ids) = &req.recipient_user_ids {
@@ -736,13 +760,11 @@ pub async fn update_report_schedule(
     }
 
     if let Some(enabled) = req.enabled {
-        sqlx::query(
-            "UPDATE report_schedules SET enabled = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(enabled)
-        .bind(id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE report_schedules SET enabled = $1, updated_at = NOW() WHERE id = $2")
+            .bind(enabled)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
     }
 
     let row = sqlx::query(
@@ -771,7 +793,9 @@ pub async fn delete_report_schedule(
     let _caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:admin") {
-        return Err(IoError::Forbidden("reports:admin permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:admin permission required".into(),
+        ));
     }
 
     let result = sqlx::query(
@@ -800,7 +824,9 @@ pub async fn list_export_presets(
     let caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:read") {
-        return Err(IoError::Forbidden("reports:read permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:read permission required".into(),
+        ));
     }
 
     // Verify template exists
@@ -847,7 +873,9 @@ pub async fn create_export_preset(
     let caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:read") {
-        return Err(IoError::Forbidden("reports:read permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:read permission required".into(),
+        ));
     }
 
     if req.name.trim().is_empty() {
@@ -909,7 +937,9 @@ pub async fn delete_export_preset(
     let caller = user_id_from_headers(&headers).ok_or(IoError::Unauthorized)?;
 
     if !has_permission(&headers, "reports:read") {
-        return Err(IoError::Forbidden("reports:read permission required".into()));
+        return Err(IoError::Forbidden(
+            "reports:read permission required".into(),
+        ));
     }
 
     let row = sqlx::query("SELECT id, created_by FROM export_presets WHERE id = $1")

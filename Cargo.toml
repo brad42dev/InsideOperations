@@ -61,7 +61,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 openidconnect = { version = "3", features = ["reqwest"] }
 ldap3 = { version = "0.11", default-features = false, features = ["tls"] }
 rmp-serde = "1"
-opcua = { version = "0.12", features = ["client"] }
+opcua = { version = "0.17", package = "async-opcua", features = ["client"] }
 rhai = { version = "1.19", features = ["sync"] }
 lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls", "builder", "smtp-transport"], default-features = false }
 minijinja = { version = "2", features = ["loader"] }

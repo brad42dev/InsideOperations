@@ -54,9 +54,7 @@ pub async fn run(db: PgPool, http_client: reqwest::Client) {
 
     info!(
         interval_secs,
-        timeout_secs,
-        batch_size,
-        "Metrics collector started"
+        timeout_secs, batch_size, "Metrics collector started"
     );
 
     let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
@@ -69,12 +67,7 @@ pub async fn run(db: PgPool, http_client: reqwest::Client) {
 }
 
 /// Single collection pass: scrape all services in parallel, parse, batch-insert.
-async fn collect_once(
-    db: &PgPool,
-    client: &reqwest::Client,
-    timeout_secs: u64,
-    batch_size: usize,
-) {
+async fn collect_once(db: &PgPool, client: &reqwest::Client, timeout_secs: u64, batch_size: usize) {
     let timeout = Duration::from_secs(timeout_secs);
     let now = chrono::Utc::now();
 
@@ -307,7 +300,11 @@ async fn insert_batch(
 
     let mut q = sqlx::query(&query);
     for s in samples {
-        q = q.bind(ts).bind(&s.metric_name).bind(&s.labels).bind(s.value);
+        q = q
+            .bind(ts)
+            .bind(&s.metric_name)
+            .bind(&s.labels)
+            .bind(s.value);
     }
 
     q.execute(db).await?;

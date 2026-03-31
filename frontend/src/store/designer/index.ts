@@ -8,13 +8,13 @@
  *   import { useSceneStore, useUiStore, snapToGridValue } from '@/store/designer'
  */
 
-export { useSceneStore } from './sceneStore'
-export type { SceneStore } from './sceneStore'
+export { useSceneStore } from "./sceneStore";
+export type { SceneStore } from "./sceneStore";
 
-export { useHistoryStore } from './historyStore'
-export type { HistoryStore, HistoryEntry } from './historyStore'
+export { useHistoryStore } from "./historyStore";
+export type { HistoryStore, HistoryEntry } from "./historyStore";
 
-export { useUiStore, snapToGridValue } from './uiStore'
+export { useUiStore, snapToGridValue } from "./uiStore";
 export type {
   UiStore,
   DrawingTool,
@@ -29,9 +29,9 @@ export type {
   PanelState,
   DrawPreview,
   MarqueeState,
-} from './uiStore'
+} from "./uiStore";
 
-export { useLibraryStore } from './libraryStore'
+export { useLibraryStore } from "./libraryStore";
 export type {
   LibraryStore,
   ShapeEntry,
@@ -40,11 +40,7 @@ export type {
   TextZone,
   ValueAnchor,
   ShapeIndexItem,
-} from './libraryStore'
+} from "./libraryStore";
 
-export { useTabStore, MAX_TABS } from './tabStore'
-export type {
-  TabStore,
-  DesignerTab,
-  SavedTabState,
-} from './tabStore'
+export { useTabStore, MAX_TABS } from "./tabStore";
+export type { TabStore, DesignerTab, SavedTabState } from "./tabStore";

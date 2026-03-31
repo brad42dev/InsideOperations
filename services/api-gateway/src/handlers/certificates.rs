@@ -24,7 +24,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 // ---------------------------------------------------------------------------
@@ -62,10 +65,10 @@ fn parse_cert_pem(pem_bytes: &[u8]) -> Result<CertInfo, String> {
     // Unix seconds since chrono and time don't share a From impl.
     let not_before_ts = cert.validity().not_before.timestamp();
     let not_after_ts = cert.validity().not_after.timestamp();
-    let not_before: DateTime<Utc> = DateTime::from_timestamp(not_before_ts, 0)
-        .unwrap_or(DateTime::UNIX_EPOCH);
-    let not_after: DateTime<Utc> = DateTime::from_timestamp(not_after_ts, 0)
-        .unwrap_or(DateTime::UNIX_EPOCH);
+    let not_before: DateTime<Utc> =
+        DateTime::from_timestamp(not_before_ts, 0).unwrap_or(DateTime::UNIX_EPOCH);
+    let not_after: DateTime<Utc> =
+        DateTime::from_timestamp(not_after_ts, 0).unwrap_or(DateTime::UNIX_EPOCH);
 
     let now = Utc::now();
     let duration = not_after.signed_duration_since(now);
@@ -74,9 +77,9 @@ fn parse_cert_pem(pem_bytes: &[u8]) -> Result<CertInfo, String> {
 
     // Subject Alternative Names
     let mut sans: Vec<String> = Vec::new();
-    if let Ok(Some(san_ext)) = cert.get_extension_unique(
-        &x509_parser::oid_registry::OID_X509_EXT_SUBJECT_ALT_NAME,
-    ) {
+    if let Ok(Some(san_ext)) =
+        cert.get_extension_unique(&x509_parser::oid_registry::OID_X509_EXT_SUBJECT_ALT_NAME)
+    {
         use x509_parser::extensions::ParsedExtension;
         if let ParsedExtension::SubjectAlternativeName(san) = san_ext.parsed_extension() {
             for name in &san.general_names {
@@ -101,7 +104,7 @@ fn parse_cert_pem(pem_bytes: &[u8]) -> Result<CertInfo, String> {
     }
 
     Ok(CertInfo {
-        name: String::new(),  // filled by caller
+        name: String::new(), // filled by caller
         subject,
         issuer,
         not_before: not_before.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
@@ -149,10 +152,7 @@ pub async fn list_certs(
         match entries.next_entry().await {
             Ok(Some(entry)) => {
                 let path = entry.path();
-                let ext = path
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("");
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
                 if ext != "crt" && ext != "pem" {
                     continue;
@@ -244,9 +244,7 @@ pub async fn upload_cert(
         match field_name.as_str() {
             "cert" => cert_pem = Some(data.to_vec()),
             "key" => key_pem = Some(data.to_vec()),
-            "name" => {
-                name = Some(String::from_utf8_lossy(&data).trim().to_string())
-            }
+            "name" => name = Some(String::from_utf8_lossy(&data).trim().to_string()),
             _ => {}
         }
     }
@@ -302,7 +300,8 @@ pub async fn upload_cert(
 
     if let Err(e) = fs::write(&crt_path, &cert_bytes).await {
         tracing::error!(error = %e, path = %crt_path.display(), "upload_cert: write crt failed");
-        return IoError::Internal(format!("Failed to save certificate file: {}", e)).into_response();
+        return IoError::Internal(format!("Failed to save certificate file: {}", e))
+            .into_response();
     }
 
     if let Err(e) = fs::write(&key_path, &key_bytes).await {

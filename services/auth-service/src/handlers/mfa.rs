@@ -300,13 +300,12 @@ pub async fn mfa_verify_login(
     state.mfa_pending_tokens.remove(&body.mfa_token);
 
     // --- 4. Issue JWT + refresh token ---
-    let user_row = sqlx::query(
-        "SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(IoError::Unauthorized)?;
+    let user_row =
+        sqlx::query("SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(IoError::Unauthorized)?;
 
     let enabled: bool = user_row.get("enabled");
     if !enabled {
@@ -412,8 +411,7 @@ pub async fn enroll_totp(
 
     // Generate a random 20-byte secret, base32-encode it for authenticator apps
     let raw: [u8; 20] = rand::random();
-    let secret_base32 =
-        base32::encode(base32::Alphabet::RFC4648 { padding: false }, &raw);
+    let secret_base32 = base32::encode(base32::Alphabet::RFC4648 { padding: false }, &raw);
 
     // Delete any pre-existing pending enrollment for this user
     sqlx::query(
@@ -480,12 +478,10 @@ pub async fn verify_totp_enrollment(
     }
 
     // Activate the MFA record
-    sqlx::query(
-        "UPDATE user_mfa SET status = 'active', verified_at = NOW() WHERE id = $1",
-    )
-    .bind(mfa_id)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE user_mfa SET status = 'active', verified_at = NOW() WHERE id = $1")
+        .bind(mfa_id)
+        .execute(&state.db)
+        .await?;
 
     // Mark user as MFA-enabled
     sqlx::query("UPDATE users SET mfa_enabled = true WHERE id = $1")
@@ -563,12 +559,10 @@ pub async fn get_mfa_status(
 ) -> IoResult<impl IntoResponse> {
     let user_id = extract_user_id(&headers)?;
 
-    let rows = sqlx::query(
-        "SELECT mfa_type, status, verified_at FROM user_mfa WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await?;
+    let rows = sqlx::query("SELECT mfa_type, status, verified_at FROM user_mfa WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_all(&state.db)
+        .await?;
 
     let methods: Vec<MfaMethodStatus> = rows
         .into_iter()
@@ -698,17 +692,13 @@ pub async fn use_recovery_code(
 // Helper: build and return a JWT for the given user
 // ---------------------------------------------------------------------------
 
-async fn issue_jwt_for_user(
-    state: &AppState,
-    user_id: Uuid,
-) -> IoResult<axum::response::Response> {
-    let user_row = sqlx::query(
-        "SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(IoError::Unauthorized)?;
+async fn issue_jwt_for_user(state: &AppState, user_id: Uuid) -> IoResult<axum::response::Response> {
+    let user_row =
+        sqlx::query("SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(IoError::Unauthorized)?;
 
     let enabled: bool = user_row.get("enabled");
     if !enabled {

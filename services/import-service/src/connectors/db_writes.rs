@@ -38,17 +38,17 @@ pub async fn write_supplemental_metadata(
                updated_at        = NOW() \
              WHERE tagname = $1 AND source_id = $2",
         )
-        .bind(&item.tagname)            // $1
-        .bind(source_id)                 // $2
-        .bind(&item.description)         // $3
-        .bind(&item.engineering_units)   // $4
-        .bind(item.eu_range_low)         // $5
-        .bind(item.eu_range_high)        // $6
-        .bind(item.alarm_limit_hh)       // $7
-        .bind(item.alarm_limit_h)        // $8
-        .bind(item.alarm_limit_l)        // $9
-        .bind(item.alarm_limit_ll)       // $10
-        .bind(has_limits)                // $11
+        .bind(&item.tagname) // $1
+        .bind(source_id) // $2
+        .bind(&item.description) // $3
+        .bind(&item.engineering_units) // $4
+        .bind(item.eu_range_low) // $5
+        .bind(item.eu_range_high) // $6
+        .bind(item.alarm_limit_hh) // $7
+        .bind(item.alarm_limit_h) // $8
+        .bind(item.alarm_limit_l) // $9
+        .bind(item.alarm_limit_ll) // $10
+        .bind(has_limits) // $11
         .execute(db)
         .await;
 
@@ -68,7 +68,10 @@ pub async fn write_supplemental_metadata(
             ),
         }
     }
-    debug!("supplemental metadata: updated {updated}/{} points for source {source_id}", items.len());
+    debug!(
+        "supplemental metadata: updated {updated}/{} points for source {source_id}",
+        items.len()
+    );
 
     // NOTIFY point_metadata_changed so the OPC Service can refresh its subscription registry
     if updated > 0 {
@@ -169,8 +172,6 @@ pub async fn write_supplemental_events(
             ),
         }
     }
-    debug!(
-        "supplemental events: inserted={inserted} skipped={skipped} for source {source_id}"
-    );
+    debug!("supplemental events: inserted={inserted} skipped={skipped} for source {source_id}");
     Ok(())
 }

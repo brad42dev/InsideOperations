@@ -4,166 +4,190 @@
 // Rendered as a viewport-level fixed overlay (panes can be very small).
 // ---------------------------------------------------------------------------
 
-import { useState, useEffect, useLayoutEffect, useCallback } from 'react'
-import { createPortal } from 'react-dom'
-import type { ChartConfig, ChartTypeId } from './chart-config-types'
-import { CHART_SLOTS, SCALING_TAB_CHARTS } from './chart-config-types'
-import ChartTypePicker from './ChartTypePicker'
-import ChartPointSelector from './ChartPointSelector'
-import ChartOptionsForm from './ChartOptionsForm'
-import ChartScalingTab from './ChartScalingTab'
-import type { ChartContext } from './chart-definitions'
+import { useState, useEffect, useLayoutEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import type { ChartConfig, ChartTypeId } from "./chart-config-types";
+import { CHART_SLOTS, SCALING_TAB_CHARTS } from "./chart-config-types";
+import ChartTypePicker from "./ChartTypePicker";
+import ChartPointSelector from "./ChartPointSelector";
+import ChartOptionsForm from "./ChartOptionsForm";
+import ChartScalingTab from "./ChartScalingTab";
+import type { ChartContext } from "./chart-definitions";
 
 interface ChartConfigPanelProps {
   /** Initial config to populate the panel from */
-  initialConfig: ChartConfig
-  onSave: (config: ChartConfig) => void
-  onClose: () => void
+  initialConfig: ChartConfig;
+  onSave: (config: ChartConfig) => void;
+  onClose: () => void;
   /** Restricts chart type picker to types available in this context. */
-  context?: ChartContext
+  context?: ChartContext;
 }
 
-type Tab = 'type' | 'points' | 'scaling' | 'options'
+type Tab = "type" | "points" | "scaling" | "options";
 
 const BASE_TABS: { id: Tab; label: string }[] = [
-  { id: 'type',    label: 'Chart Type' },
-  { id: 'points',  label: 'Data Points' },
-  { id: 'scaling', label: 'Scaling' },
-  { id: 'options', label: 'Options' },
-]
+  { id: "type", label: "Chart Type" },
+  { id: "points", label: "Data Points" },
+  { id: "scaling", label: "Scaling" },
+  { id: "options", label: "Options" },
+];
 
-export default function ChartConfigPanel({ initialConfig, onSave, onClose, context }: ChartConfigPanelProps) {
+export default function ChartConfigPanel({
+  initialConfig,
+  onSave,
+  onClose,
+  context,
+}: ChartConfigPanelProps) {
   const [config, setConfig] = useState<ChartConfig>(() => ({
     durationMinutes: 60,
     ...initialConfig,
-  }))
-  const [tab, setTab] = useState<Tab>('type')
+  }));
+  const [tab, setTab] = useState<Tab>("type");
 
   // ChartPointSelector fetches its own list with server-side search.
   // ChartScalingTab only needs metadata for already-configured points.
   // We build pointMeta lazily from the config's own point list (label + color),
   // which is sufficient for axis label display.
   const pointMeta = new Map(
-    config.points.map((p) => [p.pointId, { id: p.pointId, tagname: p.label ?? p.pointId, display_name: p.label ?? null } as import('../../../api/points').PointMeta])
-  )
+    config.points.map((p) => [
+      p.pointId,
+      {
+        id: p.pointId,
+        tagname: p.label ?? p.pointId,
+        display_name: p.label ?? null,
+      } as import("../../../api/points").PointMeta,
+    ]),
+  );
 
   // Only show Scaling tab for chart types that have configurable axes
   const TABS = SCALING_TAB_CHARTS.has(config.chartType)
     ? BASE_TABS
-    : BASE_TABS.filter((t) => t.id !== 'scaling')
+    : BASE_TABS.filter((t) => t.id !== "scaling");
 
   // Measure sidebar width and topbar height live so the panel sits entirely
   // within the workspace area and never overlaps the top console bar.
-  const [sidebarWidth, setSidebarWidth] = useState(0)
-  const [topbarHeight, setTopbarHeight] = useState(0)
+  const [sidebarWidth, setSidebarWidth] = useState(0);
+  const [topbarHeight, setTopbarHeight] = useState(0);
   useLayoutEffect(() => {
     const measure = () => {
-      const sidebar = document.querySelector('.sidebar')
-      setSidebarWidth(sidebar ? sidebar.getBoundingClientRect().width : 0)
-      const header = document.querySelector('header')
-      setTopbarHeight(header ? header.getBoundingClientRect().height : 0)
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    const sidebar = document.querySelector('.sidebar')
-    const header = document.querySelector('header')
-    if (sidebar) ro.observe(sidebar)
-    if (header) ro.observe(header)
-    return () => ro.disconnect()
-  }, [])
+      const sidebar = document.querySelector(".sidebar");
+      setSidebarWidth(sidebar ? sidebar.getBoundingClientRect().width : 0);
+      const header = document.querySelector("header");
+      setTopbarHeight(header ? header.getBoundingClientRect().height : 0);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    const sidebar = document.querySelector(".sidebar");
+    const header = document.querySelector("header");
+    if (sidebar) ro.observe(sidebar);
+    if (header) ro.observe(header);
+    return () => ro.disconnect();
+  }, []);
 
   // Close on Escape
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   // When chart type changes, reset points that don't have valid roles for the new type
   function handleTypeSelect(type: ChartTypeId) {
-    const newSlots = CHART_SLOTS[type]
-    const validRoles = new Set(newSlots.map((s) => s.id))
-    const filteredPoints = config.points.filter((p) => validRoles.has(p.role))
-    setConfig((c) => ({ ...c, chartType: type, points: filteredPoints }))
+    const newSlots = CHART_SLOTS[type];
+    const validRoles = new Set(newSlots.map((s) => s.id));
+    const filteredPoints = config.points.filter((p) => validRoles.has(p.role));
+    setConfig((c) => ({ ...c, chartType: type, points: filteredPoints }));
   }
 
   function patchConfig(patch: Partial<ChartConfig>) {
-    setConfig((c) => ({ ...c, ...patch }))
+    setConfig((c) => ({ ...c, ...patch }));
   }
 
-  const slotDefs = CHART_SLOTS[config.chartType]
+  const slotDefs = CHART_SLOTS[config.chartType];
 
   const handleSave = useCallback(() => {
-    onSave(config)
-    onClose()
-  }, [config, onSave, onClose])
+    onSave(config);
+    onClose();
+  }, [config, onSave, onClose]);
 
   // Backdrop covers the workspace area only (right of sidebar, below topbar).
   // Panel is 95% of that area so a sliver of the workspace peeks through.
-  const gap = '2.5%'
+  const gap = "2.5%";
 
   return createPortal(
     <div
       style={{
-        position: 'fixed',
+        position: "fixed",
         top: topbarHeight,
         left: sidebarWidth,
         right: 0,
         bottom: 0,
         zIndex: 2000,
-        background: 'rgba(0,0,0,0.55)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       {/* Panel — 95% of the workspace area, responsive font size */}
       <div
         style={{
           width: `calc(100% - 2 * ${gap})`,
           height: `calc(100% - 2 * ${gap})`,
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
           borderRadius: 10,
-          boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
-          overflow: 'hidden',
-          fontSize: 'clamp(12px, 1.3vw, 18px)',
+          boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
+          overflow: "hidden",
+          fontSize: "clamp(12px, 1.3vw, 18px)",
         }}
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 20px',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 20px",
             height: 52,
-            borderBottom: '1px solid var(--io-border)',
+            borderBottom: "1px solid var(--io-border)",
             flexShrink: 0,
           }}
         >
-          <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--io-text-primary)' }}>
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: 15,
+              color: "var(--io-text-primary)",
+            }}
+          >
             Configure Chart
           </span>
           <button
             onClick={onClose}
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--io-text-muted)',
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--io-text-muted)",
               fontSize: 20,
               lineHeight: 1,
-              padding: '4px 6px',
+              padding: "4px 6px",
               borderRadius: 4,
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--io-text-primary)' }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--io-text-muted)' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--io-text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--io-text-muted)";
+            }}
           >
             ×
           </button>
@@ -172,9 +196,9 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
         {/* ── Tabs ────────────────────────────────────────────────────── */}
         <div
           style={{
-            display: 'flex',
-            borderBottom: '1px solid var(--io-border)',
-            background: 'var(--io-surface)',
+            display: "flex",
+            borderBottom: "1px solid var(--io-border)",
+            background: "var(--io-surface)",
             flexShrink: 0,
           }}
         >
@@ -183,14 +207,20 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
               key={t.id}
               onClick={() => setTab(t.id)}
               style={{
-                padding: '10px 20px',
-                background: 'none',
-                border: 'none',
-                borderBottom: tab === t.id ? '2px solid var(--io-accent)' : '2px solid transparent',
-                color: tab === t.id ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
+                padding: "10px 20px",
+                background: "none",
+                border: "none",
+                borderBottom:
+                  tab === t.id
+                    ? "2px solid var(--io-accent)"
+                    : "2px solid transparent",
+                color:
+                  tab === t.id
+                    ? "var(--io-text-primary)"
+                    : "var(--io-text-muted)",
                 fontWeight: tab === t.id ? 600 : 400,
                 fontSize: 13,
-                cursor: 'pointer',
+                cursor: "pointer",
                 marginBottom: -1,
               }}
             >
@@ -200,9 +230,24 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
         </div>
 
         {/* ── Tab content ─────────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {tab === 'type' && (
-            <div style={{ flex: 1, overflow: 'hidden', padding: 20, display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {tab === "type" && (
+            <div
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                padding: 20,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
               <ChartTypePicker
                 selectedType={config.chartType}
                 onSelect={handleTypeSelect}
@@ -211,8 +256,16 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
             </div>
           )}
 
-          {tab === 'points' && (
-            <div style={{ flex: 1, overflow: 'hidden', padding: 20, display: 'flex', flexDirection: 'column' }}>
+          {tab === "points" && (
+            <div
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                padding: 20,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
               <ChartPointSelector
                 slotDefs={slotDefs}
                 points={config.points}
@@ -221,9 +274,16 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
             </div>
           )}
 
-          {tab === 'scaling' && (
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+          {tab === "scaling" && (
+            <div
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
                 <ChartScalingTab
                   chartType={config.chartType}
                   config={config}
@@ -235,9 +295,23 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
             </div>
           )}
 
-          {tab === 'options' && (
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, overflowY: 'auto', padding: 20, maxWidth: 640 }}>
+          {tab === "options" && (
+            <div
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  padding: 20,
+                  maxWidth: 640,
+                }}
+              >
                 <ChartOptionsForm
                   chartType={config.chartType}
                   config={config}
@@ -251,53 +325,53 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
         {/* ── Footer ──────────────────────────────────────────────────── */}
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 20px',
-            borderTop: '1px solid var(--io-border)',
-            background: 'var(--io-surface)',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 20px",
+            borderTop: "1px solid var(--io-border)",
+            background: "var(--io-surface)",
             flexShrink: 0,
             gap: 8,
           }}
         >
           {/* Tab navigation shortcuts */}
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: "flex", gap: 6 }}>
             {TABS.map((t, i) => {
-              const isCurrent = tab === t.id
-              if (isCurrent) return null
-              const isPrev = TABS.findIndex((x) => x.id === tab) > i
+              const isCurrent = tab === t.id;
+              if (isCurrent) return null;
+              const isPrev = TABS.findIndex((x) => x.id === tab) > i;
               return (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
                   style={{
-                    background: 'var(--io-surface-secondary)',
-                    border: '1px solid var(--io-border)',
-                    color: 'var(--io-text-muted)',
+                    background: "var(--io-surface-secondary)",
+                    border: "1px solid var(--io-border)",
+                    color: "var(--io-text-muted)",
                     borderRadius: 4,
-                    padding: '5px 12px',
+                    padding: "5px 12px",
                     fontSize: 12,
-                    cursor: 'pointer',
+                    cursor: "pointer",
                   }}
                 >
                   {isPrev ? `← ${t.label}` : `${t.label} →`}
                 </button>
-              )
+              );
             })}
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={onClose}
               style={{
-                background: 'var(--io-surface-secondary)',
-                border: '1px solid var(--io-border)',
-                color: 'var(--io-text-primary)',
+                background: "var(--io-surface-secondary)",
+                border: "1px solid var(--io-border)",
+                color: "var(--io-text-primary)",
                 borderRadius: 6,
-                padding: '7px 16px',
+                padding: "7px 16px",
                 fontSize: 13,
-                cursor: 'pointer',
+                cursor: "pointer",
               }}
             >
               Cancel
@@ -305,17 +379,21 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
             <button
               onClick={handleSave}
               style={{
-                background: 'var(--io-accent)',
-                border: 'none',
-                color: '#fff',
+                background: "var(--io-accent)",
+                border: "none",
+                color: "#fff",
                 borderRadius: 6,
-                padding: '7px 20px',
+                padding: "7px 20px",
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: "pointer",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9' }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.9";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
             >
               Apply
             </button>
@@ -324,5 +402,5 @@ export default function ChartConfigPanel({ initialConfig, onSave, onClose, conte
       </div>
     </div>,
     document.body,
-  )
+  );
 }

@@ -6,7 +6,6 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use tracing::error;
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
@@ -14,6 +13,7 @@ use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{file_scan, state::AppState};
@@ -23,7 +23,10 @@ use crate::{file_scan, state::AppState};
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
@@ -264,9 +267,11 @@ pub async fn create_template(
             // Check for unique constraint violation on template name
             if let sqlx::Error::Database(db_err) = &e {
                 if db_err.message().contains("uq_log_templates_name") {
-                    return IoError::Conflict(
-                        format!("Template with name '{}' already exists", body.name)
-                    ).into_response();
+                    return IoError::Conflict(format!(
+                        "Template with name '{}' already exists",
+                        body.name
+                    ))
+                    .into_response();
                 }
             }
             IoError::Database(e).into_response()
@@ -579,7 +584,8 @@ pub async fn create_instance(
     };
 
     if !template_exists {
-        return IoError::NotFound(format!("Template {} not found", body.template_id)).into_response();
+        return IoError::NotFound(format!("Template {} not found", body.template_id))
+            .into_response();
     }
 
     // Insert the new instance — status must be 'draft' per the log_instances_status_check constraint
@@ -644,9 +650,7 @@ pub async fn get_instance(
 
     let instance = match instance_row {
         Err(e) => return IoError::Database(e).into_response(),
-        Ok(None) => {
-            return IoError::NotFound(format!("Instance {} not found", id)).into_response()
-        }
+        Ok(None) => return IoError::NotFound(format!("Instance {} not found", id)).into_response(),
         Ok(Some(r)) => LogInstanceRow {
             id: r.get("id"),
             template_id: r.get("template_id"),
@@ -783,10 +787,8 @@ pub async fn submit_instance(
 
     match row {
         Err(e) => IoError::Database(e).into_response(),
-        Ok(None) => {
-            IoError::NotFound(format!("Instance {} not found or already submitted", id))
-                .into_response()
-        }
+        Ok(None) => IoError::NotFound(format!("Instance {} not found or already submitted", id))
+            .into_response(),
         Ok(Some(r)) => {
             let instance = LogInstanceRow {
                 id: r.get("id"),

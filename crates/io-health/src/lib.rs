@@ -117,16 +117,13 @@ async fn handle_ready(State(state): State<HealthState>) -> Response {
 
     for check in state.checks.iter() {
         let t0 = Instant::now();
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            check.check(),
-        )
-        .await
-        .unwrap_or_else(|_| HealthStatus {
-            status: CheckStatus::Timeout,
-            latency_ms: 5000,
-            error: Some("check timed out".to_string()),
-        });
+        let result = tokio::time::timeout(std::time::Duration::from_secs(5), check.check())
+            .await
+            .unwrap_or_else(|_| HealthStatus {
+                status: CheckStatus::Timeout,
+                latency_ms: 5000,
+                error: Some("check timed out".to_string()),
+            });
 
         let elapsed = t0.elapsed().as_millis() as u64;
         let name = check.name().to_string();
@@ -437,7 +434,8 @@ mod tests {
         assert_eq!(reg.service_name, "test-service");
         assert_eq!(reg.version, "0.1.0");
         assert!(
-            !reg.startup_complete.load(std::sync::atomic::Ordering::SeqCst),
+            !reg.startup_complete
+                .load(std::sync::atomic::Ordering::SeqCst),
             "Startup must not be marked complete before mark_startup_complete() is called"
         );
     }
@@ -447,7 +445,8 @@ mod tests {
         let reg = HealthRegistry::new("svc", "1.0.0");
         reg.mark_startup_complete();
         assert!(
-            reg.startup_complete.load(std::sync::atomic::Ordering::SeqCst),
+            reg.startup_complete
+                .load(std::sync::atomic::Ordering::SeqCst),
             "mark_startup_complete must set the atomic flag"
         );
     }

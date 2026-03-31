@@ -30,8 +30,7 @@ fn bench_point_value_deserialize(c: &mut Criterion) {
     let json = serde_json::to_string(&pv).expect("serialize for bench");
     c.bench_function("point_value_deserialize", |b| {
         b.iter(|| {
-            let result: PointValue =
-                serde_json::from_str(black_box(&json)).expect("deserialize");
+            let result: PointValue = serde_json::from_str(black_box(&json)).expect("deserialize");
             black_box(result);
         });
     });

@@ -4,8 +4,8 @@ use axum::{
     response::IntoResponse,
     Json, Router,
 };
-use opcua::client::prelude::{ByteString, LocalizedText, Session, StatusCode as OpcStatusCode, Variant};
-use opcua::sync::RwLock;
+use opcua::client::Session;
+use opcua::types::{ByteString, LocalizedText, StatusCode as OpcStatusCode, Variant};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
@@ -61,8 +61,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(std::sync::Mutex::new(HashMap::new()));
 
     // --- Session registry (live OPC UA sessions for alarm-method HTTP handlers) ---
-    let sessions: state::SessionRegistry =
-        Arc::new(std::sync::Mutex::new(HashMap::new()));
+    let sessions: state::SessionRegistry = Arc::new(std::sync::Mutex::new(HashMap::new()));
 
     // --- Health + metrics HTTP ---
     let mut health = io_health::HealthRegistry::new("opc-service", env!("CARGO_PKG_VERSION"));
@@ -78,11 +77,26 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let internal_router = Router::new()
-        .route("/internal/reconnect/:source_id", axum::routing::post(reconnect_source))
-        .route("/internal/alarm/:source_id/acknowledge", axum::routing::post(alarm_acknowledge))
-        .route("/internal/alarm/:source_id/enable", axum::routing::post(alarm_enable))
-        .route("/internal/alarm/:source_id/disable", axum::routing::post(alarm_disable))
-        .route("/internal/alarm/:source_id/shelve", axum::routing::post(alarm_shelve))
+        .route(
+            "/internal/reconnect/:source_id",
+            axum::routing::post(reconnect_source),
+        )
+        .route(
+            "/internal/alarm/:source_id/acknowledge",
+            axum::routing::post(alarm_acknowledge),
+        )
+        .route(
+            "/internal/alarm/:source_id/enable",
+            axum::routing::post(alarm_enable),
+        )
+        .route(
+            "/internal/alarm/:source_id/disable",
+            axum::routing::post(alarm_disable),
+        )
+        .route(
+            "/internal/alarm/:source_id/shelve",
+            axum::routing::post(alarm_shelve),
+        )
         .with_state(app_state);
 
     let app = Router::new()
@@ -141,8 +155,7 @@ async fn main() -> anyhow::Result<()> {
                         let source_id = source.id;
 
                         tokio::spawn(async move {
-                            // Supervisor loop: restart the driver if it panics (e.g. due to
-                            // the opcua 0.12 runtime-drop panic on abrupt server disconnect).
+                            // Supervisor loop: restart the driver if it panics.
                             loop {
                                 let result = tokio::spawn(driver::run_source(
                                     source.clone(),
@@ -151,20 +164,24 @@ async fn main() -> anyhow::Result<()> {
                                     cfg_clone.clone(),
                                     notify.clone(),
                                     sessions_clone.clone(),
-                                )).await;
+                                ))
+                                .await;
                                 match result {
                                     Ok(()) => break, // clean exit
                                     Err(e) if e.is_panic() => {
                                         tracing::warn!(
                                             source_id = %source_id,
-                                            "OPC driver task panicked (opcua runtime drop); restarting in 5s"
+                                            "OPC driver task panicked; restarting in 5s"
                                         );
                                         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                                     }
                                     Err(_) => break, // cancelled
                                 }
                             }
-                            signals_clone.lock().unwrap_or_else(|e| e.into_inner()).remove(&source_id);
+                            signals_clone
+                                .lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .remove(&source_id);
                         });
                     }
                 }
@@ -209,7 +226,6 @@ async fn reconnect_source(
         info!(source_id = %source_id, "Reconnect signal sent to driver");
         StatusCode::NO_CONTENT
     } else {
-        // Source not currently managed (may not be enabled yet or unknown ID).
         StatusCode::NOT_FOUND
     }
 }
@@ -219,14 +235,19 @@ async fn reconnect_source(
 // ---------------------------------------------------------------------------
 //
 // All four endpoints share the same pattern:
-//   1. Clone the Arc<RwLock<Session>> from the registry under the Mutex (then release the lock).
-//   2. Dispatch to driver::call_alarm_method on a spawn_blocking thread.
+//   1. Clone the Arc<Session> from the registry under the Mutex (then release the lock).
+//   2. Call driver::call_alarm_method directly (it is async).
 //   3. Map Good → 204, bad OPC status → 422 with JSON body.
 
 /// Look up a live session by source_id, returning None if not connected.
 /// The Arc is cloned under the Mutex so we never hold the lock while doing I/O.
-fn get_session(state: &AppState, source_id: Uuid) -> Option<Arc<RwLock<Session>>> {
-    state.sessions.lock().unwrap_or_else(|e| e.into_inner()).get(&source_id).cloned()
+fn get_session(state: &AppState, source_id: Uuid) -> Option<Arc<Session>> {
+    state
+        .sessions
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&source_id)
+        .cloned()
 }
 
 /// Map an OPC UA StatusCode to an HTTP response.
@@ -262,29 +283,14 @@ async fn alarm_acknowledge(
         return StatusCode::NOT_FOUND.into_response();
     };
 
-    let condition_node_id = body.condition_node_id;
-    let event_id_hex = body.event_id;
-    let comment = body.comment;
+    let bytes = hex::decode(&body.event_id).unwrap_or_default();
+    let event_id_variant = Variant::ByteString(ByteString::from(bytes));
+    let comment_variant = Variant::from(LocalizedText::new("en", &body.comment));
+    let args = Some(vec![event_id_variant, comment_variant]);
 
-    let sc = tokio::task::spawn_blocking(move || {
-        // Decode hex event_id into bytes for ByteString.
-        let bytes = hex::decode(&event_id_hex).unwrap_or_default();
-        let event_id_variant = Variant::ByteString(ByteString::from(bytes));
-        let comment_variant = Variant::from(LocalizedText::new("en", &comment));
-        let args = Some(vec![event_id_variant, comment_variant]);
-
-        let session_guard = session_arc.read();
-        driver::call_alarm_method(&session_guard, &condition_node_id, "Acknowledge", args)
-    })
-    .await;
-
-    match sc {
-        Ok(status_code) => opc_status_to_response(status_code),
-        Err(e) => {
-            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_acknowledge");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
+    let sc = driver::call_alarm_method(&session_arc, &body.condition_node_id, "Acknowledge", args)
+        .await;
+    opc_status_to_response(sc)
 }
 
 // ---------------------------------------------------------------------------
@@ -306,21 +312,8 @@ async fn alarm_enable(
         return StatusCode::NOT_FOUND.into_response();
     };
 
-    let condition_node_id = body.condition_node_id;
-
-    let sc = tokio::task::spawn_blocking(move || {
-        let session_guard = session_arc.read();
-        driver::call_alarm_method(&session_guard, &condition_node_id, "Enable", None)
-    })
-    .await;
-
-    match sc {
-        Ok(status_code) => opc_status_to_response(status_code),
-        Err(e) => {
-            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_enable");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
+    let sc = driver::call_alarm_method(&session_arc, &body.condition_node_id, "Enable", None).await;
+    opc_status_to_response(sc)
 }
 
 // ---------------------------------------------------------------------------
@@ -337,21 +330,9 @@ async fn alarm_disable(
         return StatusCode::NOT_FOUND.into_response();
     };
 
-    let condition_node_id = body.condition_node_id;
-
-    let sc = tokio::task::spawn_blocking(move || {
-        let session_guard = session_arc.read();
-        driver::call_alarm_method(&session_guard, &condition_node_id, "Disable", None)
-    })
-    .await;
-
-    match sc {
-        Ok(status_code) => opc_status_to_response(status_code),
-        Err(e) => {
-            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_disable");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
+    let sc =
+        driver::call_alarm_method(&session_arc, &body.condition_node_id, "Disable", None).await;
+    opc_status_to_response(sc)
 }
 
 // ---------------------------------------------------------------------------
@@ -376,32 +357,18 @@ async fn alarm_shelve(
         return StatusCode::NOT_FOUND.into_response();
     };
 
-    let condition_node_id = body.condition_node_id;
-    let shelve_type = body.shelve_type;
-    let shelving_time_ms = body.shelving_time_ms;
-
-    let sc = tokio::task::spawn_blocking(move || {
-        let (method_name, args) = match shelve_type.as_str() {
-            "timed" => {
-                let ms = shelving_time_ms.unwrap_or(3_600_000.0);
-                ("TimedShelve", Some(vec![Variant::Double(ms)]))
-            }
-            "oneshot" => ("OneShotShelve", None),
-            "unshelve" | _ => ("Unshelve", None),
-        };
-
-        let session_guard = session_arc.read();
-        driver::call_alarm_method(&session_guard, &condition_node_id, method_name, args)
-    })
-    .await;
-
-    match sc {
-        Ok(status_code) => opc_status_to_response(status_code),
-        Err(e) => {
-            warn!(source_id = %source_id, error = %e, "spawn_blocking join error in alarm_shelve");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    let (method_name, args) = match body.shelve_type.as_str() {
+        "timed" => {
+            let ms = body.shelving_time_ms.unwrap_or(3_600_000.0);
+            ("TimedShelve", Some(vec![Variant::Double(ms)]))
         }
-    }
+        "oneshot" => ("OneShotShelve", None),
+        _ => ("Unshelve", None),
+    };
+
+    let sc =
+        driver::call_alarm_method(&session_arc, &body.condition_node_id, method_name, args).await;
+    opc_status_to_response(sc)
 }
 
 async fn shutdown_signal() {

@@ -115,9 +115,7 @@ pub async fn get_template(
 
     match row {
         Ok(Some(t)) => (StatusCode::OK, Json(ApiResponse::ok(t))).into_response(),
-        Ok(None) => {
-            IoError::NotFound(format!("Alert template {} not found", id)).into_response()
-        }
+        Ok(None) => IoError::NotFound(format!("Alert template {} not found", id)).into_response(),
         Err(e) => IoError::Database(e).into_response(),
     }
 }

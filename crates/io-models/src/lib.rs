@@ -4,19 +4,19 @@ use serde::{Deserialize, Serialize};
 // Domain type submodules (doc 37 §8, §18)
 // ---------------------------------------------------------------------------
 
-pub mod point;
-pub mod event;
 pub mod alert;
 pub mod auth;
-pub mod source;
+pub mod event;
 pub mod permission;
+pub mod point;
+pub mod source;
 
-pub use point::{PointValue, PointQuality, PointMetadata};
-pub use event::{Event, EventType, EventSeverity};
-pub use alert::{AlertDispatch, AlertRecipient, AlertChannel};
+pub use alert::{AlertChannel, AlertDispatch, AlertRecipient};
 pub use auth::{UserIdentity, WsTicket};
-pub use source::{SourceStatus, SourceState};
+pub use event::{Event, EventSeverity, EventType};
 pub use permission::Permission;
+pub use point::{PointMetadata, PointQuality, PointValue};
+pub use source::{SourceState, SourceStatus};
 
 // ---------------------------------------------------------------------------
 // Success envelope (doc 37 §2)
@@ -33,11 +33,19 @@ pub struct ApiResponse<T: Serialize> {
 
 impl<T: Serialize> ApiResponse<T> {
     pub fn ok(data: T) -> Self {
-        Self { success: true, data, message: None }
+        Self {
+            success: true,
+            data,
+            message: None,
+        }
     }
 
     pub fn with_message(data: T, msg: impl Into<String>) -> Self {
-        Self { success: true, data, message: Some(msg.into()) }
+        Self {
+            success: true,
+            data,
+            message: Some(msg.into()),
+        }
     }
 }
 
@@ -55,11 +63,21 @@ pub struct PagedResponse<T: Serialize> {
 
 impl<T: Serialize> PagedResponse<T> {
     pub fn new(data: Vec<T>, page: u32, per_page: u32, total_items: u64) -> Self {
-        let total_pages = if per_page == 0 { 1 } else { (total_items as u32).div_ceil(per_page) }.max(1);
+        let total_pages = if per_page == 0 {
+            1
+        } else {
+            (total_items as u32).div_ceil(per_page)
+        }
+        .max(1);
         Self {
             success: true,
             data,
-            pagination: Pagination { page, per_page, total_items, total_pages },
+            pagination: Pagination {
+                page,
+                per_page,
+                total_items,
+                total_pages,
+            },
         }
     }
 }
@@ -157,37 +175,67 @@ mod tests {
 
     #[test]
     fn page_params_defaults_page_to_1() {
-        let p = PageParams { page: None, per_page: None, sort: None, order: None };
+        let p = PageParams {
+            page: None,
+            per_page: None,
+            sort: None,
+            order: None,
+        };
         assert_eq!(p.page(), 1);
     }
 
     #[test]
     fn page_params_defaults_per_page_to_50() {
-        let p = PageParams { page: None, per_page: None, sort: None, order: None };
+        let p = PageParams {
+            page: None,
+            per_page: None,
+            sort: None,
+            order: None,
+        };
         assert_eq!(p.per_page(), 50);
     }
 
     #[test]
     fn page_params_page_0_is_clamped_to_1() {
-        let p = PageParams { page: Some(0), per_page: Some(10), sort: None, order: None };
+        let p = PageParams {
+            page: Some(0),
+            per_page: Some(10),
+            sort: None,
+            order: None,
+        };
         assert_eq!(p.page(), 1);
     }
 
     #[test]
     fn page_params_per_page_over_100_is_clamped_to_100() {
-        let p = PageParams { page: Some(1), per_page: Some(200), sort: None, order: None };
+        let p = PageParams {
+            page: Some(1),
+            per_page: Some(200),
+            sort: None,
+            order: None,
+        };
         assert_eq!(p.per_page(), 100);
     }
 
     #[test]
     fn page_params_offset_page_3_per_page_10_is_20() {
-        let p = PageParams { page: Some(3), per_page: Some(10), sort: None, order: None };
+        let p = PageParams {
+            page: Some(3),
+            per_page: Some(10),
+            sort: None,
+            order: None,
+        };
         assert_eq!(p.offset(), 20);
     }
 
     #[test]
     fn page_params_offset_page_1_is_0() {
-        let p = PageParams { page: Some(1), per_page: Some(25), sort: None, order: None };
+        let p = PageParams {
+            page: Some(1),
+            per_page: Some(25),
+            sort: None,
+            order: None,
+        };
         assert_eq!(p.offset(), 0);
     }
 

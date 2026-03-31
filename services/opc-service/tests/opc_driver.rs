@@ -1,13 +1,13 @@
-/// Integration tests for the opc-service OPC UA client.
-///
-/// The opc-service connects to OPC UA servers, crawls metadata, and batches
-/// subscriptions for real-time data delivery to the data-broker.
-///
-/// Tests that require a live OPC UA server (e.g. SimBLAH simulator) are
-/// marked `#[ignore]`.  Unit-style tests verify configuration parsing and
-/// subscription batching logic.
-///
-///   cargo test -p opc-service --test opc_driver -- --ignored
+// Integration tests for the opc-service OPC UA client.
+//
+// The opc-service connects to OPC UA servers, crawls metadata, and batches
+// subscriptions for real-time data delivery to the data-broker.
+//
+// Tests that require a live OPC UA server (e.g. SimBLAH simulator) are
+// marked `#[ignore]`.  Unit-style tests verify configuration parsing and
+// subscription batching logic.
+//
+// cargo test -p opc-service --test opc_driver -- --ignored
 
 // ---------------------------------------------------------------------------
 // Endpoint URL validation — pure logic, no OPC UA server needed
@@ -44,7 +44,11 @@ fn test_subscription_batching_produces_correct_batch_count() {
     let batch_size = 200;
     let batches: Vec<&[u32]> = tags.chunks(batch_size).collect();
 
-    assert_eq!(batches.len(), 5, "1000 tags / batch_size 200 must yield 5 batches");
+    assert_eq!(
+        batches.len(),
+        5,
+        "1000 tags / batch_size 200 must yield 5 batches"
+    );
     assert!(
         batches.iter().all(|b| b.len() <= batch_size),
         "no batch must exceed the configured batch size"
@@ -58,8 +62,16 @@ fn test_subscription_batching_handles_remainder() {
     let batch_size = 200;
     let batches: Vec<&[u32]> = tags.chunks(batch_size).collect();
 
-    assert_eq!(batches.len(), 6, "1050 tags / batch_size 200 must yield 6 batches");
-    assert_eq!(batches.last().unwrap().len(), 50, "last batch must contain the 50 remaining tags");
+    assert_eq!(
+        batches.len(),
+        6,
+        "1050 tags / batch_size 200 must yield 6 batches"
+    );
+    assert_eq!(
+        batches.last().unwrap().len(),
+        50,
+        "last batch must contain the 50 remaining tags"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -67,8 +79,7 @@ fn test_subscription_batching_handles_remainder() {
 // ---------------------------------------------------------------------------
 
 fn opc_url() -> String {
-    std::env::var("TEST_OPC_SERVICE_URL")
-        .unwrap_or_else(|_| "http://localhost:3002".to_string())
+    std::env::var("TEST_OPC_SERVICE_URL").unwrap_or_else(|_| "http://localhost:3002".to_string())
 }
 
 #[tokio::test]

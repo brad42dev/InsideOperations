@@ -60,7 +60,9 @@ async fn ldap_login_inner(
     body: LdapLoginBody,
 ) -> IoResult<Response> {
     if body.username.is_empty() || body.password.is_empty() {
-        return Err(IoError::BadRequest("username and password are required".into()));
+        return Err(IoError::BadRequest(
+            "username and password are required".into(),
+        ));
     }
 
     // Load LDAP provider config
@@ -304,13 +306,12 @@ async fn ldap_login_inner(
 
     // --- MFA gate ---
     // Check is_service_account for the db user before applying the gate.
-    let is_service_account: bool = sqlx::query_scalar(
-        "SELECT is_service_account FROM users WHERE id = $1",
-    )
-    .bind(db_user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .unwrap_or(false);
+    let is_service_account: bool =
+        sqlx::query_scalar("SELECT is_service_account FROM users WHERE id = $1")
+            .bind(db_user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or(false);
 
     if !is_service_account {
         if let Some((mfa_token, allowed_methods)) =
@@ -412,6 +413,7 @@ async fn ldap_login_inner(
 ///
 /// On any LDAP connection or query failure the function returns an error so the
 /// caller can log it and preserve existing role assignments unchanged.
+#[allow(clippy::too_many_arguments)]
 pub async fn sync_ldap_user_groups(
     db: &io_db::DbPool,
     server_url: &str,
@@ -498,10 +500,7 @@ fn ldap_escape_filter(input: &str) -> String {
 // Helper: ensure username uniqueness
 // ---------------------------------------------------------------------------
 
-async fn ensure_unique_username(
-    db: &io_db::DbPool,
-    base: &str,
-) -> IoResult<String> {
+async fn ensure_unique_username(db: &io_db::DbPool, base: &str) -> IoResult<String> {
     let base = if base.is_empty() { "user" } else { base };
 
     let exists: bool = sqlx::query_scalar(

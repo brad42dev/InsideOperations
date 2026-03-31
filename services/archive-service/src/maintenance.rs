@@ -21,12 +21,11 @@ pub async fn run_maintenance(db: DbPool, config: Arc<Config>) {
         //    add_compression_policy returns an error if the policy already exists;
         //    we swallow that safely.
         let compress_interval = format!("{} days", config.compression_after_days);
-        let compress_result = sqlx::query(
-            "SELECT add_compression_policy('points_history_raw', $1::interval)",
-        )
-        .bind(&compress_interval)
-        .execute(&db)
-        .await;
+        let compress_result =
+            sqlx::query("SELECT add_compression_policy('points_history_raw', $1::interval)")
+                .bind(&compress_interval)
+                .execute(&db)
+                .await;
 
         match compress_result {
             Ok(_) => info!(
@@ -82,13 +81,11 @@ pub async fn run_maintenance(db: DbPool, config: Arc<Config>) {
         ];
         for (table, days) in &agg_retentions {
             let retention = format!("{days} days");
-            let result = sqlx::query(
-                "SELECT drop_chunks($1, older_than => NOW() - $2::interval)",
-            )
-            .bind(table)
-            .bind(&retention)
-            .execute(&db)
-            .await;
+            let result = sqlx::query("SELECT drop_chunks($1, older_than => NOW() - $2::interval)")
+                .bind(table)
+                .bind(&retention)
+                .execute(&db)
+                .await;
 
             match result {
                 Ok(r) => info!(

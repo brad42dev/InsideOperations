@@ -4,7 +4,6 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use std::collections::HashSet;
 use chrono::{DateTime, Utc};
 use io_auth::Claims;
 use io_error::IoError;
@@ -12,6 +11,7 @@ use io_models::{ApiResponse, PageParams, PagedResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -21,7 +21,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +247,11 @@ pub async fn create_source(
         }
     };
 
-    (StatusCode::CREATED, Json(ApiResponse::ok(row_to_source(&row)))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(ApiResponse::ok(row_to_source(&row))),
+    )
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -262,12 +269,10 @@ pub async fn update_source(
     }
 
     // Fetch existing config so we can merge fields
-    let existing = match sqlx::query(
-        "SELECT connection_config FROM point_sources WHERE id = $1",
-    )
-    .bind(source_id)
-    .fetch_optional(&state.db)
-    .await
+    let existing = match sqlx::query("SELECT connection_config FROM point_sources WHERE id = $1")
+        .bind(source_id)
+        .fetch_optional(&state.db)
+        .await
     {
         Ok(Some(r)) => r,
         Ok(None) => {
@@ -302,25 +307,23 @@ pub async fn update_source(
     let config_val = JsonValue::Object(config);
 
     if let Some(name) = &req.name {
-        if let Err(e) = sqlx::query(
-            "UPDATE point_sources SET name = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(name.trim())
-        .bind(source_id)
-        .execute(&state.db)
-        .await
+        if let Err(e) =
+            sqlx::query("UPDATE point_sources SET name = $1, updated_at = NOW() WHERE id = $2")
+                .bind(name.trim())
+                .bind(source_id)
+                .execute(&state.db)
+                .await
         {
             return IoError::Internal(e.to_string()).into_response();
         }
     }
     if let Some(enabled) = req.enabled {
-        if let Err(e) = sqlx::query(
-            "UPDATE point_sources SET enabled = $1, updated_at = NOW() WHERE id = $2",
-        )
-        .bind(enabled)
-        .bind(source_id)
-        .execute(&state.db)
-        .await
+        if let Err(e) =
+            sqlx::query("UPDATE point_sources SET enabled = $1, updated_at = NOW() WHERE id = $2")
+                .bind(enabled)
+                .bind(source_id)
+                .execute(&state.db)
+                .await
         {
             return IoError::Internal(e.to_string()).into_response();
         }
@@ -407,11 +410,16 @@ pub async fn reconnect_source(
 
     // Forward to opc-service internal endpoint.
     let opc_port = std::env::var("OPC_SERVICE_PORT").unwrap_or_else(|_| "3002".to_string());
-    let url = format!("http://127.0.0.1:{}/internal/reconnect/{}", opc_port, source_id);
+    let url = format!(
+        "http://127.0.0.1:{}/internal/reconnect/{}",
+        opc_port, source_id
+    );
 
     let client = reqwest::Client::new();
     match client.post(&url).send().await {
-        Ok(resp) if resp.status().is_success() || resp.status() == reqwest::StatusCode::NO_CONTENT => {
+        Ok(resp)
+            if resp.status().is_success() || resp.status() == reqwest::StatusCode::NO_CONTENT =>
+        {
             StatusCode::NO_CONTENT.into_response()
         }
         Ok(resp) if resp.status() == reqwest::StatusCode::NOT_FOUND => {
@@ -607,14 +615,14 @@ pub async fn list_source_stats(
             let status: String = r.get("status");
             let updates_per_minute: i64 = r.get("updates_per_minute");
             PointSourceStats {
-                source_id:        r.get("source_id"),
-                name:             r.get("name"),
-                connected:        status == "active",
-                point_count:      r.get("point_count"),
+                source_id: r.get("source_id"),
+                name: r.get("name"),
+                connected: status == "active",
+                point_count: r.get("point_count"),
                 subscribed_points: r.get("subscribed_points"),
-                update_rate:      updates_per_minute as f64 / 60.0,
-                error_count_24h:  r.get("error_count_24h"),
-                last_value_at:    r.get("last_value_at"),
+                update_rate: updates_per_minute as f64 / 60.0,
+                error_count_24h: r.get("error_count_24h"),
+                last_value_at: r.get("last_value_at"),
             }
         })
         .collect();
@@ -680,14 +688,14 @@ pub async fn get_source_stats(
     let status: String = row.get("status");
     let updates_1m: i64 = row.get("updates_1m");
     let stats = PointSourceStats {
-        source_id:        row.get("source_id"),
-        name:             row.get("name"),
-        connected:        status == "active",
-        point_count:      row.get("point_count"),
+        source_id: row.get("source_id"),
+        name: row.get("name"),
+        connected: status == "active",
+        point_count: row.get("point_count"),
         subscribed_points: row.get("subscribed_points"),
-        update_rate:      updates_1m as f64 / 60.0,
-        error_count_24h:  row.get("error_count_24h"),
-        last_value_at:    row.get("last_value_at"),
+        update_rate: updates_1m as f64 / 60.0,
+        error_count_24h: row.get("error_count_24h"),
+        last_value_at: row.get("last_value_at"),
     };
 
     Json(ApiResponse::ok(stats)).into_response()
@@ -746,16 +754,16 @@ pub async fn list_history_recovery_jobs(
     let jobs: Vec<RecoveryJobResponse> = rows
         .into_iter()
         .map(|r| RecoveryJobResponse {
-            id:               r.get("id"),
-            source_id:        r.get("source_id"),
-            from_time:        r.get("from_time"),
-            to_time:          r.get("to_time"),
-            status:           r.get("status"),
+            id: r.get("id"),
+            source_id: r.get("source_id"),
+            from_time: r.get("from_time"),
+            to_time: r.get("to_time"),
+            status: r.get("status"),
             points_recovered: r.get("points_recovered"),
-            started_at:       r.get("started_at"),
-            completed_at:     r.get("completed_at"),
-            error_message:    r.get("error_message"),
-            created_at:       r.get("created_at"),
+            started_at: r.get("started_at"),
+            completed_at: r.get("completed_at"),
+            error_message: r.get("error_message"),
+            created_at: r.get("created_at"),
         })
         .collect();
 
@@ -783,16 +791,15 @@ pub async fn resolve_tags(
         return Json(serde_json::json!({ "data": {} })).into_response();
     }
 
-    let rows = match sqlx::query(
-        "SELECT tagname, id::text FROM points_metadata WHERE tagname = ANY($1)",
-    )
-    .bind(&body.tags)
-    .fetch_all(&state.db)
-    .await
-    {
-        Ok(r) => r,
-        Err(e) => return IoError::Internal(e.to_string()).into_response(),
-    };
+    let rows =
+        match sqlx::query("SELECT tagname, id::text FROM points_metadata WHERE tagname = ANY($1)")
+            .bind(&body.tags)
+            .fetch_all(&state.db)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => return IoError::Internal(e.to_string()).into_response(),
+        };
 
     let resolved: std::collections::HashMap<String, String> = rows
         .into_iter()
@@ -835,7 +842,8 @@ pub async fn list_points(
                   source_id::text, active, area, criticality,
                   min_value, max_value
            FROM points_metadata
-           WHERE ($1::uuid IS NULL OR source_id = $1)
+           WHERE active = true
+             AND ($1::uuid IS NULL OR source_id = $1)
              AND ($2::text IS NULL OR LOWER(tagname) LIKE $2 OR LOWER(description) LIKE $2)
            ORDER BY tagname
            LIMIT $3 OFFSET $4"#,
@@ -853,7 +861,8 @@ pub async fn list_points(
 
     let total: i64 = match sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM points_metadata
-           WHERE ($1::uuid IS NULL OR source_id = $1)
+           WHERE active = true
+             AND ($1::uuid IS NULL OR source_id = $1)
              AND ($2::text IS NULL OR LOWER(tagname) LIKE $2 OR LOWER(description) LIKE $2)"#,
     )
     .bind(params.source_id)
@@ -913,7 +922,13 @@ pub async fn get_point(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Point not found" }))).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "Point not found" })),
+            )
+                .into_response()
+        }
         Err(e) => return IoError::Internal(e.to_string()).into_response(),
     };
 
@@ -992,7 +1007,10 @@ pub async fn list_point_status(
     Query(params): Query<PointStatusParams>,
 ) -> impl IntoResponse {
     let limit = params.limit.unwrap_or(50).min(500);
-    let area_filter = params.area.as_deref().filter(|a| *a != "__all__" && !a.is_empty());
+    let area_filter = params
+        .area
+        .as_deref()
+        .filter(|a| *a != "__all__" && !a.is_empty());
     let bad_quality_only = params.filter.as_deref() == Some("bad_quality");
 
     let rows = match sqlx::query(
@@ -1008,7 +1026,8 @@ pub async fn list_point_status(
            FROM points_metadata pm
            LEFT JOIN point_sources ps ON ps.id = pm.source_id
            LEFT JOIN points_current pc ON pc.point_id = pm.id
-           WHERE ($1::text IS NULL OR pm.area = $1)
+           WHERE pm.active = true
+             AND ($1::text IS NULL OR pm.area = $1)
              AND (NOT $2 OR pc.quality NOT IN ('good'))
            ORDER BY pm.tagname
            LIMIT $3"#,
@@ -1127,6 +1146,7 @@ pub async fn list_current_quality(
                   COALESCE(pc.quality, 'unknown') AS quality
            FROM points_metadata pm
            LEFT JOIN points_current pc ON pc.point_id = pm.id
+           WHERE pm.active = true
            ORDER BY pm.tagname"#,
     )
     .fetch_all(&state.db)
@@ -1177,8 +1197,9 @@ pub async fn list_stale_points(
            FROM points_metadata pm
            LEFT JOIN point_sources ps ON ps.id = pm.source_id
            LEFT JOIN points_current pc ON pc.point_id = pm.id
-           WHERE pc.timestamp IS NULL
-              OR pc.timestamp < NOW() - make_interval(mins => $1)
+           WHERE pm.active = true
+             AND (pc.timestamp IS NULL
+              OR pc.timestamp < NOW() - make_interval(mins => $1))
            ORDER BY pc.timestamp ASC NULLS FIRST
            LIMIT 500"#,
     )

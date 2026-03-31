@@ -26,7 +26,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +146,9 @@ fn row_to_dashboard(row: &sqlx::postgres::PgRow) -> Result<DashboardRow, sqlx::E
     let name: String = row.try_get("name")?;
     let description: Option<String> = row.try_get("description").ok().flatten();
     let category: Option<String> = row.try_get("category").ok().flatten();
-    let layout: JsonValue = row.try_get("layout").unwrap_or(JsonValue::Object(serde_json::Map::new()));
+    let layout: JsonValue = row
+        .try_get("layout")
+        .unwrap_or(JsonValue::Object(serde_json::Map::new()));
     let widgets: JsonValue = row.try_get("widgets").unwrap_or(JsonValue::Array(vec![]));
     let variables: JsonValue = row.try_get("variables").unwrap_or(JsonValue::Array(vec![]));
     let published: bool = row.try_get("published").unwrap_or(false);
@@ -312,7 +317,9 @@ pub async fn get_dashboard(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Dashboard {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Dashboard {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "get_dashboard query failed");
             return IoError::Database(e).into_response();
@@ -346,7 +353,9 @@ pub async fn create_dashboard(
     }
 
     let user_id = user_id_from_claims(&claims);
-    let layout = body.layout.unwrap_or_else(|| serde_json::json!({"cols":12,"rows":8}));
+    let layout = body
+        .layout
+        .unwrap_or_else(|| serde_json::json!({"cols":12,"rows":8}));
     let widgets = body.widgets.unwrap_or_else(|| JsonValue::Array(vec![]));
     let variables = body.variables.unwrap_or_else(|| JsonValue::Array(vec![]));
 
@@ -402,15 +411,15 @@ pub async fn update_dashboard(
     let user_id = user_id_from_claims(&claims);
 
     // Fetch the current record to check ownership and system flag.
-    let existing = match sqlx::query(
-        "SELECT is_system, user_id FROM dashboards WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
+    let existing = match sqlx::query("SELECT is_system, user_id FROM dashboards WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Dashboard {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Dashboard {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "update_dashboard fetch failed");
             return IoError::Database(e).into_response();
@@ -462,7 +471,9 @@ pub async fn update_dashboard(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Dashboard {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Dashboard {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "update_dashboard query failed");
             return IoError::Database(e).into_response();
@@ -494,15 +505,15 @@ pub async fn delete_dashboard(
     let user_id = user_id_from_claims(&claims);
 
     // Fetch to check is_system and ownership.
-    let existing = match sqlx::query(
-        "SELECT is_system, user_id FROM dashboards WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
+    let existing = match sqlx::query("SELECT is_system, user_id FROM dashboards WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Dashboard {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Dashboard {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "delete_dashboard fetch failed");
             return IoError::Database(e).into_response();
@@ -565,7 +576,9 @@ pub async fn duplicate_dashboard(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Dashboard {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Dashboard {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "duplicate_dashboard source fetch failed");
             return IoError::Database(e).into_response();
@@ -634,11 +647,9 @@ pub async fn list_playlists(
     let limit = page.per_page();
     let offset = page.offset();
 
-    let total: i64 = match sqlx::query_scalar(
-        "SELECT COUNT(*) FROM dashboard_playlists",
-    )
-    .fetch_one(&state.db)
-    .await
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM dashboard_playlists")
+        .fetch_one(&state.db)
+        .await
     {
         Ok(n) => n,
         Err(e) => {
@@ -853,12 +864,10 @@ pub async fn update_playlist(
     }
 
     // Verify the playlist exists.
-    let existing = match sqlx::query(
-        "SELECT id FROM dashboard_playlists WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
+    let existing = match sqlx::query("SELECT id FROM dashboard_playlists WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
     {
         Ok(Some(r)) => r,
         Ok(None) => return IoError::NotFound(format!("Playlist {} not found", id)).into_response(),
@@ -886,12 +895,10 @@ pub async fn update_playlist(
 
     // If items supplied, replace them wholesale.
     if let Some(ref req_items) = body.items {
-        if let Err(e) = sqlx::query(
-            "DELETE FROM dashboard_playlist_items WHERE playlist_id = $1",
-        )
-        .bind(id)
-        .execute(&state.db)
-        .await
+        if let Err(e) = sqlx::query("DELETE FROM dashboard_playlist_items WHERE playlist_id = $1")
+            .bind(id)
+            .execute(&state.db)
+            .await
         {
             tracing::error!(error = %e, "update_playlist items delete failed");
             return IoError::Database(e).into_response();
@@ -925,7 +932,9 @@ pub async fn update_playlist(
     }
 
     // Re-fetch and return the updated playlist with items.
-    get_playlist(State(state), Extension(claims), Path(id)).await.into_response()
+    get_playlist(State(state), Extension(claims), Path(id))
+        .await
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -941,12 +950,10 @@ pub async fn delete_playlist(
         return IoError::Forbidden("dashboards:write permission required".into()).into_response();
     }
 
-    let result = match sqlx::query(
-        "DELETE FROM dashboard_playlists WHERE id = $1 RETURNING id",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await
+    let result = match sqlx::query("DELETE FROM dashboard_playlists WHERE id = $1 RETURNING id")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await
     {
         Ok(r) => r,
         Err(e) => {
@@ -996,7 +1003,9 @@ pub async fn export_dashboard_iographic(
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => return IoError::NotFound(format!("Dashboard {} not found", id)).into_response(),
+        Ok(None) => {
+            return IoError::NotFound(format!("Dashboard {} not found", id)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "export_dashboard_iographic: failed to load dashboard");
             return IoError::Database(e).into_response();
@@ -1016,11 +1025,21 @@ pub async fn export_dashboard_iographic(
         .name
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .trim_matches('-')
         .to_string();
-    let dir = if dir.is_empty() { "dashboard".to_string() } else { dir };
+    let dir = if dir.is_empty() {
+        "dashboard".to_string()
+    } else {
+        dir
+    };
 
     let dashboard_json = serde_json::json!({
         "id": dashboard.id,
@@ -1049,7 +1068,10 @@ pub async fn export_dashboard_iographic(
     let hash_bytes = hasher.finalize();
     let checksum = format!(
         "sha256:{}",
-        hash_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+        hash_bytes
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<String>()
     );
 
     // 4. Build manifest
@@ -1093,8 +1115,7 @@ pub async fn export_dashboard_iographic(
     let mut zip_bytes: Vec<u8> = Vec::new();
     let cursor = std::io::Cursor::new(&mut zip_bytes);
     let mut zip = ZipWriter::new(cursor);
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     macro_rules! zip_write {
         ($path:expr, $bytes:expr) => {
@@ -1128,7 +1149,13 @@ pub async fn export_dashboard_iographic(
     let safe_name: String = dashboard
         .name
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     let filename = format!("{}.iographic", safe_name);
     let content_disposition = format!("attachment; filename=\"{}\"", filename);
@@ -1140,7 +1167,9 @@ pub async fn export_dashboard_iographic(
         HeaderValue::from_static("application/vnd.insideops.iographic+zip"),
     );
     if let Ok(val) = HeaderValue::from_str(&content_disposition) {
-        response.headers_mut().insert(header::CONTENT_DISPOSITION, val);
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, val);
     }
     response
 }

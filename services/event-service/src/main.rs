@@ -35,12 +35,14 @@ async fn main() -> anyhow::Result<()> {
     let db = io_db::create_pool(&cfg.database_url).await?;
     io_db::spawn_pool_metrics(db.clone(), "event-service");
 
-    let mut health =
-        io_health::HealthRegistry::new("event-service", env!("CARGO_PKG_VERSION"));
+    let mut health = io_health::HealthRegistry::new("event-service", env!("CARGO_PKG_VERSION"));
     health.register(io_health::PgDatabaseCheck::new(db.clone()));
     health.mark_startup_complete();
 
-    let state = AppState { db: db.clone(), config: cfg.clone() };
+    let state = AppState {
+        db: db.clone(),
+        config: cfg.clone(),
+    };
     let cfg_arc = Arc::new(cfg);
 
     // Spawn the ISA-18.2 threshold alarm evaluator.
@@ -62,7 +64,10 @@ async fn main() -> anyhow::Result<()> {
         // Alarm endpoints (service-secret protected)
         .route("/alarms/active", get(handlers::alarms::get_active_alarms))
         .route("/alarms/history", get(handlers::alarms::get_alarm_history))
-        .route("/alarms/:id/acknowledge", post(handlers::alarms::acknowledge_alarm))
+        .route(
+            "/alarms/:id/acknowledge",
+            post(handlers::alarms::acknowledge_alarm),
+        )
         .route("/alarms/:id/shelve", post(handlers::alarms::shelve_alarm))
         .with_state(state)
         .merge(health.into_router())

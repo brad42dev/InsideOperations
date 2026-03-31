@@ -21,10 +21,10 @@
  * decremented accordingly (clamped to 0).
  */
 
-import { create } from 'zustand'
-import type { GraphicDocument } from '../../shared/types/graphics'
-import type { SceneCommand } from '../../shared/graphics/commands'
-import { useSceneStore } from './sceneStore'
+import { create } from "zustand";
+import type { GraphicDocument } from "../../shared/types/graphics";
+import type { SceneCommand } from "../../shared/graphics/commands";
+import { useSceneStore } from "./sceneStore";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,73 +32,75 @@ import { useSceneStore } from './sceneStore'
 
 export interface HistoryEntry {
   /** The command that was executed. */
-  command: SceneCommand
+  command: SceneCommand;
   /** Snapshot of the document *before* this command was applied. */
-  docBefore: GraphicDocument
+  docBefore: GraphicDocument;
 }
 
 export interface HistoryStore {
   /** The linear history stack. */
-  entries: HistoryEntry[]
+  entries: HistoryEntry[];
   /** Index of the next insertion point. entries[pointer-1] is the last executed command. */
-  pointer: number
+  pointer: number;
   /** Value of pointer at the time of the last save. Used to drive isDirty in sync. */
-  cleanPointer: number
+  cleanPointer: number;
 
   // Derived booleans (kept in state for cheap subscriptions)
-  canUndo: boolean
-  canRedo: boolean
+  canUndo: boolean;
+  canRedo: boolean;
   /** Description of the command that will be undone, or null. */
-  undoDescription: string | null
+  undoDescription: string | null;
   /** Description of the command that will be redone, or null. */
-  redoDescription: string | null
+  redoDescription: string | null;
 
   /**
    * Push a new command + pre-command snapshot onto the stack.
    * Truncates any redo tail before appending.
    * Enforces a 50-entry maximum.
    */
-  push(cmd: SceneCommand, docBefore: GraphicDocument): void
+  push(cmd: SceneCommand, docBefore: GraphicDocument): void;
 
   /**
    * Undo the last executed command.
    * Restores the docBefore of entries[pointer-1] via sceneStore._setDoc().
    */
-  undo(): void
+  undo(): void;
 
   /**
    * Redo the next undone command.
    * Re-executes entries[pointer].command against the current doc.
    */
-  redo(): void
+  redo(): void;
 
   /**
    * Clear all history (called on loadGraphic / newDocument / reset).
    */
-  clear(): void
+  clear(): void;
 
   /**
    * Record the current pointer as the clean point (called from sceneStore.markClean).
    */
-  markClean(): void
+  markClean(): void;
 }
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_HISTORY = 50
+const MAX_HISTORY = 50;
 
 // ---------------------------------------------------------------------------
 // Derived state helpers
 // ---------------------------------------------------------------------------
 
 function derivedState(entries: HistoryEntry[], pointer: number) {
-  const canUndo = pointer > 0
-  const canRedo = pointer < entries.length
-  const undoDescription = canUndo ? entries[pointer - 1].command.description : null
-  const redoDescription = canRedo ? entries[pointer].command.description : null
-  return { canUndo, canRedo, undoDescription, redoDescription }
+  const canUndo = pointer > 0;
+  const canRedo = pointer < entries.length;
+  const undoDescription = canUndo
+    ? entries[pointer - 1].command.description
+    : null;
+  const redoDescription = canRedo ? entries[pointer].command.description : null;
+  return { canUndo, canRedo, undoDescription, redoDescription };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,64 +119,66 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
   push(cmd, docBefore) {
     set((state) => {
       // Truncate redo tail
-      let entries = state.entries.slice(0, state.pointer)
-      let cleanPointer = state.cleanPointer
+      let entries = state.entries.slice(0, state.pointer);
+      let cleanPointer = state.cleanPointer;
 
       // Append new entry
-      entries = [...entries, { command: cmd, docBefore }]
+      entries = [...entries, { command: cmd, docBefore }];
 
       // Enforce max stack depth by evicting from the front
       if (entries.length > MAX_HISTORY) {
-        const excess = entries.length - MAX_HISTORY
-        entries = entries.slice(excess)
-        cleanPointer = Math.max(0, cleanPointer - excess)
+        const excess = entries.length - MAX_HISTORY;
+        entries = entries.slice(excess);
+        cleanPointer = Math.max(0, cleanPointer - excess);
       }
 
-      const pointer = entries.length
+      const pointer = entries.length;
 
       return {
         entries,
         pointer,
         cleanPointer,
         ...derivedState(entries, pointer),
-      }
-    })
+      };
+    });
   },
 
   undo() {
-    const { entries, pointer, cleanPointer } = get()
-    if (pointer <= 0) return
+    const { entries, pointer, cleanPointer } = get();
+    if (pointer <= 0) return;
 
-    const newPointer = pointer - 1
-    const entry = entries[newPointer]
+    const newPointer = pointer - 1;
+    const entry = entries[newPointer];
 
     // Restore the document to its pre-command state.
     // If undoing back to the exact clean point, mark the document as clean.
-    useSceneStore.getState()._setDoc(entry.docBefore, newPointer !== cleanPointer)
+    useSceneStore
+      .getState()
+      ._setDoc(entry.docBefore, newPointer !== cleanPointer);
 
     set((state) => ({
       pointer: newPointer,
       ...derivedState(state.entries, newPointer),
-    }))
+    }));
   },
 
   redo() {
-    const { entries, pointer } = get()
-    if (pointer >= entries.length) return
+    const { entries, pointer } = get();
+    if (pointer >= entries.length) return;
 
-    const currentDoc = useSceneStore.getState().doc
-    if (!currentDoc) return
+    const currentDoc = useSceneStore.getState().doc;
+    if (!currentDoc) return;
 
-    const entry = entries[pointer]
-    const newPointer = pointer + 1
+    const entry = entries[pointer];
+    const newPointer = pointer + 1;
 
-    const newDoc = entry.command.execute(currentDoc)
-    useSceneStore.getState()._setDoc(newDoc)
+    const newDoc = entry.command.execute(currentDoc);
+    useSceneStore.getState()._setDoc(newDoc);
 
     set((state) => ({
       pointer: newPointer,
       ...derivedState(state.entries, newPointer),
-    }))
+    }));
   },
 
   clear() {
@@ -186,10 +190,10 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
       canRedo: false,
       undoDescription: null,
       redoDescription: null,
-    })
+    });
   },
 
   markClean() {
-    set((state) => ({ cleanPointer: state.pointer }))
+    set((state) => ({ cleanPointer: state.pointer }));
   },
-}))
+}));

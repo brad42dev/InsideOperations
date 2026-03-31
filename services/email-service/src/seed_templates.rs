@@ -86,6 +86,9 @@ pub async fn seed_builtin_templates(db: &PgPool) -> anyhow::Result<()> {
         .await?;
     }
 
-    tracing::info!(count = BUILTIN_TEMPLATES.len(), "Built-in email templates seeded");
+    tracing::info!(
+        count = BUILTIN_TEMPLATES.len(),
+        "Built-in email templates seeded"
+    );
     Ok(())
 }

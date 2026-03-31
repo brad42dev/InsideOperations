@@ -70,11 +70,10 @@ pub async fn search_handler(
     let limit = params.limit.unwrap_or(20).clamp(1, 50) as i64;
 
     // --- Determine enabled types ---
-    let requested_types: Option<Vec<String>> = params.types.as_deref().map(|t| {
-        t.split(',')
-            .map(|s| s.trim().to_string())
-            .collect()
-    });
+    let requested_types: Option<Vec<String>> = params
+        .types
+        .as_deref()
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).collect());
 
     let type_enabled = |name: &str| -> bool {
         requested_types

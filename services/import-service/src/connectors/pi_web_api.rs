@@ -40,7 +40,10 @@ impl DcsConnector for PiWebApiConnector {
             .send()
             .await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("pi_web_api test_connection: HTTP {}", resp.status()));
+            return Err(anyhow!(
+                "pi_web_api test_connection: HTTP {}",
+                resp.status()
+            ));
         }
         Ok(())
     }
@@ -144,7 +147,11 @@ impl DcsConnector for PiWebApiConnector {
 
         let mut results = Vec::new();
         for db in &db_items {
-            let db_links = match db.get("Links").and_then(|v| v.get("Self")).and_then(|v| v.as_str()) {
+            let db_links = match db
+                .get("Links")
+                .and_then(|v| v.get("Self"))
+                .and_then(|v| v.as_str())
+            {
                 Some(u) => u.to_string(),
                 None => continue,
             };

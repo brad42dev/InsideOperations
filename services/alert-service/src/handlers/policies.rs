@@ -91,11 +91,7 @@ pub async fn list_policies(State(state): State<AppState>) -> impl IntoResponse {
     .await;
 
     match rows {
-        Ok(policies) => (
-            StatusCode::OK,
-            Json(ApiResponse::ok(policies)),
-        )
-            .into_response(),
+        Ok(policies) => (StatusCode::OK, Json(ApiResponse::ok(policies))).into_response(),
         Err(e) => IoError::Database(e).into_response(),
     }
 }
@@ -129,10 +125,7 @@ pub async fn create_policy(
 }
 
 /// GET /alerts/policies/:id — get policy with its tiers
-pub async fn get_policy(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+pub async fn get_policy(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let policy = sqlx::query_as::<_, EscalationPolicy>(
         "SELECT id, name, description, enabled, created_at, updated_at
          FROM escalation_policies
@@ -144,9 +137,7 @@ pub async fn get_policy(
 
     let policy = match policy {
         Ok(Some(p)) => p,
-        Ok(None) => {
-            return IoError::NotFound(format!("Policy {} not found", id)).into_response()
-        }
+        Ok(None) => return IoError::NotFound(format!("Policy {} not found", id)).into_response(),
         Err(e) => return IoError::Database(e).into_response(),
     };
 
@@ -179,14 +170,16 @@ pub async fn update_policy(
 
     let existing = match existing {
         Ok(Some(p)) => p,
-        Ok(None) => {
-            return IoError::NotFound(format!("Policy {} not found", id)).into_response()
-        }
+        Ok(None) => return IoError::NotFound(format!("Policy {} not found", id)).into_response(),
         Err(e) => return IoError::Database(e).into_response(),
     };
 
     let name = body.name.as_deref().unwrap_or(&existing.name).to_string();
-    let description = body.description.as_ref().or(existing.description.as_ref()).cloned();
+    let description = body
+        .description
+        .as_ref()
+        .or(existing.description.as_ref())
+        .cloned();
     let enabled = body.enabled.unwrap_or(existing.enabled);
 
     let row = sqlx::query_as::<_, EscalationPolicy>(
@@ -333,14 +326,19 @@ pub async fn update_tier(
     let existing = match existing {
         Ok(Some(t)) => t,
         Ok(None) => {
-            return IoError::NotFound(format!("Tier {} not found in policy {}", tier_id, policy_id))
-                .into_response()
+            return IoError::NotFound(format!(
+                "Tier {} not found in policy {}",
+                tier_id, policy_id
+            ))
+            .into_response()
         }
         Err(e) => return IoError::Database(e).into_response(),
     };
 
     let tier_order = body.tier_order.unwrap_or(existing.tier_order);
-    let escalate_after_mins = body.escalate_after_mins.unwrap_or(existing.escalate_after_mins);
+    let escalate_after_mins = body
+        .escalate_after_mins
+        .unwrap_or(existing.escalate_after_mins);
     let notify_groups = body.notify_groups.unwrap_or(existing.notify_groups);
     let notify_users = body.notify_users.unwrap_or(existing.notify_users);
     let channels = body.channels.unwrap_or(existing.channels);
@@ -373,18 +371,18 @@ pub async fn delete_tier(
     State(state): State<AppState>,
     Path((policy_id, tier_id)): Path<(Uuid, Uuid)>,
 ) -> impl IntoResponse {
-    let result =
-        sqlx::query("DELETE FROM escalation_tiers WHERE id = $1 AND policy_id = $2")
-            .bind(tier_id)
-            .bind(policy_id)
-            .execute(&state.db)
-            .await;
+    let result = sqlx::query("DELETE FROM escalation_tiers WHERE id = $1 AND policy_id = $2")
+        .bind(tier_id)
+        .bind(policy_id)
+        .execute(&state.db)
+        .await;
 
     match result {
-        Ok(r) if r.rows_affected() == 0 => {
-            IoError::NotFound(format!("Tier {} not found in policy {}", tier_id, policy_id))
-                .into_response()
-        }
+        Ok(r) if r.rows_affected() == 0 => IoError::NotFound(format!(
+            "Tier {} not found in policy {}",
+            tier_id, policy_id
+        ))
+        .into_response(),
         Ok(_) => (
             StatusCode::OK,
             Json(ApiResponse::ok(serde_json::json!({ "deleted": true }))),

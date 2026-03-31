@@ -277,7 +277,9 @@ mod tests {
         let mut inst = dummy_instance();
         let next = transition(
             &AlarmState::ReturnToNormal,
-            &AlarmEvent::OperatorAcknowledge { user_id: Uuid::new_v4() },
+            &AlarmEvent::OperatorAcknowledge {
+                user_id: Uuid::new_v4(),
+            },
             &mut inst,
             Utc::now(),
         );

@@ -9,29 +9,29 @@
  * Point overlay:    bindings from GraphicDocument provide {x, y} as % of full graphic size.
  */
 
-import { useEffect, useRef, useState } from 'react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import type { PointValue } from '../graphics/SceneRenderer'
-import { getTile, cacheTile, evictLRU } from '../hooks/tileCacheDb'
+import { useEffect, useRef, useState } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import type { PointValue } from "../graphics/SceneRenderer";
+import { getTile, cacheTile, evictLRU } from "../hooks/tileCacheDb";
 
 export interface TileGraphicViewerProps {
-  graphicId: string
+  graphicId: string;
   /** Width of the source graphic in pixels (from scene_data.canvas.width) */
-  graphicWidth: number
+  graphicWidth: number;
   /** Height of the source graphic in pixels (from scene_data.canvas.height) */
-  graphicHeight: number
+  graphicHeight: number;
   /** Live point value map: pointId → value */
-  pointValues?: Map<string, PointValue>
+  pointValues?: Map<string, PointValue>;
   /** Bindings: maps elementId to pointId, with position {x, y} as fraction [0,1] of graphic size */
   pointBindings?: Array<{
-    pointId: string
-    label?: string
-    x: number // 0–1 fraction of graphic width
-    y: number // 0–1 fraction of graphic height
-  }>
+    pointId: string;
+    label?: string;
+    x: number; // 0–1 fraction of graphic width
+    y: number; // 0–1 fraction of graphic height
+  }>;
   /** When true, show the simplified status view (colored dots, no tile map) */
-  statusView?: boolean
+  statusView?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -46,13 +46,13 @@ function toLatLng(
   width: number,
   height: number,
 ): L.LatLng {
-  return L.latLng(-yFraction * height, xFraction * width)
+  return L.latLng(-yFraction * height, xFraction * width);
 }
 
 function alarmColor(value: PointValue | undefined): string {
-  if (!value) return 'var(--io-text-muted)'
-  if (value.quality === 'bad') return '#EF4444'
-  return '#22C55E'
+  if (!value) return "var(--io-text-muted)";
+  if (value.quality === "bad") return "#EF4444";
+  return "#22C55E";
 }
 
 // ---------------------------------------------------------------------------
@@ -78,82 +78,84 @@ const OfflineTileLayerClass = (L.TileLayer as any).extend({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initialize(url: string, options: L.TileLayerOptions & { graphicId: string }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(L.TileLayer.prototype as any).initialize.call(this, url, options)
+    (L.TileLayer.prototype as any).initialize.call(this, url, options);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(this as any)._graphicId = options.graphicId
+    (this as any)._graphicId = options.graphicId;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(this as any)._evictRun = false
+    (this as any)._evictRun = false;
   },
 
   createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
-    const tile = document.createElement('img')
-    tile.setAttribute('role', 'presentation')
+    const tile = document.createElement("img");
+    tile.setAttribute("role", "presentation");
 
-    const z = (coords as unknown as { z: number }).z
-    const x = (coords as unknown as { x: number }).x
-    const y = (coords as unknown as { y: number }).y
+    const z = (coords as unknown as { z: number }).z;
+    const x = (coords as unknown as { x: number }).x;
+    const y = (coords as unknown as { y: number }).y;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const graphicId = (this as any)._graphicId as string
+    const graphicId = (this as any)._graphicId as string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const evictRun = (this as any)._evictRun as boolean
-    const runEvict = !evictRun
+    const evictRun = (this as any)._evictRun as boolean;
+    const runEvict = !evictRun;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (runEvict) (this as any)._evictRun = true
+    if (runEvict) (this as any)._evictRun = true;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const getTileUrl = ((this as any).getTileUrl as (coords: L.Coords) => string).bind(this)
+    const getTileUrl = (
+      (this as any).getTileUrl as (coords: L.Coords) => string
+    ).bind(this);
 
-    ;(async () => {
+    (async () => {
       try {
         // Run LRU eviction once per layer mount (before the first new write)
         if (runEvict) {
-          await evictLRU()
+          await evictLRU();
         }
 
         // Try cache first
-        const cached = await getTile(graphicId, z, x, y)
+        const cached = await getTile(graphicId, z, x, y);
         if (cached) {
-          const blobUrl = URL.createObjectURL(cached)
-          tile.src = blobUrl
+          const blobUrl = URL.createObjectURL(cached);
+          tile.src = blobUrl;
           tile.onload = () => {
-            URL.revokeObjectURL(blobUrl)
-            done(undefined, tile)
-          }
-          tile.onerror = () => done(new Error('tile load error'), tile)
-          return
+            URL.revokeObjectURL(blobUrl);
+            done(undefined, tile);
+          };
+          tile.onerror = () => done(new Error("tile load error"), tile);
+          return;
         }
 
         // Cache miss — fetch from network
-        const tileUrl = getTileUrl(coords)
-        const resp = await fetch(tileUrl)
+        const tileUrl = getTileUrl(coords);
+        const resp = await fetch(tileUrl);
         if (!resp.ok) {
           // Silently skip caching for missing tiles
-          done(undefined, tile)
-          return
+          done(undefined, tile);
+          return;
         }
-        const blob = await resp.blob()
+        const blob = await resp.blob();
 
         // Store in cache (fire-and-forget)
-        cacheTile(graphicId, z, x, y, blob).catch(() => {})
+        cacheTile(graphicId, z, x, y, blob).catch(() => {});
 
-        const blobUrl = URL.createObjectURL(blob)
-        tile.src = blobUrl
+        const blobUrl = URL.createObjectURL(blob);
+        tile.src = blobUrl;
         tile.onload = () => {
-          URL.revokeObjectURL(blobUrl)
-          done(undefined, tile)
-        }
-        tile.onerror = () => done(new Error('tile load error'), tile)
+          URL.revokeObjectURL(blobUrl);
+          done(undefined, tile);
+        };
+        tile.onerror = () => done(new Error("tile load error"), tile);
       } catch {
         // On any error fall back to standard network tile URL
-        tile.src = getTileUrl(coords)
-        tile.onload = () => done(undefined, tile)
-        tile.onerror = () => done(new Error('tile load error'), tile)
+        tile.src = getTileUrl(coords);
+        tile.onload = () => done(undefined, tile);
+        tile.onerror = () => done(new Error("tile load error"), tile);
       }
-    })()
+    })();
 
-    return tile
+    return tile;
   },
-})
+});
 
 // ---------------------------------------------------------------------------
 // StatusView — simplified schematic with colored status dots
@@ -163,42 +165,51 @@ function StatusView({
   pointBindings,
   pointValues,
 }: {
-  pointBindings: TileGraphicViewerProps['pointBindings']
-  pointValues: Map<string, PointValue> | undefined
+  pointBindings: TileGraphicViewerProps["pointBindings"];
+  pointValues: Map<string, PointValue> | undefined;
 }) {
   if (!pointBindings?.length) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--io-text-muted)', fontSize: 13 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          color: "var(--io-text-muted)",
+          fontSize: 13,
+        }}
+      >
         No bindings configured
       </div>
-    )
+    );
   }
 
   return (
     <div
       style={{
-        height: '100%',
-        overflow: 'auto',
+        height: "100%",
+        overflow: "auto",
         padding: 12,
-        display: 'flex',
-        flexWrap: 'wrap',
+        display: "flex",
+        flexWrap: "wrap",
         gap: 10,
-        alignContent: 'flex-start',
+        alignContent: "flex-start",
       }}
     >
       {pointBindings.map((b) => {
-        const pv = pointValues?.get(b.pointId)
-        const color = alarmColor(pv)
+        const pv = pointValues?.get(b.pointId);
+        const color = alarmColor(pv);
         return (
           <div
             key={b.pointId}
             style={{
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               gap: 8,
-              padding: '6px 10px',
-              background: 'var(--io-surface)',
-              border: '1px solid var(--io-border)',
+              padding: "6px 10px",
+              background: "var(--io-surface)",
+              border: "1px solid var(--io-border)",
               borderRadius: 8,
               minWidth: 120,
             }}
@@ -207,24 +218,41 @@ function StatusView({
               style={{
                 width: 10,
                 height: 10,
-                borderRadius: '50%',
+                borderRadius: "50%",
                 background: color,
                 flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: 12, color: 'var(--io-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span
+              style={{
+                fontSize: 12,
+                color: "var(--io-text-primary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {b.label ?? b.pointId}
             </span>
             {pv !== undefined && (
-              <span style={{ fontSize: 11, color: 'var(--io-text-muted)', marginLeft: 'auto', flexShrink: 0 }}>
-                {typeof pv.value === 'number' ? pv.value.toFixed(2) : String(pv.value)}
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--io-text-muted)",
+                  marginLeft: "auto",
+                  flexShrink: 0,
+                }}
+              >
+                {typeof pv.value === "number"
+                  ? pv.value.toFixed(2)
+                  : String(pv.value)}
               </span>
             )}
           </div>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -239,19 +267,19 @@ export default function TileGraphicViewer({
   pointBindings,
   statusView = false,
 }: TileGraphicViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const markersRef = useRef<Map<string, L.Marker>>(new Map())
-  const [leafletError, setLeafletError] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const [leafletError, setLeafletError] = useState(false);
 
   // Initialize Leaflet map
   useEffect(() => {
-    if (statusView || !containerRef.current || mapRef.current) return
+    if (statusView || !containerRef.current || mapRef.current) return;
 
     const bounds = L.latLngBounds(
       L.latLng(-graphicHeight, 0),
       L.latLng(0, graphicWidth),
-    )
+    );
 
     const map = L.map(containerRef.current, {
       crs: L.CRS.Simple,
@@ -260,92 +288,101 @@ export default function TileGraphicViewer({
       zoomControl: true,
       attributionControl: false,
       maxBounds: bounds.pad(0.2),
-    })
+    });
 
     // Tile layer pointing to API tile pyramid — uses IndexedDB caching
-    const tileUrl = `/api/v1/design-objects/${graphicId}/tiles/{z}/{x}/{y}.png`
+    const tileUrl = `/api/v1/design-objects/${graphicId}/tiles/{z}/{x}/{y}.png`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tileLayer = new (OfflineTileLayerClass as any)(tileUrl, {
       tileSize: 256,
       noWrap: true,
       bounds,
-      errorTileUrl: '', // silently ignore missing tiles
+      errorTileUrl: "", // silently ignore missing tiles
       graphicId,
-    }) as L.TileLayer
+    }) as L.TileLayer;
 
-    tileLayer.on('tileerror', () => setLeafletError(true))
-    tileLayer.addTo(map)
+    tileLayer.on("tileerror", () => setLeafletError(true));
+    tileLayer.addTo(map);
 
-    map.fitBounds(bounds)
-    mapRef.current = map
+    map.fitBounds(bounds);
+    mapRef.current = map;
 
     return () => {
-      map.remove()
-      mapRef.current = null
-      markersRef.current.clear()
-    }
-  // Intentionally only on mount / graphicId change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graphicId, statusView])
+      map.remove();
+      mapRef.current = null;
+      markersRef.current.clear();
+    };
+    // Intentionally only on mount / graphicId change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphicId, statusView]);
 
   // Update / create point value markers
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || statusView || !pointBindings?.length) return
+    const map = mapRef.current;
+    if (!map || statusView || !pointBindings?.length) return;
 
     for (const binding of pointBindings) {
-      const pv = pointValues?.get(binding.pointId)
-      const pos = toLatLng(binding.x, binding.y, graphicWidth, graphicHeight)
-      const displayValue = pv !== undefined
-        ? (typeof pv.value === 'number' ? pv.value.toFixed(2) : String(pv.value))
-        : '—'
-      const color = alarmColor(pv)
+      const pv = pointValues?.get(binding.pointId);
+      const pos = toLatLng(binding.x, binding.y, graphicWidth, graphicHeight);
+      const displayValue =
+        pv !== undefined
+          ? typeof pv.value === "number"
+            ? pv.value.toFixed(2)
+            : String(pv.value)
+          : "—";
+      const color = alarmColor(pv);
 
       const html = `
         <div style="background:var(--io-surface,#1e1e2e);border:1px solid ${color};border-radius:4px;padding:2px 5px;font-size:11px;font-weight:600;color:${color};white-space:nowrap;pointer-events:none">
           ${displayValue}
-        </div>`
+        </div>`;
 
-      const icon = L.divIcon({ html, className: '', iconAnchor: [0, 0] })
+      const icon = L.divIcon({ html, className: "", iconAnchor: [0, 0] });
 
-      const existing = markersRef.current.get(binding.pointId)
+      const existing = markersRef.current.get(binding.pointId);
       if (existing) {
-        existing.setIcon(icon)
+        existing.setIcon(icon);
       } else {
-        const marker = L.marker(pos, { icon, interactive: false }).addTo(map)
-        markersRef.current.set(binding.pointId, marker)
+        const marker = L.marker(pos, { icon, interactive: false }).addTo(map);
+        markersRef.current.set(binding.pointId, marker);
       }
     }
-  }, [pointValues, pointBindings, graphicWidth, graphicHeight, statusView])
+  }, [pointValues, pointBindings, graphicWidth, graphicHeight, statusView]);
 
   if (statusView) {
     return (
-      <div style={{ height: '100%', background: 'var(--io-bg)' }}>
+      <div style={{ height: "100%", background: "var(--io-bg)" }}>
         <StatusView pointBindings={pointBindings} pointValues={pointValues} />
       </div>
-    )
+    );
   }
 
   return (
-    <div style={{ height: '100%', position: 'relative', background: 'var(--io-bg)' }}>
-      <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
+    <div
+      style={{
+        height: "100%",
+        position: "relative",
+        background: "var(--io-bg)",
+      }}
+    >
+      <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
       {leafletError && (
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0,0,0,0.5)',
-            color: '#fff',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.5)",
+            color: "#fff",
             fontSize: 13,
-            pointerEvents: 'none',
+            pointerEvents: "none",
           }}
         >
           Tile rendering unavailable
         </div>
       )}
     </div>
-  )
+  );
 }

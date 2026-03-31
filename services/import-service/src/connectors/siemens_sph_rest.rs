@@ -30,12 +30,17 @@ impl DcsConnector for SiemensSphConnector {
         let base = base(cfg)?;
         let client = client()?;
         if cfg.auth_type == "ntlm" {
-            warn!("siemens_sph_rest: NTLM auth not supported in pure Rust; proceeding without auth");
+            warn!(
+                "siemens_sph_rest: NTLM auth not supported in pure Rust; proceeding without auth"
+            );
         }
         let req = apply_auth(client.get(format!("{base}/api/v1/status")), cfg);
         let resp = req.send().await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("siemens_sph test_connection: HTTP {}", resp.status()));
+            return Err(anyhow!(
+                "siemens_sph test_connection: HTTP {}",
+                resp.status()
+            ));
         }
         Ok(())
     }
@@ -141,7 +146,10 @@ impl DcsConnector for SiemensSphConnector {
                 event_type: "process_alarm".to_string(),
                 source_name,
                 timestamp,
-                severity: item.get("severity").and_then(|v| v.as_i64()).map(|s| s as i32),
+                severity: item
+                    .get("severity")
+                    .and_then(|v| v.as_i64())
+                    .map(|s| s as i32),
                 message: item
                     .get("message")
                     .and_then(|v| v.as_str())

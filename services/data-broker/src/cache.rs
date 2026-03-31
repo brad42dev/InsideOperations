@@ -136,11 +136,7 @@ mod tests {
     use super::*;
     use chrono::Duration;
 
-    fn make_cache_with_entry(
-        point_id: Uuid,
-        age_secs: i64,
-        stale: bool,
-    ) -> ShadowCache {
+    fn make_cache_with_entry(point_id: Uuid, age_secs: i64, stale: bool) -> ShadowCache {
         let cache = ShadowCache::new();
         let ts = Utc::now() - Duration::seconds(age_secs);
         cache.inner.insert(
@@ -242,7 +238,9 @@ mod tests {
         let cache = make_cache_with_entry(point_id, 120, true);
         // A fresh value arriving must reset the stale flag.
         cache.update(point_id, 55.0, "good".to_string(), Utc::now(), None);
-        let entry = cache.get(&point_id).expect("entry should exist after update");
+        let entry = cache
+            .get(&point_id)
+            .expect("entry should exist after update");
         assert!(!entry.stale, "update() must clear the stale flag");
     }
 
@@ -259,9 +257,9 @@ mod tests {
         let cache = ShadowCache::new();
         let point_id = Uuid::new_v4();
         let ts = Utc::now();
-        cache.update(point_id, 3.14, "good".to_string(), ts, None);
+        cache.update(point_id, 1.5, "good".to_string(), ts, None);
         let entry = cache.get(&point_id).expect("entry must be present");
-        assert!((entry.value - 3.14).abs() < f64::EPSILON);
+        assert!((entry.value - 1.5).abs() < f64::EPSILON);
         assert_eq!(entry.quality, "good");
     }
 }

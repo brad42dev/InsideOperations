@@ -6,7 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use jsonwebtoken::{Algorithm, DecodingKey, Header, Validation, decode_header};
+use jsonwebtoken::{decode_header, Algorithm, DecodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -167,7 +167,9 @@ pub async fn verify_id_token(
     expected_nonce: &str,
 ) -> IoResult<IdTokenClaims> {
     if id_token.is_empty() {
-        return Err(IoError::BadRequest("id_token is missing from token response".into()));
+        return Err(IoError::BadRequest(
+            "id_token is missing from token response".into(),
+        ));
     }
 
     // Parse the JWT header to find the key ID and algorithm.
@@ -218,9 +220,7 @@ pub async fn verify_id_token(
     // Audience check — `aud` can be a JSON string or array.
     let aud_ok = match &claims.aud {
         serde_json::Value::String(s) => s == expected_client_id,
-        serde_json::Value::Array(arr) => arr
-            .iter()
-            .any(|v| v.as_str() == Some(expected_client_id)),
+        serde_json::Value::Array(arr) => arr.iter().any(|v| v.as_str() == Some(expected_client_id)),
         _ => false,
     };
     if !aud_ok {
@@ -263,7 +263,11 @@ pub async fn verify_id_token(
 /// when `kid` is absent, the first signing key whose declared algorithm
 /// matches.
 /// Public alias used by `handlers::duo` for Duo-specific ID token verification.
-pub fn find_matching_key_pub<'a>(jwks: &'a Jwks, kid: Option<&str>, alg: Algorithm) -> Option<&'a Jwk> {
+pub fn find_matching_key_pub<'a>(
+    jwks: &'a Jwks,
+    kid: Option<&str>,
+    alg: Algorithm,
+) -> Option<&'a Jwk> {
     find_matching_key(jwks, kid, alg)
 }
 

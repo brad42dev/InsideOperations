@@ -25,7 +25,7 @@
  * }
  */
 
-import { create } from 'zustand'
+import { create } from "zustand";
 
 // ---------------------------------------------------------------------------
 // Exported sidecar types (mirror the .iographic shape sidecar schema)
@@ -33,59 +33,59 @@ import { create } from 'zustand'
 
 /** Connection point — actual JSON uses absolute x/y coords */
 export interface ConnectionPoint {
-  id: string
+  id: string;
   /** Absolute x coordinate in viewBox space */
-  x?: number
+  x?: number;
   /** Absolute y coordinate in viewBox space */
-  y?: number
-  direction: 'left' | 'right' | 'up' | 'down' | 'top' | 'bottom'
-  type: 'process' | 'signal' | 'actuator' | 'electrical'
-  rotatesWithShape?: boolean
+  y?: number;
+  direction: "left" | "right" | "up" | "down" | "top" | "bottom";
+  type: "process" | "signal" | "actuator" | "electrical";
+  rotatesWithShape?: boolean;
 }
 
 /** Text zone — actual JSON uses absolute x/y with width */
 export interface TextZone {
-  id: string
-  x?: number
-  y?: number
-  width?: number
-  anchor?: 'start' | 'middle' | 'end'
-  fontSize?: number
+  id: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  anchor?: "start" | "middle" | "end";
+  fontSize?: number;
 }
 
 /** Value anchor — actual JSON uses normalized nx/ny with preferredElement */
 export interface ValueAnchor {
   /** Normalized x (0–1) relative to shape width */
-  nx?: number
+  nx?: number;
   /** Normalized y (0–1) relative to shape height */
-  ny?: number
-  preferredElement?: string
+  ny?: number;
+  preferredElement?: string;
 }
 
 export interface ShapeSidecar {
-  id?: string
-  category?: string
+  id?: string;
+  category?: string;
   geometry: {
-    viewBox: string
+    viewBox: string;
     /** Preferred: [width, height] tuple */
-    baseSize?: [number, number]
+    baseSize?: [number, number];
     /** Flat format used by most sidecar files */
-    width?: number
-    height?: number
-    gridSnap?: number
-    orientations?: number[]
-    mirrorable?: boolean
-  }
-  connections?: ConnectionPoint[]
-  textZones?: TextZone[]
-  valueAnchors?: ValueAnchor[]
+    width?: number;
+    height?: number;
+    gridSnap?: number;
+    orientations?: number[];
+    mirrorable?: boolean;
+  };
+  connections?: ConnectionPoint[];
+  textZones?: TextZone[];
+  valueAnchors?: ValueAnchor[];
   /** Alarm anchor — either normalized [nx, ny] tuple or {nx, ny} object */
-  alarmAnchor?: [number, number] | { nx: number; ny: number }
-  states?: Record<string, string> | string[]
+  alarmAnchor?: [number, number] | { nx: number; ny: number };
+  states?: Record<string, string> | string[];
   /** Optional variant files */
-  options?: Array<{ id: string; file: string; label: string }>
+  options?: Array<{ id: string; file: string; label: string }>;
   /** Optional configuration files */
-  configurations?: Array<{ id: string; label: string; file: string }>
+  configurations?: Array<{ id: string; label: string; file: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,9 +93,9 @@ export interface ShapeSidecar {
 // ---------------------------------------------------------------------------
 
 export interface ShapeEntry {
-  id: string
-  svg: string
-  sidecar: ShapeSidecar
+  id: string;
+  svg: string;
+  sidecar: ShapeSidecar;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,12 +103,12 @@ export interface ShapeEntry {
 // ---------------------------------------------------------------------------
 
 export interface ShapeIndexItem {
-  id: string
-  category: string
-  label: string
-  subcategory?: string
+  id: string;
+  category: string;
+  label: string;
+  subcategory?: string;
   /** 'library' = built-in Tier 1 shape (read-only for reimport), 'user' = custom shape */
-  source?: 'library' | 'user'
+  source?: "library" | "user";
 }
 
 // ---------------------------------------------------------------------------
@@ -116,14 +116,14 @@ export interface ShapeIndexItem {
 // ---------------------------------------------------------------------------
 
 interface RawIndexShape {
-  id: string
-  category: string
-  label: string
-  subcategory?: string
+  id: string;
+  category: string;
+  label: string;
+  subcategory?: string;
 }
 
 interface RawIndex {
-  shapes: RawIndexShape[]
+  shapes: RawIndexShape[];
 }
 
 // ---------------------------------------------------------------------------
@@ -132,66 +132,66 @@ interface RawIndex {
 
 export interface LibraryStore {
   /** All shapes available in the library, in the order returned by the index. */
-  index: ShapeIndexItem[]
+  index: ShapeIndexItem[];
   /** True once the index has been successfully fetched (not set on failure). */
-  indexLoaded: boolean
+  indexLoaded: boolean;
   /** True while the index fetch is in progress. */
-  indexLoading: boolean
+  indexLoading: boolean;
   /** Error message if the index fetch failed; null otherwise. */
-  indexError: string | null
+  indexError: string | null;
 
   /** Fully loaded shapes, keyed by shape ID. */
-  cache: Map<string, ShapeEntry>
+  cache: Map<string, ShapeEntry>;
   /** IDs currently being fetched (deduplication). */
-  loadingIds: Set<string>
+  loadingIds: Set<string>;
 
   /** Stencil SVG cache — keyed by stencilId (design_objects.id), value is raw SVG string. */
-  stencilCache: Map<string, string>
+  stencilCache: Map<string, string>;
 
   /**
    * Load a stencil SVG by its design_objects ID.
    * Deduplicates concurrent calls. Returns SVG string or null on error.
    */
-  loadStencil(id: string): Promise<string | null>
+  loadStencil(id: string): Promise<string | null>;
 
   /**
    * Synchronous stencil SVG lookup. Returns null if not yet cached.
    */
-  getStencil(id: string): string | null
+  getStencil(id: string): string | null;
 
   /**
    * Populate the stencil cache from a list-stencils API response.
    * Call this after a successful listStencils() to avoid per-stencil fetches.
    */
-  cacheStencilList(items: Array<{ id: string; svg_data?: string }>): void
+  cacheStencilList(items: Array<{ id: string; svg_data?: string }>): void;
 
   /**
    * Fetch /shapes/index.json and populate `index`.
    * Safe to call multiple times — subsequent calls are no-ops if already loaded.
    * Sets indexError on failure and does NOT set indexLoaded=true, allowing retries.
    */
-  loadIndex(): Promise<void>
+  loadIndex(): Promise<void>;
 
   /**
    * Load a single shape (SVG + sidecar). Returns the entry or null on error.
    * Deduplicates concurrent calls for the same ID.
    */
-  loadShape(id: string): Promise<ShapeEntry | null>
+  loadShape(id: string): Promise<ShapeEntry | null>;
 
   /**
    * Load multiple shapes in parallel. Deduplicates IDs.
    */
-  loadShapes(ids: string[]): Promise<void>
+  loadShapes(ids: string[]): Promise<void>;
 
   /**
    * Synchronous cache lookup. Returns null if the shape has not been loaded yet.
    */
-  getShape(id: string): ShapeEntry | null
+  getShape(id: string): ShapeEntry | null;
 
   /**
    * Return the index grouped by category.
    */
-  getCategories(): Map<string, ShapeIndexItem[]>
+  getCategories(): Map<string, ShapeIndexItem[]>;
 
   /**
    * Synchronous variant-aware SVG lookup.
@@ -202,14 +202,14 @@ export interface LibraryStore {
    * @param variantId Optional variant ID (matches ShapeSidecar.options[].id)
    * @param configId  Optional configuration ID (matches ShapeSidecar.configurations[].id)
    */
-  getShapeSvg(id: string, variantId?: string, configId?: string): string | null
+  getShapeSvg(id: string, variantId?: string, configId?: string): string | null;
 }
 
 // ---------------------------------------------------------------------------
 // Cache management
 // ---------------------------------------------------------------------------
 
-const CACHE_MAX = 200
+const CACHE_MAX = 200;
 
 /**
  * Evict the oldest entry from the Map if we have reached the limit.
@@ -217,9 +217,9 @@ const CACHE_MAX = 200
  */
 function evictOldestIfNeeded(cache: Map<string, ShapeEntry>): void {
   if (cache.size >= CACHE_MAX) {
-    const firstKey = cache.keys().next().value
+    const firstKey = cache.keys().next().value;
     if (firstKey !== undefined) {
-      cache.delete(firstKey)
+      cache.delete(firstKey);
     }
   }
 }
@@ -228,20 +228,24 @@ function evictOldestIfNeeded(cache: Map<string, ShapeEntry>): void {
  * Insert an entry into the cache, maintaining max size.
  * Re-inserting an existing key moves it to the most-recently-used position.
  */
-function cacheSet(cache: Map<string, ShapeEntry>, id: string, entry: ShapeEntry): void {
+function cacheSet(
+  cache: Map<string, ShapeEntry>,
+  id: string,
+  entry: ShapeEntry,
+): void {
   if (cache.has(id)) {
-    cache.delete(id)
+    cache.delete(id);
   } else {
-    evictOldestIfNeeded(cache)
+    evictOldestIfNeeded(cache);
   }
-  cache.set(id, entry)
+  cache.set(id, entry);
 }
 
 // ---------------------------------------------------------------------------
 // Index singleton promise (module-level — survives hot-reloads gracefully)
 // ---------------------------------------------------------------------------
 
-let indexFetchPromise: Promise<ShapeIndexItem[]> | null = null
+let indexFetchPromise: Promise<ShapeIndexItem[]> | null = null;
 
 /**
  * Fetch the shape index once and cache the promise module-level.
@@ -250,42 +254,45 @@ let indexFetchPromise: Promise<ShapeIndexItem[]> | null = null
  */
 async function fetchIndexOnce(): Promise<ShapeIndexItem[]> {
   if (!indexFetchPromise) {
-    indexFetchPromise = fetch('/shapes/index.json')
+    indexFetchPromise = fetch("/shapes/index.json")
       .then((res) => {
-        if (!res.ok) throw new Error(`/shapes/index.json returned ${res.status}`)
-        return res.json() as Promise<RawIndex>
+        if (!res.ok)
+          throw new Error(`/shapes/index.json returned ${res.status}`);
+        return res.json() as Promise<RawIndex>;
       })
       .then((data) => {
         if (!Array.isArray(data.shapes)) {
-          throw new Error('/shapes/index.json: "shapes" is missing or not an array')
+          throw new Error(
+            '/shapes/index.json: "shapes" is missing or not an array',
+          );
         }
         return data.shapes.map((s) => ({
           id: s.id,
           category: s.category,
           label: s.label,
           subcategory: s.subcategory,
-        }))
+        }));
       })
       .catch((err) => {
         // Reset promise so the next loadIndex() call can retry
-        indexFetchPromise = null
-        throw err // re-throw so loadIndex() can set indexError
-      })
+        indexFetchPromise = null;
+        throw err; // re-throw so loadIndex() can set indexError
+      });
   }
-  return indexFetchPromise
+  return indexFetchPromise;
 }
 
 // ---------------------------------------------------------------------------
 // Per-shape in-flight promise map (module-level deduplication)
 // ---------------------------------------------------------------------------
 
-const shapeInFlight = new Map<string, Promise<ShapeEntry | null>>()
+const shapeInFlight = new Map<string, Promise<ShapeEntry | null>>();
 
 // ---------------------------------------------------------------------------
 // Stencil in-flight deduplication (module-level)
 // ---------------------------------------------------------------------------
 
-const stencilInFlight = new Map<string, Promise<string | null>>()
+const stencilInFlight = new Map<string, Promise<string | null>>();
 
 // ---------------------------------------------------------------------------
 // Zustand store
@@ -303,152 +310,163 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   async loadIndex() {
     // Atomically check-and-set indexLoading to prevent a race where two concurrent
     // callers both read indexLoading=false before the first set() completes.
-    let shouldFetch = false
+    let shouldFetch = false;
     set((state) => {
-      if (state.indexLoaded || state.indexLoading) return state
-      shouldFetch = true
-      return { indexLoading: true, indexError: null }
-    })
-    if (!shouldFetch) return
+      if (state.indexLoaded || state.indexLoading) return state;
+      shouldFetch = true;
+      return { indexLoading: true, indexError: null };
+    });
+    if (!shouldFetch) return;
 
     try {
-      const items = await fetchIndexOnce()
-      set({ index: items, indexLoaded: true, indexLoading: false, indexError: null })
+      const items = await fetchIndexOnce();
+      set({
+        index: items,
+        indexLoaded: true,
+        indexLoading: false,
+        indexError: null,
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load shape index'
-      console.warn('[libraryStore] loadIndex failed:', message)
-      set({ indexLoading: false, indexError: message })
+      const message =
+        err instanceof Error ? err.message : "Failed to load shape index";
+      console.warn("[libraryStore] loadIndex failed:", message);
+      set({ indexLoading: false, indexError: message });
       // indexLoaded remains false — next call can retry
     }
   },
 
   async loadShape(id) {
     // Return from cache if already loaded
-    const cached = get().cache.get(id)
-    if (cached) return cached
+    const cached = get().cache.get(id);
+    if (cached) return cached;
 
     // Deduplicate concurrent requests for the same shape
-    const existing = shapeInFlight.get(id)
-    if (existing) return existing
+    const existing = shapeInFlight.get(id);
+    if (existing) return existing;
 
     // Mark as loading
     set((state) => {
-      const loadingIds = new Set(state.loadingIds)
-      loadingIds.add(id)
-      return { loadingIds }
-    })
+      const loadingIds = new Set(state.loadingIds);
+      loadingIds.add(id);
+      return { loadingIds };
+    });
 
-    const promise: Promise<ShapeEntry | null> = (async (): Promise<ShapeEntry | null> => {
-      let entry: ShapeEntry | null = null
-      try {
-        // Ensure index is loaded so we know the category.
-        if (!get().indexLoaded) {
-          await get().loadIndex()
+    const promise: Promise<ShapeEntry | null> =
+      (async (): Promise<ShapeEntry | null> => {
+        let entry: ShapeEntry | null = null;
+        try {
+          // Ensure index is loaded so we know the category.
           if (!get().indexLoaded) {
-            // Index failed — log and fall through to root-level fallback URLs.
-            console.warn(`[libraryStore] Shape ${id}: index unavailable, using fallback URL`)
+            await get().loadIndex();
+            if (!get().indexLoaded) {
+              // Index failed — log and fall through to root-level fallback URLs.
+              console.warn(
+                `[libraryStore] Shape ${id}: index unavailable, using fallback URL`,
+              );
+            }
           }
-        }
 
-        const indexItem = get().index.find((item) => item.id === id)
-        const category = indexItem?.category
+          const indexItem = get().index.find((item) => item.id === id);
+          const category = indexItem?.category;
 
-        let svgUrl: string
-        let jsonUrl: string
+          let svgUrl: string;
+          let jsonUrl: string;
 
-        if (category) {
-          svgUrl  = `/shapes/${category}/${id}.svg`
-          jsonUrl = `/shapes/${category}/${id}.json`
-        } else {
-          // Fallback: try root shapes directory
-          svgUrl  = `/shapes/${id}.svg`
-          jsonUrl = `/shapes/${id}.json`
-        }
-
-        const [svgRes, jsonRes] = await Promise.all([
-          fetch(svgUrl),
-          fetch(jsonUrl),
-        ])
-
-        if (!svgRes.ok || !jsonRes.ok) {
-          console.warn(
-            `[libraryStore] Shape ${id}: svg=${svgRes.status} json=${jsonRes.status}`
-          )
-          return null
-        }
-
-        const [svg, sidecar] = await Promise.all([
-          svgRes.text(),
-          jsonRes.json() as Promise<ShapeSidecar>,
-        ])
-
-        entry = { id, svg, sidecar }
-        return entry
-      } catch (err) {
-        console.warn(`[libraryStore] Error loading shape ${id}:`, err)
-        return null
-      } finally {
-        // Single atomic set() — removes from loadingIds and adds to cache (if loaded).
-        shapeInFlight.delete(id)
-        set((state) => {
-          const loadingIds = new Set(state.loadingIds)
-          loadingIds.delete(id)
-          if (entry) {
-            const cache = new Map(state.cache)
-            cacheSet(cache, id, entry)
-            return { cache, loadingIds }
+          if (category) {
+            svgUrl = `/shapes/${category}/${id}.svg`;
+            jsonUrl = `/shapes/${category}/${id}.json`;
+          } else {
+            // Fallback: try root shapes directory
+            svgUrl = `/shapes/${id}.svg`;
+            jsonUrl = `/shapes/${id}.json`;
           }
-          return { loadingIds }
-        })
-      }
-    })()
 
-    shapeInFlight.set(id, promise)
-    return promise
+          const [svgRes, jsonRes] = await Promise.all([
+            fetch(svgUrl),
+            fetch(jsonUrl),
+          ]);
+
+          if (!svgRes.ok || !jsonRes.ok) {
+            console.warn(
+              `[libraryStore] Shape ${id}: svg=${svgRes.status} json=${jsonRes.status}`,
+            );
+            return null;
+          }
+
+          const [svg, sidecar] = await Promise.all([
+            svgRes.text(),
+            jsonRes.json() as Promise<ShapeSidecar>,
+          ]);
+
+          entry = { id, svg, sidecar };
+          return entry;
+        } catch (err) {
+          console.warn(`[libraryStore] Error loading shape ${id}:`, err);
+          return null;
+        } finally {
+          // Single atomic set() — removes from loadingIds and adds to cache (if loaded).
+          shapeInFlight.delete(id);
+          set((state) => {
+            const loadingIds = new Set(state.loadingIds);
+            loadingIds.delete(id);
+            if (entry) {
+              const cache = new Map(state.cache);
+              cacheSet(cache, id, entry);
+              return { cache, loadingIds };
+            }
+            return { loadingIds };
+          });
+        }
+      })();
+
+    shapeInFlight.set(id, promise);
+    return promise;
   },
 
   async loadShapes(ids) {
     // Deduplicate the input list
-    const unique = [...new Set(ids)]
+    const unique = [...new Set(ids)];
 
     // Fire all loads in parallel
-    await Promise.all(unique.map((id) => get().loadShape(id)))
+    await Promise.all(unique.map((id) => get().loadShape(id)));
   },
 
   getShape(id) {
-    return get().cache.get(id) ?? null
+    return get().cache.get(id) ?? null;
   },
 
   getCategories() {
-    const result = new Map<string, ShapeIndexItem[]>()
+    const result = new Map<string, ShapeIndexItem[]>();
     for (const item of get().index) {
-      const bucket = result.get(item.category) ?? []
-      bucket.push(item)
-      result.set(item.category, bucket)
+      const bucket = result.get(item.category) ?? [];
+      bucket.push(item);
+      result.set(item.category, bucket);
     }
-    return result
+    return result;
   },
 
   getShapeSvg(id, variantId, _configId) {
-    const entry = get().cache.get(id)
-    if (!entry) return null
+    const entry = get().cache.get(id);
+    if (!entry) return null;
 
     // If no variant requested, return the base SVG
-    if (!variantId) return entry.svg
+    if (!variantId) return entry.svg;
 
     // Look up the variant file from the sidecar options list
-    const option = entry.sidecar.options?.find((o) => o.id === variantId)
+    const option = entry.sidecar.options?.find((o) => o.id === variantId);
     if (!option) {
       // Variant ID not found in sidecar — fall back to base SVG
-      console.warn(`[libraryStore] Shape ${id}: variant "${variantId}" not found, using base SVG`)
-      return entry.svg
+      console.warn(
+        `[libraryStore] Shape ${id}: variant "${variantId}" not found, using base SVG`,
+      );
+      return entry.svg;
     }
 
     // Variant SVGs are not pre-loaded; their file path is in option.file.
     // The canvas is responsible for triggering a variant load if needed.
     // For now, return the base SVG (callers that need a specific variant SVG
     // should use loadShape() with the variant file path directly).
-    return entry.svg
+    return entry.svg;
   },
 
   // ---------------------------------------------------------------------------
@@ -456,49 +474,54 @@ export const useLibraryStore = create<LibraryStore>((set, get) => ({
   // ---------------------------------------------------------------------------
 
   getStencil(id) {
-    return get().stencilCache.get(id) ?? null
+    return get().stencilCache.get(id) ?? null;
   },
 
   cacheStencilList(items) {
-    const sc = new Map(get().stencilCache)
+    const sc = new Map(get().stencilCache);
     for (const item of items) {
       if (item.svg_data && !sc.has(item.id)) {
-        sc.set(item.id, item.svg_data)
+        sc.set(item.id, item.svg_data);
       }
     }
-    set({ stencilCache: sc })
+    set({ stencilCache: sc });
   },
 
   async loadStencil(id) {
-    const cached = get().stencilCache.get(id)
-    if (cached) return cached
+    const cached = get().stencilCache.get(id);
+    if (cached) return cached;
 
-    const existing = stencilInFlight.get(id)
-    if (existing) return existing
+    const existing = stencilInFlight.get(id);
+    if (existing) return existing;
 
-    const promise: Promise<string | null> = (async (): Promise<string | null> => {
+    const promise: Promise<string | null> = (async (): Promise<
+      string | null
+    > => {
       try {
-        const resp = await fetch(`/api/v1/design-objects/${id}`)
-        if (!resp.ok) throw new Error(`/api/v1/design-objects/${id} returned ${resp.status}`)
-        const data = await resp.json() as { data: { svg_data?: string } }
-        const svg = data.data.svg_data ?? null
+        const resp = await fetch(`/api/v1/design-objects/${id}`);
+        if (!resp.ok)
+          throw new Error(
+            `/api/v1/design-objects/${id} returned ${resp.status}`,
+          );
+        const data = (await resp.json()) as { data: { svg_data?: string } };
+        const svg = data.data.svg_data ?? null;
         if (svg) {
           set((state) => {
-            const sc = new Map(state.stencilCache)
-            sc.set(id, svg)
-            return { stencilCache: sc }
-          })
+            const sc = new Map(state.stencilCache);
+            sc.set(id, svg);
+            return { stencilCache: sc };
+          });
         }
-        return svg
+        return svg;
       } catch (err) {
-        console.warn(`[libraryStore] Failed to load stencil ${id}:`, err)
-        return null
+        console.warn(`[libraryStore] Failed to load stencil ${id}:`, err);
+        return null;
       } finally {
-        stencilInFlight.delete(id)
+        stencilInFlight.delete(id);
       }
-    })()
+    })();
 
-    stencilInFlight.set(id, promise)
-    return promise
+    stencilInFlight.set(id, promise);
+    return promise;
   },
-}))
+}));

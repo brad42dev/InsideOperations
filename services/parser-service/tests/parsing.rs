@@ -1,15 +1,14 @@
-/// Integration tests for the parser-service.
-///
-/// The parser-service processes SVG, DXF, and DCS-native file formats.
-/// These tests verify the HTTP API contract and basic parsing behaviour.
-///
-/// Tests that require a live parser-service process are marked `#[ignore]`.
-///
-///   cargo test -p parser-service --test parsing -- --ignored
+// Integration tests for the parser-service.
+//
+// The parser-service processes SVG, DXF, and DCS-native file formats.
+// These tests verify the HTTP API contract and basic parsing behaviour.
+//
+// Tests that require a live parser-service process are marked `#[ignore]`.
+//
+// cargo test -p parser-service --test parsing -- --ignored
 
 fn parser_url() -> String {
-    std::env::var("TEST_PARSER_SERVICE_URL")
-        .unwrap_or_else(|_| "http://localhost:3004".to_string())
+    std::env::var("TEST_PARSER_SERVICE_URL").unwrap_or_else(|_| "http://localhost:3004".to_string())
 }
 
 // ---------------------------------------------------------------------------

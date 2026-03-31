@@ -7,28 +7,28 @@
  *
  * The store holds at most 3 concurrent pinned panels (spec §7.2).
  */
-import { create } from 'zustand'
+import { create } from "zustand";
 
 export interface PinnedPanel {
   /** Stable identity key (crypto.randomUUID()) */
-  id: string
+  id: string;
   /** OPC / archive point ID */
-  pointId: string
+  pointId: string;
   /** Anchor position used when the panel was opened (for initial placement) */
-  anchorPosition?: { x: number; y: number }
+  anchorPosition?: { x: number; y: number };
 }
 
 interface PointDetailState {
-  pinnedPanels: PinnedPanel[]
+  pinnedPanels: PinnedPanel[];
 
   /** Pin a point detail panel so it survives navigation. */
-  pinPanel: (panel: PinnedPanel) => void
+  pinPanel: (panel: PinnedPanel) => void;
 
   /** Unpin (remove) a panel by its stable ID. */
-  unpinPanel: (id: string) => void
+  unpinPanel: (id: string) => void;
 }
 
-const MAX_PINNED = 3
+const MAX_PINNED = 3;
 
 export const usePointDetailStore = create<PointDetailState>((set) => ({
   pinnedPanels: restorePinnedFromSession(),
@@ -37,34 +37,34 @@ export const usePointDetailStore = create<PointDetailState>((set) => ({
     set((state) => {
       // Don't duplicate same pointId
       if (state.pinnedPanels.some((p) => p.pointId === panel.pointId)) {
-        return state
+        return state;
       }
       const next =
         state.pinnedPanels.length >= MAX_PINNED
           ? state.pinnedPanels.slice(1)
-          : state.pinnedPanels
-      const updated = [...next, panel]
-      savePinnedToSession(updated)
-      return { pinnedPanels: updated }
+          : state.pinnedPanels;
+      const updated = [...next, panel];
+      savePinnedToSession(updated);
+      return { pinnedPanels: updated };
     }),
 
   unpinPanel: (id) =>
     set((state) => {
-      const updated = state.pinnedPanels.filter((p) => p.id !== id)
-      savePinnedToSession(updated)
-      return { pinnedPanels: updated }
+      const updated = state.pinnedPanels.filter((p) => p.id !== id);
+      savePinnedToSession(updated);
+      return { pinnedPanels: updated };
     }),
-}))
+}));
 
 // ---------------------------------------------------------------------------
 // Session persistence helpers for the pinned panel list
 // ---------------------------------------------------------------------------
 
-const PINNED_SESSION_KEY = 'io-point-detail-pinned'
+const PINNED_SESSION_KEY = "io-point-detail-pinned";
 
 function savePinnedToSession(panels: PinnedPanel[]): void {
   try {
-    sessionStorage.setItem(PINNED_SESSION_KEY, JSON.stringify(panels))
+    sessionStorage.setItem(PINNED_SESSION_KEY, JSON.stringify(panels));
   } catch {
     // sessionStorage may be unavailable (private browsing quota exceeded)
   }
@@ -72,18 +72,18 @@ function savePinnedToSession(panels: PinnedPanel[]): void {
 
 function restorePinnedFromSession(): PinnedPanel[] {
   try {
-    const raw = sessionStorage.getItem(PINNED_SESSION_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed)) return []
+    const raw = sessionStorage.getItem(PINNED_SESSION_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (p): p is PinnedPanel =>
-        typeof p === 'object' &&
+        typeof p === "object" &&
         p !== null &&
-        typeof (p as PinnedPanel).id === 'string' &&
-        typeof (p as PinnedPanel).pointId === 'string',
-    )
+        typeof (p as PinnedPanel).id === "string" &&
+        typeof (p as PinnedPanel).pointId === "string",
+    );
   } catch {
-    return []
+    return [];
   }
 }

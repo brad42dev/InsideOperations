@@ -120,10 +120,8 @@ pub struct CreateScimTokenResponse {
 
 fn scim_json_response(status: StatusCode, body: Value) -> Response {
     let mut resp = (status, Json(body)).into_response();
-    resp.headers_mut().insert(
-        "content-type",
-        "application/scim+json".parse().unwrap(),
-    );
+    resp.headers_mut()
+        .insert("content-type", "application/scim+json".parse().unwrap());
     resp
 }
 
@@ -149,25 +147,21 @@ async fn validate_scim_token(headers: &HeaderMap, db: &sqlx::PgPool) -> Result<(
 
     let hash = format!("{:x}", Sha256::digest(auth.as_bytes()));
 
-    let exists = sqlx::query(
-        "SELECT id FROM scim_tokens WHERE token_hash = $1 AND enabled = true",
-    )
-    .bind(&hash)
-    .fetch_optional(db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let exists = sqlx::query("SELECT id FROM scim_tokens WHERE token_hash = $1 AND enabled = true")
+        .bind(&hash)
+        .fetch_optional(db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if exists.is_none() {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
     // Update last_used_at (non-fatal if it fails)
-    let _ = sqlx::query(
-        "UPDATE scim_tokens SET last_used_at = now() WHERE token_hash = $1",
-    )
-    .bind(&hash)
-    .execute(db)
-    .await;
+    let _ = sqlx::query("UPDATE scim_tokens SET last_used_at = now() WHERE token_hash = $1")
+        .bind(&hash)
+        .execute(db)
+        .await;
 
     Ok(())
 }
@@ -240,10 +234,7 @@ pub async fn service_provider_config(
 // GET /scim/v2/Schemas
 // ---------------------------------------------------------------------------
 
-pub async fn list_schemas(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Response {
+pub async fn list_schemas(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if let Err(status) = validate_scim_token(&headers, &state.db).await {
         return status.into_response();
     }
@@ -284,10 +275,7 @@ pub async fn list_schemas(
 // GET /scim/v2/ResourceTypes
 // ---------------------------------------------------------------------------
 
-pub async fn list_resource_types(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Response {
+pub async fn list_resource_types(State(state): State<AppState>, headers: HeaderMap) -> Response {
     if let Err(status) = validate_scim_token(&headers, &state.db).await {
         return status.into_response();
     }
@@ -570,16 +558,13 @@ pub async fn replace_user(
         .and_then(|n| n.formatted.clone())
         .or_else(|| body.display_name.clone());
 
-    let email = body
-        .emails
-        .as_ref()
-        .and_then(|emails| {
-            emails
-                .iter()
-                .find(|e| e.primary.unwrap_or(false))
-                .or_else(|| emails.first())
-                .map(|e| e.value.clone())
-        });
+    let email = body.emails.as_ref().and_then(|emails| {
+        emails
+            .iter()
+            .find(|e| e.primary.unwrap_or(false))
+            .or_else(|| emails.first())
+            .map(|e| e.value.clone())
+    });
 
     let enabled = body.active.unwrap_or(true);
 
@@ -606,7 +591,14 @@ pub async fn replace_user(
             let ext: Option<String> = r.get("external_id");
             scim_json_response(
                 StatusCode::OK,
-                user_to_scim(&uid.to_string(), &username, fn_.as_deref(), em.as_deref(), en, ext.as_deref()),
+                user_to_scim(
+                    &uid.to_string(),
+                    &username,
+                    fn_.as_deref(),
+                    em.as_deref(),
+                    en,
+                    ext.as_deref(),
+                ),
             )
         }
         Ok(None) => scim_json_response(
@@ -1081,12 +1073,11 @@ pub async fn replace_group(
         .unwrap_or_default();
 
     // Fetch current scim-managed members
-    let current_rows = sqlx::query(
-        "SELECT user_id FROM user_roles WHERE role_id = $1 AND role_source = 'scim'",
-    )
-    .bind(role_id)
-    .fetch_all(&state.db)
-    .await;
+    let current_rows =
+        sqlx::query("SELECT user_id FROM user_roles WHERE role_id = $1 AND role_source = 'scim'")
+            .bind(role_id)
+            .fetch_all(&state.db)
+            .await;
 
     let current_ids: Vec<Uuid> = match current_rows {
         Ok(rows) => rows.iter().map(|r| r.get::<Uuid, _>("user_id")).collect(),
@@ -1172,7 +1163,10 @@ pub async fn patch_group(
 
         // Only handle operations on members path
         let is_members = path_lower.as_deref() == Some("members")
-            || path_lower.as_deref().map(|p| p.starts_with("members")).unwrap_or(false);
+            || path_lower
+                .as_deref()
+                .map(|p| p.starts_with("members"))
+                .unwrap_or(false);
 
         if !is_members {
             continue;
@@ -1285,12 +1279,10 @@ pub async fn delete_group(
     }
 
     // Remove all SCIM-managed role assignments for this role
-    let _ = sqlx::query(
-        "DELETE FROM user_roles WHERE role_id = $1 AND role_source = 'scim'",
-    )
-    .bind(id)
-    .execute(&state.db)
-    .await;
+    let _ = sqlx::query("DELETE FROM user_roles WHERE role_id = $1 AND role_source = 'scim'")
+        .bind(id)
+        .execute(&state.db)
+        .await;
 
     // Verify the role exists before attempting to soft-delete it
     let result = sqlx::query("SELECT id FROM roles WHERE id = $1")

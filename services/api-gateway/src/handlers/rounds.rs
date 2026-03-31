@@ -22,7 +22,10 @@ use crate::state::AppState;
 // ---------------------------------------------------------------------------
 
 fn check_permission(claims: &Claims, permission: &str) -> bool {
-    claims.permissions.iter().any(|p| p == "*" || p == permission)
+    claims
+        .permissions
+        .iter()
+        .any(|p| p == "*" || p == permission)
 }
 
 fn user_id_from_claims(claims: &Claims) -> Option<Uuid> {
@@ -171,7 +174,9 @@ pub struct ResponseItem {
 // Row mapping helpers
 // ---------------------------------------------------------------------------
 
-pub(crate) fn row_to_template(row: &sqlx::postgres::PgRow) -> Result<RoundTemplateRow, sqlx::Error> {
+pub(crate) fn row_to_template(
+    row: &sqlx::postgres::PgRow,
+) -> Result<RoundTemplateRow, sqlx::Error> {
     Ok(RoundTemplateRow {
         id: row.try_get("id")?,
         name: row.try_get("name")?,
@@ -199,7 +204,9 @@ fn row_to_schedule(row: &sqlx::postgres::PgRow) -> Result<RoundScheduleRow, sqlx
     })
 }
 
-pub(crate) fn row_to_instance(row: &sqlx::postgres::PgRow) -> Result<RoundInstanceRow, sqlx::Error> {
+pub(crate) fn row_to_instance(
+    row: &sqlx::postgres::PgRow,
+) -> Result<RoundInstanceRow, sqlx::Error> {
     Ok(RoundInstanceRow {
         id: row.try_get("id")?,
         template_id: row.try_get("template_id")?,
@@ -213,7 +220,9 @@ pub(crate) fn row_to_instance(row: &sqlx::postgres::PgRow) -> Result<RoundInstan
     })
 }
 
-pub(crate) fn row_to_response(row: &sqlx::postgres::PgRow) -> Result<RoundResponseRow, sqlx::Error> {
+pub(crate) fn row_to_response(
+    row: &sqlx::postgres::PgRow,
+) -> Result<RoundResponseRow, sqlx::Error> {
     Ok(RoundResponseRow {
         id: row.try_get("id")?,
         instance_id: row.try_get("instance_id")?,
@@ -421,11 +430,9 @@ pub async fn list_schedules(
     let limit = page.per_page();
     let offset = page.offset();
 
-    let total: i64 = match sqlx::query_scalar(
-        "SELECT COUNT(*) FROM round_schedules",
-    )
-    .fetch_one(&state.db)
-    .await
+    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM round_schedules")
+        .fetch_one(&state.db)
+        .await
     {
         Ok(n) => n,
         Err(e) => return IoError::Database(e).into_response(),
@@ -527,13 +534,11 @@ pub async fn update_schedule(
     let recurrence_type: String = body
         .recurrence_type
         .unwrap_or_else(|| current_row.try_get("recurrence_type").unwrap_or_default());
-    let recurrence_config: JsonValue = body
-        .recurrence_config
-        .unwrap_or_else(|| {
-            current_row
-                .try_get("recurrence_config")
-                .unwrap_or(JsonValue::Object(serde_json::Map::new()))
-        });
+    let recurrence_config: JsonValue = body.recurrence_config.unwrap_or_else(|| {
+        current_row
+            .try_get("recurrence_config")
+            .unwrap_or(JsonValue::Object(serde_json::Map::new()))
+    });
     let is_active: bool = body
         .is_active
         .unwrap_or_else(|| current_row.try_get("is_active").unwrap_or(true));
@@ -673,7 +678,10 @@ pub async fn get_instance(
     .fetch_optional(&state.db)
     .await;
 
-    let template = template_row.ok().flatten().and_then(|r| row_to_template(&r).ok());
+    let template = template_row
+        .ok()
+        .flatten()
+        .and_then(|r| row_to_template(&r).ok());
 
     // Fetch responses
     let responses_rows = sqlx::query(
@@ -688,11 +696,18 @@ pub async fn get_instance(
     .await;
 
     let responses = match responses_rows {
-        Ok(rows) => rows.iter().filter_map(|r| row_to_response(r).ok()).collect(),
+        Ok(rows) => rows
+            .iter()
+            .filter_map(|r| row_to_response(r).ok())
+            .collect(),
         Err(e) => return IoError::Database(e).into_response(),
     };
 
-    let detail = RoundInstanceDetail { instance, template, responses };
+    let detail = RoundInstanceDetail {
+        instance,
+        template,
+        responses,
+    };
     Json(ApiResponse::ok(detail)).into_response()
 }
 
@@ -710,12 +725,10 @@ pub async fn start_instance(
     };
 
     // Check current state first to give a useful error message
-    let current = sqlx::query(
-        "SELECT status, locked_to_user FROM round_instances WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await;
+    let current = sqlx::query("SELECT status, locked_to_user FROM round_instances WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await;
 
     match current {
         Ok(Some(row)) => {
@@ -728,10 +741,8 @@ pub async fn start_instance(
 
             if let Some(other_user) = locked {
                 if other_user != user_id {
-                    return IoError::Conflict(
-                        "Round is already locked by another user".into(),
-                    )
-                    .into_response();
+                    return IoError::Conflict("Round is already locked by another user".into())
+                        .into_response();
                 }
             }
         }
@@ -769,12 +780,10 @@ pub async fn start_instance(
             };
             Json(ApiResponse::ok(instance)).into_response()
         }
-        Ok(None) => {
-            IoError::Conflict(
-                "Could not start round — locked by another user or not in a startable state".into(),
-            )
-            .into_response()
-        }
+        Ok(None) => IoError::Conflict(
+            "Could not start round — locked by another user or not in a startable state".into(),
+        )
+        .into_response(),
         Err(e) => IoError::Database(e).into_response(),
     }
 }
@@ -815,13 +824,11 @@ pub async fn save_responses(
 
     for item in &body.responses {
         // Find matching checkpoint by index for threshold validation
-        let checkpoint = checkpoint_arr
-            .iter()
-            .find(|c| {
-                c.get("index")
-                    .and_then(|v| v.as_i64())
-                    .is_some_and(|i| i == item.checkpoint_index as i64)
-            });
+        let checkpoint = checkpoint_arr.iter().find(|c| {
+            c.get("index")
+                .and_then(|v| v.as_i64())
+                .is_some_and(|i| i == item.checkpoint_index as i64)
+        });
 
         let (is_out_of_range, alarm_triggered) = if item.response_type == "numeric" {
             if let Some(val) = item.response_value.as_f64() {

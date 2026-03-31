@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import React, { useState, useRef, useEffect } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   rolesApi,
   permissionsApi,
@@ -9,86 +9,86 @@ import {
   Permission,
   CreateRoleRequest,
   UpdateRoleRequest,
-} from '../../api/roles'
-import { ExportButton } from '../../shared/components/ExportDialog'
+} from "../../api/roles";
+import { ExportButton } from "../../shared/components/ExportDialog";
 
 // ---------------------------------------------------------------------------
 // Shared styles (duplicated for isolation — will be extracted in Phase 3)
 // ---------------------------------------------------------------------------
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  background: 'var(--io-surface-sunken)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  color: 'var(--io-text-primary)',
-  fontSize: '13px',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
+  width: "100%",
+  padding: "8px 10px",
+  background: "var(--io-surface-sunken)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  color: "var(--io-text-primary)",
+  fontSize: "13px",
+  outline: "none",
+  boxSizing: "border-box",
+};
 
 const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '12px',
+  display: "block",
+  fontSize: "12px",
   fontWeight: 500,
-  color: 'var(--io-text-secondary)',
-  marginBottom: '5px',
-}
+  color: "var(--io-text-secondary)",
+  marginBottom: "5px",
+};
 
 const btnPrimary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--io-accent)',
-  color: 'var(--io-text-on-accent)',
-  border: 'none',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '13px',
+  padding: "8px 16px",
+  background: "var(--io-accent)",
+  color: "var(--io-text-on-accent)",
+  border: "none",
+  borderRadius: "var(--io-radius)",
+  fontSize: "13px",
   fontWeight: 600,
-  cursor: 'pointer',
-}
+  cursor: "pointer",
+};
 
 const btnSecondary: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'transparent',
-  color: 'var(--io-text-secondary)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '13px',
-  cursor: 'pointer',
-}
+  padding: "8px 16px",
+  background: "transparent",
+  color: "var(--io-text-secondary)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  fontSize: "13px",
+  cursor: "pointer",
+};
 
 const cellStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  fontSize: '13px',
-  color: 'var(--io-text-secondary)',
-  verticalAlign: 'middle',
-}
+  padding: "12px 14px",
+  fontSize: "13px",
+  color: "var(--io-text-secondary)",
+  verticalAlign: "middle",
+};
 
 function ErrorBanner({ message }: { message: string }) {
   return (
     <div
       style={{
-        background: 'rgba(239,68,68,0.1)',
-        border: '1px solid rgba(239,68,68,0.3)',
-        borderRadius: 'var(--io-radius)',
-        padding: '10px 14px',
-        color: 'var(--io-danger)',
-        fontSize: '13px',
-        marginBottom: '16px',
+        background: "rgba(239,68,68,0.1)",
+        border: "1px solid rgba(239,68,68,0.3)",
+        borderRadius: "var(--io-radius)",
+        padding: "10px 14px",
+        color: "var(--io-danger)",
+        fontSize: "13px",
+        marginBottom: "16px",
       }}
     >
       {message}
     </div>
-  )
+  );
 }
 
 function Badge({ label, color }: { label: string; color: string }) {
   return (
     <span
       style={{
-        display: 'inline-block',
-        padding: '2px 8px',
-        borderRadius: '100px',
-        fontSize: '11px',
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: "100px",
+        fontSize: "11px",
         fontWeight: 600,
         background: `${color}20`,
         color,
@@ -97,7 +97,7 @@ function Badge({ label, color }: { label: string; color: string }) {
     >
       {label}
     </span>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -107,54 +107,64 @@ function ModalContent({
   title,
   children,
 }: {
-  title: string
-  children: React.ReactNode
+  title: string;
+  children: React.ReactNode;
 }) {
   return (
     <Dialog.Portal>
       <Dialog.Overlay
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100 }}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.6)",
+          zIndex: 100,
+        }}
       />
       <Dialog.Content
         aria-describedby={undefined}
         style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%,-50%)',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: '10px',
-          padding: '24px',
-          width: '560px',
-          maxWidth: '95vw',
-          maxHeight: '90vh',
-          overflowY: 'auto',
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%,-50%)",
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "10px",
+          padding: "24px",
+          width: "560px",
+          maxWidth: "95vw",
+          maxHeight: "90vh",
+          overflowY: "auto",
           zIndex: 101,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
         }}
       >
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '20px',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "20px",
           }}
         >
           <Dialog.Title
-            style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+            style={{
+              margin: 0,
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
           >
             {title}
           </Dialog.Title>
           <Dialog.Close asChild>
             <button
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--io-text-muted)',
-                cursor: 'pointer',
-                fontSize: '18px',
+                background: "none",
+                border: "none",
+                color: "var(--io-text-muted)",
+                cursor: "pointer",
+                fontSize: "18px",
                 lineHeight: 1,
               }}
             >
@@ -165,7 +175,7 @@ function ModalContent({
         {children}
       </Dialog.Content>
     </Dialog.Portal>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -177,74 +187,80 @@ function PermissionMultiSelect({
   onChange,
   disabled,
 }: {
-  permissions: Permission[]
-  selected: string[]
-  onChange: (ids: string[]) => void
-  disabled?: boolean
+  permissions: Permission[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  disabled?: boolean;
 }) {
   // Group by module
   const grouped = permissions.reduce<Record<string, Permission[]>>((acc, p) => {
-    if (!acc[p.module]) acc[p.module] = []
-    acc[p.module].push(p)
-    return acc
-  }, {})
+    if (!acc[p.module]) acc[p.module] = [];
+    acc[p.module].push(p);
+    return acc;
+  }, {});
 
   function toggle(name: string) {
-    if (disabled) return
-    onChange(selected.includes(name) ? selected.filter((x) => x !== name) : [...selected, name])
+    if (disabled) return;
+    onChange(
+      selected.includes(name)
+        ? selected.filter((x) => x !== name)
+        : [...selected, name],
+    );
   }
 
   function toggleModule(module: string) {
-    if (disabled) return
-    const moduleNames = grouped[module].map((p) => p.name)
-    const allSelected = moduleNames.every((name) => selected.includes(name))
+    if (disabled) return;
+    const moduleNames = grouped[module].map((p) => p.name);
+    const allSelected = moduleNames.every((name) => selected.includes(name));
     if (allSelected) {
-      onChange(selected.filter((name) => !moduleNames.includes(name)))
+      onChange(selected.filter((name) => !moduleNames.includes(name)));
     } else {
-      const newSelected = [...new Set([...selected, ...moduleNames])]
-      onChange(newSelected)
+      const newSelected = [...new Set([...selected, ...moduleNames])];
+      onChange(newSelected);
     }
   }
 
   return (
     <div
       style={{
-        maxHeight: '240px',
-        overflowY: 'auto',
-        border: '1px solid var(--io-border)',
-        borderRadius: 'var(--io-radius)',
-        padding: '4px',
+        maxHeight: "240px",
+        overflowY: "auto",
+        border: "1px solid var(--io-border)",
+        borderRadius: "var(--io-radius)",
+        padding: "4px",
         opacity: disabled ? 0.6 : 1,
       }}
     >
       {Object.entries(grouped).map(([module, perms]) => {
-        const allSelected = perms.every((p) => selected.includes(p.name))
-        const someSelected = perms.some((p) => selected.includes(p.name))
+        const allSelected = perms.every((p) => selected.includes(p.name));
+        const someSelected = perms.some((p) => selected.includes(p.name));
         return (
-          <div key={module} style={{ marginBottom: '4px' }}>
+          <div key={module} style={{ marginBottom: "4px" }}>
             <label
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '5px 8px',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                borderRadius: '4px',
-                background: 'var(--io-surface-primary)',
-                fontSize: '12px',
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "5px 8px",
+                cursor: disabled ? "not-allowed" : "pointer",
+                borderRadius: "4px",
+                background: "var(--io-surface-primary)",
+                fontSize: "12px",
                 fontWeight: 600,
-                color: 'var(--io-text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
+                color: "var(--io-text-secondary)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
               }}
               onClick={() => toggleModule(module)}
             >
               <input
                 type="checkbox"
                 checked={allSelected}
-                ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected }}
+                ref={(el) => {
+                  if (el) el.indeterminate = !allSelected && someSelected;
+                }}
                 onChange={() => toggleModule(module)}
-                style={{ accentColor: 'var(--io-accent)' }}
+                style={{ accentColor: "var(--io-accent)" }}
                 disabled={disabled}
               />
               {module}
@@ -253,42 +269,53 @@ function PermissionMultiSelect({
               <label
                 key={p.id}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '4px 8px 4px 24px',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontSize: '12px',
-                  color: 'var(--io-text-primary)',
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "4px 8px 4px 24px",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  fontSize: "12px",
+                  color: "var(--io-text-primary)",
                 }}
               >
                 <input
                   type="checkbox"
                   checked={selected.includes(p.name)}
                   onChange={() => toggle(p.name)}
-                  style={{ accentColor: 'var(--io-accent)' }}
+                  style={{ accentColor: "var(--io-accent)" }}
                   disabled={disabled}
                 />
                 <span>{p.name}</span>
                 {p.description && (
-                  <span style={{ color: 'var(--io-text-muted)', fontSize: '11px', marginLeft: '4px' }}>
+                  <span
+                    style={{
+                      color: "var(--io-text-muted)",
+                      fontSize: "11px",
+                      marginLeft: "4px",
+                    }}
+                  >
                     — {p.description}
                   </span>
                 )}
               </label>
             ))}
           </div>
-        )
+        );
       })}
       {permissions.length === 0 && (
         <div
-          style={{ padding: '16px', textAlign: 'center', color: 'var(--io-text-muted)', fontSize: '13px' }}
+          style={{
+            padding: "16px",
+            textAlign: "center",
+            color: "var(--io-text-muted)",
+            fontSize: "13px",
+          }}
         >
           No permissions available
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -299,39 +326,46 @@ function CreateRoleDialog({
   onOpenChange,
   permissions,
 }: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  permissions: Permission[]
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  permissions: Permission[];
 }) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateRoleRequest>({
-    name: '',
-    display_name: '',
-    description: '',
+    name: "",
+    display_name: "",
+    description: "",
     permissions: [],
     idle_timeout_minutes: null,
     max_concurrent_sessions: 0,
-  })
-  const [formError, setFormError] = useState<string | null>(null)
+  });
+  const [formError, setFormError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: (req: CreateRoleRequest) => rolesApi.create(req),
     onSuccess: (result) => {
       if (!result.success) {
-        setFormError(result.error.message)
-        return
+        setFormError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
-      onOpenChange(false)
-      setForm({ name: '', display_name: '', description: '', permissions: [], idle_timeout_minutes: null, max_concurrent_sessions: 0 })
-      setFormError(null)
+      queryClient.invalidateQueries({ queryKey: ["roles"] });
+      onOpenChange(false);
+      setForm({
+        name: "",
+        display_name: "",
+        description: "",
+        permissions: [],
+        idle_timeout_minutes: null,
+        max_concurrent_sessions: 0,
+      });
+      setFormError(null);
     },
-  })
+  });
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setFormError(null)
-    mutation.mutate(form)
+    e.preventDefault();
+    setFormError(null);
+    mutation.mutate(form);
   }
 
   return (
@@ -339,14 +373,21 @@ function CreateRoleDialog({
       <ModalContent title="Create Role">
         {formError && <ErrorBanner message={formError} />}
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+          >
             <div>
-              <label style={labelStyle}>Role Name * (identifier, no spaces)</label>
+              <label style={labelStyle}>
+                Role Name * (identifier, no spaces)
+              </label>
               <input
                 style={inputStyle}
                 value={form.name}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, name: e.target.value.replace(/\s+/g, '_').toLowerCase() }))
+                  setForm((f) => ({
+                    ...f,
+                    name: e.target.value.replace(/\s+/g, "_").toLowerCase(),
+                  }))
                 }
                 placeholder="e.g. shift_supervisor"
                 required
@@ -357,7 +398,9 @@ function CreateRoleDialog({
               <input
                 style={inputStyle}
                 value={form.display_name}
-                onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, display_name: e.target.value }))
+                }
                 placeholder="e.g. Shift Supervisor"
                 required
               />
@@ -366,21 +409,31 @@ function CreateRoleDialog({
               <label style={labelStyle}>Description</label>
               <input
                 style={inputStyle}
-                value={form.description ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                value={form.description ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+              }}
+            >
               <div>
                 <label style={labelStyle}>Idle Timeout (minutes)</label>
                 <input
                   type="number"
                   style={inputStyle}
-                  value={form.idle_timeout_minutes ?? ''}
+                  value={form.idle_timeout_minutes ?? ""}
                   onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      idle_timeout_minutes: e.target.value ? Number(e.target.value) : null,
+                      idle_timeout_minutes: e.target.value
+                        ? Number(e.target.value)
+                        : null,
                     }))
                   }
                   placeholder="System default"
@@ -394,7 +447,10 @@ function CreateRoleDialog({
                   style={inputStyle}
                   value={form.max_concurrent_sessions ?? 0}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, max_concurrent_sessions: Number(e.target.value) }))
+                    setForm((f) => ({
+                      ...f,
+                      max_concurrent_sessions: Number(e.target.value),
+                    }))
                   }
                   placeholder="0 = unlimited"
                   min={0}
@@ -406,24 +462,37 @@ function CreateRoleDialog({
               <PermissionMultiSelect
                 permissions={permissions}
                 selected={form.permissions ?? []}
-                onChange={(names) => setForm((f) => ({ ...f, permissions: names }))}
+                onChange={(names) =>
+                  setForm((f) => ({ ...f, permissions: names }))
+                }
               />
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "8px",
+              marginTop: "24px",
+            }}
+          >
             <Dialog.Close asChild>
               <button type="button" style={btnSecondary}>
                 Cancel
               </button>
             </Dialog.Close>
-            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Creating…' : 'Create Role'}
+            <button
+              type="submit"
+              style={btnPrimary}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? "Creating…" : "Create Role"}
             </button>
           </div>
         </form>
       </ModalContent>
     </Dialog.Root>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -436,50 +505,50 @@ function EditRoleDialog({
   permissions,
   isLoading,
 }: {
-  role: RoleDetail | null
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  permissions: Permission[]
-  isLoading?: boolean
+  role: RoleDetail | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  permissions: Permission[];
+  isLoading?: boolean;
 }) {
-  const queryClient = useQueryClient()
-  const [form, setForm] = useState<UpdateRoleRequest>({})
-  const [formError, setFormError] = useState<string | null>(null)
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<UpdateRoleRequest>({});
+  const [formError, setFormError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (role) {
       setForm({
         display_name: role.display_name,
-        description: role.description ?? '',
+        description: role.description ?? "",
         // role.permissions is only present on RoleDetail (not Role); guard against undefined
         // while the detail query is still loading
         permissions: (role.permissions ?? []).map((p) => p.name),
         idle_timeout_minutes: role.idle_timeout_minutes ?? null,
         max_concurrent_sessions: role.max_concurrent_sessions ?? 0,
-      })
+      });
     }
-  }, [role])
+  }, [role]);
 
   const mutation = useMutation({
     mutationFn: (req: UpdateRoleRequest) => rolesApi.update(role!.id, req),
     onSuccess: (result) => {
       if (!result.success) {
-        setFormError(result.error.message)
-        return
+        setFormError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
-      onOpenChange(false)
-      setFormError(null)
+      queryClient.invalidateQueries({ queryKey: ["roles"] });
+      onOpenChange(false);
+      setFormError(null);
     },
-  })
+  });
 
   function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setFormError(null)
-    mutation.mutate(form)
+    e.preventDefault();
+    setFormError(null);
+    mutation.mutate(form);
   }
 
-  if (!role) return null
+  if (!role) return null;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -488,36 +557,41 @@ function EditRoleDialog({
         {isLoading && (
           <div
             style={{
-              padding: '24px',
-              textAlign: 'center',
-              color: 'var(--io-text-muted)',
-              fontSize: '13px',
+              padding: "24px",
+              textAlign: "center",
+              color: "var(--io-text-muted)",
+              fontSize: "13px",
             }}
           >
             Loading role details…
           </div>
         )}
-        <form onSubmit={handleSubmit} style={{ display: isLoading ? 'none' : undefined }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: isLoading ? "none" : undefined }}
+        >
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+          >
             {role.is_predefined && (
               <div
                 style={{
-                  padding: '8px 12px',
-                  background: 'var(--io-accent-subtle)',
-                  border: '1px solid var(--io-accent)',
-                  borderRadius: 'var(--io-radius)',
-                  fontSize: '12px',
-                  color: 'var(--io-accent)',
+                  padding: "8px 12px",
+                  background: "var(--io-accent-subtle)",
+                  border: "1px solid var(--io-accent)",
+                  borderRadius: "var(--io-radius)",
+                  fontSize: "12px",
+                  color: "var(--io-accent)",
                 }}
               >
-                This is a predefined role. The role name cannot be changed, but you can modify its
-                permissions.
+                This is a predefined role. The role name cannot be changed, but
+                you can modify its permissions.
               </div>
             )}
             <div>
               <label style={labelStyle}>Role Name</label>
               <input
-                style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }}
+                style={{ ...inputStyle, opacity: 0.6, cursor: "not-allowed" }}
                 value={role.name}
                 disabled
               />
@@ -526,8 +600,10 @@ function EditRoleDialog({
               <label style={labelStyle}>Display Name *</label>
               <input
                 style={inputStyle}
-                value={form.display_name ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
+                value={form.display_name ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, display_name: e.target.value }))
+                }
                 required
               />
             </div>
@@ -535,21 +611,31 @@ function EditRoleDialog({
               <label style={labelStyle}>Description</label>
               <input
                 style={inputStyle}
-                value={form.description ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                value={form.description ?? ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+              }}
+            >
               <div>
                 <label style={labelStyle}>Idle Timeout (minutes)</label>
                 <input
                   type="number"
                   style={inputStyle}
-                  value={form.idle_timeout_minutes ?? ''}
+                  value={form.idle_timeout_minutes ?? ""}
                   onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      idle_timeout_minutes: e.target.value ? Number(e.target.value) : null,
+                      idle_timeout_minutes: e.target.value
+                        ? Number(e.target.value)
+                        : null,
                     }))
                   }
                   placeholder="System default"
@@ -563,7 +649,10 @@ function EditRoleDialog({
                   style={inputStyle}
                   value={form.max_concurrent_sessions ?? 0}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, max_concurrent_sessions: Number(e.target.value) }))
+                    setForm((f) => ({
+                      ...f,
+                      max_concurrent_sessions: Number(e.target.value),
+                    }))
                   }
                   placeholder="0 = unlimited"
                   min={0}
@@ -575,61 +664,86 @@ function EditRoleDialog({
               <PermissionMultiSelect
                 permissions={permissions}
                 selected={form.permissions ?? []}
-                onChange={(names) => setForm((f) => ({ ...f, permissions: names }))}
+                onChange={(names) =>
+                  setForm((f) => ({ ...f, permissions: names }))
+                }
               />
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "8px",
+              marginTop: "24px",
+            }}
+          >
             <Dialog.Close asChild>
               <button type="button" style={btnSecondary}>
                 Cancel
               </button>
             </Dialog.Close>
-            <button type="submit" style={btnPrimary} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : 'Save Changes'}
+            <button
+              type="submit"
+              style={btnPrimary}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? "Saving…" : "Save Changes"}
             </button>
           </div>
         </form>
       </ModalContent>
     </Dialog.Root>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Column definitions for roles export
 // ---------------------------------------------------------------------------
 const ROLES_COLUMNS = [
-  { id: 'name', label: 'Name' },
-  { id: 'display_name', label: 'Display Name' },
-  { id: 'description', label: 'Description' },
-  { id: 'permission_count', label: 'Permission Count' },
-  { id: 'is_predefined', label: 'Predefined' },
-]
+  { id: "name", label: "Name" },
+  { id: "display_name", label: "Display Name" },
+  { id: "description", label: "Description" },
+  { id: "permission_count", label: "Permission Count" },
+  { id: "is_predefined", label: "Predefined" },
+];
 
-const ROLES_DEFAULT_VISIBLE = ['name', 'display_name', 'permission_count', 'is_predefined']
+const ROLES_DEFAULT_VISIBLE = [
+  "name",
+  "display_name",
+  "permission_count",
+  "is_predefined",
+];
 
 // ---------------------------------------------------------------------------
 // TableSkeleton — shimmer rows for roles table
 // ---------------------------------------------------------------------------
-function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
+function TableSkeleton({
+  rows = 5,
+  columns = 5,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead>
         <tr
           style={{
-            borderBottom: '1px solid var(--io-border)',
-            background: 'var(--io-surface-primary)',
+            borderBottom: "1px solid var(--io-border)",
+            background: "var(--io-surface-primary)",
           }}
         >
           {Array.from({ length: columns }).map((_, i) => (
-            <th key={i} style={{ padding: '10px 14px', textAlign: 'left' }}>
+            <th key={i} style={{ padding: "10px 14px", textAlign: "left" }}>
               <div
                 style={{
-                  height: '10px',
-                  borderRadius: '4px',
-                  background: 'var(--io-border)',
-                  width: i === 0 ? '80px' : i === columns - 1 ? '60px' : '120px',
-                  animation: 'io-shimmer 1.5s ease-in-out infinite',
+                  height: "10px",
+                  borderRadius: "4px",
+                  background: "var(--io-border)",
+                  width:
+                    i === 0 ? "80px" : i === columns - 1 ? "60px" : "120px",
+                  animation: "io-shimmer 1.5s ease-in-out infinite",
                 }}
               />
             </th>
@@ -641,18 +755,24 @@ function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: num
           <tr
             key={ri}
             style={{
-              borderBottom: ri < rows - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+              borderBottom:
+                ri < rows - 1 ? "1px solid var(--io-border-subtle)" : undefined,
             }}
           >
             {Array.from({ length: columns }).map((_, ci) => (
-              <td key={ci} style={{ padding: '12px 14px' }}>
+              <td key={ci} style={{ padding: "12px 14px" }}>
                 <div
                   style={{
-                    height: '12px',
-                    borderRadius: '4px',
-                    background: 'var(--io-surface-primary)',
-                    width: ci === columns - 1 ? '64px' : ci === 0 ? '100px' : '140px',
-                    animation: 'io-shimmer 1.5s ease-in-out infinite',
+                    height: "12px",
+                    borderRadius: "4px",
+                    background: "var(--io-surface-primary)",
+                    width:
+                      ci === columns - 1
+                        ? "64px"
+                        : ci === 0
+                          ? "100px"
+                          : "140px",
+                    animation: "io-shimmer 1.5s ease-in-out infinite",
                     animationDelay: `${ri * 0.05}s`,
                   }}
                 />
@@ -662,13 +782,16 @@ function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: num
         ))}
       </tbody>
     </table>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // RoleContextMenu — right-click context menu for role table rows
 // ---------------------------------------------------------------------------
-interface ContextMenuPos { x: number; y: number }
+interface ContextMenuPos {
+  x: number;
+  y: number;
+}
 
 function RoleContextMenu({
   role,
@@ -678,205 +801,240 @@ function RoleContextMenu({
   onCloneRole,
   onDelete,
 }: {
-  role: Role
-  pos: ContextMenuPos
-  onClose: () => void
-  onEditPermissions: (r: Role) => void
-  onCloneRole: (r: Role) => void
-  onDelete: (r: Role) => void
+  role: Role;
+  pos: ContextMenuPos;
+  onClose: () => void;
+  onEditPermissions: (r: Role) => void;
+  onCloneRole: (r: Role) => void;
+  onDelete: (r: Role) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose()
+        onClose();
       }
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [onClose])
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
 
   const menuStyle: React.CSSProperties = {
-    position: 'fixed',
+    position: "fixed",
     top: pos.y,
     left: pos.x,
     zIndex: 500,
-    background: 'var(--io-surface-elevated)',
-    border: '1px solid var(--io-border)',
-    borderRadius: 'var(--io-radius)',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-    minWidth: '180px',
-    overflow: 'hidden',
-    padding: '4px 0',
-  }
+    background: "var(--io-surface-elevated)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+    minWidth: "180px",
+    overflow: "hidden",
+    padding: "4px 0",
+  };
 
   const itemStyle: React.CSSProperties = {
-    display: 'block',
-    width: '100%',
-    padding: '7px 14px',
-    background: 'transparent',
-    border: 'none',
-    textAlign: 'left',
-    fontSize: '13px',
-    color: 'var(--io-text-secondary)',
-    cursor: 'pointer',
-  }
+    display: "block",
+    width: "100%",
+    padding: "7px 14px",
+    background: "transparent",
+    border: "none",
+    textAlign: "left",
+    fontSize: "13px",
+    color: "var(--io-text-secondary)",
+    cursor: "pointer",
+  };
 
   const dangerItemStyle: React.CSSProperties = {
     ...itemStyle,
-    color: 'var(--io-danger)',
-  }
+    color: "var(--io-danger)",
+  };
 
   const disabledItemStyle: React.CSSProperties = {
     ...dangerItemStyle,
     opacity: 0.4,
-    cursor: 'not-allowed',
-  }
+    cursor: "not-allowed",
+  };
 
-  function menuItem(label: string, action: () => void, danger = false, disabled = false) {
+  function menuItem(
+    label: string,
+    action: () => void,
+    danger = false,
+    disabled = false,
+  ) {
     return (
       <button
-        style={disabled ? disabledItemStyle : danger ? dangerItemStyle : itemStyle}
-        onMouseEnter={(e) => { if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-        onClick={() => { if (!disabled) { action(); onClose() } }}
+        style={
+          disabled ? disabledItemStyle : danger ? dangerItemStyle : itemStyle
+        }
+        onMouseEnter={(e) => {
+          if (!disabled)
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "var(--io-surface-secondary)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background =
+            "transparent";
+        }}
+        onClick={() => {
+          if (!disabled) {
+            action();
+            onClose();
+          }
+        }}
         disabled={disabled}
       >
         {label}
       </button>
-    )
+    );
   }
 
   return (
     <div ref={ref} style={menuStyle}>
-      {menuItem('Edit Permissions', () => onEditPermissions(role))}
-      {menuItem('Clone Role', () => onCloneRole(role))}
-      {menuItem('Delete', () => onDelete(role), true, role.is_predefined)}
+      {menuItem("Edit Permissions", () => onEditPermissions(role))}
+      {menuItem("Clone Role", () => onCloneRole(role))}
+      {menuItem("Delete", () => onDelete(role), true, role.is_predefined)}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // RolesPage
 // ---------------------------------------------------------------------------
 export default function RolesPage() {
-  const queryClient = useQueryClient()
-  const [createOpen, setCreateOpen] = useState(false)
-  const [editRole, setEditRole] = useState<RoleDetail | null>(null)
-  const [editOpen, setEditOpen] = useState(false)
-  const [bannerError, setBannerError] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ role: Role; pos: ContextMenuPos } | null>(null)
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editRole, setEditRole] = useState<RoleDetail | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    role: Role;
+    pos: ContextMenuPos;
+  } | null>(null);
 
   const rolesQuery = useQuery({
-    queryKey: ['roles'],
+    queryKey: ["roles"],
     queryFn: async () => {
-      const result = await rolesApi.list()
-      if (!result.success) throw new Error(result.error.message)
-      return result.data.data as Role[]
+      const result = await rolesApi.list();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data.data as Role[];
     },
-  })
+  });
 
   const permissionsQuery = useQuery({
-    queryKey: ['permissions'],
+    queryKey: ["permissions"],
     queryFn: async () => {
-      const result = await permissionsApi.list()
-      if (!result.success) throw new Error(result.error.message)
-      return result.data as Permission[]
+      const result = await permissionsApi.list();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data as Permission[];
     },
-  })
+  });
 
   const roleDetailQuery = useQuery({
-    queryKey: ['role', editRole?.id],
+    queryKey: ["role", editRole?.id],
     queryFn: async () => {
-      if (!editRole) return null
-      const result = await rolesApi.get(editRole.id)
-      if (!result.success) throw new Error(result.error.message)
-      return result.data as RoleDetail
+      if (!editRole) return null;
+      const result = await rolesApi.get(editRole.id);
+      if (!result.success) throw new Error(result.error.message);
+      return result.data as RoleDetail;
     },
     enabled: !!editRole,
-  })
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => rolesApi.delete(id),
     onSuccess: (result) => {
       if (!result.success) {
-        setBannerError(result.error.message)
-        return
+        setBannerError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      queryClient.invalidateQueries({ queryKey: ["roles"] });
     },
-  })
+  });
 
   const cloneMutation = useMutation({
     mutationFn: async (role: Role) => {
       // Fetch full role details to get permissions
-      const detailResult = await rolesApi.get(role.id)
-      if (!detailResult.success) throw new Error(detailResult.error.message)
-      const detail = detailResult.data as RoleDetail
+      const detailResult = await rolesApi.get(role.id);
+      if (!detailResult.success) throw new Error(detailResult.error.message);
+      const detail = detailResult.data as RoleDetail;
       const req: CreateRoleRequest = {
         name: `${role.name}_copy`,
         display_name: `${role.display_name} (Copy)`,
-        description: role.description ?? '',
+        description: role.description ?? "",
         permissions: detail.permissions.map((p: Permission) => p.name),
         idle_timeout_minutes: detail.idle_timeout_minutes ?? null,
         max_concurrent_sessions: detail.max_concurrent_sessions ?? 0,
-      }
-      return rolesApi.create(req)
+      };
+      return rolesApi.create(req);
     },
     onSuccess: (result) => {
       if (!result.success) {
-        setBannerError(result.error.message)
-        return
+        setBannerError(result.error.message);
+        return;
       }
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      queryClient.invalidateQueries({ queryKey: ["roles"] });
     },
     onError: (err) => {
-      setBannerError(err instanceof Error ? err.message : 'Failed to clone role')
+      setBannerError(
+        err instanceof Error ? err.message : "Failed to clone role",
+      );
     },
-  })
+  });
 
   function handleEdit(role: Role) {
-    setEditRole(role as RoleDetail)
-    setEditOpen(true)
+    setEditRole(role as RoleDetail);
+    setEditOpen(true);
   }
 
   function handleContextMenu(e: React.MouseEvent, role: Role) {
-    e.preventDefault()
-    setContextMenu({ role, pos: { x: e.clientX, y: e.clientY } })
+    e.preventDefault();
+    setContextMenu({ role, pos: { x: e.clientX, y: e.clientY } });
   }
 
-  const roles = rolesQuery.data ?? []
-  const permissions = permissionsQuery.data ?? []
+  const roles = rolesQuery.data ?? [];
+  const permissions = permissionsQuery.data ?? [];
 
   return (
     <div>
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '20px',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "20px",
         }}
       >
         <div>
           <h2
-            style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--io-text-primary)' }}
+            style={{
+              margin: "0 0 4px",
+              fontSize: "18px",
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+            }}
           >
             Roles
           </h2>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--io-text-muted)' }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "13px",
+              color: "var(--io-text-muted)",
+            }}
+          >
             Define roles and their permissions
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <ExportButton
             module="settings"
             entity="roles"
@@ -895,43 +1053,47 @@ export default function RolesPage() {
 
       <div
         style={{
-          background: 'var(--io-surface-secondary)',
-          border: '1px solid var(--io-border)',
-          borderRadius: '8px',
-          overflow: 'hidden',
+          background: "var(--io-surface-secondary)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "8px",
+          overflow: "hidden",
         }}
       >
         {rolesQuery.isLoading && <TableSkeleton rows={5} columns={5} />}
         {rolesQuery.isError && (
-          <div style={{ padding: '20px' }}>
-            <ErrorBanner message={rolesQuery.error?.message ?? 'Failed to load roles'} />
+          <div style={{ padding: "20px" }}>
+            <ErrorBanner
+              message={rolesQuery.error?.message ?? "Failed to load roles"}
+            />
           </div>
         )}
         {!rolesQuery.isLoading && !rolesQuery.isError && (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr
                 style={{
-                  borderBottom: '1px solid var(--io-border)',
-                  background: 'var(--io-surface-primary)',
+                  borderBottom: "1px solid var(--io-border)",
+                  background: "var(--io-surface-primary)",
                 }}
               >
-                {['Name', 'Display Name', 'Permissions', 'Type', 'Actions'].map((col) => (
-                  <th
-                    key={col}
-                    style={{
-                      padding: '10px 14px',
-                      textAlign: 'left',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: 'var(--io-text-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                    }}
-                  >
-                    {col}
-                  </th>
-                ))}
+                {["Name", "Display Name", "Permissions", "Type", "Actions"].map(
+                  (col) => (
+                    <th
+                      key={col}
+                      style={{
+                        padding: "10px 14px",
+                        textAlign: "left",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "var(--io-text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      {col}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
@@ -940,10 +1102,10 @@ export default function RolesPage() {
                   <td
                     colSpan={5}
                     style={{
-                      padding: '40px',
-                      textAlign: 'center',
-                      color: 'var(--io-text-muted)',
-                      fontSize: '14px',
+                      padding: "40px",
+                      textAlign: "center",
+                      color: "var(--io-text-muted)",
+                      fontSize: "14px",
                     }}
                   >
                     No roles found
@@ -955,44 +1117,51 @@ export default function RolesPage() {
                   key={role.id}
                   style={{
                     borderBottom:
-                      i < roles.length - 1 ? '1px solid var(--io-border-subtle)' : undefined,
+                      i < roles.length - 1
+                        ? "1px solid var(--io-border-subtle)"
+                        : undefined,
                   }}
                   onContextMenu={(e) => handleContextMenu(e, role)}
                 >
                   <td style={cellStyle}>
                     <code
                       style={{
-                        fontFamily: 'monospace',
-                        fontSize: '12px',
-                        background: 'var(--io-surface-primary)',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        color: 'var(--io-text-primary)',
+                        fontFamily: "monospace",
+                        fontSize: "12px",
+                        background: "var(--io-surface-primary)",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        color: "var(--io-text-primary)",
                       }}
                     >
                       {role.name}
                     </code>
                   </td>
                   <td style={cellStyle}>
-                    <span style={{ fontWeight: 500, color: 'var(--io-text-primary)' }}>
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        color: "var(--io-text-primary)",
+                      }}
+                    >
                       {role.display_name}
                     </span>
                   </td>
                   <td style={cellStyle}>
                     <span
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        minWidth: '32px',
-                        height: '22px',
-                        padding: '0 8px',
-                        background: 'var(--io-surface-primary)',
-                        border: '1px solid var(--io-border)',
-                        borderRadius: '100px',
-                        fontSize: '12px',
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "32px",
+                        height: "22px",
+                        padding: "0 8px",
+                        background: "var(--io-surface-primary)",
+                        border: "1px solid var(--io-border)",
+                        borderRadius: "100px",
+                        fontSize: "12px",
                         fontWeight: 600,
-                        color: 'var(--io-text-secondary)',
+                        color: "var(--io-text-secondary)",
                       }}
                     >
                       {role.permission_count}
@@ -1006,16 +1175,16 @@ export default function RolesPage() {
                     )}
                   </td>
                   <td style={cellStyle}>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div style={{ display: "flex", gap: "6px" }}>
                       <button
                         style={{
-                          padding: '4px 10px',
-                          background: 'transparent',
-                          border: '1px solid var(--io-border)',
-                          borderRadius: 'var(--io-radius)',
-                          color: 'var(--io-text-secondary)',
-                          fontSize: '12px',
-                          cursor: 'pointer',
+                          padding: "4px 10px",
+                          background: "transparent",
+                          border: "1px solid var(--io-border)",
+                          borderRadius: "var(--io-radius)",
+                          color: "var(--io-text-secondary)",
+                          fontSize: "12px",
+                          cursor: "pointer",
                         }}
                         onClick={() => handleEdit(role)}
                       >
@@ -1024,13 +1193,13 @@ export default function RolesPage() {
                       {!role.is_predefined && (
                         <button
                           style={{
-                            padding: '4px 10px',
-                            background: 'transparent',
-                            border: '1px solid rgba(239,68,68,0.3)',
-                            borderRadius: 'var(--io-radius)',
-                            color: 'var(--io-danger)',
-                            fontSize: '12px',
-                            cursor: 'pointer',
+                            padding: "4px 10px",
+                            background: "transparent",
+                            border: "1px solid rgba(239,68,68,0.3)",
+                            borderRadius: "var(--io-radius)",
+                            color: "var(--io-danger)",
+                            fontSize: "12px",
+                            cursor: "pointer",
                           }}
                           onClick={() => deleteMutation.mutate(role.id)}
                         >
@@ -1065,11 +1234,17 @@ export default function RolesPage() {
           role={contextMenu.role}
           pos={contextMenu.pos}
           onClose={() => setContextMenu(null)}
-          onEditPermissions={(r) => { handleEdit(r) }}
-          onCloneRole={(r) => { cloneMutation.mutate(r) }}
-          onDelete={(r) => { deleteMutation.mutate(r.id) }}
+          onEditPermissions={(r) => {
+            handleEdit(r);
+          }}
+          onCloneRole={(r) => {
+            cloneMutation.mutate(r);
+          }}
+          onDelete={(r) => {
+            deleteMutation.mutate(r.id);
+          }}
         />
       )}
     </div>
-  )
+  );
 }

@@ -1,77 +1,77 @@
-import { api, queryString, type ApiResult } from './client'
+import { api, queryString, type ApiResult } from "./client";
 
 export interface PointSource {
-  id: string
-  name: string
-  endpoint_url: string
-  source_type: string
-  security_policy: string
-  security_mode: string
-  username: string | null
-  enabled: boolean
-  status: string
-  last_connected_at: string | null
-  last_error_at: string | null
-  last_error_message: string | null
-  created_at: string
+  id: string;
+  name: string;
+  endpoint_url: string;
+  source_type: string;
+  security_policy: string;
+  security_mode: string;
+  username: string | null;
+  enabled: boolean;
+  status: string;
+  last_connected_at: string | null;
+  last_error_at: string | null;
+  last_error_message: string | null;
+  created_at: string;
 }
 
 export interface CreatePointSourceRequest {
-  name: string
-  endpoint_url: string
-  source_type: 'opc_ua'
-  security_policy?: string
-  security_mode?: string
-  username?: string
-  password?: string
-  client_certificate_id?: string | null
-  platform?: string | null
-  publish_interval_ms?: number | null
+  name: string;
+  endpoint_url: string;
+  source_type: "opc_ua";
+  security_policy?: string;
+  security_mode?: string;
+  username?: string;
+  password?: string;
+  client_certificate_id?: string | null;
+  platform?: string | null;
+  publish_interval_ms?: number | null;
 }
 
 export interface UpdatePointSourceRequest {
-  name?: string
-  endpoint_url?: string
-  enabled?: boolean
-  security_policy?: string
-  security_mode?: string
-  username?: string
-  password?: string
-  client_certificate_id?: string | null
-  platform?: string | null
-  publish_interval_ms?: number | null
+  name?: string;
+  endpoint_url?: string;
+  enabled?: boolean;
+  security_policy?: string;
+  security_mode?: string;
+  username?: string;
+  password?: string;
+  client_certificate_id?: string | null;
+  platform?: string | null;
+  publish_interval_ms?: number | null;
 }
 
 /** Existing PointMeta shape used by the OPC sources listing */
 export interface PointMeta {
-  id: string
-  tagname: string
-  source_id: string
-  display_name: string | null
-  unit: string | null
-  data_type: string | null
+  id: string;
+  tagname: string;
+  source_id: string;
+  display_name: string | null;
+  unit: string | null;
+  data_type: string | null;
   /** OPC UA AnalogItemType.EURange.low — engineering minimum (from OPC UA metadata crawl) */
-  eu_range_low: number | null
+  eu_range_low: number | null;
   /** OPC UA AnalogItemType.EURange.high — engineering maximum (from OPC UA metadata crawl) */
-  eu_range_high: number | null
+  eu_range_high: number | null;
 }
 
 export interface HistoryRow {
-  timestamp: string
-  value: number | null
-  quality?: string
-  avg?: number | null
-  min?: number | null
-  max?: number | null
-  count?: number | null
+  timestamp: string;
+  value: number | null;
+  quality?: string;
+  avg?: number | null;
+  min?: number | null;
+  max?: number | null;
+  count?: number | null;
 }
 
 export interface HistoryResult {
-  point_id: string
-  resolution: string
-  start: string
-  end: string
-  rows: HistoryRow[]
+  point_id: string;
+  resolution: string;
+  start: string;
+  end: string;
+  rows: HistoryRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -80,13 +80,13 @@ export interface HistoryResult {
 
 /** Rich point metadata returned by GET /api/points/:id */
 export interface PointDetail {
-  id: string
-  name: string
-  description: string | null
-  engineering_unit: string | null
-  data_type: string
-  source_id: string
-  source_name: string
+  id: string;
+  name: string;
+  description: string | null;
+  engineering_unit: string | null;
+  data_type: string;
+  source_id: string;
+  source_name: string;
 }
 
 /**
@@ -94,19 +94,19 @@ export interface PointDetail {
  * and the latest value snapshot in a single round-trip.
  */
 export interface PointDetailResponse {
-  id: string
-  name: string
-  description: string | null
-  engineering_unit: string | null
-  data_type: string
-  source_id: string
-  source_name: string
+  id: string;
+  name: string;
+  description: string | null;
+  engineering_unit: string | null;
+  data_type: string;
+  source_id: string;
+  source_name: string;
   /** Latest value snapshot — may be null if no data has been recorded yet */
   latest: {
-    value: number
-    quality: string
-    timestamp: string
-  } | null
+    value: number;
+    quality: string;
+    timestamp: string;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,27 +115,27 @@ export interface PointDetailResponse {
 
 /** Alarm threshold row from GET /api/v1/points/:id/alarms */
 export interface PointAlarmThreshold {
-  level: 'HH' | 'H' | 'L' | 'LL'
-  value: number | null
-  enabled: boolean
+  level: "HH" | "H" | "L" | "LL";
+  value: number | null;
+  enabled: boolean;
 }
 
 /** Summary alarm event from the last 5 alarms list */
 export interface PointAlarmEvent {
-  id: string
-  timestamp: string
-  value: number | null
-  priority: 'critical' | 'high' | 'medium' | 'low' | string
-  state: string
-  message: string | null
+  id: string;
+  timestamp: string;
+  value: number | null;
+  priority: "critical" | "high" | "medium" | "low" | string;
+  state: string;
+  message: string | null;
 }
 
 /** Combined alarm data response for the Point Detail panel */
 export interface PointAlarmData {
-  thresholds: PointAlarmThreshold[]
-  alarm_count_30d: number
-  time_in_alarm_minutes: number
-  last_alarms: PointAlarmEvent[]
+  thresholds: PointAlarmThreshold[];
+  alarm_count_30d: number;
+  time_in_alarm_minutes: number;
+  last_alarms: PointAlarmEvent[];
 }
 
 // ---------------------------------------------------------------------------
@@ -144,26 +144,26 @@ export interface PointAlarmData {
 
 /** A graphic that contains this point (reverse lookup) */
 export interface LinkedGraphic {
-  id: string
-  name: string
+  id: string;
+  name: string;
   /** 'console' | 'process' | 'designer' */
-  type: string
-  route: string
+  type: string;
+  route: string;
 }
 
 /** Latest value snapshot from the archive */
 export interface PointLatest {
-  point_id: string
-  value: number | null
-  quality: string
-  timestamp: string | null
+  point_id: string;
+  value: number | null;
+  quality: string;
+  timestamp: string | null;
 }
 
 /** Single history entry from the archive time-series */
 export interface HistoryEntry {
-  time: string
-  value: number
-  quality: string
+  time: string;
+  value: number;
+  quality: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,38 +171,50 @@ export interface HistoryEntry {
 // ---------------------------------------------------------------------------
 
 export interface ConnectionTestResult {
-  success: boolean
-  message: string
-  latency_ms?: number | null
+  success: boolean;
+  message: string;
+  latency_ms?: number | null;
 }
 
 export const pointSourcesApi = {
-  list: () => api.get<{ data: PointSource[]; pagination: { total: number; page: number; pages: number } }>('/api/points/sources'),
+  list: () =>
+    api.get<{
+      data: PointSource[];
+      pagination: { total: number; page: number; pages: number };
+    }>("/api/points/sources"),
   get: (id: string) => api.get<PointSource>(`/api/points/sources/${id}`),
-  create: (req: CreatePointSourceRequest) => api.post<PointSource>('/api/points/sources', req),
+  create: (req: CreatePointSourceRequest) =>
+    api.post<PointSource>("/api/points/sources", req),
   update: (id: string, req: UpdatePointSourceRequest) =>
     api.put<PointSource>(`/api/points/sources/${id}`, req),
   delete: (id: string) => api.delete(`/api/points/sources/${id}`),
-  reconnect: (id: string) => api.post<void>(`/api/opc/sources/${id}/reconnect`, {}),
+  reconnect: (id: string) =>
+    api.post<void>(`/api/opc/sources/${id}/reconnect`, {}),
   testConnection: (id: string) =>
     api.post<ConnectionTestResult>(`/api/opc/sources/${id}/test`, {}),
-}
+};
 
 export const pointsApi = {
-  list: (params?: { source_id?: string; search?: string; page?: number; limit?: number }) =>
-    api.get<{ data: PointMeta[]; pagination: { total: number; page: number; pages: number } }>(
-      `/api/points${queryString(params as Record<string, unknown>)}`,
-    ),
+  list: (params?: {
+    source_id?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) =>
+    api.get<{
+      data: PointMeta[];
+      pagination: { total: number; page: number; pages: number };
+    }>(`/api/points${queryString(params as Record<string, unknown>)}`),
 
   history: (
     pointId: string,
     params: {
-      start: string
-      end: string
-      resolution?: string
-      limit?: number
-      bucket_seconds?: number
-      aggregate_function?: string
+      start: string;
+      end: string;
+      resolution?: string;
+      limit?: number;
+      bucket_seconds?: number;
+      aggregate_function?: string;
     },
   ) =>
     api.get<HistoryResult>(
@@ -223,12 +235,12 @@ export const pointsApi = {
   getHistory: (
     pointId: string,
     params: {
-      start: string
-      end: string
-      resolution?: string
-      limit?: number
-      bucket_seconds?: number
-      aggregate_function?: string
+      start: string;
+      end: string;
+      resolution?: string;
+      limit?: number;
+      bucket_seconds?: number;
+      aggregate_function?: string;
     },
   ): Promise<ApiResult<HistoryEntry[]>> =>
     api.get<HistoryEntry[]>(
@@ -244,108 +256,122 @@ export const pointsApi = {
 
   /** POST /api/points/batch-latest — bulk latest values */
   batchLatest: (pointIds: string[]): Promise<ApiResult<PointLatest[]>> =>
-    api.post<PointLatest[]>('/api/points/batch-latest', { point_ids: pointIds }),
+    api.post<PointLatest[]>("/api/points/batch-latest", {
+      point_ids: pointIds,
+    }),
 
   /** POST /api/points/history-batch — bulk historical data for multiple points */
   historyBatch: (
     pointIds: string[],
     params: {
-      start: string
-      end: string
-      resolution?: string
-      limit?: number
-      bucket_seconds?: number
-      aggregate_function?: string
+      start: string;
+      end: string;
+      resolution?: string;
+      limit?: number;
+      bucket_seconds?: number;
+      aggregate_function?: string;
     },
   ): Promise<ApiResult<HistoryResult[]>> =>
-    api.post<HistoryResult[]>('/api/points/history-batch', { point_ids: pointIds, ...params }),
+    api.post<HistoryResult[]>("/api/points/history-batch", {
+      point_ids: pointIds,
+      ...params,
+    }),
 
   /**
    * GET /api/v1/points/:id/alarms — alarm thresholds, 30-day count, time in alarm,
    * and last 5 alarm events for the Point Detail panel.
    */
   getAlarmData: (pointId: string): Promise<ApiResult<PointAlarmData>> =>
-    api.get<PointAlarmData>(`/api/v1/points/${encodeURIComponent(pointId)}/alarms`),
+    api.get<PointAlarmData>(
+      `/api/v1/points/${encodeURIComponent(pointId)}/alarms`,
+    ),
 
   /**
    * GET /api/v1/points/:id/graphics — reverse lookup against design_object_points
    * returning all graphics that contain this point.
    */
   getLinkedGraphics: (pointId: string): Promise<ApiResult<LinkedGraphic[]>> =>
-    api.get<LinkedGraphic[]>(`/api/v1/points/${encodeURIComponent(pointId)}/graphics`),
-}
+    api.get<LinkedGraphic[]>(
+      `/api/v1/points/${encodeURIComponent(pointId)}/graphics`,
+    ),
+};
 
 // ---------------------------------------------------------------------------
 // Point configuration (Settings > Points)
 // ---------------------------------------------------------------------------
 
 /** Aggregation type bitmask bit positions */
-export const AGG_AVERAGING = 1
-export const AGG_SUM = 2
-export const AGG_ACCUMULATION = 4
+export const AGG_AVERAGING = 1;
+export const AGG_SUM = 2;
+export const AGG_ACCUMULATION = 4;
 
 /** Full editable point configuration record */
 export interface PointConfig {
-  id: string
-  tag_name: string
-  display_name: string | null
-  description: string | null
-  unit: string | null
-  data_type: string | null
-  source_id: string
-  source_name: string | null
-  active: boolean
-  criticality: 'safety_critical' | 'environmental' | 'production' | 'informational' | null
-  area: string | null
-  default_graphic_id: string | null
-  gps_latitude: number | null
-  gps_longitude: number | null
-  barcode: string | null
-  notes: string | null
-  write_frequency_seconds: number | null
-  aggregation_types: number
-  custom_expression_id: string | null
-  custom_expression_name: string | null
-  created_at: string
-  updated_at: string
+  id: string;
+  tag_name: string;
+  display_name: string | null;
+  description: string | null;
+  unit: string | null;
+  data_type: string | null;
+  source_id: string;
+  source_name: string | null;
+  active: boolean;
+  criticality:
+    | "safety_critical"
+    | "environmental"
+    | "production"
+    | "informational"
+    | null;
+  area: string | null;
+  default_graphic_id: string | null;
+  gps_latitude: number | null;
+  gps_longitude: number | null;
+  barcode: string | null;
+  notes: string | null;
+  write_frequency_seconds: number | null;
+  aggregation_types: number;
+  custom_expression_id: string | null;
+  custom_expression_name: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PointConfigListResult {
-  data: PointConfig[]
-  pagination: { total: number; page: number; pages: number; limit: number }
+  data: PointConfig[];
+  pagination: { total: number; page: number; pages: number; limit: number };
 }
 
 export interface UpdatePointConfigRequest {
-  active?: boolean
-  criticality?: string | null
-  area?: string | null
-  barcode?: string | null
-  notes?: string | null
-  write_frequency_seconds?: number | null
-  aggregation_types?: number
-  gps_latitude?: number | null
-  gps_longitude?: number | null
-  default_graphic_id?: string | null
-  custom_expression_id?: string | null
+  active?: boolean;
+  criticality?: string | null;
+  area?: string | null;
+  barcode?: string | null;
+  notes?: string | null;
+  write_frequency_seconds?: number | null;
+  aggregation_types?: number;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
+  default_graphic_id?: string | null;
+  custom_expression_id?: string | null;
 }
 
 export interface PointMetadataVersion {
-  id: string
-  point_id: string
-  changed_at: string
-  changed_by: string | null
-  changes: Record<string, { old: unknown; new: unknown }>
-  version: number
+  id: string;
+  point_id: string;
+  changed_at: string;
+  changed_by: string | null;
+  changes: Record<string, { old: unknown; new: unknown }>;
+  version: number;
 }
 
 export const pointConfigApi = {
   list: (params?: {
-    search?: string
-    source_id?: string
-    area?: string
-    active?: boolean
-    page?: number
-    limit?: number
+    search?: string;
+    source_id?: string;
+    area?: string;
+    active?: boolean;
+    page?: number;
+    limit?: number;
   }) =>
     api.get<PointConfigListResult>(
       `/api/points${queryString(params as Record<string, unknown>)}`,
@@ -361,30 +387,30 @@ export const pointConfigApi = {
     api.post<PointConfig>(`/api/points/${id}/reactivate`, {}),
 
   bulkUpdateAggregation: (ids: string[], aggregation_types: number) =>
-    api.post<{ updated: number }>('/api/points/bulk-aggregation', {
+    api.post<{ updated: number }>("/api/points/bulk-aggregation", {
       point_ids: ids,
       aggregation_types,
     }),
 
   getMetadataVersions: (id: string) =>
     api.get<PointMetadataVersion[]>(`/api/points/${id}/metadata-versions`),
-}
+};
 
 // ---------------------------------------------------------------------------
 // History recovery
 // ---------------------------------------------------------------------------
 
 export interface RecoveryJob {
-  id: string
-  source_id: string
-  from_time: string
-  to_time: string
-  status: 'pending' | 'running' | 'complete' | 'failed'
-  points_recovered: number
-  started_at: string | null
-  completed_at: string | null
-  error_message: string | null
-  created_at: string
+  id: string;
+  source_id: string;
+  from_time: string;
+  to_time: string;
+  status: "pending" | "running" | "complete" | "failed";
+  points_recovered: number;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,20 +418,25 @@ export interface RecoveryJob {
 // ---------------------------------------------------------------------------
 
 export interface PointSourceStats {
-  source_id: string
-  point_count: number
-  active_subscriptions: number
-  updates_per_minute: number | null
-  error_count_24h: number
-  last_value_at: string | null
+  source_id: string;
+  point_count: number;
+  active_subscriptions: number;
+  updates_per_minute: number | null;
+  error_count_24h: number;
+  last_value_at: string | null;
 }
 
 export const pointSourceStatsApi = {
   /** GET /api/opc/sources/stats — stats for all sources (bulk) */
-  listAll: () => api.get<{ data: PointSourceStats[]; pagination: { total: number; page: number; pages: number } }>('/api/opc/sources/stats'),
+  listAll: () =>
+    api.get<{
+      data: PointSourceStats[];
+      pagination: { total: number; page: number; pages: number };
+    }>("/api/opc/sources/stats"),
   /** GET /api/opc/sources/:id/stats — stats for one source */
-  get: (id: string) => api.get<PointSourceStats>(`/api/opc/sources/${id}/stats`),
-}
+  get: (id: string) =>
+    api.get<PointSourceStats>(`/api/opc/sources/${id}/stats`),
+};
 
 export const historyRecoveryApi = {
   createJob: (sourceId: string, fromTime: string, toTime?: string) =>
@@ -414,5 +445,7 @@ export const historyRecoveryApi = {
       ...(toTime ? { to_time: toTime } : {}),
     }),
   listJobs: (sourceId: string) =>
-    api.get<RecoveryJob[]>(`/api/opc/sources/${sourceId}/history-recovery/jobs`),
-}
+    api.get<RecoveryJob[]>(
+      `/api/opc/sources/${sourceId}/history-recovery/jobs`,
+    ),
+};

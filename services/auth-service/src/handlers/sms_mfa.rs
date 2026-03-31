@@ -102,9 +102,9 @@ pub async fn send_sms_code(
     .ok_or(IoError::Unauthorized)?;
 
     let phone: Option<String> = row.get("phone_number");
-    let phone = phone
-        .filter(|p| !p.is_empty())
-        .ok_or_else(|| IoError::BadRequest("No phone number on file. Contact your administrator.".to_string()))?;
+    let phone = phone.filter(|p| !p.is_empty()).ok_or_else(|| {
+        IoError::BadRequest("No phone number on file. Contact your administrator.".to_string())
+    })?;
 
     // Generate 6-digit code
     let code = format!("{:06}", rand::random::<u32>() % 1_000_000);
@@ -191,13 +191,12 @@ pub async fn verify_sms_code(
         .await?;
 
     // Fetch user
-    let user_row = sqlx::query(
-        "SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(IoError::Unauthorized)?;
+    let user_row =
+        sqlx::query("SELECT username, enabled FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(IoError::Unauthorized)?;
 
     let enabled: bool = user_row.get("enabled");
     if !enabled {

@@ -16,14 +16,14 @@
  * — design-docs/32_SHARED_UI_COMPONENTS.md, §Per-Library Integration
  */
 
-import { themeColors } from './theme-colors'
+import { themeColors } from "./theme-colors";
 
 // ---------------------------------------------------------------------------
 // Helper: build a consistently shaped ECharts theme object from a color set
 // ---------------------------------------------------------------------------
 
-function buildEChartsTheme(colorKey: 'light' | 'dark' | 'high-contrast') {
-  const c = themeColors[colorKey]
+function buildEChartsTheme(colorKey: "light" | "dark" | "high-contrast") {
+  const c = themeColors[colorKey];
 
   return {
     backgroundColor: c.chartBg,
@@ -95,7 +95,7 @@ function buildEChartsTheme(colorKey: 'light' | 'dark' | 'high-contrast') {
       medium: c.alarmMedium,
       advisory: c.alarmAdvisory,
     },
-  }
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -103,10 +103,10 @@ function buildEChartsTheme(colorKey: 'light' | 'dark' | 'high-contrast') {
 // ---------------------------------------------------------------------------
 
 /** ECharts theme for the I/O Light application theme */
-export const ioLightTheme = buildEChartsTheme('light')
+export const ioLightTheme = buildEChartsTheme("light");
 
 /** ECharts theme for the I/O Dark application theme */
-export const ioDarkTheme = buildEChartsTheme('dark')
+export const ioDarkTheme = buildEChartsTheme("dark");
 
 /** ECharts theme for the I/O High-Contrast (HPHMI) application theme */
-export const ioHighContrastTheme = buildEChartsTheme('high-contrast')
+export const ioHighContrastTheme = buildEChartsTheme("high-contrast");

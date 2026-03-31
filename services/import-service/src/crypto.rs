@@ -7,11 +7,11 @@
 //! Encrypted values are stored as `$enc:<base64(nonce||ciphertext)>` so they
 //! are distinguishable from plain-text values in the database.
 
+use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Key, Nonce,
 };
-use aes_gcm::aead::rand_core::RngCore;
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde_json::{Map, Value as JsonValue};
 
@@ -66,9 +66,11 @@ pub fn encrypt_sensitive_fields(value: &JsonValue, key: &[u8; 32]) -> JsonValue 
             }
             JsonValue::Object(out)
         }
-        JsonValue::Array(arr) => {
-            JsonValue::Array(arr.iter().map(|v| encrypt_sensitive_fields(v, key)).collect())
-        }
+        JsonValue::Array(arr) => JsonValue::Array(
+            arr.iter()
+                .map(|v| encrypt_sensitive_fields(v, key))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -103,9 +105,11 @@ pub fn decrypt_sensitive_fields(value: &JsonValue, key: &[u8; 32]) -> JsonValue 
             }
             JsonValue::Object(out)
         }
-        JsonValue::Array(arr) => {
-            JsonValue::Array(arr.iter().map(|v| decrypt_sensitive_fields(v, key)).collect())
-        }
+        JsonValue::Array(arr) => JsonValue::Array(
+            arr.iter()
+                .map(|v| decrypt_sensitive_fields(v, key))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -135,9 +139,7 @@ pub fn mask_sensitive_fields(value: &JsonValue) -> JsonValue {
             }
             JsonValue::Object(out)
         }
-        JsonValue::Array(arr) => {
-            JsonValue::Array(arr.iter().map(mask_sensitive_fields).collect())
-        }
+        JsonValue::Array(arr) => JsonValue::Array(arr.iter().map(mask_sensitive_fields).collect()),
         other => other.clone(),
     }
 }
@@ -226,7 +228,10 @@ mod tests {
 
         // Sensitive fields encrypted
         let enc_password = encrypted["password"].as_str().unwrap();
-        assert!(enc_password.starts_with(ENC_PREFIX), "password should be prefixed with $enc:");
+        assert!(
+            enc_password.starts_with(ENC_PREFIX),
+            "password should be prefixed with $enc:"
+        );
         let enc_api_key = encrypted["api_key"].as_str().unwrap();
         assert!(enc_api_key.starts_with(ENC_PREFIX));
 
@@ -257,7 +262,10 @@ mod tests {
         let value = json!({ "password": format!("{}abc", ENC_PREFIX) });
         let encrypted = encrypt_sensitive_fields(&value, &key);
         // Should not re-encrypt
-        assert_eq!(encrypted["password"].as_str().unwrap(), format!("{}abc", ENC_PREFIX));
+        assert_eq!(
+            encrypted["password"].as_str().unwrap(),
+            format!("{}abc", ENC_PREFIX)
+        );
     }
 
     #[test]

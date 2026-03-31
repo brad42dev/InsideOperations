@@ -16,7 +16,9 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
-use super::{AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult};
+use super::{
+    AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult,
+};
 
 // ---------------------------------------------------------------------------
 // Config
@@ -83,7 +85,11 @@ impl PaAdapter {
             Some(u) if !u.is_empty() => u.clone(),
             _ => {
                 warn!(alert_id = %alert.id, "pa/rest: rest_url not configured");
-                return DeliveryResult::failed(user_id, Some(zone.to_string()), "rest_url not configured");
+                return DeliveryResult::failed(
+                    user_id,
+                    Some(zone.to_string()),
+                    "rest_url not configured",
+                );
             }
         };
 
@@ -127,7 +133,12 @@ impl PaAdapter {
         }
     }
 
-    fn deliver_sip_stub(&self, alert: &AlertSummary, zone: &str, user_id: Option<uuid::Uuid>) -> DeliveryResult {
+    fn deliver_sip_stub(
+        &self,
+        alert: &AlertSummary,
+        zone: &str,
+        user_id: Option<uuid::Uuid>,
+    ) -> DeliveryResult {
         // SIP mode is stubbed: log the intent and record as "sent".
         // A full async SIP implementation will replace this in a future task.
         info!(
@@ -139,7 +150,12 @@ impl PaAdapter {
         DeliveryResult::sent(user_id, Some(zone.to_string()), None)
     }
 
-    fn deliver_relay_stub(&self, alert: &AlertSummary, zone: &str, user_id: Option<uuid::Uuid>) -> DeliveryResult {
+    fn deliver_relay_stub(
+        &self,
+        alert: &AlertSummary,
+        zone: &str,
+        user_id: Option<uuid::Uuid>,
+    ) -> DeliveryResult {
         // Relay mode is stubbed: log the intent and record as "sent".
         // Modbus/dry-contact relay wiring will replace this in a future task.
         info!(
@@ -183,7 +199,9 @@ impl AlertChannel for PaAdapter {
             recipients
                 .iter()
                 .filter_map(|r| {
-                    let zone = r.pa_zone.as_deref()
+                    let zone = r
+                        .pa_zone
+                        .as_deref()
                         .filter(|z| !z.is_empty())
                         .or(self.config.default_zone.as_deref())
                         .map(|z| z.to_string());

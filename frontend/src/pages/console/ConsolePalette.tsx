@@ -1,115 +1,121 @@
-import { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../../api/client'
-import { graphicsApi } from '../../api/graphics'
-import type { WorkspaceLayout } from './types'
-import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
-import { useConsoleFavorites, CONSOLE_FAVORITES_KEYS } from '../../shared/hooks/useConsoleFavorites'
-import { useConsoleSectionViewMode, type SectionViewMode } from '../../shared/hooks/useConsoleSectionViewMode'
-import { useConsolePanelResize } from '../../shared/hooks/useConsolePanelResize'
-import { useConsoleSectionHeight } from '../../shared/hooks/useConsoleSectionHeight'
-import * as RadixContextMenu from '@radix-ui/react-context-menu'
+import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../api/client";
+import { graphicsApi } from "../../api/graphics";
+import type { WorkspaceLayout } from "./types";
+import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
+import {
+  useConsoleFavorites,
+  CONSOLE_FAVORITES_KEYS,
+} from "../../shared/hooks/useConsoleFavorites";
+import {
+  useConsoleSectionViewMode,
+  type SectionViewMode,
+} from "../../shared/hooks/useConsoleSectionViewMode";
+import { useConsolePanelResize } from "../../shared/hooks/useConsolePanelResize";
+import { useConsoleSectionHeight } from "../../shared/hooks/useConsoleSectionHeight";
+import * as RadixContextMenu from "@radix-ui/react-context-menu";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface Point {
-  id: string
-  tagname: string
-  description?: string
-  unit?: string
-  source_name?: string
+  id: string;
+  tagname: string;
+  description?: string;
+  unit?: string;
+  source_name?: string;
 }
 
 // Drag data key used to communicate drops from palette to panes
-export const CONSOLE_DRAG_KEY = 'application/io-console-item'
+export const CONSOLE_DRAG_KEY = "application/io-console-item";
 
 export interface ConsoleDragItem {
-  itemType: 'trend' | 'point_table' | 'alarm_list' | 'graphic'
-  label?: string
-  pointIds?: string[]
-  graphicId?: string
+  itemType: "trend" | "point_table" | "alarm_list" | "graphic";
+  label?: string;
+  pointIds?: string[];
+  graphicId?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Helper: style constants
 // ---------------------------------------------------------------------------
 
-const PANEL_W = 220
+const PANEL_W = 220;
 
 const panel: React.CSSProperties = {
   width: PANEL_W,
   minWidth: PANEL_W,
   flexShrink: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  background: 'var(--io-surface-secondary)',
-  borderRight: '1px solid var(--io-border)',
-  overflow: 'hidden',
-  userSelect: 'none',
-}
+  display: "flex",
+  flexDirection: "column",
+  background: "var(--io-surface-secondary)",
+  borderRight: "1px solid var(--io-border)",
+  overflow: "hidden",
+  userSelect: "none",
+};
 
 const sectionHeader: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  padding: '0 10px',
+  display: "flex",
+  alignItems: "center",
+  padding: "0 10px",
   height: 36,
-  cursor: 'pointer',
+  cursor: "pointer",
   flexShrink: 0,
-  borderBottom: '1px solid var(--io-border)',
+  borderBottom: "1px solid var(--io-border)",
   gap: 6,
-}
+};
 
 const sectionLabel: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-  color: 'var(--io-text-muted)',
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "var(--io-text-muted)",
   flex: 1,
-}
+};
 
 const chevron = (open: boolean): React.CSSProperties => ({
   width: 14,
   height: 14,
-  color: 'var(--io-text-muted)',
-  transition: 'transform 0.15s',
-  transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+  color: "var(--io-text-muted)",
+  transition: "transform 0.15s",
+  transform: open ? "rotate(90deg)" : "rotate(0deg)",
   flexShrink: 0,
-})
+});
 
 const searchInput: React.CSSProperties = {
-  width: '100%',
-  padding: '5px 8px',
-  background: 'var(--io-surface-sunken)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  color: 'var(--io-text-primary)',
+  width: "100%",
+  padding: "5px 8px",
+  background: "var(--io-surface-sunken)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  color: "var(--io-text-primary)",
   fontSize: 12,
-  outline: 'none',
-  boxSizing: 'border-box',
-}
+  outline: "none",
+  boxSizing: "border-box",
+};
 
 const listItem = (dragging?: boolean): React.CSSProperties => ({
-  display: 'flex',
-  alignItems: 'center',
+  display: "flex",
+  alignItems: "center",
   gap: 8,
-  padding: '6px 10px',
+  padding: "6px 10px",
   fontSize: 12,
-  color: 'var(--io-text-primary)',
-  cursor: 'grab',
-  borderRadius: 'var(--io-radius)',
-  margin: '1px 4px',
+  color: "var(--io-text-primary)",
+  cursor: "grab",
+  borderRadius: "var(--io-radius)",
+  margin: "1px 4px",
   opacity: dragging ? 0.5 : 1,
-  transition: 'background 0.1s',
-})
+  transition: "background 0.1s",
+});
 
 // ---------------------------------------------------------------------------
 // Accordion section
 // ---------------------------------------------------------------------------
 
-import React from 'react'
+import React from "react";
 
 // ---------------------------------------------------------------------------
 // View mode icon components — List, Thumbnails, Grid
@@ -117,17 +123,34 @@ import React from 'react'
 
 function ViewModeListIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
       <line x1="1" y1="3" x2="11" y2="3" />
       <line x1="1" y1="6" x2="11" y2="6" />
       <line x1="1" y1="9" x2="11" y2="9" />
     </svg>
-  )
+  );
 }
 
 function ViewModeThumbnailsIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1" y="1" width="4" height="3" rx="0.5" />
       <line x1="6.5" y1="2" x2="11" y2="2" />
       <line x1="6.5" y1="3.5" x2="9" y2="3.5" />
@@ -135,82 +158,106 @@ function ViewModeThumbnailsIcon() {
       <line x1="6.5" y1="7" x2="11" y2="7" />
       <line x1="6.5" y1="8.5" x2="9" y2="8.5" />
     </svg>
-  )
+  );
 }
 
 function ViewModeGridIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="1" y="1" width="4" height="4" rx="0.5" />
       <rect x="7" y="1" width="4" height="4" rx="0.5" />
       <rect x="1" y="7" width="4" height="4" rx="0.5" />
       <rect x="7" y="7" width="4" height="4" rx="0.5" />
     </svg>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // ViewModeSelector — three icon buttons shown in accordion section header
 // ---------------------------------------------------------------------------
 
-const VIEW_MODE_BUTTONS: { mode: SectionViewMode; label: string; Icon: React.FC }[] = [
-  { mode: 'list',       label: 'List view',       Icon: ViewModeListIcon },
-  { mode: 'thumbnails', label: 'Thumbnails view',  Icon: ViewModeThumbnailsIcon },
-  { mode: 'grid',       label: 'Grid view',        Icon: ViewModeGridIcon },
-]
+const VIEW_MODE_BUTTONS: {
+  mode: SectionViewMode;
+  label: string;
+  Icon: React.FC;
+}[] = [
+  { mode: "list", label: "List view", Icon: ViewModeListIcon },
+  {
+    mode: "thumbnails",
+    label: "Thumbnails view",
+    Icon: ViewModeThumbnailsIcon,
+  },
+  { mode: "grid", label: "Grid view", Icon: ViewModeGridIcon },
+];
 
 function ViewModeSelector({
   current,
   onChange,
 }: {
-  current: SectionViewMode
-  onChange: (mode: SectionViewMode) => void
+  current: SectionViewMode;
+  onChange: (mode: SectionViewMode) => void;
 }) {
   return (
     <div
-      style={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}
+      style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}
       onClick={(e) => e.stopPropagation()}
     >
       {VIEW_MODE_BUTTONS.map(({ mode, label, Icon }) => {
-        const active = current === mode
+        const active = current === mode;
         return (
           <button
             key={mode}
             title={label}
-            onClick={(e) => { e.stopPropagation(); onChange(mode) }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(mode);
+            }}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               width: 20,
               height: 20,
-              border: 'none',
+              border: "none",
               borderRadius: 3,
-              cursor: 'pointer',
+              cursor: "pointer",
               padding: 0,
-              background: active ? 'var(--io-accent-subtle)' : 'transparent',
-              color: active ? 'var(--io-accent)' : 'var(--io-text-muted)',
-              transition: 'background 0.1s, color 0.1s',
+              background: active ? "var(--io-accent-subtle)" : "transparent",
+              color: active ? "var(--io-accent)" : "var(--io-text-muted)",
+              transition: "background 0.1s, color 0.1s",
             }}
             onMouseEnter={(e) => {
               if (!active) {
-                ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
-                ;(e.currentTarget as HTMLElement).style.color = 'var(--io-text-primary)'
+                (e.currentTarget as HTMLElement).style.background =
+                  "var(--io-surface-elevated)";
+                (e.currentTarget as HTMLElement).style.color =
+                  "var(--io-text-primary)";
               }
             }}
             onMouseLeave={(e) => {
               if (!active) {
-                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-                ;(e.currentTarget as HTMLElement).style.color = 'var(--io-text-muted)'
+                (e.currentTarget as HTMLElement).style.background =
+                  "transparent";
+                (e.currentTarget as HTMLElement).style.color =
+                  "var(--io-text-muted)";
               }
             }}
           >
             <Icon />
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -218,19 +265,19 @@ function ViewModeSelector({
 // ---------------------------------------------------------------------------
 
 interface AccordionSectionProps {
-  title: string
-  open: boolean
-  onToggle: () => void
-  badge?: number
-  children: React.ReactNode
-  viewMode?: SectionViewMode
-  onViewModeChange?: (mode: SectionViewMode) => void
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  badge?: number;
+  children: React.ReactNode;
+  viewMode?: SectionViewMode;
+  onViewModeChange?: (mode: SectionViewMode) => void;
   /** Controlled height for the content area when open; undefined = natural height */
-  sectionHeight?: number
+  sectionHeight?: number;
   /** Called on mousedown of the bottom resize handle */
-  onHeightResizeMouseDown?: (e: React.MouseEvent) => void
+  onHeightResizeMouseDown?: (e: React.MouseEvent) => void;
   /** Whether a height resize is currently in progress */
-  isHeightResizing?: boolean
+  isHeightResizing?: boolean;
 }
 
 function AccordionSection({
@@ -246,28 +293,38 @@ function AccordionSection({
   isHeightResizing,
 }: AccordionSectionProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
       <div
         style={{ ...sectionHeader, paddingRight: 4 }}
         onClick={onToggle}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle() }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") onToggle();
+        }}
       >
-        <svg style={chevron(open)} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          style={chevron(open)}
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <polyline points="6 4 10 8 6 12" />
         </svg>
         <span style={sectionLabel}>{title}</span>
         {badge !== undefined && badge > 0 && (
-          <span style={{
-            fontSize: 10,
-            fontWeight: 700,
-            background: 'var(--io-accent-subtle)',
-            color: 'var(--io-accent)',
-            borderRadius: 8,
-            padding: '1px 5px',
-            lineHeight: 1.4,
-          }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              background: "var(--io-accent-subtle)",
+              color: "var(--io-accent)",
+              borderRadius: 8,
+              padding: "1px 5px",
+              lineHeight: 1.4,
+            }}
+          >
             {badge}
           </span>
         )}
@@ -278,14 +335,19 @@ function AccordionSection({
       {open && (
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: sectionHeight !== undefined ? 'hidden' : undefined,
+            display: "flex",
+            flexDirection: "column",
+            overflow: sectionHeight !== undefined ? "hidden" : undefined,
             height: sectionHeight,
             minHeight: sectionHeight !== undefined ? sectionHeight : undefined,
           }}
         >
-          <div style={{ flex: 1, overflowY: sectionHeight !== undefined ? 'auto' : undefined }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: sectionHeight !== undefined ? "auto" : undefined,
+            }}
+          >
             {children}
           </div>
           {/* Bottom edge resize handle — drag to adjust section height */}
@@ -295,30 +357,30 @@ function AccordionSection({
             onMouseDown={onHeightResizeMouseDown}
             style={{
               height: 5,
-              cursor: 'ns-resize',
+              cursor: "ns-resize",
               flexShrink: 0,
-              background: isHeightResizing
-                ? 'var(--io-accent)'
-                : 'transparent',
-              borderTop: '1px solid var(--io-border)',
-              transition: 'background 0.1s',
-              userSelect: 'none',
+              background: isHeightResizing ? "var(--io-accent)" : "transparent",
+              borderTop: "1px solid var(--io-border)",
+              transition: "background 0.1s",
+              userSelect: "none",
             }}
             onMouseEnter={(e) => {
               if (!isHeightResizing) {
-                ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+                (e.currentTarget as HTMLElement).style.background =
+                  "var(--io-surface-elevated)";
               }
             }}
             onMouseLeave={(e) => {
               if (!isHeightResizing) {
-                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                (e.currentTarget as HTMLElement).style.background =
+                  "transparent";
               }
             }}
           />
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -331,15 +393,15 @@ function StarIcon({ filled }: { filled: boolean }) {
       width="12"
       height="12"
       viewBox="0 0 24 24"
-      fill={filled ? 'var(--io-warning)' : 'none'}
-      stroke={filled ? 'var(--io-warning)' : 'var(--io-text-muted)'}
+      fill={filled ? "var(--io-warning)" : "none"}
+      stroke={filled ? "var(--io-warning)" : "var(--io-text-muted)"}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -349,12 +411,15 @@ function StarIcon({ filled }: { filled: boolean }) {
 // ---------------------------------------------------------------------------
 
 interface FavoritesSubGroupProps {
-  items: React.ReactNode[]
-  emptyLabel?: string
+  items: React.ReactNode[];
+  emptyLabel?: string;
 }
 
-function FavoritesSubGroup({ items, emptyLabel = 'No favorites yet' }: FavoritesSubGroupProps) {
-  const [open, setOpen] = useState(true)
+function FavoritesSubGroup({
+  items,
+  emptyLabel = "No favorites yet",
+}: FavoritesSubGroupProps) {
+  const [open, setOpen] = useState(true);
 
   return (
     <div style={{ marginBottom: 2 }}>
@@ -363,35 +428,58 @@ function FavoritesSubGroup({ items, emptyLabel = 'No favorites yet' }: Favorites
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          width: '100%', padding: '3px 10px', border: 'none',
-          background: 'transparent', cursor: 'pointer', textAlign: 'left',
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          width: "100%",
+          padding: "3px 10px",
+          border: "none",
+          background: "transparent",
+          cursor: "pointer",
+          textAlign: "left",
         }}
       >
         <svg
           style={{
-            width: 10, height: 10, color: 'var(--io-text-muted)',
-            transition: 'transform 0.15s',
-            transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+            width: 10,
+            height: 10,
+            color: "var(--io-text-muted)",
+            transition: "transform 0.15s",
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
             flexShrink: 0,
           }}
-          viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
         >
           <polyline points="6 4 10 8 6 12" />
         </svg>
         <StarIcon filled />
-        <span style={{
-          fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-          letterSpacing: '0.06em', color: 'var(--io-text-muted)',
-        }}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            color: "var(--io-text-muted)",
+          }}
+        >
           Favorites
         </span>
         {items.length > 0 && (
-          <span style={{
-            fontSize: 9, fontWeight: 700,
-            background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
-            borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
-          }}>
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              background: "var(--io-accent-subtle)",
+              color: "var(--io-accent)",
+              borderRadius: 8,
+              padding: "1px 4px",
+              lineHeight: 1.4,
+              marginLeft: 2,
+            }}
+          >
             {items.length}
           </span>
         )}
@@ -402,12 +490,14 @@ function FavoritesSubGroup({ items, emptyLabel = 'No favorites yet' }: Favorites
           {items.length > 0 ? (
             items
           ) : (
-            <div style={{
-              padding: '4px 10px 6px 26px',
-              fontSize: 11,
-              color: 'var(--io-text-muted)',
-              fontStyle: 'italic',
-            }}>
+            <div
+              style={{
+                padding: "4px 10px 6px 26px",
+                fontSize: 11,
+                color: "var(--io-text-muted)",
+                fontStyle: "italic",
+              }}
+            >
               {emptyLabel}
             </div>
           )}
@@ -415,9 +505,15 @@ function FavoritesSubGroup({ items, emptyLabel = 'No favorites yet' }: Favorites
       )}
 
       {/* Divider separating Favorites from main list */}
-      <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+      <div
+        style={{
+          height: 1,
+          background: "var(--io-border)",
+          margin: "4px 10px",
+        }}
+      />
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -435,26 +531,29 @@ function WorkspaceRow({
   onDelete,
   canDelete,
 }: {
-  ws: WorkspaceLayout
-  isActive: boolean
-  isFavorite: boolean
-  onSelect: () => void
-  onToggleFavorite: () => void
-  onRename?: () => void
-  onDuplicate?: () => void
-  onDelete?: () => void
-  canDelete?: boolean
+  ws: WorkspaceLayout;
+  isActive: boolean;
+  isFavorite: boolean;
+  onSelect: () => void;
+  onToggleFavorite: () => void;
+  onRename?: () => void;
+  onDuplicate?: () => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
 }) {
-  const [hovering, setHovering] = useState(false)
+  const [hovering, setHovering] = useState(false);
 
   return (
     <RadixContextMenu.Root>
       <RadixContextMenu.Trigger asChild>
         <div
           style={{
-            display: 'flex', alignItems: 'center',
-            background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
-            padding: '0 4px 0 0',
+            display: "flex",
+            alignItems: "center",
+            background: isActive
+              ? "color-mix(in srgb, var(--io-accent) 14%, transparent)"
+              : "transparent",
+            padding: "0 4px 0 0",
           }}
           onMouseEnter={() => setHovering(true)}
           onMouseLeave={() => setHovering(false)}
@@ -462,40 +561,79 @@ function WorkspaceRow({
           <button
             onClick={onSelect}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              flex: 1, padding: '5px 6px 5px 10px', border: 'none',
-              background: 'transparent',
-              cursor: 'pointer', textAlign: 'left',
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flex: 1,
+              padding: "5px 6px 5px 10px",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              textAlign: "left",
               minWidth: 0,
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--io-text-muted)"
+              strokeWidth="2"
+              style={{ flexShrink: 0 }}
+            >
               <rect x="2" y="3" width="20" height="14" rx="2" />
               <path d="M8 21h8M12 17v4" />
             </svg>
-            <span style={{
-              flex: 1, fontSize: 12, color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              fontWeight: isActive ? 600 : 400,
-            }}>
+            <span
+              style={{
+                flex: 1,
+                fontSize: 12,
+                color: isActive ? "var(--io-accent)" : "var(--io-text-primary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                fontWeight: isActive ? 600 : 400,
+              }}
+            >
               {ws.name}
             </span>
             {ws.published && (
-              <span style={{ fontSize: 9, background: 'var(--io-accent)', color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 600, letterSpacing: '0.03em', flexShrink: 0 }}>
+              <span
+                style={{
+                  fontSize: 9,
+                  background: "var(--io-accent)",
+                  color: "#fff",
+                  borderRadius: 3,
+                  padding: "1px 4px",
+                  fontWeight: 600,
+                  letterSpacing: "0.03em",
+                  flexShrink: 0,
+                }}
+              >
                 PUB
               </span>
             )}
           </button>
           {/* Star button — visible on hover or when already favorited */}
           <button
-            onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
-            title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 3, flexShrink: 0,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "2px 3px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 3,
+              flexShrink: 0,
               opacity: isFavorite || hovering ? 1 : 0,
-              transition: 'opacity 0.1s',
+              transition: "opacity 0.1s",
             }}
           >
             <StarIcon filled={isFavorite} />
@@ -507,15 +645,15 @@ function WorkspaceRow({
         <RadixContextMenu.Content
           style={{
             zIndex: 2000,
-            background: 'var(--io-surface-elevated)',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
             minWidth: 200,
             paddingTop: 4,
             paddingBottom: 4,
-            outline: 'none',
-            animation: 'io-context-menu-in 0.08s ease',
+            outline: "none",
+            animation: "io-context-menu-in 0.08s ease",
           }}
           onContextMenu={(e) => e.preventDefault()}
         >
@@ -530,10 +668,7 @@ function WorkspaceRow({
             }
           `}</style>
 
-          <RadixContextMenu.Item
-            onSelect={onSelect}
-            style={ctxMenuItemStyle}
-          >
+          <RadixContextMenu.Item onSelect={onSelect} style={ctxMenuItemStyle}>
             Open
           </RadixContextMenu.Item>
 
@@ -543,15 +678,12 @@ function WorkspaceRow({
             onSelect={onToggleFavorite}
             style={ctxMenuItemStyle}
           >
-            {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+            {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
           </RadixContextMenu.Item>
 
           {onRename && (
-            <RadixContextMenu.Item
-              onSelect={onRename}
-              style={ctxMenuItemStyle}
-            >
-              {'Rename\u2026'}
+            <RadixContextMenu.Item onSelect={onRename} style={ctxMenuItemStyle}>
+              {"Rename\u2026"}
             </RadixContextMenu.Item>
           )}
 
@@ -572,9 +704,11 @@ function WorkspaceRow({
                 disabled={!canDelete}
                 style={{
                   ...ctxMenuItemStyle,
-                  color: !canDelete ? 'var(--io-text-muted)' : 'var(--io-text-primary)',
+                  color: !canDelete
+                    ? "var(--io-text-muted)"
+                    : "var(--io-text-primary)",
                   opacity: !canDelete ? 0.5 : 1,
-                  cursor: !canDelete ? 'default' : 'pointer',
+                  cursor: !canDelete ? "default" : "pointer",
                 }}
               >
                 Delete
@@ -584,26 +718,26 @@ function WorkspaceRow({
         </RadixContextMenu.Content>
       </RadixContextMenu.Portal>
     </RadixContextMenu.Root>
-  )
+  );
 }
 
 const ctxMenuItemStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
+  display: "flex",
+  alignItems: "center",
   gap: 8,
-  padding: '6px 14px',
+  padding: "6px 14px",
   fontSize: 13,
-  color: 'var(--io-text-primary)',
-  cursor: 'pointer',
-  userSelect: 'none',
-  outline: 'none',
-}
+  color: "var(--io-text-primary)",
+  cursor: "pointer",
+  userSelect: "none",
+  outline: "none",
+};
 
 const ctxMenuSeparatorStyle: React.CSSProperties = {
   height: 1,
-  background: 'var(--io-border)',
-  margin: '3px 0',
-}
+  background: "var(--io-border)",
+  margin: "3px 0",
+};
 
 // ---------------------------------------------------------------------------
 // WorkspaceThumbnailCard — for thumbnails (48×36) and grid (80×60) view modes
@@ -621,20 +755,20 @@ function WorkspaceThumbnailCard({
   canDelete,
   gridMode,
 }: {
-  ws: WorkspaceLayout
-  isActive: boolean
-  isFavorite: boolean
-  onSelect: () => void
-  onToggleFavorite: () => void
-  onRename?: () => void
-  onDuplicate?: () => void
-  onDelete?: () => void
-  canDelete?: boolean
-  gridMode: boolean
+  ws: WorkspaceLayout;
+  isActive: boolean;
+  isFavorite: boolean;
+  onSelect: () => void;
+  onToggleFavorite: () => void;
+  onRename?: () => void;
+  onDuplicate?: () => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
+  gridMode: boolean;
 }) {
-  const [hovering, setHovering] = useState(false)
-  const thumbW = gridMode ? 80 : 48
-  const thumbH = gridMode ? 60 : 36
+  const [hovering, setHovering] = useState(false);
+  const thumbW = gridMode ? 80 : 48;
+  const thumbH = gridMode ? 60 : 36;
 
   return (
     <RadixContextMenu.Root>
@@ -645,64 +779,106 @@ function WorkspaceThumbnailCard({
           onMouseEnter={() => setHovering(true)}
           onMouseLeave={() => setHovering(false)}
           style={{
-            display: 'flex',
-            flexDirection: gridMode ? 'column' : 'row',
-            alignItems: gridMode ? 'center' : 'flex-start',
+            display: "flex",
+            flexDirection: gridMode ? "column" : "row",
+            alignItems: gridMode ? "center" : "flex-start",
             gap: gridMode ? 4 : 8,
-            padding: gridMode ? '6px 4px' : '5px 6px',
-            borderRadius: 'var(--io-radius)',
-            cursor: 'pointer',
-            background: isActive ? 'color-mix(in srgb, var(--io-accent) 14%, transparent)' : 'transparent',
-            border: isActive ? '1px solid color-mix(in srgb, var(--io-accent) 30%, transparent)' : '1px solid transparent',
-            transition: 'background 0.1s',
-            position: 'relative',
+            padding: gridMode ? "6px 4px" : "5px 6px",
+            borderRadius: "var(--io-radius)",
+            cursor: "pointer",
+            background: isActive
+              ? "color-mix(in srgb, var(--io-accent) 14%, transparent)"
+              : "transparent",
+            border: isActive
+              ? "1px solid color-mix(in srgb, var(--io-accent) 30%, transparent)"
+              : "1px solid transparent",
+            transition: "background 0.1s",
+            position: "relative",
           }}
           onMouseOver={(e) => {
-            if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+            if (!isActive)
+              (e.currentTarget as HTMLElement).style.background =
+                "var(--io-surface-elevated)";
           }}
           onMouseOut={(e) => {
-            if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
+            if (!isActive)
+              (e.currentTarget as HTMLElement).style.background = "transparent";
           }}
         >
           {/* Mini layout preview thumbnail */}
-          <div style={{
-            width: thumbW,
-            height: thumbH,
-            flexShrink: 0,
-            background: 'var(--io-surface-sunken)',
-            borderRadius: 3,
-            border: '1px solid var(--io-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-          }}>
+          <div
+            style={{
+              width: thumbW,
+              height: thumbH,
+              flexShrink: 0,
+              background: "var(--io-surface-sunken)",
+              borderRadius: 3,
+              border: "1px solid var(--io-border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
             {/* Placeholder grid pattern representing panes */}
-            <svg width={thumbW - 6} height={thumbH - 6} viewBox="0 0 40 30" fill="none">
-              <rect x="1" y="1" width="18" height="13" rx="1" fill="var(--io-border)" opacity="0.6" />
-              <rect x="21" y="1" width="18" height="13" rx="1" fill="var(--io-border)" opacity="0.6" />
-              <rect x="1" y="16" width="38" height="13" rx="1" fill="var(--io-border)" opacity="0.4" />
+            <svg
+              width={thumbW - 6}
+              height={thumbH - 6}
+              viewBox="0 0 40 30"
+              fill="none"
+            >
+              <rect
+                x="1"
+                y="1"
+                width="18"
+                height="13"
+                rx="1"
+                fill="var(--io-border)"
+                opacity="0.6"
+              />
+              <rect
+                x="21"
+                y="1"
+                width="18"
+                height="13"
+                rx="1"
+                fill="var(--io-border)"
+                opacity="0.6"
+              />
+              <rect
+                x="1"
+                y="16"
+                width="38"
+                height="13"
+                rx="1"
+                fill="var(--io-border)"
+                opacity="0.4"
+              />
             </svg>
           </div>
 
           {/* Name — up to 2 lines in thumbnails, 1 line in grid */}
-          <div style={{
-            flex: gridMode ? undefined : 1,
-            minWidth: 0,
-            textAlign: gridMode ? 'center' : 'left',
-            width: gridMode ? thumbW : undefined,
-          }}>
-            <span style={{
-              fontSize: 11,
-              color: isActive ? 'var(--io-accent)' : 'var(--io-text-primary)',
-              fontWeight: isActive ? 600 : 400,
-              display: '-webkit-box',
-              WebkitLineClamp: gridMode ? 1 : 2,
-              WebkitBoxOrient: 'vertical' as const,
-              overflow: 'hidden',
-              lineHeight: 1.3,
-              wordBreak: 'break-word',
-            }}>
+          <div
+            style={{
+              flex: gridMode ? undefined : 1,
+              minWidth: 0,
+              textAlign: gridMode ? "center" : "left",
+              width: gridMode ? thumbW : undefined,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                color: isActive ? "var(--io-accent)" : "var(--io-text-primary)",
+                fontWeight: isActive ? 600 : 400,
+                display: "-webkit-box",
+                WebkitLineClamp: gridMode ? 1 : 2,
+                WebkitBoxOrient: "vertical" as const,
+                overflow: "hidden",
+                lineHeight: 1.3,
+                wordBreak: "break-word",
+              }}
+            >
               {ws.name}
             </span>
           </div>
@@ -710,14 +886,23 @@ function WorkspaceThumbnailCard({
           {/* Star button — appears on hover or when favorited */}
           {!gridMode && (
             <button
-              onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
-              title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite();
+              }}
+              title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
               style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRadius: 3, flexShrink: 0,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "2px 3px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 3,
+                flexShrink: 0,
                 opacity: isFavorite || hovering ? 1 : 0,
-                transition: 'opacity 0.1s',
+                transition: "opacity 0.1s",
               }}
             >
               <StarIcon filled={isFavorite} />
@@ -729,15 +914,15 @@ function WorkspaceThumbnailCard({
         <RadixContextMenu.Content
           style={{
             zIndex: 2000,
-            background: 'var(--io-surface-elevated)',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            background: "var(--io-surface-elevated)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
             minWidth: 160,
             paddingTop: 4,
             paddingBottom: 4,
-            outline: 'none',
-            animation: 'io-context-menu-in 0.08s ease',
+            outline: "none",
+            animation: "io-context-menu-in 0.08s ease",
           }}
           onContextMenu={(e) => e.preventDefault()}
         >
@@ -752,20 +937,22 @@ function WorkspaceThumbnailCard({
             }
           `}</style>
 
-          <RadixContextMenu.Item onSelect={onSelect} style={ctxMenuItemStyle}>Open</RadixContextMenu.Item>
+          <RadixContextMenu.Item onSelect={onSelect} style={ctxMenuItemStyle}>
+            Open
+          </RadixContextMenu.Item>
 
           <RadixContextMenu.Separator style={ctxMenuSeparatorStyle} />
 
-          <RadixContextMenu.Item onSelect={onToggleFavorite} style={ctxMenuItemStyle}>
-            {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+          <RadixContextMenu.Item
+            onSelect={onToggleFavorite}
+            style={ctxMenuItemStyle}
+          >
+            {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
           </RadixContextMenu.Item>
 
           {onRename && (
-            <RadixContextMenu.Item
-              onSelect={onRename}
-              style={ctxMenuItemStyle}
-            >
-              {'Rename\u2026'}
+            <RadixContextMenu.Item onSelect={onRename} style={ctxMenuItemStyle}>
+              {"Rename\u2026"}
             </RadixContextMenu.Item>
           )}
 
@@ -786,9 +973,11 @@ function WorkspaceThumbnailCard({
                 disabled={!canDelete}
                 style={{
                   ...ctxMenuItemStyle,
-                  color: !canDelete ? 'var(--io-text-muted)' : 'var(--io-text-primary)',
+                  color: !canDelete
+                    ? "var(--io-text-muted)"
+                    : "var(--io-text-primary)",
                   opacity: !canDelete ? 0.5 : 1,
-                  cursor: !canDelete ? 'default' : 'pointer',
+                  cursor: !canDelete ? "default" : "pointer",
                 }}
               >
                 Delete
@@ -798,7 +987,7 @@ function WorkspaceThumbnailCard({
         </RadixContextMenu.Content>
       </RadixContextMenu.Portal>
     </RadixContextMenu.Root>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -816,42 +1005,56 @@ function WorkspacesSection({
   onDeleteWorkspace,
   viewMode,
 }: {
-  workspaces: WorkspaceLayout[]
-  activeWorkspaceId: string | null
-  onSelectWorkspace?: (id: string) => void
-  favoriteIds: Set<string>
-  onToggleFavorite: (id: string) => void
-  onRenameWorkspace?: (id: string) => void
-  onDuplicateWorkspace?: (id: string) => void
-  onDeleteWorkspace?: (id: string) => void
-  viewMode: SectionViewMode
+  workspaces: WorkspaceLayout[];
+  activeWorkspaceId: string | null;
+  onSelectWorkspace?: (id: string) => void;
+  favoriteIds: Set<string>;
+  onToggleFavorite: (id: string) => void;
+  onRenameWorkspace?: (id: string) => void;
+  onDuplicateWorkspace?: (id: string) => void;
+  onDeleteWorkspace?: (id: string) => void;
+  viewMode: SectionViewMode;
 }) {
-  const [favoritesOpen, setFavoritesOpen] = useState(true)
-  const [search, setSearch] = useState('')
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const [search, setSearch] = useState("");
 
   const filteredWorkspaces = search
-    ? workspaces.filter((ws) => ws.name.toLowerCase().includes(search.toLowerCase()))
-    : workspaces
+    ? workspaces.filter((ws) =>
+        ws.name.toLowerCase().includes(search.toLowerCase()),
+      )
+    : workspaces;
 
-  const favoriteWorkspaces = filteredWorkspaces.filter((ws) => favoriteIds.has(ws.id))
-  const hasFavorites = favoriteWorkspaces.length > 0
+  const favoriteWorkspaces = filteredWorkspaces.filter((ws) =>
+    favoriteIds.has(ws.id),
+  );
+  const hasFavorites = favoriteWorkspaces.length > 0;
 
   if (workspaces.length === 0) {
     return (
-      <div style={{ padding: '4px 0' }}>
+      <div style={{ padding: "4px 0" }}>
         <FavoritesSubGroup items={[]} />
-        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+        <div
+          style={{
+            padding: "4px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
           No saved workspaces.
         </div>
       </div>
-    )
+    );
   }
 
-  const isGridMode = viewMode === 'grid'
-  const isThumbnailsMode = viewMode === 'thumbnails'
-  const useCards = isThumbnailsMode || isGridMode
+  const isGridMode = viewMode === "grid";
+  const isThumbnailsMode = viewMode === "thumbnails";
+  const useCards = isThumbnailsMode || isGridMode;
 
-  const renderWorkspaceList = (wsList: WorkspaceLayout[], canDeleteCheck: boolean) => {
+  const renderWorkspaceList = (
+    wsList: WorkspaceLayout[],
+    canDeleteCheck: boolean,
+  ) => {
     if (!useCards) {
       return wsList.map((ws) => (
         <WorkspaceRow
@@ -861,22 +1064,30 @@ function WorkspacesSection({
           isFavorite={favoriteIds.has(ws.id)}
           onSelect={() => onSelectWorkspace?.(ws.id)}
           onToggleFavorite={() => onToggleFavorite(ws.id)}
-          onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-          onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-          onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+          onRename={
+            onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined
+          }
+          onDuplicate={
+            onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined
+          }
+          onDelete={
+            onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined
+          }
           canDelete={canDeleteCheck}
         />
-      ))
+      ));
     }
 
     if (isGridMode) {
       return (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 4,
-          padding: '4px 6px',
-        }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 4,
+            padding: "4px 6px",
+          }}
+        >
           {wsList.map((ws) => (
             <WorkspaceThumbnailCard
               key={ws.id}
@@ -885,20 +1096,35 @@ function WorkspacesSection({
               isFavorite={favoriteIds.has(ws.id)}
               onSelect={() => onSelectWorkspace?.(ws.id)}
               onToggleFavorite={() => onToggleFavorite(ws.id)}
-              onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-              onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-              onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+              onRename={
+                onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined
+              }
+              onDuplicate={
+                onDuplicateWorkspace
+                  ? () => onDuplicateWorkspace(ws.id)
+                  : undefined
+              }
+              onDelete={
+                onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined
+              }
               canDelete={canDeleteCheck}
               gridMode
             />
           ))}
         </div>
-      )
+      );
     }
 
     // Thumbnails view — vertical list with 48×36 thumbnails
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 6px' }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          padding: "4px 6px",
+        }}
+      >
         {wsList.map((ws) => (
           <WorkspaceThumbnailCard
             key={ws.id}
@@ -907,21 +1133,29 @@ function WorkspacesSection({
             isFavorite={favoriteIds.has(ws.id)}
             onSelect={() => onSelectWorkspace?.(ws.id)}
             onToggleFavorite={() => onToggleFavorite(ws.id)}
-            onRename={onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined}
-            onDuplicate={onDuplicateWorkspace ? () => onDuplicateWorkspace(ws.id) : undefined}
-            onDelete={onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined}
+            onRename={
+              onRenameWorkspace ? () => onRenameWorkspace(ws.id) : undefined
+            }
+            onDuplicate={
+              onDuplicateWorkspace
+                ? () => onDuplicateWorkspace(ws.id)
+                : undefined
+            }
+            onDelete={
+              onDeleteWorkspace ? () => onDeleteWorkspace(ws.id) : undefined
+            }
             canDelete={canDeleteCheck}
             gridMode={false}
           />
         ))}
       </div>
-    )
-  }
+    );
+  };
 
   return (
-    <div style={{ padding: '4px 0' }}>
+    <div style={{ padding: "4px 0" }}>
       {/* Search input */}
-      <div style={{ padding: '4px 6px 6px' }}>
+      <div style={{ padding: "4px 6px 6px" }}>
         <input
           type="search"
           placeholder="Filter workspaces…"
@@ -932,7 +1166,13 @@ function WorkspacesSection({
       </div>
 
       {filteredWorkspaces.length === 0 && (
-        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: "4px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+          }}
+        >
           No matching workspaces
         </div>
       )}
@@ -943,100 +1183,165 @@ function WorkspacesSection({
         <button
           onClick={() => setFavoritesOpen((v) => !v)}
           style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            width: '100%', padding: '3px 10px', border: 'none',
-            background: 'transparent', cursor: 'pointer', textAlign: 'left',
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            width: "100%",
+            padding: "3px 10px",
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            textAlign: "left",
           }}
         >
           <svg
             style={{
-              width: 10, height: 10, color: 'var(--io-text-muted)',
-              transition: 'transform 0.15s',
-              transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              width: 10,
+              height: 10,
+              color: "var(--io-text-muted)",
+              transition: "transform 0.15s",
+              transform: favoritesOpen ? "rotate(90deg)" : "rotate(0deg)",
               flexShrink: 0,
             }}
-            viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
           >
             <polyline points="6 4 10 8 6 12" />
           </svg>
           <StarIcon filled />
-          <span style={{
-            fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-            letterSpacing: '0.06em', color: 'var(--io-text-muted)',
-          }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              color: "var(--io-text-muted)",
+            }}
+          >
             Favorites
           </span>
           {hasFavorites && (
-            <span style={{
-              fontSize: 9, fontWeight: 700,
-              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
-              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
-            }}>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                background: "var(--io-accent-subtle)",
+                color: "var(--io-accent)",
+                borderRadius: 8,
+                padding: "1px 4px",
+                lineHeight: 1.4,
+                marginLeft: 2,
+              }}
+            >
               {favoriteWorkspaces.length}
             </span>
           )}
         </button>
-        {favoritesOpen && (
-          hasFavorites
-            ? renderWorkspaceList(favoriteWorkspaces, workspaces.length > 1)
-            : (
-              <div style={{
-                padding: '4px 10px 6px 26px',
+        {favoritesOpen &&
+          (hasFavorites ? (
+            renderWorkspaceList(favoriteWorkspaces, workspaces.length > 1)
+          ) : (
+            <div
+              style={{
+                padding: "4px 10px 6px 26px",
                 fontSize: 11,
-                color: 'var(--io-text-muted)',
-                fontStyle: 'italic',
-              }}>
-                No favorites yet
-              </div>
-            )
-        )}
+                color: "var(--io-text-muted)",
+                fontStyle: "italic",
+              }}
+            >
+              No favorites yet
+            </div>
+          ))}
         {/* Divider between Favorites and full list */}
-        <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+        <div
+          style={{
+            height: 1,
+            background: "var(--io-border)",
+            margin: "4px 10px",
+          }}
+        />
       </div>
 
       {/* Full workspace list */}
       {renderWorkspaceList(filteredWorkspaces, workspaces.length > 1)}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Widgets section (Trend, Point Table, Alarm List)
 // ---------------------------------------------------------------------------
 
-const WIDGET_ITEMS: { id: string; itemType: ConsoleDragItem['itemType']; label: string; desc: string; icon: React.ReactNode; iconLarge: React.ReactNode }[] = [
+const WIDGET_ITEMS: {
+  id: string;
+  itemType: ConsoleDragItem["itemType"];
+  label: string;
+  desc: string;
+  icon: React.ReactNode;
+  iconLarge: React.ReactNode;
+}[] = [
   {
-    id: 'trend',
-    itemType: 'trend',
-    label: 'Trend',
-    desc: 'Live time-series chart',
+    id: "trend",
+    itemType: "trend",
+    label: "Trend",
+    desc: "Live time-series chart",
     icon: (
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-accent)" strokeWidth="1.5">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="var(--io-accent)"
+        strokeWidth="1.5"
+      >
         <polyline points="1 12 4 7 7 9 10 5 15 3" />
         <line x1="1" y1="14" x2="15" y2="14" strokeOpacity="0.4" />
       </svg>
     ),
     iconLarge: (
-      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="var(--io-accent)" strokeWidth="1.5">
+      <svg
+        width="28"
+        height="21"
+        viewBox="0 0 28 21"
+        fill="none"
+        stroke="var(--io-accent)"
+        strokeWidth="1.5"
+      >
         <polyline points="2 17 7 10 11 13 16 7 23 4" />
         <line x1="2" y1="19" x2="24" y2="19" strokeOpacity="0.4" />
       </svg>
     ),
   },
   {
-    id: 'point_table',
-    itemType: 'point_table',
-    label: 'Point Table',
-    desc: 'Tabular point values',
+    id: "point_table",
+    itemType: "point_table",
+    label: "Point Table",
+    desc: "Tabular point values",
     icon: (
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="var(--io-text-muted)"
+        strokeWidth="1.5"
+      >
         <rect x="1" y="1" width="14" height="14" rx="1" />
         <line x1="1" y1="5" x2="15" y2="5" />
         <line x1="6" y1="1" x2="6" y2="15" />
       </svg>
     ),
     iconLarge: (
-      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
+      <svg
+        width="28"
+        height="21"
+        viewBox="0 0 28 21"
+        fill="none"
+        stroke="var(--io-text-muted)"
+        strokeWidth="1.5"
+      >
         <rect x="2" y="2" width="24" height="17" rx="1" />
         <line x1="2" y1="8" x2="26" y2="8" />
         <line x1="11" y1="2" x2="11" y2="19" />
@@ -1044,26 +1349,40 @@ const WIDGET_ITEMS: { id: string; itemType: ConsoleDragItem['itemType']; label: 
     ),
   },
   {
-    id: 'alarm_list',
-    itemType: 'alarm_list',
-    label: 'Alarm List',
-    desc: 'Active alarms & events',
+    id: "alarm_list",
+    itemType: "alarm_list",
+    label: "Alarm List",
+    desc: "Active alarms & events",
     icon: (
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f59e0b" strokeWidth="1.5">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="#f59e0b"
+        strokeWidth="1.5"
+      >
         <path d="M8 2L14 13H2L8 2Z" />
         <line x1="8" y1="7" x2="8" y2="10" />
         <circle cx="8" cy="12" r="0.5" fill="#f59e0b" />
       </svg>
     ),
     iconLarge: (
-      <svg width="28" height="21" viewBox="0 0 28 21" fill="none" stroke="#f59e0b" strokeWidth="1.5">
+      <svg
+        width="28"
+        height="21"
+        viewBox="0 0 28 21"
+        fill="none"
+        stroke="#f59e0b"
+        strokeWidth="1.5"
+      >
         <path d="M14 3L23 18H5L14 3Z" />
         <line x1="14" y1="9" x2="14" y2="13" />
         <circle cx="14" cy="15.5" r="0.8" fill="#f59e0b" />
       </svg>
     ),
   },
-]
+];
 
 function WidgetsSection({
   onQuickPlace,
@@ -1071,42 +1390,49 @@ function WidgetsSection({
   favoriteIds,
   onToggleFavorite,
 }: {
-  onQuickPlace?: (item: ConsoleDragItem) => void
-  viewMode: SectionViewMode
-  favoriteIds: Set<string>
-  onToggleFavorite: (id: string) => void
+  onQuickPlace?: (item: ConsoleDragItem) => void;
+  viewMode: SectionViewMode;
+  favoriteIds: Set<string>;
+  onToggleFavorite: (id: string) => void;
 }) {
-  const [search, setSearch] = useState('')
-  const [favoritesOpen, setFavoritesOpen] = useState(true)
+  const [search, setSearch] = useState("");
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
 
   const filteredWidgets = search
-    ? WIDGET_ITEMS.filter((w) => w.label.toLowerCase().includes(search.toLowerCase()))
-    : WIDGET_ITEMS
+    ? WIDGET_ITEMS.filter((w) =>
+        w.label.toLowerCase().includes(search.toLowerCase()),
+      )
+    : WIDGET_ITEMS;
 
-  const favoriteWidgets = filteredWidgets.filter((w) => favoriteIds.has(w.itemType))
-  const hasFavorites = favoriteWidgets.length > 0
+  const favoriteWidgets = filteredWidgets.filter((w) =>
+    favoriteIds.has(w.itemType),
+  );
+  const hasFavorites = favoriteWidgets.length > 0;
 
-  const isGrid = viewMode === 'grid'
+  const isGrid = viewMode === "grid";
 
   // Helper: render a widget in list mode with a star toggle button
-  function WidgetListRow({ w }: { w: typeof WIDGET_ITEMS[number] }) {
-    const [hovering, setHovering] = useState(false)
-    const [dragging, setDragging] = useState(false)
-    const fav = favoriteIds.has(w.itemType)
-    const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+  function WidgetListRow({ w }: { w: (typeof WIDGET_ITEMS)[number] }) {
+    const [hovering, setHovering] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const fav = favoriteIds.has(w.itemType);
+    const item: ConsoleDragItem = { itemType: w.itemType, label: w.label };
     return (
       <div
-        style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}
+        style={{ display: "flex", alignItems: "center", padding: "0 4px 0 0" }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
         <div
           draggable
-          onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            onQuickPlace?.(item);
+          }}
           onDragStart={(e) => {
-            e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
-            e.dataTransfer.effectAllowed = 'copy'
-            setDragging(true)
+            e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item));
+            e.dataTransfer.effectAllowed = "copy";
+            setDragging(true);
           }}
           onDragEnd={() => setDragging(false)}
           style={{
@@ -1114,38 +1440,51 @@ function WidgetsSection({
             flex: 1,
           }}
           onMouseEnter={(e) => {
-            if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+            if (!dragging)
+              (e.currentTarget as HTMLElement).style.background =
+                "var(--io-surface-elevated)";
           }}
           onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+            (e.currentTarget as HTMLElement).style.background = "transparent";
           }}
         >
           {w.icon}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12 }}>{w.label}</div>
-            <div style={{ fontSize: 10, color: 'var(--io-text-muted)' }}>{w.desc}</div>
+            <div style={{ fontSize: 10, color: "var(--io-text-muted)" }}>
+              {w.desc}
+            </div>
           </div>
         </div>
         <button
-          onClick={(e) => { e.stopPropagation(); onToggleFavorite(w.itemType) }}
-          title={fav ? 'Remove from Favorites' : 'Add to Favorites'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(w.itemType);
+          }}
+          title={fav ? "Remove from Favorites" : "Add to Favorites"}
           style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            borderRadius: 3, flexShrink: 0,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "2px 3px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 3,
+            flexShrink: 0,
             opacity: fav || hovering ? 1 : 0,
-            transition: 'opacity 0.1s',
+            transition: "opacity 0.1s",
           }}
         >
           <StarIcon filled={fav} />
         </button>
       </div>
-    )
+    );
   }
 
   return (
-    <div style={{ padding: '6px 4px 4px' }}>
-      <div style={{ padding: '0 2px 6px' }}>
+    <div style={{ padding: "6px 4px 4px" }}>
+      <div style={{ padding: "0 2px 6px" }}>
         <input
           type="search"
           placeholder="Filter widgets…"
@@ -1156,7 +1495,13 @@ function WidgetsSection({
       </div>
 
       {filteredWidgets.length === 0 && (
-        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: "4px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+          }}
+        >
           No matching widgets
         </div>
       )}
@@ -1167,148 +1512,412 @@ function WidgetsSection({
           <button
             onClick={() => setFavoritesOpen((v) => !v)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              width: '100%', padding: '3px 10px', border: 'none',
-              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              width: "100%",
+              padding: "3px 10px",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              textAlign: "left",
             }}
           >
             <svg
               style={{
-                width: 10, height: 10, color: 'var(--io-text-muted)',
-                transition: 'transform 0.15s',
-                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                width: 10,
+                height: 10,
+                color: "var(--io-text-muted)",
+                transition: "transform 0.15s",
+                transform: favoritesOpen ? "rotate(90deg)" : "rotate(0deg)",
                 flexShrink: 0,
               }}
-              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
             >
               <polyline points="6 4 10 8 6 12" />
             </svg>
             <StarIcon filled />
-            <span style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
-            }}>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--io-text-muted)",
+              }}
+            >
               Favorites
             </span>
-            <span style={{
-              fontSize: 9, fontWeight: 700,
-              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
-              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
-            }}>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                background: "var(--io-accent-subtle)",
+                color: "var(--io-accent)",
+                borderRadius: 8,
+                padding: "1px 4px",
+                lineHeight: 1.4,
+                marginLeft: 2,
+              }}
+            >
               {favoriteWidgets.length}
             </span>
           </button>
-          {favoritesOpen && (
-            viewMode === 'list' ? (
+          {favoritesOpen &&
+            (viewMode === "list" ? (
               <div>
-                {favoriteWidgets.map((w) => <WidgetListRow key={w.itemType} w={w} />)}
+                {favoriteWidgets.map((w) => (
+                  <WidgetListRow key={w.itemType} w={w} />
+                ))}
               </div>
             ) : isGrid ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4, padding: '4px 6px' }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 4,
+                  padding: "4px 6px",
+                }}
+              >
                 {favoriteWidgets.map((w) => {
-                  const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+                  const item: ConsoleDragItem = {
+                    itemType: w.itemType,
+                    label: w.label,
+                  };
                   return (
                     <div
                       key={w.itemType}
                       draggable
-                      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
-                      onDragStart={(e) => { e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item)); e.dataTransfer.effectAllowed = 'copy' }}
-                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 4px', borderRadius: 'var(--io-radius)', cursor: 'grab', border: '1px solid transparent', transition: 'background 0.1s' }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        onQuickPlace?.(item);
+                      }}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(
+                          CONSOLE_DRAG_KEY,
+                          JSON.stringify(item),
+                        );
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "6px 4px",
+                        borderRadius: "var(--io-radius)",
+                        cursor: "grab",
+                        border: "1px solid transparent",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "var(--io-surface-elevated)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "transparent";
+                      }}
                     >
-                      <div style={{ width: 80, height: 60, background: 'var(--io-surface-sunken)', borderRadius: 3, border: '1px solid var(--io-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div
+                        style={{
+                          width: 80,
+                          height: 60,
+                          background: "var(--io-surface-sunken)",
+                          borderRadius: 3,
+                          border: "1px solid var(--io-border)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
                         {w.iconLarge}
                       </div>
-                      <span style={{ fontSize: 11, color: 'var(--io-text-primary)', textAlign: 'center', lineHeight: 1.2 }}>{w.label}</span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "var(--io-text-primary)",
+                          textAlign: "center",
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {w.label}
+                      </span>
                     </div>
-                  )
+                  );
                 })}
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 6px' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  padding: "4px 6px",
+                }}
+              >
                 {favoriteWidgets.map((w) => {
-                  const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+                  const item: ConsoleDragItem = {
+                    itemType: w.itemType,
+                    label: w.label,
+                  };
                   return (
                     <div
                       key={w.itemType}
                       draggable
-                      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
-                      onDragStart={(e) => { e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item)); e.dataTransfer.effectAllowed = 'copy' }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderRadius: 'var(--io-radius)', cursor: 'grab', border: '1px solid transparent', transition: 'background 0.1s' }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        onQuickPlace?.(item);
+                      }}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(
+                          CONSOLE_DRAG_KEY,
+                          JSON.stringify(item),
+                        );
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "4px 6px",
+                        borderRadius: "var(--io-radius)",
+                        cursor: "grab",
+                        border: "1px solid transparent",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "var(--io-surface-elevated)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "transparent";
+                      }}
                     >
-                      <div style={{ width: 48, height: 36, flexShrink: 0, background: 'var(--io-surface-sunken)', borderRadius: 3, border: '1px solid var(--io-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div
+                        style={{
+                          width: 48,
+                          height: 36,
+                          flexShrink: 0,
+                          background: "var(--io-surface-sunken)",
+                          borderRadius: 3,
+                          border: "1px solid var(--io-border)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
                         {w.iconLarge}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: 'var(--io-text-primary)', fontWeight: 500 }}>{w.label}</div>
-                        <div style={{ fontSize: 10, color: 'var(--io-text-muted)', marginTop: 1 }}>{w.desc}</div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "var(--io-text-primary)",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {w.label}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: "var(--io-text-muted)",
+                            marginTop: 1,
+                          }}
+                        >
+                          {w.desc}
+                        </div>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
-            )
-          )}
-          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 10px' }} />
+            ))}
+          <div
+            style={{
+              height: 1,
+              background: "var(--io-border)",
+              margin: "4px 10px",
+            }}
+          />
         </div>
       )}
 
       {/* Full widget list */}
-      {viewMode === 'list' ? (
+      {viewMode === "list" ? (
         filteredWidgets.map((w) => <WidgetListRow key={w.itemType} w={w} />)
       ) : isGrid ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4, padding: '6px' }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 4,
+            padding: "6px",
+          }}
+        >
           {filteredWidgets.map((w) => {
-            const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+            const item: ConsoleDragItem = {
+              itemType: w.itemType,
+              label: w.label,
+            };
             return (
               <div
                 key={w.itemType}
                 draggable
-                onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
-                onDragStart={(e) => { e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item)); e.dataTransfer.effectAllowed = 'copy' }}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 4px', borderRadius: 'var(--io-radius)', cursor: 'grab', border: '1px solid transparent', transition: 'background 0.1s' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onQuickPlace?.(item);
+                }}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(
+                    CONSOLE_DRAG_KEY,
+                    JSON.stringify(item),
+                  );
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "6px 4px",
+                  borderRadius: "var(--io-radius)",
+                  cursor: "grab",
+                  border: "1px solid transparent",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--io-surface-elevated)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "transparent";
+                }}
               >
-                <div style={{ width: 80, height: 60, background: 'var(--io-surface-sunken)', borderRadius: 3, border: '1px solid var(--io-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    width: 80,
+                    height: 60,
+                    background: "var(--io-surface-sunken)",
+                    borderRadius: 3,
+                    border: "1px solid var(--io-border)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   {w.iconLarge}
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--io-text-primary)', textAlign: 'center', lineHeight: 1.2 }}>{w.label}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: "var(--io-text-primary)",
+                    textAlign: "center",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {w.label}
+                </span>
               </div>
-            )
+            );
           })}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px' }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            padding: "6px",
+          }}
+        >
           {filteredWidgets.map((w) => {
-            const item: ConsoleDragItem = { itemType: w.itemType, label: w.label }
+            const item: ConsoleDragItem = {
+              itemType: w.itemType,
+              label: w.label,
+            };
             return (
               <div
                 key={w.itemType}
                 draggable
-                onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
-                onDragStart={(e) => { e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item)); e.dataTransfer.effectAllowed = 'copy' }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', borderRadius: 'var(--io-radius)', cursor: 'grab', border: '1px solid transparent', transition: 'background 0.1s' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onQuickPlace?.(item);
+                }}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(
+                    CONSOLE_DRAG_KEY,
+                    JSON.stringify(item),
+                  );
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "4px 6px",
+                  borderRadius: "var(--io-radius)",
+                  cursor: "grab",
+                  border: "1px solid transparent",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--io-surface-elevated)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "transparent";
+                }}
               >
-                <div style={{ width: 48, height: 36, flexShrink: 0, background: 'var(--io-surface-sunken)', borderRadius: 3, border: '1px solid var(--io-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 36,
+                    flexShrink: 0,
+                    background: "var(--io-surface-sunken)",
+                    borderRadius: 3,
+                    border: "1px solid var(--io-border)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   {w.iconLarge}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: 'var(--io-text-primary)', fontWeight: 500 }}>{w.label}</div>
-                  <div style={{ fontSize: 10, color: 'var(--io-text-muted)', marginTop: 1 }}>{w.desc}</div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--io-text-primary)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {w.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--io-text-muted)",
+                      marginTop: 1,
+                    }}
+                  >
+                    {w.desc}
+                  </div>
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1319,124 +1928,176 @@ function PointsSection({
   favoriteIds,
   onToggleFavorite,
 }: {
-  favoriteIds: Set<string>
-  onToggleFavorite: (id: string) => void
+  favoriteIds: Set<string>;
+  onToggleFavorite: (id: string) => void;
 }) {
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback((value: string) => {
-    setSearch(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300)
-  }, [])
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
+  }, []);
 
   const { data: allPoints, isLoading } = useQuery({
-    queryKey: ['console-palette-points', debouncedSearch],
+    queryKey: ["console-palette-points", debouncedSearch],
     queryFn: async () => {
-      if (!debouncedSearch || debouncedSearch.length < 2) return []
-      const r = await api.get<{ data: Point[] }>(`/api/search?q=${encodeURIComponent(debouncedSearch)}&type=point&limit=30`)
-      if (!r.success) return []
-      return r.data.data ?? []
+      if (!debouncedSearch || debouncedSearch.length < 2) return [];
+      const r = await api.get<{ data: Point[] }>(
+        `/api/search?q=${encodeURIComponent(debouncedSearch)}&type=point&limit=30`,
+      );
+      if (!r.success) return [];
+      return r.data.data ?? [];
     },
     staleTime: 30_000,
     enabled: debouncedSearch.length >= 2,
-  })
+  });
 
   // Fetch favorites by IDs so they display even without an active search
   const { data: favPointsData } = useQuery({
-    queryKey: ['console-palette-fav-points', [...favoriteIds].sort().join(',')],
+    queryKey: ["console-palette-fav-points", [...favoriteIds].sort().join(",")],
     queryFn: async () => {
-      if (favoriteIds.size === 0) return []
-      const ids = [...favoriteIds].join(',')
-      const r = await api.get<{ data: Point[] }>(`/api/points?ids=${encodeURIComponent(ids)}&limit=50`)
-      if (!r.success) return []
-      return r.data.data ?? []
+      if (favoriteIds.size === 0) return [];
+      const ids = [...favoriteIds].join(",");
+      const r = await api.get<{ data: Point[] }>(
+        `/api/points?ids=${encodeURIComponent(ids)}&limit=50`,
+      );
+      if (!r.success) return [];
+      return r.data.data ?? [];
     },
     staleTime: 60_000,
     enabled: favoriteIds.size > 0,
-  })
+  });
 
-  const points = allPoints ?? []
-  const favPoints = favPointsData ?? []
+  const points = allPoints ?? [];
+  const favPoints = favPointsData ?? [];
 
-  const PointRow = ({ pt, inFavGroup }: { pt: Point; inFavGroup?: boolean }) => {
-    const [hovering, setHovering] = useState(false)
-    const [dragging, setDragging] = useState(false)
-    const isFav = favoriteIds.has(pt.id)
-    const item: ConsoleDragItem = { itemType: 'trend', label: pt.tagname, pointIds: [pt.id] }
+  const PointRow = ({
+    pt,
+    inFavGroup,
+  }: {
+    pt: Point;
+    inFavGroup?: boolean;
+  }) => {
+    const [hovering, setHovering] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const isFav = favoriteIds.has(pt.id);
+    const item: ConsoleDragItem = {
+      itemType: "trend",
+      label: pt.tagname,
+      pointIds: [pt.id],
+    };
 
     return (
       <div
-        style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}
+        style={{ display: "flex", alignItems: "center", padding: "0 4px 0 0" }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
         <div
           draggable
-          style={{ ...listItem(dragging), flex: 1, margin: 0, paddingLeft: inFavGroup ? 14 : 10 }}
+          style={{
+            ...listItem(dragging),
+            flex: 1,
+            margin: 0,
+            paddingLeft: inFavGroup ? 14 : 10,
+          }}
           onDragStart={(e) => {
-            e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
-            e.dataTransfer.effectAllowed = 'copy'
-            setDragging(true)
+            e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item));
+            e.dataTransfer.effectAllowed = "copy";
+            setDragging(true);
           }}
           onDragEnd={() => setDragging(false)}
           onMouseEnter={(e) => {
-            if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+            if (!dragging)
+              (e.currentTarget as HTMLElement).style.background =
+                "var(--io-surface-elevated)";
           }}
           onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+            (e.currentTarget as HTMLElement).style.background = "transparent";
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.5">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="var(--io-text-muted)"
+            strokeWidth="1.5"
+          >
             <circle cx="8" cy="8" r="3" />
             <line x1="8" y1="1" x2="8" y2="4" />
             <line x1="8" y1="12" x2="8" y2="15" />
             <line x1="1" y1="8" x2="4" y2="8" />
             <line x1="12" y1="8" x2="15" y2="8" />
           </svg>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ flex: 1, overflow: "hidden" }}>
+            <div
+              style={{
+                fontSize: 12,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {pt.tagname}
             </div>
             {pt.description && (
-              <div style={{ fontSize: 10, color: 'var(--io-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--io-text-muted)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {pt.description}
               </div>
             )}
           </div>
         </div>
         <button
-          onClick={(e) => { e.stopPropagation(); onToggleFavorite(pt.id) }}
-          title={isFav ? 'Remove from Favorites' : 'Add to Favorites'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(pt.id);
+          }}
+          title={isFav ? "Remove from Favorites" : "Add to Favorites"}
           style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            borderRadius: 3, flexShrink: 0,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "2px 3px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 3,
+            flexShrink: 0,
             opacity: isFav || hovering ? 1 : 0,
-            transition: 'opacity 0.1s',
+            transition: "opacity 0.1s",
           }}
         >
           <StarIcon filled={isFav} />
         </button>
       </div>
-    )
-  }
+    );
+  };
 
   const favoriteItems = favPoints.map((pt) => (
     <PointRow key={`fav-${pt.id}`} pt={pt} inFavGroup />
-  ))
+  ));
 
-  const hasFavorites = favoriteIds.size > 0
+  const hasFavorites = favoriteIds.size > 0;
 
   return (
-    <div style={{ padding: '4px 0' }}>
+    <div style={{ padding: "4px 0" }}>
       {/* Favorites group always visible */}
       <FavoritesSubGroup items={favoriteItems} />
 
       {/* Search input */}
-      <div style={{ padding: '0 6px 6px' }}>
+      <div style={{ padding: "0 6px 6px" }}>
         <input
           type="search"
           placeholder="Search points (≥2 chars)…"
@@ -1447,27 +2108,60 @@ function PointsSection({
       </div>
 
       {search.length > 0 && search.length < 2 && (
-        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: "4px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+          }}
+        >
           Type at least 2 characters
         </div>
       )}
       {isLoading && (
-        <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: "6px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+          }}
+        >
           Searching…
         </div>
       )}
       {!isLoading && debouncedSearch.length >= 2 && points.length === 0 && (
-        <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: "6px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+          }}
+        >
           No points found
         </div>
       )}
       {debouncedSearch.length < 2 && !isLoading && !hasFavorites && (
-        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-          Search to browse points. Drag a point onto a Trend or Table pane to add it.
+        <div
+          style={{
+            padding: "4px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
+          Search to browse points. Drag a point onto a Trend or Table pane to
+          add it.
         </div>
       )}
       {debouncedSearch.length < 2 && !isLoading && hasFavorites && (
-        <div style={{ padding: '4px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+        <div
+          style={{
+            padding: "4px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
           Search to browse more points.
         </div>
       )}
@@ -1477,7 +2171,7 @@ function PointsSection({
         <PointRow key={pt.id} pt={pt} />
       ))}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1492,92 +2186,132 @@ function GraphicTile({
   onToggleFavorite,
   onQuickPlace,
 }: {
-  item: ConsoleDragItem
-  name: string
-  thumbUrl: string
-  isFavorite: boolean
-  onToggleFavorite: () => void
-  onQuickPlace?: (item: ConsoleDragItem) => void
+  item: ConsoleDragItem;
+  name: string;
+  thumbUrl: string;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  onQuickPlace?: (item: ConsoleDragItem) => void;
 }) {
-  const [dragging, setDragging] = useState(false)
-  const [thumbError, setThumbError] = useState(false)
-  const [hovering, setHovering] = useState(false)
+  const [dragging, setDragging] = useState(false);
+  const [thumbError, setThumbError] = useState(false);
+  const [hovering, setHovering] = useState(false);
 
   return (
     <div
       draggable
-      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onQuickPlace?.(item);
+      }}
       style={{
-        position: 'relative',
-        padding: '5px 6px',
-        borderRadius: 'var(--io-radius)',
-        cursor: 'grab',
+        position: "relative",
+        padding: "5px 6px",
+        borderRadius: "var(--io-radius)",
+        cursor: "grab",
         opacity: dragging ? 0.5 : 1,
-        transition: 'background 0.1s',
-        border: '1px solid transparent',
+        transition: "background 0.1s",
+        border: "1px solid transparent",
       }}
       onDragStart={(e) => {
-        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
-        e.dataTransfer.effectAllowed = 'copy'
-        setDragging(true)
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item));
+        e.dataTransfer.effectAllowed = "copy";
+        setDragging(true);
       }}
       onDragEnd={() => setDragging(false)}
       onMouseEnter={(e) => {
-        setHovering(true)
-        ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+        setHovering(true);
+        (e.currentTarget as HTMLElement).style.background =
+          "var(--io-surface-elevated)";
       }}
       onMouseLeave={(e) => {
-        setHovering(false)
-        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+        setHovering(false);
+        (e.currentTarget as HTMLElement).style.background = "transparent";
       }}
     >
       {/* Thumbnail */}
-      <div style={{
-        width: '100%',
-        aspectRatio: '16/9',
-        background: 'var(--io-surface-sunken)',
-        borderRadius: 3,
-        overflow: 'hidden',
-        border: '1px solid var(--io-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 4,
-      }}>
+      <div
+        style={{
+          width: "100%",
+          aspectRatio: "16/9",
+          background: "var(--io-surface-sunken)",
+          borderRadius: 3,
+          overflow: "hidden",
+          border: "1px solid var(--io-border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 4,
+        }}
+      >
         {!thumbError ? (
           <img
             src={thumbUrl}
             alt={name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
             onError={() => setThumbError(true)}
           />
         ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.2" opacity={0.4}>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--io-text-muted)"
+            strokeWidth="1.2"
+            opacity={0.4}
+          >
             <rect x="3" y="3" width="18" height="18" rx="2" />
             <path d="M3 9h18M9 21V9" />
           </svg>
         )}
       </div>
-      <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', color: 'var(--io-text-primary)' }}>
+      <span
+        style={{
+          fontSize: 11,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          display: "block",
+          color: "var(--io-text-primary)",
+        }}
+      >
         {name}
       </span>
       {/* Star overlay — shown on hover or when favorited */}
       <button
-        onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggleFavorite() }}
-        title={isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onToggleFavorite();
+        }}
+        title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
         style={{
-          position: 'absolute', top: 8, right: 8,
-          background: 'rgba(0,0,0,0.5)', border: 'none', cursor: 'pointer',
-          padding: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 4, flexShrink: 0,
+          position: "absolute",
+          top: 8,
+          right: 8,
+          background: "rgba(0,0,0,0.5)",
+          border: "none",
+          cursor: "pointer",
+          padding: "3px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 4,
+          flexShrink: 0,
           opacity: isFavorite || hovering ? 1 : 0,
-          transition: 'opacity 0.1s',
+          transition: "opacity 0.1s",
         }}
       >
         <StarIcon filled={isFavorite} />
       </button>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1588,38 +2322,69 @@ function GraphicTile({
 // Graphic list row — for list view mode
 // ---------------------------------------------------------------------------
 
-function GraphicListRow({ g, onQuickPlace }: { g: { id: string; name: string }; onQuickPlace?: (item: ConsoleDragItem) => void }) {
-  const [dragging, setDragging] = useState(false)
-  const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+function GraphicListRow({
+  g,
+  onQuickPlace,
+}: {
+  g: { id: string; name: string };
+  onQuickPlace?: (item: ConsoleDragItem) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const item: ConsoleDragItem = {
+    itemType: "graphic",
+    graphicId: g.id,
+    label: g.name,
+  };
 
   return (
     <div
       draggable
       style={listItem(dragging)}
       title={g.name}
-      onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(item) }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onQuickPlace?.(item);
+      }}
       onDragStart={(e) => {
-        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item))
-        e.dataTransfer.effectAllowed = 'copy'
-        setDragging(true)
+        e.dataTransfer.setData(CONSOLE_DRAG_KEY, JSON.stringify(item));
+        e.dataTransfer.effectAllowed = "copy";
+        setDragging(true);
       }}
       onDragEnd={() => setDragging(false)}
       onMouseEnter={(e) => {
-        if (!dragging) (e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+        if (!dragging)
+          (e.currentTarget as HTMLElement).style.background =
+            "var(--io-surface-elevated)";
       }}
       onMouseLeave={(e) => {
-        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+        (e.currentTarget as HTMLElement).style.background = "transparent";
       }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--io-text-muted)" strokeWidth="1.2" style={{ flexShrink: 0 }}>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--io-text-muted)"
+        strokeWidth="1.2"
+        style={{ flexShrink: 0 }}
+      >
         <rect x="3" y="3" width="18" height="18" rx="2" />
         <path d="M3 9h18M9 21V9" />
       </svg>
-      <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span
+        style={{
+          flex: 1,
+          fontSize: 12,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {g.name}
       </span>
     </div>
-  )
+  );
 }
 
 function GraphicsSection({
@@ -1628,86 +2393,119 @@ function GraphicsSection({
   favoriteIds,
   onToggleFavorite,
 }: {
-  onQuickPlace?: (item: ConsoleDragItem) => void
-  viewMode: SectionViewMode
-  favoriteIds: Set<string>
-  onToggleFavorite: (id: string) => void
+  onQuickPlace?: (item: ConsoleDragItem) => void;
+  viewMode: SectionViewMode;
+  favoriteIds: Set<string>;
+  onToggleFavorite: (id: string) => void;
 }) {
-  const [search, setSearch] = useState('')
-  const [favoritesOpen, setFavoritesOpen] = useState(true)
+  const [search, setSearch] = useState("");
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
   const { data, isLoading } = useQuery({
-    queryKey: ['console-palette-graphics'],
+    queryKey: ["console-palette-graphics"],
     queryFn: async () => {
-      const r = await graphicsApi.list({ scope: 'console' })
-      if (!r.success) return []
-      return r.data.data ?? []
+      const r = await graphicsApi.list({ scope: "console" });
+      if (!r.success) return [];
+      return r.data.data ?? [];
     },
     staleTime: 60_000,
-  })
+  });
 
-  const graphics = data ?? []
+  const graphics = data ?? [];
   const filteredGraphics = search
-    ? graphics.filter((g) => g.name.toLowerCase().includes(search.toLowerCase()))
-    : graphics
+    ? graphics.filter((g) =>
+        g.name.toLowerCase().includes(search.toLowerCase()),
+      )
+    : graphics;
 
-  const favoriteGraphics = filteredGraphics.filter((g) => favoriteIds.has(g.id))
-  const hasFavorites = favoriteGraphics.length > 0
+  const favoriteGraphics = filteredGraphics.filter((g) =>
+    favoriteIds.has(g.id),
+  );
+  const hasFavorites = favoriteGraphics.length > 0;
 
   if (isLoading) {
     return (
-      <div style={{ padding: '4px 0' }}>
+      <div style={{ padding: "4px 0" }}>
         <FavoritesSubGroup items={[]} />
-        <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: "8px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+          }}
+        >
           Loading…
         </div>
       </div>
-    )
+    );
   }
 
   if (graphics.length === 0) {
     return (
-      <div style={{ padding: '4px 0' }}>
+      <div style={{ padding: "4px 0" }}>
         <FavoritesSubGroup items={[]} />
-        <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
+        <div
+          style={{
+            padding: "8px 10px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
           No graphics. Create one in Designer.
         </div>
       </div>
-    )
+    );
   }
 
-  const isGrid = viewMode === 'grid'
+  const isGrid = viewMode === "grid";
 
   // Render a single graphic in list mode with an inline star toggle
   function GraphicListRowWithStar({ g }: { g: { id: string; name: string } }) {
-    const [hovering, setHovering] = useState(false)
-    const fav = favoriteIds.has(g.id)
+    const [hovering, setHovering] = useState(false);
+    const fav = favoriteIds.has(g.id);
     return (
       <div
-        style={{ display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}
+        style={{ display: "flex", alignItems: "center", padding: "0 4px 0 0" }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
         <GraphicListRow g={g} onQuickPlace={onQuickPlace} />
         <button
-          onClick={(e) => { e.stopPropagation(); onToggleFavorite(g.id) }}
-          title={fav ? 'Remove from Favorites' : 'Add to Favorites'}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(g.id);
+          }}
+          title={fav ? "Remove from Favorites" : "Add to Favorites"}
           style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            borderRadius: 3, flexShrink: 0,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "2px 3px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 3,
+            flexShrink: 0,
             opacity: fav || hovering ? 1 : 0,
-            transition: 'opacity 0.1s',
+            transition: "opacity 0.1s",
           }}
         >
           <StarIcon filled={fav} />
         </button>
       </div>
-    )
+    );
   }
 
   return (
-    <div style={{ padding: '6px 6px 4px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <div style={{ padding: '0 0 4px' }}>
+    <div
+      style={{
+        padding: "6px 6px 4px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
+      }}
+    >
+      <div style={{ padding: "0 0 4px" }}>
         <input
           type="search"
           placeholder="Filter graphics…"
@@ -1717,7 +2515,13 @@ function GraphicsSection({
         />
       </div>
       {filteredGraphics.length === 0 && (
-        <div style={{ padding: '4px 4px', fontSize: 12, color: 'var(--io-text-muted)' }}>
+        <div
+          style={{
+            padding: "4px 4px",
+            fontSize: 12,
+            color: "var(--io-text-muted)",
+          }}
+        >
           No matching graphics
         </div>
       )}
@@ -1728,91 +2532,153 @@ function GraphicsSection({
           <button
             onClick={() => setFavoritesOpen((v) => !v)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              width: '100%', padding: '3px 4px', border: 'none',
-              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              width: "100%",
+              padding: "3px 4px",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              textAlign: "left",
             }}
           >
             <svg
               style={{
-                width: 10, height: 10, color: 'var(--io-text-muted)',
-                transition: 'transform 0.15s',
-                transform: favoritesOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                width: 10,
+                height: 10,
+                color: "var(--io-text-muted)",
+                transition: "transform 0.15s",
+                transform: favoritesOpen ? "rotate(90deg)" : "rotate(0deg)",
                 flexShrink: 0,
               }}
-              viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
             >
               <polyline points="6 4 10 8 6 12" />
             </svg>
             <StarIcon filled />
-            <span style={{
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.06em', color: 'var(--io-text-muted)',
-            }}>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--io-text-muted)",
+              }}
+            >
               Favorites
             </span>
-            <span style={{
-              fontSize: 9, fontWeight: 700,
-              background: 'var(--io-accent-subtle)', color: 'var(--io-accent)',
-              borderRadius: 8, padding: '1px 4px', lineHeight: 1.4, marginLeft: 2,
-            }}>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                background: "var(--io-accent-subtle)",
+                color: "var(--io-accent)",
+                borderRadius: 8,
+                padding: "1px 4px",
+                lineHeight: 1.4,
+                marginLeft: 2,
+              }}
+            >
               {favoriteGraphics.length}
             </span>
           </button>
-          {favoritesOpen && (
-            viewMode === 'list' ? (
-              <div style={{ padding: '0 0 2px' }}>
-                {favoriteGraphics.map((g) => <GraphicListRowWithStar key={g.id} g={g} />)}
+          {favoritesOpen &&
+            (viewMode === "list" ? (
+              <div style={{ padding: "0 0 2px" }}>
+                {favoriteGraphics.map((g) => (
+                  <GraphicListRowWithStar key={g.id} g={g} />
+                ))}
               </div>
             ) : (
-              <div style={{
-                display: isGrid ? 'grid' : 'flex',
-                gridTemplateColumns: isGrid ? 'repeat(auto-fill, minmax(88px, 1fr))' : undefined,
-                flexDirection: isGrid ? undefined : 'column',
-                gap: isGrid ? 6 : 3,
-                padding: '0 0 2px',
-              }}>
+              <div
+                style={{
+                  display: isGrid ? "grid" : "flex",
+                  gridTemplateColumns: isGrid
+                    ? "repeat(auto-fill, minmax(88px, 1fr))"
+                    : undefined,
+                  flexDirection: isGrid ? undefined : "column",
+                  gap: isGrid ? 6 : 3,
+                  padding: "0 0 2px",
+                }}
+              >
                 {favoriteGraphics.map((g) => {
-                  const thumbUrl = graphicsApi.thumbnailUrl(g.id)
-                  const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+                  const thumbUrl = graphicsApi.thumbnailUrl(g.id);
+                  const item: ConsoleDragItem = {
+                    itemType: "graphic",
+                    graphicId: g.id,
+                    label: g.name,
+                  };
                   return (
-                    <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} isFavorite onToggleFavorite={() => onToggleFavorite(g.id)} onQuickPlace={onQuickPlace} />
-                  )
+                    <GraphicTile
+                      key={g.id}
+                      item={item}
+                      name={g.name}
+                      thumbUrl={thumbUrl}
+                      isFavorite
+                      onToggleFavorite={() => onToggleFavorite(g.id)}
+                      onQuickPlace={onQuickPlace}
+                    />
+                  );
                 })}
               </div>
-            )
-          )}
-          <div style={{ height: 1, background: 'var(--io-border)', margin: '4px 4px' }} />
+            ))}
+          <div
+            style={{
+              height: 1,
+              background: "var(--io-border)",
+              margin: "4px 4px",
+            }}
+          />
         </div>
       )}
 
       {/* Full graphics list */}
-      {viewMode === 'list' ? (
-        <div style={{ padding: '0 0 2px' }}>
+      {viewMode === "list" ? (
+        <div style={{ padding: "0 0 2px" }}>
           {filteredGraphics.map((g) => (
             <GraphicListRowWithStar key={g.id} g={g} />
           ))}
         </div>
       ) : (
         // Thumbnails (48×36) or Grid (80×60)
-        <div style={{
-          display: isGrid ? 'grid' : 'flex',
-          gridTemplateColumns: isGrid ? 'repeat(auto-fill, minmax(88px, 1fr))' : undefined,
-          flexDirection: isGrid ? undefined : 'column',
-          gap: isGrid ? 6 : 3,
-          padding: '0 0 2px',
-        }}>
+        <div
+          style={{
+            display: isGrid ? "grid" : "flex",
+            gridTemplateColumns: isGrid
+              ? "repeat(auto-fill, minmax(88px, 1fr))"
+              : undefined,
+            flexDirection: isGrid ? undefined : "column",
+            gap: isGrid ? 6 : 3,
+            padding: "0 0 2px",
+          }}
+        >
           {filteredGraphics.map((g) => {
-            const thumbUrl = graphicsApi.thumbnailUrl(g.id)
-            const item: ConsoleDragItem = { itemType: 'graphic', graphicId: g.id, label: g.name }
+            const thumbUrl = graphicsApi.thumbnailUrl(g.id);
+            const item: ConsoleDragItem = {
+              itemType: "graphic",
+              graphicId: g.id,
+              label: g.name,
+            };
             return (
-              <GraphicTile key={g.id} item={item} name={g.name} thumbUrl={thumbUrl} isFavorite={favoriteIds.has(g.id)} onToggleFavorite={() => onToggleFavorite(g.id)} onQuickPlace={onQuickPlace} />
-            )
+              <GraphicTile
+                key={g.id}
+                item={item}
+                name={g.name}
+                thumbUrl={thumbUrl}
+                isFavorite={favoriteIds.has(g.id)}
+                onToggleFavorite={() => onToggleFavorite(g.id)}
+                onQuickPlace={onQuickPlace}
+              />
+            );
           })}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1820,50 +2686,93 @@ function GraphicsSection({
 // ---------------------------------------------------------------------------
 
 interface ConsolePaletteProps {
-  visible: boolean
-  onToggle: () => void
-  onQuickPlace?: (item: ConsoleDragItem) => void
-  workspaces?: WorkspaceLayout[]
-  activeWorkspaceId?: string | null
-  onSelectWorkspace?: (id: string) => void
-  onRenameWorkspace?: (id: string) => void
-  onDuplicateWorkspace?: (id: string) => void
-  onDeleteWorkspace?: (id: string) => void
+  visible: boolean;
+  onToggle: () => void;
+  onQuickPlace?: (item: ConsoleDragItem) => void;
+  workspaces?: WorkspaceLayout[];
+  activeWorkspaceId?: string | null;
+  onSelectWorkspace?: (id: string) => void;
+  onRenameWorkspace?: (id: string) => void;
+  onDuplicateWorkspace?: (id: string) => void;
+  onDeleteWorkspace?: (id: string) => void;
 }
 
-export default function ConsolePalette({ visible, onToggle, onQuickPlace, workspaces = [], activeWorkspaceId = null, onSelectWorkspace, onRenameWorkspace, onDuplicateWorkspace, onDeleteWorkspace }: ConsolePaletteProps) {
+export default function ConsolePalette({
+  visible,
+  onToggle,
+  onQuickPlace,
+  workspaces = [],
+  activeWorkspaceId = null,
+  onSelectWorkspace,
+  onRenameWorkspace,
+  onDuplicateWorkspace,
+  onDeleteWorkspace,
+}: ConsolePaletteProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     workspaces: true,
     graphics: true,
     widgets: false,
     points: false,
-  })
+  });
 
   // Panel width resize — right-edge drag handle, clamped 200–400px, persisted
-  const { panelWidth, onResizeHandleMouseDown: onPanelResizeMouseDown, isResizing: isPanelResizing } = useConsolePanelResize()
+  const {
+    panelWidth,
+    onResizeHandleMouseDown: onPanelResizeMouseDown,
+    isResizing: isPanelResizing,
+  } = useConsolePanelResize();
 
   // Per-section height resize — bottom-edge drag handle, persisted
-  const { sectionHeight: workspacesHeight, onResizeHandleMouseDown: onWorkspacesHeightMouseDown, isResizing: isWorkspacesResizing } = useConsoleSectionHeight('workspaces', 200)
-  const { sectionHeight: graphicsHeight, onResizeHandleMouseDown: onGraphicsHeightMouseDown, isResizing: isGraphicsResizing } = useConsoleSectionHeight('graphics', 240)
-  const { sectionHeight: widgetsHeight, onResizeHandleMouseDown: onWidgetsHeightMouseDown, isResizing: isWidgetsResizing } = useConsoleSectionHeight('widgets', 160)
-  const { sectionHeight: pointsHeight, onResizeHandleMouseDown: onPointsHeightMouseDown, isResizing: isPointsResizing } = useConsoleSectionHeight('points', 200)
+  const {
+    sectionHeight: workspacesHeight,
+    onResizeHandleMouseDown: onWorkspacesHeightMouseDown,
+    isResizing: isWorkspacesResizing,
+  } = useConsoleSectionHeight("workspaces", 200);
+  const {
+    sectionHeight: graphicsHeight,
+    onResizeHandleMouseDown: onGraphicsHeightMouseDown,
+    isResizing: isGraphicsResizing,
+  } = useConsoleSectionHeight("graphics", 240);
+  const {
+    sectionHeight: widgetsHeight,
+    onResizeHandleMouseDown: onWidgetsHeightMouseDown,
+    isResizing: isWidgetsResizing,
+  } = useConsoleSectionHeight("widgets", 160);
+  const {
+    sectionHeight: pointsHeight,
+    onResizeHandleMouseDown: onPointsHeightMouseDown,
+    isResizing: isPointsResizing,
+  } = useConsoleSectionHeight("points", 200);
 
   // Workspace favorites — uses legacy hook for backward-compat with existing LS key
-  const { favoriteIds: workspaceFavoriteIds, toggleFavorite: toggleWorkspaceFavorite } = useConsoleWorkspaceFavorites()
+  const {
+    favoriteIds: workspaceFavoriteIds,
+    toggleFavorite: toggleWorkspaceFavorite,
+  } = useConsoleWorkspaceFavorites();
 
   // Graphic, widget, and point favorites — generic hook
-  const { favoriteIds: graphicFavoriteIds, toggleFavorite: toggleGraphicFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.graphics)
-  const { favoriteIds: widgetFavoriteIds, toggleFavorite: toggleWidgetFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.widgets)
-  const { favoriteIds: pointFavoriteIds, toggleFavorite: togglePointFavorite } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.points)
+  const {
+    favoriteIds: graphicFavoriteIds,
+    toggleFavorite: toggleGraphicFavorite,
+  } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.graphics);
+  const {
+    favoriteIds: widgetFavoriteIds,
+    toggleFavorite: toggleWidgetFavorite,
+  } = useConsoleFavorites(CONSOLE_FAVORITES_KEYS.widgets);
+  const { favoriteIds: pointFavoriteIds, toggleFavorite: togglePointFavorite } =
+    useConsoleFavorites(CONSOLE_FAVORITES_KEYS.points);
 
   // Per-section view modes — persisted in localStorage
-  const { viewMode: workspacesViewMode, setViewMode: setWorkspacesViewMode } = useConsoleSectionViewMode('workspaces', 'list')
-  const { viewMode: graphicsViewMode, setViewMode: setGraphicsViewMode } = useConsoleSectionViewMode('graphics', 'grid')
-  const { viewMode: widgetsViewMode, setViewMode: setWidgetsViewMode } = useConsoleSectionViewMode('widgets', 'list')
+  const { viewMode: workspacesViewMode, setViewMode: setWorkspacesViewMode } =
+    useConsoleSectionViewMode("workspaces", "list");
+  const { viewMode: graphicsViewMode, setViewMode: setGraphicsViewMode } =
+    useConsoleSectionViewMode("graphics", "grid");
+  const { viewMode: widgetsViewMode, setViewMode: setWidgetsViewMode } =
+    useConsoleSectionViewMode("widgets", "list");
 
   const toggleSection = useCallback((key: string) => {
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
-  }, [])
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   if (!visible) {
     // Collapsed — show a slim toggle button
@@ -1872,11 +2781,11 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
         style={{
           width: 24,
           flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          background: 'var(--io-surface-secondary)',
-          borderRight: '1px solid var(--io-border)',
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          background: "var(--io-surface-secondary)",
+          borderRight: "1px solid var(--io-border)",
           paddingTop: 8,
         }}
       >
@@ -1884,25 +2793,32 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
           onClick={onToggle}
           title="Show asset palette"
           style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--io-text-muted)',
-            padding: '4px',
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--io-text-muted)",
+            padding: "4px",
             borderRadius: 4,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             width: 20,
             height: 20,
           }}
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <polyline points="6 4 10 8 6 12" />
           </svg>
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -1911,52 +2827,66 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
         ...panel,
         width: panelWidth,
         minWidth: panelWidth,
-        position: 'relative',
-        cursor: isPanelResizing ? 'col-resize' : undefined,
+        position: "relative",
+        cursor: isPanelResizing ? "col-resize" : undefined,
       }}
     >
       {/* Panel header */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 10px',
+          display: "flex",
+          alignItems: "center",
+          padding: "0 10px",
           height: 36,
-          borderBottom: '1px solid var(--io-border)',
+          borderBottom: "1px solid var(--io-border)",
           flexShrink: 0,
           gap: 6,
         }}
       >
-        <span style={{ ...sectionLabel, color: 'var(--io-text-secondary)', fontSize: 12, fontWeight: 700 }}>
+        <span
+          style={{
+            ...sectionLabel,
+            color: "var(--io-text-secondary)",
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
           Assets
         </span>
         <button
           onClick={onToggle}
           title="Collapse palette"
           style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--io-text-muted)',
-            padding: '2px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--io-text-muted)",
+            padding: "2px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             borderRadius: 3,
           }}
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <polyline points="10 4 6 8 10 12" />
           </svg>
         </button>
       </div>
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: "auto" }}>
         <AccordionSection
           title="Workspaces"
           open={openSections.workspaces}
-          onToggle={() => toggleSection('workspaces')}
+          onToggle={() => toggleSection("workspaces")}
           badge={workspaces.length}
           viewMode={workspacesViewMode}
           onViewModeChange={setWorkspacesViewMode}
@@ -1980,7 +2910,7 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
         <AccordionSection
           title="Graphics"
           open={openSections.graphics}
-          onToggle={() => toggleSection('graphics')}
+          onToggle={() => toggleSection("graphics")}
           viewMode={graphicsViewMode}
           onViewModeChange={setGraphicsViewMode}
           sectionHeight={graphicsHeight}
@@ -1998,7 +2928,7 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
         <AccordionSection
           title="Widgets"
           open={openSections.widgets}
-          onToggle={() => toggleSection('widgets')}
+          onToggle={() => toggleSection("widgets")}
           viewMode={widgetsViewMode}
           onViewModeChange={setWidgetsViewMode}
           sectionHeight={widgetsHeight}
@@ -2016,7 +2946,7 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
         <AccordionSection
           title="Points"
           open={openSections.points}
-          onToggle={() => toggleSection('points')}
+          onToggle={() => toggleSection("points")}
           sectionHeight={pointsHeight}
           onHeightResizeMouseDown={onPointsHeightMouseDown}
           isHeightResizing={isPointsResizing}
@@ -2031,10 +2961,10 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
       {/* Footer hint */}
       <div
         style={{
-          padding: '6px 10px',
-          borderTop: '1px solid var(--io-border)',
+          padding: "6px 10px",
+          borderTop: "1px solid var(--io-border)",
           fontSize: 10,
-          color: 'var(--io-text-muted)',
+          color: "var(--io-text-muted)",
           flexShrink: 0,
           lineHeight: 1.5,
         }}
@@ -2048,28 +2978,29 @@ export default function ConsolePalette({ visible, onToggle, onQuickPlace, worksp
         aria-label="Resize assets palette width"
         onMouseDown={onPanelResizeMouseDown}
         style={{
-          position: 'absolute',
+          position: "absolute",
           top: 0,
           right: 0,
           width: 5,
-          height: '100%',
-          cursor: 'col-resize',
-          background: isPanelResizing ? 'var(--io-accent)' : 'transparent',
-          transition: 'background 0.1s',
+          height: "100%",
+          cursor: "col-resize",
+          background: isPanelResizing ? "var(--io-accent)" : "transparent",
+          transition: "background 0.1s",
           zIndex: 10,
-          userSelect: 'none',
+          userSelect: "none",
         }}
         onMouseEnter={(e) => {
           if (!isPanelResizing) {
-            ;(e.currentTarget as HTMLElement).style.background = 'var(--io-surface-elevated)'
+            (e.currentTarget as HTMLElement).style.background =
+              "var(--io-surface-elevated)";
           }
         }}
         onMouseLeave={(e) => {
           if (!isPanelResizing) {
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+            (e.currentTarget as HTMLElement).style.background = "transparent";
           }
         }}
       />
     </div>
-  )
+  );
 }

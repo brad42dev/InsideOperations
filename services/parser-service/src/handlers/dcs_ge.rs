@@ -9,7 +9,6 @@
 ///
 /// Output: `Vec<DcsElement>` using the shared intermediate representation
 /// defined in `dcs_import`.
-
 use serde_json::{json, Value};
 
 use super::dcs_import::DcsElement;
@@ -81,8 +80,8 @@ fn parse_ge_svg(
     source_name: &str,
     _xtg_tags: &[String],
 ) -> Result<Vec<DcsElement>, String> {
-    let content = std::str::from_utf8(svg_bytes)
-        .map_err(|_| "GE iFIX SVG is not valid UTF-8".to_string())?;
+    let content =
+        std::str::from_utf8(svg_bytes).map_err(|_| "GE iFIX SVG is not valid UTF-8".to_string())?;
 
     let doc = roxmltree::Document::parse(content)
         .map_err(|e| format!("GE iFIX SVG parse error: {}", e))?;

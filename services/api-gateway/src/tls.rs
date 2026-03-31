@@ -71,16 +71,8 @@ fn generate_self_signed(dir: &Path) -> anyhow::Result<()> {
     let now = chrono::Utc::now();
     let expire = now + chrono::Duration::days(365);
 
-    params.not_before = date_time_ymd(
-        now.year() as i32,
-        now.month() as u8,
-        now.day() as u8,
-    );
-    params.not_after = date_time_ymd(
-        expire.year() as i32,
-        expire.month() as u8,
-        expire.day() as u8,
-    );
+    params.not_before = date_time_ymd(now.year(), now.month() as u8, now.day() as u8);
+    params.not_after = date_time_ymd(expire.year(), expire.month() as u8, expire.day() as u8);
 
     // Generate key pair and self-sign.
     let key_pair = KeyPair::generate()?;

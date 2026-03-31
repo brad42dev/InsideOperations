@@ -11,7 +11,9 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
-use super::{AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult};
+use super::{
+    AlertChannel, AlertSummary, ChannelError, ChannelRecipient, ChannelType, DeliveryResult,
+};
 
 // ---------------------------------------------------------------------------
 // Config

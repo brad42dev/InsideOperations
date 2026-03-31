@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    Extension, Json,
-};
+use axum::{extract::State, response::IntoResponse, Extension, Json};
 use io_auth::Claims;
 use io_error::IoError;
 use io_models::ApiResponse;
@@ -54,7 +50,9 @@ pub async fn get_preferences(
     .await;
 
     let prefs = match row {
-        Ok(Some(r)) => r.try_get::<JsonValue, _>("preferences").unwrap_or_else(|_| JsonValue::Object(Default::default())),
+        Ok(Some(r)) => r
+            .try_get::<JsonValue, _>("preferences")
+            .unwrap_or_else(|_| JsonValue::Object(Default::default())),
         Ok(None) => JsonValue::Object(Default::default()),
         Err(e) => {
             tracing::error!(error = %e, "get_preferences query failed");
@@ -62,7 +60,11 @@ pub async fn get_preferences(
         }
     };
 
-    Json(ApiResponse::ok(UserPreferences { user_id, preferences: prefs })).into_response()
+    Json(ApiResponse::ok(UserPreferences {
+        user_id,
+        preferences: prefs,
+    }))
+    .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -95,12 +97,18 @@ pub async fn patch_preferences(
     .await;
 
     let prefs = match row {
-        Ok(r) => r.try_get::<JsonValue, _>("preferences").unwrap_or(body.preferences),
+        Ok(r) => r
+            .try_get::<JsonValue, _>("preferences")
+            .unwrap_or(body.preferences),
         Err(e) => {
             tracing::error!(error = %e, "patch_preferences upsert failed");
             return IoError::Database(e).into_response();
         }
     };
 
-    Json(ApiResponse::ok(UserPreferences { user_id, preferences: prefs })).into_response()
+    Json(ApiResponse::ok(UserPreferences {
+        user_id,
+        preferences: prefs,
+    }))
+    .into_response()
 }

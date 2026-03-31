@@ -1,65 +1,65 @@
-import { useCallback, useRef, useState } from 'react'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { useNavigate } from 'react-router-dom'
-import { usePermission } from '../hooks/usePermission'
-import { forensicsApi } from '../../api/forensics'
+import { useCallback, useRef, useState } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useNavigate } from "react-router-dom";
+import { usePermission } from "../hooks/usePermission";
+import { forensicsApi } from "../../api/forensics";
 
 export interface PointContextMenuProps {
-  pointId: string
-  tagName: string
-  isAlarm?: boolean
-  isAlarmElement?: boolean
-  children: React.ReactNode
+  pointId: string;
+  tagName: string;
+  isAlarm?: boolean;
+  isAlarmElement?: boolean;
+  children: React.ReactNode;
   /** Controlled open state — when provided, the menu is driven externally */
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /**
    * Optional override for "Point Detail" action.
    * When omitted, the default navigates to the point detail route.
    * Modules that show an in-pane panel (e.g. Console floating panel) pass this.
    */
-  onPointDetail?: (pointId: string) => void
+  onPointDetail?: (pointId: string) => void;
   /**
    * Optional override for "Trend Point" action.
    * When omitted, the default navigates to /console?trend={pointId}.
    */
-  onTrendPoint?: (pointId: string) => void
+  onTrendPoint?: (pointId: string) => void;
   /**
    * Optional override for "Investigate Point" action.
    * When omitted, the default POSTs to create a new investigation then navigates.
    */
-  onInvestigatePoint?: (pointId: string) => void
+  onInvestigatePoint?: (pointId: string) => void;
 }
 
 const menuContentStyle: React.CSSProperties = {
-  background: 'var(--io-surface-elevated)',
-  border: '1px solid var(--io-border)',
-  borderRadius: '6px',
-  boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-  padding: '4px',
+  background: "var(--io-surface-elevated)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "6px",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+  padding: "4px",
   minWidth: 180,
   zIndex: 2500,
-  animation: 'io-dropdown-in 0.1s ease',
-}
+  animation: "io-dropdown-in 0.1s ease",
+};
 
 const menuItemStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  padding: '7px 10px',
-  borderRadius: '4px',
-  fontSize: '13px',
-  color: 'var(--io-text-primary)',
-  cursor: 'pointer',
-  outline: 'none',
-  userSelect: 'none',
-}
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  padding: "7px 10px",
+  borderRadius: "4px",
+  fontSize: "13px",
+  color: "var(--io-text-primary)",
+  cursor: "pointer",
+  outline: "none",
+  userSelect: "none",
+};
 
 const separatorStyle: React.CSSProperties = {
   height: 1,
-  background: 'var(--io-border)',
-  margin: '4px 0',
-}
+  background: "var(--io-border)",
+  margin: "4px 0",
+};
 
 export default function PointContextMenu({
   pointId,
@@ -73,77 +73,78 @@ export default function PointContextMenu({
   onTrendPoint,
   onInvestigatePoint,
 }: PointContextMenuProps) {
-  const navigate = useNavigate()
-  const canConsole = usePermission('console:read')
-  const canForensicsWrite = usePermission('forensics:write')
-  const canReports = usePermission('reports:read')
+  const navigate = useNavigate();
+  const canConsole = usePermission("console:read");
+  const canForensicsWrite = usePermission("forensics:write");
+  const canReports = usePermission("reports:read");
 
   // Internal open state for long-press in uncontrolled mode
-  const [internalOpen, setInternalOpen] = useState(false)
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [internalOpen, setInternalOpen] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isControlled = open !== undefined
+  const isControlled = open !== undefined;
 
   const triggerOpen = useCallback(() => {
     if (isControlled) {
-      onOpenChange?.(true)
+      onOpenChange?.(true);
     } else {
-      setInternalOpen(true)
+      setInternalOpen(true);
     }
-  }, [isControlled, onOpenChange])
+  }, [isControlled, onOpenChange]);
 
   const handleCopyTagName = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(tagName)
+      await navigator.clipboard.writeText(tagName);
     } catch {
       // Clipboard may be unavailable in some environments — silent fail
     }
-  }, [tagName])
+  }, [tagName]);
 
   const handlePointDetail = useCallback(() => {
     if (onPointDetail) {
-      onPointDetail(pointId)
+      onPointDetail(pointId);
     } else {
-      navigate(`/forensics?point=${encodeURIComponent(pointId)}&panel=detail`)
+      navigate(`/forensics?point=${encodeURIComponent(pointId)}&panel=detail`);
     }
-  }, [navigate, pointId, onPointDetail])
+  }, [navigate, pointId, onPointDetail]);
 
   const handleTrendPoint = useCallback(() => {
     if (onTrendPoint) {
-      onTrendPoint(pointId)
+      onTrendPoint(pointId);
     } else {
-      navigate(`/console?trend=${encodeURIComponent(pointId)}`)
+      navigate(`/console?trend=${encodeURIComponent(pointId)}`);
     }
-  }, [navigate, pointId, onTrendPoint])
+  }, [navigate, pointId, onTrendPoint]);
 
   const handleInvestigatePoint = useCallback(async () => {
     if (onInvestigatePoint) {
-      onInvestigatePoint(pointId)
-      return
+      onInvestigatePoint(pointId);
+      return;
     }
     const result = await forensicsApi.createInvestigation({
       name: `Investigation — ${tagName}`,
       anchor_point_id: pointId,
-    })
+    });
     if (result.success) {
-      navigate(`/forensics/investigations/${result.data.id}`)
+      navigate(`/forensics/investigations/${result.data.id}`);
     }
-  }, [navigate, pointId, tagName, onInvestigatePoint])
+  }, [navigate, pointId, tagName, onInvestigatePoint]);
 
   const handleReportOnPoint = useCallback(() => {
-    navigate(`/reports/new?point=${encodeURIComponent(pointId)}`)
-  }, [navigate, pointId])
+    navigate(`/reports/new?point=${encodeURIComponent(pointId)}`);
+  }, [navigate, pointId]);
 
   const handleInvestigateAlarm = useCallback(() => {
-    navigate(`/forensics/new?alarm=${encodeURIComponent(pointId)}`)
-  }, [navigate, pointId])
+    navigate(`/forensics/new?alarm=${encodeURIComponent(pointId)}`);
+  }, [navigate, pointId]);
 
   const focusStyle = (e: React.FocusEvent<HTMLDivElement>) => {
-    ;(e.currentTarget as HTMLElement).style.background = 'var(--io-accent-subtle)'
-  }
+    (e.currentTarget as HTMLElement).style.background =
+      "var(--io-accent-subtle)";
+  };
   const blurStyle = (e: React.FocusEvent<HTMLDivElement>) => {
-    ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-  }
+    (e.currentTarget as HTMLElement).style.background = "transparent";
+  };
 
   return (
     <DropdownMenu.Root
@@ -155,33 +156,31 @@ export default function PointContextMenu({
           {/* Wrap in a span that captures right-click and long-press, delegates to Radix trigger */}
           <span
             onContextMenu={(e) => {
-              e.preventDefault()
-              triggerOpen()
+              e.preventDefault();
+              triggerOpen();
             }}
             onTouchStart={() => {
-              longPressTimer.current = setTimeout(() => triggerOpen(), 500)
+              longPressTimer.current = setTimeout(() => triggerOpen(), 500);
             }}
             onTouchEnd={() => {
               if (longPressTimer.current) {
-                clearTimeout(longPressTimer.current)
-                longPressTimer.current = null
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
               }
             }}
             onTouchMove={() => {
               if (longPressTimer.current) {
-                clearTimeout(longPressTimer.current)
-                longPressTimer.current = null
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
               }
             }}
-            style={{ display: 'contents' }}
+            style={{ display: "contents" }}
           >
             {children}
           </span>
         </DropdownMenu.Trigger>
       ) : (
-        <DropdownMenu.Trigger asChild>
-          {children}
-        </DropdownMenu.Trigger>
+        <DropdownMenu.Trigger asChild>{children}</DropdownMenu.Trigger>
       )}
 
       <DropdownMenu.Portal>
@@ -220,7 +219,9 @@ export default function PointContextMenu({
           {canForensicsWrite && (
             <DropdownMenu.Item
               style={menuItemStyle}
-              onSelect={() => { void handleInvestigatePoint() }}
+              onSelect={() => {
+                void handleInvestigatePoint();
+              }}
               onFocus={focusStyle}
               onBlur={blurStyle}
             >
@@ -261,7 +262,9 @@ export default function PointContextMenu({
           {/* Copy Tag Name — always visible */}
           <DropdownMenu.Item
             style={menuItemStyle}
-            onSelect={() => { void handleCopyTagName() }}
+            onSelect={() => {
+              void handleCopyTagName();
+            }}
             onFocus={focusStyle}
             onBlur={blurStyle}
           >
@@ -277,5 +280,5 @@ export default function PointContextMenu({
         }
       `}</style>
     </DropdownMenu.Root>
-  )
+  );
 }

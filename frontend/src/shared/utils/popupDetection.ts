@@ -28,18 +28,18 @@ export function detectPopupBlocked(): boolean {
   // navigator.webdriver is set to true by all major automation frameworks
   // (Playwright, Selenium, Puppeteer) in headless and headed modes alike.
   if (navigator.webdriver) {
-    return true
+    return true;
   }
   try {
-    const probe = window.open('', '_blank', 'width=1,height=1')
-    if (!probe || probe.closed || typeof probe.closed === 'undefined') {
-      return true // blocked
+    const probe = window.open("", "_blank", "width=1,height=1");
+    if (!probe || probe.closed || typeof probe.closed === "undefined") {
+      return true; // blocked
     }
-    probe.close()
-    return false
+    probe.close();
+    return false;
   } catch {
     // If window.open throws (e.g. cross-origin sandbox restrictions), treat
     // as blocked.
-    return true
+    return true;
   }
 }

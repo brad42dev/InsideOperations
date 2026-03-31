@@ -26,28 +26,28 @@ import {
   useCallback,
   type FormEvent,
   type ChangeEvent,
-} from 'react'
-import { useUiStore } from '../../store/ui'
-import { useAuthStore } from '../../store/auth'
-import { authApi } from '../../api/auth'
+} from "react";
+import { useUiStore } from "../../store/ui";
+import { useAuthStore } from "../../store/auth";
+import { authApi } from "../../api/auth";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const AUTO_DISMISS_MS = 30_000  // 30 s of no input → return to passive state
-const FADE_IN_MS = 300
-const FADE_OUT_MS = 200
-const PIN_FAILURE_THRESHOLD = 3  // after this many PIN failures, offer password fallback
+const AUTO_DISMISS_MS = 30_000; // 30 s of no input → return to passive state
+const FADE_IN_MS = 300;
+const FADE_OUT_MS = 200;
+const PIN_FAILURE_THRESHOLD = 3; // after this many PIN failures, offer password fallback
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type OverlayPhase = 'hidden' | 'entering' | 'visible' | 'exiting'
+type OverlayPhase = "hidden" | "entering" | "visible" | "exiting";
 
 /** Which credential mode the card currently shows */
-type UnlockMode = 'pin' | 'password' | 'sso'
+type UnlockMode = "pin" | "password" | "sso";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,65 +55,59 @@ type UnlockMode = 'pin' | 'password' | 'sso'
 
 /** Format seconds as M:SS */
 function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 function buildInitials(displayName: string): string {
   return displayName
-    .split(' ')
+    .split(" ")
     .map((n) => n[0])
     .filter(Boolean)
     .slice(0, 2)
-    .join('')
-    .toUpperCase()
+    .join("")
+    .toUpperCase();
 }
 
 /** Extract forced_signout reason from an error response body */
 async function isForcedSignout(err: unknown): Promise<boolean> {
   if (err instanceof Response) {
     try {
-      const body = await err.clone().json() as Record<string, unknown>
-      return body?.reason === 'forced_signout'
+      const body = (await err.clone().json()) as Record<string, unknown>;
+      return body?.reason === "forced_signout";
     } catch {
-      return false
+      return false;
     }
   }
   // api client may wrap as { status, body } object — check common shapes
-  if (
-    err &&
-    typeof err === 'object' &&
-    'status' in err &&
-    'body' in err
-  ) {
-    const cast = err as { status: number; body?: Record<string, unknown> }
-    if (cast.status === 401 && cast.body?.reason === 'forced_signout') return true
+  if (err && typeof err === "object" && "status" in err && "body" in err) {
+    const cast = err as { status: number; body?: Record<string, unknown> };
+    if (cast.status === 401 && cast.body?.reason === "forced_signout")
+      return true;
   }
-  return false
+  return false;
 }
 
 /** Extract retry_after_seconds from a 429 response body */
 async function extractRetryAfter(err: unknown): Promise<number> {
   // Default: 5 minutes
-  const fallback = 300
+  const fallback = 300;
   if (err instanceof Response) {
     try {
-      const body = await err.clone().json() as Record<string, unknown>
-      if (typeof body?.retry_after_seconds === 'number') return body.retry_after_seconds as number
+      const body = (await err.clone().json()) as Record<string, unknown>;
+      if (typeof body?.retry_after_seconds === "number")
+        return body.retry_after_seconds as number;
     } catch {
-      return fallback
+      return fallback;
     }
   }
-  if (
-    err &&
-    typeof err === 'object' &&
-    'body' in err
-  ) {
-    const cast = err as { body?: Record<string, unknown> }
-    if (typeof cast.body?.retry_after_seconds === 'number') return cast.body.retry_after_seconds as number
+  if (err && typeof err === "object" && "body" in err) {
+    const cast = err as { body?: Record<string, unknown> };
+    if (typeof cast.body?.retry_after_seconds === "number")
+      return cast.body.retry_after_seconds as number;
   }
-  return fallback
+  return fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,104 +115,113 @@ async function extractRetryAfter(err: unknown): Promise<number> {
 // ---------------------------------------------------------------------------
 
 export default function LockOverlay() {
-  const { isLocked, lockMeta, lockImmediate, unlock, clearLockImmediate, setLockMeta } = useUiStore()
-  const { user, logout } = useAuthStore()
+  const {
+    isLocked,
+    lockMeta,
+    lockImmediate,
+    unlock,
+    clearLockImmediate,
+    setLockMeta,
+  } = useUiStore();
+  const { user, logout } = useAuthStore();
 
-  const { authProvider, authProviderName, hasPin } = lockMeta
+  const { authProvider, authProviderName, hasPin } = lockMeta;
 
   // Overlay animation phase
-  const [phase, setPhase] = useState<OverlayPhase>('hidden')
+  const [phase, setPhase] = useState<OverlayPhase>("hidden");
 
   // Which unlock mode is active
-  const [unlockMode, setUnlockMode] = useState<UnlockMode>('password')
+  const [unlockMode, setUnlockMode] = useState<UnlockMode>("password");
 
   // Credential input value (shared for password/PIN)
-  const [inputValue, setInputValue] = useState('')
+  const [inputValue, setInputValue] = useState("");
 
   // Error/status message
-  const [errorMsg, setErrorMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState("");
 
   // Whether the input is disabled (during submit or rate-limit)
-  const [inputDisabled, setInputDisabled] = useState(false)
+  const [inputDisabled, setInputDisabled] = useState(false);
 
   // Rate-limit countdown in seconds; 0 = not counting down
-  const [countdown, setCountdown] = useState(0)
+  const [countdown, setCountdown] = useState(0);
 
   // Consecutive PIN failure count (for offering password fallback)
-  const [pinFailures, setPinFailures] = useState(0)
+  const [pinFailures, setPinFailures] = useState(0);
 
   // Whether user is in "forced signout" state (brief message before redirect)
-  const [forcedSignout, setForcedSignout] = useState(false)
+  const [forcedSignout, setForcedSignout] = useState(false);
 
   // Whether the SSO popup was blocked
-  const [ssoPopupBlocked, setSsoPopupBlocked] = useState(false)
+  const [ssoPopupBlocked, setSsoPopupBlocked] = useState(false);
 
   // Whether an unlock request is in-flight
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const autoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fadeOutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const ssoMessageHandlerRef = useRef<((e: MessageEvent) => void) | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const autoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeOutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const ssoMessageHandlerRef = useRef<((e: MessageEvent) => void) | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Keep stable refs for callbacks used in event listeners
-  const isLockedRef = useRef(isLocked)
-  isLockedRef.current = isLocked
-  const isKioskRef = useRef(useUiStore.getState().isKiosk)
+  const isLockedRef = useRef(isLocked);
+  isLockedRef.current = isLocked;
+  const isKioskRef = useRef(useUiStore.getState().isKiosk);
   // Sync kiosk ref on each render
-  isKioskRef.current = useUiStore.getState().isKiosk
+  isKioskRef.current = useUiStore.getState().isKiosk;
 
   // Track the previous isLocked value so the lock-state effect can distinguish
   // a fresh lock transition from a re-run caused by hasPin updating mid-lock.
-  const prevIsLockedRef = useRef(isLocked)
+  const prevIsLockedRef = useRef(isLocked);
 
   // ---------------------------------------------------------------------------
   // Overlay visibility helpers
   // ---------------------------------------------------------------------------
 
   const dismissOverlay = useCallback(() => {
-    if (autoDismissRef.current) clearTimeout(autoDismissRef.current)
-    setPhase('exiting')
+    if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+    setPhase("exiting");
     fadeOutTimerRef.current = setTimeout(() => {
-      setPhase('hidden')
-    }, FADE_OUT_MS)
-  }, [])
+      setPhase("hidden");
+    }, FADE_OUT_MS);
+  }, []);
 
   const showOverlay = useCallback(() => {
-    if (!isLockedRef.current) return
-    if (fadeOutTimerRef.current) clearTimeout(fadeOutTimerRef.current)
-    setPhase('entering')
-    setTimeout(() => setPhase('visible'), FADE_IN_MS)
+    if (!isLockedRef.current) return;
+    if (fadeOutTimerRef.current) clearTimeout(fadeOutTimerRef.current);
+    setPhase("entering");
+    setTimeout(() => setPhase("visible"), FADE_IN_MS);
     // Reset auto-dismiss timer
-    if (autoDismissRef.current) clearTimeout(autoDismissRef.current)
-    autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS)
-  }, [dismissOverlay])
+    if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+    autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS);
+  }, [dismissOverlay]);
 
   const resetAutoDismiss = useCallback(() => {
-    if (autoDismissRef.current) clearTimeout(autoDismissRef.current)
-    autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS)
-  }, [dismissOverlay])
+    if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+    autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS);
+  }, [dismissOverlay]);
 
   // ---------------------------------------------------------------------------
   // Lock state changes — reset UI, determine initial unlock mode
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    const wasLocked = prevIsLockedRef.current
-    prevIsLockedRef.current = isLocked
+    const wasLocked = prevIsLockedRef.current;
+    prevIsLockedRef.current = isLocked;
 
     if (isLocked) {
       // Determine unlock mode from auth provider and hasPin.
       // This also runs when hasPin changes mid-lock (after the re-fetch effect
       // updates lockMeta), but we guard phase changes so the overlay is not
       // accidentally hidden on those secondary runs.
-      if (authProvider !== 'local') {
+      if (authProvider !== "local") {
         // SSO account: show PIN if they have one, otherwise SSO button directly
-        setUnlockMode(hasPin ? 'pin' : 'sso')
+        setUnlockMode(hasPin ? "pin" : "sso");
       } else {
         // Local account: PIN takes priority over password if set
-        setUnlockMode(hasPin ? 'pin' : 'password')
+        setUnlockMode(hasPin ? "pin" : "password");
       }
 
       // Only reset card state and update phase on a fresh lock transition.
@@ -227,41 +230,50 @@ export default function LockOverlay() {
       // and to avoid incorrectly setting phase to 'hidden'.
       if (!wasLocked) {
         // Reset card state
-        setInputValue('')
-        setErrorMsg('')
-        setInputDisabled(false)
-        setCountdown(0)
-        setPinFailures(0)
-        setForcedSignout(false)
-        setSsoPopupBlocked(false)
-        setIsSubmitting(false)
+        setInputValue("");
+        setErrorMsg("");
+        setInputDisabled(false);
+        setCountdown(0);
+        setPinFailures(0);
+        setForcedSignout(false);
+        setSsoPopupBlocked(false);
+        setIsSubmitting(false);
         // Clean up any running countdown
-        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+        if (countdownIntervalRef.current)
+          clearInterval(countdownIntervalRef.current);
 
         if (lockImmediate) {
           // Manual lock (e.g. lock button click) — show overlay immediately
-          clearLockImmediate()
-          setPhase('entering')
-          setTimeout(() => setPhase('visible'), FADE_IN_MS)
-          autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS)
+          clearLockImmediate();
+          setPhase("entering");
+          setTimeout(() => setPhase("visible"), FADE_IN_MS);
+          autoDismissRef.current = setTimeout(dismissOverlay, AUTO_DISMISS_MS);
         } else {
           // Passive lock (idle timeout, WS event) — overlay stays hidden until interaction
-          setPhase('hidden')
+          setPhase("hidden");
         }
       }
     } else {
       // Unlocked — clean up all timers and hide overlay
-      if (autoDismissRef.current) clearTimeout(autoDismissRef.current)
-      if (fadeOutTimerRef.current) clearTimeout(fadeOutTimerRef.current)
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+      if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+      if (fadeOutTimerRef.current) clearTimeout(fadeOutTimerRef.current);
+      if (countdownIntervalRef.current)
+        clearInterval(countdownIntervalRef.current);
       // Remove SSO postMessage handler if any
       if (ssoMessageHandlerRef.current) {
-        window.removeEventListener('message', ssoMessageHandlerRef.current)
-        ssoMessageHandlerRef.current = null
+        window.removeEventListener("message", ssoMessageHandlerRef.current);
+        ssoMessageHandlerRef.current = null;
       }
-      setPhase('hidden')
+      setPhase("hidden");
     }
-  }, [isLocked, authProvider, hasPin, lockImmediate, clearLockImmediate, dismissOverlay])
+  }, [
+    isLocked,
+    authProvider,
+    hasPin,
+    lockImmediate,
+    clearLockImmediate,
+    dismissOverlay,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Re-fetch has_pin when the session is locked.
@@ -271,14 +283,14 @@ export default function LockOverlay() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!isLocked) return
-    let cancelled = false
+    if (!isLocked) return;
+    let cancelled = false;
     async function refreshHasPin() {
       try {
-        const result = await authApi.sessionCheck()
-        if (cancelled) return
-        if (!result.success) return
-        const session = result.data
+        const result = await authApi.sessionCheck();
+        if (cancelled) return;
+        if (!result.success) return;
+        const session = result.data;
         // Update the store so subsequent renders and other components see the
         // correct has_pin value (e.g. if PIN was set after app load).
         // The lock-state effect above depends on hasPin and will re-run to
@@ -286,17 +298,19 @@ export default function LockOverlay() {
         // NOT reset card state or overlay phase on this secondary run.
         setLockMeta({
           authProvider: session.auth_provider,
-          authProviderName: session.auth_provider_name ?? '',
+          authProviderName: session.auth_provider_name ?? "",
           hasPin: session.has_pin,
-        })
+        });
       } catch {
         // Best-effort — lock overlay already visible; keep existing lockMeta.
       }
     }
-    void refreshHasPin()
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLocked])
+    void refreshHasPin();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocked]);
 
   // ---------------------------------------------------------------------------
   // Interaction listeners — click and keypress trigger overlay.
@@ -305,73 +319,75 @@ export default function LockOverlay() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!isLocked) return
+    if (!isLocked) return;
 
     function handleMouseDown(e: MouseEvent) {
-      if (phase === 'hidden' || phase === 'exiting') {
+      if (phase === "hidden" || phase === "exiting") {
         // Triggering click — consume it so it doesn't pass to content
-        e.stopPropagation()
-        e.preventDefault()
-        showOverlay()
+        e.stopPropagation();
+        e.preventDefault();
+        showOverlay();
       }
     }
 
     function handleKeyDown(e: KeyboardEvent) {
       // Escape in kiosk mode: dismiss overlay but do NOT unlock
-      if (e.key === 'Escape' && isKioskRef.current) {
-        if (phase === 'visible' || phase === 'entering') {
-          e.stopPropagation()
-          e.preventDefault()
-          dismissOverlay()
+      if (e.key === "Escape" && isKioskRef.current) {
+        if (phase === "visible" || phase === "entering") {
+          e.stopPropagation();
+          e.preventDefault();
+          dismissOverlay();
         }
-        return
+        return;
       }
 
       // Any other keypress while overlay is hidden → show it
-      if (phase === 'hidden' || phase === 'exiting') {
-        showOverlay()
+      if (phase === "hidden" || phase === "exiting") {
+        showOverlay();
       }
     }
 
     function handleBlur() {
       // Window lost focus — nobody is at the screen. Return to passive state immediately
       // so the overlay is not left hanging on an unattended screen.
-      if (phase === 'visible' || phase === 'entering') {
-        dismissOverlay()
+      if (phase === "visible" || phase === "entering") {
+        dismissOverlay();
       }
     }
 
     // Use capture phase for mousedown so we intercept before content handlers
-    window.addEventListener('mousedown', handleMouseDown, { capture: true })
-    window.addEventListener('keydown', handleKeyDown, { capture: true })
-    window.addEventListener('blur', handleBlur)
+    window.addEventListener("mousedown", handleMouseDown, { capture: true });
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    window.addEventListener("blur", handleBlur);
 
     return () => {
-      window.removeEventListener('mousedown', handleMouseDown, { capture: true })
-      window.removeEventListener('keydown', handleKeyDown, { capture: true })
-      window.removeEventListener('blur', handleBlur)
-    }
-  }, [isLocked, phase, showOverlay, dismissOverlay])
+      window.removeEventListener("mousedown", handleMouseDown, {
+        capture: true,
+      });
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [isLocked, phase, showOverlay, dismissOverlay]);
 
   // ---------------------------------------------------------------------------
   // Auto-focus input when overlay becomes visible
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (phase === 'visible' || phase === 'entering') {
+    if (phase === "visible" || phase === "entering") {
       // Small delay so the animation has started before focus
-      setTimeout(() => inputRef.current?.focus(), 50)
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [phase])
+  }, [phase]);
 
   // ---------------------------------------------------------------------------
   // Input change — reset auto-dismiss timer on any input activity
   // ---------------------------------------------------------------------------
 
   function handleInputChange(e: ChangeEvent<HTMLInputElement>) {
-    setInputValue(e.target.value)
-    setErrorMsg('')
-    resetAutoDismiss()
+    setInputValue(e.target.value);
+    setErrorMsg("");
+    resetAutoDismiss();
   }
 
   // ---------------------------------------------------------------------------
@@ -379,21 +395,22 @@ export default function LockOverlay() {
   // ---------------------------------------------------------------------------
 
   function startCountdown(seconds: number) {
-    setCountdown(seconds)
-    setInputDisabled(true)
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    setCountdown(seconds);
+    setInputDisabled(true);
+    if (countdownIntervalRef.current)
+      clearInterval(countdownIntervalRef.current);
     countdownIntervalRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          clearInterval(countdownIntervalRef.current!)
-          countdownIntervalRef.current = null
-          setInputDisabled(false)
-          setErrorMsg('')
-          return 0
+          clearInterval(countdownIntervalRef.current!);
+          countdownIntervalRef.current = null;
+          setInputDisabled(false);
+          setErrorMsg("");
+          return 0;
         }
-        return prev - 1
-      })
-    }, 1000)
+        return prev - 1;
+      });
+    }, 1000);
   }
 
   // ---------------------------------------------------------------------------
@@ -401,118 +418,123 @@ export default function LockOverlay() {
   // ---------------------------------------------------------------------------
 
   async function handlePasswordSubmit(e: FormEvent) {
-    e.preventDefault()
-    const value = inputValue.trim()
-    if (!value || inputDisabled || isSubmitting) return
+    e.preventDefault();
+    const value = inputValue.trim();
+    if (!value || inputDisabled || isSubmitting) return;
 
-    setIsSubmitting(true)
-    setErrorMsg('')
-    resetAutoDismiss()
+    setIsSubmitting(true);
+    setErrorMsg("");
+    resetAutoDismiss();
 
     try {
-      const result = await authApi.verifyPassword(value)
+      const result = await authApi.verifyPassword(value);
       if (result.success) {
-        handleUnlockSuccess()
+        handleUnlockSuccess();
       } else {
-        handleVerifyError(result.error, 'password')
+        handleVerifyError(result.error, "password");
       }
     } catch (err) {
-      await handleVerifyException(err, 'password')
+      await handleVerifyException(err, "password");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
   async function handlePinSubmit(e: FormEvent) {
-    e.preventDefault()
-    const value = inputValue.trim()
-    if (!value || inputDisabled || isSubmitting) return
+    e.preventDefault();
+    const value = inputValue.trim();
+    if (!value || inputDisabled || isSubmitting) return;
 
-    setIsSubmitting(true)
-    setErrorMsg('')
-    resetAutoDismiss()
+    setIsSubmitting(true);
+    setErrorMsg("");
+    resetAutoDismiss();
 
     try {
-      const result = await authApi.verifyPin(value)
+      const result = await authApi.verifyPin(value);
       if (result.success) {
-        handleUnlockSuccess()
+        handleUnlockSuccess();
       } else {
-        handleVerifyError(result.error, 'pin')
+        handleVerifyError(result.error, "pin");
       }
     } catch (err) {
-      await handleVerifyException(err, 'pin')
+      await handleVerifyException(err, "pin");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
   function handleUnlockSuccess() {
-    setInputValue('')
-    setErrorMsg('')
+    setInputValue("");
+    setErrorMsg("");
     // Fade out overlay, then clear lock state
-    dismissOverlay()
+    dismissOverlay();
     setTimeout(() => {
-      unlock()
-    }, FADE_OUT_MS + 50)
+      unlock();
+    }, FADE_OUT_MS + 50);
   }
 
   function handleVerifyError(
     error: { status?: number; message?: string } | undefined,
-    mode: 'password' | 'pin',
+    mode: "password" | "pin",
   ) {
-    const status = error?.status ?? 0
+    const status = error?.status ?? 0;
     if (status === 429) {
-      setErrorMsg('Too many attempts — try again in 5:00')
-      startCountdown(300)
+      setErrorMsg("Too many attempts — try again in 5:00");
+      startCountdown(300);
     } else if (status === 401) {
-      setErrorMsg('Incorrect credential. Please try again.')
-      setInputValue('')
-      if (mode === 'pin') {
-        const next = pinFailures + 1
-        setPinFailures(next)
+      setErrorMsg("Incorrect credential. Please try again.");
+      setInputValue("");
+      if (mode === "pin") {
+        const next = pinFailures + 1;
+        setPinFailures(next);
         if (next >= PIN_FAILURE_THRESHOLD) {
-          setErrorMsg('Too many PIN failures. Try your password instead.')
+          setErrorMsg("Too many PIN failures. Try your password instead.");
         }
       }
     } else {
-      setErrorMsg('Unable to verify. Check your connection.')
+      setErrorMsg("Unable to verify. Check your connection.");
     }
   }
 
-  async function handleVerifyException(err: unknown, mode: 'password' | 'pin') {
-    setInputValue('')
+  async function handleVerifyException(err: unknown, mode: "password" | "pin") {
+    setInputValue("");
     // Check for forced_signout (401 with reason field)
-    const forced = await isForcedSignout(err)
+    const forced = await isForcedSignout(err);
     if (forced) {
-      setForcedSignout(true)
-      setErrorMsg('Session terminated. Signing you out…')
-      setInputDisabled(true)
+      setForcedSignout(true);
+      setErrorMsg("Session terminated. Signing you out…");
+      setInputDisabled(true);
       setTimeout(async () => {
-        await logout()
-        window.location.href = '/login'
-      }, 2500)
-      return
+        await logout();
+        window.location.href = "/login";
+      }, 2500);
+      return;
     }
     // Check for 429 rate limit
     const isRateLimit =
       (err instanceof Response && err.status === 429) ||
-      (err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 429)
+      (err &&
+        typeof err === "object" &&
+        "status" in err &&
+        (err as { status: number }).status === 429);
     if (isRateLimit) {
-      const retryAfter = await extractRetryAfter(err)
-      setErrorMsg(`Too many attempts — try again in ${formatCountdown(retryAfter)}`)
-      startCountdown(retryAfter)
-      return
+      const retryAfter = await extractRetryAfter(err);
+      setErrorMsg(
+        `Too many attempts — try again in ${formatCountdown(retryAfter)}`,
+      );
+      startCountdown(retryAfter);
+      return;
     }
     // Generic error
-    if (mode === 'pin') {
-      const next = pinFailures + 1
-      setPinFailures(next)
-      setErrorMsg('Incorrect PIN.')
+    if (mode === "pin") {
+      const next = pinFailures + 1;
+      setPinFailures(next);
+      setErrorMsg("Incorrect PIN.");
       if (next >= PIN_FAILURE_THRESHOLD) {
-        setErrorMsg('Too many PIN failures. Try your password instead.')
+        setErrorMsg("Too many PIN failures. Try your password instead.");
       }
     } else {
-      setErrorMsg('Incorrect password. Please try again.')
+      setErrorMsg("Incorrect password. Please try again.");
     }
   }
 
@@ -521,71 +543,75 @@ export default function LockOverlay() {
   // ---------------------------------------------------------------------------
 
   function handleSsoUnlock() {
-    resetAutoDismiss()
-    setSsoPopupBlocked(false)
-    setErrorMsg('')
+    resetAutoDismiss();
+    setSsoPopupBlocked(false);
+    setErrorMsg("");
 
     // Remove any previous handler
     if (ssoMessageHandlerRef.current) {
-      window.removeEventListener('message', ssoMessageHandlerRef.current)
-      ssoMessageHandlerRef.current = null
+      window.removeEventListener("message", ssoMessageHandlerRef.current);
+      ssoMessageHandlerRef.current = null;
     }
 
     // Register postMessage listener for SSO callback
     const handler = async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return
-      const data = event.data as Record<string, unknown>
-      if (data?.type !== 'sso_unlock_success') return
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as Record<string, unknown>;
+      if (data?.type !== "sso_unlock_success") return;
 
       // Remove handler immediately to avoid double-handling
-      window.removeEventListener('message', handler)
-      ssoMessageHandlerRef.current = null
+      window.removeEventListener("message", handler);
+      ssoMessageHandlerRef.current = null;
 
-      const token = data.token as string | undefined
+      const token = data.token as string | undefined;
       if (!token) {
-        setErrorMsg('SSO callback missing token. Please try again.')
-        return
+        setErrorMsg("SSO callback missing token. Please try again.");
+        return;
       }
 
-      setIsSubmitting(true)
+      setIsSubmitting(true);
       try {
-        const result = await authApi.verifySsoUnlock(token)
+        const result = await authApi.verifySsoUnlock(token);
         if (result.success) {
-          handleUnlockSuccess()
+          handleUnlockSuccess();
         } else {
-          setErrorMsg('SSO verification failed. Please try again.')
+          setErrorMsg("SSO verification failed. Please try again.");
         }
       } catch (err) {
-        const forced = await isForcedSignout(err)
+        const forced = await isForcedSignout(err);
         if (forced) {
-          setForcedSignout(true)
-          setErrorMsg('Session terminated. Signing you out…')
-          setInputDisabled(true)
+          setForcedSignout(true);
+          setErrorMsg("Session terminated. Signing you out…");
+          setInputDisabled(true);
           setTimeout(async () => {
-            await logout()
-            window.location.href = '/login'
-          }, 2500)
+            await logout();
+            window.location.href = "/login";
+          }, 2500);
         } else {
-          setErrorMsg('Unable to verify SSO token. Please try again.')
+          setErrorMsg("Unable to verify SSO token. Please try again.");
         }
       } finally {
-        setIsSubmitting(false)
+        setIsSubmitting(false);
       }
-    }
+    };
 
-    ssoMessageHandlerRef.current = handler
-    window.addEventListener('message', handler)
+    ssoMessageHandlerRef.current = handler;
+    window.addEventListener("message", handler);
 
     // Build the SSO unlock URL — the server provides this via the auth provider list.
     // For now we construct a conventional path; a real implementation would use
     // the provider's authorization URL from the providers API.
-    const ssoUrl = `/api/auth/sso-unlock?provider=${encodeURIComponent(authProvider)}`
+    const ssoUrl = `/api/auth/sso-unlock?provider=${encodeURIComponent(authProvider)}`;
 
-    const popup = window.open(ssoUrl, '_blank', 'width=500,height=600,noopener')
+    const popup = window.open(
+      ssoUrl,
+      "_blank",
+      "width=500,height=600,noopener",
+    );
     if (!popup) {
-      window.removeEventListener('message', handler)
-      ssoMessageHandlerRef.current = null
-      setSsoPopupBlocked(true)
+      window.removeEventListener("message", handler);
+      ssoMessageHandlerRef.current = null;
+      setSsoPopupBlocked(true);
     }
   }
 
@@ -595,48 +621,49 @@ export default function LockOverlay() {
 
   useEffect(() => {
     return () => {
-      if (autoDismissRef.current) clearTimeout(autoDismissRef.current)
-      if (fadeOutTimerRef.current) clearTimeout(fadeOutTimerRef.current)
-      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+      if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+      if (fadeOutTimerRef.current) clearTimeout(fadeOutTimerRef.current);
+      if (countdownIntervalRef.current)
+        clearInterval(countdownIntervalRef.current);
       if (ssoMessageHandlerRef.current) {
-        window.removeEventListener('message', ssoMessageHandlerRef.current)
+        window.removeEventListener("message", ssoMessageHandlerRef.current);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Render guard
   // ---------------------------------------------------------------------------
 
-  if (!isLocked || phase === 'hidden') return null
+  if (!isLocked || phase === "hidden") return null;
 
   // ---------------------------------------------------------------------------
   // Derived display values
   // ---------------------------------------------------------------------------
 
-  const displayName = user?.full_name ?? user?.username ?? 'Unknown User'
-  const initials = buildInitials(displayName) || 'IO'
+  const displayName = user?.full_name ?? user?.username ?? "Unknown User";
+  const initials = buildInitials(displayName) || "IO";
 
-  const providerLabel = authProviderName || authProvider.toUpperCase()
-  const isSSO = authProvider !== 'local'
+  const providerLabel = authProviderName || authProvider.toUpperCase();
+  const isSSO = authProvider !== "local";
 
   // Should the card offer a "Use password instead" link?
   const canSwitchToPassword =
-    !isSSO && unlockMode === 'pin' && pinFailures >= PIN_FAILURE_THRESHOLD
+    !isSSO && unlockMode === "pin" && pinFailures >= PIN_FAILURE_THRESHOLD;
 
   // Should the card offer a "Use PIN" link (when user switched away to password)?
-  const canSwitchToPin = !isSSO && hasPin && unlockMode === 'password'
+  const canSwitchToPin = !isSSO && hasPin && unlockMode === "password";
 
   const animationStyle: React.CSSProperties =
-    phase === 'exiting'
+    phase === "exiting"
       ? { animation: `lockOverlayFadeOut ${FADE_OUT_MS}ms ease-in forwards` }
-      : { animation: `lockOverlayFadeIn ${FADE_IN_MS}ms ease-out forwards` }
+      : { animation: `lockOverlayFadeIn ${FADE_IN_MS}ms ease-out forwards` };
 
   const submitDisabled =
     inputDisabled ||
     isSubmitting ||
     forcedSignout ||
-    (unlockMode !== 'sso' && !inputValue.trim())
+    (unlockMode !== "sso" && !inputValue.trim());
 
   // ---------------------------------------------------------------------------
   // Render
@@ -651,50 +678,50 @@ export default function LockOverlay() {
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
-        zIndex: 'var(--io-z-visual-lock)' as unknown as number,
-        background: 'rgba(0,0,0,0.6)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        zIndex: "var(--io-z-visual-lock)" as unknown as number,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         ...animationStyle,
       }}
     >
       {/* Lock card */}
       <div
         style={{
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius-lg, 12px)',
-          padding: '32px',
-          minWidth: '300px',
-          maxWidth: '360px',
-          width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          alignItems: 'center',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius-lg, 12px)",
+          padding: "32px",
+          minWidth: "300px",
+          maxWidth: "360px",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+          alignItems: "center",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
         }}
       >
         {/* Avatar */}
         <div
           aria-hidden="true"
           style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            background: 'var(--io-accent-subtle)',
-            border: '2px solid var(--io-accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '22px',
+            width: "64px",
+            height: "64px",
+            borderRadius: "50%",
+            background: "var(--io-accent-subtle)",
+            border: "2px solid var(--io-accent)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "22px",
             fontWeight: 700,
-            color: 'var(--io-accent)',
-            letterSpacing: '-0.5px',
-            userSelect: 'none',
+            color: "var(--io-accent)",
+            letterSpacing: "-0.5px",
+            userSelect: "none",
           }}
         >
           {initials}
@@ -703,10 +730,10 @@ export default function LockOverlay() {
         {/* Username */}
         <div
           style={{
-            fontSize: '16px',
+            fontSize: "16px",
             fontWeight: 600,
-            color: 'var(--io-text-primary)',
-            textAlign: 'center',
+            color: "var(--io-text-primary)",
+            textAlign: "center",
           }}
         >
           {displayName}
@@ -714,18 +741,18 @@ export default function LockOverlay() {
 
         <div
           style={{
-            fontSize: '13px',
-            color: 'var(--io-text-muted)',
-            textAlign: 'center',
-            marginTop: '-8px',
+            fontSize: "13px",
+            color: "var(--io-text-muted)",
+            textAlign: "center",
+            marginTop: "-8px",
           }}
         >
           Session locked.
-          {unlockMode === 'sso'
+          {unlockMode === "sso"
             ? ` Sign in with ${providerLabel} to continue.`
-            : unlockMode === 'pin'
-              ? ' Enter your PIN to continue.'
-              : ' Enter your password to continue.'}
+            : unlockMode === "pin"
+              ? " Enter your PIN to continue."
+              : " Enter your password to continue."}
         </div>
 
         {/* Popup blocked notice */}
@@ -733,33 +760,33 @@ export default function LockOverlay() {
           <div
             role="alert"
             style={{
-              width: '100%',
-              fontSize: '12px',
-              color: 'var(--io-text-primary)',
-              background: 'var(--io-surface-warning, rgba(234,179,8,0.12))',
-              border: '1px solid var(--io-warning, #ca8a04)',
-              borderRadius: 'var(--io-radius, 6px)',
-              padding: '10px 12px',
-              textAlign: 'center',
+              width: "100%",
+              fontSize: "12px",
+              color: "var(--io-text-primary)",
+              background: "var(--io-surface-warning, rgba(234,179,8,0.12))",
+              border: "1px solid var(--io-warning, #ca8a04)",
+              borderRadius: "var(--io-radius, 6px)",
+              padding: "10px 12px",
+              textAlign: "center",
               lineHeight: 1.5,
             }}
           >
-            Popups are blocked. {providerLabel} sign-in requires popups.
-            Allow popups for this site or{' '}
+            Popups are blocked. {providerLabel} sign-in requires popups. Allow
+            popups for this site or{" "}
             <button
               type="button"
               onClick={async () => {
-                await logout()
-                window.location.href = '/login'
+                await logout();
+                window.location.href = "/login";
               }}
               style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--io-accent)',
-                cursor: 'pointer',
-                fontSize: '12px',
+                background: "none",
+                border: "none",
+                color: "var(--io-accent)",
+                cursor: "pointer",
+                fontSize: "12px",
                 padding: 0,
-                textDecoration: 'underline',
+                textDecoration: "underline",
               }}
             >
               sign out
@@ -769,12 +796,26 @@ export default function LockOverlay() {
         )}
 
         {/* PIN input */}
-        {unlockMode === 'pin' && (
-          <form onSubmit={handlePinSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {unlockMode === "pin" && (
+          <form
+            onSubmit={handlePinSubmit}
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+            >
               <label
                 htmlFor="lock-pin"
-                style={{ fontSize: '12px', color: 'var(--io-text-secondary)', fontWeight: 500 }}
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-text-secondary)",
+                  fontWeight: 500,
+                }}
               >
                 PIN
               </label>
@@ -791,16 +832,16 @@ export default function LockOverlay() {
                 disabled={inputDisabled || isSubmitting || forcedSignout}
                 placeholder="6-digit PIN"
                 style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'var(--io-surface-input, var(--io-surface))',
-                  border: `1px solid ${errorMsg ? 'var(--io-destructive, #ef4444)' : 'var(--io-border)'}`,
-                  borderRadius: 'var(--io-radius, 6px)',
-                  color: 'var(--io-text-primary)',
-                  fontSize: '14px',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  letterSpacing: '0.3em',
+                  width: "100%",
+                  padding: "8px 12px",
+                  background: "var(--io-surface-input, var(--io-surface))",
+                  border: `1px solid ${errorMsg ? "var(--io-destructive, #ef4444)" : "var(--io-border)"}`,
+                  borderRadius: "var(--io-radius, 6px)",
+                  color: "var(--io-text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  letterSpacing: "0.3em",
                 }}
               />
             </div>
@@ -809,7 +850,11 @@ export default function LockOverlay() {
               disabled={submitDisabled}
               style={submitButtonStyle(submitDisabled)}
             >
-              {isSubmitting ? 'Verifying…' : countdown > 0 ? `Try again in ${formatCountdown(countdown)}` : 'Unlock'}
+              {isSubmitting
+                ? "Verifying…"
+                : countdown > 0
+                  ? `Try again in ${formatCountdown(countdown)}`
+                  : "Unlock"}
             </button>
             {/* Offer SSO button alongside PIN for SSO accounts */}
             {isSSO && (
@@ -826,7 +871,11 @@ export default function LockOverlay() {
             {canSwitchToPassword && (
               <button
                 type="button"
-                onClick={() => { setUnlockMode('password'); setInputValue(''); setErrorMsg('') }}
+                onClick={() => {
+                  setUnlockMode("password");
+                  setInputValue("");
+                  setErrorMsg("");
+                }}
                 style={linkButtonStyle()}
               >
                 Try password instead?
@@ -837,12 +886,26 @@ export default function LockOverlay() {
         )}
 
         {/* Password input */}
-        {unlockMode === 'password' && (
-          <form onSubmit={handlePasswordSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {unlockMode === "password" && (
+          <form
+            onSubmit={handlePasswordSubmit}
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+            >
               <label
                 htmlFor="lock-password"
-                style={{ fontSize: '12px', color: 'var(--io-text-secondary)', fontWeight: 500 }}
+                style={{
+                  fontSize: "12px",
+                  color: "var(--io-text-secondary)",
+                  fontWeight: 500,
+                }}
               >
                 Password
               </label>
@@ -856,15 +919,15 @@ export default function LockOverlay() {
                 disabled={inputDisabled || isSubmitting || forcedSignout}
                 placeholder="Enter password"
                 style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'var(--io-surface-input, var(--io-surface))',
-                  border: `1px solid ${errorMsg ? 'var(--io-destructive, #ef4444)' : 'var(--io-border)'}`,
-                  borderRadius: 'var(--io-radius, 6px)',
-                  color: 'var(--io-text-primary)',
-                  fontSize: '14px',
-                  outline: 'none',
-                  boxSizing: 'border-box',
+                  width: "100%",
+                  padding: "8px 12px",
+                  background: "var(--io-surface-input, var(--io-surface))",
+                  border: `1px solid ${errorMsg ? "var(--io-destructive, #ef4444)" : "var(--io-border)"}`,
+                  borderRadius: "var(--io-radius, 6px)",
+                  color: "var(--io-text-primary)",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxSizing: "border-box",
                 }}
               />
             </div>
@@ -873,12 +936,20 @@ export default function LockOverlay() {
               disabled={submitDisabled}
               style={submitButtonStyle(submitDisabled)}
             >
-              {isSubmitting ? 'Verifying…' : countdown > 0 ? `Try again in ${formatCountdown(countdown)}` : 'Unlock'}
+              {isSubmitting
+                ? "Verifying…"
+                : countdown > 0
+                  ? `Try again in ${formatCountdown(countdown)}`
+                  : "Unlock"}
             </button>
             {canSwitchToPin && (
               <button
                 type="button"
-                onClick={() => { setUnlockMode('pin'); setInputValue(''); setErrorMsg('') }}
+                onClick={() => {
+                  setUnlockMode("pin");
+                  setInputValue("");
+                  setErrorMsg("");
+                }}
                 style={linkButtonStyle()}
               >
                 Use PIN instead
@@ -888,15 +959,22 @@ export default function LockOverlay() {
         )}
 
         {/* SSO-only mode (no PIN) */}
-        {unlockMode === 'sso' && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {unlockMode === "sso" && (
+          <div
+            style={{
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
             <button
               type="button"
               onClick={handleSsoUnlock}
               disabled={isSubmitting || forcedSignout}
               style={ssoButtonStyle(isSubmitting || forcedSignout)}
             >
-              {isSubmitting ? 'Signing in…' : `${providerLabel} Sign In`}
+              {isSubmitting ? "Signing in…" : `${providerLabel} Sign In`}
             </button>
           </div>
         )}
@@ -906,15 +984,17 @@ export default function LockOverlay() {
           <div
             role="alert"
             style={{
-              width: '100%',
-              fontSize: '12px',
-              color: forcedSignout ? 'var(--io-text-primary)' : 'var(--io-destructive, #ef4444)',
-              textAlign: 'center',
-              padding: '6px 10px',
+              width: "100%",
+              fontSize: "12px",
+              color: forcedSignout
+                ? "var(--io-text-primary)"
+                : "var(--io-destructive, #ef4444)",
+              textAlign: "center",
+              padding: "6px 10px",
               background: forcedSignout
-                ? 'rgba(100,100,100,0.1)'
-                : 'rgba(239,68,68,0.1)',
-              borderRadius: 'var(--io-radius, 6px)',
+                ? "rgba(100,100,100,0.1)"
+                : "rgba(239,68,68,0.1)",
+              borderRadius: "var(--io-radius, 6px)",
             }}
           >
             {errorMsg}
@@ -925,18 +1005,18 @@ export default function LockOverlay() {
         <button
           type="button"
           onClick={async () => {
-            await logout()
-            window.location.href = '/login'
+            await logout();
+            window.location.href = "/login";
           }}
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--io-text-muted)',
-            cursor: 'pointer',
-            fontSize: '12px',
-            padding: '4px',
-            textDecoration: 'underline',
-            marginTop: '-4px',
+            background: "none",
+            border: "none",
+            color: "var(--io-text-muted)",
+            cursor: "pointer",
+            fontSize: "12px",
+            padding: "4px",
+            textDecoration: "underline",
+            marginTop: "-4px",
           }}
         >
           Sign out
@@ -954,7 +1034,7 @@ export default function LockOverlay() {
         }
       `}</style>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -963,45 +1043,45 @@ export default function LockOverlay() {
 
 function submitButtonStyle(disabled: boolean): React.CSSProperties {
   return {
-    width: '100%',
-    padding: '10px 16px',
-    background: 'var(--io-accent)',
-    color: 'var(--io-accent-foreground, #fff)',
-    border: 'none',
-    borderRadius: 'var(--io-radius, 6px)',
-    fontSize: '14px',
+    width: "100%",
+    padding: "10px 16px",
+    background: "var(--io-accent)",
+    color: "var(--io-accent-foreground, #fff)",
+    border: "none",
+    borderRadius: "var(--io-radius, 6px)",
+    fontSize: "14px",
     fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
+    cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
-    transition: 'opacity 0.15s',
-  }
+    transition: "opacity 0.15s",
+  };
 }
 
 function ssoButtonStyle(disabled: boolean): React.CSSProperties {
   return {
-    width: '100%',
-    padding: '10px 16px',
-    background: 'var(--io-surface)',
-    color: 'var(--io-text-primary)',
-    border: '1px solid var(--io-border)',
-    borderRadius: 'var(--io-radius, 6px)',
-    fontSize: '14px',
+    width: "100%",
+    padding: "10px 16px",
+    background: "var(--io-surface)",
+    color: "var(--io-text-primary)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius, 6px)",
+    fontSize: "14px",
     fontWeight: 500,
-    cursor: disabled ? 'not-allowed' : 'pointer',
+    cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
-    transition: 'opacity 0.15s',
-  }
+    transition: "opacity 0.15s",
+  };
 }
 
 function linkButtonStyle(): React.CSSProperties {
   return {
-    background: 'none',
-    border: 'none',
-    color: 'var(--io-accent)',
-    cursor: 'pointer',
-    fontSize: '12px',
-    padding: '2px 0',
-    textDecoration: 'underline',
-    alignSelf: 'center',
-  }
+    background: "none",
+    border: "none",
+    color: "var(--io-accent)",
+    cursor: "pointer",
+    fontSize: "12px",
+    padding: "2px 0",
+    textDecoration: "underline",
+    alignSelf: "center",
+  };
 }

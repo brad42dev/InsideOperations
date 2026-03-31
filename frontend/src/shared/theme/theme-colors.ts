@@ -16,102 +16,105 @@
 
 export interface ThemeColorSet {
   // Chart & Visualization
-  chartBg: string
-  chartGrid: string
-  chartAxis: string
-  chartCrosshair: string
-  chartTooltipBg: string
+  chartBg: string;
+  chartGrid: string;
+  chartAxis: string;
+  chartCrosshair: string;
+  chartTooltipBg: string;
 
   // Alarm Priority (ISA-101)
-  alarmCritical: string
-  alarmHigh: string
-  alarmMedium: string
-  alarmAdvisory: string
+  alarmCritical: string;
+  alarmHigh: string;
+  alarmMedium: string;
+  alarmAdvisory: string;
 
   // Pen colors (static across themes)
-  pen1: string
-  pen2: string
-  pen3: string
-  pen4: string
-  pen5: string
-  pen6: string
-  pen7: string
-  pen8: string
+  pen1: string;
+  pen2: string;
+  pen3: string;
+  pen4: string;
+  pen5: string;
+  pen6: string;
+  pen7: string;
+  pen8: string;
 }
 
-export const themeColors: Record<'light' | 'dark' | 'high-contrast', ThemeColorSet> = {
+export const themeColors: Record<
+  "light" | "dark" | "high-contrast",
+  ThemeColorSet
+> = {
   light: {
     // Chart & Visualization — matches lightTokens in tokens.ts
-    chartBg: '#ffffff',
-    chartGrid: '#f5f6f8',
-    chartAxis: '#6b7280',
-    chartCrosshair: '#9ca3af',
-    chartTooltipBg: '#ffffff',
+    chartBg: "#ffffff",
+    chartGrid: "#f5f6f8",
+    chartAxis: "#6b7280",
+    chartCrosshair: "#9ca3af",
+    chartTooltipBg: "#ffffff",
 
     // Alarm Priority — matches lightTokens in tokens.ts
-    alarmCritical: '#dc2626',
-    alarmHigh: '#d97706',
-    alarmMedium: '#ca8a04',
-    alarmAdvisory: '#0891b2',
+    alarmCritical: "#dc2626",
+    alarmHigh: "#d97706",
+    alarmMedium: "#ca8a04",
+    alarmAdvisory: "#0891b2",
 
     // Pen colors (static) — matches lightTokens in tokens.ts
-    pen1: '#2563eb',
-    pen2: '#dc2626',
-    pen3: '#16a34a',
-    pen4: '#d97706',
-    pen5: '#7c3aed',
-    pen6: '#0891b2',
-    pen7: '#db2777',
-    pen8: '#65a30d',
+    pen1: "#2563eb",
+    pen2: "#dc2626",
+    pen3: "#16a34a",
+    pen4: "#d97706",
+    pen5: "#7c3aed",
+    pen6: "#0891b2",
+    pen7: "#db2777",
+    pen8: "#65a30d",
   },
 
   dark: {
     // Chart & Visualization — matches darkTokens in tokens.ts
-    chartBg: '#18181b',
-    chartGrid: '#3f3f46',
-    chartAxis: '#a1a1aa',
-    chartCrosshair: '#71717a',
-    chartTooltipBg: '#27272a',
+    chartBg: "#18181b",
+    chartGrid: "#3f3f46",
+    chartAxis: "#a1a1aa",
+    chartCrosshair: "#71717a",
+    chartTooltipBg: "#27272a",
 
     // Alarm Priority — matches darkTokens in tokens.ts
-    alarmCritical: '#ef4444',
-    alarmHigh: '#f59e0b',
-    alarmMedium: '#eab308',
-    alarmAdvisory: '#06b6d4',
+    alarmCritical: "#ef4444",
+    alarmHigh: "#f59e0b",
+    alarmMedium: "#eab308",
+    alarmAdvisory: "#06b6d4",
 
     // Pen colors (static) — matches darkTokens in tokens.ts
-    pen1: '#2563eb',
-    pen2: '#dc2626',
-    pen3: '#16a34a',
-    pen4: '#d97706',
-    pen5: '#7c3aed',
-    pen6: '#0891b2',
-    pen7: '#db2777',
-    pen8: '#65a30d',
+    pen1: "#2563eb",
+    pen2: "#dc2626",
+    pen3: "#16a34a",
+    pen4: "#d97706",
+    pen5: "#7c3aed",
+    pen6: "#0891b2",
+    pen7: "#db2777",
+    pen8: "#65a30d",
   },
 
-  'high-contrast': {
+  "high-contrast": {
     // Chart & Visualization — matches hphmiTokens in tokens.ts
-    chartBg: '#1e293b',
-    chartGrid: '#3d5166',
-    chartAxis: '#94a3b8',
-    chartCrosshair: '#64748b',
-    chartTooltipBg: '#1e293b',
+    chartBg: "#1e293b",
+    chartGrid: "#3d5166",
+    chartAxis: "#94a3b8",
+    chartCrosshair: "#64748b",
+    chartTooltipBg: "#1e293b",
 
     // Alarm Priority — matches hphmiTokens in tokens.ts
-    alarmCritical: '#ef4444',
-    alarmHigh: '#f59e0b',
-    alarmMedium: '#eab308',
-    alarmAdvisory: '#06b6d4',
+    alarmCritical: "#ef4444",
+    alarmHigh: "#f59e0b",
+    alarmMedium: "#eab308",
+    alarmAdvisory: "#06b6d4",
 
     // Pen colors (static) — matches hphmiTokens in tokens.ts
-    pen1: '#2563eb',
-    pen2: '#dc2626',
-    pen3: '#16a34a',
-    pen4: '#d97706',
-    pen5: '#7c3aed',
-    pen6: '#0891b2',
-    pen7: '#db2777',
-    pen8: '#65a30d',
+    pen1: "#2563eb",
+    pen2: "#dc2626",
+    pen3: "#16a34a",
+    pen4: "#d97706",
+    pen5: "#7c3aed",
+    pen6: "#0891b2",
+    pen7: "#db2777",
+    pen8: "#65a30d",
   },
-}
+};

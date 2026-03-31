@@ -31,6 +31,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Development screenshots (UAT/debugging PNGs in repo root)
+/*.png
+
 # Installer artifacts
 /dist/
 /packages/

@@ -130,113 +130,108 @@ pub async fn trigger_alert(
     // Template resolution: if template_id is provided, load the template and
     // render title/message using MiniJinja with the supplied template_variables.
     // ---------------------------------------------------------------------------
-    let (resolved_title, resolved_message, resolved_severity, resolved_channels, resolved_template_id) =
-        if let Some(template_id) = body.template_id {
-            // Load the template from the database.
-            let tmpl = sqlx::query_as::<_, super::templates::AlertTemplate>(
-                &format!(
-                    "SELECT {cols}
+    let (
+        resolved_title,
+        resolved_message,
+        resolved_severity,
+        resolved_channels,
+        resolved_template_id,
+    ) = if let Some(template_id) = body.template_id {
+        // Load the template from the database.
+        let tmpl = sqlx::query_as::<_, super::templates::AlertTemplate>(&format!(
+            "SELECT {cols}
                      FROM alert_templates
                      WHERE id = $1 AND enabled = true",
-                    cols = super::templates::TEMPLATE_COLUMNS
-                ),
-            )
-            .bind(template_id)
-            .fetch_optional(&state.db)
-            .await;
+            cols = super::templates::TEMPLATE_COLUMNS
+        ))
+        .bind(template_id)
+        .fetch_optional(&state.db)
+        .await;
 
-            let tmpl = match tmpl {
-                Ok(Some(t)) => t,
-                Ok(None) => {
-                    return IoError::NotFound(format!(
-                        "Alert template {} not found or disabled",
-                        template_id
-                    ))
-                    .into_response();
-                }
-                Err(e) => return IoError::Database(e).into_response(),
-            };
+        let tmpl = match tmpl {
+            Ok(Some(t)) => t,
+            Ok(None) => {
+                return IoError::NotFound(format!(
+                    "Alert template {} not found or disabled",
+                    template_id
+                ))
+                .into_response();
+            }
+            Err(e) => return IoError::Database(e).into_response(),
+        };
 
-            // Build the variable context.
-            let vars = body
-                .template_variables
-                .clone()
-                .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+        // Build the variable context.
+        let vars = body
+            .template_variables
+            .clone()
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-            // Validate that every declared variable is present in the vars map.
-            if let Some(ref required_vars) = tmpl.variables {
-                if let serde_json::Value::Object(ref map) = vars {
-                    for required_var in required_vars {
-                        if !map.contains_key(required_var.as_str()) {
-                            return IoError::field(
-                                "template_variables",
-                                format!(
-                                    "Missing required template variable: {}",
-                                    required_var
-                                ),
-                            )
-                            .into_response();
-                        }
+        // Validate that every declared variable is present in the vars map.
+        if let Some(ref required_vars) = tmpl.variables {
+            if let serde_json::Value::Object(ref map) = vars {
+                for required_var in required_vars {
+                    if !map.contains_key(required_var.as_str()) {
+                        return IoError::field(
+                            "template_variables",
+                            format!("Missing required template variable: {}", required_var),
+                        )
+                        .into_response();
                     }
                 }
             }
+        }
 
-            // Render title template.
-            let rendered_title = match render_template(&tmpl.title_template, &vars) {
-                Ok(s) => s,
-                Err(e) => {
-                    return IoError::field(
-                        "title_template",
-                        format!("Template render error: {}", e),
-                    )
+        // Render title template.
+        let rendered_title = match render_template(&tmpl.title_template, &vars) {
+            Ok(s) => s,
+            Err(e) => {
+                return IoError::field("title_template", format!("Template render error: {}", e))
                     .into_response();
-                }
-            };
-
-            // Render message template.
-            let rendered_message = match render_template(&tmpl.message_template, &vars) {
-                Ok(s) => s,
-                Err(e) => {
-                    return IoError::field(
-                        "message_template",
-                        format!("Template render error: {}", e),
-                    )
-                    .into_response();
-                }
-            };
-
-            // Use template severity if caller did not override it.
-            let severity = body
-                .severity
-                .clone()
-                .unwrap_or(tmpl.severity);
-
-            // Use template channels if caller did not provide their own list.
-            let channels = body.channels.clone().unwrap_or(tmpl.channels);
-
-            (
-                rendered_title,
-                rendered_message,
-                severity,
-                channels,
-                Some(template_id),
-            )
-        } else {
-            // No template — use raw title/message from request body.
-            let title = match &body.title {
-                Some(t) if !t.trim().is_empty() => t.trim().to_string(),
-                _ => {
-                    return IoError::field("title", "Title is required when no template_id is provided").into_response();
-                }
-            };
-            let severity = body.severity.as_deref().unwrap_or("info").to_string();
-            let message = body.message.clone().unwrap_or_default();
-            let channels = body
-                .channels
-                .clone()
-                .unwrap_or_else(|| vec!["websocket".to_string()]);
-            (title, message, severity, channels, None)
+            }
         };
+
+        // Render message template.
+        let rendered_message = match render_template(&tmpl.message_template, &vars) {
+            Ok(s) => s,
+            Err(e) => {
+                return IoError::field("message_template", format!("Template render error: {}", e))
+                    .into_response();
+            }
+        };
+
+        // Use template severity if caller did not override it.
+        let severity = body.severity.clone().unwrap_or(tmpl.severity);
+
+        // Use template channels if caller did not provide their own list.
+        let channels = body.channels.clone().unwrap_or(tmpl.channels);
+
+        (
+            rendered_title,
+            rendered_message,
+            severity,
+            channels,
+            Some(template_id),
+        )
+    } else {
+        // No template — use raw title/message from request body.
+        let title = match &body.title {
+            Some(t) if !t.trim().is_empty() => t.trim().to_string(),
+            _ => {
+                return IoError::field(
+                    "title",
+                    "Title is required when no template_id is provided",
+                )
+                .into_response();
+            }
+        };
+        let severity = body.severity.as_deref().unwrap_or("info").to_string();
+        let message = body.message.clone().unwrap_or_default();
+        let channels = body
+            .channels
+            .clone()
+            .unwrap_or_else(|| vec!["websocket".to_string()]);
+        (title, message, severity, channels, None)
+    };
 
     // Validate final severity (could come from template or caller).
     let severity = resolved_severity;
@@ -252,15 +247,13 @@ pub async fn trigger_alert(
     let source = body.source.clone().unwrap_or_else(|| "manual".to_string());
     let channels_used: Vec<String> = resolved_channels;
 
-    let alert = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "INSERT INTO alerts
+    let alert = sqlx::query_as::<_, AlertInstance>(&format!(
+        "INSERT INTO alerts
                  (title, message, severity, source, source_reference_id,
                   template_id, roster_id, channels_used)
              VALUES ($1, $2, $3::alert_severity, $4, $5, $6, $7, $8)
              RETURNING {ALERT_COLUMNS}"
-        ),
-    )
+    ))
     .bind(&resolved_title)
     .bind(&message)
     .bind(&severity)
@@ -300,15 +293,13 @@ pub async fn list_alerts(
     // Build query dynamically based on filters
     let alerts = match (&params.status, &params.severity) {
         (Some(status), Some(severity)) => {
-            sqlx::query_as::<_, AlertInstance>(
-                &format!(
-                    "SELECT {ALERT_COLUMNS}
+            sqlx::query_as::<_, AlertInstance>(&format!(
+                "SELECT {ALERT_COLUMNS}
                      FROM alerts
                      WHERE status = $1::alert_status AND severity = $2::alert_severity
                      ORDER BY triggered_at DESC
                      LIMIT $3 OFFSET $4"
-                ),
-            )
+            ))
             .bind(status)
             .bind(severity)
             .bind(limit)
@@ -317,15 +308,13 @@ pub async fn list_alerts(
             .await
         }
         (Some(status), None) => {
-            sqlx::query_as::<_, AlertInstance>(
-                &format!(
-                    "SELECT {ALERT_COLUMNS}
+            sqlx::query_as::<_, AlertInstance>(&format!(
+                "SELECT {ALERT_COLUMNS}
                      FROM alerts
                      WHERE status = $1::alert_status
                      ORDER BY triggered_at DESC
                      LIMIT $2 OFFSET $3"
-                ),
-            )
+            ))
             .bind(status)
             .bind(limit)
             .bind(offset)
@@ -333,15 +322,13 @@ pub async fn list_alerts(
             .await
         }
         (None, Some(severity)) => {
-            sqlx::query_as::<_, AlertInstance>(
-                &format!(
-                    "SELECT {ALERT_COLUMNS}
+            sqlx::query_as::<_, AlertInstance>(&format!(
+                "SELECT {ALERT_COLUMNS}
                      FROM alerts
                      WHERE severity = $1::alert_severity
                      ORDER BY triggered_at DESC
                      LIMIT $2 OFFSET $3"
-                ),
-            )
+            ))
             .bind(severity)
             .bind(limit)
             .bind(offset)
@@ -349,14 +336,12 @@ pub async fn list_alerts(
             .await
         }
         (None, None) => {
-            sqlx::query_as::<_, AlertInstance>(
-                &format!(
-                    "SELECT {ALERT_COLUMNS}
+            sqlx::query_as::<_, AlertInstance>(&format!(
+                "SELECT {ALERT_COLUMNS}
                      FROM alerts
                      ORDER BY triggered_at DESC
                      LIMIT $1 OFFSET $2"
-                ),
-            )
+            ))
             .bind(limit)
             .bind(offset)
             .fetch_all(&state.db)
@@ -371,17 +356,12 @@ pub async fn list_alerts(
 }
 
 /// GET /alerts/:id — get alert with deliveries
-pub async fn get_alert(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let alert = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "SELECT {ALERT_COLUMNS}
+pub async fn get_alert(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
+    let alert = sqlx::query_as::<_, AlertInstance>(&format!(
+        "SELECT {ALERT_COLUMNS}
              FROM alerts
              WHERE id = $1"
-        ),
-    )
+    ))
     .bind(id)
     .fetch_optional(&state.db)
     .await;
@@ -425,12 +405,10 @@ pub async fn acknowledge_alert(
     let user_id = extract_user_id(&headers);
 
     // Verify alert exists and is active
-    let alert = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "SELECT {ALERT_COLUMNS}
+    let alert = sqlx::query_as::<_, AlertInstance>(&format!(
+        "SELECT {ALERT_COLUMNS}
              FROM alerts WHERE id = $1"
-        ),
-    )
+    ))
     .bind(id)
     .fetch_optional(&state.db)
     .await;
@@ -449,16 +427,14 @@ pub async fn acknowledge_alert(
             .into_response();
     }
 
-    let updated = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "UPDATE alerts
+    let updated = sqlx::query_as::<_, AlertInstance>(&format!(
+        "UPDATE alerts
              SET status = 'acknowledged'::alert_status,
                  acknowledged_by = $1,
                  acknowledged_at = now()
              WHERE id = $2
              RETURNING {ALERT_COLUMNS}"
-        ),
-    )
+    ))
     .bind(user_id)
     .bind(id)
     .fetch_one(&state.db)
@@ -484,10 +460,7 @@ pub async fn acknowledge_alert(
                     "acknowledged_at": a.acknowledged_at,
                 }
             });
-            let broker_url = format!(
-                "{}/internal/broadcast",
-                state.config.data_broker_url
-            );
+            let broker_url = format!("{}/internal/broadcast", state.config.data_broker_url);
             let http = state.http.clone();
             let secret = state.config.service_secret.clone();
             tokio::spawn(async move {
@@ -535,12 +508,10 @@ pub async fn resolve_alert(
 ) -> impl IntoResponse {
     let user_id = extract_user_id(&headers);
 
-    let alert = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "SELECT {ALERT_COLUMNS}
+    let alert = sqlx::query_as::<_, AlertInstance>(&format!(
+        "SELECT {ALERT_COLUMNS}
              FROM alerts WHERE id = $1"
-        ),
-    )
+    ))
     .bind(id)
     .fetch_optional(&state.db)
     .await;
@@ -555,16 +526,14 @@ pub async fn resolve_alert(
         return IoError::BadRequest("Alert already resolved".to_string()).into_response();
     }
 
-    let updated = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "UPDATE alerts
+    let updated = sqlx::query_as::<_, AlertInstance>(&format!(
+        "UPDATE alerts
              SET status = 'resolved'::alert_status,
                  resolved_by = $1,
                  resolved_at = now()
              WHERE id = $2
              RETURNING {ALERT_COLUMNS}"
-        ),
-    )
+    ))
     .bind(user_id)
     .bind(id)
     .fetch_one(&state.db)
@@ -590,12 +559,10 @@ pub async fn cancel_alert(
 ) -> impl IntoResponse {
     let user_id = extract_user_id(&headers);
 
-    let alert = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "SELECT {ALERT_COLUMNS}
+    let alert = sqlx::query_as::<_, AlertInstance>(&format!(
+        "SELECT {ALERT_COLUMNS}
              FROM alerts WHERE id = $1"
-        ),
-    )
+    ))
     .bind(id)
     .fetch_optional(&state.db)
     .await;
@@ -613,16 +580,14 @@ pub async fn cancel_alert(
         return IoError::BadRequest("Cannot cancel a resolved alert".to_string()).into_response();
     }
 
-    let updated = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "UPDATE alerts
+    let updated = sqlx::query_as::<_, AlertInstance>(&format!(
+        "UPDATE alerts
              SET status = 'cancelled'::alert_status,
                  cancelled_by = $1,
                  cancelled_at = now()
              WHERE id = $2
              RETURNING {ALERT_COLUMNS}"
-        ),
-    )
+    ))
     .bind(user_id)
     .bind(id)
     .fetch_one(&state.db)
@@ -648,15 +613,13 @@ pub async fn list_active_alerts(
     let limit = params.limit.unwrap_or(50).clamp(1, 200);
     let offset = params.offset.unwrap_or(0).max(0);
 
-    let alerts = sqlx::query_as::<_, AlertInstance>(
-        &format!(
-            "SELECT {ALERT_COLUMNS}
+    let alerts = sqlx::query_as::<_, AlertInstance>(&format!(
+        "SELECT {ALERT_COLUMNS}
              FROM alerts
              WHERE status = 'active'::alert_status
              ORDER BY severity ASC, triggered_at DESC
              LIMIT $1 OFFSET $2"
-        ),
-    )
+    ))
     .bind(limit)
     .bind(offset)
     .fetch_all(&state.db)
@@ -907,10 +870,7 @@ mod tests {
     #[test]
     fn valid_severity_strings_are_accepted() {
         for sev in ["emergency", "critical", "warning", "info"] {
-            assert!(
-                is_valid_severity(sev),
-                "\"{sev}\" must be a valid severity"
-            );
+            assert!(is_valid_severity(sev), "\"{sev}\" must be a valid severity");
         }
     }
 

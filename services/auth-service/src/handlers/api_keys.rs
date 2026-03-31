@@ -102,7 +102,9 @@ pub async fn list_api_keys(
         .into_iter()
         .map(|r| {
             // scopes is TEXT[] in the database
-            let scopes: Vec<String> = r.get::<Option<Vec<String>>, _>("scopes").unwrap_or_default();
+            let scopes: Vec<String> = r
+                .get::<Option<Vec<String>>, _>("scopes")
+                .unwrap_or_default();
 
             ApiKeyRow {
                 id: r.get("id"),
@@ -177,13 +179,11 @@ pub async fn delete_api_key(
 ) -> IoResult<impl IntoResponse> {
     let user_id = extract_user_id(&headers)?;
 
-    let result = sqlx::query(
-        "DELETE FROM api_keys WHERE id = $1 AND user_id = $2",
-    )
-    .bind(id)
-    .bind(user_id)
-    .execute(&state.db)
-    .await?;
+    let result = sqlx::query("DELETE FROM api_keys WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(IoError::NotFound("API key not found".to_string()));

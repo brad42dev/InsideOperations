@@ -1,138 +1,140 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { usePermission } from '../../shared/hooks/usePermission'
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePermission } from "../../shared/hooks/usePermission";
 
-import WorkspaceGrid, { presetToGridItems } from './WorkspaceGrid'
-import type { GridItem } from './types'
-import ConsolePalette, { type ConsoleDragItem } from './ConsolePalette'
-import HistoricalPlaybackBar from '../../shared/components/HistoricalPlaybackBar'
-import PaneConfigModal from './PaneConfigModal'
-import ContextMenu from '../../shared/components/ContextMenu'
-import type { WorkspaceLayout, PaneConfig, LayoutPreset } from './types'
-import { uuidv4 } from '../../lib/uuid'
-import { consoleApi } from '../../api/console'
-import { useAuthStore } from '../../store/auth'
-import { useUiStore } from '../../store/ui'
-import { usePlaybackStore } from '../../store/playback'
-import { useWorkspaceStore, useWorkspaceTemporal, makeNewWorkspace } from '../../store/workspaceStore'
-import { useSelectionStore } from '../../store/selectionStore'
-import { useRealtimeStore } from '../../store/realtimeStore'
-import { ExportDialog } from '../../shared/components/ExportDialog'
-import { exportsApi, type ExportFormat } from '../../api/exports'
-import { showToast } from '../../shared/components/Toast'
-import { useConsoleWorkspaceFavorites } from '../../shared/hooks/useConsoleWorkspaceFavorites'
+import WorkspaceGrid, { presetToGridItems } from "./WorkspaceGrid";
+import type { GridItem } from "./types";
+import ConsolePalette, { type ConsoleDragItem } from "./ConsolePalette";
+import HistoricalPlaybackBar from "../../shared/components/HistoricalPlaybackBar";
+import PaneConfigModal from "./PaneConfigModal";
+import ContextMenu from "../../shared/components/ContextMenu";
+import type { WorkspaceLayout, PaneConfig, LayoutPreset } from "./types";
+import { uuidv4 } from "../../lib/uuid";
+import { consoleApi } from "../../api/console";
+import { useAuthStore } from "../../store/auth";
+import { useUiStore } from "../../store/ui";
+import { usePlaybackStore } from "../../store/playback";
+import {
+  useWorkspaceStore,
+  useWorkspaceTemporal,
+  makeNewWorkspace,
+} from "../../store/workspaceStore";
+import { useSelectionStore } from "../../store/selectionStore";
+import { useRealtimeStore } from "../../store/realtimeStore";
+import { ExportDialog } from "../../shared/components/ExportDialog";
+import { exportsApi, type ExportFormat } from "../../api/exports";
+import { showToast } from "../../shared/components/Toast";
+import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
 
 // ---------------------------------------------------------------------------
 // ConsoleStatusBar
 // ---------------------------------------------------------------------------
 
-function ConsoleStatusBar({
-  workspaceName,
-}: {
-  workspaceName: string
-}) {
-  const { mode } = usePlaybackStore()
-  const isHistorical = mode === 'historical'
-  const { connectionStatus, subscribedPointCount } = useRealtimeStore()
+function ConsoleStatusBar({ workspaceName }: { workspaceName: string }) {
+  const { mode } = usePlaybackStore();
+  const isHistorical = mode === "historical";
+  const { connectionStatus, subscribedPointCount } = useRealtimeStore();
 
   return (
     <div
       style={{
         height: 24,
         flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
+        display: "flex",
+        alignItems: "center",
         gap: 12,
-        padding: '0 10px',
-        background: 'var(--io-surface-secondary)',
-        borderTop: '1px solid var(--io-border)',
+        padding: "0 10px",
+        background: "var(--io-surface-secondary)",
+        borderTop: "1px solid var(--io-border)",
         fontSize: 11,
-        color: 'var(--io-text-muted)',
-        userSelect: 'none',
+        color: "var(--io-text-muted)",
+        userSelect: "none",
       }}
     >
       {/* Connection dot */}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <span
           style={{
             width: 6,
             height: 6,
-            borderRadius: '50%',
+            borderRadius: "50%",
             background:
-              connectionStatus === 'connected'
-                ? 'var(--io-success)'
-                : connectionStatus === 'connecting'
-                ? 'var(--io-warning)'
-                : 'var(--io-danger)',
-            display: 'inline-block',
+              connectionStatus === "connected"
+                ? "var(--io-success)"
+                : connectionStatus === "connecting"
+                  ? "var(--io-warning)"
+                  : "var(--io-danger)",
+            display: "inline-block",
           }}
         />
-        {connectionStatus === 'connected'
-          ? 'Connected'
-          : connectionStatus === 'connecting'
-          ? 'Connecting…'
-          : connectionStatus === 'error'
-          ? 'Error'
-          : 'Disconnected'}
+        {connectionStatus === "connected"
+          ? "Connected"
+          : connectionStatus === "connecting"
+            ? "Connecting…"
+            : connectionStatus === "error"
+              ? "Error"
+              : "Disconnected"}
       </span>
-      <span style={{ color: 'var(--io-border)' }}>|</span>
+      <span style={{ color: "var(--io-border)" }}>|</span>
       {/* Points */}
       <span>{subscribedPointCount} points subscribed</span>
-      <span style={{ color: 'var(--io-border)' }}>|</span>
+      <span style={{ color: "var(--io-border)" }}>|</span>
       {/* Workspace name */}
       {workspaceName && (
         <>
           <span
             style={{
-              color: 'var(--io-text-primary)',
+              color: "var(--io-text-primary)",
               maxWidth: 200,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
             {workspaceName}
           </span>
-          <span style={{ color: 'var(--io-border)' }}>|</span>
+          <span style={{ color: "var(--io-border)" }}>|</span>
         </>
       )}
       {/* Mode */}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <span
           style={{
             width: 6,
             height: 6,
-            borderRadius: '50%',
-            background: isHistorical ? 'var(--io-warning)' : 'var(--io-success)',
-            display: 'inline-block',
+            borderRadius: "50%",
+            background: isHistorical
+              ? "var(--io-warning)"
+              : "var(--io-success)",
+            display: "inline-block",
           }}
         />
-        {isHistorical ? 'Historical' : 'Live'}
+        {isHistorical ? "Historical" : "Live"}
       </span>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // LocalStorage fallback (used when not authenticated or API unavailable)
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'io-console-workspaces'
+const STORAGE_KEY = "io-console-workspaces";
 
 function loadWorkspacesLocal(): WorkspaceLayout[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    return JSON.parse(raw) as WorkspaceLayout[]
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as WorkspaceLayout[];
   } catch {
-    return []
+    return [];
   }
 }
 
 function saveWorkspacesLocal(workspaces: WorkspaceLayout[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces));
   } catch {
     // ignore quota errors
   }
@@ -144,64 +146,65 @@ function saveWorkspacesLocal(workspaces: WorkspaceLayout[]): void {
 
 const LAYOUT_PRESETS: { value: LayoutPreset; label: string }[] = [
   // Even grids
-  { value: '1x1',  label: '1×1' },
-  { value: '2x1',  label: '2×1' },
-  { value: '1x2',  label: '1×2' },
-  { value: '2x2',  label: '2×2' },
-  { value: '3x1',  label: '3×1' },
-  { value: '1x3',  label: '1×3' },
-  { value: '3x2',  label: '3×2' },
-  { value: '2x3',  label: '2×3' },
-  { value: '3x3',  label: '3×3' },
-  { value: '4x1',  label: '4×1' },
-  { value: '1x4',  label: '1×4' },
-  { value: '4x2',  label: '4×2' },
-  { value: '2x4',  label: '2×4' },
-  { value: '4x3',  label: '4×3' },
-  { value: '3x4',  label: '3×4' },
-  { value: '4x4',  label: '4×4' },
+  { value: "1x1", label: "1×1" },
+  { value: "2x1", label: "2×1" },
+  { value: "1x2", label: "1×2" },
+  { value: "2x2", label: "2×2" },
+  { value: "3x1", label: "3×1" },
+  { value: "1x3", label: "1×3" },
+  { value: "3x2", label: "3×2" },
+  { value: "2x3", label: "2×3" },
+  { value: "3x3", label: "3×3" },
+  { value: "4x1", label: "4×1" },
+  { value: "1x4", label: "1×4" },
+  { value: "4x2", label: "4×2" },
+  { value: "2x4", label: "2×4" },
+  { value: "4x3", label: "4×3" },
+  { value: "3x4", label: "3×4" },
+  { value: "4x4", label: "4×4" },
   // Asymmetric
-  { value: 'big-left-3-right',    label: 'Big Left + 3 Right' },
-  { value: 'big-right-3-left',    label: 'Big Right + 3 Left' },
-  { value: 'big-top-3-bottom',    label: 'Big Top + 3 Bottom' },
-  { value: 'big-bottom-3-top',    label: 'Big Bottom + 3 Top' },
-  { value: '2-big-4-small',       label: '2 Big + 4 Small' },
-  { value: 'pip',                 label: 'Picture in Picture' },
-  { value: 'featured-sidebar',    label: 'Featured + Sidebar' },
-  { value: 'side-by-side-unequal',label: 'Side by Side Unequal' },
-]
+  { value: "big-left-3-right", label: "Big Left + 3 Right" },
+  { value: "big-right-3-left", label: "Big Right + 3 Left" },
+  { value: "big-top-3-bottom", label: "Big Top + 3 Bottom" },
+  { value: "big-bottom-3-top", label: "Big Bottom + 3 Top" },
+  { value: "2-big-4-small", label: "2 Big + 4 Small" },
+  { value: "pip", label: "Picture in Picture" },
+  { value: "featured-sidebar", label: "Featured + Sidebar" },
+  { value: "side-by-side-unequal", label: "Side by Side Unequal" },
+];
 
 // ---------------------------------------------------------------------------
 // ConsolePage — API-backed workspace persistence with localStorage fallback
 // ---------------------------------------------------------------------------
 
 export default function ConsolePage() {
-  const queryClient = useQueryClient()
-  const { isAuthenticated, user } = useAuthStore()
-  const canPublish = user?.permissions.includes('console:workspace_publish') ?? false
+  const queryClient = useQueryClient();
+  const { isAuthenticated, user } = useAuthStore();
+  const canPublish =
+    user?.permissions.includes("console:workspace_publish") ?? false;
 
   // ---- Kiosk mode -----------------------------------------------------------
 
-  const [searchParams] = useSearchParams()
-  const { setKiosk, isKiosk } = useUiStore()
+  const [searchParams] = useSearchParams();
+  const { setKiosk, isKiosk } = useUiStore();
 
   // Track whether this component instance set kiosk to true, so cleanup
   // doesn't accidentally clear kiosk state set by another module.
-  const didSetKioskRef = useRef(false)
+  const didSetKioskRef = useRef(false);
 
   useEffect(() => {
-    const kioskParam = searchParams.get('kiosk') === 'true'
+    const kioskParam = searchParams.get("kiosk") === "true";
     if (kioskParam) {
-      didSetKioskRef.current = true
-      setKiosk(true)
+      didSetKioskRef.current = true;
+      setKiosk(true);
     }
     return () => {
       if (didSetKioskRef.current) {
-        setKiosk(false)
-        didSetKioskRef.current = false
+        setKiosk(false);
+        didSetKioskRef.current = false;
       }
-    }
-  }, [searchParams, setKiosk])
+    };
+  }, [searchParams, setKiosk]);
 
   // ---- Zustand stores ------------------------------------------------------
 
@@ -224,11 +227,11 @@ export default function ConsolePage() {
     removePane,
     swapPanes,
     clearPanes,
-  } = useWorkspaceStore()
+  } = useWorkspaceStore();
 
-  const temporal = useWorkspaceTemporal()
+  const temporal = useWorkspaceTemporal();
 
-  const { toggleFavorite, isFavorite } = useConsoleWorkspaceFavorites()
+  const { toggleFavorite, isFavorite } = useConsoleWorkspaceFavorites();
 
   const {
     selectedPaneIds,
@@ -237,7 +240,7 @@ export default function ConsolePage() {
     selectAll,
     clearSelection,
     setSwapModeSourceId,
-  } = useSelectionStore()
+  } = useSelectionStore();
 
   // ---- API-backed state (when authenticated) --------------------------------
 
@@ -246,56 +249,57 @@ export default function ConsolePage() {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['console-workspaces'],
+    queryKey: ["console-workspaces"],
     queryFn: async () => {
-      const result = await consoleApi.listWorkspaces()
-      if (!result.success) throw new Error(result.error.message)
-      return result.data
+      const result = await consoleApi.listWorkspaces();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
     },
     enabled: isAuthenticated,
     staleTime: 30_000,
-  })
+  });
 
   // Decide which source to use
-  const useApi = isAuthenticated && !isError
+  const useApi = isAuthenticated && !isError;
 
   // Sync API workspaces → WorkspaceStore when they load
   useEffect(() => {
     if (useApi && apiWorkspaces) {
-      setWorkspaces(apiWorkspaces)
+      setWorkspaces(apiWorkspaces);
       const newActiveId =
-        apiWorkspaces.length > 0 && (activeId === null || !apiWorkspaces.find((w) => w.id === activeId))
+        apiWorkspaces.length > 0 &&
+        (activeId === null || !apiWorkspaces.find((w) => w.id === activeId))
           ? apiWorkspaces[0].id
-          : activeId
+          : activeId;
       if (newActiveId !== activeId) {
-        setActiveId(newActiveId)
+        setActiveId(newActiveId);
       }
       // Seed the saved snapshot from the freshly loaded server data so the
       // dirty detector starts in a clean state after load.
-      const targetId = newActiveId ?? activeId
-      const activeWs = apiWorkspaces.find((w) => w.id === targetId)
+      const targetId = newActiveId ?? activeId;
+      const activeWs = apiWorkspaces.find((w) => w.id === targetId);
       if (activeWs) {
-        lastSavedSnapshotRef.current = JSON.stringify(activeWs)
-        setIsDirty(false)
+        lastSavedSnapshotRef.current = JSON.stringify(activeWs);
+        setIsDirty(false);
       }
     }
-  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId])
+  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]);
 
   // Sync localStorage workspaces → WorkspaceStore when not using API
-  const [localWorkspacesLoaded, setLocalWorkspacesLoaded] = useState(false)
+  const [localWorkspacesLoaded, setLocalWorkspacesLoaded] = useState(false);
   useEffect(() => {
     if (!useApi && !localWorkspacesLoaded) {
-      const local = loadWorkspacesLocal()
-      setWorkspaces(local)
+      const local = loadWorkspacesLocal();
+      setWorkspaces(local);
       if (local.length > 0) {
-        setActiveId(local[0].id)
+        setActiveId(local[0].id);
         // Seed the saved snapshot from localStorage so we start clean.
-        lastSavedSnapshotRef.current = JSON.stringify(local[0])
-        setIsDirty(false)
+        lastSavedSnapshotRef.current = JSON.stringify(local[0]);
+        setIsDirty(false);
       }
-      setLocalWorkspacesLoaded(true)
+      setLocalWorkspacesLoaded(true);
     }
-  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId])
+  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId]);
 
   // ---- API mutations --------------------------------------------------------
 
@@ -306,254 +310,277 @@ export default function ConsolePage() {
       // We must check here so that 4xx/5xx responses route to error handling
       // rather than firing a false-positive success toast.
       if (!data.success) {
-        const errorMessage = data.error.message ?? 'The server could not be reached. Please try again.'
-        const isCreate = pendingCreateIdsRef.current.has(ws.id)
+        const errorMessage =
+          data.error.message ??
+          "The server could not be reached. Please try again.";
+        const isCreate = pendingCreateIdsRef.current.has(ws.id);
         if (isCreate) {
-          pendingCreateIdsRef.current.delete(ws.id)
+          pendingCreateIdsRef.current.delete(ws.id);
           // Roll back the optimistic workspace addition
-          useWorkspaceStore.getState().deleteWorkspace(ws.id)
-          queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
-            prev ? prev.filter((w) => w.id !== ws.id) : [],
-          )
+          useWorkspaceStore.getState().deleteWorkspace(ws.id);
+          queryClient.setQueryData<WorkspaceLayout[]>(
+            ["console-workspaces"],
+            (prev) => (prev ? prev.filter((w) => w.id !== ws.id) : []),
+          );
           showToast({
-            title: 'Failed to create workspace',
+            title: "Failed to create workspace",
             description: errorMessage,
-            variant: 'error',
+            variant: "error",
             duration: 0,
-          })
-          return
+          });
+          return;
         }
-        const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id)
+        const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id);
         if (isDuplicate) {
-          pendingDuplicateIdsRef.current.delete(ws.id)
+          pendingDuplicateIdsRef.current.delete(ws.id);
           // Roll back the optimistic duplicate addition
-          useWorkspaceStore.getState().deleteWorkspace(ws.id)
-          queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
-            prev ? prev.filter((w) => w.id !== ws.id) : [],
-          )
+          useWorkspaceStore.getState().deleteWorkspace(ws.id);
+          queryClient.setQueryData<WorkspaceLayout[]>(
+            ["console-workspaces"],
+            (prev) => (prev ? prev.filter((w) => w.id !== ws.id) : []),
+          );
           showToast({
-            title: 'Failed to duplicate workspace',
+            title: "Failed to duplicate workspace",
             description: errorMessage,
-            variant: 'error',
+            variant: "error",
             duration: 0,
-          })
-          return
+          });
+          return;
         }
         if (pendingRenameIdsRef.current.has(ws.id)) {
-          pendingRenameIdsRef.current.delete(ws.id)
+          pendingRenameIdsRef.current.delete(ws.id);
           showToast({
-            title: 'Failed to rename workspace',
+            title: "Failed to rename workspace",
             description: errorMessage,
-            variant: 'error',
+            variant: "error",
             duration: 0,
-          })
-          return
+          });
+          return;
         }
-        saveFailCountRef.current += 1
-        const next = saveFailCountRef.current
+        saveFailCountRef.current += 1;
+        const next = saveFailCountRef.current;
         if (next >= 3) {
-          setShowSaveBanner(true)
+          setShowSaveBanner(true);
         } else {
-          const delay = Math.pow(2, next - 1) * 1000
-          if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+          const delay = Math.pow(2, next - 1) * 1000;
+          if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
           retryTimerRef.current = setTimeout(() => {
-            saveMutation.mutate(ws)
-          }, delay)
+            saveMutation.mutate(ws);
+          }, delay);
         }
-        return
+        return;
       }
-      const isCreate = pendingCreateIdsRef.current.has(ws.id)
+      const isCreate = pendingCreateIdsRef.current.has(ws.id);
       if (isCreate) {
-        pendingCreateIdsRef.current.delete(ws.id)
+        pendingCreateIdsRef.current.delete(ws.id);
         // If the user is still configuring in edit mode, defer the toast until they
         // click Done — otherwise it auto-dismisses before they ever look at it.
         // If edit mode is already exited (fast backend or slow user), show immediately.
         if (useWorkspaceStore.getState().editMode) {
-          confirmedCreateIdsRef.current.add(ws.id)
+          confirmedCreateIdsRef.current.add(ws.id);
         } else {
-          showToast({ title: 'Workspace created', variant: 'success' })
+          showToast({ title: "Workspace created", variant: "success" });
         }
       }
-      const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id)
+      const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id);
       if (isDuplicate) {
-        pendingDuplicateIdsRef.current.delete(ws.id)
-        showToast({ title: 'Workspace duplicated', variant: 'success' })
+        pendingDuplicateIdsRef.current.delete(ws.id);
+        showToast({ title: "Workspace duplicated", variant: "success" });
       }
       if (pendingRenameIdsRef.current.has(ws.id)) {
-        pendingRenameIdsRef.current.delete(ws.id)
+        pendingRenameIdsRef.current.delete(ws.id);
         // Rename success is silent — the tab label already updated optimistically
       }
-      saveFailCountRef.current = 0
-      setShowSaveBanner(false)
+      saveFailCountRef.current = 0;
+      setShowSaveBanner(false);
       // Update the saved snapshot so the subscription-based dirty detector
       // knows this workspace is now clean.  Only update the snapshot for the
       // workspace that was just saved — not for a different active workspace.
       if (ws.id === useWorkspaceStore.getState().activeId) {
-        lastSavedSnapshotRef.current = JSON.stringify(ws)
+        lastSavedSnapshotRef.current = JSON.stringify(ws);
       }
-      setIsDirty(false)
+      setIsDirty(false);
       if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current)
-        retryTimerRef.current = null
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
       }
-      void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+      void queryClient.invalidateQueries({ queryKey: ["console-workspaces"] });
     },
     onError: (_err, ws) => {
-      const isCreate = pendingCreateIdsRef.current.has(ws.id)
+      const isCreate = pendingCreateIdsRef.current.has(ws.id);
       if (isCreate) {
-        pendingCreateIdsRef.current.delete(ws.id)
+        pendingCreateIdsRef.current.delete(ws.id);
         showToast({
-          title: 'Failed to create workspace',
-          description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
-          variant: 'error',
+          title: "Failed to create workspace",
+          description:
+            _err instanceof Error
+              ? _err.message
+              : "The server could not be reached. Please try again.",
+          variant: "error",
           duration: 0,
-        })
-        return
+        });
+        return;
       }
-      const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id)
+      const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id);
       if (isDuplicate) {
-        pendingDuplicateIdsRef.current.delete(ws.id)
+        pendingDuplicateIdsRef.current.delete(ws.id);
         showToast({
-          title: 'Failed to duplicate workspace',
-          description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
-          variant: 'error',
+          title: "Failed to duplicate workspace",
+          description:
+            _err instanceof Error
+              ? _err.message
+              : "The server could not be reached. Please try again.",
+          variant: "error",
           duration: 0,
-        })
-        return
+        });
+        return;
       }
-      const isRename = pendingRenameIdsRef.current.has(ws.id)
+      const isRename = pendingRenameIdsRef.current.has(ws.id);
       if (isRename) {
-        pendingRenameIdsRef.current.delete(ws.id)
+        pendingRenameIdsRef.current.delete(ws.id);
         showToast({
-          title: 'Failed to rename workspace',
-          description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
-          variant: 'error',
+          title: "Failed to rename workspace",
+          description:
+            _err instanceof Error
+              ? _err.message
+              : "The server could not be reached. Please try again.",
+          variant: "error",
           duration: 0,
-        })
-        return
+        });
+        return;
       }
-      saveFailCountRef.current += 1
-      const next = saveFailCountRef.current
+      saveFailCountRef.current += 1;
+      const next = saveFailCountRef.current;
       if (next >= 3) {
-        setShowSaveBanner(true)
+        setShowSaveBanner(true);
       } else {
         // Exponential backoff: 1s after first failure, 2s after second
-        const delay = Math.pow(2, next - 1) * 1000
-        if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+        const delay = Math.pow(2, next - 1) * 1000;
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
         retryTimerRef.current = setTimeout(() => {
-          saveMutation.mutate(ws)
-        }, delay)
+          saveMutation.mutate(ws);
+        }, delay);
       }
     },
-  })
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => consoleApi.deleteWorkspace(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+      void queryClient.invalidateQueries({ queryKey: ["console-workspaces"] });
     },
     onError: (_err) => {
       showToast({
-        title: 'Failed to delete workspace',
-        description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
-        variant: 'error',
+        title: "Failed to delete workspace",
+        description:
+          _err instanceof Error
+            ? _err.message
+            : "The server could not be reached. Please try again.",
+        variant: "error",
         duration: 0,
-      })
+      });
     },
-  })
+  });
 
   const publishMutation = useMutation({
     mutationFn: ({ id, published }: { id: string; published: boolean }) =>
       consoleApi.publishWorkspace(id, published),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['console-workspaces'] })
+      void queryClient.invalidateQueries({ queryKey: ["console-workspaces"] });
     },
     onError: (_err, vars) => {
       showToast({
-        title: vars.published ? 'Failed to publish workspace' : 'Failed to unpublish workspace',
-        description: _err instanceof Error ? _err.message : 'The server could not be reached. Please try again.',
-        variant: 'error',
+        title: vars.published
+          ? "Failed to publish workspace"
+          : "Failed to unpublish workspace",
+        description:
+          _err instanceof Error
+            ? _err.message
+            : "The server could not be reached. Please try again.",
+        variant: "error",
         duration: 0,
-      })
+      });
     },
-  })
+  });
 
   // ---- Persist helper — routes to API or localStorage ---------------------
 
   const persistWorkspace = useCallback(
     (ws: WorkspaceLayout) => {
       if (useApi) {
-        saveMutation.mutate(ws)
+        saveMutation.mutate(ws);
       } else {
-        const current = useWorkspaceStore.getState().workspaces
-        const exists = current.find((w) => w.id === ws.id)
-        const updated = exists ? current.map((w) => (w.id === ws.id ? ws : w)) : [...current, ws]
-        saveWorkspacesLocal(updated)
+        const current = useWorkspaceStore.getState().workspaces;
+        const exists = current.find((w) => w.id === ws.id);
+        const updated = exists
+          ? current.map((w) => (w.id === ws.id ? ws : w))
+          : [...current, ws];
+        saveWorkspacesLocal(updated);
         // localStorage saves are synchronous — update snapshot immediately so the
         // dirty indicator clears right away (no async success callback on this path).
-        lastSavedSnapshotRef.current = JSON.stringify(ws)
-        setIsDirty(false)
+        lastSavedSnapshotRef.current = JSON.stringify(ws);
+        setIsDirty(false);
       }
     },
     [useApi, saveMutation],
-  )
+  );
 
   // ---- Debounced auto-save (2s after last layout change) -----------------
 
   const scheduleSave = useCallback(
     (ws: WorkspaceLayout) => {
-      setIsDirty(true)
-      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
+      setIsDirty(true);
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
       saveDebounceRef.current = setTimeout(() => {
-        persistWorkspace(ws)
-        saveDebounceRef.current = null
-      }, 2000)
+        persistWorkspace(ws);
+        saveDebounceRef.current = null;
+      }, 2000);
     },
     [persistWorkspace],
-  )
+  );
 
   // Clear debounce on unmount to avoid stale saves
   useEffect(() => {
     return () => {
-      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
-    }
-  }, [])
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    };
+  }, []);
 
   // ---- Undo / Redo (via zundo temporal store) ----------------------------
 
   const handleUndo = useCallback(() => {
-    temporal.getState().undo()
-  }, [temporal])
+    temporal.getState().undo();
+  }, [temporal]);
 
   const handleRedo = useCallback(() => {
-    temporal.getState().redo()
-  }, [temporal])
+    temporal.getState().redo();
+  }, [temporal]);
 
   // Reactive undo/redo depth for button enabled state
-  const [undoDepth, setUndoDepth] = useState(0)
-  const [redoDepth, setRedoDepth] = useState(0)
+  const [undoDepth, setUndoDepth] = useState(0);
+  const [redoDepth, setRedoDepth] = useState(0);
 
   useEffect(() => {
     // Subscribe to temporal store changes to update button states
     const unsub = temporal.subscribe((state) => {
-      setUndoDepth(state.pastStates.length)
-      setRedoDepth(state.futureStates.length)
-    })
-    return unsub
-  }, [temporal])
+      setUndoDepth(state.pastStates.length);
+      setRedoDepth(state.futureStates.length);
+    });
+    return unsub;
+  }, [temporal]);
 
   // Reset undo history when switching workspaces
   useEffect(() => {
-    temporal.getState().clear()
-  }, [activeId, temporal])
+    temporal.getState().clear();
+  }, [activeId, temporal]);
 
   // ---- UI state -----------------------------------------------------------
 
-  const saveFailCountRef = useRef(0)
-  const [showSaveBanner, setShowSaveBanner] = useState(false)
-  const [isDirty, setIsDirty] = useState(false)
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveFailCountRef = useRef(0);
+  const [showSaveBanner, setShowSaveBanner] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---- Dirty detection via store subscription ----------------------------
   //
@@ -567,7 +594,7 @@ export default function ConsolePage() {
   //   • the API save mutation succeeds (onSuccess)
   //   • the localStorage synchronous save completes (persistWorkspace)
   //   • the active workspace changes (reset to the new workspace's current state)
-  const lastSavedSnapshotRef = useRef<string | null>(null)
+  const lastSavedSnapshotRef = useRef<string | null>(null);
 
   // Subscribe to workspace store: recompute isDirty whenever the active
   // workspace content changes compared to the last-saved snapshot.
@@ -575,176 +602,193 @@ export default function ConsolePage() {
   // Zustand actions that bypass the UI onChange handlers).
   useEffect(() => {
     const unsub = useWorkspaceStore.subscribe((state) => {
-      const ws = state.workspaces.find((w) => w.id === state.activeId)
+      const ws = state.workspaces.find((w) => w.id === state.activeId);
       if (!ws) {
-        setIsDirty(false)
-        return
+        setIsDirty(false);
+        return;
       }
-      const snap = lastSavedSnapshotRef.current
+      const snap = lastSavedSnapshotRef.current;
       if (snap === null) {
         // No saved snapshot yet — treat as clean (happens on initial load)
-        return
+        return;
       }
-      const current = JSON.stringify(ws)
-      setIsDirty(current !== snap)
-    })
-    return unsub
-  }, [])
+      const current = JSON.stringify(ws);
+      setIsDirty(current !== snap);
+    });
+    return unsub;
+  }, []);
 
   // When the active workspace changes, reset the saved snapshot so the new
   // workspace starts in a clean state.  Also clear any pending debounce so
   // stale saves from the previous workspace don't fire against the new one.
   useEffect(() => {
     if (saveDebounceRef.current) {
-      clearTimeout(saveDebounceRef.current)
-      saveDebounceRef.current = null
+      clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
     }
-    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-    lastSavedSnapshotRef.current = ws ? JSON.stringify(ws) : null
-    setIsDirty(false)
-  }, [activeId])
+    const ws = useWorkspaceStore
+      .getState()
+      .workspaces.find((w) => w.id === activeId);
+    lastSavedSnapshotRef.current = ws ? JSON.stringify(ws) : null;
+    setIsDirty(false);
+  }, [activeId]);
 
   // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
-  const pendingCreateIdsRef = useRef<Set<string>>(new Set())
+  const pendingCreateIdsRef = useRef<Set<string>>(new Set());
   // Track workspace IDs where the backend confirmed creation success but the user is still in edit
   // mode. The success toast is deferred until Done is clicked so the user actually sees it rather
   // than it auto-dismissing silently while they are still configuring the workspace.
-  const confirmedCreateIdsRef = useRef<Set<string>>(new Set())
+  const confirmedCreateIdsRef = useRef<Set<string>>(new Set());
   // Track workspace IDs that are being duplicated so we can show specific toasts
-  const pendingDuplicateIdsRef = useRef<Set<string>>(new Set())
+  const pendingDuplicateIdsRef = useRef<Set<string>>(new Set());
   // Track workspace IDs that are being renamed so we can show specific toasts
-  const pendingRenameIdsRef = useRef<Set<string>>(new Set())
+  const pendingRenameIdsRef = useRef<Set<string>>(new Set());
 
-  const [paletteVisible, setPaletteVisible] = useState(true)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(null)
-  const [exportDropdownOpen, setExportDropdownOpen] = useState(false)
-  const [exportDialogOpen, setExportDialogOpen] = useState(false)
-  const canExport = usePermission('console:export')
-  const copiedPanesRef = useRef<PaneConfig[]>([])
+  const [paletteVisible, setPaletteVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(
+    null,
+  );
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const canExport = usePermission("console:export");
+  const copiedPanesRef = useRef<PaneConfig[]>([]);
   const [tabContextMenu, setTabContextMenu] = useState<{
-    x: number
-    y: number
-    workspaceId: string
-  } | null>(null)
-  const [workspaceBgCtxMenu, setWorkspaceBgCtxMenu] = useState<{ x: number; y: number } | null>(null)
+    x: number;
+    y: number;
+    workspaceId: string;
+  } | null>(null);
+  const [workspaceBgCtxMenu, setWorkspaceBgCtxMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const handleWorkspaceContextMenu = useCallback((x: number, y: number) => {
-    setWorkspaceBgCtxMenu({ x, y })
-  }, [])
+    setWorkspaceBgCtxMenu({ x, y });
+  }, []);
 
-  const activeWorkspace = workspaces.find((w) => w.id === activeId) ?? null
+  const activeWorkspace = workspaces.find((w) => w.id === activeId) ?? null;
 
   // ---- Browser fullscreen --------------------------------------------------
 
   const toggleFullscreen = useCallback(() => {
     if (!isFullscreen) {
-      document.documentElement.requestFullscreen?.().catch(() => undefined)
+      document.documentElement.requestFullscreen?.().catch(() => undefined);
     } else {
-      document.exitFullscreen?.().catch(() => undefined)
+      document.exitFullscreen?.().catch(() => undefined);
     }
-  }, [isFullscreen])
+  }, [isFullscreen]);
 
   // Sync isFullscreen with actual browser state so the button icon stays correct
   // if the user exits fullscreen via Escape, browser F11, or browser native controls.
   useEffect(() => {
     function onFullscreenChange() {
-      setIsFullscreen(!!document.fullscreenElement)
+      setIsFullscreen(!!document.fullscreenElement);
     }
-    document.addEventListener('fullscreenchange', onFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
-  }, [])
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   // ---- Workspace management -----------------------------------------------
 
   const createWorkspace = () => {
-    const name = `Workspace ${workspaces.length + 1}`
-    const ws = makeNewWorkspace(name)
+    const name = `Workspace ${workspaces.length + 1}`;
+    const ws = makeNewWorkspace(name);
     // Add to store
-    updateWorkspace(ws.id, () => ws) // won't find it — use setWorkspaces approach
-    const currentWorkspaces = useWorkspaceStore.getState().workspaces
-    setWorkspaces([...currentWorkspaces, ws])
-    setActiveId(ws.id)
-    setEditMode(true)
+    updateWorkspace(ws.id, () => ws); // won't find it — use setWorkspaces approach
+    const currentWorkspaces = useWorkspaceStore.getState().workspaces;
+    setWorkspaces([...currentWorkspaces, ws]);
+    setActiveId(ws.id);
+    setEditMode(true);
     // Mark as a new creation so saveMutation (API path) or saveEdit (local path)
     // can show a toast on success. Always track, regardless of useApi, so the
     // local-storage path also shows a success toast when Done is clicked.
-    pendingCreateIdsRef.current.add(ws.id)
-    persistWorkspace(ws)
+    pendingCreateIdsRef.current.add(ws.id);
+    persistWorkspace(ws);
     if (useApi) {
-      queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
-        prev ? [...prev, ws] : [ws],
-      )
+      queryClient.setQueryData<WorkspaceLayout[]>(
+        ["console-workspaces"],
+        (prev) => (prev ? [...prev, ws] : [ws]),
+      );
     }
-  }
+  };
 
   const deleteActiveWorkspace = () => {
-    if (!activeId) return
-    const nextWorkspaces = workspaces.filter((w) => w.id !== activeId)
-    setWorkspaces(nextWorkspaces)
-    setActiveId(nextWorkspaces[0]?.id ?? null)
+    if (!activeId) return;
+    const nextWorkspaces = workspaces.filter((w) => w.id !== activeId);
+    setWorkspaces(nextWorkspaces);
+    setActiveId(nextWorkspaces[0]?.id ?? null);
     if (useApi) {
-      deleteMutation.mutate(activeId)
+      deleteMutation.mutate(activeId);
     } else {
-      saveWorkspacesLocal(nextWorkspaces)
+      saveWorkspacesLocal(nextWorkspaces);
     }
-  }
+  };
 
   const duplicateWorkspace = (id: string) => {
-    const source = workspaces.find((w) => w.id === id)
-    if (!source) return
+    const source = workspaces.find((w) => w.id === id);
+    if (!source) return;
     const copy: WorkspaceLayout = {
       ...source,
       id: uuidv4(),
       name: `${source.name} (copy)`,
       panes: source.panes.map((p) => ({ ...p, id: uuidv4() })),
-    }
-    const currentWorkspaces = useWorkspaceStore.getState().workspaces
-    setWorkspaces([...currentWorkspaces, copy])
-    setActiveId(copy.id)
+    };
+    const currentWorkspaces = useWorkspaceStore.getState().workspaces;
+    setWorkspaces([...currentWorkspaces, copy]);
+    setActiveId(copy.id);
     if (useApi) {
-      pendingDuplicateIdsRef.current.add(copy.id)
+      pendingDuplicateIdsRef.current.add(copy.id);
     }
-    persistWorkspace(copy)
+    persistWorkspace(copy);
     if (useApi) {
-      queryClient.setQueryData<WorkspaceLayout[]>(['console-workspaces'], (prev) =>
-        prev ? [...prev, copy] : [copy],
-      )
+      queryClient.setQueryData<WorkspaceLayout[]>(
+        ["console-workspaces"],
+        (prev) => (prev ? [...prev, copy] : [copy]),
+      );
     }
-  }
+  };
 
-  const handleTabContextMenu = useCallback((e: React.MouseEvent, workspaceId: string) => {
-    e.preventDefault()
-    setTabContextMenu({ x: e.clientX, y: e.clientY, workspaceId })
-  }, [])
+  const handleTabContextMenu = useCallback(
+    (e: React.MouseEvent, workspaceId: string) => {
+      e.preventDefault();
+      setTabContextMenu({ x: e.clientX, y: e.clientY, workspaceId });
+    },
+    [],
+  );
 
   const handleRenameWorkspace = (id: string, name: string) => {
-    renameWorkspace(id, name)
-    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id)
+    renameWorkspace(id, name);
+    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id);
     if (ws) {
       if (useApi) {
-        pendingRenameIdsRef.current.add(id)
+        pendingRenameIdsRef.current.add(id);
       }
-      persistWorkspace({ ...ws, name })
+      persistWorkspace({ ...ws, name });
     }
-  }
+  };
 
   const handleChangeLayout = (layout: LayoutPreset) => {
-    if (!activeId) return
-    changeLayout(activeId, layout)
-    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-    if (ws) scheduleSave(ws)
-  }
+    if (!activeId) return;
+    changeLayout(activeId, layout);
+    const ws = useWorkspaceStore
+      .getState()
+      .workspaces.find((w) => w.id === activeId);
+    if (ws) scheduleSave(ws);
+  };
 
   const handleGridLayoutChange = useCallback(
     (items: GridItem[]) => {
-      if (!activeId) return
-      updateGridItems(activeId, items)
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-      if (ws) scheduleSave(ws)
+      if (!activeId) return;
+      updateGridItems(activeId, items);
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (ws) scheduleSave(ws);
     },
     [activeId, updateGridItems, scheduleSave],
-  )
+  );
 
   const saveEdit = () => {
     // Flush any deferred create-success toast. The toast was held in confirmedCreateIdsRef
@@ -754,146 +798,218 @@ export default function ConsolePage() {
       if (confirmedCreateIdsRef.current.has(activeId)) {
         // API path: backend already confirmed success while user was still in edit mode.
         // Fire the toast now that they have clicked Done and will actually see it.
-        confirmedCreateIdsRef.current.delete(activeId)
-        showToast({ title: 'Workspace created', variant: 'success' })
+        confirmedCreateIdsRef.current.delete(activeId);
+        showToast({ title: "Workspace created", variant: "success" });
       } else if (!useApi && pendingCreateIdsRef.current.has(activeId)) {
         // Local-storage path: persistWorkspace called saveWorkspacesLocal synchronously,
         // so the save is already complete. Show the success toast now.
-        pendingCreateIdsRef.current.delete(activeId)
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+        pendingCreateIdsRef.current.delete(activeId);
+        const ws = useWorkspaceStore
+          .getState()
+          .workspaces.find((w) => w.id === activeId);
         showToast({
-          title: 'Workspace created',
+          title: "Workspace created",
           description: ws?.name ? `"${ws.name}" was saved locally.` : undefined,
-          variant: 'success',
-        })
+          variant: "success",
+        });
       }
     }
-    setEditMode(false)
-  }
+    setEditMode(false);
+  };
 
   // ---- Keyboard shortcuts -------------------------------------------------
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const ctrl = e.ctrlKey || e.metaKey
+      const ctrl = e.ctrlKey || e.metaKey;
       // Ctrl+S — save active workspace
-      if (ctrl && e.key === 's') {
-        e.preventDefault()
+      if (ctrl && e.key === "s") {
+        e.preventDefault();
         if (activeId) {
-          const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-          if (ws) persistWorkspace(ws)
+          const ws = useWorkspaceStore
+            .getState()
+            .workspaces.find((w) => w.id === activeId);
+          if (ws) persistWorkspace(ws);
         }
-        return
+        return;
       }
       // Undo / redo
-      if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return }
-      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return }
+      if (ctrl && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (ctrl && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
       // Ctrl+A — select all panes in active workspace
-      if (ctrl && e.key === 'a' && editMode && activeId) {
-        e.preventDefault()
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-        if (ws) selectAll(ws.panes.map((p) => p.id))
-        return
+      if (ctrl && e.key === "a" && editMode && activeId) {
+        e.preventDefault();
+        const ws = useWorkspaceStore
+          .getState()
+          .workspaces.find((w) => w.id === activeId);
+        if (ws) selectAll(ws.panes.map((p) => p.id));
+        return;
       }
       // Ctrl+C — copy selected panes
-      if (ctrl && e.key === 'c' && editMode && activeId && selectedPaneIds.size > 0) {
-        e.preventDefault()
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
+      if (
+        ctrl &&
+        e.key === "c" &&
+        editMode &&
+        activeId &&
+        selectedPaneIds.size > 0
+      ) {
+        e.preventDefault();
+        const ws = useWorkspaceStore
+          .getState()
+          .workspaces.find((w) => w.id === activeId);
         if (ws) {
-          copiedPanesRef.current = ws.panes.filter((p) => selectedPaneIds.has(p.id))
+          copiedPanesRef.current = ws.panes.filter((p) =>
+            selectedPaneIds.has(p.id),
+          );
         }
-        return
+        return;
       }
       // Ctrl+V — paste copied panes into active workspace
-      if (ctrl && e.key === 'v' && editMode && activeId && copiedPanesRef.current.length > 0) {
-        e.preventDefault()
+      if (
+        ctrl &&
+        e.key === "v" &&
+        editMode &&
+        activeId &&
+        copiedPanesRef.current.length > 0
+      ) {
+        e.preventDefault();
         const pasted = copiedPanesRef.current.map((p) => ({
           ...p,
           id: `pane-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        }))
-        updateWorkspace(activeId, (w) => ({ ...w, panes: [...w.panes, ...pasted] }))
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-        if (ws) scheduleSave(ws)
-        return
+        }));
+        updateWorkspace(activeId, (w) => ({
+          ...w,
+          panes: [...w.panes, ...pasted],
+        }));
+        const ws = useWorkspaceStore
+          .getState()
+          .workspaces.find((w) => w.id === activeId);
+        if (ws) scheduleSave(ws);
+        return;
       }
       // Escape — cancel swap mode or clear selection
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (swapModeSourceId !== null) {
-          setSwapModeSourceId(null)
-          return
+          setSwapModeSourceId(null);
+          return;
         }
-        clearSelection()
-        return
+        clearSelection();
+        return;
       }
       // Delete / Backspace — remove selected panes (edit mode only)
-      if ((e.key === 'Delete' || e.key === 'Backspace') && editMode && activeId) {
-        const currentSelection = useSelectionStore.getState().selectedPaneIds
-        if (currentSelection.size === 0) return
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        editMode &&
+        activeId
+      ) {
+        const currentSelection = useSelectionStore.getState().selectedPaneIds;
+        if (currentSelection.size === 0) return;
         updateWorkspace(activeId, (w) => ({
           ...w,
           panes: w.panes.filter((p) => !currentSelection.has(p.id)),
-        }))
-        clearSelection()
-        const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-        if (ws) scheduleSave(ws)
+        }));
+        clearSelection();
+        const ws = useWorkspaceStore
+          .getState()
+          .workspaces.find((w) => w.id === activeId);
+        if (ws) scheduleSave(ws);
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleUndo, handleRedo, editMode, activeId, selectedPaneIds, swapModeSourceId, updateWorkspace, selectAll, clearSelection, setSwapModeSourceId, persistWorkspace, scheduleSave])
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    handleUndo,
+    handleRedo,
+    editMode,
+    activeId,
+    selectedPaneIds,
+    swapModeSourceId,
+    updateWorkspace,
+    selectAll,
+    clearSelection,
+    setSwapModeSourceId,
+    persistWorkspace,
+    scheduleSave,
+  ]);
 
   // ---- Pane management ----------------------------------------------------
 
-  const handlePaneSelect = useCallback((paneId: string, addToSelection: boolean) => {
-    selectPane(paneId, addToSelection)
-  }, [selectPane])
+  const handlePaneSelect = useCallback(
+    (paneId: string, addToSelection: boolean) => {
+      selectPane(paneId, addToSelection);
+    },
+    [selectPane],
+  );
 
   const handleConfigurePane = useCallback((paneId: string) => {
-    setConfiguringPaneId(paneId)
-  }, [])
+    setConfiguringPaneId(paneId);
+  }, []);
 
   const handleRemovePane = useCallback(
     (paneId: string) => {
-      if (!activeId) return
-      removePane(activeId, paneId)
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-      if (ws) scheduleSave(ws)
+      if (!activeId) return;
+      removePane(activeId, paneId);
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (ws) scheduleSave(ws);
     },
     [activeId, removePane, scheduleSave],
-  )
+  );
 
-  const handleSwapWith = useCallback((paneId: string) => {
-    setSwapModeSourceId(paneId)
-  }, [setSwapModeSourceId])
+  const handleSwapWith = useCallback(
+    (paneId: string) => {
+      setSwapModeSourceId(paneId);
+    },
+    [setSwapModeSourceId],
+  );
 
   const handleSwapComplete = useCallback(
     (targetId: string) => {
-      if (!activeId || !swapModeSourceId) return
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-      if (!ws) return
-      const items = ws.gridItems?.length ? ws.gridItems : presetToGridItems(ws.layout, ws.panes)
-      swapPanes(activeId, swapModeSourceId, targetId, items)
-      setSwapModeSourceId(null)
-      const updated = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-      if (updated) scheduleSave(updated)
+      if (!activeId || !swapModeSourceId) return;
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (!ws) return;
+      const items = ws.gridItems?.length
+        ? ws.gridItems
+        : presetToGridItems(ws.layout, ws.panes);
+      swapPanes(activeId, swapModeSourceId, targetId, items);
+      setSwapModeSourceId(null);
+      const updated = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (updated) scheduleSave(updated);
     },
     [activeId, swapModeSourceId, swapPanes, setSwapModeSourceId, scheduleSave],
-  )
+  );
 
   const handleReplacePane = useCallback(
     (paneId: string, graphicId: string, graphicName: string) => {
-      if (!activeId) return
+      if (!activeId) return;
       updateWorkspace(activeId, (w) => ({
         ...w,
         panes: w.panes.map((p) =>
-          p.id === paneId ? { ...p, type: 'graphic', graphicId, title: graphicName } : p,
+          p.id === paneId
+            ? { ...p, type: "graphic", graphicId, title: graphicName }
+            : p,
         ),
-      }))
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-      if (ws) scheduleSave(ws)
+      }));
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (ws) scheduleSave(ws);
     },
     [activeId, updateWorkspace, scheduleSave],
-  )
+  );
 
   // ---------------------------------------------------------------------------
   // Export helpers
@@ -901,255 +1017,320 @@ export default function ConsolePage() {
 
   /** Produces spec-compliant filename: console_workspace_{YYYY-MM-DD_HHmm}.{ext} */
   function exportFilename(ext: string): string {
-    const now = new Date()
-    const datePart = now.toISOString().slice(0, 10)
-    const timePart = now.toTimeString().slice(0, 5).replace(':', '')
-    return `console_workspace_${datePart}_${timePart}.${ext}`
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10);
+    const timePart = now.toTimeString().slice(0, 5).replace(":", "");
+    return `console_workspace_${datePart}_${timePart}.${ext}`;
   }
 
   /** Collect all point IDs from all pane types in the active workspace. */
   function collectWorkspacePointIds(ws: WorkspaceLayout): string[] {
-    const ids: string[] = []
+    const ids: string[] = [];
     for (const pane of ws.panes) {
-      if (pane.trendPointIds?.length) ids.push(...pane.trendPointIds)
-      if (pane.tablePointIds?.length) ids.push(...pane.tablePointIds)
+      if (pane.trendPointIds?.length) ids.push(...pane.trendPointIds);
+      if (pane.tablePointIds?.length) ids.push(...pane.tablePointIds);
       // Graphic pane: points are tracked by the realtime store under their graphicId;
       // include them via the subscribed set which covers all graphic bindings.
     }
-    return [...new Set(ids)]
+    return [...new Set(ids)];
   }
 
-  const LARGE_EXPORT_THRESHOLD = 50_000
+  const LARGE_EXPORT_THRESHOLD = 50_000;
 
   /** Quick-format export triggered from dropdown — uses exportsApi for all 6 formats. */
-  const handleExport = useCallback(async (format: ExportFormat) => {
-    setExportDropdownOpen(false)
-    if (!activeWorkspace) return
+  const handleExport = useCallback(
+    async (format: ExportFormat) => {
+      setExportDropdownOpen(false);
+      if (!activeWorkspace) return;
 
-    const pointIds = collectWorkspacePointIds(activeWorkspace)
-    // Columns are the point IDs themselves for a workspace export
-    const columns = pointIds.length > 0 ? pointIds : ['tagname', 'value', 'quality', 'timestamp']
-    const estimatedRows = pointIds.length
+      const pointIds = collectWorkspacePointIds(activeWorkspace);
+      // Columns are the point IDs themselves for a workspace export
+      const columns =
+        pointIds.length > 0
+          ? pointIds
+          : ["tagname", "value", "quality", "timestamp"];
+      const estimatedRows = pointIds.length;
 
-    try {
-      if (estimatedRows >= LARGE_EXPORT_THRESHOLD) {
-        // Async path: submit job, WebSocket export_complete will notify the user
-        const result = await exportsApi.create({
-          module: 'console',
-          entity: 'workspace',
-          format,
-          scope: 'all',
-          columns,
-        })
-        if (result.type === 'download') {
-          exportsApi.triggerDownload(result.blob, exportFilename(format))
+      try {
+        if (estimatedRows >= LARGE_EXPORT_THRESHOLD) {
+          // Async path: submit job, WebSocket export_complete will notify the user
+          const result = await exportsApi.create({
+            module: "console",
+            entity: "workspace",
+            format,
+            scope: "all",
+            columns,
+          });
+          if (result.type === "download") {
+            exportsApi.triggerDownload(result.blob, exportFilename(format));
+          }
+          // If 'queued', the WebSocket export_complete event will show a toast
+        } else {
+          const result = await exportsApi.create({
+            module: "console",
+            entity: "workspace",
+            format,
+            scope: "all",
+            columns,
+          });
+          if (result.type === "download") {
+            // Override server filename with spec-compliant name
+            exportsApi.triggerDownload(result.blob, exportFilename(format));
+          }
         }
-        // If 'queued', the WebSocket export_complete event will show a toast
-      } else {
-        const result = await exportsApi.create({
-          module: 'console',
-          entity: 'workspace',
-          format,
-          scope: 'all',
-          columns,
-        })
-        if (result.type === 'download') {
-          // Override server filename with spec-compliant name
-          exportsApi.triggerDownload(result.blob, exportFilename(format))
-        }
+      } catch (err) {
+        console.error("[Console] Export failed:", err);
       }
-    } catch (err) {
-      console.error('[Console] Export failed:', err)
-    }
-  }, [activeWorkspace])
+    },
+    [activeWorkspace],
+  );
 
   const handleSavePane = (updated: PaneConfig) => {
-    if (!activeId) return
-    updatePane(activeId, updated)
-    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-    if (ws) scheduleSave(ws)
-    setConfiguringPaneId(null)
-  }
+    if (!activeId) return;
+    updatePane(activeId, updated);
+    const ws = useWorkspaceStore
+      .getState()
+      .workspaces.find((w) => w.id === activeId);
+    if (ws) scheduleSave(ws);
+    setConfiguringPaneId(null);
+  };
 
   // ---- Palette drop handler -----------------------------------------------
 
   const handlePaletteDrop = useCallback(
     (paneId: string, item: ConsoleDragItem) => {
-      if (!activeId) return
+      if (!activeId) return;
       updateWorkspace(activeId, (w) => ({
         ...w,
         panes: w.panes.map((p) => {
-          if (p.id !== paneId) return p
+          if (p.id !== paneId) return p;
           switch (item.itemType) {
-            case 'trend':
+            case "trend":
               return {
                 ...p,
-                type: 'trend' as const,
+                type: "trend" as const,
                 trendPointIds: item.pointIds ?? p.trendPointIds ?? [],
                 title: item.label ?? p.title,
-              }
-            case 'point_table':
+              };
+            case "point_table":
               return {
                 ...p,
-                type: 'point_table' as const,
+                type: "point_table" as const,
                 tablePointIds: item.pointIds ?? p.tablePointIds ?? [],
                 title: item.label ?? p.title,
-              }
-            case 'alarm_list':
-              return { ...p, type: 'alarm_list' as const, title: item.label ?? p.title }
-            case 'graphic':
+              };
+            case "alarm_list":
               return {
                 ...p,
-                type: 'graphic' as const,
+                type: "alarm_list" as const,
+                title: item.label ?? p.title,
+              };
+            case "graphic":
+              return {
+                ...p,
+                type: "graphic" as const,
                 graphicId: item.graphicId,
                 title: item.label ?? p.title,
-              }
+              };
             default:
-              return p
+              return p;
           }
         }),
-      }))
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-      if (ws) scheduleSave(ws)
+      }));
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (ws) scheduleSave(ws);
     },
     [activeId, updateWorkspace, scheduleSave],
-  )
+  );
 
   // ---- Palette double-click quick-place (§5.4) ----------------------------
 
   const handleQuickPlace = useCallback(
     (item: ConsoleDragItem) => {
-      if (!activeId) return
+      if (!activeId) return;
       updateWorkspace(activeId, (w) => {
         const applyItem = (p: PaneConfig): PaneConfig => {
           switch (item.itemType) {
-            case 'trend':
-              return { ...p, type: 'trend' as const, trendPointIds: item.pointIds ?? [], title: item.label ?? p.title }
-            case 'point_table':
-              return { ...p, type: 'point_table' as const, tablePointIds: item.pointIds ?? [], title: item.label ?? p.title }
-            case 'alarm_list':
-              return { ...p, type: 'alarm_list' as const, title: item.label ?? p.title }
-            case 'graphic':
-              return { ...p, type: 'graphic' as const, graphicId: item.graphicId, title: item.label ?? p.title }
+            case "trend":
+              return {
+                ...p,
+                type: "trend" as const,
+                trendPointIds: item.pointIds ?? [],
+                title: item.label ?? p.title,
+              };
+            case "point_table":
+              return {
+                ...p,
+                type: "point_table" as const,
+                tablePointIds: item.pointIds ?? [],
+                title: item.label ?? p.title,
+              };
+            case "alarm_list":
+              return {
+                ...p,
+                type: "alarm_list" as const,
+                title: item.label ?? p.title,
+              };
+            case "graphic":
+              return {
+                ...p,
+                type: "graphic" as const,
+                graphicId: item.graphicId,
+                title: item.label ?? p.title,
+              };
             default:
-              return p
+              return p;
           }
-        }
+        };
 
-        const newPane = (): PaneConfig => applyItem({ id: uuidv4(), type: 'blank' as const })
+        const newPane = (): PaneConfig =>
+          applyItem({ id: uuidv4(), type: "blank" as const });
 
         if (w.panes.length === 0) {
           // No panes: create a 1×1 layout
-          const firstPane = newPane()
-          return { ...w, panes: [firstPane], gridItems: [{ i: firstPane.id, x: 0, y: 0, w: 12, h: 8 }] }
+          const firstPane = newPane();
+          return {
+            ...w,
+            panes: [firstPane],
+            gridItems: [{ i: firstPane.id, x: 0, y: 0, w: 12, h: 8 }],
+          };
         }
 
         // Priority 1: replace first selected pane
-        const selIds = [...selectedPaneIds]
+        const selIds = [...selectedPaneIds];
         if (selIds.length > 0) {
           return {
             ...w,
             panes: w.panes.map((p) => (p.id === selIds[0] ? applyItem(p) : p)),
-          }
+          };
         }
 
         // Priority 2: first blank pane (row-major order by grid item y then x)
         const sorted = [...w.panes].sort((a, b) => {
-          const ga = w.gridItems?.find((gi) => gi.i === a.id)
-          const gb = w.gridItems?.find((gi) => gi.i === b.id)
-          if (!ga || !gb) return 0
-          return ga.y !== gb.y ? ga.y - gb.y : ga.x - gb.x
-        })
-        const blankPane = sorted.find((p) => p.type === 'blank')
+          const ga = w.gridItems?.find((gi) => gi.i === a.id);
+          const gb = w.gridItems?.find((gi) => gi.i === b.id);
+          if (!ga || !gb) return 0;
+          return ga.y !== gb.y ? ga.y - gb.y : ga.x - gb.x;
+        });
+        const blankPane = sorted.find((p) => p.type === "blank");
         if (blankPane) {
           return {
             ...w,
-            panes: w.panes.map((p) => (p.id === blankPane.id ? applyItem(p) : p)),
-          }
+            panes: w.panes.map((p) =>
+              p.id === blankPane.id ? applyItem(p) : p,
+            ),
+          };
         }
 
         // Priority 3: add new pane appended to grid
-        const np = newPane()
-        const maxRow = Math.max(0, ...(w.gridItems ?? []).map((gi) => gi.y + gi.h))
-        const newGridItem = { i: np.id, x: 0, y: maxRow, w: 6, h: 6 }
+        const np = newPane();
+        const maxRow = Math.max(
+          0,
+          ...(w.gridItems ?? []).map((gi) => gi.y + gi.h),
+        );
+        const newGridItem = { i: np.id, x: 0, y: maxRow, w: 6, h: 6 };
         return {
           ...w,
           panes: [...w.panes, np],
           gridItems: [...(w.gridItems ?? []), newGridItem],
-        }
-      })
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-      if (ws) scheduleSave(ws)
+        };
+      });
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (ws) scheduleSave(ws);
     },
     [activeId, updateWorkspace, selectedPaneIds, scheduleSave],
-  )
+  );
 
   // ---- Configuring pane object --------------------------------------------
 
   const configuringPane = configuringPaneId
-    ? activeWorkspace?.panes.find((p) => p.id === configuringPaneId) ?? null
-    : null
+    ? (activeWorkspace?.panes.find((p) => p.id === configuringPaneId) ?? null)
+    : null;
 
   // ---- Render -------------------------------------------------------------
 
   if (isLoading && isAuthenticated) {
     return (
-      <div style={{ display: 'flex', height: '100%', background: 'var(--io-bg)' }}>
+      <div
+        style={{ display: "flex", height: "100%", background: "var(--io-bg)" }}
+      >
         {/* Left panel skeleton */}
-        <div style={{
-          width: 280, flexShrink: 0,
-          background: 'var(--io-surface-secondary)',
-          borderRight: '1px solid var(--io-border)',
-          padding: 8, display: 'flex', flexDirection: 'column', gap: 8,
-        }}>
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} style={{
-              height: 28, borderRadius: 4,
-              background: 'var(--io-surface-elevated)',
-              animation: 'io-shimmer 1.4s ease-in-out infinite',
-            }} />
+        <div
+          style={{
+            width: 280,
+            flexShrink: 0,
+            background: "var(--io-surface-secondary)",
+            borderRight: "1px solid var(--io-border)",
+            padding: 8,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              style={{
+                height: 28,
+                borderRadius: 4,
+                background: "var(--io-surface-elevated)",
+                animation: "io-shimmer 1.4s ease-in-out infinite",
+              }}
+            />
           ))}
         </div>
         {/* Grid area skeleton */}
-        <div style={{
-          flex: 1, display: 'grid',
-          gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr',
-          gap: 4, padding: 4,
-        }}>
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} style={{
-              borderRadius: 4,
-              background: 'var(--io-surface-secondary)',
-              animation: 'io-shimmer 1.4s ease-in-out infinite',
-              animationDelay: `${i * 0.1}s`,
-            }} />
+        <div
+          style={{
+            flex: 1,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gridTemplateRows: "1fr 1fr",
+            gap: 4,
+            padding: 4,
+          }}
+        >
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              style={{
+                borderRadius: 4,
+                background: "var(--io-surface-secondary)",
+                animation: "io-shimmer 1.4s ease-in-out infinite",
+                animationDelay: `${i * 0.1}s`,
+              }}
+            />
           ))}
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        background: 'var(--io-bg)',
-        overflow: 'hidden',
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        background: "var(--io-bg)",
+        overflow: "hidden",
       }}
     >
       {/* Header */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
+          display: "flex",
+          alignItems: "center",
           gap: 0,
-          padding: '0 12px',
+          padding: "0 12px",
           height: 48,
           flexShrink: 0,
-          background: 'var(--io-surface)',
-          borderBottom: '1px solid var(--io-border)',
+          background: "var(--io-surface)",
+          borderBottom: "1px solid var(--io-border)",
         }}
       >
         {/* Title */}
@@ -1157,7 +1338,7 @@ export default function ConsolePage() {
           style={{
             fontSize: 15,
             fontWeight: 600,
-            color: 'var(--io-text-primary)',
+            color: "var(--io-text-primary)",
             marginRight: 16,
             flexShrink: 0,
           }}
@@ -1168,11 +1349,11 @@ export default function ConsolePage() {
         {/* Workspace tabs */}
         <div
           style={{
-            display: 'flex',
+            display: "flex",
             flex: 1,
-            alignItems: 'stretch',
+            alignItems: "stretch",
             gap: 2,
-            overflow: 'hidden',
+            overflow: "hidden",
           }}
         >
           {workspaces.map((ws) => (
@@ -1182,28 +1363,36 @@ export default function ConsolePage() {
               onContextMenu={(e) => handleTabContextMenu(e, ws.id)}
               style={{
                 background:
-                  ws.id === activeId ? 'var(--io-surface-secondary)' : 'transparent',
-                border: 'none',
+                  ws.id === activeId
+                    ? "var(--io-surface-secondary)"
+                    : "transparent",
+                border: "none",
                 borderBottom:
                   ws.id === activeId
-                    ? '2px solid var(--io-accent)'
-                    : '2px solid transparent',
-                padding: '0 14px',
-                cursor: 'pointer',
+                    ? "2px solid var(--io-accent)"
+                    : "2px solid transparent",
+                padding: "0 14px",
+                cursor: "pointer",
                 fontSize: 13,
                 fontWeight: ws.id === activeId ? 600 : 400,
                 color:
-                  ws.id === activeId ? 'var(--io-text-primary)' : 'var(--io-text-muted)',
-                whiteSpace: 'nowrap',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
+                  ws.id === activeId
+                    ? "var(--io-text-primary)"
+                    : "var(--io-text-muted)",
+                whiteSpace: "nowrap",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
               }}
             >
               {ws.published && (
                 <span
                   title="Published workspace"
-                  style={{ color: 'var(--io-accent)', fontSize: 8, marginRight: 3 }}
+                  style={{
+                    color: "var(--io-accent)",
+                    fontSize: 8,
+                    marginRight: 3,
+                  }}
                 >
                   ●
                 </span>
@@ -1213,11 +1402,11 @@ export default function ConsolePage() {
                 <span
                   title="Unsaved changes"
                   style={{
-                    display: 'inline-block',
+                    display: "inline-block",
                     width: 6,
                     height: 6,
-                    borderRadius: '50%',
-                    background: 'var(--io-warning)',
+                    borderRadius: "50%",
+                    background: "var(--io-warning)",
                     marginLeft: 5,
                     flexShrink: 0,
                   }}
@@ -1231,14 +1420,14 @@ export default function ConsolePage() {
             onClick={createWorkspace}
             title="New workspace"
             style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '0 10px',
-              cursor: 'pointer',
+              background: "transparent",
+              border: "none",
+              padding: "0 10px",
+              cursor: "pointer",
               fontSize: 18,
-              color: 'var(--io-text-muted)',
-              display: 'flex',
-              alignItems: 'center',
+              color: "var(--io-text-muted)",
+              display: "flex",
+              alignItems: "center",
               lineHeight: 1,
             }}
           >
@@ -1247,7 +1436,14 @@ export default function ConsolePage() {
         </div>
 
         {/* Right-side controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexShrink: 0,
+          }}
+        >
           {editMode && activeWorkspace && (
             <>
               {/* Undo / Redo */}
@@ -1256,21 +1452,32 @@ export default function ConsolePage() {
                 disabled={undoDepth === 0}
                 title="Undo (Ctrl+Z)"
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--io-border)',
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
                   borderRadius: 6,
-                  padding: '4px 8px',
-                  cursor: undoDepth === 0 ? 'default' : 'pointer',
+                  padding: "4px 8px",
+                  cursor: undoDepth === 0 ? "default" : "pointer",
                   fontSize: 12,
-                  color: undoDepth === 0 ? 'var(--io-text-disabled)' : 'var(--io-text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
+                  color:
+                    undoDepth === 0
+                      ? "var(--io-text-disabled)"
+                      : "var(--io-text-muted)",
+                  display: "flex",
+                  alignItems: "center",
                   gap: 4,
                 }}
               >
                 {/* Undo arrow */}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M9 14 4 9l5-5" />
+                  <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
                 </svg>
                 Undo
               </button>
@@ -1279,38 +1486,51 @@ export default function ConsolePage() {
                 disabled={redoDepth === 0}
                 title="Redo (Ctrl+Y)"
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--io-border)',
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
                   borderRadius: 6,
-                  padding: '4px 8px',
-                  cursor: redoDepth === 0 ? 'default' : 'pointer',
+                  padding: "4px 8px",
+                  cursor: redoDepth === 0 ? "default" : "pointer",
                   fontSize: 12,
-                  color: redoDepth === 0 ? 'var(--io-text-disabled)' : 'var(--io-text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
+                  color:
+                    redoDepth === 0
+                      ? "var(--io-text-disabled)"
+                      : "var(--io-text-muted)",
+                  display: "flex",
+                  alignItems: "center",
                   gap: 4,
                 }}
               >
                 Redo
                 {/* Redo arrow */}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="m15 14 5-5-5-5" />
+                  <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
                 </svg>
               </button>
 
               {/* Layout selector */}
               <select
                 value={activeWorkspace.layout}
-                onChange={(e) => handleChangeLayout(e.target.value as LayoutPreset)}
+                onChange={(e) =>
+                  handleChangeLayout(e.target.value as LayoutPreset)
+                }
                 style={{
-                  background: 'var(--io-surface-secondary)',
-                  border: '1px solid var(--io-border)',
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border)",
                   borderRadius: 6,
-                  padding: '4px 8px',
+                  padding: "4px 8px",
                   fontSize: 12,
-                  color: 'var(--io-text-primary)',
-                  cursor: 'pointer',
-                  outline: 'none',
+                  color: "var(--io-text-primary)",
+                  cursor: "pointer",
+                  outline: "none",
                 }}
               >
                 {LAYOUT_PRESETS.map((lp) => (
@@ -1323,20 +1543,22 @@ export default function ConsolePage() {
               {/* Clear Grid button */}
               <button
                 onClick={() => {
-                  if (!activeId) return
-                  clearPanes(activeId)
-                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-                  if (ws) persistWorkspace(ws)
+                  if (!activeId) return;
+                  clearPanes(activeId);
+                  const ws = useWorkspaceStore
+                    .getState()
+                    .workspaces.find((w) => w.id === activeId);
+                  if (ws) persistWorkspace(ws);
                 }}
                 title="Clear all panes"
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--io-border)',
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
                   borderRadius: 6,
-                  padding: '4px 10px',
-                  cursor: 'pointer',
+                  padding: "4px 10px",
+                  cursor: "pointer",
                   fontSize: 12,
-                  color: 'var(--io-text-muted)',
+                  color: "var(--io-text-muted)",
                 }}
               >
                 Clear
@@ -1345,18 +1567,22 @@ export default function ConsolePage() {
               {/* Rename button */}
               <button
                 onClick={() => {
-                  const newName = prompt('Workspace name:', activeWorkspace.name)
-                  if (newName && newName.trim()) handleRenameWorkspace(activeWorkspace.id, newName.trim())
+                  const newName = prompt(
+                    "Workspace name:",
+                    activeWorkspace.name,
+                  );
+                  if (newName && newName.trim())
+                    handleRenameWorkspace(activeWorkspace.id, newName.trim());
                 }}
                 title="Rename workspace"
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--io-border)',
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
                   borderRadius: 6,
-                  padding: '4px 10px',
-                  cursor: 'pointer',
+                  padding: "4px 10px",
+                  cursor: "pointer",
                   fontSize: 12,
-                  color: 'var(--io-text-muted)',
+                  color: "var(--io-text-muted)",
                 }}
               >
                 Rename
@@ -1365,22 +1591,35 @@ export default function ConsolePage() {
               {/* Publish toggle — gated by console:workspace_publish permission */}
               {canPublish && (
                 <button
-                  onClick={() => publishMutation.mutate({ id: activeWorkspace.id, published: !activeWorkspace.published })}
-                  title={activeWorkspace.published ? 'Unpublish workspace (visible to all users)' : 'Publish workspace (make visible to all users)'}
+                  onClick={() =>
+                    publishMutation.mutate({
+                      id: activeWorkspace.id,
+                      published: !activeWorkspace.published,
+                    })
+                  }
+                  title={
+                    activeWorkspace.published
+                      ? "Unpublish workspace (visible to all users)"
+                      : "Publish workspace (make visible to all users)"
+                  }
                   style={{
-                    background: activeWorkspace.published ? 'var(--io-accent-subtle)' : 'transparent',
-                    border: '1px solid var(--io-border)',
+                    background: activeWorkspace.published
+                      ? "var(--io-accent-subtle)"
+                      : "transparent",
+                    border: "1px solid var(--io-border)",
                     borderRadius: 6,
-                    padding: '4px 10px',
-                    cursor: 'pointer',
+                    padding: "4px 10px",
+                    cursor: "pointer",
                     fontSize: 12,
-                    color: activeWorkspace.published ? 'var(--io-accent)' : 'var(--io-text-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
+                    color: activeWorkspace.published
+                      ? "var(--io-accent)"
+                      : "var(--io-text-muted)",
+                    display: "flex",
+                    alignItems: "center",
                     gap: 4,
                   }}
                 >
-                  {activeWorkspace.published ? '● Published' : '○ Publish'}
+                  {activeWorkspace.published ? "● Published" : "○ Publish"}
                 </button>
               )}
 
@@ -1389,13 +1628,13 @@ export default function ConsolePage() {
                 onClick={deleteActiveWorkspace}
                 title="Delete workspace"
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--io-border)',
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
                   borderRadius: 6,
-                  padding: '4px 10px',
-                  cursor: 'pointer',
+                  padding: "4px 10px",
+                  cursor: "pointer",
                   fontSize: 12,
-                  color: 'var(--io-danger)',
+                  color: "var(--io-danger)",
                 }}
               >
                 Delete
@@ -1405,14 +1644,14 @@ export default function ConsolePage() {
               <button
                 onClick={saveEdit}
                 style={{
-                  background: 'var(--io-accent)',
-                  border: 'none',
+                  background: "var(--io-accent)",
+                  border: "none",
                   borderRadius: 6,
-                  padding: '5px 14px',
-                  cursor: 'pointer',
+                  padding: "5px 14px",
+                  cursor: "pointer",
                   fontSize: 13,
                   fontWeight: 600,
-                  color: '#fff',
+                  color: "#fff",
                 }}
               >
                 Done
@@ -1424,28 +1663,48 @@ export default function ConsolePage() {
           {activeWorkspace && (
             <button
               onClick={() => setPreserveAspectRatio(!preserveAspectRatio)}
-              title={preserveAspectRatio ? 'Preserve aspect ratio (click to stretch to fill pane)' : 'Stretch to fill pane (click to preserve aspect ratio)'}
+              title={
+                preserveAspectRatio
+                  ? "Preserve aspect ratio (click to stretch to fill pane)"
+                  : "Stretch to fill pane (click to preserve aspect ratio)"
+              }
               style={{
-                background: preserveAspectRatio ? 'transparent' : 'var(--io-accent)',
-                border: '1px solid var(--io-border)',
+                background: preserveAspectRatio
+                  ? "transparent"
+                  : "var(--io-accent)",
+                border: "1px solid var(--io-border)",
                 borderRadius: 6,
-                padding: '4px 8px',
-                cursor: 'pointer',
+                padding: "4px 8px",
+                cursor: "pointer",
                 fontSize: 12,
-                color: preserveAspectRatio ? 'var(--io-text-muted)' : '#fff',
-                display: 'flex',
-                alignItems: 'center',
+                color: preserveAspectRatio ? "var(--io-text-muted)" : "#fff",
+                display: "flex",
+                alignItems: "center",
                 gap: 4,
               }}
             >
               {/* Lock/unlock icon */}
               {preserveAspectRatio ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
               ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 9.9-1" />
                 </svg>
@@ -1458,16 +1717,20 @@ export default function ConsolePage() {
           {activeWorkspace && !editMode && (
             <button
               onClick={() => setHideTitles(!hideTitles)}
-              title={hideTitles ? 'Pane titles hidden (click to restore)' : 'Hide all pane titles'}
+              title={
+                hideTitles
+                  ? "Pane titles hidden (click to restore)"
+                  : "Hide all pane titles"
+              }
               style={{
-                background: hideTitles ? 'var(--io-accent)' : 'transparent',
-                border: '1px solid var(--io-border)',
+                background: hideTitles ? "var(--io-accent)" : "transparent",
+                border: "1px solid var(--io-border)",
                 borderRadius: 6,
-                padding: '4px 8px',
-                cursor: 'pointer',
+                padding: "4px 8px",
+                cursor: "pointer",
                 fontSize: 12,
                 fontWeight: 600,
-                color: hideTitles ? '#fff' : 'var(--io-text-muted)',
+                color: hideTitles ? "#fff" : "var(--io-text-muted)",
               }}
             >
               TT
@@ -1476,18 +1739,24 @@ export default function ConsolePage() {
 
           {/* Export split button — gated by console:export */}
           {activeWorkspace && !editMode && canExport && (
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <div style={{ position: "relative", display: "inline-flex" }}>
               {/* Left: open full Export Dialog */}
               <button
                 onClick={() => setExportDialogOpen(true)}
                 title="Export workspace data"
                 style={{
-                  background: 'transparent', border: '1px solid var(--io-border)',
-                  borderRight: 'none',
-                  borderRadius: '6px 0 0 6px', padding: '5px 10px', cursor: 'pointer',
-                  fontSize: 13, color: 'var(--io-text-primary)',
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  whiteSpace: 'nowrap',
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
+                  borderRight: "none",
+                  borderRadius: "6px 0 0 6px",
+                  padding: "5px 10px",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  color: "var(--io-text-primary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  whiteSpace: "nowrap",
                 }}
               >
                 Export
@@ -1497,48 +1766,83 @@ export default function ConsolePage() {
                 onClick={() => setExportDropdownOpen((v) => !v)}
                 title="Quick export format"
                 style={{
-                  background: 'transparent', border: '1px solid var(--io-border)',
-                  borderRadius: '0 6px 6px 0', padding: '5px 7px', cursor: 'pointer',
-                  fontSize: 11, color: 'var(--io-text-primary)',
-                  display: 'flex', alignItems: 'center',
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "0 6px 6px 0",
+                  padding: "5px 7px",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  color: "var(--io-text-primary)",
+                  display: "flex",
+                  alignItems: "center",
                 }}
               >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="currentColor"
+                >
                   <polygon points="2,3 8,3 5,7" />
                 </svg>
               </button>
               {exportDropdownOpen && (
                 <>
                   <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+                    style={{ position: "fixed", inset: 0, zIndex: 999 }}
                     onClick={() => setExportDropdownOpen(false)}
                   />
-                  <div style={{
-                    position: 'absolute', top: '100%', right: 0, zIndex: 1000,
-                    background: 'var(--io-surface-elevated)', border: '1px solid var(--io-border)',
-                    borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.3)', overflow: 'hidden',
-                    minWidth: 140, marginTop: 4,
-                  }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      right: 0,
+                      zIndex: 1000,
+                      background: "var(--io-surface-elevated)",
+                      border: "1px solid var(--io-border)",
+                      borderRadius: 6,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                      overflow: "hidden",
+                      minWidth: 140,
+                      marginTop: 4,
+                    }}
+                  >
                     {(
                       [
-                        { label: 'CSV',     fmt: 'csv'     },
-                        { label: 'XLSX',    fmt: 'xlsx'    },
-                        { label: 'JSON',    fmt: 'json'    },
-                        { label: 'PDF',     fmt: 'pdf'     },
-                        { label: 'Parquet', fmt: 'parquet' },
-                        { label: 'HTML',    fmt: 'html'    },
+                        { label: "CSV", fmt: "csv" },
+                        { label: "XLSX", fmt: "xlsx" },
+                        { label: "JSON", fmt: "json" },
+                        { label: "PDF", fmt: "pdf" },
+                        { label: "Parquet", fmt: "parquet" },
+                        { label: "HTML", fmt: "html" },
                       ] as { label: string; fmt: ExportFormat }[]
                     ).map(({ label, fmt }) => (
                       <button
                         key={fmt}
-                        onClick={() => { void handleExport(fmt) }}
-                        style={{
-                          display: 'block', width: '100%', padding: '8px 14px',
-                          background: 'none', border: 'none', textAlign: 'left',
-                          cursor: 'pointer', fontSize: 13, color: 'var(--io-text-primary)',
+                        onClick={() => {
+                          void handleExport(fmt);
                         }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          padding: "8px 14px",
+                          background: "none",
+                          border: "none",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          fontSize: 13,
+                          color: "var(--io-text-primary)",
+                        }}
+                        onMouseEnter={(e) => {
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "var(--io-surface-secondary)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (
+                            e.currentTarget as HTMLButtonElement
+                          ).style.background = "none";
+                        }}
                       >
                         {label}
                       </button>
@@ -1552,25 +1856,32 @@ export default function ConsolePage() {
                 onClose={() => setExportDialogOpen(false)}
                 module="console"
                 entity="workspace"
-                filteredRowCount={(activeWorkspace.panes ?? []).reduce((n, p) => {
-                  if (p.trendPointIds?.length) return n + p.trendPointIds.length
-                  if (p.tablePointIds?.length) return n + p.tablePointIds.length
-                  return n
-                }, 0)}
+                filteredRowCount={(activeWorkspace.panes ?? []).reduce(
+                  (n, p) => {
+                    if (p.trendPointIds?.length)
+                      return n + p.trendPointIds.length;
+                    if (p.tablePointIds?.length)
+                      return n + p.tablePointIds.length;
+                    return n;
+                  },
+                  0,
+                )}
                 totalRowCount={(activeWorkspace.panes ?? []).reduce((n, p) => {
-                  if (p.trendPointIds?.length) return n + p.trendPointIds.length
-                  if (p.tablePointIds?.length) return n + p.tablePointIds.length
-                  return n
+                  if (p.trendPointIds?.length)
+                    return n + p.trendPointIds.length;
+                  if (p.tablePointIds?.length)
+                    return n + p.tablePointIds.length;
+                  return n;
                 }, 0)}
                 availableColumns={[
-                  { id: 'tagname',     label: 'Tag Name'    },
-                  { id: 'value',       label: 'Value'       },
-                  { id: 'quality',     label: 'Quality'     },
-                  { id: 'timestamp',   label: 'Timestamp'   },
-                  { id: 'description', label: 'Description' },
-                  { id: 'units',       label: 'Units'       },
+                  { id: "tagname", label: "Tag Name" },
+                  { id: "value", label: "Value" },
+                  { id: "quality", label: "Quality" },
+                  { id: "timestamp", label: "Timestamp" },
+                  { id: "description", label: "Description" },
+                  { id: "units", label: "Units" },
                 ]}
-                visibleColumns={['tagname', 'value', 'quality', 'timestamp']}
+                visibleColumns={["tagname", "value", "quality", "timestamp"]}
               />
             </div>
           )}
@@ -1578,21 +1889,33 @@ export default function ConsolePage() {
           {/* Open in New Window */}
           {activeWorkspace && !editMode && !isKiosk && (
             <button
-              onClick={() => window.open(`/detached/console/${activeWorkspace.id}`, '_blank', 'noopener,noreferrer')}
+              onClick={() =>
+                window.open(
+                  `/detached/console/${activeWorkspace.id}`,
+                  "_blank",
+                  "noopener,noreferrer",
+                )
+              }
               title="Open workspace in new window"
               style={{
-                background: 'transparent',
-                border: '1px solid var(--io-border)',
+                background: "transparent",
+                border: "1px solid var(--io-border)",
                 borderRadius: 6,
-                padding: '5px 8px',
-                cursor: 'pointer',
-                color: 'var(--io-text-primary)',
-                display: 'flex',
-                alignItems: 'center',
+                padding: "5px 8px",
+                cursor: "pointer",
+                color: "var(--io-text-primary)",
+                display: "flex",
+                alignItems: "center",
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" strokeWidth="2">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                 <polyline points="15 3 21 3 21 9" />
                 <line x1="10" y1="14" x2="21" y2="3" />
@@ -1606,15 +1929,15 @@ export default function ConsolePage() {
               onClick={() => setEditMode(true)}
               title="Edit workspace layout"
               style={{
-                background: 'transparent',
-                border: '1px solid var(--io-border)',
+                background: "transparent",
+                border: "1px solid var(--io-border)",
                 borderRadius: 6,
-                padding: '5px 12px',
-                cursor: 'pointer',
+                padding: "5px 12px",
+                cursor: "pointer",
                 fontSize: 13,
-                color: 'var(--io-text-primary)',
-                display: 'flex',
-                alignItems: 'center',
+                color: "var(--io-text-primary)",
+                display: "flex",
+                alignItems: "center",
                 gap: 6,
               }}
             >
@@ -1638,19 +1961,26 @@ export default function ConsolePage() {
           {activeWorkspace && (
             <button
               onClick={toggleFullscreen}
-              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               style={{
-                background: 'transparent',
-                border: '1px solid var(--io-border)',
+                background: "transparent",
+                border: "1px solid var(--io-border)",
                 borderRadius: 6,
-                padding: '5px 8px',
-                cursor: 'pointer',
-                color: 'var(--io-text-primary)',
-                display: 'flex',
-                alignItems: 'center',
+                padding: "5px 8px",
+                cursor: "pointer",
+                color: "var(--io-text-primary)",
+                display: "flex",
+                alignItems: "center",
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 {isFullscreen ? (
                   <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
                 ) : (
@@ -1663,7 +1993,14 @@ export default function ConsolePage() {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
+      <div
+        style={{
+          flex: 1,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "row",
+        }}
+      >
         {/* Left palette — hidden in kiosk mode so pane content fills the screen */}
         {!isKiosk && (
           <ConsolePalette
@@ -1674,46 +2011,71 @@ export default function ConsolePage() {
             activeWorkspaceId={activeId}
             onSelectWorkspace={setActiveId}
             onRenameWorkspace={(id) => {
-              const ws = workspaces.find((w) => w.id === id)
-              if (!ws) return
-              const newName = prompt('Workspace name:', ws.name)
-              if (newName && newName.trim()) handleRenameWorkspace(id, newName.trim())
+              const ws = workspaces.find((w) => w.id === id);
+              if (!ws) return;
+              const newName = prompt("Workspace name:", ws.name);
+              if (newName && newName.trim())
+                handleRenameWorkspace(id, newName.trim());
             }}
             onDuplicateWorkspace={duplicateWorkspace}
             onDeleteWorkspace={(id) => {
-              const nextWorkspaces = workspaces.filter((w) => w.id !== id)
-              setWorkspaces(nextWorkspaces)
-              if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null)
+              const nextWorkspaces = workspaces.filter((w) => w.id !== id);
+              setWorkspaces(nextWorkspaces);
+              if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null);
               if (useApi) {
-                deleteMutation.mutate(id)
+                deleteMutation.mutate(id);
               } else {
-                saveWorkspacesLocal(nextWorkspaces)
+                saveWorkspacesLocal(nextWorkspaces);
               }
             }}
           />
         )}
 
         {/* Workspace area */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
           {/* Swap mode banner */}
           {swapModeSourceId && (
-            <div style={{
-              flexShrink: 0,
-              padding: '6px 14px',
-              background: 'var(--io-warning)',
-              color: 'var(--io-text-inverse)',
-              fontSize: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <div
+              style={{
+                flexShrink: 0,
+                padding: "6px 14px",
+                background: "var(--io-warning)",
+                color: "var(--io-text-inverse)",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
               </svg>
               Click another pane to swap positions — press Escape to cancel
               <button
                 onClick={() => setSwapModeSourceId(null)}
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--io-text-inverse)', cursor: 'pointer', fontSize: 11 }}
+                style={{
+                  marginLeft: "auto",
+                  background: "none",
+                  border: "none",
+                  color: "var(--io-text-inverse)",
+                  cursor: "pointer",
+                  fontSize: 11,
+                }}
               >
                 Cancel
               </button>
@@ -1724,12 +2086,12 @@ export default function ConsolePage() {
             <div
               style={{
                 flexShrink: 0,
-                padding: '6px 14px',
-                background: 'var(--io-alarm-high)',
-                color: '#fff',
+                padding: "6px 14px",
+                background: "var(--io-alarm-high)",
+                color: "#fff",
                 fontSize: 13,
-                display: 'flex',
-                alignItems: 'center',
+                display: "flex",
+                alignItems: "center",
                 gap: 12,
               }}
             >
@@ -1737,18 +2099,18 @@ export default function ConsolePage() {
               <button
                 onClick={() => {
                   if (activeWorkspace) {
-                    saveFailCountRef.current = 0
-                    setShowSaveBanner(false)
-                    saveMutation.mutate(activeWorkspace)
+                    saveFailCountRef.current = 0;
+                    setShowSaveBanner(false);
+                    saveMutation.mutate(activeWorkspace);
                   }
                 }}
                 style={{
-                  background: 'rgba(0,0,0,0.25)',
-                  border: '1px solid rgba(255,255,255,0.4)',
+                  background: "rgba(0,0,0,0.25)",
+                  border: "1px solid rgba(255,255,255,0.4)",
                   borderRadius: 4,
-                  color: '#fff',
-                  padding: '2px 10px',
-                  cursor: 'pointer',
+                  color: "#fff",
+                  padding: "2px 10px",
+                  cursor: "pointer",
                   fontSize: 12,
                 }}
               >
@@ -1762,12 +2124,12 @@ export default function ConsolePage() {
             <div
               style={{
                 flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
                 gap: 16,
-                color: 'var(--io-text-muted)',
+                color: "var(--io-text-muted)",
               }}
             >
               <svg
@@ -1784,8 +2146,14 @@ export default function ConsolePage() {
                 <line x1="8" y1="21" x2="16" y2="21" />
                 <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
-              <div style={{ textAlign: 'center', fontSize: 15 }}>
-                <p style={{ margin: '0 0 4px', fontWeight: 600, color: 'var(--io-text-primary)' }}>
+              <div style={{ textAlign: "center", fontSize: 15 }}>
+                <p
+                  style={{
+                    margin: "0 0 4px",
+                    fontWeight: 600,
+                    color: "var(--io-text-primary)",
+                  }}
+                >
                   No workspaces yet
                 </p>
                 <p style={{ margin: 0, fontSize: 13 }}>
@@ -1795,12 +2163,12 @@ export default function ConsolePage() {
               <button
                 onClick={createWorkspace}
                 style={{
-                  background: 'var(--io-accent)',
-                  color: '#fff',
-                  border: 'none',
+                  background: "var(--io-accent)",
+                  color: "#fff",
+                  border: "none",
                   borderRadius: 6,
-                  padding: '9px 20px',
-                  cursor: 'pointer',
+                  padding: "9px 20px",
+                  cursor: "pointer",
                   fontSize: 14,
                   fontWeight: 600,
                 }}
@@ -1831,10 +2199,10 @@ export default function ConsolePage() {
             <div
               style={{
                 flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--io-text-muted)',
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--io-text-muted)",
                 fontSize: 14,
               }}
             >
@@ -1847,9 +2215,7 @@ export default function ConsolePage() {
 
           {/* Status bar */}
           {workspaces.length > 0 && (
-            <ConsoleStatusBar
-              workspaceName={activeWorkspace?.name ?? ''}
-            />
+            <ConsoleStatusBar workspaceName={activeWorkspace?.name ?? ""} />
           )}
         </div>
       </div>
@@ -1871,70 +2237,86 @@ export default function ConsolePage() {
           onClose={() => setWorkspaceBgCtxMenu(null)}
           items={[
             {
-              label: 'Add Pane',
+              label: "Add Pane",
               onClick: () => {
                 if (activeId) {
                   updateWorkspace(activeId, (w) => ({
                     ...w,
-                    panes: [...w.panes, {
-                      id: `pane-${Date.now()}`,
-                      type: 'blank' as const,
-                      title: 'New Pane',
-                    }],
-                  }))
-                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-                  if (ws) persistWorkspace(ws)
+                    panes: [
+                      ...w.panes,
+                      {
+                        id: `pane-${Date.now()}`,
+                        type: "blank" as const,
+                        title: "New Pane",
+                      },
+                    ],
+                  }));
+                  const ws = useWorkspaceStore
+                    .getState()
+                    .workspaces.find((w) => w.id === activeId);
+                  if (ws) persistWorkspace(ws);
                 }
-                setWorkspaceBgCtxMenu(null)
+                setWorkspaceBgCtxMenu(null);
               },
             },
             {
-              label: 'Paste',
+              label: "Paste",
               disabled: copiedPanesRef.current.length === 0,
               onClick: () => {
                 if (activeId && copiedPanesRef.current.length > 0) {
                   const pasted = copiedPanesRef.current.map((p) => ({
                     ...p,
                     id: `pane-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                  }))
-                  updateWorkspace(activeId, (w) => ({ ...w, panes: [...w.panes, ...pasted] }))
-                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-                  if (ws) persistWorkspace(ws)
+                  }));
+                  updateWorkspace(activeId, (w) => ({
+                    ...w,
+                    panes: [...w.panes, ...pasted],
+                  }));
+                  const ws = useWorkspaceStore
+                    .getState()
+                    .workspaces.find((w) => w.id === activeId);
+                  if (ws) persistWorkspace(ws);
                 }
-                setWorkspaceBgCtxMenu(null)
+                setWorkspaceBgCtxMenu(null);
               },
             },
             {
-              label: 'Select All',
+              label: "Select All",
               onClick: () => {
                 if (activeId) {
-                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-                  if (ws) selectAll(ws.panes.map((p) => p.id))
+                  const ws = useWorkspaceStore
+                    .getState()
+                    .workspaces.find((w) => w.id === activeId);
+                  if (ws) selectAll(ws.panes.map((p) => p.id));
                 }
-                setWorkspaceBgCtxMenu(null)
+                setWorkspaceBgCtxMenu(null);
               },
             },
             {
-              label: 'Clear Grid',
+              label: "Clear Grid",
               divider: true,
               onClick: () => {
                 if (activeId) {
-                  updateWorkspace(activeId, (w) => ({ ...w, panes: [] }))
-                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-                  if (ws) persistWorkspace(ws)
+                  updateWorkspace(activeId, (w) => ({ ...w, panes: [] }));
+                  const ws = useWorkspaceStore
+                    .getState()
+                    .workspaces.find((w) => w.id === activeId);
+                  if (ws) persistWorkspace(ws);
                 }
-                setWorkspaceBgCtxMenu(null)
+                setWorkspaceBgCtxMenu(null);
               },
             },
             {
-              label: 'Workspace Properties…',
+              label: "Workspace Properties…",
               onClick: () => {
-                setWorkspaceBgCtxMenu(null)
+                setWorkspaceBgCtxMenu(null);
                 if (activeId) {
-                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId)
-                  const newName = prompt('Workspace name:', ws?.name ?? '')
+                  const ws = useWorkspaceStore
+                    .getState()
+                    .workspaces.find((w) => w.id === activeId);
+                  const newName = prompt("Workspace name:", ws?.name ?? "");
                   if (newName?.trim()) {
-                    handleRenameWorkspace(activeId, newName.trim())
+                    handleRenameWorkspace(activeId, newName.trim());
                   }
                 }
               },
@@ -1944,62 +2326,79 @@ export default function ConsolePage() {
       )}
 
       {/* Workspace tab context menu */}
-      {tabContextMenu && (() => {
-        const ws = workspaces.find((w) => w.id === tabContextMenu.workspaceId)
-        if (!ws) return null
-        return (
-          <ContextMenu
-            x={tabContextMenu.x}
-            y={tabContextMenu.y}
-            onClose={() => setTabContextMenu(null)}
-            items={[
-              {
-                label: 'Switch to Workspace',
-                onClick: () => setActiveId(ws.id),
-              },
-              {
-                label: isFavorite(ws.id) ? 'Remove from Favorites' : 'Add to Favorites',
-                onClick: () => {
-                  toggleFavorite(ws.id)
-                  setTabContextMenu(null)
+      {tabContextMenu &&
+        (() => {
+          const ws = workspaces.find(
+            (w) => w.id === tabContextMenu.workspaceId,
+          );
+          if (!ws) return null;
+          return (
+            <ContextMenu
+              x={tabContextMenu.x}
+              y={tabContextMenu.y}
+              onClose={() => setTabContextMenu(null)}
+              items={[
+                {
+                  label: "Switch to Workspace",
+                  onClick: () => setActiveId(ws.id),
                 },
-              },
-              {
-                label: 'Rename…',
-                divider: false,
-                onClick: () => {
-                  const newName = prompt('Workspace name:', ws.name)
-                  if (newName && newName.trim()) handleRenameWorkspace(ws.id, newName.trim())
+                {
+                  label: isFavorite(ws.id)
+                    ? "Remove from Favorites"
+                    : "Add to Favorites",
+                  onClick: () => {
+                    toggleFavorite(ws.id);
+                    setTabContextMenu(null);
+                  },
                 },
-              },
-              {
-                label: 'Duplicate',
-                onClick: () => duplicateWorkspace(ws.id),
-              },
-              ...(canPublish ? [{
-                label: ws.published ? 'Unpublish' : 'Publish',
-                divider: false,
-                onClick: () => publishMutation.mutate({ id: ws.id, published: !ws.published }),
-              }] : []),
-              {
-                label: 'Delete',
-                divider: true,
-                onClick: () => {
-                  const nextWorkspaces = workspaces.filter((w) => w.id !== ws.id)
-                  setWorkspaces(nextWorkspaces)
-                  if (activeId === ws.id) setActiveId(nextWorkspaces[0]?.id ?? null)
-                  if (useApi) {
-                    deleteMutation.mutate(ws.id)
-                  } else {
-                    saveWorkspacesLocal(nextWorkspaces)
-                  }
-                  setTabContextMenu(null)
+                {
+                  label: "Rename…",
+                  divider: false,
+                  onClick: () => {
+                    const newName = prompt("Workspace name:", ws.name);
+                    if (newName && newName.trim())
+                      handleRenameWorkspace(ws.id, newName.trim());
+                  },
                 },
-              },
-            ]}
-          />
-        )
-      })()}
+                {
+                  label: "Duplicate",
+                  onClick: () => duplicateWorkspace(ws.id),
+                },
+                ...(canPublish
+                  ? [
+                      {
+                        label: ws.published ? "Unpublish" : "Publish",
+                        divider: false,
+                        onClick: () =>
+                          publishMutation.mutate({
+                            id: ws.id,
+                            published: !ws.published,
+                          }),
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Delete",
+                  divider: true,
+                  onClick: () => {
+                    const nextWorkspaces = workspaces.filter(
+                      (w) => w.id !== ws.id,
+                    );
+                    setWorkspaces(nextWorkspaces);
+                    if (activeId === ws.id)
+                      setActiveId(nextWorkspaces[0]?.id ?? null);
+                    if (useApi) {
+                      deleteMutation.mutate(ws.id);
+                    } else {
+                      saveWorkspacesLocal(nextWorkspaces);
+                    }
+                    setTabContextMenu(null);
+                  },
+                },
+              ]}
+            />
+          );
+        })()}
     </div>
-  )
+  );
 }

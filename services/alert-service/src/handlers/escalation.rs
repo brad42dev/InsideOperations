@@ -48,7 +48,10 @@ pub async fn recover_escalations(state: AppState) {
         }
     };
 
-    info!(count = rows.len(), "recover_escalations: found active alerts with policies");
+    info!(
+        count = rows.len(),
+        "recover_escalations: found active alerts with policies"
+    );
 
     for row in &rows {
         let alert_id: Uuid = row.get("id");
@@ -271,13 +274,11 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     };
 
     // Update current_escalation on the alert
-    if let Err(e) = sqlx::query(
-        "UPDATE alerts SET current_escalation = $1 WHERE id = $2",
-    )
-    .bind(tier)
-    .bind(alert_id)
-    .execute(&state.db)
-    .await
+    if let Err(e) = sqlx::query("UPDATE alerts SET current_escalation = $1 WHERE id = $2")
+        .bind(tier)
+        .bind(alert_id)
+        .execute(&state.db)
+        .await
     {
         error!(alert_id = %alert_id, error = %e, "dispatch_tier: failed to update current_escalation");
     }
@@ -307,8 +308,15 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
     for channel in &channels {
         match channel.as_str() {
             "email" => {
-                dispatch_email(&state, alert_id, tier, &title, message.as_deref(), &email_recipients)
-                    .await;
+                dispatch_email(
+                    &state,
+                    alert_id,
+                    tier,
+                    &title,
+                    message.as_deref(),
+                    &email_recipients,
+                )
+                .await;
             }
             "websocket" => {
                 dispatch_websocket(
@@ -364,12 +372,10 @@ async fn dispatch_tier_impl(state: AppState, alert_id: Uuid, tier: i16) {
         }
 
         // Re-check if alert is still active before escalating
-        let still_active = sqlx::query(
-            "SELECT status FROM alerts WHERE id = $1",
-        )
-        .bind(alert_id)
-        .fetch_optional(&state_for_task.db)
-        .await;
+        let still_active = sqlx::query("SELECT status FROM alerts WHERE id = $1")
+            .bind(alert_id)
+            .fetch_optional(&state_for_task.db)
+            .await;
 
         let current_status: Option<String> = match still_active {
             Ok(Some(row)) => {
@@ -529,7 +535,10 @@ async fn dispatch_email(
         let (email_addr, recipient_name): (String, Option<String>) = match email_row {
             Ok(Some(row)) => {
                 use sqlx::Row;
-                (row.get("email"), row.try_get("display_name").unwrap_or(None))
+                (
+                    row.get("email"),
+                    row.try_get("display_name").unwrap_or(None),
+                )
             }
             Ok(None) => {
                 warn!(
@@ -665,8 +674,11 @@ async fn record_delivery(
     status: &str,
     failure_reason: Option<&str>,
 ) {
-    let sent_at: Option<chrono::DateTime<Utc>> =
-        if status == "sent" { Some(Utc::now()) } else { None };
+    let sent_at: Option<chrono::DateTime<Utc>> = if status == "sent" {
+        Some(Utc::now())
+    } else {
+        None
+    };
 
     if let Err(e) = sqlx::query(
         "INSERT INTO alert_deliveries
@@ -720,12 +732,10 @@ async fn dispatch_channel_adapter(
     };
 
     // Load channel config from DB.
-    let row = sqlx::query(
-        "SELECT enabled, config FROM alert_channels WHERE channel_type = $1",
-    )
-    .bind(channel_type_str)
-    .fetch_optional(&state.db)
-    .await;
+    let row = sqlx::query("SELECT enabled, config FROM alert_channels WHERE channel_type = $1")
+        .bind(channel_type_str)
+        .fetch_optional(&state.db)
+        .await;
 
     let row = match row {
         Ok(Some(r)) => r,
@@ -763,7 +773,9 @@ async fn dispatch_channel_adapter(
     };
 
     // Decrypt secrets in config.
-    if let Err(e) = crate::handlers::channel_config::decrypt_secrets_for_dispatch(state, &mut config_val) {
+    if let Err(e) =
+        crate::handlers::channel_config::decrypt_secrets_for_dispatch(state, &mut config_val)
+    {
         error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter: failed to decrypt config");
         return;
     }
@@ -780,71 +792,61 @@ async fn dispatch_channel_adapter(
 
     // Build adapter and deliver.
     let results: Vec<crate::channels::DeliveryResult> = match channel_type_str {
-        "sms" => {
-            match serde_json::from_value::<SmsConfig>(config_val) {
-                Ok(cfg) => {
-                    SmsAdapter::new(cfg, state.http.clone())
-                        .deliver(&alert_summary, &recipients)
-                        .await
-                }
-                Err(e) => {
-                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/sms: invalid config");
-                    return;
-                }
+        "sms" => match serde_json::from_value::<SmsConfig>(config_val) {
+            Ok(cfg) => {
+                SmsAdapter::new(cfg, state.http.clone())
+                    .deliver(&alert_summary, &recipients)
+                    .await
             }
-        }
-        "voice" => {
-            match serde_json::from_value::<VoiceConfig>(config_val) {
-                Ok(cfg) => {
-                    VoiceAdapter::new(cfg, state.http.clone())
-                        .deliver(&alert_summary, &recipients)
-                        .await
-                }
-                Err(e) => {
-                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/voice: invalid config");
-                    return;
-                }
+            Err(e) => {
+                error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/sms: invalid config");
+                return;
             }
-        }
-        "radio" => {
-            match serde_json::from_value::<RadioConfig>(config_val) {
-                Ok(cfg) => {
-                    RadioAdapter::new(cfg, state.http.clone())
-                        .deliver(&alert_summary, &recipients)
-                        .await
-                }
-                Err(e) => {
-                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/radio: invalid config");
-                    return;
-                }
+        },
+        "voice" => match serde_json::from_value::<VoiceConfig>(config_val) {
+            Ok(cfg) => {
+                VoiceAdapter::new(cfg, state.http.clone())
+                    .deliver(&alert_summary, &recipients)
+                    .await
             }
-        }
-        "pa" => {
-            match serde_json::from_value::<PaConfig>(config_val) {
-                Ok(cfg) => {
-                    PaAdapter::new(cfg, state.http.clone())
-                        .deliver(&alert_summary, &recipients)
-                        .await
-                }
-                Err(e) => {
-                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/pa: invalid config");
-                    return;
-                }
+            Err(e) => {
+                error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/voice: invalid config");
+                return;
             }
-        }
-        "browser_push" => {
-            match serde_json::from_value::<BrowserPushConfig>(config_val) {
-                Ok(cfg) => {
-                    BrowserPushAdapter::new(cfg, state)
-                        .deliver(&alert_summary, &recipients)
-                        .await
-                }
-                Err(e) => {
-                    error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/browser_push: invalid config");
-                    return;
-                }
+        },
+        "radio" => match serde_json::from_value::<RadioConfig>(config_val) {
+            Ok(cfg) => {
+                RadioAdapter::new(cfg, state.http.clone())
+                    .deliver(&alert_summary, &recipients)
+                    .await
             }
-        }
+            Err(e) => {
+                error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/radio: invalid config");
+                return;
+            }
+        },
+        "pa" => match serde_json::from_value::<PaConfig>(config_val) {
+            Ok(cfg) => {
+                PaAdapter::new(cfg, state.http.clone())
+                    .deliver(&alert_summary, &recipients)
+                    .await
+            }
+            Err(e) => {
+                error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/pa: invalid config");
+                return;
+            }
+        },
+        "browser_push" => match serde_json::from_value::<BrowserPushConfig>(config_val) {
+            Ok(cfg) => {
+                BrowserPushAdapter::new(cfg, state)
+                    .deliver(&alert_summary, &recipients)
+                    .await
+            }
+            Err(e) => {
+                error!(alert_id = %alert_id, error = %e, "dispatch_channel_adapter/browser_push: invalid config");
+                return;
+            }
+        },
         other => {
             warn!(alert_id = %alert_id, channel = other, "dispatch_channel_adapter: unhandled channel type");
             return;
@@ -902,12 +904,10 @@ async fn enrich_recipients(
             // Load email, display_name, phone for each user.
             let mut result = Vec::with_capacity(user_ids.len());
             for &uid in user_ids {
-                let row = sqlx::query(
-                    "SELECT display_name, email, phone FROM users WHERE id = $1",
-                )
-                .bind(uid)
-                .fetch_optional(&state.db)
-                .await;
+                let row = sqlx::query("SELECT display_name, email, phone FROM users WHERE id = $1")
+                    .bind(uid)
+                    .fetch_optional(&state.db)
+                    .await;
 
                 let recipient = match row {
                     Ok(Some(r)) => ChannelRecipient {
@@ -919,11 +919,17 @@ async fn enrich_recipients(
                     },
                     Ok(None) => {
                         warn!(user_id = %uid, "enrich_recipients: user not found");
-                        ChannelRecipient { user_id: Some(uid), ..Default::default() }
+                        ChannelRecipient {
+                            user_id: Some(uid),
+                            ..Default::default()
+                        }
                     }
                     Err(e) => {
                         error!(user_id = %uid, error = %e, "enrich_recipients: db error");
-                        ChannelRecipient { user_id: Some(uid), ..Default::default() }
+                        ChannelRecipient {
+                            user_id: Some(uid),
+                            ..Default::default()
+                        }
                     }
                 };
                 result.push(recipient);
@@ -935,7 +941,10 @@ async fn enrich_recipients(
             // We just need user_id in the recipient.
             user_ids
                 .iter()
-                .map(|&uid| ChannelRecipient { user_id: Some(uid), ..Default::default() })
+                .map(|&uid| ChannelRecipient {
+                    user_id: Some(uid),
+                    ..Default::default()
+                })
                 .collect()
         }
         "radio" | "pa" => {
@@ -943,12 +952,18 @@ async fn enrich_recipients(
             // Return recipients with user_id set; the adapter will fall back to default zone/talkgroup.
             user_ids
                 .iter()
-                .map(|&uid| ChannelRecipient { user_id: Some(uid), ..Default::default() })
+                .map(|&uid| ChannelRecipient {
+                    user_id: Some(uid),
+                    ..Default::default()
+                })
                 .collect()
         }
         _ => user_ids
             .iter()
-            .map(|&uid| ChannelRecipient { user_id: Some(uid), ..Default::default() })
+            .map(|&uid| ChannelRecipient {
+                user_id: Some(uid),
+                ..Default::default()
+            })
             .collect(),
     }
 }

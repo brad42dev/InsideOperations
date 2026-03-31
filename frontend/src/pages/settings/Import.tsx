@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   importApi,
   type ConnectorTemplate,
@@ -11,53 +11,53 @@ import {
   type CreateConnectionBody,
   type CreateDefinitionBody,
   type InstantiateTemplateBody,
-} from '../../api/import'
-import { showToast } from '../../shared/components/Toast'
-import { usePermission } from '../../shared/hooks/usePermission'
+} from "../../api/import";
+import { showToast } from "../../shared/components/Toast";
+import { usePermission } from "../../shared/hooks/usePermission";
 import {
   dataLinksApi,
   type DataLink,
   type LinkTransform,
-} from '../../api/dataLinks'
+} from "../../api/dataLinks";
 
 // ---------------------------------------------------------------------------
 // Data categories (shared with OPC Sources)
 // ---------------------------------------------------------------------------
 
 const PREDEFINED_CATEGORIES = [
-  { id: 'process',        label: 'Process' },
-  { id: 'event',          label: 'Event' },
-  { id: 'access_control', label: 'Access Control' },
-  { id: 'personnel',      label: 'Personnel' },
-  { id: 'financial',      label: 'Financial' },
-  { id: 'maintenance',    label: 'Maintenance' },
-  { id: 'ticketing',      label: 'Ticketing' },
-  { id: 'environmental',  label: 'Environmental' },
-  { id: 'general',        label: 'General' },
-]
+  { id: "process", label: "Process" },
+  { id: "event", label: "Event" },
+  { id: "access_control", label: "Access Control" },
+  { id: "personnel", label: "Personnel" },
+  { id: "financial", label: "Financial" },
+  { id: "maintenance", label: "Maintenance" },
+  { id: "ticketing", label: "Ticketing" },
+  { id: "environmental", label: "Environmental" },
+  { id: "general", label: "General" },
+];
 
 interface DataCategory {
-  id: string
-  label: string
-  predefined: boolean
+  id: string;
+  label: string;
+  predefined: boolean;
 }
 
 function useDataCategories() {
   return useQuery<DataCategory[]>({
-    queryKey: ['data-categories'],
+    queryKey: ["data-categories"],
     queryFn: async () => {
       try {
-        const res = await fetch('/api/data-categories')
-        if (!res.ok) throw new Error('API unavailable')
-        const json = await res.json()
-        return json.data ?? json
+        const res = await fetch("/api/data-categories");
+        if (!res.ok) throw new Error("API unavailable");
+        const json = await res.json();
+        return json.data ?? json;
       } catch {
-        return PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true }))
+        return PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true }));
       }
     },
     staleTime: 60_000,
     initialData: PREDEFINED_CATEGORIES.map((c) => ({ ...c, predefined: true })),
-  })
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -66,66 +66,75 @@ function useDataCategories() {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { bg: string; color: string }> = {
-    completed: { bg: 'var(--io-success-subtle)', color: 'var(--io-success)' },
-    running:   { bg: 'var(--io-accent-subtle)', color: 'var(--io-accent)' },
-    pending:   { bg: 'var(--io-warning-subtle)', color: 'var(--io-warning)' },
-    failed:    { bg: 'var(--io-danger-subtle)', color: 'var(--io-danger)' },
-    cancelled: { bg: 'var(--io-surface-tertiary)', color: 'var(--io-text-muted)' },
-    partial:   { bg: 'var(--io-warning-subtle)', color: 'var(--io-warning)' },
-    ok:        { bg: 'var(--io-success-subtle)', color: 'var(--io-success)' },
-    error:     { bg: 'var(--io-danger-subtle)', color: 'var(--io-danger)' },
-  }
-  const style = colors[status] ?? { bg: 'var(--io-surface-tertiary)', color: 'var(--io-text-muted)' }
+    completed: { bg: "var(--io-success-subtle)", color: "var(--io-success)" },
+    running: { bg: "var(--io-accent-subtle)", color: "var(--io-accent)" },
+    pending: { bg: "var(--io-warning-subtle)", color: "var(--io-warning)" },
+    failed: { bg: "var(--io-danger-subtle)", color: "var(--io-danger)" },
+    cancelled: {
+      bg: "var(--io-surface-tertiary)",
+      color: "var(--io-text-muted)",
+    },
+    partial: { bg: "var(--io-warning-subtle)", color: "var(--io-warning)" },
+    ok: { bg: "var(--io-success-subtle)", color: "var(--io-success)" },
+    error: { bg: "var(--io-danger-subtle)", color: "var(--io-danger)" },
+  };
+  const style = colors[status] ?? {
+    bg: "var(--io-surface-tertiary)",
+    color: "var(--io-text-muted)",
+  };
   return (
     <span
       style={{
-        display: 'inline-block',
-        padding: '2px 8px',
-        borderRadius: '999px',
-        fontSize: '11px',
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: "999px",
+        fontSize: "11px",
         fontWeight: 600,
         background: style.bg,
         color: style.color,
-        textTransform: 'capitalize',
+        textTransform: "capitalize",
       }}
     >
       {status}
     </span>
-  )
+  );
 }
 
 function DomainBadge({ domain }: { domain: string }) {
   return (
     <span
       style={{
-        display: 'inline-block',
-        padding: '2px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: "4px",
+        fontSize: "11px",
         fontWeight: 500,
-        background: 'var(--io-accent-subtle)',
-        color: 'var(--io-accent)',
-        textTransform: 'capitalize',
+        background: "var(--io-accent-subtle)",
+        color: "var(--io-accent)",
+        textTransform: "capitalize",
       }}
     >
-      {domain.replace(/_/g, ' ')}
+      {domain.replace(/_/g, " ")}
     </span>
-  )
+  );
 }
 
-function formatDuration(startedAt: string | null, completedAt: string | null): string {
-  if (!startedAt) return '—'
-  const start = new Date(startedAt).getTime()
-  const end = completedAt ? new Date(completedAt).getTime() : Date.now()
-  const diffMs = end - start
-  if (diffMs < 1000) return `${diffMs}ms`
-  if (diffMs < 60000) return `${Math.round(diffMs / 1000)}s`
-  return `${Math.round(diffMs / 60000)}m`
+function formatDuration(
+  startedAt: string | null,
+  completedAt: string | null,
+): string {
+  if (!startedAt) return "—";
+  const start = new Date(startedAt).getTime();
+  const end = completedAt ? new Date(completedAt).getTime() : Date.now();
+  const diffMs = end - start;
+  if (diffMs < 1000) return `${diffMs}ms`;
+  if (diffMs < 60000) return `${Math.round(diffMs / 1000)}s`;
+  return `${Math.round(diffMs / 60000)}m`;
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString()
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString();
 }
 
 // ---------------------------------------------------------------------------
@@ -138,73 +147,75 @@ function Drawer({
   onClose,
   children,
 }: {
-  title: string
-  open: boolean
-  onClose: () => void
-  children: React.ReactNode
+  title: string;
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
-  if (!open) return null
+  if (!open) return null;
   return (
     <div
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
         zIndex: 50,
-        display: 'flex',
-        justifyContent: 'flex-end',
+        display: "flex",
+        justifyContent: "flex-end",
       }}
     >
       {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
-          position: 'absolute',
+          position: "absolute",
           inset: 0,
-          background: 'rgba(0,0,0,0.4)',
+          background: "rgba(0,0,0,0.4)",
         }}
       />
       {/* Panel */}
       <div
         style={{
-          position: 'relative',
-          width: '480px',
-          maxWidth: '95vw',
-          height: '100%',
-          background: 'var(--io-surface)',
-          borderLeft: '1px solid var(--io-border)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          position: "relative",
+          width: "480px",
+          maxWidth: "95vw",
+          height: "100%",
+          background: "var(--io-surface)",
+          borderLeft: "1px solid var(--io-border)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
         <div
           style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--io-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            padding: "20px 24px",
+            borderBottom: "1px solid var(--io-border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <div style={{ fontWeight: 600, fontSize: '15px' }}>{title}</div>
+          <div style={{ fontWeight: 600, fontSize: "15px" }}>{title}</div>
           <button
             onClick={onClose}
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--io-text-muted)',
-              fontSize: '20px',
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--io-text-muted)",
+              fontSize: "20px",
               lineHeight: 1,
             }}
           >
             ×
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>{children}</div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          {children}
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -217,69 +228,75 @@ function Modal({
   onClose,
   children,
 }: {
-  title: string
-  open: boolean
-  onClose: () => void
-  children: React.ReactNode
+  title: string;
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
-  if (!open) return null
+  if (!open) return null;
   return (
     <div
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
         zIndex: 60,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
       <div
         onClick={onClose}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+        }}
       />
       <div
         style={{
-          position: 'relative',
-          width: '560px',
-          maxWidth: '95vw',
-          maxHeight: '85vh',
-          background: 'var(--io-surface)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius-lg)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          position: "relative",
+          width: "560px",
+          maxWidth: "95vw",
+          maxHeight: "85vh",
+          background: "var(--io-surface)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius-lg)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
         <div
           style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--io-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            padding: "20px 24px",
+            borderBottom: "1px solid var(--io-border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <div style={{ fontWeight: 600, fontSize: '15px' }}>{title}</div>
+          <div style={{ fontWeight: 600, fontSize: "15px" }}>{title}</div>
           <button
             onClick={onClose}
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--io-text-muted)',
-              fontSize: '20px',
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--io-text-muted)",
+              fontSize: "20px",
               lineHeight: 1,
             }}
           >
             ×
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>{children}</div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          {children}
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -287,85 +304,101 @@ function Modal({
 // ---------------------------------------------------------------------------
 
 function ConnectorsTab() {
-  const [selectedTemplate, setSelectedTemplate] = useState<ConnectorTemplate | null>(null)
-  const [setupOpen, setSetupOpen] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<ConnectorTemplate | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['connector-templates'],
+    queryKey: ["connector-templates"],
     queryFn: async () => {
-      const res = await importApi.listTemplates()
-      return res.success ? res.data : []
+      const res = await importApi.listTemplates();
+      return res.success ? res.data : [];
     },
-  })
+  });
 
-  const templates = data ?? []
+  const templates = data ?? [];
 
   // Group by domain
-  const grouped = templates.reduce<Record<string, ConnectorTemplate[]>>((acc, t) => {
-    const key = t.domain
-    if (!acc[key]) acc[key] = []
-    acc[key].push(t)
-    return acc
-  }, {})
+  const grouped = templates.reduce<Record<string, ConnectorTemplate[]>>(
+    (acc, t) => {
+      const key = t.domain;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(t);
+      return acc;
+    },
+    {},
+  );
 
   if (isLoading) {
     return (
-      <div style={{ color: 'var(--io-text-muted)', textAlign: 'center', padding: '40px' }}>
+      <div
+        style={{
+          color: "var(--io-text-muted)",
+          textAlign: "center",
+          padding: "40px",
+        }}
+      >
         Loading connector templates...
       </div>
-    )
+    );
   }
 
   return (
     <div>
       {Object.entries(grouped).map(([domain, items]) => (
-        <div key={domain} style={{ marginBottom: '32px' }}>
+        <div key={domain} style={{ marginBottom: "32px" }}>
           <div
             style={{
-              fontSize: '12px',
+              fontSize: "12px",
               fontWeight: 600,
-              color: 'var(--io-text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              marginBottom: '12px',
+              color: "var(--io-text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              marginBottom: "12px",
             }}
           >
-            {domain.replace(/_/g, ' ')}
+            {domain.replace(/_/g, " ")}
           </div>
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: '12px',
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+              gap: "12px",
             }}
           >
             {items.map((t) => (
               <button
                 key={t.id}
                 onClick={() => {
-                  setSelectedTemplate(t)
-                  setSetupOpen(true)
+                  setSelectedTemplate(t);
+                  setSetupOpen(true);
                 }}
                 style={{
-                  background: 'var(--io-surface-secondary)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: 'var(--io-radius)',
-                  padding: '16px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'border-color 0.15s',
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  padding: "16px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  transition: "border-color 0.15s",
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    marginBottom: "4px",
+                  }}
+                >
                   {t.name}
                 </div>
-                <div style={{ marginBottom: '8px' }}>
+                <div style={{ marginBottom: "8px" }}>
                   <DomainBadge domain={t.domain} />
                   <span
                     style={{
-                      marginLeft: '6px',
-                      fontSize: '11px',
-                      color: 'var(--io-text-muted)',
+                      marginLeft: "6px",
+                      fontSize: "11px",
+                      color: "var(--io-text-muted)",
                     }}
                   >
                     {t.vendor}
@@ -374,8 +407,8 @@ function ConnectorsTab() {
                 {t.description && (
                   <div
                     style={{
-                      fontSize: '12px',
-                      color: 'var(--io-text-secondary)',
+                      fontSize: "12px",
+                      color: "var(--io-text-secondary)",
                       lineHeight: 1.4,
                     }}
                   >
@@ -389,13 +422,23 @@ function ConnectorsTab() {
       ))}
 
       {templates.length === 0 && (
-        <div style={{ color: 'var(--io-text-muted)', textAlign: 'center', padding: '40px' }}>
+        <div
+          style={{
+            color: "var(--io-text-muted)",
+            textAlign: "center",
+            padding: "40px",
+          }}
+        >
           No connector templates found.
         </div>
       )}
 
       <Drawer
-        title={selectedTemplate ? `Set up: ${selectedTemplate.name}` : 'Set up connection'}
+        title={
+          selectedTemplate
+            ? `Set up: ${selectedTemplate.name}`
+            : "Set up connection"
+        }
         open={setupOpen}
         onClose={() => setSetupOpen(false)}
       >
@@ -407,7 +450,7 @@ function ConnectorsTab() {
         )}
       </Drawer>
     </div>
-  )
+  );
 }
 
 function TemplateField({
@@ -415,34 +458,34 @@ function TemplateField({
   value,
   onChange,
 }: {
-  field: TemplateFieldDef
-  value: string
-  onChange: (val: string) => void
+  field: TemplateFieldDef;
+  value: string;
+  onChange: (val: string) => void;
 }) {
-  if (field.type === 'secret') {
+  if (field.type === "secret") {
     return (
       <input
         type="password"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={field.placeholder ?? ''}
+        placeholder={field.placeholder ?? ""}
         autoComplete="new-password"
         style={inputStyle}
       />
-    )
+    );
   }
-  if (field.type === 'number') {
+  if (field.type === "number") {
     return (
       <input
         type="number"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={field.placeholder ?? ''}
+        placeholder={field.placeholder ?? ""}
         style={inputStyle}
       />
-    )
+    );
   }
-  if (field.type === 'select' && field.options) {
+  if (field.type === "select" && field.options) {
     return (
       <select
         value={value}
@@ -456,7 +499,7 @@ function TemplateField({
           </option>
         ))}
       </select>
-    )
+    );
   }
   // Default: text
   return (
@@ -464,67 +507,77 @@ function TemplateField({
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder={field.placeholder ?? ''}
+      placeholder={field.placeholder ?? ""}
       style={inputStyle}
     />
-  )
+  );
 }
 
 function SetupConnectionDrawerContent({
   template,
   onClose,
 }: {
-  template: ConnectorTemplate
-  onClose: () => void
+  template: ConnectorTemplate;
+  onClose: () => void;
 }) {
-  const queryClient = useQueryClient()
-  const [name, setName] = useState(`${template.name} Connection`)
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(`${template.name} Connection`);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries((template.required_fields ?? []).map((f) => [f.key, '']))
-  )
-  const [error, setError] = useState<string | null>(null)
+    Object.fromEntries(
+      (template.required_fields ?? []).map((f) => [f.key, ""]),
+    ),
+  );
+  const [error, setError] = useState<string | null>(null);
 
-  const hasRequiredFields = Array.isArray(template.required_fields) && template.required_fields.length > 0
+  const hasRequiredFields =
+    Array.isArray(template.required_fields) &&
+    template.required_fields.length > 0;
 
   const mutation = useMutation({
     mutationFn: (body: InstantiateTemplateBody) =>
       importApi.instantiateTemplate(template.slug, body),
     onSuccess: (res) => {
       if (res.success) {
-        queryClient.invalidateQueries({ queryKey: ['import-connections'] })
-        onClose()
+        queryClient.invalidateQueries({ queryKey: ["import-connections"] });
+        onClose();
       } else {
-        setError(res.error.message)
+        setError(res.error.message);
       }
     },
-  })
+  });
 
   const handleSave = () => {
-    setError(null)
+    setError(null);
     mutation.mutate({
       field_values: fieldValues,
       connection_name: name,
-    })
-  }
+    });
+  };
 
   const setField = (key: string, val: string) => {
-    setFieldValues((prev) => ({ ...prev, [key]: val }))
-  }
+    setFieldValues((prev) => ({ ...prev, [key]: val }));
+  };
 
   return (
     <div>
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: "20px" }}>
         <DomainBadge domain={template.domain} />
-        <span style={{ marginLeft: '8px', color: 'var(--io-text-muted)', fontSize: '13px' }}>
+        <span
+          style={{
+            marginLeft: "8px",
+            color: "var(--io-text-muted)",
+            fontSize: "13px",
+          }}
+        >
           {template.vendor}
         </span>
       </div>
       {template.description && (
         <p
           style={{
-            fontSize: '13px',
-            color: 'var(--io-text-secondary)',
-            marginBottom: '24px',
+            fontSize: "13px",
+            color: "var(--io-text-secondary)",
+            marginBottom: "24px",
             lineHeight: 1.5,
           }}
         >
@@ -546,7 +599,7 @@ function SetupConnectionDrawerContent({
             <Field key={field.key} label={field.label}>
               <TemplateField
                 field={field}
-                value={fieldValues[field.key] ?? ''}
+                value={fieldValues[field.key] ?? ""}
                 onChange={(val) => setField(field.key, val)}
               />
             </Field>
@@ -556,19 +609,19 @@ function SetupConnectionDrawerContent({
       {error && (
         <div
           style={{
-            padding: '10px 12px',
-            background: 'var(--io-danger-subtle)',
-            color: 'var(--io-danger)',
-            borderRadius: 'var(--io-radius)',
-            fontSize: '13px',
-            marginBottom: '16px',
+            padding: "10px 12px",
+            background: "var(--io-danger-subtle)",
+            color: "var(--io-danger)",
+            borderRadius: "var(--io-radius)",
+            fontSize: "13px",
+            marginBottom: "16px",
           }}
         >
           {error}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
         <button onClick={onClose} style={secondaryBtnStyle}>
           Cancel
         </button>
@@ -577,11 +630,11 @@ function SetupConnectionDrawerContent({
           disabled={mutation.isPending || !name.trim()}
           style={primaryBtnStyle}
         >
-          {mutation.isPending ? 'Saving...' : 'Save Connection'}
+          {mutation.isPending ? "Saving..." : "Save Connection"}
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -591,74 +644,93 @@ function SetupConnectionDrawerContent({
 // ---------------------------------------------------------------------------
 // Context menu shared helpers
 // ---------------------------------------------------------------------------
-interface ContextMenuPos { x: number; y: number }
+interface ContextMenuPos {
+  x: number;
+  y: number;
+}
 
-function useContextMenuDismiss(ref: React.RefObject<HTMLDivElement | null>, onClose: () => void) {
+function useContextMenuDismiss(
+  ref: React.RefObject<HTMLDivElement | null>,
+  onClose: () => void,
+) {
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose()
+        onClose();
       }
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('mousedown', handleClick)
-    document.addEventListener('keydown', handleKey)
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener('mousedown', handleClick)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [ref, onClose])
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [ref, onClose]);
 }
 
 const cmMenuStyle: React.CSSProperties = {
-  position: 'fixed',
+  position: "fixed",
   zIndex: 500,
-  background: 'var(--io-surface-elevated)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-  minWidth: '200px',
-  overflow: 'hidden',
-  padding: '4px 0',
-}
+  background: "var(--io-surface-elevated)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+  minWidth: "200px",
+  overflow: "hidden",
+  padding: "4px 0",
+};
 
 const cmItemStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  padding: '7px 14px',
-  background: 'transparent',
-  border: 'none',
-  textAlign: 'left',
-  fontSize: '13px',
-  color: 'var(--io-text-secondary)',
-  cursor: 'pointer',
-}
+  display: "block",
+  width: "100%",
+  padding: "7px 14px",
+  background: "transparent",
+  border: "none",
+  textAlign: "left",
+  fontSize: "13px",
+  color: "var(--io-text-secondary)",
+  cursor: "pointer",
+};
 
 const cmDisabledItemStyle: React.CSSProperties = {
   ...cmItemStyle,
-  color: 'var(--io-text-muted)',
-  cursor: 'not-allowed',
+  color: "var(--io-text-muted)",
+  cursor: "not-allowed",
   opacity: 0.55,
-}
+};
 
 const cmDangerItemStyle: React.CSSProperties = {
   ...cmItemStyle,
-  color: 'var(--io-danger)',
-}
+  color: "var(--io-danger)",
+};
 
-function CmItem({ label, action, danger }: { label: string; action: () => void; danger?: boolean }) {
+function CmItem({
+  label,
+  action,
+  danger,
+}: {
+  label: string;
+  action: () => void;
+  danger?: boolean;
+}) {
   return (
     <button
       style={danger ? cmDangerItemStyle : cmItemStyle}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--io-surface-secondary)' }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.background =
+          "var(--io-surface-secondary)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+      }}
       onClick={action}
     >
       {label}
     </button>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -673,33 +745,66 @@ function ImportConnectionContextMenu({
   onDelete,
   definitionCount,
 }: {
-  connection: ImportConnection
-  pos: ContextMenuPos
-  onClose: () => void
-  onTest: (c: ImportConnection) => void
-  onToggleEnabled: (c: ImportConnection) => void
-  onDelete: (c: ImportConnection) => void
-  definitionCount: number
+  connection: ImportConnection;
+  pos: ContextMenuPos;
+  onClose: () => void;
+  onTest: (c: ImportConnection) => void;
+  onToggleEnabled: (c: ImportConnection) => void;
+  onDelete: (c: ImportConnection) => void;
+  definitionCount: number;
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useContextMenuDismiss(ref, onClose)
+  const ref = useRef<HTMLDivElement>(null);
+  useContextMenuDismiss(ref, onClose);
 
-  const hasDefinitions = definitionCount > 0
+  const hasDefinitions = definitionCount > 0;
 
   return (
-    <div ref={ref} role="menu" style={{ ...cmMenuStyle, top: pos.y, left: pos.x }}>
-      <CmItem label="Test Connection" action={() => { onTest(connection); onClose() }} />
-      <CmItem label={connection.enabled ? 'Disable' : 'Enable'} action={() => { onToggleEnabled(connection); onClose() }} />
-      <div style={{ height: '1px', background: 'var(--io-border)', margin: '4px 0' }} />
+    <div
+      ref={ref}
+      role="menu"
+      style={{ ...cmMenuStyle, top: pos.y, left: pos.x }}
+    >
+      <CmItem
+        label="Test Connection"
+        action={() => {
+          onTest(connection);
+          onClose();
+        }}
+      />
+      <CmItem
+        label={connection.enabled ? "Disable" : "Enable"}
+        action={() => {
+          onToggleEnabled(connection);
+          onClose();
+        }}
+      />
+      <div
+        style={{
+          height: "1px",
+          background: "var(--io-border)",
+          margin: "4px 0",
+        }}
+      />
       {hasDefinitions ? (
-        <button style={cmDisabledItemStyle} title="Cannot delete — definitions reference this connection" disabled>
+        <button
+          style={cmDisabledItemStyle}
+          title="Cannot delete — definitions reference this connection"
+          disabled
+        >
           Delete
         </button>
       ) : (
-        <CmItem label="Delete" action={() => { onDelete(connection); onClose() }} danger />
+        <CmItem
+          label="Delete"
+          action={() => {
+            onDelete(connection);
+            onClose();
+          }}
+          danger
+        />
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -713,100 +818,153 @@ function ImportDefinitionContextMenu({
   onViewRunHistory,
   onToggleEnabled,
 }: {
-  definition: ImportDefinition
-  pos: ContextMenuPos
-  onClose: () => void
-  onRunNow: (d: ImportDefinition) => void
-  onViewRunHistory: (d: ImportDefinition) => void
-  onToggleEnabled: (d: ImportDefinition) => void
+  definition: ImportDefinition;
+  pos: ContextMenuPos;
+  onClose: () => void;
+  onRunNow: (d: ImportDefinition) => void;
+  onViewRunHistory: (d: ImportDefinition) => void;
+  onToggleEnabled: (d: ImportDefinition) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useContextMenuDismiss(ref, onClose)
+  const ref = useRef<HTMLDivElement>(null);
+  useContextMenuDismiss(ref, onClose);
 
   return (
     <div ref={ref} style={{ ...cmMenuStyle, top: pos.y, left: pos.x }}>
-      <CmItem label="Run Now" action={() => { onRunNow(definition); onClose() }} />
-      <CmItem label="View Run History" action={() => { onViewRunHistory(definition); onClose() }} />
-      <div style={{ height: '1px', background: 'var(--io-border)', margin: '4px 0' }} />
-      <CmItem label={definition.enabled ? 'Disable' : 'Enable'} action={() => { onToggleEnabled(definition); onClose() }} />
+      <CmItem
+        label="Run Now"
+        action={() => {
+          onRunNow(definition);
+          onClose();
+        }}
+      />
+      <CmItem
+        label="View Run History"
+        action={() => {
+          onViewRunHistory(definition);
+          onClose();
+        }}
+      />
+      <div
+        style={{
+          height: "1px",
+          background: "var(--io-border)",
+          margin: "4px 0",
+        }}
+      />
+      <CmItem
+        label={definition.enabled ? "Disable" : "Enable"}
+        action={() => {
+          onToggleEnabled(definition);
+          onClose();
+        }}
+      />
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // ConnectionsTab
 // ---------------------------------------------------------------------------
 function ConnectionsTab() {
-  const queryClient = useQueryClient()
-  const [wizardOpen, setWizardOpen] = useState(false)
-  const [editConn, setEditConn] = useState<ImportConnection | null>(null)
-  const canManageConnections = usePermission('system:import_connections')
-  const [connContextMenu, setConnContextMenu] = useState<{ connection: ImportConnection; pos: ContextMenuPos } | null>(null)
+  const queryClient = useQueryClient();
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [editConn, setEditConn] = useState<ImportConnection | null>(null);
+  const canManageConnections = usePermission("system:import_connections");
+  const [connContextMenu, setConnContextMenu] = useState<{
+    connection: ImportConnection;
+    pos: ContextMenuPos;
+  } | null>(null);
 
   function handleConnContextMenu(e: React.MouseEvent, conn: ImportConnection) {
-    e.preventDefault()
-    setConnContextMenu({ connection: conn, pos: { x: e.clientX, y: e.clientY } })
+    e.preventDefault();
+    setConnContextMenu({
+      connection: conn,
+      pos: { x: e.clientX, y: e.clientY },
+    });
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['import-connections'],
+    queryKey: ["import-connections"],
     queryFn: async () => {
-      const res = await importApi.listConnections()
-      return res.success ? res.data : []
+      const res = await importApi.listConnections();
+      return res.success ? res.data : [];
     },
-  })
+  });
 
-  const connections = data ?? []
+  const connections = data ?? [];
 
   // Fetch definitions to determine per-connection definition count for Delete graying.
   // Shares the same cache key as DefinitionsTab — no duplicate network request.
   const { data: defsData } = useQuery({
-    queryKey: ['import-definitions'],
+    queryKey: ["import-definitions"],
     queryFn: async () => {
-      const res = await importApi.listDefinitions()
-      return res.success ? res.data : []
+      const res = await importApi.listDefinitions();
+      return res.success ? res.data : [];
     },
     staleTime: 30_000,
-  })
-  const definitions = defsData ?? []
+  });
+  const definitions = defsData ?? [];
 
   function definitionCountForConnection(connectionId: string): number {
-    return definitions.filter((d) => d.connection_id === connectionId).length
+    return definitions.filter((d) => d.connection_id === connectionId).length;
   }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => importApi.deleteConnection(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['import-connections'] }),
-  })
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["import-connections"] }),
+  });
 
   const testMutation = useMutation({
     mutationFn: (id: string) => importApi.testConnection(id),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['import-connections'] })
+      queryClient.invalidateQueries({ queryKey: ["import-connections"] });
       if (!res.success) {
-        showToast({ title: 'Connection test failed', description: res.error.message, variant: 'error' })
+        showToast({
+          title: "Connection test failed",
+          description: res.error.message,
+          variant: "error",
+        });
       }
     },
-    onError: () => showToast({ title: 'Connection test failed', description: 'Network error', variant: 'error' }),
-  })
+    onError: () =>
+      showToast({
+        title: "Connection test failed",
+        description: "Network error",
+        variant: "error",
+      }),
+  });
 
   const toggleConnMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       importApi.updateConnection(id, { enabled }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['import-connections'] }),
-  })
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["import-connections"] }),
+  });
 
   if (isLoading) {
     return (
-      <div style={{ color: 'var(--io-text-muted)', textAlign: 'center', padding: '40px' }}>
+      <div
+        style={{
+          color: "var(--io-text-muted)",
+          textAlign: "center",
+          padding: "40px",
+        }}
+      >
         Loading connections...
       </div>
-    )
+    );
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: "16px",
+        }}
+      >
         {canManageConnections && (
           <button onClick={() => setWizardOpen(true)} style={primaryBtnStyle}>
             + New Connection
@@ -817,42 +975,48 @@ function ConnectionsTab() {
       {connections.length === 0 ? (
         <div
           style={{
-            textAlign: 'center',
-            padding: '48px',
-            color: 'var(--io-text-muted)',
-            background: 'var(--io-surface-secondary)',
-            borderRadius: 'var(--io-radius)',
-            border: '1px solid var(--io-border)',
+            textAlign: "center",
+            padding: "48px",
+            color: "var(--io-text-muted)",
+            background: "var(--io-surface-secondary)",
+            borderRadius: "var(--io-radius)",
+            border: "1px solid var(--io-border)",
           }}
         >
           No connections configured yet. Click "New Connection" to add one.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {connections.map((conn) => (
             <div
               key={conn.id}
               style={{
-                background: 'var(--io-surface-secondary)',
-                border: '1px solid var(--io-border)',
-                borderRadius: 'var(--io-radius)',
-                padding: '14px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
+                background: "var(--io-surface-secondary)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                padding: "14px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
               }}
               onContextMenu={(e) => handleConnContextMenu(e, conn)}
             >
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    marginBottom: "4px",
+                  }}
+                >
                   {conn.name}
                 </div>
                 <div
                   style={{
-                    fontSize: '12px',
-                    color: 'var(--io-text-muted)',
-                    display: 'flex',
-                    gap: '12px',
+                    fontSize: "12px",
+                    color: "var(--io-text-muted)",
+                    display: "flex",
+                    gap: "12px",
                   }}
                 >
                   <span>{conn.connection_type}</span>
@@ -862,7 +1026,9 @@ function ConnectionsTab() {
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
                 {conn.last_test_status ? (
                   <StatusBadge status={conn.last_test_status} />
                 ) : (
@@ -888,7 +1054,7 @@ function ConnectionsTab() {
                     <button
                       onClick={() => {
                         if (confirm(`Delete connection "${conn.name}"?`)) {
-                          deleteMutation.mutate(conn.id)
+                          deleteMutation.mutate(conn.id);
                         }
                       }}
                       style={dangerBtnStyle}
@@ -913,12 +1079,15 @@ function ConnectionsTab() {
       </Modal>
 
       <Modal
-        title={editConn ? `Edit: ${editConn.name}` : 'Edit Connection'}
+        title={editConn ? `Edit: ${editConn.name}` : "Edit Connection"}
         open={!!editConn}
         onClose={() => setEditConn(null)}
       >
         {editConn && (
-          <EditConnectionForm conn={editConn} onClose={() => setEditConn(null)} />
+          <EditConnectionForm
+            conn={editConn}
+            onClose={() => setEditConn(null)}
+          />
         )}
       </Modal>
 
@@ -928,80 +1097,86 @@ function ConnectionsTab() {
           pos={connContextMenu.pos}
           onClose={() => setConnContextMenu(null)}
           onTest={(c) => testMutation.mutate(c.id)}
-          onToggleEnabled={(c) => toggleConnMutation.mutate({ id: c.id, enabled: !c.enabled })}
+          onToggleEnabled={(c) =>
+            toggleConnMutation.mutate({ id: c.id, enabled: !c.enabled })
+          }
           onDelete={(c) => {
             if (confirm(`Delete connection "${c.name}"?`)) {
-              deleteMutation.mutate(c.id)
+              deleteMutation.mutate(c.id);
             }
           }}
-          definitionCount={definitionCountForConnection(connContextMenu.connection.id)}
+          definitionCount={definitionCountForConnection(
+            connContextMenu.connection.id,
+          )}
         />
       )}
     </div>
-  )
+  );
 }
 
 function NewConnectionWizard({ onClose }: { onClose: () => void }) {
-  const queryClient = useQueryClient()
-  const [step, setStep] = useState(1)
-  const [selectedTemplate, setSelectedTemplate] = useState<ConnectorTemplate | null>(null)
-  const [name, setName] = useState('')
-  const [authType, setAuthType] = useState('none')
-  const [configJson, setConfigJson] = useState('{}')
-  const [authConfigJson, setAuthConfigJson] = useState('{}')
-  const [dataCategoryId, setDataCategoryId] = useState<string>('')
-  const [testResult, setTestResult] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [savedId, setSavedId] = useState<string | null>(null)
-  const catQuery = useDataCategories()
-  const categories = catQuery.data ?? []
+  const queryClient = useQueryClient();
+  const [step, setStep] = useState(1);
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<ConnectorTemplate | null>(null);
+  const [name, setName] = useState("");
+  const [authType, setAuthType] = useState("none");
+  const [configJson, setConfigJson] = useState("{}");
+  const [authConfigJson, setAuthConfigJson] = useState("{}");
+  const [dataCategoryId, setDataCategoryId] = useState<string>("");
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const catQuery = useDataCategories();
+  const categories = catQuery.data ?? [];
 
   const { data } = useQuery({
-    queryKey: ['connector-templates'],
+    queryKey: ["connector-templates"],
     queryFn: async () => {
-      const res = await importApi.listTemplates()
-      return res.success ? res.data : []
+      const res = await importApi.listTemplates();
+      return res.success ? res.data : [];
     },
-  })
+  });
 
-  const templates = data ?? []
+  const templates = data ?? [];
 
   const saveMutation = useMutation({
-    mutationFn: (body: CreateConnectionBody) => importApi.createConnection(body),
+    mutationFn: (body: CreateConnectionBody) =>
+      importApi.createConnection(body),
     onSuccess: (res) => {
       if (res.success) {
-        setSavedId(res.data.id)
-        queryClient.invalidateQueries({ queryKey: ['import-connections'] })
-        setStep(3)
+        setSavedId(res.data.id);
+        queryClient.invalidateQueries({ queryKey: ["import-connections"] });
+        setStep(3);
       } else {
-        setError(res.error.message)
+        setError(res.error.message);
       }
     },
-  })
+  });
 
   const testMutation = useMutation({
     mutationFn: (id: string) => importApi.testConnection(id),
     onSuccess: (res) => {
       if (res.success) {
-        setTestResult('Connection test passed.')
-        queryClient.invalidateQueries({ queryKey: ['import-connections'] })
+        setTestResult("Connection test passed.");
+        queryClient.invalidateQueries({ queryKey: ["import-connections"] });
       } else {
-        setTestResult(`Test failed: ${res.error.message}`)
+        setTestResult(`Test failed: ${res.error.message}`);
       }
     },
-  })
+  });
 
   const handleSave = () => {
-    setError(null)
-    if (!selectedTemplate) return
-    let config: Record<string, unknown> = {}
-    let authConfig: Record<string, unknown> = {}
+    setError(null);
+    if (!selectedTemplate) return;
+    let config: Record<string, unknown> = {};
+    let authConfig: Record<string, unknown> = {};
     try {
-      config = JSON.parse(configJson)
-      authConfig = JSON.parse(authConfigJson)
+      config = JSON.parse(configJson);
+      authConfig = JSON.parse(authConfigJson);
     } catch {
-      setError('Invalid JSON in config fields')
-      return
+      setError("Invalid JSON in config fields");
+      return;
     }
     saveMutation.mutate({
       name: name || `${selectedTemplate.name} Connection`,
@@ -1010,79 +1185,92 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
       auth_type: authType,
       auth_config: authConfig,
       data_category_id: dataCategoryId || undefined,
-    } as CreateConnectionBody)
-  }
+    } as CreateConnectionBody);
+  };
 
   return (
     <div>
       {/* Step indicator */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "24px" }}>
         {[1, 2, 3].map((s) => (
           <div
             key={s}
             style={{
               flex: 1,
-              height: '4px',
-              borderRadius: '2px',
-              background: s <= step ? 'var(--io-accent)' : 'var(--io-border)',
+              height: "4px",
+              borderRadius: "2px",
+              background: s <= step ? "var(--io-accent)" : "var(--io-border)",
             }}
           />
         ))}
       </div>
       <div
         style={{
-          fontSize: '11px',
-          color: 'var(--io-text-muted)',
-          marginBottom: '20px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
+          fontSize: "11px",
+          color: "var(--io-text-muted)",
+          marginBottom: "20px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
         }}
       >
-        Step {step} of 3 —{' '}
-        {step === 1 ? 'Select type' : step === 2 ? 'Configure' : 'Test & Save'}
+        Step {step} of 3 —{" "}
+        {step === 1 ? "Select type" : step === 2 ? "Configure" : "Test & Save"}
       </div>
 
       {step === 1 && (
         <div>
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '8px',
-              maxHeight: '360px',
-              overflowY: 'auto',
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "8px",
+              maxHeight: "360px",
+              overflowY: "auto",
             }}
           >
             {templates.map((t) => (
               <button
                 key={t.id}
                 onClick={() => {
-                  setSelectedTemplate(t)
-                  setName(`${t.name} Connection`)
+                  setSelectedTemplate(t);
+                  setName(`${t.name} Connection`);
                 }}
                 style={{
                   background:
                     selectedTemplate?.id === t.id
-                      ? 'var(--io-accent-subtle)'
-                      : 'var(--io-surface-secondary)',
-                  border: `1px solid ${selectedTemplate?.id === t.id ? 'var(--io-accent)' : 'var(--io-border)'}`,
-                  borderRadius: 'var(--io-radius)',
-                  padding: '12px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
+                      ? "var(--io-accent-subtle)"
+                      : "var(--io-surface-secondary)",
+                  border: `1px solid ${selectedTemplate?.id === t.id ? "var(--io-accent)" : "var(--io-border)"}`,
+                  borderRadius: "var(--io-radius)",
+                  padding: "12px",
+                  textAlign: "left",
+                  cursor: "pointer",
                 }}
               >
-                <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '2px' }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    marginBottom: "2px",
+                  }}
+                >
                   {t.name}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--io-text-muted)' }}>
-                  {t.vendor} · {t.domain.replace(/_/g, ' ')}
+                <div
+                  style={{ fontSize: "11px", color: "var(--io-text-muted)" }}
+                >
+                  {t.vendor} · {t.domain.replace(/_/g, " ")}
                 </div>
               </button>
             ))}
           </div>
           <div
-            style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px', gap: '8px' }}
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginTop: "20px",
+              gap: "8px",
+            }}
           >
             <button onClick={onClose} style={secondaryBtnStyle}>
               Cancel
@@ -1143,12 +1331,17 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
               value={configJson}
               onChange={(e) => setConfigJson(e.target.value)}
               rows={5}
-              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+              style={{
+                ...inputStyle,
+                fontFamily: "monospace",
+                fontSize: "12px",
+                resize: "vertical",
+              }}
               placeholder="{}"
             />
           </Field>
 
-          {authType !== 'none' && (
+          {authType !== "none" && (
             <Field label="Auth Config (JSON)">
               <textarea
                 value={authConfigJson}
@@ -1156,9 +1349,9 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
                 rows={4}
                 style={{
                   ...inputStyle,
-                  fontFamily: 'monospace',
-                  fontSize: '12px',
-                  resize: 'vertical',
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  resize: "vertical",
                 }}
                 placeholder="{}"
               />
@@ -1168,12 +1361,12 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
           {error && (
             <div
               style={{
-                padding: '10px',
-                background: 'var(--io-danger-subtle)',
-                color: 'var(--io-danger)',
-                borderRadius: 'var(--io-radius)',
-                fontSize: '13px',
-                marginBottom: '12px',
+                padding: "10px",
+                background: "var(--io-danger-subtle)",
+                color: "var(--io-danger)",
+                borderRadius: "var(--io-radius)",
+                fontSize: "13px",
+                marginBottom: "12px",
               }}
             >
               {error}
@@ -1181,7 +1374,11 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
           )}
 
           <div
-            style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: "20px",
+            }}
           >
             <button onClick={() => setStep(1)} style={secondaryBtnStyle}>
               Back
@@ -1191,55 +1388,67 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
               disabled={saveMutation.isPending || !name.trim()}
               style={primaryBtnStyle}
             >
-              {saveMutation.isPending ? 'Saving...' : 'Save & Continue'}
+              {saveMutation.isPending ? "Saving..." : "Save & Continue"}
             </button>
           </div>
         </div>
       )}
 
       {step === 3 && (
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: "center" }}>
           <div
             style={{
-              fontSize: '48px',
-              marginBottom: '12px',
-              color: 'var(--io-success)',
+              fontSize: "48px",
+              marginBottom: "12px",
+              color: "var(--io-success)",
             }}
           >
             ✓
           </div>
-          <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '8px' }}>
+          <div
+            style={{ fontWeight: 600, fontSize: "16px", marginBottom: "8px" }}
+          >
             Connection saved!
           </div>
-          <p style={{ color: 'var(--io-text-secondary)', fontSize: '13px', marginBottom: '24px' }}>
+          <p
+            style={{
+              color: "var(--io-text-secondary)",
+              fontSize: "13px",
+              marginBottom: "24px",
+            }}
+          >
             You can test the connection to verify it works.
           </p>
 
           {testResult && (
             <div
               style={{
-                padding: '10px 12px',
-                background: testResult.includes('failed')
-                  ? 'var(--io-danger-subtle)'
-                  : 'var(--io-success-subtle)',
-                color: testResult.includes('failed') ? 'var(--io-danger)' : 'var(--io-success)',
-                borderRadius: 'var(--io-radius)',
-                fontSize: '13px',
-                marginBottom: '16px',
+                padding: "10px 12px",
+                background: testResult.includes("failed")
+                  ? "var(--io-danger-subtle)"
+                  : "var(--io-success-subtle)",
+                color: testResult.includes("failed")
+                  ? "var(--io-danger)"
+                  : "var(--io-success)",
+                borderRadius: "var(--io-radius)",
+                fontSize: "13px",
+                marginBottom: "16px",
               }}
             >
               {testResult}
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+          <div
+            style={{ display: "flex", gap: "8px", justifyContent: "center" }}
+          >
             {savedId && (
               <button
                 onClick={() => testMutation.mutate(savedId)}
                 disabled={testMutation.isPending}
                 style={secondaryBtnStyle}
               >
-                {testMutation.isPending ? 'Testing...' : 'Test Connection'}
+                {testMutation.isPending ? "Testing..." : "Test Connection"}
               </button>
             )}
             <button onClick={onClose} style={primaryBtnStyle}>
@@ -1249,37 +1458,44 @@ function NewConnectionWizard({ onClose }: { onClose: () => void }) {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function EditConnectionForm({
   conn,
   onClose,
 }: {
-  conn: ImportConnection
-  onClose: () => void
+  conn: ImportConnection;
+  onClose: () => void;
 }) {
-  const queryClient = useQueryClient()
-  const [name, setName] = useState(conn.name)
-  const [authType, setAuthType] = useState(conn.auth_type)
-  const [configJson, setConfigJson] = useState(JSON.stringify(conn.config, null, 2))
-  const [enabled, setEnabled] = useState(conn.enabled)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(conn.name);
+  const [authType, setAuthType] = useState(conn.auth_type);
+  const [configJson, setConfigJson] = useState(
+    JSON.stringify(conn.config, null, 2),
+  );
+  const [enabled, setEnabled] = useState(conn.enabled);
+  const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => {
-      const config = JSON.parse(configJson)
-      return importApi.updateConnection(conn.id, { name, auth_type: authType, config, enabled })
+      const config = JSON.parse(configJson);
+      return importApi.updateConnection(conn.id, {
+        name,
+        auth_type: authType,
+        config,
+        enabled,
+      });
     },
     onSuccess: (res) => {
       if (res.success) {
-        queryClient.invalidateQueries({ queryKey: ['import-connections'] })
-        onClose()
+        queryClient.invalidateQueries({ queryKey: ["import-connections"] });
+        onClose();
       } else {
-        setError(res.error.message)
+        setError(res.error.message);
       }
     },
-  })
+  });
 
   return (
     <div>
@@ -1311,46 +1527,69 @@ function EditConnectionForm({
           value={configJson}
           onChange={(e) => setConfigJson(e.target.value)}
           rows={6}
-          style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+          style={{
+            ...inputStyle,
+            fontFamily: "monospace",
+            fontSize: "12px",
+            resize: "vertical",
+          }}
         />
       </Field>
 
       <Field label="Enabled">
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            cursor: "pointer",
+          }}
+        >
           <input
             type="checkbox"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
           />
-          <span style={{ fontSize: '13px' }}>Connection enabled</span>
+          <span style={{ fontSize: "13px" }}>Connection enabled</span>
         </label>
       </Field>
 
       {error && (
         <div
           style={{
-            padding: '10px',
-            background: 'var(--io-danger-subtle)',
-            color: 'var(--io-danger)',
-            borderRadius: 'var(--io-radius)',
-            fontSize: '13px',
-            marginBottom: '12px',
+            padding: "10px",
+            background: "var(--io-danger-subtle)",
+            color: "var(--io-danger)",
+            borderRadius: "var(--io-radius)",
+            fontSize: "13px",
+            marginBottom: "12px",
           }}
         >
           {error}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          justifyContent: "flex-end",
+          marginTop: "20px",
+        }}
+      >
         <button onClick={onClose} style={secondaryBtnStyle}>
           Cancel
         </button>
-        <button onClick={() => mutation.mutate()} disabled={mutation.isPending} style={primaryBtnStyle}>
-          {mutation.isPending ? 'Saving...' : 'Save Changes'}
+        <button
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          style={primaryBtnStyle}
+        >
+          {mutation.isPending ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1358,96 +1597,102 @@ function EditConnectionForm({
 // ---------------------------------------------------------------------------
 
 function RunsTab() {
-  const [selectedRun, setSelectedRun] = useState<ImportRun | null>(null)
-  const [runErrors, setRunErrors] = useState<ImportError[]>([])
-  const [errorsOpen, setErrorsOpen] = useState(false)
-  const canViewHistory = usePermission('system:import_history')
-  const canExecute = usePermission('system:import_execute')
+  const [selectedRun, setSelectedRun] = useState<ImportRun | null>(null);
+  const [runErrors, setRunErrors] = useState<ImportError[]>([]);
+  const [errorsOpen, setErrorsOpen] = useState(false);
+  const canViewHistory = usePermission("system:import_history");
+  const canExecute = usePermission("system:import_execute");
 
   // Fetch all definitions to show run buttons
   const { data: definitions } = useQuery({
-    queryKey: ['import-definitions'],
+    queryKey: ["import-definitions"],
     queryFn: async () => {
-      const res = await importApi.listDefinitions()
-      return res.success ? res.data : []
+      const res = await importApi.listDefinitions();
+      return res.success ? res.data : [];
     },
-  })
+  });
 
   // Fetch runs for each definition — concatenated list
-  const [allRuns, setAllRuns] = useState<ImportRun[]>([])
+  const [allRuns, setAllRuns] = useState<ImportRun[]>([]);
 
   const fetchAllRuns = useCallback(async (defs: ImportDefinition[]) => {
     const runArrays = await Promise.all(
       defs.map(async (d) => {
-        const res = await importApi.listRuns(d.id, { limit: 10 })
-        return res.success ? res.data : []
+        const res = await importApi.listRuns(d.id, { limit: 10 });
+        return res.success ? res.data : [];
       }),
-    )
+    );
     const merged = runArrays
       .flat()
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    setAllRuns(merged)
-  }, [])
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+    setAllRuns(merged);
+  }, []);
 
   useEffect(() => {
     if (definitions && definitions.length > 0) {
-      fetchAllRuns(definitions)
+      fetchAllRuns(definitions);
     }
-  }, [definitions, fetchAllRuns])
+  }, [definitions, fetchAllRuns]);
 
   // Auto-refresh when any run is pending or running
-  const hasActiveRuns = allRuns.some((r) => r.status === 'pending' || r.status === 'running')
+  const hasActiveRuns = allRuns.some(
+    (r) => r.status === "pending" || r.status === "running",
+  );
 
   useEffect(() => {
-    if (!hasActiveRuns) return
+    if (!hasActiveRuns) return;
     const interval = setInterval(() => {
       if (definitions && definitions.length > 0) {
-        fetchAllRuns(definitions)
+        fetchAllRuns(definitions);
       }
-    }, 15000)
-    return () => clearInterval(interval)
-  }, [hasActiveRuns, definitions, fetchAllRuns])
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [hasActiveRuns, definitions, fetchAllRuns]);
 
   const triggerMutation = useMutation({
-    mutationFn: (defId: string) => importApi.triggerRun(defId, { dry_run: false }),
+    mutationFn: (defId: string) =>
+      importApi.triggerRun(defId, { dry_run: false }),
     onSuccess: () => {
       if (definitions && definitions.length > 0) {
-        fetchAllRuns(definitions)
+        fetchAllRuns(definitions);
       }
     },
-  })
+  });
 
   const cancelMutation = useMutation({
     mutationFn: (runId: string) => importApi.cancelRun(runId),
     onSuccess: () => {
       if (definitions && definitions.length > 0) {
-        fetchAllRuns(definitions)
+        fetchAllRuns(definitions);
       }
     },
-  })
+  });
 
   const openErrors = async (run: ImportRun) => {
-    setSelectedRun(run)
-    const res = await importApi.getRunErrors(run.id)
-    setRunErrors(res.success ? res.data : [])
-    setErrorsOpen(true)
-  }
+    setSelectedRun(run);
+    const res = await importApi.getRunErrors(run.id);
+    setRunErrors(res.success ? res.data : []);
+    setErrorsOpen(true);
+  };
 
   if (!canViewHistory) {
     return (
       <div
         style={{
-          textAlign: 'center',
-          padding: '48px',
-          color: 'var(--io-text-muted)',
-          background: 'var(--io-surface-secondary)',
-          borderRadius: 'var(--io-radius)',
-          border: '1px solid var(--io-border)',
+          textAlign: "center",
+          padding: "48px",
+          color: "var(--io-text-muted)",
+          background: "var(--io-surface-secondary)",
+          borderRadius: "var(--io-radius)",
+          border: "1px solid var(--io-border)",
         }}
       >
         You do not have permission to view import run history.
       </div>
-    )
+    );
   }
 
   return (
@@ -1456,26 +1701,26 @@ function RunsTab() {
       {canExecute && definitions && definitions.length > 0 && (
         <div
           style={{
-            background: 'var(--io-surface-secondary)',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            padding: '16px',
-            marginBottom: '24px',
+            background: "var(--io-surface-secondary)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            padding: "16px",
+            marginBottom: "24px",
           }}
         >
           <div
             style={{
-              fontSize: '12px',
+              fontSize: "12px",
               fontWeight: 600,
-              color: 'var(--io-text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              marginBottom: '12px',
+              color: "var(--io-text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              marginBottom: "12px",
             }}
           >
             Import Definitions
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {definitions.map((d) => (
               <button
                 key={d.id}
@@ -1494,16 +1739,17 @@ function RunsTab() {
       {definitions && definitions.length === 0 && (
         <div
           style={{
-            textAlign: 'center',
-            padding: '48px',
-            color: 'var(--io-text-muted)',
-            background: 'var(--io-surface-secondary)',
-            borderRadius: 'var(--io-radius)',
-            border: '1px solid var(--io-border)',
-            marginBottom: '24px',
+            textAlign: "center",
+            padding: "48px",
+            color: "var(--io-text-muted)",
+            background: "var(--io-surface-secondary)",
+            borderRadius: "var(--io-radius)",
+            border: "1px solid var(--io-border)",
+            marginBottom: "24px",
           }}
         >
-          No import definitions configured yet. Set up a connection and create a definition first.
+          No import definitions configured yet. Set up a connection and create a
+          definition first.
         </div>
       )}
 
@@ -1511,33 +1757,46 @@ function RunsTab() {
       {allRuns.length > 0 && (
         <div
           style={{
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            overflow: 'hidden',
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            overflow: "hidden",
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "13px",
+            }}
+          >
             <thead>
-              <tr style={{ background: 'var(--io-surface-secondary)' }}>
-                {['Definition', 'Status', 'Extracted', 'Loaded', 'Errors', 'Started', 'Duration', ''].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: '10px 12px',
-                        textAlign: 'left',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: 'var(--io-text-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        borderBottom: '1px solid var(--io-border)',
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+              <tr style={{ background: "var(--io-surface-secondary)" }}>
+                {[
+                  "Definition",
+                  "Status",
+                  "Extracted",
+                  "Loaded",
+                  "Errors",
+                  "Started",
+                  "Duration",
+                  "",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: "10px 12px",
+                      textAlign: "left",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      color: "var(--io-text-muted)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      borderBottom: "1px solid var(--io-border)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -1545,38 +1804,49 @@ function RunsTab() {
                 <tr
                   key={run.id}
                   style={{
-                    background: i % 2 === 0 ? 'transparent' : 'var(--io-surface-secondary)',
-                    cursor: 'pointer',
+                    background:
+                      i % 2 === 0
+                        ? "transparent"
+                        : "var(--io-surface-secondary)",
+                    cursor: "pointer",
                   }}
                   onClick={() => openErrors(run)}
                 >
-                  <td style={tdStyle}>{run.definition_name ?? run.import_definition_id}</td>
+                  <td style={tdStyle}>
+                    {run.definition_name ?? run.import_definition_id}
+                  </td>
                   <td style={tdStyle}>
                     <StatusBadge status={run.status} />
                   </td>
-                  <td style={tdStyle}>{run.rows_extracted ?? '—'}</td>
-                  <td style={tdStyle}>{run.rows_loaded ?? '—'}</td>
+                  <td style={tdStyle}>{run.rows_extracted ?? "—"}</td>
+                  <td style={tdStyle}>{run.rows_loaded ?? "—"}</td>
                   <td style={tdStyle}>
                     {(run.rows_errored ?? 0) > 0 ? (
-                      <span style={{ color: 'var(--io-danger)' }}>{run.rows_errored}</span>
+                      <span style={{ color: "var(--io-danger)" }}>
+                        {run.rows_errored}
+                      </span>
                     ) : (
-                      run.rows_errored ?? '—'
+                      (run.rows_errored ?? "—")
                     )}
                   </td>
                   <td style={tdStyle}>{formatDate(run.started_at)}</td>
-                  <td style={tdStyle}>{formatDuration(run.started_at, run.completed_at)}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {canExecute && (run.status === 'pending' || run.status === 'running') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          cancelMutation.mutate(run.id)
-                        }}
-                        style={dangerBtnStyle}
-                      >
-                        Cancel
-                      </button>
-                    )}
+                  <td style={tdStyle}>
+                    {formatDuration(run.started_at, run.completed_at)}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                    {canExecute &&
+                      (run.status === "pending" ||
+                        run.status === "running") && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cancelMutation.mutate(run.id);
+                          }}
+                          style={dangerBtnStyle}
+                        >
+                          Cancel
+                        </button>
+                      )}
                   </td>
                 </tr>
               ))}
@@ -1588,10 +1858,10 @@ function RunsTab() {
       {hasActiveRuns && (
         <div
           style={{
-            marginTop: '12px',
-            fontSize: '12px',
-            color: 'var(--io-text-muted)',
-            textAlign: 'right',
+            marginTop: "12px",
+            fontSize: "12px",
+            color: "var(--io-text-muted)",
+            textAlign: "right",
           }}
         >
           Auto-refreshing every 15s while runs are active...
@@ -1600,49 +1870,73 @@ function RunsTab() {
 
       {/* Run errors drawer */}
       <Drawer
-        title={selectedRun ? `Errors for Run ${selectedRun.id.slice(0, 8)}...` : 'Run Errors'}
+        title={
+          selectedRun
+            ? `Errors for Run ${selectedRun.id.slice(0, 8)}...`
+            : "Run Errors"
+        }
         open={errorsOpen}
         onClose={() => setErrorsOpen(false)}
       >
         {selectedRun && (
           <div>
-            <div style={{ marginBottom: '16px' }}>
+            <div style={{ marginBottom: "16px" }}>
               <StatusBadge status={selectedRun.status} />
               <span
-                style={{ marginLeft: '12px', fontSize: '13px', color: 'var(--io-text-secondary)' }}
+                style={{
+                  marginLeft: "12px",
+                  fontSize: "13px",
+                  color: "var(--io-text-secondary)",
+                }}
               >
                 {selectedRun.definition_name}
               </span>
             </div>
             {runErrors.length === 0 ? (
-              <div style={{ color: 'var(--io-text-muted)', textAlign: 'center', padding: '32px' }}>
+              <div
+                style={{
+                  color: "var(--io-text-muted)",
+                  textAlign: "center",
+                  padding: "32px",
+                }}
+              >
                 No errors recorded for this run.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
                 {runErrors.map((err) => (
                   <div
                     key={err.id}
                     style={{
-                      background: 'var(--io-danger-subtle)',
-                      border: '1px solid var(--io-danger)',
-                      borderRadius: 'var(--io-radius)',
-                      padding: '10px 12px',
-                      fontSize: '12px',
+                      background: "var(--io-danger-subtle)",
+                      border: "1px solid var(--io-danger)",
+                      borderRadius: "var(--io-radius)",
+                      padding: "10px 12px",
+                      fontSize: "12px",
                     }}
                   >
-                    <div style={{ fontWeight: 600, color: 'var(--io-danger)', marginBottom: '4px' }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        color: "var(--io-danger)",
+                        marginBottom: "4px",
+                      }}
+                    >
                       {err.error_type}
                       {err.row_number != null && ` (row ${err.row_number})`}
                       {err.field_name && ` — field: ${err.field_name}`}
                     </div>
-                    <div style={{ color: 'var(--io-text-secondary)' }}>{err.error_message}</div>
+                    <div style={{ color: "var(--io-text-secondary)" }}>
+                      {err.error_message}
+                    </div>
                     {err.raw_value && (
                       <div
                         style={{
-                          marginTop: '4px',
-                          fontFamily: 'monospace',
-                          color: 'var(--io-text-muted)',
+                          marginTop: "4px",
+                          fontFamily: "monospace",
+                          color: "var(--io-text-muted)",
                         }}
                       >
                         Value: {err.raw_value}
@@ -1656,81 +1950,87 @@ function RunsTab() {
         )}
       </Drawer>
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Shared form helpers / styles
 // ---------------------------------------------------------------------------
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div style={{ marginBottom: '16px' }}>
+    <div style={{ marginBottom: "16px" }}>
       <label
         style={{
-          display: 'block',
-          fontSize: '12px',
+          display: "block",
+          fontSize: "12px",
           fontWeight: 600,
-          color: 'var(--io-text-muted)',
-          marginBottom: '6px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
+          color: "var(--io-text-muted)",
+          marginBottom: "6px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
         }}
       >
         {label}
       </label>
       {children}
     </div>
-  )
+  );
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  background: 'var(--io-surface-secondary)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  color: 'var(--io-text)',
-  fontSize: '13px',
-  boxSizing: 'border-box',
-}
+  width: "100%",
+  padding: "8px 10px",
+  background: "var(--io-surface-secondary)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  color: "var(--io-text)",
+  fontSize: "13px",
+  boxSizing: "border-box",
+};
 
 const primaryBtnStyle: React.CSSProperties = {
-  padding: '8px 16px',
-  background: 'var(--io-accent)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '13px',
+  padding: "8px 16px",
+  background: "var(--io-accent)",
+  color: "#fff",
+  border: "none",
+  borderRadius: "var(--io-radius)",
+  fontSize: "13px",
   fontWeight: 500,
-  cursor: 'pointer',
-}
+  cursor: "pointer",
+};
 
 const secondaryBtnStyle: React.CSSProperties = {
-  padding: '6px 12px',
-  background: 'var(--io-surface-secondary)',
-  color: 'var(--io-text-secondary)',
-  border: '1px solid var(--io-border)',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '13px',
-  cursor: 'pointer',
-}
+  padding: "6px 12px",
+  background: "var(--io-surface-secondary)",
+  color: "var(--io-text-secondary)",
+  border: "1px solid var(--io-border)",
+  borderRadius: "var(--io-radius)",
+  fontSize: "13px",
+  cursor: "pointer",
+};
 
 const dangerBtnStyle: React.CSSProperties = {
-  padding: '6px 12px',
-  background: 'transparent',
-  color: 'var(--io-danger)',
-  border: '1px solid var(--io-danger)',
-  borderRadius: 'var(--io-radius)',
-  fontSize: '13px',
-  cursor: 'pointer',
-}
+  padding: "6px 12px",
+  background: "transparent",
+  color: "var(--io-danger)",
+  border: "1px solid var(--io-danger)",
+  borderRadius: "var(--io-radius)",
+  fontSize: "13px",
+  cursor: "pointer",
+};
 
 const tdStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  borderBottom: '1px solid var(--io-border)',
-  color: 'var(--io-text)',
-}
+  padding: "10px 12px",
+  borderBottom: "1px solid var(--io-border)",
+  color: "var(--io-text)",
+};
 
 // ---------------------------------------------------------------------------
 // Main page component
@@ -1741,68 +2041,76 @@ const tdStyle: React.CSSProperties = {
 // ---------------------------------------------------------------------------
 
 const TARGET_TABLES = [
-  'points_metadata', 'alarm_thresholds', 'equipment', 'crews', 'shifts',
-  'locations', 'documents', 'materials', 'work_orders', 'custom_data',
-]
+  "points_metadata",
+  "alarm_thresholds",
+  "equipment",
+  "crews",
+  "shifts",
+  "locations",
+  "documents",
+  "materials",
+  "work_orders",
+  "custom_data",
+];
 
 const ERROR_STRATEGIES = [
-  { value: 'skip', label: 'Skip errored rows' },
-  { value: 'abort', label: 'Abort on first error' },
-  { value: 'log', label: 'Log and continue' },
-]
+  { value: "skip", label: "Skip errored rows" },
+  { value: "abort", label: "Abort on first error" },
+  { value: "log", label: "Log and continue" },
+];
 
 type WizardState = {
-  connection_id: string
-  name: string
-  description: string
-  target_table: string
-  source_config: string  // JSON
-  field_mappings: string // JSON array
-  transforms: string     // JSON array
-  error_strategy: string
-  batch_size: number
-  schedule_type: string
-  schedule_cron: string
-  template_id: string
-}
+  connection_id: string;
+  name: string;
+  description: string;
+  target_table: string;
+  source_config: string; // JSON
+  field_mappings: string; // JSON array
+  transforms: string; // JSON array
+  error_strategy: string;
+  batch_size: number;
+  schedule_type: string;
+  schedule_cron: string;
+  template_id: string;
+};
 
 function DefinitionWizard({
   connections,
   onClose,
   onCreated,
 }: {
-  connections: ImportConnection[]
-  onClose: () => void
-  onCreated: () => void
+  connections: ImportConnection[];
+  onClose: () => void;
+  onCreated: () => void;
 }) {
-  const [step, setStep] = useState(0)
-  const [error, setError] = useState<string | null>(null)
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<WizardState>({
-    connection_id: '',
-    name: '',
-    description: '',
-    target_table: 'points_metadata',
-    source_config: '{}',
-    field_mappings: '[]',
-    transforms: '[]',
-    error_strategy: 'skip',
+    connection_id: "",
+    name: "",
+    description: "",
+    target_table: "points_metadata",
+    source_config: "{}",
+    field_mappings: "[]",
+    transforms: "[]",
+    error_strategy: "skip",
     batch_size: 500,
-    schedule_type: 'manual',
-    schedule_cron: '0 2 * * *',
-    template_id: '',
-  })
+    schedule_type: "manual",
+    schedule_cron: "0 2 * * *",
+    template_id: "",
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
-      let source_config: Record<string, unknown> = {}
-      let field_mappings: unknown[] = []
-      let transforms: unknown[] = []
+      let source_config: Record<string, unknown> = {};
+      let field_mappings: unknown[] = [];
+      let transforms: unknown[] = [];
       try {
-        source_config = JSON.parse(state.source_config)
-        field_mappings = JSON.parse(state.field_mappings)
-        transforms = JSON.parse(state.transforms)
+        source_config = JSON.parse(state.source_config);
+        field_mappings = JSON.parse(state.field_mappings);
+        transforms = JSON.parse(state.transforms);
       } catch {
-        throw new Error('Invalid JSON in one of the config fields')
+        throw new Error("Invalid JSON in one of the config fields");
       }
       const body: CreateDefinitionBody = {
         connection_id: state.connection_id,
@@ -1815,67 +2123,82 @@ function DefinitionWizard({
         error_strategy: state.error_strategy,
         batch_size: state.batch_size,
         template_id: state.template_id || undefined,
-      }
-      const res = await importApi.createDefinition(body)
-      if (!res.success) throw new Error(res.error.message)
+      };
+      const res = await importApi.createDefinition(body);
+      if (!res.success) throw new Error(res.error.message);
       // Create schedule if not manual
-      if (state.schedule_type !== 'manual') {
+      if (state.schedule_type !== "manual") {
         await importApi.createSchedule(res.data.id, {
           schedule_type: state.schedule_type,
-          schedule_config: state.schedule_type === 'cron' ? { cron: state.schedule_cron } : {},
+          schedule_config:
+            state.schedule_type === "cron" ? { cron: state.schedule_cron } : {},
           enabled: true,
-        })
+        });
       }
-      return res.data
+      return res.data;
     },
     onSuccess: () => {
-      onCreated()
-      onClose()
+      onCreated();
+      onClose();
     },
-    onError: (err) => setError(err instanceof Error ? err.message : 'Failed to create definition'),
-  })
+    onError: (err) =>
+      setError(
+        err instanceof Error ? err.message : "Failed to create definition",
+      ),
+  });
 
   const set = (k: keyof WizardState, v: string | number) =>
-    setState((s) => ({ ...s, [k]: v }))
+    setState((s) => ({ ...s, [k]: v }));
 
   const STEPS = [
-    'Select Connection',
-    'Configure Source',
-    'Map Fields',
-    'Transformations',
-    'Validation & Options',
-    'Schedule',
-    'Review',
-  ]
+    "Select Connection",
+    "Configure Source",
+    "Map Fields",
+    "Transformations",
+    "Validation & Options",
+    "Schedule",
+    "Review",
+  ];
 
   function canAdvance() {
-    if (step === 0) return !!state.connection_id
-    if (step === 1) return !!state.name && !!state.target_table
-    return true
+    if (step === 0) return !!state.connection_id;
+    if (step === 1) return !!state.name && !!state.target_table;
+    return true;
   }
 
-  const connName = connections.find((c) => c.id === state.connection_id)?.name ?? ''
+  const connName =
+    connections.find((c) => c.id === state.connection_id)?.name ?? "";
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0', minHeight: '480px' }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "0",
+        minHeight: "480px",
+      }}
+    >
       {/* Step progress */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', gap: '0', marginBottom: '8px' }}>
+      <div style={{ marginBottom: "24px" }}>
+        <div style={{ display: "flex", gap: "0", marginBottom: "8px" }}>
           {STEPS.map((_label, i) => (
             <div
               key={i}
               style={{
                 flex: 1,
-                height: '3px',
-                background: i <= step ? 'var(--io-accent)' : 'var(--io-border)',
-                transition: 'background 0.2s',
-                marginRight: i < STEPS.length - 1 ? '3px' : '0',
+                height: "3px",
+                background: i <= step ? "var(--io-accent)" : "var(--io-border)",
+                transition: "background 0.2s",
+                marginRight: i < STEPS.length - 1 ? "3px" : "0",
               }}
             />
           ))}
         </div>
-        <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
-          Step {step + 1} of {STEPS.length} — <span style={{ color: 'var(--io-text-secondary)', fontWeight: 600 }}>{STEPS[step]}</span>
+        <div style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+          Step {step + 1} of {STEPS.length} —{" "}
+          <span style={{ color: "var(--io-text-secondary)", fontWeight: 600 }}>
+            {STEPS[step]}
+          </span>
         </div>
       </div>
 
@@ -1884,32 +2207,73 @@ function DefinitionWizard({
         {/* Step 0: Select Connection */}
         {step === 0 && (
           <div>
-            <p style={{ fontSize: '13px', color: 'var(--io-text-secondary)', marginBottom: '16px' }}>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
+                marginBottom: "16px",
+              }}
+            >
               Choose which connection this definition will read data from.
             </p>
             {connections.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--io-text-muted)', fontSize: '13px' }}>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "24px",
+                  color: "var(--io-text-muted)",
+                  fontSize: "13px",
+                }}
+              >
                 No connections configured. Go to the Connections tab first.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
                 {connections.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => set('connection_id', c.id)}
+                    onClick={() => set("connection_id", c.id)}
                     style={{
-                      padding: '12px 16px',
-                      background: state.connection_id === c.id ? 'var(--io-accent-subtle)' : 'var(--io-surface-secondary)',
-                      border: `1px solid ${state.connection_id === c.id ? 'var(--io-accent)' : 'var(--io-border)'}`,
-                      borderRadius: 'var(--io-radius)',
-                      textAlign: 'left',
-                      cursor: 'pointer',
+                      padding: "12px 16px",
+                      background:
+                        state.connection_id === c.id
+                          ? "var(--io-accent-subtle)"
+                          : "var(--io-surface-secondary)",
+                      border: `1px solid ${state.connection_id === c.id ? "var(--io-accent)" : "var(--io-border)"}`,
+                      borderRadius: "var(--io-radius)",
+                      textAlign: "left",
+                      cursor: "pointer",
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--io-text-primary)' }}>{c.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '2px' }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: "13px",
+                        color: "var(--io-text-primary)",
+                      }}
+                    >
+                      {c.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--io-text-muted)",
+                        marginTop: "2px",
+                      }}
+                    >
                       {c.connection_type} · Auth: {c.auth_type}
-                      {c.last_test_status === 'ok' && <span style={{ color: 'var(--io-success)', marginLeft: '6px' }}>✓ tested OK</span>}
+                      {c.last_test_status === "ok" && (
+                        <span
+                          style={{
+                            color: "var(--io-success)",
+                            marginLeft: "6px",
+                          }}
+                        >
+                          ✓ tested OK
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}
@@ -1920,12 +2284,14 @@ function DefinitionWizard({
 
         {/* Step 1: Configure Source */}
         {step === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
             <Field label="Definition Name">
               <input
                 type="text"
                 value={state.name}
-                onChange={(e) => set('name', e.target.value)}
+                onChange={(e) => set("name", e.target.value)}
                 placeholder="e.g. PI Tag Metadata Import"
                 style={inputStyle}
               />
@@ -1934,23 +2300,38 @@ function DefinitionWizard({
               <input
                 type="text"
                 value={state.description}
-                onChange={(e) => set('description', e.target.value)}
+                onChange={(e) => set("description", e.target.value)}
                 placeholder="What this import does"
                 style={inputStyle}
               />
             </Field>
             <Field label="Target Table">
-              <select value={state.target_table} onChange={(e) => set('target_table', e.target.value)} style={inputStyle}>
-                {TARGET_TABLES.map((t) => <option key={t} value={t}>{t}</option>)}
+              <select
+                value={state.target_table}
+                onChange={(e) => set("target_table", e.target.value)}
+                style={inputStyle}
+              >
+                {TARGET_TABLES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Source Configuration (JSON)">
               <textarea
                 value={state.source_config}
-                onChange={(e) => set('source_config', e.target.value)}
+                onChange={(e) => set("source_config", e.target.value)}
                 rows={5}
-                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
-                placeholder={'{\n  "query": "SELECT * FROM tags",\n  "page_size": 1000\n}'}
+                style={{
+                  ...inputStyle,
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  resize: "vertical",
+                }}
+                placeholder={
+                  '{\n  "query": "SELECT * FROM tags",\n  "page_size": 1000\n}'
+                }
               />
             </Field>
           </div>
@@ -1958,16 +2339,40 @@ function DefinitionWizard({
 
         {/* Step 2: Map Fields */}
         {step === 2 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <p style={{ fontSize: '13px', color: 'var(--io-text-secondary)', margin: '0 0 4px' }}>
-              Define how source fields map to columns in <code style={{ fontFamily: 'monospace', background: 'var(--io-surface-secondary)', padding: '1px 5px', borderRadius: '3px' }}>{state.target_table}</code>.
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
+            <p
+              style={{
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
+                margin: "0 0 4px",
+              }}
+            >
+              Define how source fields map to columns in{" "}
+              <code
+                style={{
+                  fontFamily: "monospace",
+                  background: "var(--io-surface-secondary)",
+                  padding: "1px 5px",
+                  borderRadius: "3px",
+                }}
+              >
+                {state.target_table}
+              </code>
+              .
             </p>
             <Field label="Field Mappings (JSON array)">
               <textarea
                 value={state.field_mappings}
-                onChange={(e) => set('field_mappings', e.target.value)}
+                onChange={(e) => set("field_mappings", e.target.value)}
                 rows={10}
-                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                style={{
+                  ...inputStyle,
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  resize: "vertical",
+                }}
                 placeholder={`[
   { "source_field": "TagName", "target_column": "tag_path", "transform": null },
   { "source_field": "Description", "target_column": "description", "transform": null },
@@ -1977,24 +2382,50 @@ function DefinitionWizard({
 ]`}
               />
             </Field>
-            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-              Each mapping: <code style={{ fontFamily: 'monospace' }}>{'{ source_field, target_column, transform }'}</code>. Leave <code style={{ fontFamily: 'monospace' }}>transform</code> null for direct copy, or specify a built-in transform (cast, trim, parse_datetime, lookup).
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--io-text-muted)",
+                lineHeight: 1.5,
+              }}
+            >
+              Each mapping:{" "}
+              <code style={{ fontFamily: "monospace" }}>
+                {"{ source_field, target_column, transform }"}
+              </code>
+              . Leave <code style={{ fontFamily: "monospace" }}>transform</code>{" "}
+              null for direct copy, or specify a built-in transform (cast, trim,
+              parse_datetime, lookup).
             </div>
           </div>
         )}
 
         {/* Step 3: Transformations */}
         {step === 3 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <p style={{ fontSize: '13px', color: 'var(--io-text-secondary)', margin: '0 0 4px' }}>
-              Optional row-level transforms applied after field mapping (Rhai scripts or built-in).
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
+            <p
+              style={{
+                fontSize: "13px",
+                color: "var(--io-text-secondary)",
+                margin: "0 0 4px",
+              }}
+            >
+              Optional row-level transforms applied after field mapping (Rhai
+              scripts or built-in).
             </p>
             <Field label="Transform Pipeline (JSON array)">
               <textarea
                 value={state.transforms}
-                onChange={(e) => set('transforms', e.target.value)}
+                onChange={(e) => set("transforms", e.target.value)}
                 rows={10}
-                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                style={{
+                  ...inputStyle,
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  resize: "vertical",
+                }}
                 placeholder={`[
   {
     "type": "rhai",
@@ -2004,42 +2435,81 @@ function DefinitionWizard({
 ]`}
               />
             </Field>
-            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-              Leave <code style={{ fontFamily: 'monospace' }}>[]</code> for no custom transforms. Built-in types: <code style={{ fontFamily: 'monospace' }}>cast</code>, <code style={{ fontFamily: 'monospace' }}>trim</code>, <code style={{ fontFamily: 'monospace' }}>parse_datetime</code>, <code style={{ fontFamily: 'monospace' }}>lookup</code>. Rhai scripts have access to the full row as a map.
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--io-text-muted)",
+                lineHeight: 1.5,
+              }}
+            >
+              Leave <code style={{ fontFamily: "monospace" }}>[]</code> for no
+              custom transforms. Built-in types:{" "}
+              <code style={{ fontFamily: "monospace" }}>cast</code>,{" "}
+              <code style={{ fontFamily: "monospace" }}>trim</code>,{" "}
+              <code style={{ fontFamily: "monospace" }}>parse_datetime</code>,{" "}
+              <code style={{ fontFamily: "monospace" }}>lookup</code>. Rhai
+              scripts have access to the full row as a map.
             </div>
           </div>
         )}
 
         {/* Step 4: Validation & Options */}
         {step === 4 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
             <Field label="Error Strategy">
-              <select value={state.error_strategy} onChange={(e) => set('error_strategy', e.target.value)} style={inputStyle}>
-                {ERROR_STRATEGIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              <select
+                value={state.error_strategy}
+                onChange={(e) => set("error_strategy", e.target.value)}
+                style={inputStyle}
+              >
+                {ERROR_STRATEGIES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Batch Size">
               <input
                 type="number"
                 value={state.batch_size}
-                onChange={(e) => set('batch_size', parseInt(e.target.value, 10) || 500)}
+                onChange={(e) =>
+                  set("batch_size", parseInt(e.target.value, 10) || 500)
+                }
                 min={1}
                 max={10000}
                 style={inputStyle}
               />
             </Field>
-            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-              Rows are processed in batches. Smaller batches use less memory but are slower. Recommended: 100–1000.
-              <br />Import validation runs after transformations. Rows that fail validation are handled according to the error strategy.
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--io-text-muted)",
+                lineHeight: 1.5,
+              }}
+            >
+              Rows are processed in batches. Smaller batches use less memory but
+              are slower. Recommended: 100–1000.
+              <br />
+              Import validation runs after transformations. Rows that fail
+              validation are handled according to the error strategy.
             </div>
           </div>
         )}
 
         {/* Step 5: Schedule */}
         {step === 5 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
             <Field label="Schedule Type">
-              <select value={state.schedule_type} onChange={(e) => set('schedule_type', e.target.value)} style={inputStyle}>
+              <select
+                value={state.schedule_type}
+                onChange={(e) => set("schedule_type", e.target.value)}
+                style={inputStyle}
+              >
                 <option value="manual">Manual only (trigger from UI)</option>
                 <option value="cron">Cron schedule</option>
                 <option value="hourly">Hourly</option>
@@ -2047,52 +2517,143 @@ function DefinitionWizard({
                 <option value="per_shift">Per shift</option>
               </select>
             </Field>
-            {state.schedule_type === 'cron' && (
+            {state.schedule_type === "cron" && (
               <Field label="Cron Expression">
                 <input
                   type="text"
                   value={state.schedule_cron}
-                  onChange={(e) => set('schedule_cron', e.target.value)}
+                  onChange={(e) => set("schedule_cron", e.target.value)}
                   placeholder="0 2 * * * (daily at 02:00)"
-                  style={{ ...inputStyle, fontFamily: 'monospace' }}
+                  style={{ ...inputStyle, fontFamily: "monospace" }}
                 />
               </Field>
             )}
-            <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', lineHeight: 1.5 }}>
-              Scheduled imports run in the Import Service (Port 3006) at the lowest QoS tier — they will not affect real-time data or event processing. You can also trigger runs manually from the Run History tab.
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--io-text-muted)",
+                lineHeight: 1.5,
+              }}
+            >
+              Scheduled imports run in the Import Service (Port 3006) at the
+              lowest QoS tier — they will not affect real-time data or event
+              processing. You can also trigger runs manually from the Run
+              History tab.
             </div>
           </div>
         )}
 
         {/* Step 6: Review */}
         {step === 6 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
-            <div style={{ background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', padding: '16px', border: '1px solid var(--io-border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              fontSize: "13px",
+            }}
+          >
+            <div
+              style={{
+                background: "var(--io-surface-secondary)",
+                borderRadius: "var(--io-radius)",
+                padding: "16px",
+                border: "1px solid var(--io-border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}
+            >
               {[
-                ['Connection', connName],
-                ['Name', state.name],
-                ['Description', state.description || '(none)'],
-                ['Target Table', state.target_table],
-                ['Error Strategy', state.error_strategy],
-                ['Batch Size', String(state.batch_size)],
-                ['Schedule', state.schedule_type === 'cron' ? `Cron: ${state.schedule_cron}` : state.schedule_type],
+                ["Connection", connName],
+                ["Name", state.name],
+                ["Description", state.description || "(none)"],
+                ["Target Table", state.target_table],
+                ["Error Strategy", state.error_strategy],
+                ["Batch Size", String(state.batch_size)],
+                [
+                  "Schedule",
+                  state.schedule_type === "cron"
+                    ? `Cron: ${state.schedule_cron}`
+                    : state.schedule_type,
+                ],
               ].map(([label, val]) => (
-                <div key={label} style={{ display: 'flex', gap: '12px' }}>
-                  <span style={{ color: 'var(--io-text-muted)', width: '120px', flexShrink: 0 }}>{label}</span>
-                  <span style={{ color: 'var(--io-text-primary)', fontWeight: 500 }}>{val}</span>
+                <div key={label} style={{ display: "flex", gap: "12px" }}>
+                  <span
+                    style={{
+                      color: "var(--io-text-muted)",
+                      width: "120px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    style={{ color: "var(--io-text-primary)", fontWeight: 500 }}
+                  >
+                    {val}
+                  </span>
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: '12px', fontSize: '12px' }}>
-              <div style={{ flex: 1, background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', padding: '12px', border: '1px solid var(--io-border)' }}>
-                <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--io-text-secondary)' }}>Field Mappings</div>
-                <pre style={{ margin: 0, fontSize: '11px', color: 'var(--io-text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <div style={{ display: "flex", gap: "12px", fontSize: "12px" }}>
+              <div
+                style={{
+                  flex: 1,
+                  background: "var(--io-surface-secondary)",
+                  borderRadius: "var(--io-radius)",
+                  padding: "12px",
+                  border: "1px solid var(--io-border)",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 600,
+                    marginBottom: "6px",
+                    color: "var(--io-text-secondary)",
+                  }}
+                >
+                  Field Mappings
+                </div>
+                <pre
+                  style={{
+                    margin: 0,
+                    fontSize: "11px",
+                    color: "var(--io-text-muted)",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {state.field_mappings}
                 </pre>
               </div>
-              <div style={{ flex: 1, background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', padding: '12px', border: '1px solid var(--io-border)' }}>
-                <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--io-text-secondary)' }}>Transforms</div>
-                <pre style={{ margin: 0, fontSize: '11px', color: 'var(--io-text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              <div
+                style={{
+                  flex: 1,
+                  background: "var(--io-surface-secondary)",
+                  borderRadius: "var(--io-radius)",
+                  padding: "12px",
+                  border: "1px solid var(--io-border)",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 600,
+                    marginBottom: "6px",
+                    color: "var(--io-text-secondary)",
+                  }}
+                >
+                  Transforms
+                </div>
+                <pre
+                  style={{
+                    margin: 0,
+                    fontSize: "11px",
+                    color: "var(--io-text-muted)",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {state.transforms}
                 </pre>
               </div>
@@ -2102,94 +2663,143 @@ function DefinitionWizard({
       </div>
 
       {error && (
-        <div style={{ padding: '10px 12px', background: 'var(--io-danger-subtle)', color: 'var(--io-danger)', borderRadius: 'var(--io-radius)', fontSize: '13px', marginTop: '16px' }}>
+        <div
+          style={{
+            padding: "10px 12px",
+            background: "var(--io-danger-subtle)",
+            color: "var(--io-danger)",
+            borderRadius: "var(--io-radius)",
+            fontSize: "13px",
+            marginTop: "16px",
+          }}
+        >
           {error}
         </div>
       )}
 
       {/* Navigation */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--io-border)' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: "24px",
+          paddingTop: "16px",
+          borderTop: "1px solid var(--io-border)",
+        }}
+      >
         <button
           onClick={step === 0 ? onClose : () => setStep((s) => s - 1)}
           style={secondaryBtnStyle}
         >
-          {step === 0 ? 'Cancel' : '← Back'}
+          {step === 0 ? "Cancel" : "← Back"}
         </button>
         {step < STEPS.length - 1 ? (
           <button
             onClick={() => setStep((s) => s + 1)}
             disabled={!canAdvance()}
-            style={{ ...primaryBtnStyle, opacity: canAdvance() ? 1 : 0.5, cursor: canAdvance() ? 'pointer' : 'not-allowed' }}
+            style={{
+              ...primaryBtnStyle,
+              opacity: canAdvance() ? 1 : 0.5,
+              cursor: canAdvance() ? "pointer" : "not-allowed",
+            }}
           >
             Next →
           </button>
         ) : (
           <button
-            onClick={() => { setError(null); mutation.mutate() }}
+            onClick={() => {
+              setError(null);
+              mutation.mutate();
+            }}
             disabled={mutation.isPending}
             style={primaryBtnStyle}
           >
-            {mutation.isPending ? 'Creating…' : 'Create Definition'}
+            {mutation.isPending ? "Creating…" : "Create Definition"}
           </button>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function DefinitionsTab() {
-  const queryClient = useQueryClient()
-  const [wizardOpen, setWizardOpen] = useState(false)
-  const canManageDefinitions = usePermission('system:import_definitions')
-  const canExecute = usePermission('system:import_execute')
-  const [defContextMenu, setDefContextMenu] = useState<{ definition: ImportDefinition; pos: ContextMenuPos } | null>(null)
+  const queryClient = useQueryClient();
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const canManageDefinitions = usePermission("system:import_definitions");
+  const canExecute = usePermission("system:import_execute");
+  const [defContextMenu, setDefContextMenu] = useState<{
+    definition: ImportDefinition;
+    pos: ContextMenuPos;
+  } | null>(null);
 
   function handleDefContextMenu(e: React.MouseEvent, def: ImportDefinition) {
-    e.preventDefault()
-    setDefContextMenu({ definition: def, pos: { x: e.clientX, y: e.clientY } })
+    e.preventDefault();
+    setDefContextMenu({ definition: def, pos: { x: e.clientX, y: e.clientY } });
   }
 
   const { data: defsResult, isLoading } = useQuery({
-    queryKey: ['import-definitions'],
+    queryKey: ["import-definitions"],
     queryFn: () => importApi.listDefinitions(),
-  })
-  const definitions = defsResult?.success ? defsResult.data : []
+  });
+  const definitions = defsResult?.success ? defsResult.data : [];
 
   const { data: connsResult } = useQuery({
-    queryKey: ['import-connections'],
+    queryKey: ["import-connections"],
     queryFn: () => importApi.listConnections(),
-  })
-  const connections = connsResult?.success ? connsResult.data : []
+  });
+  const connections = connsResult?.success ? connsResult.data : [];
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       importApi.updateDefinition(id, { enabled }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['import-definitions'] }),
-  })
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["import-definitions"] }),
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => importApi.deleteDefinition(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['import-definitions'] }),
-  })
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["import-definitions"] }),
+  });
 
   const runMutation = useMutation({
     mutationFn: ({ id, dry_run }: { id: string; dry_run: boolean }) =>
       importApi.triggerRun(id, { dry_run }),
     onSuccess: (res, { dry_run }) => {
       if (res.success) {
-        showToast({ title: dry_run ? 'Dry run started' : 'Import run started', description: `Run ID: ${res.data.id.slice(0, 8)}…`, variant: 'success' })
-        queryClient.invalidateQueries({ queryKey: ['import-runs'] })
+        showToast({
+          title: dry_run ? "Dry run started" : "Import run started",
+          description: `Run ID: ${res.data.id.slice(0, 8)}…`,
+          variant: "success",
+        });
+        queryClient.invalidateQueries({ queryKey: ["import-runs"] });
       }
     },
-  })
+  });
 
   if (isLoading) {
-    return <div style={{ color: 'var(--io-text-muted)', textAlign: 'center', padding: '40px' }}>Loading definitions...</div>
+    return (
+      <div
+        style={{
+          color: "var(--io-text-muted)",
+          textAlign: "center",
+          padding: "40px",
+        }}
+      >
+        Loading definitions...
+      </div>
+    );
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: "16px",
+        }}
+      >
         {canManageDefinitions && (
           <button onClick={() => setWizardOpen(true)} style={primaryBtnStyle}>
             + New Definition
@@ -2198,39 +2808,85 @@ function DefinitionsTab() {
       </div>
 
       {definitions.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px', color: 'var(--io-text-muted)', background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', border: '1px solid var(--io-border)', fontSize: '13px' }}>
-          No import definitions configured. Click "New Definition" to create one using the setup wizard.
+        <div
+          style={{
+            textAlign: "center",
+            padding: "48px",
+            color: "var(--io-text-muted)",
+            background: "var(--io-surface-secondary)",
+            borderRadius: "var(--io-radius)",
+            border: "1px solid var(--io-border)",
+            fontSize: "13px",
+          }}
+        >
+          No import definitions configured. Click "New Definition" to create one
+          using the setup wizard.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {definitions.map((def) => {
-            const conn = connections.find((c) => c.id === def.connection_id)
+            const conn = connections.find((c) => c.id === def.connection_id);
             return (
               <div
                 key={def.id}
-                style={{ background: 'var(--io-surface-secondary)', border: '1px solid var(--io-border)', borderRadius: 'var(--io-radius)', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}
+                style={{
+                  background: "var(--io-surface-secondary)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  padding: "14px 16px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                }}
                 onContextMenu={(e) => handleDefContextMenu(e, def)}
               >
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: 600, fontSize: '14px' }}>{def.name}</span>
-                    <StatusBadge status={def.enabled ? 'ok' : 'cancelled'} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, fontSize: "14px" }}>
+                      {def.name}
+                    </span>
+                    <StatusBadge status={def.enabled ? "ok" : "cancelled"} />
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--io-text-muted)",
+                      display: "flex",
+                      gap: "12px",
+                      flexWrap: "wrap",
+                    }}
+                  >
                     {conn && <span>Connection: {conn.name}</span>}
                     <span>Target: {def.target_table}</span>
                     <span>Batch: {def.batch_size}</span>
                     <span>On error: {def.error_strategy}</span>
                   </div>
                   {def.description && (
-                    <div style={{ fontSize: '12px', color: 'var(--io-text-secondary)', marginTop: '4px' }}>{def.description}</div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-secondary)",
+                        marginTop: "4px",
+                      }}
+                    >
+                      {def.description}
+                    </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
                   {canExecute && (
                     <>
                       <button
-                        onClick={() => runMutation.mutate({ id: def.id, dry_run: true })}
+                        onClick={() =>
+                          runMutation.mutate({ id: def.id, dry_run: true })
+                        }
                         disabled={runMutation.isPending}
                         style={secondaryBtnStyle}
                         title="Dry run (preview without writing)"
@@ -2238,7 +2894,9 @@ function DefinitionsTab() {
                         Dry Run
                       </button>
                       <button
-                        onClick={() => runMutation.mutate({ id: def.id, dry_run: false })}
+                        onClick={() =>
+                          runMutation.mutate({ id: def.id, dry_run: false })
+                        }
                         disabled={runMutation.isPending}
                         style={secondaryBtnStyle}
                         title="Trigger import now"
@@ -2250,14 +2908,20 @@ function DefinitionsTab() {
                   {canManageDefinitions && (
                     <>
                       <button
-                        onClick={() => toggleMutation.mutate({ id: def.id, enabled: !def.enabled })}
+                        onClick={() =>
+                          toggleMutation.mutate({
+                            id: def.id,
+                            enabled: !def.enabled,
+                          })
+                        }
                         style={secondaryBtnStyle}
                       >
-                        {def.enabled ? 'Disable' : 'Enable'}
+                        {def.enabled ? "Disable" : "Enable"}
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`Delete definition "${def.name}"?`)) deleteMutation.mutate(def.id)
+                          if (confirm(`Delete definition "${def.name}"?`))
+                            deleteMutation.mutate(def.id);
                         }}
                         style={dangerBtnStyle}
                       >
@@ -2267,7 +2931,7 @@ function DefinitionsTab() {
                   )}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       )}
@@ -2280,7 +2944,9 @@ function DefinitionsTab() {
         <DefinitionWizard
           connections={connections}
           onClose={() => setWizardOpen(false)}
-          onCreated={() => queryClient.invalidateQueries({ queryKey: ['import-definitions'] })}
+          onCreated={() =>
+            queryClient.invalidateQueries({ queryKey: ["import-definitions"] })
+          }
         />
       </Modal>
 
@@ -2291,13 +2957,15 @@ function DefinitionsTab() {
           onClose={() => setDefContextMenu(null)}
           onRunNow={(d) => runMutation.mutate({ id: d.id, dry_run: false })}
           onViewRunHistory={(_d) => {
-            window.location.href = '/settings/imports/history'
+            window.location.href = "/settings/imports/history";
           }}
-          onToggleEnabled={(d) => toggleMutation.mutate({ id: d.id, enabled: !d.enabled })}
+          onToggleEnabled={(d) =>
+            toggleMutation.mutate({ id: d.id, enabled: !d.enabled })
+          }
         />
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -2305,75 +2973,135 @@ function DefinitionsTab() {
 // ---------------------------------------------------------------------------
 
 interface PointDetailSection {
-  id: string
-  name: string
-  enabled: boolean
-  source_dataset_id: string | null
-  source_dataset_label: string | null
-  display_columns: string[]
-  sort_column: string | null
-  sort_direction: 'asc' | 'desc'
-  row_limit: number
-  sort_order: number
-  equipment_class_overrides: PointDetailOverride[]
+  id: string;
+  name: string;
+  enabled: boolean;
+  source_dataset_id: string | null;
+  source_dataset_label: string | null;
+  display_columns: string[];
+  sort_column: string | null;
+  sort_direction: "asc" | "desc";
+  row_limit: number;
+  sort_order: number;
+  equipment_class_overrides: PointDetailOverride[];
 }
 
 interface PointDetailOverride {
-  equipment_class_id: string
-  equipment_class_label: string
-  enabled: boolean
-  display_columns: string[]
-  sort_column: string | null
-  sort_direction: 'asc' | 'desc'
-  row_limit: number
+  equipment_class_id: string;
+  equipment_class_label: string;
+  enabled: boolean;
+  display_columns: string[];
+  sort_column: string | null;
+  sort_direction: "asc" | "desc";
+  row_limit: number;
 }
 
 interface PointDetailConfig {
-  sections: PointDetailSection[]
+  sections: PointDetailSection[];
 }
 
 const DEFAULT_SECTIONS: PointDetailSection[] = [
-  { id: 'alarms',     name: 'Active Alarms',        enabled: true,  source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 10, sort_order: 0, equipment_class_overrides: [] },
-  { id: 'trend',      name: 'Trend',                enabled: true,  source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 100, sort_order: 1, equipment_class_overrides: [] },
-  { id: 'work_orders',name: 'Work Orders (CMMS)',    enabled: false, source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 10, sort_order: 2, equipment_class_overrides: [] },
-  { id: 'inventory',  name: 'Inventory (ERP)',       enabled: false, source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'asc',  row_limit: 20, sort_order: 3, equipment_class_overrides: [] },
-  { id: 'tickets',    name: 'Tickets',              enabled: false, source_dataset_id: null, source_dataset_label: null, display_columns: [], sort_column: null, sort_direction: 'desc', row_limit: 10, sort_order: 4, equipment_class_overrides: [] },
-]
+  {
+    id: "alarms",
+    name: "Active Alarms",
+    enabled: true,
+    source_dataset_id: null,
+    source_dataset_label: null,
+    display_columns: [],
+    sort_column: null,
+    sort_direction: "desc",
+    row_limit: 10,
+    sort_order: 0,
+    equipment_class_overrides: [],
+  },
+  {
+    id: "trend",
+    name: "Trend",
+    enabled: true,
+    source_dataset_id: null,
+    source_dataset_label: null,
+    display_columns: [],
+    sort_column: null,
+    sort_direction: "desc",
+    row_limit: 100,
+    sort_order: 1,
+    equipment_class_overrides: [],
+  },
+  {
+    id: "work_orders",
+    name: "Work Orders (CMMS)",
+    enabled: false,
+    source_dataset_id: null,
+    source_dataset_label: null,
+    display_columns: [],
+    sort_column: null,
+    sort_direction: "desc",
+    row_limit: 10,
+    sort_order: 2,
+    equipment_class_overrides: [],
+  },
+  {
+    id: "inventory",
+    name: "Inventory (ERP)",
+    enabled: false,
+    source_dataset_id: null,
+    source_dataset_label: null,
+    display_columns: [],
+    sort_column: null,
+    sort_direction: "asc",
+    row_limit: 20,
+    sort_order: 3,
+    equipment_class_overrides: [],
+  },
+  {
+    id: "tickets",
+    name: "Tickets",
+    enabled: false,
+    source_dataset_id: null,
+    source_dataset_label: null,
+    display_columns: [],
+    sort_column: null,
+    sort_direction: "desc",
+    row_limit: 10,
+    sort_order: 4,
+    equipment_class_overrides: [],
+  },
+];
 
 function usePointDetailConfig() {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
   const query = useQuery<PointDetailConfig>({
-    queryKey: ['point-detail-config'],
+    queryKey: ["point-detail-config"],
     queryFn: async () => {
       try {
-        const res = await fetch('/api/settings/point-detail-config')
-        if (!res.ok) throw new Error('API unavailable')
-        const json = await res.json()
-        return json.data ?? json
+        const res = await fetch("/api/settings/point-detail-config");
+        if (!res.ok) throw new Error("API unavailable");
+        const json = await res.json();
+        return json.data ?? json;
       } catch {
-        return { sections: DEFAULT_SECTIONS }
+        return { sections: DEFAULT_SECTIONS };
       }
     },
     staleTime: 30_000,
     initialData: { sections: DEFAULT_SECTIONS },
-  })
+  });
 
   const saveMutation = useMutation({
     mutationFn: async (config: PointDetailConfig) => {
-      const res = await fetch('/api/settings/point-detail-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/settings/point-detail-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
-      })
-      if (!res.ok) throw new Error(await res.text())
-      return res.json()
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['point-detail-config'] })
+      qc.invalidateQueries({ queryKey: ["point-detail-config"] });
     },
-  })
+  });
 
-  return { query, saveMutation }
+  return { query, saveMutation };
 }
 
 function SectionEditModal({
@@ -2382,101 +3110,146 @@ function SectionEditModal({
   onSave,
   onClose,
 }: {
-  section: PointDetailSection
-  definitions: ImportDefinition[]
-  onSave: (updated: PointDetailSection) => void
-  onClose: () => void
+  section: PointDetailSection;
+  definitions: ImportDefinition[];
+  onSave: (updated: PointDetailSection) => void;
+  onClose: () => void;
 }) {
-  const [form, setForm] = useState<PointDetailSection>({ ...section })
+  const [form, setForm] = useState<PointDetailSection>({ ...section });
 
-  const set = <K extends keyof PointDetailSection>(key: K, value: PointDetailSection[K]) =>
-    setForm((f) => ({ ...f, [key]: value }))
+  const set = <K extends keyof PointDetailSection>(
+    key: K,
+    value: PointDetailSection[K],
+  ) => setForm((f) => ({ ...f, [key]: value }));
 
   const modalOverlay: React.CSSProperties = {
-    position: 'fixed',
+    position: "fixed",
     inset: 0,
     zIndex: 200,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'rgba(0,0,0,0.5)',
-  }
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "rgba(0,0,0,0.5)",
+  };
 
   const inputSt: React.CSSProperties = {
-    width: '100%',
-    padding: '7px 10px',
-    background: 'var(--io-surface-secondary)',
-    border: '1px solid var(--io-border)',
-    borderRadius: 'var(--io-radius)',
-    color: 'var(--io-text)',
-    fontSize: '13px',
-    boxSizing: 'border-box',
-  }
+    width: "100%",
+    padding: "7px 10px",
+    background: "var(--io-surface-secondary)",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    color: "var(--io-text)",
+    fontSize: "13px",
+    boxSizing: "border-box",
+  };
 
-  const selectedDataset = definitions.find((d) => d.id === form.source_dataset_id)
+  const selectedDataset = definitions.find(
+    (d) => d.id === form.source_dataset_id,
+  );
 
   return (
     <div style={modalOverlay} onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'relative',
-          width: '520px',
-          maxWidth: '95vw',
-          maxHeight: '85vh',
-          background: 'var(--io-surface-elevated)',
-          border: '1px solid var(--io-border)',
-          borderRadius: '10px',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          position: "relative",
+          width: "520px",
+          maxWidth: "95vw",
+          maxHeight: "85vh",
+          background: "var(--io-surface-elevated)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "10px",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: '18px 20px',
-            borderBottom: '1px solid var(--io-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            padding: "18px 20px",
+            borderBottom: "1px solid var(--io-border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
             flexShrink: 0,
           }}
         >
-          <div style={{ fontWeight: 600, fontSize: '15px' }}>Edit Section: {section.name}</div>
+          <div style={{ fontWeight: 600, fontSize: "15px" }}>
+            Edit Section: {section.name}
+          </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '18px', lineHeight: 1 }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--io-text-muted)",
+              fontSize: "18px",
+              lineHeight: 1,
+            }}
           >
             ×
           </button>
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+          }}
+        >
           {/* Enabled toggle */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+            }}
+          >
             <input
               type="checkbox"
               checked={form.enabled}
-              onChange={(e) => set('enabled', e.target.checked)}
-              style={{ accentColor: 'var(--io-accent)' }}
+              onChange={(e) => set("enabled", e.target.checked)}
+              style={{ accentColor: "var(--io-accent)" }}
             />
-            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--io-text-primary)' }}>
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "var(--io-text-primary)",
+              }}
+            >
               Enabled in Point Detail panel
             </span>
           </label>
 
           {/* Source dataset */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--io-text-muted)",
+                marginBottom: "5px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
               Source Dataset
             </label>
             <select
               style={inputSt}
-              value={form.source_dataset_id ?? ''}
-              onChange={(e) => set('source_dataset_id', e.target.value || null)}
+              value={form.source_dataset_id ?? ""}
+              onChange={(e) => set("source_dataset_id", e.target.value || null)}
             >
               <option value="">(none — use system data)</option>
               {definitions.map((d) => (
@@ -2486,7 +3259,13 @@ function SectionEditModal({
               ))}
             </select>
             {selectedDataset && (
-              <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', marginTop: '3px' }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "var(--io-text-muted)",
+                  marginTop: "3px",
+                }}
+              >
                 Target table: {selectedDataset.target_table}
               </div>
             )}
@@ -2494,17 +3273,30 @@ function SectionEditModal({
 
           {/* Display columns */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--io-text-muted)",
+                marginBottom: "5px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
               Display Columns (comma-separated)
             </label>
             <input
               type="text"
               style={inputSt}
-              value={form.display_columns.join(', ')}
+              value={form.display_columns.join(", ")}
               onChange={(e) =>
                 set(
-                  'display_columns',
-                  e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                  "display_columns",
+                  e.target.value
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean),
                 )
               }
               placeholder="column1, column2, ..."
@@ -2512,27 +3304,49 @@ function SectionEditModal({
           </div>
 
           {/* Sort column + direction */}
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: "flex", gap: "10px" }}>
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--io-text-muted)",
+                  marginBottom: "5px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
                 Sort Column
               </label>
               <input
                 type="text"
                 style={inputSt}
-                value={form.sort_column ?? ''}
-                onChange={(e) => set('sort_column', e.target.value || null)}
+                value={form.sort_column ?? ""}
+                onChange={(e) => set("sort_column", e.target.value || null)}
                 placeholder="column name"
               />
             </div>
-            <div style={{ width: '120px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ width: "120px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--io-text-muted)",
+                  marginBottom: "5px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
                 Direction
               </label>
               <select
                 style={inputSt}
                 value={form.sort_direction}
-                onChange={(e) => set('sort_direction', e.target.value as 'asc' | 'desc')}
+                onChange={(e) =>
+                  set("sort_direction", e.target.value as "asc" | "desc")
+                }
               >
                 <option value="asc">Ascending</option>
                 <option value="desc">Descending</option>
@@ -2542,7 +3356,17 @@ function SectionEditModal({
 
           {/* Row limit */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--io-text-muted)",
+                marginBottom: "5px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
               Row Limit
             </label>
             <input
@@ -2551,7 +3375,12 @@ function SectionEditModal({
               value={form.row_limit}
               min={1}
               max={500}
-              onChange={(e) => set('row_limit', Math.max(1, parseInt(e.target.value, 10) || 10))}
+              onChange={(e) =>
+                set(
+                  "row_limit",
+                  Math.max(1, parseInt(e.target.value, 10) || 10),
+                )
+              }
             />
           </div>
         </div>
@@ -2559,39 +3388,42 @@ function SectionEditModal({
         {/* Footer */}
         <div
           style={{
-            padding: '14px 20px',
-            borderTop: '1px solid var(--io-border)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '8px',
+            padding: "14px 20px",
+            borderTop: "1px solid var(--io-border)",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "8px",
             flexShrink: 0,
           }}
         >
           <button
             onClick={onClose}
             style={{
-              padding: '7px 14px',
-              background: 'transparent',
-              border: '1px solid var(--io-border)',
-              borderRadius: 'var(--io-radius)',
-              color: 'var(--io-text-secondary)',
-              fontSize: '13px',
-              cursor: 'pointer',
+              padding: "7px 14px",
+              background: "transparent",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius)",
+              color: "var(--io-text-secondary)",
+              fontSize: "13px",
+              cursor: "pointer",
             }}
           >
             Cancel
           </button>
           <button
-            onClick={() => { onSave(form); onClose() }}
+            onClick={() => {
+              onSave(form);
+              onClose();
+            }}
             style={{
-              padding: '7px 14px',
-              background: 'var(--io-accent)',
-              border: 'none',
-              borderRadius: 'var(--io-radius)',
-              color: '#fff',
-              fontSize: '13px',
+              padding: "7px 14px",
+              background: "var(--io-accent)",
+              border: "none",
+              borderRadius: "var(--io-radius)",
+              color: "#fff",
+              fontSize: "13px",
               fontWeight: 500,
-              cursor: 'pointer',
+              cursor: "pointer",
             }}
           >
             Save Section
@@ -2599,144 +3431,175 @@ function SectionEditModal({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function PointDetailTab() {
-  const canManage = usePermission('system:point_detail_config')
-  const { query, saveMutation } = usePointDetailConfig()
-  const [sections, setSections] = useState<PointDetailSection[]>([])
-  const [editingSection, setEditingSection] = useState<PointDetailSection | null>(null)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+  const canManage = usePermission("system:point_detail_config");
+  const { query, saveMutation } = usePointDetailConfig();
+  const [sections, setSections] = useState<PointDetailSection[]>([]);
+  const [editingSection, setEditingSection] =
+    useState<PointDetailSection | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">(
+    "idle",
+  );
 
   // Sync from query
   useEffect(() => {
     if (query.data) {
-      setSections([...query.data.sections].sort((a, b) => a.sort_order - b.sort_order))
+      setSections(
+        [...query.data.sections].sort((a, b) => a.sort_order - b.sort_order),
+      );
     }
-  }, [query.data])
+  }, [query.data]);
 
   const { data: defsResult } = useQuery({
-    queryKey: ['import-definitions'],
+    queryKey: ["import-definitions"],
     queryFn: () => importApi.listDefinitions(),
-  })
-  const definitions = defsResult?.success ? defsResult.data : []
+  });
+  const definitions = defsResult?.success ? defsResult.data : [];
 
   async function handleSave(updated: PointDetailSection[]) {
     const config: PointDetailConfig = {
       sections: updated.map((s, i) => ({ ...s, sort_order: i })),
-    }
+    };
     try {
-      await saveMutation.mutateAsync(config)
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 2000)
+      await saveMutation.mutateAsync(config);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
     } catch {
-      setSaveStatus('error')
+      setSaveStatus("error");
     }
   }
 
   function moveUp(index: number) {
-    if (index === 0) return
-    const next = [...sections]
-    ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-    setSections(next)
-    handleSave(next)
+    if (index === 0) return;
+    const next = [...sections];
+    [next[index - 1], next[index]] = [next[index], next[index - 1]];
+    setSections(next);
+    handleSave(next);
   }
 
   function moveDown(index: number) {
-    if (index === sections.length - 1) return
-    const next = [...sections]
-    ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
-    setSections(next)
-    handleSave(next)
+    if (index === sections.length - 1) return;
+    const next = [...sections];
+    [next[index], next[index + 1]] = [next[index + 1], next[index]];
+    setSections(next);
+    handleSave(next);
   }
 
   function toggleEnabled(index: number) {
-    const next = sections.map((s, i) => i === index ? { ...s, enabled: !s.enabled } : s)
-    setSections(next)
-    handleSave(next)
+    const next = sections.map((s, i) =>
+      i === index ? { ...s, enabled: !s.enabled } : s,
+    );
+    setSections(next);
+    handleSave(next);
   }
 
   function handleSectionSave(updated: PointDetailSection) {
-    const next = sections.map((s) => s.id === updated.id ? updated : s)
-    setSections(next)
-    handleSave(next)
+    const next = sections.map((s) => (s.id === updated.id ? updated : s));
+    setSections(next);
+    handleSave(next);
   }
 
   if (!canManage) {
     return (
       <div
         style={{
-          textAlign: 'center',
-          padding: '48px',
-          color: 'var(--io-text-muted)',
-          background: 'var(--io-surface-secondary)',
-          borderRadius: 'var(--io-radius)',
-          border: '1px solid var(--io-border)',
+          textAlign: "center",
+          padding: "48px",
+          color: "var(--io-text-muted)",
+          background: "var(--io-surface-secondary)",
+          borderRadius: "var(--io-radius)",
+          border: "1px solid var(--io-border)",
         }}
       >
         You do not have permission to configure Point Detail sections.
         <br />
-        <span style={{ fontSize: '12px', opacity: 0.7 }}>
+        <span style={{ fontSize: "12px", opacity: 0.7 }}>
           Required permission: <code>system:point_detail_config</code>
         </span>
       </div>
-    )
+    );
   }
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "16px",
+        }}
+      >
         <div>
-          <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--io-text-primary)', marginBottom: '2px' }}>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: "14px",
+              color: "var(--io-text-primary)",
+              marginBottom: "2px",
+            }}
+          >
             Point Detail Panel Sections
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--io-text-muted)' }}>
-            Configure which data sections appear in the floating Point Detail panel and in what order.
+          <div style={{ fontSize: "12px", color: "var(--io-text-muted)" }}>
+            Configure which data sections appear in the floating Point Detail
+            panel and in what order.
           </div>
         </div>
-        {saveStatus === 'saved' && (
-          <span style={{ fontSize: '12px', color: 'var(--io-success)' }}>Saved</span>
+        {saveStatus === "saved" && (
+          <span style={{ fontSize: "12px", color: "var(--io-success)" }}>
+            Saved
+          </span>
         )}
-        {saveStatus === 'error' && (
-          <span style={{ fontSize: '12px', color: 'var(--io-danger)' }}>Save failed</span>
+        {saveStatus === "error" && (
+          <span style={{ fontSize: "12px", color: "var(--io-danger)" }}>
+            Save failed
+          </span>
         )}
       </div>
 
       {/* Section list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
         {sections.map((section, index) => (
           <div
             key={section.id}
             style={{
-              background: 'var(--io-surface-secondary)',
-              border: `1px solid ${section.enabled ? 'var(--io-border)' : 'var(--io-border-subtle)'}`,
-              borderRadius: 'var(--io-radius)',
-              padding: '12px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
+              background: "var(--io-surface-secondary)",
+              border: `1px solid ${section.enabled ? "var(--io-border)" : "var(--io-border-subtle)"}`,
+              borderRadius: "var(--io-radius)",
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
               opacity: section.enabled ? 1 : 0.6,
             }}
           >
             {/* Order controls */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "2px" }}
+            >
               <button
                 onClick={() => moveUp(index)}
                 disabled={index === 0}
                 style={{
-                  background: 'none',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '3px',
-                  width: '20px',
-                  height: '18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: index === 0 ? 'not-allowed' : 'pointer',
-                  color: index === 0 ? 'var(--io-text-muted)' : 'var(--io-text-secondary)',
-                  fontSize: '10px',
+                  background: "none",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "3px",
+                  width: "20px",
+                  height: "18px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: index === 0 ? "not-allowed" : "pointer",
+                  color:
+                    index === 0
+                      ? "var(--io-text-muted)"
+                      : "var(--io-text-secondary)",
+                  fontSize: "10px",
                   opacity: index === 0 ? 0.3 : 1,
                 }}
                 title="Move up"
@@ -2747,17 +3610,21 @@ function PointDetailTab() {
                 onClick={() => moveDown(index)}
                 disabled={index === sections.length - 1}
                 style={{
-                  background: 'none',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: '3px',
-                  width: '20px',
-                  height: '18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: index === sections.length - 1 ? 'not-allowed' : 'pointer',
-                  color: index === sections.length - 1 ? 'var(--io-text-muted)' : 'var(--io-text-secondary)',
-                  fontSize: '10px',
+                  background: "none",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "3px",
+                  width: "20px",
+                  height: "18px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor:
+                    index === sections.length - 1 ? "not-allowed" : "pointer",
+                  color:
+                    index === sections.length - 1
+                      ? "var(--io-text-muted)"
+                      : "var(--io-text-secondary)",
+                  fontSize: "10px",
                   opacity: index === sections.length - 1 ? 0.3 : 1,
                 }}
                 title="Move down"
@@ -2771,16 +3638,31 @@ function PointDetailTab() {
               type="checkbox"
               checked={section.enabled}
               onChange={() => toggleEnabled(index)}
-              style={{ accentColor: 'var(--io-accent)', flexShrink: 0 }}
-              title={section.enabled ? 'Disable section' : 'Enable section'}
+              style={{ accentColor: "var(--io-accent)", flexShrink: 0 }}
+              title={section.enabled ? "Disable section" : "Enable section"}
             />
 
             {/* Section info */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--io-text-primary)', marginBottom: '2px' }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  color: "var(--io-text-primary)",
+                  marginBottom: "2px",
+                }}
+              >
                 {section.name}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--io-text-muted)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "var(--io-text-muted)",
+                  display: "flex",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                }}
+              >
                 {section.source_dataset_label ? (
                   <span>Dataset: {section.source_dataset_label}</span>
                 ) : section.source_dataset_id ? (
@@ -2790,7 +3672,7 @@ function PointDetailTab() {
                 )}
                 <span>Limit: {section.row_limit} rows</span>
                 {section.display_columns.length > 0 && (
-                  <span>Columns: {section.display_columns.join(', ')}</span>
+                  <span>Columns: {section.display_columns.join(", ")}</span>
                 )}
               </div>
             </div>
@@ -2799,13 +3681,13 @@ function PointDetailTab() {
             <button
               onClick={() => setEditingSection(section)}
               style={{
-                padding: '5px 12px',
-                background: 'transparent',
-                border: '1px solid var(--io-border)',
-                borderRadius: 'var(--io-radius)',
-                color: 'var(--io-text-secondary)',
-                fontSize: '12px',
-                cursor: 'pointer',
+                padding: "5px 12px",
+                background: "transparent",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                color: "var(--io-text-secondary)",
+                fontSize: "12px",
+                cursor: "pointer",
                 flexShrink: 0,
               }}
             >
@@ -2818,12 +3700,12 @@ function PointDetailTab() {
       {sections.length === 0 && (
         <div
           style={{
-            textAlign: 'center',
-            padding: '48px',
-            color: 'var(--io-text-muted)',
-            background: 'var(--io-surface-secondary)',
-            borderRadius: 'var(--io-radius)',
-            border: '1px solid var(--io-border)',
+            textAlign: "center",
+            padding: "48px",
+            color: "var(--io-text-muted)",
+            background: "var(--io-surface-secondary)",
+            borderRadius: "var(--io-radius)",
+            border: "1px solid var(--io-border)",
           }}
         >
           No Point Detail sections configured. Loading default sections...
@@ -2840,192 +3722,317 @@ function PointDetailTab() {
         />
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Data Links Tab
 // ---------------------------------------------------------------------------
 
-const TRANSFORM_OPS: Array<{ op: LinkTransform['op']; label: string; hasParams: boolean; paramKeys?: string[] }> = [
-  { op: 'uppercase',         label: 'Uppercase',              hasParams: false },
-  { op: 'lowercase',         label: 'Lowercase',              hasParams: false },
-  { op: 'trim',              label: 'Trim whitespace',        hasParams: false },
-  { op: 'remove_dashes',     label: 'Remove dashes',          hasParams: false },
-  { op: 'remove_spaces',     label: 'Remove spaces',          hasParams: false },
-  { op: 'remove_underscores',label: 'Remove underscores',     hasParams: false },
-  { op: 'leading_zeros',     label: 'Add leading zeros',      hasParams: true,  paramKeys: ['length'] },
-  { op: 'strip_prefix',      label: 'Strip prefix',           hasParams: true,  paramKeys: ['prefix'] },
-  { op: 'strip_suffix',      label: 'Strip suffix',           hasParams: true,  paramKeys: ['suffix'] },
-  { op: 'replace',           label: 'Replace text',           hasParams: true,  paramKeys: ['from', 'to'] },
-  { op: 'regex_extract',     label: 'Regex extract',          hasParams: true,  paramKeys: ['pattern', 'group'] },
-  { op: 'substring',         label: 'Substring',              hasParams: true,  paramKeys: ['start', 'end'] },
-]
+const TRANSFORM_OPS: Array<{
+  op: LinkTransform["op"];
+  label: string;
+  hasParams: boolean;
+  paramKeys?: string[];
+}> = [
+  { op: "uppercase", label: "Uppercase", hasParams: false },
+  { op: "lowercase", label: "Lowercase", hasParams: false },
+  { op: "trim", label: "Trim whitespace", hasParams: false },
+  { op: "remove_dashes", label: "Remove dashes", hasParams: false },
+  { op: "remove_spaces", label: "Remove spaces", hasParams: false },
+  { op: "remove_underscores", label: "Remove underscores", hasParams: false },
+  {
+    op: "leading_zeros",
+    label: "Add leading zeros",
+    hasParams: true,
+    paramKeys: ["length"],
+  },
+  {
+    op: "strip_prefix",
+    label: "Strip prefix",
+    hasParams: true,
+    paramKeys: ["prefix"],
+  },
+  {
+    op: "strip_suffix",
+    label: "Strip suffix",
+    hasParams: true,
+    paramKeys: ["suffix"],
+  },
+  {
+    op: "replace",
+    label: "Replace text",
+    hasParams: true,
+    paramKeys: ["from", "to"],
+  },
+  {
+    op: "regex_extract",
+    label: "Regex extract",
+    hasParams: true,
+    paramKeys: ["pattern", "group"],
+  },
+  {
+    op: "substring",
+    label: "Substring",
+    hasParams: true,
+    paramKeys: ["start", "end"],
+  },
+];
 
 function applyTransforms(value: string, transforms: LinkTransform[]): string {
-  let v = value
+  let v = value;
   for (const t of transforms) {
     try {
       switch (t.op) {
-        case 'uppercase':          v = v.toUpperCase(); break
-        case 'lowercase':          v = v.toLowerCase(); break
-        case 'trim':               v = v.trim(); break
-        case 'remove_dashes':      v = v.replace(/-/g, ''); break
-        case 'remove_spaces':      v = v.replace(/ /g, ''); break
-        case 'remove_underscores': v = v.replace(/_/g, ''); break
-        case 'leading_zeros': {
-          const len = parseInt(t.params?.length ?? '6', 10)
-          v = v.padStart(len, '0')
-          break
+        case "uppercase":
+          v = v.toUpperCase();
+          break;
+        case "lowercase":
+          v = v.toLowerCase();
+          break;
+        case "trim":
+          v = v.trim();
+          break;
+        case "remove_dashes":
+          v = v.replace(/-/g, "");
+          break;
+        case "remove_spaces":
+          v = v.replace(/ /g, "");
+          break;
+        case "remove_underscores":
+          v = v.replace(/_/g, "");
+          break;
+        case "leading_zeros": {
+          const len = parseInt(t.params?.length ?? "6", 10);
+          v = v.padStart(len, "0");
+          break;
         }
-        case 'strip_prefix': {
-          const p = t.params?.prefix ?? ''
-          if (v.startsWith(p)) v = v.slice(p.length)
-          break
+        case "strip_prefix": {
+          const p = t.params?.prefix ?? "";
+          if (v.startsWith(p)) v = v.slice(p.length);
+          break;
         }
-        case 'strip_suffix': {
-          const s = t.params?.suffix ?? ''
-          if (v.endsWith(s)) v = v.slice(0, -s.length)
-          break
+        case "strip_suffix": {
+          const s = t.params?.suffix ?? "";
+          if (v.endsWith(s)) v = v.slice(0, -s.length);
+          break;
         }
-        case 'replace':
-          v = v.split(t.params?.from ?? '').join(t.params?.to ?? '')
-          break
-        case 'regex_extract': {
-          const m = v.match(new RegExp(t.params?.pattern ?? ''))
-          const g = parseInt(t.params?.group ?? '0', 10)
-          v = m ? (m[g] ?? '') : ''
-          break
+        case "replace":
+          v = v.split(t.params?.from ?? "").join(t.params?.to ?? "");
+          break;
+        case "regex_extract": {
+          const m = v.match(new RegExp(t.params?.pattern ?? ""));
+          const g = parseInt(t.params?.group ?? "0", 10);
+          v = m ? (m[g] ?? "") : "";
+          break;
         }
-        case 'substring': {
-          const st = parseInt(t.params?.start ?? '0', 10)
-          const en = t.params?.end !== undefined ? parseInt(t.params.end, 10) : undefined
-          v = v.slice(st, en)
-          break
+        case "substring": {
+          const st = parseInt(t.params?.start ?? "0", 10);
+          const en =
+            t.params?.end !== undefined
+              ? parseInt(t.params.end, 10)
+              : undefined;
+          v = v.slice(st, en);
+          break;
         }
       }
-    } catch { /* ignore invalid transforms in preview */ }
+    } catch {
+      /* ignore invalid transforms in preview */
+    }
   }
-  return v
+  return v;
 }
 
 function transformLabel(t: LinkTransform): string {
-  const def = TRANSFORM_OPS.find((o) => o.op === t.op)
-  if (!def) return t.op
-  if (!def.hasParams) return def.label
+  const def = TRANSFORM_OPS.find((o) => o.op === t.op);
+  if (!def) return t.op;
+  if (!def.hasParams) return def.label;
   const paramStr = Object.entries(t.params ?? {})
     .map(([k, v]) => `${k}="${v}"`)
-    .join(', ')
-  return paramStr ? `${def.label} (${paramStr})` : def.label
+    .join(", ");
+  return paramStr ? `${def.label} (${paramStr})` : def.label;
 }
 
 interface TransformPipelineProps {
-  transforms: LinkTransform[]
-  sampleValue: string
-  onChange: (transforms: LinkTransform[]) => void
-  label: string
+  transforms: LinkTransform[];
+  sampleValue: string;
+  onChange: (transforms: LinkTransform[]) => void;
+  label: string;
 }
 
-function TransformPipeline({ transforms, sampleValue, onChange, label }: TransformPipelineProps) {
-  const [editingParams, setEditingParams] = useState<{ index: number; params: Record<string, string> } | null>(null)
+function TransformPipeline({
+  transforms,
+  sampleValue,
+  onChange,
+  label,
+}: TransformPipelineProps) {
+  const [editingParams, setEditingParams] = useState<{
+    index: number;
+    params: Record<string, string>;
+  } | null>(null);
 
-  function addTransform(op: LinkTransform['op']) {
-    const def = TRANSFORM_OPS.find((o) => o.op === op)
-    if (!def) return
+  function addTransform(op: LinkTransform["op"]) {
+    const def = TRANSFORM_OPS.find((o) => o.op === op);
+    if (!def) return;
     const newT: LinkTransform = {
       op,
-      params: def.hasParams && def.paramKeys
-        ? Object.fromEntries(def.paramKeys.map((k) => [k, '']))
-        : undefined,
-    }
-    const next = [...transforms, newT]
-    onChange(next)
+      params:
+        def.hasParams && def.paramKeys
+          ? Object.fromEntries(def.paramKeys.map((k) => [k, ""]))
+          : undefined,
+    };
+    const next = [...transforms, newT];
+    onChange(next);
     if (def.hasParams) {
-      setEditingParams({ index: next.length - 1, params: { ...(newT.params ?? {}) } })
+      setEditingParams({
+        index: next.length - 1,
+        params: { ...(newT.params ?? {}) },
+      });
     }
   }
 
   function removeTransform(i: number) {
-    onChange(transforms.filter((_, idx) => idx !== i))
+    onChange(transforms.filter((_, idx) => idx !== i));
   }
 
   function moveUp(i: number) {
-    if (i === 0) return
-    const next = [...transforms]
-    ;[next[i - 1], next[i]] = [next[i], next[i - 1]]
-    onChange(next)
+    if (i === 0) return;
+    const next = [...transforms];
+    [next[i - 1], next[i]] = [next[i], next[i - 1]];
+    onChange(next);
   }
 
   function moveDown(i: number) {
-    if (i === transforms.length - 1) return
-    const next = [...transforms]
-    ;[next[i], next[i + 1]] = [next[i + 1], next[i]]
-    onChange(next)
+    if (i === transforms.length - 1) return;
+    const next = [...transforms];
+    [next[i], next[i + 1]] = [next[i + 1], next[i]];
+    onChange(next);
   }
 
   function saveParams() {
-    if (!editingParams) return
+    if (!editingParams) return;
     const next = transforms.map((t, i) =>
-      i === editingParams.index ? { ...t, params: editingParams.params } : t
-    )
-    onChange(next)
-    setEditingParams(null)
+      i === editingParams.index ? { ...t, params: editingParams.params } : t,
+    );
+    onChange(next);
+    setEditingParams(null);
   }
 
-  const preview = applyTransforms(sampleValue, transforms)
+  const preview = applyTransforms(sampleValue, transforms);
 
   return (
-    <div style={{ marginBottom: '12px' }}>
-      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--io-text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+    <div style={{ marginBottom: "12px" }}>
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 600,
+          color: "var(--io-text-muted)",
+          marginBottom: "6px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+        }}
+      >
         {label}
       </div>
 
       {/* Chip stack */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px', minHeight: '28px' }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "4px",
+          marginBottom: "6px",
+          minHeight: "28px",
+        }}
+      >
         {transforms.map((t, i) => (
           <span
             key={i}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '3px 8px',
-              background: 'var(--io-surface-secondary)',
-              border: '1px solid var(--io-border)',
-              borderRadius: '999px',
-              fontSize: '12px',
-              color: 'var(--io-text-primary)',
-              cursor: 'default',
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "3px 8px",
+              background: "var(--io-surface-secondary)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "999px",
+              fontSize: "12px",
+              color: "var(--io-text-primary)",
+              cursor: "default",
             }}
           >
             <button
               onClick={() => moveUp(i)}
               title="Move up"
-              style={{ background: 'none', border: 'none', padding: '0 1px', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '10px', lineHeight: 1 }}
-            >▲</button>
+              style={{
+                background: "none",
+                border: "none",
+                padding: "0 1px",
+                cursor: "pointer",
+                color: "var(--io-text-muted)",
+                fontSize: "10px",
+                lineHeight: 1,
+              }}
+            >
+              ▲
+            </button>
             <button
               onClick={() => moveDown(i)}
               title="Move down"
-              style={{ background: 'none', border: 'none', padding: '0 1px', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '10px', lineHeight: 1 }}
-            >▼</button>
+              style={{
+                background: "none",
+                border: "none",
+                padding: "0 1px",
+                cursor: "pointer",
+                color: "var(--io-text-muted)",
+                fontSize: "10px",
+                lineHeight: 1,
+              }}
+            >
+              ▼
+            </button>
             <span
               onClick={() => {
-                const def = TRANSFORM_OPS.find((o) => o.op === t.op)
-                if (def?.hasParams) setEditingParams({ index: i, params: { ...(t.params ?? {}) } })
+                const def = TRANSFORM_OPS.find((o) => o.op === t.op);
+                if (def?.hasParams)
+                  setEditingParams({
+                    index: i,
+                    params: { ...(t.params ?? {}) },
+                  });
               }}
-              style={{ cursor: TRANSFORM_OPS.find((o) => o.op === t.op)?.hasParams ? 'pointer' : 'default' }}
+              style={{
+                cursor: TRANSFORM_OPS.find((o) => o.op === t.op)?.hasParams
+                  ? "pointer"
+                  : "default",
+              }}
             >
               {transformLabel(t)}
             </span>
             <button
               onClick={() => removeTransform(i)}
               title="Remove"
-              style={{ background: 'none', border: 'none', padding: '0 1px', cursor: 'pointer', color: 'var(--io-text-muted)', fontSize: '12px', lineHeight: 1 }}
-            >×</button>
+              style={{
+                background: "none",
+                border: "none",
+                padding: "0 1px",
+                cursor: "pointer",
+                color: "var(--io-text-muted)",
+                fontSize: "12px",
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
           </span>
         ))}
         {transforms.length === 0 && (
-          <span style={{ fontSize: '12px', color: 'var(--io-text-muted)', fontStyle: 'italic' }}>
+          <span
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              fontStyle: "italic",
+            }}
+          >
             No transforms (pass-through)
           </span>
         )}
@@ -3034,157 +4041,206 @@ function TransformPipeline({ transforms, sampleValue, onChange, label }: Transfo
       {/* Add transform */}
       <select
         value=""
-        onChange={(e) => { if (e.target.value) addTransform(e.target.value as LinkTransform['op']) }}
+        onChange={(e) => {
+          if (e.target.value)
+            addTransform(e.target.value as LinkTransform["op"]);
+        }}
         style={{
-          fontSize: '12px',
-          padding: '4px 8px',
-          background: 'var(--io-surface-secondary)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          color: 'var(--io-text-primary)',
-          cursor: 'pointer',
-          marginBottom: '6px',
+          fontSize: "12px",
+          padding: "4px 8px",
+          background: "var(--io-surface-secondary)",
+          border: "1px solid var(--io-border)",
+          borderRadius: "var(--io-radius)",
+          color: "var(--io-text-primary)",
+          cursor: "pointer",
+          marginBottom: "6px",
         }}
       >
         <option value="">+ Add transform</option>
         {TRANSFORM_OPS.map((o) => (
-          <option key={o.op} value={o.op}>{o.label}</option>
+          <option key={o.op} value={o.op}>
+            {o.label}
+          </option>
         ))}
       </select>
 
       {/* Param editor */}
-      {editingParams !== null && (() => {
-        const def = TRANSFORM_OPS.find((o) => o.op === transforms[editingParams.index]?.op)
-        if (!def?.hasParams || !def.paramKeys) return null
-        return (
-          <div style={{
-            background: 'var(--io-surface-tertiary)',
-            border: '1px solid var(--io-border)',
-            borderRadius: 'var(--io-radius)',
-            padding: '8px',
-            marginBottom: '6px',
-          }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-              Configure: {def.label}
-            </div>
-            {def.paramKeys.map((k) => (
-              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                <label style={{ fontSize: '12px', width: '64px', color: 'var(--io-text-muted)' }}>{k}:</label>
-                <input
-                  type="text"
-                  value={editingParams.params[k] ?? ''}
-                  onChange={(e) => setEditingParams((prev) => prev ? { ...prev, params: { ...prev.params, [k]: e.target.value } } : null)}
-                  style={{
-                    fontSize: '12px',
-                    padding: '3px 6px',
-                    border: '1px solid var(--io-border)',
-                    borderRadius: 'var(--io-radius)',
-                    background: 'var(--io-surface)',
-                    color: 'var(--io-text-primary)',
-                    flex: 1,
-                  }}
-                />
+      {editingParams !== null &&
+        (() => {
+          const def = TRANSFORM_OPS.find(
+            (o) => o.op === transforms[editingParams.index]?.op,
+          );
+          if (!def?.hasParams || !def.paramKeys) return null;
+          return (
+            <div
+              style={{
+                background: "var(--io-surface-tertiary)",
+                border: "1px solid var(--io-border)",
+                borderRadius: "var(--io-radius)",
+                padding: "8px",
+                marginBottom: "6px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "6px",
+                }}
+              >
+                Configure: {def.label}
               </div>
-            ))}
-            <button
-              onClick={saveParams}
-              style={{
-                fontSize: '12px',
-                padding: '3px 10px',
-                background: 'var(--io-accent)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 'var(--io-radius)',
-                cursor: 'pointer',
-                marginRight: '4px',
-              }}
-            >
-              Save
-            </button>
-            <button
-              onClick={() => setEditingParams(null)}
-              style={{
-                fontSize: '12px',
-                padding: '3px 10px',
-                background: 'var(--io-surface-secondary)',
-                color: 'var(--io-text-secondary)',
-                border: '1px solid var(--io-border)',
-                borderRadius: 'var(--io-radius)',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        )
-      })()}
+              {def.paramKeys.map((k) => (
+                <div
+                  key={k}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      width: "64px",
+                      color: "var(--io-text-muted)",
+                    }}
+                  >
+                    {k}:
+                  </label>
+                  <input
+                    type="text"
+                    value={editingParams.params[k] ?? ""}
+                    onChange={(e) =>
+                      setEditingParams((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              params: { ...prev.params, [k]: e.target.value },
+                            }
+                          : null,
+                      )
+                    }
+                    style={{
+                      fontSize: "12px",
+                      padding: "3px 6px",
+                      border: "1px solid var(--io-border)",
+                      borderRadius: "var(--io-radius)",
+                      background: "var(--io-surface)",
+                      color: "var(--io-text-primary)",
+                      flex: 1,
+                    }}
+                  />
+                </div>
+              ))}
+              <button
+                onClick={saveParams}
+                style={{
+                  fontSize: "12px",
+                  padding: "3px 10px",
+                  background: "var(--io-accent)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "var(--io-radius)",
+                  cursor: "pointer",
+                  marginRight: "4px",
+                }}
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingParams(null)}
+                style={{
+                  fontSize: "12px",
+                  padding: "3px 10px",
+                  background: "var(--io-surface-secondary)",
+                  color: "var(--io-text-secondary)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          );
+        })()}
 
       {/* Live preview */}
       {sampleValue && (
-        <div style={{
-          fontSize: '12px',
-          color: 'var(--io-text-muted)',
-          background: 'var(--io-surface-tertiary)',
-          border: '1px solid var(--io-border)',
-          borderRadius: 'var(--io-radius)',
-          padding: '4px 8px',
-          fontFamily: 'monospace',
-        }}>
-          Preview: <span style={{ color: 'var(--io-text-primary)' }}>{`"${sampleValue}"`}</span>
-          {' → '}
-          <span style={{ color: 'var(--io-accent)' }}>{`"${preview}"`}</span>
+        <div
+          style={{
+            fontSize: "12px",
+            color: "var(--io-text-muted)",
+            background: "var(--io-surface-tertiary)",
+            border: "1px solid var(--io-border)",
+            borderRadius: "var(--io-radius)",
+            padding: "4px 8px",
+            fontFamily: "monospace",
+          }}
+        >
+          Preview:{" "}
+          <span
+            style={{ color: "var(--io-text-primary)" }}
+          >{`"${sampleValue}"`}</span>
+          {" → "}
+          <span style={{ color: "var(--io-accent)" }}>{`"${preview}"`}</span>
         </div>
       )}
     </div>
-  )
+  );
 }
 
-const EMPTY_LINK: Omit<DataLink, 'id' | 'valid' | 'validation_reason'> = {
-  source_dataset_id: '',
-  source_column: '',
-  target_dataset_id: '',
-  target_column: '',
-  match_type: 'exact',
+const EMPTY_LINK: Omit<DataLink, "id" | "valid" | "validation_reason"> = {
+  source_dataset_id: "",
+  source_column: "",
+  target_dataset_id: "",
+  target_column: "",
+  match_type: "exact",
   bidirectional: false,
   enabled: true,
   source_transforms: [],
   target_transforms: [],
-}
+};
 
 function DataLinksTab() {
-  const canManage = usePermission('system:data_link_config')
-  const qc = useQueryClient()
+  const canManage = usePermission("system:data_link_config");
+  const qc = useQueryClient();
 
   // Datasets from definitions
   const { data: defsResult } = useQuery({
-    queryKey: ['import-definitions'],
+    queryKey: ["import-definitions"],
     queryFn: () => importApi.listDefinitions(),
-  })
+  });
   const definitions: Array<{ id: string; name: string; target_table: string }> =
-    defsResult?.success ? defsResult.data : []
+    defsResult?.success ? defsResult.data : [];
 
   // Data links list
   const { data: linksResult, isLoading } = useQuery({
-    queryKey: ['data-links'],
+    queryKey: ["data-links"],
     queryFn: () => dataLinksApi.list(),
     enabled: canManage,
-  })
-  const links: DataLink[] = linksResult?.success ? linksResult.data : []
+  });
+  const links: DataLink[] = linksResult?.success ? linksResult.data : [];
 
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingLink, setEditingLink] = useState<DataLink | null>(null)
-  const [form, setForm] = useState<Omit<DataLink, 'id' | 'valid' | 'validation_reason'>>(EMPTY_LINK)
-  const [saving, setSaving] = useState(false)
-  const [validationWarnings, setValidationWarnings] = useState<Record<string, string>>({})
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState<DataLink | null>(null);
+  const [form, setForm] =
+    useState<Omit<DataLink, "id" | "valid" | "validation_reason">>(EMPTY_LINK);
+  const [saving, setSaving] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState<
+    Record<string, string>
+  >({});
 
   function openAdd() {
-    setEditingLink(null)
-    setForm({ ...EMPTY_LINK })
-    setDialogOpen(true)
+    setEditingLink(null);
+    setForm({ ...EMPTY_LINK });
+    setDialogOpen(true);
   }
 
   function openEdit(link: DataLink) {
-    setEditingLink(link)
+    setEditingLink(link);
     setForm({
       source_dataset_id: link.source_dataset_id,
       source_column: link.source_column,
@@ -3195,144 +4251,177 @@ function DataLinksTab() {
       enabled: link.enabled,
       source_transforms: [...link.source_transforms],
       target_transforms: [...link.target_transforms],
-    })
-    setDialogOpen(true)
+    });
+    setDialogOpen(true);
   }
 
-  function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
-    setForm((f) => ({ ...f, [key]: value }))
+  function setField<K extends keyof typeof form>(
+    key: K,
+    value: (typeof form)[K],
+  ) {
+    setForm((f) => ({ ...f, [key]: value }));
   }
 
   async function handleSave() {
-    if (!form.source_dataset_id || !form.source_column || !form.target_dataset_id || !form.target_column) return
-    setSaving(true)
+    if (
+      !form.source_dataset_id ||
+      !form.source_column ||
+      !form.target_dataset_id ||
+      !form.target_column
+    )
+      return;
+    setSaving(true);
     try {
-      let result: { success: true; data: DataLink } | { success: false; error: { message: string; code: string } }
+      let result:
+        | { success: true; data: DataLink }
+        | { success: false; error: { message: string; code: string } };
       if (editingLink) {
-        result = await dataLinksApi.update(editingLink.id, form)
+        result = await dataLinksApi.update(editingLink.id, form);
       } else {
-        result = await dataLinksApi.create(form)
+        result = await dataLinksApi.create(form);
       }
       if (result.success) {
-        const saved = result.data
+        const saved = result.data;
         if (saved.valid === false && saved.validation_reason) {
-          setValidationWarnings((prev) => ({ ...prev, [saved.id]: saved.validation_reason! }))
+          setValidationWarnings((prev) => ({
+            ...prev,
+            [saved.id]: saved.validation_reason!,
+          }));
         } else {
           setValidationWarnings((prev) => {
-            const next = { ...prev }
-            delete next[saved.id]
-            return next
-          })
+            const next = { ...prev };
+            delete next[saved.id];
+            return next;
+          });
         }
-        qc.invalidateQueries({ queryKey: ['data-links'] })
-        setDialogOpen(false)
-        showToast({ title: editingLink ? 'Link updated' : 'Link created', variant: 'success' })
+        qc.invalidateQueries({ queryKey: ["data-links"] });
+        setDialogOpen(false);
+        showToast({
+          title: editingLink ? "Link updated" : "Link created",
+          variant: "success",
+        });
       } else {
-        showToast({ title: result.error.message, variant: 'error' })
+        showToast({ title: result.error.message, variant: "error" });
       }
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
   }
 
   async function handleDelete(id: string) {
-    const result = await dataLinksApi.delete(id)
+    const result = await dataLinksApi.delete(id);
     if (result.success) {
-      qc.invalidateQueries({ queryKey: ['data-links'] })
-      showToast({ title: 'Link deleted', variant: 'success' })
+      qc.invalidateQueries({ queryKey: ["data-links"] });
+      showToast({ title: "Link deleted", variant: "success" });
     } else {
-      showToast({ title: result.error.message, variant: 'error' })
+      showToast({ title: result.error.message, variant: "error" });
     }
   }
 
   async function handleToggle(link: DataLink) {
-    const result = await dataLinksApi.update(link.id, { enabled: !link.enabled })
+    const result = await dataLinksApi.update(link.id, {
+      enabled: !link.enabled,
+    });
     if (result.success) {
-      qc.invalidateQueries({ queryKey: ['data-links'] })
+      qc.invalidateQueries({ queryKey: ["data-links"] });
     } else {
-      showToast({ title: result.error.message, variant: 'error' })
+      showToast({ title: result.error.message, variant: "error" });
     }
   }
 
   // Columns from selected definition (mocked — real impl would fetch from API)
   function getColumns(datasetId: string): string[] {
-    const def = definitions.find((d) => d.id === datasetId)
-    if (!def) return []
+    const def = definitions.find((d) => d.id === datasetId);
+    if (!def) return [];
     // Return generic column names — in production these would come from the dataset schema API
-    return ['id', 'name', 'description', 'tag', 'value', 'timestamp', 'status']
+    return ["id", "name", "description", "tag", "value", "timestamp", "status"];
   }
 
-  const sourceColumns = getColumns(form.source_dataset_id)
-  const targetColumns = getColumns(form.target_dataset_id)
+  const sourceColumns = getColumns(form.source_dataset_id);
+  const targetColumns = getColumns(form.target_dataset_id);
 
   const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '7px 10px',
-    border: '1px solid var(--io-border)',
-    borderRadius: 'var(--io-radius)',
-    background: 'var(--io-surface)',
-    color: 'var(--io-text-primary)',
-    fontSize: '13px',
-    boxSizing: 'border-box',
-  }
+    width: "100%",
+    padding: "7px 10px",
+    border: "1px solid var(--io-border)",
+    borderRadius: "var(--io-radius)",
+    background: "var(--io-surface)",
+    color: "var(--io-text-primary)",
+    fontSize: "13px",
+    boxSizing: "border-box",
+  };
 
   const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: '12px',
+    display: "block",
+    fontSize: "12px",
     fontWeight: 600,
-    color: 'var(--io-text-muted)',
-    marginBottom: '4px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  }
+    color: "var(--io-text-muted)",
+    marginBottom: "4px",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  };
 
   if (!canManage) {
     return (
       <div
         style={{
-          textAlign: 'center',
-          padding: '48px',
-          color: 'var(--io-text-muted)',
-          background: 'var(--io-surface-secondary)',
-          borderRadius: 'var(--io-radius)',
-          border: '1px solid var(--io-border)',
+          textAlign: "center",
+          padding: "48px",
+          color: "var(--io-text-muted)",
+          background: "var(--io-surface-secondary)",
+          borderRadius: "var(--io-radius)",
+          border: "1px solid var(--io-border)",
         }}
       >
         You do not have permission to configure Data Links.
         <br />
-        <span style={{ fontSize: '12px', opacity: 0.7 }}>
+        <span style={{ fontSize: "12px", opacity: 0.7 }}>
           Required permission: <code>system:data_link_config</code>
         </span>
       </div>
-    )
+    );
   }
 
-  const matchTypeLabel: Record<DataLink['match_type'], string> = {
-    exact: 'Exact',
-    case_insensitive: 'Case-insensitive',
-    transformed: 'Transformed',
-  }
+  const matchTypeLabel: Record<DataLink["match_type"], string> = {
+    exact: "Exact",
+    case_insensitive: "Case-insensitive",
+    transformed: "Transformed",
+  };
 
   return (
     <div>
       {/* Header row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "16px",
+        }}
+      >
         <div>
-          <div style={{ fontSize: '14px', fontWeight: 600 }}>Data Links</div>
-          <div style={{ fontSize: '12px', color: 'var(--io-text-muted)', marginTop: '2px' }}>
-            Configure cross-dataset joins by linking columns between import datasets.
+          <div style={{ fontSize: "14px", fontWeight: 600 }}>Data Links</div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--io-text-muted)",
+              marginTop: "2px",
+            }}
+          >
+            Configure cross-dataset joins by linking columns between import
+            datasets.
           </div>
         </div>
         <button
           onClick={openAdd}
           style={{
-            padding: '7px 14px',
-            background: 'var(--io-accent)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 'var(--io-radius)',
-            fontSize: '13px',
-            cursor: 'pointer',
+            padding: "7px 14px",
+            background: "var(--io-accent)",
+            color: "#fff",
+            border: "none",
+            borderRadius: "var(--io-radius)",
+            fontSize: "13px",
+            cursor: "pointer",
             fontWeight: 500,
           }}
         >
@@ -3342,27 +4431,63 @@ function DataLinksTab() {
 
       {/* Links table */}
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '32px', color: 'var(--io-text-muted)', fontSize: '13px' }}>
+        <div
+          style={{
+            textAlign: "center",
+            padding: "32px",
+            color: "var(--io-text-muted)",
+            fontSize: "13px",
+          }}
+        >
           Loading data links…
         </div>
       ) : links.length === 0 ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '48px',
-          color: 'var(--io-text-muted)',
-          background: 'var(--io-surface-secondary)',
-          borderRadius: 'var(--io-radius)',
-          border: '1px dashed var(--io-border)',
-          fontSize: '13px',
-        }}>
-          No data links configured yet. Click "Add Link" to create the first one.
+        <div
+          style={{
+            textAlign: "center",
+            padding: "48px",
+            color: "var(--io-text-muted)",
+            background: "var(--io-surface-secondary)",
+            borderRadius: "var(--io-radius)",
+            border: "1px dashed var(--io-border)",
+            fontSize: "13px",
+          }}
+        >
+          No data links configured yet. Click "Add Link" to create the first
+          one.
         </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "13px",
+          }}
+        >
           <thead>
-            <tr style={{ borderBottom: '2px solid var(--io-border)' }}>
-              {['Source Dataset', 'Source Column', 'Target Dataset', 'Target Column', 'Match Type', 'Direction', 'Enabled', 'Actions'].map((h) => (
-                <th key={h} style={{ padding: '6px 10px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--io-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <tr style={{ borderBottom: "2px solid var(--io-border)" }}>
+              {[
+                "Source Dataset",
+                "Source Column",
+                "Target Dataset",
+                "Target Column",
+                "Match Type",
+                "Direction",
+                "Enabled",
+                "Actions",
+              ].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    padding: "6px 10px",
+                    textAlign: "left",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "var(--io-text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
                   {h}
                 </th>
               ))}
@@ -3370,25 +4495,36 @@ function DataLinksTab() {
           </thead>
           <tbody>
             {links.map((link) => {
-              const srcDef = definitions.find((d) => d.id === link.source_dataset_id)
-              const tgtDef = definitions.find((d) => d.id === link.target_dataset_id)
-              const warn = validationWarnings[link.id]
+              const srcDef = definitions.find(
+                (d) => d.id === link.source_dataset_id,
+              );
+              const tgtDef = definitions.find(
+                (d) => d.id === link.target_dataset_id,
+              );
+              const warn = validationWarnings[link.id];
               return (
-                <tr key={link.id} style={{ borderBottom: '1px solid var(--io-border)' }}>
-                  <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
+                <tr
+                  key={link.id}
+                  style={{ borderBottom: "1px solid var(--io-border)" }}
+                >
+                  <td style={{ padding: "8px 10px", verticalAlign: "middle" }}>
                     {srcDef?.name ?? link.source_dataset_id}
                     {warn && (
                       <span
-                        title={warn === 'no_point_column_path' ? 'No path to a point column' : warn}
+                        title={
+                          warn === "no_point_column_path"
+                            ? "No path to a point column"
+                            : warn
+                        }
                         style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          marginLeft: '6px',
-                          padding: '1px 6px',
-                          background: 'var(--io-warning-subtle)',
-                          color: 'var(--io-warning)',
-                          borderRadius: '999px',
-                          fontSize: '10px',
+                          display: "inline-flex",
+                          alignItems: "center",
+                          marginLeft: "6px",
+                          padding: "1px 6px",
+                          background: "var(--io-warning-subtle)",
+                          color: "var(--io-warning)",
+                          borderRadius: "999px",
+                          fontSize: "10px",
                           fontWeight: 600,
                         }}
                       >
@@ -3396,67 +4532,121 @@ function DataLinksTab() {
                       </span>
                     )}
                   </td>
-                  <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: '12px', verticalAlign: 'middle' }}>{link.source_column}</td>
-                  <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>{tgtDef?.name ?? link.target_dataset_id}</td>
-                  <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: '12px', verticalAlign: 'middle' }}>{link.target_column}</td>
-                  <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      background: 'var(--io-surface-secondary)',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: 500,
-                    }}>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      fontFamily: "monospace",
+                      fontSize: "12px",
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    {link.source_column}
+                  </td>
+                  <td style={{ padding: "8px 10px", verticalAlign: "middle" }}>
+                    {tgtDef?.name ?? link.target_dataset_id}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      fontFamily: "monospace",
+                      fontSize: "12px",
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    {link.target_column}
+                  </td>
+                  <td style={{ padding: "8px 10px", verticalAlign: "middle" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "2px 8px",
+                        background: "var(--io-surface-secondary)",
+                        borderRadius: "4px",
+                        fontSize: "11px",
+                        fontWeight: 500,
+                      }}
+                    >
                       {matchTypeLabel[link.match_type]}
                     </span>
                   </td>
-                  <td style={{ padding: '8px 10px', verticalAlign: 'middle', textAlign: 'center' }}>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      verticalAlign: "middle",
+                      textAlign: "center",
+                    }}
+                  >
                     {link.bidirectional ? (
-                      <span title="Bidirectional" style={{ fontSize: '14px' }}>⇄</span>
+                      <span title="Bidirectional" style={{ fontSize: "14px" }}>
+                        ⇄
+                      </span>
                     ) : (
-                      <span title="One-way" style={{ fontSize: '14px', color: 'var(--io-text-muted)' }}>→</span>
+                      <span
+                        title="One-way"
+                        style={{
+                          fontSize: "14px",
+                          color: "var(--io-text-muted)",
+                        }}
+                      >
+                        →
+                      </span>
                     )}
                   </td>
-                  <td style={{ padding: '8px 10px', verticalAlign: 'middle', textAlign: 'center' }}>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      verticalAlign: "middle",
+                      textAlign: "center",
+                    }}
+                  >
                     <button
                       onClick={() => handleToggle(link)}
                       style={{
-                        width: '36px',
-                        height: '20px',
-                        borderRadius: '10px',
-                        background: link.enabled ? 'var(--io-accent)' : 'var(--io-surface-tertiary)',
-                        border: '1px solid var(--io-border)',
-                        cursor: 'pointer',
-                        position: 'relative',
-                        transition: 'background 0.15s',
+                        width: "36px",
+                        height: "20px",
+                        borderRadius: "10px",
+                        background: link.enabled
+                          ? "var(--io-accent)"
+                          : "var(--io-surface-tertiary)",
+                        border: "1px solid var(--io-border)",
+                        cursor: "pointer",
+                        position: "relative",
+                        transition: "background 0.15s",
                       }}
-                      title={link.enabled ? 'Disable' : 'Enable'}
+                      title={link.enabled ? "Disable" : "Enable"}
                     >
-                      <span style={{
-                        position: 'absolute',
-                        top: '2px',
-                        left: link.enabled ? '17px' : '2px',
-                        width: '14px',
-                        height: '14px',
-                        borderRadius: '50%',
-                        background: '#fff',
-                        transition: 'left 0.15s',
-                      }} />
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "2px",
+                          left: link.enabled ? "17px" : "2px",
+                          width: "14px",
+                          height: "14px",
+                          borderRadius: "50%",
+                          background: "#fff",
+                          transition: "left 0.15s",
+                        }}
+                      />
                     </button>
                   </td>
-                  <td style={{ padding: '8px 10px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                  <td
+                    style={{
+                      padding: "8px 10px",
+                      verticalAlign: "middle",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     <button
                       onClick={() => openEdit(link)}
                       style={{
-                        padding: '3px 10px',
-                        background: 'var(--io-surface-secondary)',
-                        border: '1px solid var(--io-border)',
-                        borderRadius: 'var(--io-radius)',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        color: 'var(--io-text-primary)',
-                        marginRight: '4px',
+                        padding: "3px 10px",
+                        background: "var(--io-surface-secondary)",
+                        border: "1px solid var(--io-border)",
+                        borderRadius: "var(--io-radius)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        color: "var(--io-text-primary)",
+                        marginRight: "4px",
                       }}
                     >
                       Edit
@@ -3464,20 +4654,20 @@ function DataLinksTab() {
                     <button
                       onClick={() => handleDelete(link.id)}
                       style={{
-                        padding: '3px 10px',
-                        background: 'var(--io-danger-subtle)',
-                        border: '1px solid var(--io-danger)',
-                        borderRadius: 'var(--io-radius)',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        color: 'var(--io-danger)',
+                        padding: "3px 10px",
+                        background: "var(--io-danger-subtle)",
+                        border: "1px solid var(--io-danger)",
+                        borderRadius: "var(--io-radius)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        color: "var(--io-danger)",
                       }}
                     >
                       Delete
                     </button>
                   </td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
@@ -3487,105 +4677,215 @@ function DataLinksTab() {
       {dialogOpen && (
         <div
           style={{
-            position: 'fixed',
+            position: "fixed",
             inset: 0,
             zIndex: 200,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0,0,0,0.5)',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.5)",
           }}
-          onClick={(e) => { if (e.target === e.currentTarget) setDialogOpen(false) }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDialogOpen(false);
+          }}
         >
           <div
             style={{
-              background: 'var(--io-surface)',
-              border: '1px solid var(--io-border)',
-              borderRadius: 'var(--io-radius-lg)',
-              padding: '24px',
-              width: '640px',
-              maxWidth: '95vw',
-              maxHeight: '90vh',
-              overflowY: 'auto',
+              background: "var(--io-surface)",
+              border: "1px solid var(--io-border)",
+              borderRadius: "var(--io-radius-lg)",
+              padding: "24px",
+              width: "640px",
+              maxWidth: "95vw",
+              maxHeight: "90vh",
+              overflowY: "auto",
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-                {editingLink ? 'Edit Data Link' : 'Add Data Link'}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "20px",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>
+                {editingLink ? "Edit Data Link" : "Add Data Link"}
               </h3>
               <button
                 onClick={() => setDialogOpen(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--io-text-muted)', lineHeight: 1 }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "18px",
+                  color: "var(--io-text-muted)",
+                  lineHeight: 1,
+                }}
               >
                 ×
               </button>
             </div>
 
             {/* Source section */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', border: '1px solid var(--io-border)' }}>
-              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '10px', color: 'var(--io-accent)' }}>Source</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div
+              style={{
+                marginBottom: "16px",
+                padding: "12px",
+                background: "var(--io-surface-secondary)",
+                borderRadius: "var(--io-radius)",
+                border: "1px solid var(--io-border)",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  marginBottom: "10px",
+                  color: "var(--io-accent)",
+                }}
+              >
+                Source
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "12px",
+                  marginBottom: "12px",
+                }}
+              >
                 <div>
                   <label style={labelStyle}>Dataset</label>
-                  <select value={form.source_dataset_id} onChange={(e) => setField('source_dataset_id', e.target.value)} style={inputStyle}>
+                  <select
+                    value={form.source_dataset_id}
+                    onChange={(e) =>
+                      setField("source_dataset_id", e.target.value)
+                    }
+                    style={inputStyle}
+                  >
                     <option value="">Select dataset…</option>
                     {definitions.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label style={labelStyle}>Column</label>
-                  <select value={form.source_column} onChange={(e) => setField('source_column', e.target.value)} style={inputStyle} disabled={!form.source_dataset_id}>
+                  <select
+                    value={form.source_column}
+                    onChange={(e) => setField("source_column", e.target.value)}
+                    style={inputStyle}
+                    disabled={!form.source_dataset_id}
+                  >
                     <option value="">Select column…</option>
-                    {sourceColumns.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {sourceColumns.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
               <TransformPipeline
                 label="Source transforms"
                 transforms={form.source_transforms}
-                sampleValue={form.source_column || 'EXAMPLE-001'}
-                onChange={(t) => setField('source_transforms', t)}
+                sampleValue={form.source_column || "EXAMPLE-001"}
+                onChange={(t) => setField("source_transforms", t)}
               />
             </div>
 
             {/* Target section */}
-            <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--io-surface-secondary)', borderRadius: 'var(--io-radius)', border: '1px solid var(--io-border)' }}>
-              <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: '10px', color: 'var(--io-text-secondary)' }}>Target</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div
+              style={{
+                marginBottom: "16px",
+                padding: "12px",
+                background: "var(--io-surface-secondary)",
+                borderRadius: "var(--io-radius)",
+                border: "1px solid var(--io-border)",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  marginBottom: "10px",
+                  color: "var(--io-text-secondary)",
+                }}
+              >
+                Target
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "12px",
+                  marginBottom: "12px",
+                }}
+              >
                 <div>
                   <label style={labelStyle}>Dataset</label>
-                  <select value={form.target_dataset_id} onChange={(e) => setField('target_dataset_id', e.target.value)} style={inputStyle}>
+                  <select
+                    value={form.target_dataset_id}
+                    onChange={(e) =>
+                      setField("target_dataset_id", e.target.value)
+                    }
+                    style={inputStyle}
+                  >
                     <option value="">Select dataset…</option>
                     {definitions.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label style={labelStyle}>Column</label>
-                  <select value={form.target_column} onChange={(e) => setField('target_column', e.target.value)} style={inputStyle} disabled={!form.target_dataset_id}>
+                  <select
+                    value={form.target_column}
+                    onChange={(e) => setField("target_column", e.target.value)}
+                    style={inputStyle}
+                    disabled={!form.target_dataset_id}
+                  >
                     <option value="">Select column…</option>
-                    {targetColumns.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {targetColumns.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
               <TransformPipeline
                 label="Target transforms"
                 transforms={form.target_transforms}
-                sampleValue={form.target_column || 'example_001'}
-                onChange={(t) => setField('target_transforms', t)}
+                sampleValue={form.target_column || "example_001"}
+                onChange={(t) => setField("target_transforms", t)}
               />
             </div>
 
             {/* Match type + bidirectional */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+                marginBottom: "20px",
+              }}
+            >
               <div>
                 <label style={labelStyle}>Match Type</label>
                 <select
                   value={form.match_type}
-                  onChange={(e) => setField('match_type', e.target.value as DataLink['match_type'])}
+                  onChange={(e) =>
+                    setField(
+                      "match_type",
+                      e.target.value as DataLink["match_type"],
+                    )
+                  }
                   style={inputStyle}
                 >
                   <option value="exact">Exact</option>
@@ -3593,13 +4893,29 @@ function DataLinksTab() {
                   <option value="transformed">Transformed</option>
                 </select>
               </div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-end",
+                  paddingBottom: "2px",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={form.bidirectional}
-                    onChange={(e) => setField('bidirectional', e.target.checked)}
-                    style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+                    onChange={(e) =>
+                      setField("bidirectional", e.target.checked)
+                    }
+                    style={{ width: "15px", height: "15px", cursor: "pointer" }}
                   />
                   <span>Bidirectional link</span>
                 </label>
@@ -3607,85 +4923,117 @@ function DataLinksTab() {
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "8px",
+              }}
+            >
               <button
                 onClick={() => setDialogOpen(false)}
                 style={{
-                  padding: '7px 16px',
-                  background: 'var(--io-surface-secondary)',
-                  color: 'var(--io-text-primary)',
-                  border: '1px solid var(--io-border)',
-                  borderRadius: 'var(--io-radius)',
-                  fontSize: '13px',
-                  cursor: 'pointer',
+                  padding: "7px 16px",
+                  background: "var(--io-surface-secondary)",
+                  color: "var(--io-text-primary)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: "var(--io-radius)",
+                  fontSize: "13px",
+                  cursor: "pointer",
                 }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || !form.source_dataset_id || !form.source_column || !form.target_dataset_id || !form.target_column}
+                disabled={
+                  saving ||
+                  !form.source_dataset_id ||
+                  !form.source_column ||
+                  !form.target_dataset_id ||
+                  !form.target_column
+                }
                 style={{
-                  padding: '7px 16px',
-                  background: 'var(--io-accent)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 'var(--io-radius)',
-                  fontSize: '13px',
-                  cursor: 'pointer',
+                  padding: "7px 16px",
+                  background: "var(--io-accent)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "var(--io-radius)",
+                  fontSize: "13px",
+                  cursor: "pointer",
                   fontWeight: 500,
                   opacity: saving ? 0.7 : 1,
                 }}
               >
-                {saving ? 'Saving…' : editingLink ? 'Save Changes' : 'Create Link'}
+                {saving
+                  ? "Saving…"
+                  : editingLink
+                    ? "Save Changes"
+                    : "Create Link"}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
-type Tab = 'connectors' | 'connections' | 'definitions' | 'runs' | 'point_detail' | 'data_links'
+type Tab =
+  | "connectors"
+  | "connections"
+  | "definitions"
+  | "runs"
+  | "point_detail"
+  | "data_links";
 
-export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab }) {
-  const canManageConnections = usePermission('system:import_connections')
-  const canManageDefinitions = usePermission('system:import_definitions')
-  const canViewHistory = usePermission('system:import_history')
-  const canManagePointDetail = usePermission('system:point_detail_config')
-  const canManageDataLinks = usePermission('system:data_link_config')
+export default function ImportSettingsPage({
+  defaultTab,
+}: {
+  defaultTab?: Tab;
+}) {
+  const canManageConnections = usePermission("system:import_connections");
+  const canManageDefinitions = usePermission("system:import_definitions");
+  const canViewHistory = usePermission("system:import_history");
+  const canManagePointDetail = usePermission("system:point_detail_config");
+  const canManageDataLinks = usePermission("system:data_link_config");
 
-  const [activeTab, setActiveTab] = useState<Tab>(defaultTab ?? 'connectors')
+  const [activeTab, setActiveTab] = useState<Tab>(defaultTab ?? "connectors");
 
   const tabs: { id: Tab; label: string; visible: boolean }[] = [
-    { id: 'connectors',   label: 'Connectors',    visible: canManageConnections },
-    { id: 'connections',  label: 'Connections',   visible: canManageConnections },
-    { id: 'definitions',  label: 'Definitions',   visible: canManageDefinitions },
-    { id: 'runs',         label: 'Run History',   visible: canViewHistory },
-    { id: 'point_detail', label: 'Point Detail',  visible: canManagePointDetail },
-    { id: 'data_links',   label: 'Data Links',    visible: canManageDataLinks },
-  ]
+    { id: "connectors", label: "Connectors", visible: canManageConnections },
+    { id: "connections", label: "Connections", visible: canManageConnections },
+    { id: "definitions", label: "Definitions", visible: canManageDefinitions },
+    { id: "runs", label: "Run History", visible: canViewHistory },
+    {
+      id: "point_detail",
+      label: "Point Detail",
+      visible: canManagePointDetail,
+    },
+    { id: "data_links", label: "Data Links", visible: canManageDataLinks },
+  ];
 
-  const visibleTabs = tabs.filter((t) => t.visible)
+  const visibleTabs = tabs.filter((t) => t.visible);
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: "24px" }}>
         <h2
           style={{
-            fontSize: '20px',
+            fontSize: "20px",
             fontWeight: 600,
-            margin: '0 0 4px',
+            margin: "0 0 4px",
           }}
         >
           Universal Import
         </h2>
-        <p style={{ color: 'var(--io-text-muted)', fontSize: '13px', margin: 0 }}>
+        <p
+          style={{ color: "var(--io-text-muted)", fontSize: "13px", margin: 0 }}
+        >
           Configure data imports from external systems, databases, and files.
         </p>
       </div>
@@ -3693,10 +5041,10 @@ export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab })
       {/* Tab bar */}
       <div
         style={{
-          display: 'flex',
-          gap: '4px',
-          borderBottom: '1px solid var(--io-border)',
-          marginBottom: '24px',
+          display: "flex",
+          gap: "4px",
+          borderBottom: "1px solid var(--io-border)",
+          marginBottom: "24px",
         }}
       >
         {visibleTabs.map((tab) => (
@@ -3704,16 +5052,18 @@ export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab })
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
-              padding: '8px 16px',
-              background: 'none',
-              border: 'none',
-              borderBottom: `2px solid ${activeTab === tab.id ? 'var(--io-accent)' : 'transparent'}`,
+              padding: "8px 16px",
+              background: "none",
+              border: "none",
+              borderBottom: `2px solid ${activeTab === tab.id ? "var(--io-accent)" : "transparent"}`,
               color:
-                activeTab === tab.id ? 'var(--io-accent)' : 'var(--io-text-secondary)',
-              fontSize: '13px',
+                activeTab === tab.id
+                  ? "var(--io-accent)"
+                  : "var(--io-text-secondary)",
+              fontSize: "13px",
               fontWeight: activeTab === tab.id ? 600 : 400,
-              cursor: 'pointer',
-              marginBottom: '-1px',
+              cursor: "pointer",
+              marginBottom: "-1px",
             }}
           >
             {tab.label}
@@ -3721,12 +5071,12 @@ export default function ImportSettingsPage({ defaultTab }: { defaultTab?: Tab })
         ))}
       </div>
 
-      {activeTab === 'connectors' && <ConnectorsTab />}
-      {activeTab === 'connections' && <ConnectionsTab />}
-      {activeTab === 'definitions' && <DefinitionsTab />}
-      {activeTab === 'runs' && <RunsTab />}
-      {activeTab === 'point_detail' && <PointDetailTab />}
-      {activeTab === 'data_links' && <DataLinksTab />}
+      {activeTab === "connectors" && <ConnectorsTab />}
+      {activeTab === "connections" && <ConnectionsTab />}
+      {activeTab === "definitions" && <DefinitionsTab />}
+      {activeTab === "runs" && <RunsTab />}
+      {activeTab === "point_detail" && <PointDetailTab />}
+      {activeTab === "data_links" && <DataLinksTab />}
     </div>
-  )
+  );
 }

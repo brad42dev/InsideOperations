@@ -1,9 +1,9 @@
-import { api } from './client'
+import { api } from "./client";
 
 export interface WsTicket {
-  ticket: string
+  ticket: string;
 }
 
 export const wsTicketApi = {
-  create: () => api.post<WsTicket>('/api/auth/ws-ticket', {}),
-}
+  create: () => api.post<WsTicket>("/api/auth/ws-ticket", {}),
+};
