@@ -443,21 +443,21 @@ async fn run_source_once(
     // --- Startup history auto-recovery ---
     // On every connect:
     // 1. Reset any jobs that were 'running' when we last crashed back to 'pending'
-    //    (extending their to_time to now so the resume covers the full gap).
-    // 2. If no pending job already exists, create one covering from the start of the
-    //    hour containing the last stored value to now, with a 5% overlap buffer so
-    //    no boundary data is ever missed.
+    //    (original to_time is preserved; a fresh job covers any new gap below).
+    // 2. If no pending jobs exist, split the gap from the last stored value to now
+    //    into 6-hour sub-jobs so each completes quickly and can be compressed
+    //    individually, keeping disk usage low during long catch-up runs.
     // Recovery runs in the background flush-loop poller — it does NOT block subscription
     // setup and survives service restarts without losing progress.
     {
         let now = Utc::now();
 
         // Step 1: Resume any job that was interrupted mid-run.
-        match db::reset_interrupted_recovery_jobs(db, source.id, now).await {
+        match db::reset_interrupted_recovery_jobs(db, source.id).await {
             Ok(n) if n > 0 => info!(
                 source = %source.name,
                 count = n,
-                "Resumed {} interrupted history recovery job(s) (to_time extended to now)",
+                "Resumed {} interrupted history recovery job(s)",
                 n
             ),
             Ok(_) => {}
@@ -466,7 +466,7 @@ async fn run_source_once(
             }
         }
 
-        // Step 2: Create a new job only if nothing is already queued.
+        // Step 2: Create new jobs only if nothing is already queued.
         let already_queued = db::has_pending_recovery_jobs(db, source.id)
             .await
             .unwrap_or(false);
@@ -484,8 +484,8 @@ async fn run_source_once(
                     Some(hour_start)
                 }
                 Ok(None) => {
-                    // No history yet — recover the last hour as an initial backfill.
-                    Some(now - chrono::Duration::hours(1))
+                    // No history yet — recover the last 6 hours as an initial backfill.
+                    Some(now - chrono::Duration::hours(6))
                 }
                 Err(e) => {
                     warn!(source = %source.name, error = %e, "Failed to query last history timestamp (skipping auto-recovery)");
@@ -495,29 +495,43 @@ async fn run_source_once(
 
             if let Some(from_time) = recover_from {
                 if from_time < now {
-                    // Apply a 5% overlap buffer: extend from_time back by 5% of the gap
-                    // so data at hourly/daily aggregate boundaries is never missed.
+                    // Apply a 5% overlap buffer to the very first job's start so data
+                    // at the boundary of what was already stored is never missed.
                     let gap_secs = (now - from_time).num_seconds().max(0) as f64;
                     let buffer_secs = (gap_secs * 0.05) as i64;
                     let buffered_from = from_time - chrono::Duration::seconds(buffer_secs);
 
-                    match db::create_recovery_job(db, source.id, buffered_from, now, None).await {
-                        Ok(job_id) => info!(
+                    // Split into 6-hour jobs so each finishes quickly, lets the disk
+                    // reclaim space via per-job compression, and keeps restart overhead low.
+                    const JOB_WINDOW_SECS: i64 = 6 * 3600;
+                    let mut job_start = buffered_from;
+                    let mut created = 0u32;
+                    while job_start < now {
+                        let job_end = (job_start + chrono::Duration::seconds(JOB_WINDOW_SECS)).min(now);
+                        match db::create_recovery_job(db, source.id, job_start, job_end, None).await {
+                            Ok(_) => created += 1,
+                            Err(e) => {
+                                warn!(source = %source.name, error = %e, "Failed to queue history recovery sub-job (non-fatal)");
+                                break;
+                            }
+                        }
+                        job_start = job_end;
+                    }
+                    if created > 0 {
+                        info!(
                             source = %source.name,
-                            %job_id,
+                            jobs = created,
                             from = %buffered_from,
                             to = %now,
                             gap_hours = (gap_secs / 3600.0) as u64,
-                            "Startup history recovery job queued (will run in background)"
-                        ),
-                        Err(e) => {
-                            warn!(source = %source.name, error = %e, "Failed to queue startup history recovery job (non-fatal)")
-                        }
+                            "Startup history recovery: {} 6-hour jobs queued",
+                            created
+                        );
                     }
                 }
             }
         } else {
-            info!(source = %source.name, "Pending history recovery job already exists — skipping duplicate");
+            info!(source = %source.name, "Pending history recovery jobs already exist — skipping duplicate");
         }
     }
 
@@ -2212,6 +2226,21 @@ async fn run_pending_recovery_jobs(
                     "History recovery complete"
                 );
                 let _ = db::complete_recovery_job(db, job.id, n as i64).await;
+
+                // Compress any fully-completed chunks that fall within this job's
+                // window so disk space is reclaimed incrementally.
+                match db::compress_completed_chunks(db, job.to_time).await {
+                    Ok(0) => {}
+                    Ok(n) => info!(
+                        source = %source.name,
+                        job_id = %job.id,
+                        chunks = n,
+                        "Compressed {} chunk(s) after history recovery",
+                        n
+                    ),
+                    Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                }
+
                 // Refresh continuous aggregates so the recovered data becomes
                 // visible immediately. The scheduled policies only cover a short
                 // recent window and won't reach historical recovery dates.

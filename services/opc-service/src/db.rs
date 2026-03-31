@@ -27,7 +27,7 @@ pub struct PointSource {
 pub struct PointUpdate {
     pub point_id: Uuid,
     pub value: f64,
-    pub quality: String,          // "good", "uncertain", "bad"
+    pub quality: String, // "good", "uncertain", "bad"
     pub timestamp: DateTime<Utc>,
 }
 
@@ -56,18 +56,21 @@ pub async fn load_sources(db: &DbPool) -> anyhow::Result<Vec<PointSource>> {
     let mut sources = Vec::with_capacity(rows.len());
     for r in rows {
         use sqlx::Row;
-        let config: serde_json::Value = r.try_get("connection_config")
+        let config: serde_json::Value = r
+            .try_get("connection_config")
             .context("load_sources: missing connection_config")?;
 
         let str_field = |key: &str, default: &str| -> String {
-            config.get(key)
+            config
+                .get(key)
                 .and_then(|v| v.as_str())
                 .filter(|s| !s.is_empty())
                 .unwrap_or(default)
                 .to_string()
         };
         let opt_str_field = |key: &str| -> Option<String> {
-            config.get(key)
+            config
+                .get(key)
                 .and_then(|v| v.as_str())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
@@ -152,14 +155,14 @@ pub async fn merge_point_source_raw(
 /// All fields are optional — only populated when the server exposes them.
 #[derive(Debug, Clone, Default)]
 pub struct AnalogMetadata {
-    pub description: Option<String>,         // DataItemType.Definition
-    pub engineering_units: Option<String>,   // AnalogItemType.EngineeringUnits displayName
-    pub eu_range_low: Option<f64>,           // AnalogItemType.EURange.low
-    pub eu_range_high: Option<f64>,          // AnalogItemType.EURange.high
-    pub alarm_limit_hh: Option<f64>,         // AnalogItemType.HighHighLimit
-    pub alarm_limit_h: Option<f64>,          // AnalogItemType.HighLimit
-    pub alarm_limit_l: Option<f64>,          // AnalogItemType.LowLimit
-    pub alarm_limit_ll: Option<f64>,         // AnalogItemType.LowLowLimit
+    pub description: Option<String>,       // DataItemType.Definition
+    pub engineering_units: Option<String>, // AnalogItemType.EngineeringUnits displayName
+    pub eu_range_low: Option<f64>,         // AnalogItemType.EURange.low
+    pub eu_range_high: Option<f64>,        // AnalogItemType.EURange.high
+    pub alarm_limit_hh: Option<f64>,       // AnalogItemType.HighHighLimit
+    pub alarm_limit_h: Option<f64>,        // AnalogItemType.HighLimit
+    pub alarm_limit_l: Option<f64>,        // AnalogItemType.LowLimit
+    pub alarm_limit_ll: Option<f64>,       // AnalogItemType.LowLowLimit
 }
 
 /// Write OPC UA Part 8 analog metadata to points_metadata when available.
@@ -334,8 +337,8 @@ pub struct OpcEvent {
     pub severity: Option<u16>,       // Severity field (1–1000)
     pub message: Option<String>,     // Message.text field
     pub condition_name: Option<String>,
-    pub acked: bool,   // AckedState/Id
-    pub active: bool,  // ActiveState/Id
+    pub acked: bool,  // AckedState/Id
+    pub active: bool, // ActiveState/Id
     pub retain: bool,
     /// LimitState/CurrentState — "HighHigh", "High", "Low", "LowLow", or "" for normal.
     pub limit_state: Option<String>,
@@ -630,33 +633,60 @@ pub async fn fail_recovery_job(db: &DbPool, job_id: Uuid, error: &str) -> anyhow
 }
 
 /// On startup, reset any jobs that were left in 'running' state (from a crash)
-/// back to 'pending', extending their to_time to `now` so the resumed recovery
-/// covers all of the gap up to the current restart time.
+/// back to 'pending'. The job's original to_time is preserved — the startup
+/// loop will enqueue a new job covering any gap up to now if needed.
 /// Returns the number of jobs reset.
 pub async fn reset_interrupted_recovery_jobs(
     db: &DbPool,
     source_id: Uuid,
-    now: DateTime<Utc>,
 ) -> anyhow::Result<u64> {
     let result = sqlx::query(
         r#"UPDATE opc_history_recovery_jobs
-           SET status = 'pending', to_time = $2, started_at = NULL
+           SET status = 'pending', started_at = NULL
            WHERE source_id = $1 AND status = 'running'"#,
     )
     .bind(source_id)
-    .bind(now)
     .execute(db)
     .await
     .context("reset_interrupted_recovery_jobs")?;
     Ok(result.rows_affected())
 }
 
+/// Compress any fully-completed chunks of `points_history_raw` whose range ends
+/// at or before `up_to`.  Called after each recovery job completes so disk space
+/// is reclaimed incrementally rather than letting uncompressed chunks accumulate.
+pub async fn compress_completed_chunks(
+    db: &DbPool,
+    up_to: chrono::DateTime<chrono::Utc>,
+) -> anyhow::Result<u32> {
+    let chunks: Vec<(String, String)> = sqlx::query_as(
+        r#"SELECT chunk_schema, chunk_name
+           FROM timescaledb_information.chunks
+           WHERE hypertable_name = 'points_history_raw'
+             AND is_compressed = false
+             AND range_end <= $1"#,
+    )
+    .bind(up_to)
+    .fetch_all(db)
+    .await
+    .context("list chunks for compression")?;
+
+    let mut count = 0u32;
+    for (schema, name) in &chunks {
+        let qualified = format!("{}.{}", schema, name);
+        sqlx::query("SELECT compress_chunk($1::regclass)")
+            .bind(&qualified)
+            .execute(db)
+            .await
+            .with_context(|| format!("compress_chunk {}", qualified))?;
+        count += 1;
+    }
+    Ok(count)
+}
+
 /// Returns true if there is at least one pending recovery job for this source.
 /// Used to avoid creating a duplicate startup job when one is already queued.
-pub async fn has_pending_recovery_jobs(
-    db: &DbPool,
-    source_id: Uuid,
-) -> anyhow::Result<bool> {
+pub async fn has_pending_recovery_jobs(db: &DbPool, source_id: Uuid) -> anyhow::Result<bool> {
     let exists: bool = sqlx::query_scalar(
         r#"SELECT EXISTS(
              SELECT 1 FROM opc_history_recovery_jobs
@@ -679,7 +709,13 @@ pub async fn refresh_aggregates_for_range(
     from_time: chrono::DateTime<chrono::Utc>,
     to_time: chrono::DateTime<chrono::Utc>,
 ) -> anyhow::Result<()> {
-    let views = ["points_history_1m", "points_history_5m", "points_history_15m", "points_history_1h", "points_history_1d"];
+    let views = [
+        "points_history_1m",
+        "points_history_5m",
+        "points_history_15m",
+        "points_history_1h",
+        "points_history_1d",
+    ];
     for view in &views {
         sqlx::query(&format!(
             "CALL refresh_continuous_aggregate('{}', $1, $2)",
