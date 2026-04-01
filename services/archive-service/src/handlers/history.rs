@@ -67,11 +67,11 @@ fn default_limit() -> i64 {
 /// Callers use this when `resolution == "auto"`.
 fn auto_resolution(span_secs: i64) -> &'static str {
     match span_secs {
-        s if s <= 7_200 => "raw",   // ≤ 2 h  → raw ticks
-        s if s <= 21_600 => "1m",   // ≤ 6 h  → 1-minute buckets
-        s if s <= 172_800 => "5m",  // ≤ 48 h → 5-minute buckets
-        s if s <= 604_800 => "1h",  // ≤ 7 d  → 1-hour buckets
-        _ => "1d",                  // > 7 d  → daily buckets
+        s if s <= 7_200 => "raw",  // ≤ 2 h  → raw ticks
+        s if s <= 21_600 => "1m",  // ≤ 6 h  → 1-minute buckets
+        s if s <= 172_800 => "5m", // ≤ 48 h → 5-minute buckets
+        s if s <= 604_800 => "1h", // ≤ 7 d  → 1-hour buckets
+        _ => "1d",                 // > 7 d  → daily buckets
     }
 }
 

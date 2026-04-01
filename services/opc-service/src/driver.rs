@@ -278,8 +278,7 @@ async fn run_source_once(
                     })
                     .cloned()
                     .map(|mut ep| {
-                        let rewritten =
-                            rewrite_hostname(ep.endpoint_url.as_ref(), &endpoint_url);
+                        let rewritten = rewrite_hostname(ep.endpoint_url.as_ref(), &endpoint_url);
                         tracing::info!(
                             original = ep.endpoint_url.as_ref(),
                             rewritten = %rewritten,
@@ -522,8 +521,10 @@ async fn run_source_once(
                     let mut job_start = buffered_from;
                     let mut created = 0u32;
                     while job_start < now {
-                        let job_end = (job_start + chrono::Duration::seconds(JOB_WINDOW_SECS)).min(now);
-                        match db::create_recovery_job(db, source.id, job_start, job_end, None).await {
+                        let job_end =
+                            (job_start + chrono::Duration::seconds(JOB_WINDOW_SECS)).min(now);
+                        match db::create_recovery_job(db, source.id, job_start, job_end, None).await
+                        {
                             Ok(_) => created += 1,
                             Err(e) => {
                                 warn!(source = %source.name, error = %e, "Failed to queue history recovery sub-job (non-fatal)");
@@ -822,7 +823,13 @@ async fn browse_namespace(
                                                 Some("TwoStateDiscreteType") => "boolean",
                                                 _ => "discrete_enum",
                                             };
-                                            if let Err(e) = db::set_point_category(db, point_id, initial_category).await {
+                                            if let Err(e) = db::set_point_category(
+                                                db,
+                                                point_id,
+                                                initial_category,
+                                            )
+                                            .await
+                                            {
                                                 warn!(
                                                     source = %source.name,
                                                     tag = %tagname,
@@ -916,7 +923,13 @@ async fn browse_children(session: &Session, node_id: &NodeId) -> Result<Vec<Brow
                     .text
                     .value()
                     .as_ref()
-                    .and_then(|s| if s.is_empty() { None } else { Some(s.to_string()) })
+                    .and_then(|s| {
+                        if s.is_empty() {
+                            None
+                        } else {
+                            Some(s.to_string())
+                        }
+                    })
                     .or_else(|| {
                         r.browse_name.name.value().as_ref().and_then(|s| {
                             if s.is_empty() {
@@ -1063,9 +1076,7 @@ fn extract_discrete_labels(
                 .map(|arr| {
                     arr.iter()
                         .enumerate()
-                        .filter_map(|(i, v)| {
-                            v.as_str().map(|s| (i as i16, s.to_string()))
-                        })
+                        .filter_map(|(i, v)| v.as_str().map(|s| (i as i16, s.to_string())))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -1097,7 +1108,9 @@ async fn harvest_discrete_metadata(
                     .await;
             if let Some(json) = extra {
                 // Merge into source_raw (existing behavior)
-                if let Err(e) = db::merge_point_source_raw(db, node_info.point_id, json.clone()).await {
+                if let Err(e) =
+                    db::merge_point_source_raw(db, node_info.point_id, json.clone()).await
+                {
                     warn!(
                         source = %source.name,
                         point_id = %node_info.point_id,
@@ -1110,7 +1123,9 @@ async fn harvest_discrete_metadata(
 
                 // Promote to structured point_category + point_enum_labels
                 let (category, labels) = extract_discrete_labels(node_info.type_name, &json);
-                if let Err(e) = db::upsert_discrete_labels(db, node_info.point_id, category, &labels).await {
+                if let Err(e) =
+                    db::upsert_discrete_labels(db, node_info.point_id, category, &labels).await
+                {
                     warn!(
                         source = %source.name,
                         point_id = %node_info.point_id,
@@ -1211,7 +1226,9 @@ async fn read_discrete_properties_simblah(
             for ((_, json_key), dv) in props.iter().zip(data_values.iter()) {
                 if let Some(ref v) = dv.value {
                     let text = match v {
-                        Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
+                        Variant::LocalizedText(lt) => {
+                            lt.text.value().as_ref().map(|s| s.to_string())
+                        }
                         Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
                         _ => None,
                     };
@@ -1245,9 +1262,7 @@ async fn read_analog_properties(session: &Session, node_id: &NodeId) -> AnalogMe
             if let Some(point_name) = s.value() {
                 // Reject anything that already looks like a property or folder prefix.
                 if !point_name.starts_with("prop:") && !point_name.starts_with("folder:") {
-                    if let Some(meta) =
-                        read_analog_properties_simblah(session, &point_name).await
-                    {
+                    if let Some(meta) = read_analog_properties_simblah(session, &point_name).await {
                         return meta;
                     }
                 }
@@ -1762,23 +1777,71 @@ async fn create_event_subscription(
     }
 
     let fields: &[FieldDef] = &[
-        FieldDef { name: "EventId",                  attr_id: 13 },
-        FieldDef { name: "EventType",                attr_id: 13 },
-        FieldDef { name: "SourceName",               attr_id: 13 },
-        FieldDef { name: "Time",                     attr_id: 13 },
-        FieldDef { name: "Severity",                 attr_id: 13 },
-        FieldDef { name: "Message",                  attr_id: 13 },
-        FieldDef { name: "ConditionName",            attr_id: 13 },
-        FieldDef { name: "AckedState/Id",            attr_id: 13 },
-        FieldDef { name: "ActiveState/Id",           attr_id: 13 },
-        FieldDef { name: "Retain",                   attr_id: 13 },
+        FieldDef {
+            name: "EventId",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "EventType",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "SourceName",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "Time",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "Severity",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "Message",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "ConditionName",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "AckedState/Id",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "ActiveState/Id",
+            attr_id: 13,
+        },
+        FieldDef {
+            name: "Retain",
+            attr_id: 13,
+        },
         // ExclusiveLimitAlarmType fields (SimBLAH A&C spec):
-        FieldDef { name: "LimitState/CurrentState",  attr_id: 13 }, // 10
-        FieldDef { name: "SuppressedOrShelved",      attr_id: 13 }, // 11
-        FieldDef { name: "HighHighLimit",            attr_id: 13 }, // 12
-        FieldDef { name: "HighLimit",                attr_id: 13 }, // 13
-        FieldDef { name: "LowLimit",                 attr_id: 13 }, // 14
-        FieldDef { name: "LowLowLimit",              attr_id: 13 }, // 15
+        FieldDef {
+            name: "LimitState/CurrentState",
+            attr_id: 13,
+        }, // 10
+        FieldDef {
+            name: "SuppressedOrShelved",
+            attr_id: 13,
+        }, // 11
+        FieldDef {
+            name: "HighHighLimit",
+            attr_id: 13,
+        }, // 12
+        FieldDef {
+            name: "HighLimit",
+            attr_id: 13,
+        }, // 13
+        FieldDef {
+            name: "LowLimit",
+            attr_id: 13,
+        }, // 14
+        FieldDef {
+            name: "LowLowLimit",
+            attr_id: 13,
+        }, // 15
     ];
 
     use opcua::types::{ContentFilter, EventFilter, SimpleAttributeOperand};
@@ -1814,159 +1877,177 @@ async fn create_event_subscription(
     // containing the fields in the same order as the select_clauses above.
     let tx = event_tx.clone();
     let src_name_cb = source_name_for_log.clone();
-    let callback = EventCallback::new(move |event_fields: Option<Vec<Variant>>, _item: &MonitoredItem| {
-        let fields_vec = match event_fields {
-            Some(f) => f,
-            None => return,
-        };
+    let callback = EventCallback::new(
+        move |event_fields: Option<Vec<Variant>>, _item: &MonitoredItem| {
+            let fields_vec = match event_fields {
+                Some(f) => f,
+                None => return,
+            };
 
-        // Field order matches select_clauses above:
-        // 0=EventId, 1=EventType, 2=SourceName, 3=Time, 4=Severity,
-        // 5=Message, 6=ConditionName, 7=AckedState/Id, 8=ActiveState/Id, 9=Retain,
-        // 10=LimitState/CurrentState, 11=SuppressedOrShelved,
-        // 12=HighHighLimit, 13=HighLimit, 14=LowLimit, 15=LowLowLimit
+            // Field order matches select_clauses above:
+            // 0=EventId, 1=EventType, 2=SourceName, 3=Time, 4=Severity,
+            // 5=Message, 6=ConditionName, 7=AckedState/Id, 8=ActiveState/Id, 9=Retain,
+            // 10=LimitState/CurrentState, 11=SuppressedOrShelved,
+            // 12=HighHighLimit, 13=HighLimit, 14=LowLimit, 15=LowLowLimit
 
-        let get = |i: usize| fields_vec.get(i);
+            let get = |i: usize| fields_vec.get(i);
 
-        let event_id = get(0).and_then(|v| {
-            if let Variant::ByteString(bs) = v {
-                bs.value.as_ref().map(|b| {
-                    b.iter()
-                        .map(|byte| format!("{:02x}", byte))
-                        .collect::<String>()
-                })
-            } else {
-                None
-            }
-        });
-
-        let event_type = get(1).and_then(|v| {
-            if let Variant::NodeId(nid) = v {
-                Some(nid.to_string())
-            } else {
-                None
-            }
-        });
-
-        // Skip ConditionRefresh bracket events — these are OPC UA meta-events
-        // that bracket a ConditionRefresh replay (RefreshStart/RefreshEnd) and
-        // carry no alarm state of their own.
-        // RefreshStart = ns=0;i=2787, RefreshEnd = ns=0;i=2788.
-        if matches!(
-            event_type.as_deref(),
-            Some("ns=0;i=2787") | Some("ns=0;i=2788")
-        ) {
-            return;
-        }
-
-        let source_name = get(2).and_then(|v| {
-            if let Variant::String(s) = v {
-                s.value().as_ref().map(|s| s.to_string())
-            } else {
-                None
-            }
-        });
-
-        let timestamp = get(3)
-            .and_then(|v| {
-                if let Variant::DateTime(dt) = v {
-                    Some(dt.as_chrono())
+            let event_id = get(0).and_then(|v| {
+                if let Variant::ByteString(bs) = v {
+                    bs.value.as_ref().map(|b| {
+                        b.iter()
+                            .map(|byte| format!("{:02x}", byte))
+                            .collect::<String>()
+                    })
                 } else {
                     None
                 }
-            })
-            .unwrap_or_else(Utc::now);
+            });
 
-        let severity = get(4).and_then(|v| {
-            if let Variant::UInt16(s) = v {
-                Some(*s)
-            } else {
-                None
+            let event_type = get(1).and_then(|v| {
+                if let Variant::NodeId(nid) = v {
+                    Some(nid.to_string())
+                } else {
+                    None
+                }
+            });
+
+            // Skip ConditionRefresh bracket events — these are OPC UA meta-events
+            // that bracket a ConditionRefresh replay (RefreshStart/RefreshEnd) and
+            // carry no alarm state of their own.
+            // RefreshStart = ns=0;i=2787, RefreshEnd = ns=0;i=2788.
+            if matches!(
+                event_type.as_deref(),
+                Some("ns=0;i=2787") | Some("ns=0;i=2788")
+            ) {
+                return;
             }
-        });
 
-        let message = get(5).and_then(|v| match v {
-            Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
-            Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
-            _ => None,
-        });
+            let source_name = get(2).and_then(|v| {
+                if let Variant::String(s) = v {
+                    s.value().as_ref().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            });
 
-        let condition_name = get(6).and_then(|v| {
-            if let Variant::String(s) = v {
-                s.value().as_ref().map(|s| s.to_string())
-            } else {
-                None
+            let timestamp = get(3)
+                .and_then(|v| {
+                    if let Variant::DateTime(dt) = v {
+                        Some(dt.as_chrono())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(Utc::now);
+
+            let severity = get(4).and_then(|v| {
+                if let Variant::UInt16(s) = v {
+                    Some(*s)
+                } else {
+                    None
+                }
+            });
+
+            let message = get(5).and_then(|v| match v {
+                Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
+                Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
+                _ => None,
+            });
+
+            let condition_name = get(6).and_then(|v| {
+                if let Variant::String(s) = v {
+                    s.value().as_ref().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            });
+
+            let acked = get(7)
+                .map(|v| matches!(v, Variant::Boolean(true)))
+                .unwrap_or(false);
+
+            let active = get(8)
+                .map(|v| matches!(v, Variant::Boolean(true)))
+                .unwrap_or(false);
+
+            let retain = get(9)
+                .map(|v| matches!(v, Variant::Boolean(true)))
+                .unwrap_or(false);
+
+            // LimitState/CurrentState — LocalizedText or String, e.g. "HighHigh"
+            let limit_state = get(10).and_then(|v| match v {
+                Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
+                Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
+                _ => None,
+            });
+
+            let suppressed_or_shelved = get(11)
+                .map(|v| matches!(v, Variant::Boolean(true)))
+                .unwrap_or(false);
+
+            let high_high_limit = get(12).and_then(|v| {
+                if let Variant::Double(f) = v {
+                    Some(*f)
+                } else {
+                    None
+                }
+            });
+            let high_limit = get(13).and_then(|v| {
+                if let Variant::Double(f) = v {
+                    Some(*f)
+                } else {
+                    None
+                }
+            });
+            let low_limit = get(14).and_then(|v| {
+                if let Variant::Double(f) = v {
+                    Some(*f)
+                } else {
+                    None
+                }
+            });
+            let low_low_limit = get(15).and_then(|v| {
+                if let Variant::Double(f) = v {
+                    Some(*f)
+                } else {
+                    None
+                }
+            });
+
+            // Resolve SourceName → point_id using the name→UUID map.
+            let point_id = source_name
+                .as_deref()
+                .and_then(|name| source_name_to_id.get(name))
+                .copied();
+
+            let ev = db::OpcEvent {
+                source_id,
+                point_id,
+                event_id,
+                event_type,
+                source_name,
+                timestamp,
+                severity,
+                message: message.or_else(|| Some("(no message)".to_string())),
+                condition_name,
+                acked,
+                active,
+                retain,
+                limit_state,
+                suppressed_or_shelved,
+                high_high_limit,
+                high_limit,
+                low_limit,
+                low_low_limit,
+            };
+
+            if tx.send(ev).is_err() {
+                // Channel closed — driver shutting down.
+                tracing::debug!(source = %src_name_cb, "Event channel closed");
             }
-        });
-
-        let acked = get(7)
-            .map(|v| matches!(v, Variant::Boolean(true)))
-            .unwrap_or(false);
-
-        let active = get(8)
-            .map(|v| matches!(v, Variant::Boolean(true)))
-            .unwrap_or(false);
-
-        let retain = get(9)
-            .map(|v| matches!(v, Variant::Boolean(true)))
-            .unwrap_or(false);
-
-        // LimitState/CurrentState — LocalizedText or String, e.g. "HighHigh"
-        let limit_state = get(10).and_then(|v| match v {
-            Variant::LocalizedText(lt) => lt.text.value().as_ref().map(|s| s.to_string()),
-            Variant::String(s) => s.value().as_ref().map(|s| s.to_string()),
-            _ => None,
-        });
-
-        let suppressed_or_shelved = get(11)
-            .map(|v| matches!(v, Variant::Boolean(true)))
-            .unwrap_or(false);
-
-        let high_high_limit = get(12).and_then(|v| {
-            if let Variant::Double(f) = v { Some(*f) } else { None }
-        });
-        let high_limit = get(13).and_then(|v| {
-            if let Variant::Double(f) = v { Some(*f) } else { None }
-        });
-        let low_limit = get(14).and_then(|v| {
-            if let Variant::Double(f) = v { Some(*f) } else { None }
-        });
-        let low_low_limit = get(15).and_then(|v| {
-            if let Variant::Double(f) = v { Some(*f) } else { None }
-        });
-
-        // Resolve SourceName → point_id using the name→UUID map.
-        let point_id = source_name
-            .as_deref()
-            .and_then(|name| source_name_to_id.get(name))
-            .copied();
-
-        let ev = db::OpcEvent {
-            source_id,
-            point_id,
-            event_id,
-            event_type,
-            source_name,
-            timestamp,
-            severity,
-            message: message.or_else(|| Some("(no message)".to_string())),
-            condition_name,
-            acked,
-            active,
-            retain,
-            limit_state,
-            suppressed_or_shelved,
-            high_high_limit,
-            high_limit,
-            low_limit,
-            low_low_limit,
-        };
-
-        if tx.send(ev).is_err() {
-            // Channel closed — driver shutting down.
-            tracing::debug!(source = %src_name_cb, "Event channel closed");
-        }
-    });
+        },
+    );
 
     let sub_id = match session
         .create_subscription(
@@ -2184,8 +2265,7 @@ async fn harvest_history(
                 let mut any_continuation = false;
 
                 // `results` is indexed over the ACTIVE nodes only — map back to chunk indices.
-                let active_indices: Vec<usize> =
-                    (0..chunk.len()).filter(|i| active[*i]).collect();
+                let active_indices: Vec<usize> = (0..chunk.len()).filter(|i| active[*i]).collect();
 
                 for (res_idx, result) in results.into_iter().enumerate() {
                     let chunk_idx = active_indices[res_idx];
@@ -2317,7 +2397,9 @@ async fn run_pending_recovery_jobs(
                         "Compressed {} chunk(s) after history recovery",
                         n
                     ),
-                    Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                    Err(e) => {
+                        warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)")
+                    }
                 }
 
                 // Refresh continuous aggregates so the recovered data becomes
@@ -2378,8 +2460,12 @@ async fn run_pending_recovery_jobs(
                         // Compress any completed chunks within this window regardless of bisect outcome.
                         match db::compress_completed_chunks(db, job.to_time).await {
                             Ok(0) => {}
-                            Ok(n) => info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n),
-                            Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                            Ok(n) => {
+                                info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n)
+                            }
+                            Err(e) => {
+                                warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)")
+                            }
                         }
                     } else {
                         warn!(
@@ -2391,8 +2477,12 @@ async fn run_pending_recovery_jobs(
                         let _ = db::fail_recovery_job(db, job.id, &err_str).await;
                         match db::compress_completed_chunks(db, job.to_time).await {
                             Ok(0) => {}
-                            Ok(n) => info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n),
-                            Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                            Ok(n) => {
+                                info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n)
+                            }
+                            Err(e) => {
+                                warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)")
+                            }
                         }
                     }
                 } else {
@@ -2405,8 +2495,12 @@ async fn run_pending_recovery_jobs(
                     let _ = db::fail_recovery_job(db, job.id, &err_str).await;
                     match db::compress_completed_chunks(db, job.to_time).await {
                         Ok(0) => {}
-                        Ok(n) => info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n),
-                        Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                        Ok(n) => {
+                            info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n)
+                        }
+                        Err(e) => {
+                            warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)")
+                        }
                     }
                 }
             }

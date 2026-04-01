@@ -135,14 +135,12 @@ pub async fn upsert_discrete_labels(
     labels: &[(i16, String)],
 ) -> anyhow::Result<()> {
     // Update point_category on the metadata row
-    sqlx::query(
-        r#"UPDATE points_metadata SET point_category = $2 WHERE id = $1"#,
-    )
-    .bind(point_id)
-    .bind(category)
-    .execute(db)
-    .await
-    .context("upsert_discrete_labels: update point_category failed")?;
+    sqlx::query(r#"UPDATE points_metadata SET point_category = $2 WHERE id = $1"#)
+        .bind(point_id)
+        .bind(category)
+        .execute(db)
+        .await
+        .context("upsert_discrete_labels: update point_category failed")?;
 
     // Upsert all label rows in a single statement using unnest
     if !labels.is_empty() {
@@ -167,19 +165,13 @@ pub async fn upsert_discrete_labels(
 
 /// Set the point_category on a point by its UUID.
 /// Called during browse when a discrete type is identified.
-pub async fn set_point_category(
-    db: &DbPool,
-    point_id: Uuid,
-    category: &str,
-) -> anyhow::Result<()> {
-    sqlx::query(
-        r#"UPDATE points_metadata SET point_category = $2 WHERE id = $1"#,
-    )
-    .bind(point_id)
-    .bind(category)
-    .execute(db)
-    .await
-    .context("set_point_category: update failed")?;
+pub async fn set_point_category(db: &DbPool, point_id: Uuid, category: &str) -> anyhow::Result<()> {
+    sqlx::query(r#"UPDATE points_metadata SET point_category = $2 WHERE id = $1"#)
+        .bind(point_id)
+        .bind(category)
+        .execute(db)
+        .await
+        .context("set_point_category: update failed")?;
     Ok(())
 }
 
@@ -694,10 +686,7 @@ pub async fn fail_recovery_job(db: &DbPool, job_id: Uuid, error: &str) -> anyhow
 /// back to 'pending'. The job's original to_time is preserved — the startup
 /// loop will enqueue a new job covering any gap up to now if needed.
 /// Returns the number of jobs reset.
-pub async fn reset_interrupted_recovery_jobs(
-    db: &DbPool,
-    source_id: Uuid,
-) -> anyhow::Result<u64> {
+pub async fn reset_interrupted_recovery_jobs(db: &DbPool, source_id: Uuid) -> anyhow::Result<u64> {
     let result = sqlx::query(
         r#"UPDATE opc_history_recovery_jobs
            SET status = 'pending', started_at = NULL
@@ -738,7 +727,9 @@ pub async fn compress_completed_chunks(
             .await
         {
             Ok(_) => count += 1,
-            Err(e) => tracing::warn!(chunk = %qualified, error = %e, "compress_chunk failed — skipping"),
+            Err(e) => {
+                tracing::warn!(chunk = %qualified, error = %e, "compress_chunk failed — skipping")
+            }
         }
     }
     Ok(count)

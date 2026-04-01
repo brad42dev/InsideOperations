@@ -135,11 +135,7 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             loop {
                 let now = chrono::Utc::now();
-                let today_3am = now
-                    .date_naive()
-                    .and_hms_opt(3, 0, 0)
-                    .unwrap()
-                    .and_utc();
+                let today_3am = now.date_naive().and_hms_opt(3, 0, 0).unwrap().and_utc();
                 let next_3am = if now < today_3am {
                     today_3am
                 } else {
@@ -151,7 +147,10 @@ async fn main() -> anyhow::Result<()> {
                 let up_to = chrono::Utc::now() - chrono::Duration::hours(2);
                 match db::compress_completed_chunks(&db_sweep, up_to).await {
                     Ok(0) => info!("Nightly compression sweep: no uncompressed chunks found"),
-                    Ok(n) => info!(chunks = n, "Nightly compression sweep compressed {} chunk(s)", n),
+                    Ok(n) => info!(
+                        chunks = n,
+                        "Nightly compression sweep compressed {} chunk(s)", n
+                    ),
                     Err(e) => warn!(error = %e, "Nightly compression sweep failed"),
                 }
             }
@@ -319,8 +318,8 @@ async fn alarm_acknowledge(
     let comment_variant = Variant::from(LocalizedText::new("en", &body.comment));
     let args = Some(vec![event_id_variant, comment_variant]);
 
-    let sc = driver::call_alarm_method(&session_arc, &body.condition_node_id, "Acknowledge", args)
-        .await;
+    let sc =
+        driver::call_alarm_method(&session_arc, &body.condition_node_id, "Acknowledge", args).await;
     opc_status_to_response(sc)
 }
 
