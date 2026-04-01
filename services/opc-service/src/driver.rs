@@ -1262,7 +1262,7 @@ async fn read_analog_properties(session: &Session, node_id: &NodeId) -> AnalogMe
             if let Some(point_name) = s.value() {
                 // Reject anything that already looks like a property or folder prefix.
                 if !point_name.starts_with("prop:") && !point_name.starts_with("folder:") {
-                    if let Some(meta) = read_analog_properties_simblah(session, &point_name).await {
+                    if let Some(meta) = read_analog_properties_simblah(session, point_name).await {
                         return meta;
                     }
                 }
