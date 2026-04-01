@@ -1,5 +1,7 @@
 import type { FillGaugeConfig } from "../../types/graphics";
 import { ALARM_COLORS, DE_COLORS } from "../displayElementColors";
+import type { PointDetail } from "../../../api/points";
+import { resolvePointLabel } from "../../utils/resolvePointLabel";
 
 interface PointValue {
   value: number | null;
@@ -10,6 +12,7 @@ interface PointValue {
 interface Props {
   config: FillGaugeConfig;
   pointValue?: PointValue;
+  pointMeta?: PointDetail;
   vesselClipPath?: string; // SVG path for vessel interior clip (vessel_overlay mode)
   vesselBounds?: { x: number; y: number; width: number; height: number };
   x?: number;
@@ -20,6 +23,7 @@ interface Props {
 export function FillGauge({
   config,
   pointValue,
+  pointMeta,
   vesselClipPath,
   vesselBounds,
   x = 0,
@@ -51,8 +55,15 @@ export function FillGauge({
   const flashClass = unacked && alarmPriority ? "io-alarm-flash" : "";
   const clipId = `fill-clip-${nodeId}`;
 
+  // Resolve discrete label if applicable — shown instead of numeric format
+  const discreteLabel =
+    pointMeta && value !== null
+      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      : null;
+
   const formattedValue = (() => {
     if (value === null) return "---";
+    if (discreteLabel !== null) return discreteLabel;
     const match = valueFormat.match(/^%\.(\d+)f%%$/);
     if (match) return `${(pct * 100).toFixed(parseInt(match[1]))}%`;
     const match2 = valueFormat.match(/^%\.(\d+)f$/);

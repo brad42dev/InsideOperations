@@ -291,7 +291,7 @@ export default function SubgroupSPCChart({ config }: RendererProps) {
       ],
       tooltip: {
         trigger: "axis",
-        axisPointer: { type: "cross" },
+        axisPointer: { type: "line" },
         formatter: (params: unknown) => {
           const ps = params as {
             axisValueLabel: string;

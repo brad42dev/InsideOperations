@@ -150,7 +150,7 @@ export default function ChartRenderer({
   }
 
   return (
-    <ChartErrorBoundary chartType={config.chartType}>
+    <ChartErrorBoundary key={config.chartType} chartType={config.chartType}>
       <Suspense fallback={<ChartFallback />}>
         <Renderer config={config} bufferKey={bufferKey} />
       </Suspense>

@@ -242,7 +242,7 @@ export default function ParetoChart({ config }: RendererProps) {
     return {
       backgroundColor: "transparent",
       legend: { show: false },
-      tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+      tooltip: { trigger: "axis", axisPointer: { type: "line" } },
       grid: { left: 48, right: 48, top: 16, bottom: 32, containLabel: true },
       xAxis: categoryAxis,
       yAxis: [valueAxis0, valueAxis1],

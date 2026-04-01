@@ -7,7 +7,7 @@ import { useRef } from "react";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import { type ChartConfig, autoColor, makeSlotLabeler, resolveSeriesScales } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 
 interface RendererProps {
@@ -46,6 +46,11 @@ export default function Chart01LiveTrend({ config, bufferKey }: RendererProps) {
     color: slot.color ?? autoColor(i),
     strokeWidth: 1.5,
   }));
+
+  const seriesScales = resolveSeriesScales(
+    config.scaling,
+    seriesSlots.map((s) => s.slotId),
+  );
 
   const legendItems: LegendItem[] = seriesSlots.map((slot, i) => ({
     label: slotLabel(slot),
@@ -109,6 +114,7 @@ export default function Chart01LiveTrend({ config, bufferKey }: RendererProps) {
               xRange={xRangeRef.current}
               highlighted={highlighted}
               onSeriesClick={toggle}
+              seriesScales={seriesScales}
             />
           </div>
         )}

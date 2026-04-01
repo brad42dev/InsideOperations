@@ -9,7 +9,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor } from "../chart-config-types";
+import { type ChartConfig, autoColor, type ResolvedSeriesScale } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import { pointsApi } from "../../../../api/points";
 import { useHighlight } from "../hooks/useHighlight";
@@ -174,6 +174,18 @@ export default function Chart16BatchComparison({ config }: RendererProps) {
     );
   }
 
+  // Build series scales — all batch lines share one y scale (fixed range if configured).
+  const fixedRange: [number, number] | undefined =
+    config.scaling?.type === "fixed" &&
+    config.scaling.yMin != null &&
+    config.scaling.yMax != null
+      ? [config.scaling.yMin, config.scaling.yMax]
+      : undefined;
+  const batchSeriesScales: ResolvedSeriesScale[] = series.map(() => ({
+    scaleKey: "y",
+    range: fixedRange,
+  }));
+
   const legendItems: LegendItem[] = series.map((s, i) => ({
     label: s.label,
     color: s.color ?? autoColor(i),
@@ -223,6 +235,7 @@ export default function Chart16BatchComparison({ config }: RendererProps) {
             timestamps={timestamps}
             series={series}
             xRange={xRange}
+            seriesScales={batchSeriesScales}
           />
         </div>
       </div>

@@ -1,5 +1,7 @@
 import type { TextReadoutConfig } from "../../types/graphics";
 import { ALARM_COLORS, DE_COLORS } from "../displayElementColors";
+import type { PointDetail } from "../../../api/points";
+import { resolvePointLabel } from "../../utils/resolvePointLabel";
 
 interface PointValue {
   value: string | number | null;
@@ -12,6 +14,7 @@ interface PointValue {
 interface Props {
   config: TextReadoutConfig;
   pointValue?: PointValue;
+  pointMeta?: PointDetail;
   x?: number;
   y?: number;
 }
@@ -28,13 +31,32 @@ function formatValue(raw: string | number | null, fmt: string): string {
   return String(raw);
 }
 
-export function TextReadout({ config, pointValue, x = 0, y = 0 }: Props) {
+export function TextReadout({ config, pointValue, pointMeta, x = 0, y = 0 }: Props) {
   const { showBox, showLabel, labelText, showUnits, valueFormat, minWidth } =
     config;
   const priority = pointValue?.alarmPriority ?? null;
   const unacked = pointValue?.unacknowledged ?? false;
-  const valueStr = formatValue(pointValue?.value ?? null, valueFormat);
-  const unitStr = showUnits && pointValue?.units ? ` ${pointValue.units}` : "";
+
+  // Resolve discrete label if applicable
+  const rawNumeric =
+    typeof pointValue?.value === "number" ? pointValue.value : null;
+  const discreteLabel =
+    pointMeta && rawNumeric !== null
+      ? resolvePointLabel(
+          rawNumeric,
+          pointMeta.point_category,
+          pointMeta.enum_labels,
+        )
+      : null;
+
+  const valueStr = discreteLabel !== null
+    ? discreteLabel
+    : formatValue(pointValue?.value ?? null, valueFormat);
+  // Hide engineering unit suffix when showing a discrete label
+  const unitStr =
+    discreteLabel === null && showUnits && pointValue?.units
+      ? ` ${pointValue.units}`
+      : "";
   const label = showLabel ? (labelText ?? pointValue?.tag ?? "") : "";
 
   const alarmColor = priority ? ALARM_COLORS[priority] : null;

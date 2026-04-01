@@ -840,7 +840,7 @@ pub async fn list_points(
     let rows = match sqlx::query(
         r#"SELECT id::text, tagname, description, engineering_units, data_type,
                   source_id::text, active, area, criticality,
-                  min_value, max_value
+                  min_value, max_value, point_category
            FROM points_metadata
            WHERE active = true
              AND ($1::uuid IS NULL OR source_id = $1)
@@ -889,6 +889,7 @@ pub async fn list_points(
                 "criticality": r.get::<Option<String>, _>("criticality"),
                 "eu_range_low": r.get::<Option<f64>, _>("min_value"),
                 "eu_range_high": r.get::<Option<f64>, _>("max_value"),
+                "point_category": r.get::<Option<String>, _>("point_category").unwrap_or_else(|| "analog".to_string()),
             })
         })
         .collect();
@@ -912,10 +913,19 @@ pub async fn get_point(
 ) -> impl IntoResponse {
     let row = match sqlx::query(
         r#"SELECT pm.id::text, pm.tagname, pm.description, pm.engineering_units,
-                  pm.data_type, pm.source_id::text, COALESCE(ps.name, '') AS source_name
+                  pm.data_type, pm.source_id::text, COALESCE(ps.name, '') AS source_name,
+                  pm.min_value, pm.max_value, pm.point_category,
+                  COALESCE(
+                    json_agg(json_build_object('idx', pel.idx, 'label', pel.label)
+                             ORDER BY pel.idx)
+                    FILTER (WHERE pel.point_id IS NOT NULL),
+                    '[]'::json
+                  ) AS enum_labels
            FROM points_metadata pm
            LEFT JOIN point_sources ps ON ps.id = pm.source_id
-           WHERE pm.id = $1"#,
+           LEFT JOIN point_enum_labels pel ON pel.point_id = pm.id
+           WHERE pm.id = $1
+           GROUP BY pm.id, ps.name"#,
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -940,6 +950,10 @@ pub async fn get_point(
         "data_type":        row.get::<Option<String>, _>("data_type").unwrap_or_default(),
         "source_id":        row.get::<Option<String>, _>("source_id").unwrap_or_default(),
         "source_name":      row.get::<String, _>("source_name"),
+        "eu_range_low":     row.get::<Option<f64>, _>("min_value"),
+        "eu_range_high":    row.get::<Option<f64>, _>("max_value"),
+        "point_category":   row.get::<Option<String>, _>("point_category").unwrap_or_else(|| "analog".to_string()),
+        "enum_labels":      row.get::<serde_json::Value, _>("enum_labels"),
     }))
     .into_response()
 }

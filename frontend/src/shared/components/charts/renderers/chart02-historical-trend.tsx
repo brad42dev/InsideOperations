@@ -9,7 +9,7 @@ import { useRef } from "react";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import { type ChartConfig, autoColor, makeSlotLabeler, resolveSeriesScales } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import { usePlaybackStore } from "../../../../store/playback";
 
@@ -62,6 +62,11 @@ export default function Chart02HistoricalTrend({
     color: slot.color ?? autoColor(i),
     strokeWidth: 1.5,
   }));
+
+  const seriesScales = resolveSeriesScales(
+    config.scaling,
+    seriesSlots.map((s) => s.slotId),
+  );
 
   const legendItems: LegendItem[] = seriesSlots.map((slot, i) => ({
     label: slotLabel(slot),
@@ -146,6 +151,7 @@ export default function Chart02HistoricalTrend({
               xRange={xRange}
               highlighted={highlighted}
               onSeriesClick={toggle}
+              seriesScales={seriesScales}
             />
           </div>
         )}

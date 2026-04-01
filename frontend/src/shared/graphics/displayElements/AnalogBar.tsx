@@ -1,5 +1,7 @@
 import type { AnalogBarConfig } from "../../types/graphics";
 import { ALARM_COLORS, ZONE_FILLS, DE_COLORS } from "../displayElementColors";
+import type { PointDetail } from "../../../api/points";
+import { resolvePointLabel } from "../../utils/resolvePointLabel";
 
 interface PointValue {
   value: number | null;
@@ -10,6 +12,7 @@ interface PointValue {
 interface Props {
   config: AnalogBarConfig;
   pointValue?: PointValue;
+  pointMeta?: PointDetail;
   setpointValue?: number | null;
   x?: number;
   y?: number;
@@ -18,6 +21,7 @@ interface Props {
 export function AnalogBar({
   config,
   pointValue,
+  pointMeta,
   setpointValue,
   x = 0,
   y = 0,
@@ -37,7 +41,14 @@ export function AnalogBar({
   const value = pointValue?.value ?? null;
   const alarmPriority = pointValue?.alarmPriority ?? null;
 
+  // Resolve discrete label if applicable
+  const discreteLabel =
+    pointMeta && value !== null
+      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      : null;
+
   const range = rangeHi - rangeLo || 1;
+  // Boolean: 0% or 100%; discrete_enum: proportional by index if label known
   const pct =
     value !== null ? Math.max(0, Math.min(1, (value - rangeLo) / range)) : 0;
   const spPct =
@@ -213,7 +224,7 @@ export function AnalogBar({
           }
           style={{ fontVariantNumeric: "tabular-nums" }}
         >
-          {value.toFixed(1)}
+          {discreteLabel !== null ? discreteLabel : value.toFixed(1)}
         </text>
       )}
     </g>

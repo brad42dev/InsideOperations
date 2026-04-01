@@ -127,6 +127,37 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // --- Nightly compression sweep at 03:00 UTC ---
+    // Compresses any uncompressed points_history_raw chunks older than 2 hours.
+    // Runs on a recalculated sleep-until-3am loop so it never drifts.
+    {
+        let db_sweep = db.clone();
+        tokio::spawn(async move {
+            loop {
+                let now = chrono::Utc::now();
+                let today_3am = now
+                    .date_naive()
+                    .and_hms_opt(3, 0, 0)
+                    .unwrap()
+                    .and_utc();
+                let next_3am = if now < today_3am {
+                    today_3am
+                } else {
+                    today_3am + chrono::Duration::days(1)
+                };
+                let secs_until = (next_3am - now).num_seconds().max(0) as u64;
+                tokio::time::sleep(std::time::Duration::from_secs(secs_until)).await;
+
+                let up_to = chrono::Utc::now() - chrono::Duration::hours(2);
+                match db::compress_completed_chunks(&db_sweep, up_to).await {
+                    Ok(0) => info!("Nightly compression sweep: no uncompressed chunks found"),
+                    Ok(n) => info!(chunks = n, "Nightly compression sweep compressed {} chunk(s)", n),
+                    Err(e) => warn!(error = %e, "Nightly compression sweep failed"),
+                }
+            }
+        });
+    }
+
     // --- Source manager loop — exits on SIGTERM/SIGINT ---
     let mut known_source_ids: HashSet<Uuid> = HashSet::new();
     let mut shutdown_tx = Some(shutdown_tx);

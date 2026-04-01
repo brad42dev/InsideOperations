@@ -8,15 +8,18 @@ import { useRef } from "react";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import { type ChartConfig, autoColor, makeSlotLabeler, resolveSeriesScales } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
+import type { EnumLabel } from "../../../../api/points";
 
 interface RendererProps {
   config: ChartConfig;
   bufferKey: string;
+  /** Optional enum label map: pointId → EnumLabel[]. When provided, Y-axis ticks show state names. */
+  enumLabels?: Map<string, EnumLabel[]>;
 }
 
-export default function Chart04StepChart({ config, bufferKey }: RendererProps) {
+export default function Chart04StepChart({ config, bufferKey, enumLabels }: RendererProps) {
   const slotLabel = makeSlotLabeler(config);
   const { highlighted, toggle } = useHighlight();
   const durationMinutes = config.durationMinutes ?? 60;
@@ -44,6 +47,11 @@ export default function Chart04StepChart({ config, bufferKey }: RendererProps) {
     color: slot.color ?? autoColor(i),
     strokeWidth: 1.5,
   }));
+
+  const seriesScales = resolveSeriesScales(
+    config.scaling,
+    seriesSlots.map((s) => s.slotId),
+  );
 
   const legendItems: LegendItem[] = seriesSlots.map((slot, i) => ({
     label: slotLabel(slot),
@@ -129,6 +137,8 @@ export default function Chart04StepChart({ config, bufferKey }: RendererProps) {
               xRange={xRangeRef.current}
               highlighted={highlighted}
               onSeriesClick={toggle}
+              seriesScales={seriesScales}
+              enumLabels={enumLabels}
             />
           </div>
         )}

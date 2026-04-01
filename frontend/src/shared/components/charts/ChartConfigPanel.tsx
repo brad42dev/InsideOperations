@@ -6,13 +6,15 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useQueries } from "@tanstack/react-query";
+import { pointsApi } from "../../../api/points";
 import type { ChartConfig, ChartTypeId } from "./chart-config-types";
 import { CHART_SLOTS, SCALING_TAB_CHARTS } from "./chart-config-types";
 import ChartTypePicker from "./ChartTypePicker";
 import ChartPointSelector from "./ChartPointSelector";
 import ChartOptionsForm from "./ChartOptionsForm";
 import ChartScalingTab from "./ChartScalingTab";
-import type { ChartContext } from "./chart-definitions";
+import { CHART_DEFINITIONS, type ChartContext, type PointTypeCategory } from "./chart-definitions";
 
 interface ChartConfigPanelProps {
   /** Initial config to populate the panel from */
@@ -44,20 +46,48 @@ export default function ChartConfigPanel({
   }));
   const [tab, setTab] = useState<Tab>("type");
 
-  // ChartPointSelector fetches its own list with server-side search.
-  // ChartScalingTab only needs metadata for already-configured points.
-  // We build pointMeta lazily from the config's own point list (label + color),
-  // which is sufficient for axis label display.
+  // Fetch real point metadata (including eu_range_low/eu_range_high) for all
+  // configured points. Only needed for the Scaling tab, but cheap enough to
+  // always keep warm. Falls back to slot label if the query hasn't resolved yet.
+  const uniquePointIds = [...new Set(config.points.map((p) => p.pointId))];
+  const metaQueries = useQueries({
+    queries: uniquePointIds.map((id) => ({
+      queryKey: ["point-meta", id],
+      queryFn: () => pointsApi.getMeta(id),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
   const pointMeta = new Map(
-    config.points.map((p) => [
-      p.pointId,
-      {
-        id: p.pointId,
-        tagname: p.label ?? p.pointId,
-        display_name: p.label ?? null,
-      } as import("../../../api/points").PointMeta,
-    ]),
+    config.points.map((p) => {
+      const fetched = metaQueries[uniquePointIds.indexOf(p.pointId)]?.data;
+      const detail = fetched && "success" in fetched && fetched.success ? fetched.data : null;
+      return [
+        p.pointId,
+        {
+          id: p.pointId,
+          tagname: detail?.name ?? p.tagname ?? p.label ?? p.pointId,
+          display_name: detail?.description ?? p.label ?? null,
+          source_id: detail?.source_id ?? "",
+          unit: detail?.engineering_unit ?? null,
+          data_type: detail?.data_type ?? null,
+          eu_range_low: detail?.eu_range_low ?? null,
+          eu_range_high: detail?.eu_range_high ?? null,
+          point_category: detail?.point_category ?? "analog",
+        } as import("../../../api/points").PointMeta,
+      ];
+    }),
   );
+
+  // Derive the set of point categories from all configured points whose metadata
+  // has resolved. Used to dim incompatible chart types in the Chart Type tab.
+  const configuredPointTypes: PointTypeCategory[] | undefined = (() => {
+    const resolved = config.points
+      .map((p) => pointMeta.get(p.pointId)?.point_category)
+      .filter((c): c is "analog" | "boolean" | "discrete_enum" => Boolean(c));
+    if (resolved.length === 0) return undefined;
+    return [...new Set(resolved)] as PointTypeCategory[];
+  })();
 
   // Only show Scaling tab for chart types that have configurable axes
   const TABS = SCALING_TAB_CHARTS.has(config.chartType)
@@ -97,7 +127,15 @@ export default function ChartConfigPanel({
   function handleTypeSelect(type: ChartTypeId) {
     const newSlots = CHART_SLOTS[type];
     const validRoles = new Set(newSlots.map((s) => s.id));
-    const filteredPoints = config.points.filter((p) => validRoles.has(p.role));
+    const newDef = CHART_DEFINITIONS.find((d) => d.id === type);
+    const accepted = newDef?.acceptedPointTypes ?? ["any"];
+    const filteredPoints = config.points.filter((p) => {
+      if (!validRoles.has(p.role)) return false;
+      // Clear points whose category is incompatible with the new chart type
+      if (accepted.includes("any")) return true;
+      const cat = pointMeta.get(p.pointId)?.point_category ?? "analog";
+      return accepted.includes(cat as PointTypeCategory);
+    });
     setConfig((c) => ({ ...c, chartType: type, points: filteredPoints }));
   }
 
@@ -131,8 +169,11 @@ export default function ChartConfigPanel({
         justifyContent: "center",
       }}
       onClick={(e) => {
+        e.stopPropagation();
         if (e.target === e.currentTarget) onClose();
       }}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Panel — 95% of the workspace area, responsive font size */}
       <div
@@ -252,6 +293,7 @@ export default function ChartConfigPanel({
                 selectedType={config.chartType}
                 onSelect={handleTypeSelect}
                 context={context}
+                pointTypes={configuredPointTypes}
               />
             </div>
           )}
@@ -270,6 +312,7 @@ export default function ChartConfigPanel({
                 slotDefs={slotDefs}
                 points={config.points}
                 onChange={(pts) => patchConfig({ points: pts })}
+                acceptedPointTypes={CHART_DEFINITIONS.find(d => d.id === config.chartType)?.acceptedPointTypes}
               />
             </div>
           )}

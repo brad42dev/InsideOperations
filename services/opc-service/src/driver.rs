@@ -243,7 +243,19 @@ async fn run_source_once(
     // hostnames) that don't match the DNS name the client uses to reach
     // them.  We discover the actual endpoint, patch its hostname with
     // ours, and use it for the real connection.
-    match client.get_server_endpoints_from_url(endpoint_url.as_str()).await {
+    // A 30-second timeout prevents a hung TCP connection from blocking the
+    // reconnect loop indefinitely when the server accepts TCP but stops
+    // responding to OPC UA discovery requests.
+    let discovery_result = tokio::time::timeout(
+        Duration::from_secs(30),
+        client.get_server_endpoints_from_url(endpoint_url.as_str()),
+    )
+    .await
+    .unwrap_or_else(|_| {
+        warn!(endpoint_url = %endpoint_url, "OPC UA endpoint discovery timed out (30s) — using configured endpoint");
+        Ok(vec![])
+    });
+    match discovery_result {
         Ok(server_endpoints) if !server_endpoints.is_empty() => {
             let is_none_policy = security_policy == SecurityPolicy::None;
 
@@ -396,6 +408,9 @@ async fn run_source_once(
             return Err(anyhow::anyhow!(
                 "OPC UA event loop exited before connecting: {}", sc
             ));
+        }
+        _ = tokio::time::sleep(Duration::from_secs(30)) => {
+            return Err(anyhow::anyhow!("OPC UA session connect timed out after 30s"));
         }
     };
     if !connected {
@@ -801,6 +816,20 @@ async fn browse_namespace(
                                                 tagname: tagname.clone(),
                                                 type_name: type_name.unwrap(),
                                             });
+                                            // Set initial point_category immediately so the point
+                                            // is classified before the second-pass label harvest.
+                                            let initial_category = match type_name {
+                                                Some("TwoStateDiscreteType") => "boolean",
+                                                _ => "discrete_enum",
+                                            };
+                                            if let Err(e) = db::set_point_category(db, point_id, initial_category).await {
+                                                warn!(
+                                                    source = %source.name,
+                                                    tag = %tagname,
+                                                    error = %e,
+                                                    "Failed to set initial point_category"
+                                                );
+                                            }
                                         }
                                         node_map.insert(node_id, point_id);
                                     }
@@ -1008,6 +1037,44 @@ async fn harvest_analog_metadata(
     eu_ranges
 }
 
+/// Build (category, labels) from the JSON returned by read_discrete_properties_simblah.
+fn extract_discrete_labels(
+    type_name: &str,
+    json: &serde_json::Value,
+) -> (&'static str, Vec<(i16, String)>) {
+    match type_name {
+        "TwoStateDiscreteType" => {
+            let false_label = json
+                .get("false_state")
+                .and_then(|v| v.as_str())
+                .unwrap_or("False")
+                .to_string();
+            let true_label = json
+                .get("true_state")
+                .and_then(|v| v.as_str())
+                .unwrap_or("True")
+                .to_string();
+            ("boolean", vec![(0, false_label), (1, true_label)])
+        }
+        "MultiStateDiscreteType" | "MultiStateValueDiscreteType" => {
+            let labels: Vec<(i16, String)> = json
+                .get("enum_strings")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .enumerate()
+                        .filter_map(|(i, v)| {
+                            v.as_str().map(|s| (i as i16, s.to_string()))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            ("discrete_enum", labels)
+        }
+        _ => ("analog", vec![]),
+    }
+}
+
 /// Read EnumStrings / TrueState+FalseState properties for discrete variable nodes and merge
 /// them into source_raw in the DB.  Opportunistic — failures are non-fatal.
 async fn harvest_discrete_metadata(
@@ -1029,7 +1096,8 @@ async fn harvest_discrete_metadata(
                 read_discrete_properties_simblah(session, &node_info.tagname, node_info.type_name)
                     .await;
             if let Some(json) = extra {
-                if let Err(e) = db::merge_point_source_raw(db, node_info.point_id, json).await {
+                // Merge into source_raw (existing behavior)
+                if let Err(e) = db::merge_point_source_raw(db, node_info.point_id, json.clone()).await {
                     warn!(
                         source = %source.name,
                         point_id = %node_info.point_id,
@@ -1038,6 +1106,17 @@ async fn harvest_discrete_metadata(
                     );
                 } else {
                     harvested += 1;
+                }
+
+                // Promote to structured point_category + point_enum_labels
+                let (category, labels) = extract_discrete_labels(node_info.type_name, &json);
+                if let Err(e) = db::upsert_discrete_labels(db, node_info.point_id, category, &labels).await {
+                    warn!(
+                        source = %source.name,
+                        point_id = %node_info.point_id,
+                        error = %e,
+                        "Failed to upsert discrete labels"
+                    );
                 }
             }
         }
@@ -2296,6 +2375,12 @@ async fn run_pending_recovery_jobs(
                                 let _ = db::fail_recovery_job(db, job.id, &err_str).await;
                             }
                         }
+                        // Compress any completed chunks within this window regardless of bisect outcome.
+                        match db::compress_completed_chunks(db, job.to_time).await {
+                            Ok(0) => {}
+                            Ok(n) => info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n),
+                            Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                        }
                     } else {
                         warn!(
                             source = %source.name,
@@ -2304,6 +2389,11 @@ async fn run_pending_recovery_jobs(
                             "BadResponseTooLarge — window too small to bisect further"
                         );
                         let _ = db::fail_recovery_job(db, job.id, &err_str).await;
+                        match db::compress_completed_chunks(db, job.to_time).await {
+                            Ok(0) => {}
+                            Ok(n) => info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n),
+                            Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                        }
                     }
                 } else {
                     warn!(
@@ -2313,6 +2403,11 @@ async fn run_pending_recovery_jobs(
                         "History recovery failed"
                     );
                     let _ = db::fail_recovery_job(db, job.id, &err_str).await;
+                    match db::compress_completed_chunks(db, job.to_time).await {
+                        Ok(0) => {}
+                        Ok(n) => info!(source = %source.name, job_id = %job.id, chunks = n, "Compressed {} chunk(s) after failed job", n),
+                        Err(e) => warn!(source = %source.name, job_id = %job.id, error = %e, "Chunk compression failed (non-fatal)"),
+                    }
                 }
             }
         }

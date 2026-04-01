@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+import type { ResolvedSeriesScale } from "./chart-config-types";
+import type { EnumLabel } from "../../../api/points";
 
 export interface Series {
   label: string;
@@ -36,6 +38,20 @@ export interface TimeSeriesChartProps {
   onClearHighlight?: () => void;
   /** Whether to render grid lines. Defaults to true. */
   showGrid?: boolean;
+  /**
+   * Per-series scale assignments produced by resolveSeriesScales().
+   * When provided, each series is tied to its own uPlot scale with the
+   * specified range (undefined = auto-range for that series).
+   * When omitted, all series share the default "y" scale (auto-range).
+   */
+  seriesScales?: ResolvedSeriesScale[];
+  /**
+   * Enum label map: pointId → EnumLabel[]. When provided, the Y-axis tick
+   * formatter will resolve numeric values to their named labels (e.g. 0 → "Stopped").
+   * Only the first point's labels are used (step charts are typically single-series
+   * when discrete). Falls back to numeric display for values not in the map.
+   */
+  enumLabels?: Map<string, EnumLabel[]>;
 }
 
 const DEFAULT_HEIGHT = 300;
@@ -137,8 +153,10 @@ export default function TimeSeriesChart({
   className,
   highlighted,
   onSeriesClick,
+  seriesScales,
   onClearHighlight,
   showGrid = true,
+  enumLabels,
 }: TimeSeriesChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const uplotRef = useRef<uPlot | null>(null);
@@ -212,6 +230,19 @@ export default function TimeSeriesChart({
   // series after creation).
   const seriesCount = series.length;
 
+  // Stable serialised key for the seriesScales prop — triggers a chart rebuild
+  // only when scale assignments or ranges actually change.
+  const seriesScalesKey = seriesScales
+    ? seriesScales.map((s) => `${s.scaleKey}:${s.range?.join(",") ?? ""}`).join("|")
+    : "";
+
+  // Stable key for enumLabels — triggers a chart rebuild only when labels change.
+  const enumLabelsKey = enumLabels
+    ? Array.from(enumLabels.entries())
+        .map(([pid, lbls]) => `${pid}:${lbls.map((l) => `${l.idx}=${l.label}`).join(",")}`)
+        .join("|")
+    : "";
+
   // Build (or rebuild) the uPlot instance.
   // Re-runs when dimensions, theme, or series count changes.
   useEffect(() => {
@@ -219,16 +250,99 @@ export default function TimeSeriesChart({
 
     const data = latestDataRef.current;
 
+    // Build per-series scale map from seriesScales prop.
+    // Unique scale keys → their fixed range (undefined = auto).
+    const uniqueScales = new Map<string, [number, number] | undefined>();
+    if (seriesScales) {
+      for (const ss of seriesScales) {
+        if (!uniqueScales.has(ss.scaleKey)) uniqueScales.set(ss.scaleKey, ss.range);
+      }
+    } else {
+      uniqueScales.set("y", undefined);
+    }
+
     const uplotSeries: uPlot.Series[] = [
       {}, // x axis (time)
-      ...series.map((s) => ({
+      ...series.map((s, i) => ({
         label: s.label,
         stroke: s.color ?? DEFAULT_COLOR,
         width: s.strokeWidth ?? 1.5,
         spanGaps: true,
         points: { show: false },
+        scale: seriesScales ? seriesScales[i].scaleKey : "y",
       })),
     ];
+
+    // Build scales config: x always present, y scales from uniqueScales.
+    const scalesConfig: uPlot.Scales = {
+      x: {
+        time: true,
+        // Force x-axis to the requested window rather than auto-fitting to data
+        // extent — essential when data is sparse (e.g. first load of a 24h window).
+        range: (_u, dataMin, dataMax) => {
+          const r = xRangeRef.current;
+          return [r ? r.min : dataMin, r ? r.max : dataMax];
+        },
+      },
+    };
+    for (const [key, range] of uniqueScales) {
+      if (range) {
+        const r = range; // capture for closure
+        scalesConfig[key] = { range: () => r };
+      } else {
+        scalesConfig[key] = {};
+      }
+    }
+
+    // Build a flat numeric → label map from enumLabels (first series wins).
+    // Used to format Y-axis ticks as named state labels for discrete points.
+    let enumLabelMap: Map<number, string> | null = null;
+    if (enumLabels && enumLabels.size > 0) {
+      const firstLabels = enumLabels.values().next().value;
+      if (firstLabels && firstLabels.length > 0) {
+        enumLabelMap = new Map(firstLabels.map((el: EnumLabel) => [el.idx, el.label]));
+      }
+    }
+
+    // Build axes: x axis always first, then one y axis per unique scale.
+    // The first scale's axis goes on the left; subsequent ones on the right.
+    const axesConfig: uPlot.Axis[] = [
+      {
+        stroke: readAxisColor,
+        ticks: { stroke: readGridColor },
+        grid: { show: showGrid, stroke: readGridColor, width: 1 },
+      },
+    ];
+    let isFirst = true;
+    for (const key of uniqueScales.keys()) {
+      // Find the first series that uses this scale to inherit its color.
+      const seriesIdx = seriesScales
+        ? seriesScales.findIndex((ss) => ss.scaleKey === key)
+        : 0;
+      const axisColor =
+        seriesIdx >= 0 && series[seriesIdx]
+          ? (series[seriesIdx].color ?? DEFAULT_COLOR)
+          : DEFAULT_COLOR;
+      const axisEntry: uPlot.Axis = {
+        scale: key,
+        side: isFirst ? 3 : 1, // left for first, right for others
+        stroke: axisColor,
+        ticks: { stroke: readGridColor },
+        grid: { show: isFirst && showGrid, stroke: readGridColor, width: 1 },
+      };
+      // When enum labels are provided, replace numeric tick values with state names.
+      if (enumLabelMap && isFirst) {
+        const labelMap = enumLabelMap;
+        axisEntry.values = (_u, vals) =>
+          vals.map((v) => {
+            if (v == null) return "";
+            const label = labelMap.get(Math.round(v));
+            return label ?? String(Math.round(v));
+          });
+      }
+      axesConfig.push(axisEntry);
+      isFirst = false;
+    }
 
     const opts: uPlot.Options = {
       width: resolvedWidth,
@@ -236,29 +350,8 @@ export default function TimeSeriesChart({
       series: uplotSeries,
       legend: { show: false },
       focus: { alpha: 0.2 },
-      axes: [
-        {
-          stroke: readAxisColor,
-          ticks: { stroke: readGridColor },
-          grid: { show: showGrid, stroke: readGridColor, width: 1 },
-        },
-        {
-          stroke: readAxisColor,
-          ticks: { stroke: readGridColor },
-          grid: { show: showGrid, stroke: readGridColor, width: 1 },
-        },
-      ],
-      scales: {
-        x: {
-          time: true,
-          // Force x-axis to the requested window rather than auto-fitting to data
-          // extent — essential when data is sparse (e.g. first load of a 24h window).
-          range: (_u, dataMin, dataMax) => {
-            const r = xRangeRef.current;
-            return [r ? r.min : dataMin, r ? r.max : dataMax];
-          },
-        },
-      },
+      axes: axesConfig,
+      scales: scalesConfig,
       cursor: {
         drag: { x: true, y: false },
       },
@@ -445,7 +538,7 @@ export default function TimeSeriesChart({
       uplotRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedWidth, resolvedHeight, seriesCount]);
+  }, [resolvedWidth, resolvedHeight, seriesCount, seriesScalesKey, enumLabelsKey]);
 
   // Update data without rebuilding the chart (hot path — runs on every tick).
   useEffect(() => {

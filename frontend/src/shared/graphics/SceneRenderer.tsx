@@ -1,4 +1,7 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { usePointMeta } from "../hooks/usePointMeta";
+import type { PointDetail } from "../../api/points";
+import { resolvePointLabel } from "../utils/resolvePointLabel";
 import type {
   GraphicDocument,
   SceneNode,
@@ -157,6 +160,52 @@ export function SceneRenderer({
   // Current alarm state per point — merged into PV on each DOM apply
   const alarmStateRef = useRef<Map<string, AlarmStateUpdate>>(new Map());
 
+  // Collect all point IDs from the scene graph for metadata fetching.
+  // UUID regex to skip tag-name bindings (those are resolved via resolvedTagMap).
+  const UUID_RE_OUTER =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const allPointIds = useMemo(() => {
+    const ids: string[] = [];
+    function walkForPointIds(nodes: SceneNode[]) {
+      for (const n of nodes) {
+        if (n.type === "display_element") {
+          const de = n as DisplayElement;
+          if (de.binding.pointId && UUID_RE_OUTER.test(de.binding.pointId))
+            ids.push(de.binding.pointId);
+        }
+        if (n.type === "symbol_instance") {
+          const si = n as SymbolInstance;
+          if (si.stateBinding?.pointId && UUID_RE_OUTER.test(si.stateBinding.pointId))
+            ids.push(si.stateBinding.pointId);
+          for (const child of si.children) {
+            const de = child as DisplayElement;
+            if (de.binding?.pointId && UUID_RE_OUTER.test(de.binding.pointId))
+              ids.push(de.binding.pointId);
+          }
+        }
+        if (
+          "children" in n &&
+          n.type !== "symbol_instance" &&
+          Array.isArray(n.children)
+        ) {
+          walkForPointIds(n.children as SceneNode[]);
+        }
+      }
+    }
+    walkForPointIds(children);
+    return [...new Set(ids)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [document.id, children]);
+
+  // Fetch and cache PointDetail (including enum_labels) for all bound points.
+  const pointMetaMap = usePointMeta(allPointIds);
+  // Store in a ref so the rAF DOM-mutation callback can access the latest map
+  // without capturing a stale closure.
+  const pointMetaMapRef = useRef<Map<string, PointDetail>>(new Map());
+  useEffect(() => {
+    pointMetaMapRef.current = pointMetaMap;
+  }, [pointMetaMap]);
+
   // Build node config map whenever the scene graph changes
   useEffect(() => {
     if (!liveSubscribe) return;
@@ -261,7 +310,7 @@ export function SceneRenderer({
               if (!nodeId) continue;
               const conf = nodeConfigMapRef.current.get(nodeId);
               if (!conf) continue;
-              applyPointValue(el, conf.displayType, conf.config, update);
+              applyPointValue(el, conf.displayType, conf.config, update, pid, pointMetaMapRef.current);
             }
           }
         });
@@ -288,7 +337,7 @@ export function SceneRenderer({
         if (!nodeId) continue;
         const conf = nodeConfigMapRef.current.get(nodeId);
         if (!conf) continue;
-        applyPointValue(el, conf.displayType, conf.config, pvWithAlarm);
+        applyPointValue(el, conf.displayType, conf.config, pvWithAlarm, alarm.point_id, pointMetaMapRef.current);
       }
     };
 
@@ -2735,6 +2784,8 @@ function applyPointValue(
   displayType: string,
   config: unknown,
   pv: WsPointValue,
+  pointId?: string,
+  metaMap?: Map<string, PointDetail>,
 ): void {
   const value = pv.value;
   const quality = pv.quality;
@@ -2742,18 +2793,32 @@ function applyPointValue(
   const isCommFail = quality === "comm_fail";
   const isBad = quality === "bad" && !isCommFail;
 
+  // Resolve discrete label for boolean/discrete_enum points.
+  // Returns null for analog points — caller should format numerically.
+  const pointMeta = pointId ? metaMap?.get(pointId) : undefined;
+  const discreteLabel =
+    pointMeta &&
+    pointMeta.point_category !== "analog" &&
+    typeof value === "number" &&
+    !isCommFail &&
+    !isBad
+      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      : null;
+
   switch (displayType) {
     case "text_readout": {
       const cfg = config as TextReadoutConfig;
       const isUncertain = quality === "uncertain";
       const isManual = pv.manual ?? false;
 
-      // Value text
+      // Value text — use discrete label when available, else numeric format
       const rawValueStr = isCommFail
         ? "COMM"
         : isBad
           ? "????"
-          : formatValue(value, cfg.valueFormat);
+          : discreteLabel !== null
+            ? discreteLabel
+            : formatValue(value, cfg.valueFormat);
       const valueColor = isCommFail
         ? DE_COLORS.textMuted
         : isBad
@@ -2924,8 +2989,12 @@ function applyPointValue(
     case "digital_status": {
       const cfg = config as DigitalStatusConfig;
       const rawVal = value !== null ? String(value) : null;
+      // Prefer enum label from point metadata (resolvePointLabel), then static
+      // stateLabels config, then raw value string as last resort.
       const label =
-        rawVal !== null ? (cfg.stateLabels[rawVal] ?? rawVal) : "---";
+        rawVal !== null
+          ? (cfg.stateLabels[rawVal] ?? discreteLabel ?? rawVal)
+          : "---";
       const isNormal = rawVal === null || cfg.normalStates.includes(rawVal);
       const fill = isNormal
         ? DE_COLORS.displayZoneInactive

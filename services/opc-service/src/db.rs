@@ -125,6 +125,64 @@ pub async fn upsert_point_from_source(
     Ok(point_id)
 }
 
+/// Upsert the point_category column and enum label rows for a discrete point.
+/// `category` must be "boolean" or "discrete_enum".
+/// `labels` is a slice of (idx, label) pairs — for boolean: [(0, "False"), (1, "True")].
+pub async fn upsert_discrete_labels(
+    db: &DbPool,
+    point_id: Uuid,
+    category: &str,
+    labels: &[(i16, String)],
+) -> anyhow::Result<()> {
+    // Update point_category on the metadata row
+    sqlx::query(
+        r#"UPDATE points_metadata SET point_category = $2 WHERE id = $1"#,
+    )
+    .bind(point_id)
+    .bind(category)
+    .execute(db)
+    .await
+    .context("upsert_discrete_labels: update point_category failed")?;
+
+    // Upsert all label rows in a single statement using unnest
+    if !labels.is_empty() {
+        let idxs: Vec<i16> = labels.iter().map(|(i, _)| *i).collect();
+        let texts: Vec<&str> = labels.iter().map(|(_, t)| t.as_str()).collect();
+        sqlx::query(
+            r#"INSERT INTO point_enum_labels (point_id, idx, label)
+               SELECT $1, u.idx, u.label
+               FROM UNNEST($2::smallint[], $3::text[]) AS u(idx, label)
+               ON CONFLICT (point_id, idx) DO UPDATE SET label = EXCLUDED.label"#,
+        )
+        .bind(point_id)
+        .bind(&idxs)
+        .bind(&texts)
+        .execute(db)
+        .await
+        .context("upsert_discrete_labels: label upsert failed")?;
+    }
+
+    Ok(())
+}
+
+/// Set the point_category on a point by its UUID.
+/// Called during browse when a discrete type is identified.
+pub async fn set_point_category(
+    db: &DbPool,
+    point_id: Uuid,
+    category: &str,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        r#"UPDATE points_metadata SET point_category = $2 WHERE id = $1"#,
+    )
+    .bind(point_id)
+    .bind(category)
+    .execute(db)
+    .await
+    .context("set_point_category: update failed")?;
+    Ok(())
+}
+
 /// Merge additional JSON fields into source_raw of the latest metadata version for a point.
 /// Used to attach discrete-type metadata (enum_strings, true_state, false_state) discovered
 /// after the initial browse upsert.
@@ -674,12 +732,14 @@ pub async fn compress_completed_chunks(
     let mut count = 0u32;
     for (schema, name) in &chunks {
         let qualified = format!("{}.{}", schema, name);
-        sqlx::query("SELECT compress_chunk($1::regclass)")
+        match sqlx::query("SELECT compress_chunk($1::regclass)")
             .bind(&qualified)
             .execute(db)
             .await
-            .with_context(|| format!("compress_chunk {}", qualified))?;
-        count += 1;
+        {
+            Ok(_) => count += 1,
+            Err(e) => tracing::warn!(chunk = %qualified, error = %e, "compress_chunk failed — skipping"),
+        }
     }
     Ok(count)
 }

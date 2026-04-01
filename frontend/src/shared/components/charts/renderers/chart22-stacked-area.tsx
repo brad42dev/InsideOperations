@@ -58,6 +58,7 @@ export default function Chart22StackedArea({
   });
 
   const useStack = (config.extras?.stacked as boolean) ?? true; // default stacked; toggle via Options
+  const showGrid = config.extras?.showGrid !== false;
   const legendItems: LegendItem[] = seriesSlots.map((slot, i) => ({
     label: slotLabel(slot),
     color: slot.color ?? autoColor(i),
@@ -90,6 +91,9 @@ export default function Chart22StackedArea({
       },
     );
 
+    const nowMs = Date.now();
+    const minMs = nowMs - durationMinutes * 60 * 1000;
+
     return {
       animation: false,
       grid: {
@@ -102,7 +106,7 @@ export default function Chart22StackedArea({
       legend: { show: false },
       tooltip: {
         trigger: "axis",
-        axisPointer: { type: "cross" },
+        axisPointer: { type: "line" },
         formatter: (params: unknown) => {
           const items = params as Array<{
             seriesName: string;
@@ -130,24 +134,33 @@ export default function Chart22StackedArea({
         axisTick: { lineStyle: { color: "var(--io-border)" } },
         axisLabel: {
           fontSize: 10,
-          formatter: (val: number) => {
-            const d = new Date(val);
-            return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-          },
+          // Use ECharts built-in time-level formatter (not a function) so it
+          // survives JSON serialisation in the EChart equality guard.
+          formatter: {
+            hour: "{HH}:{mm}",
+            minute: "{HH}:{mm}",
+            second: "{HH}:{mm}:{ss}",
+            day: "{MM}/{dd}",
+            month: "{yyyy}/{MM}",
+            year: "{yyyy}",
+          } as unknown as string,
         },
-        splitLine: { show: false },
-        min: timestamps.length > 0 ? timestamps[0] * 1000 : undefined,
-        max:
-          timestamps.length > 0
-            ? timestamps[timestamps.length - 1] * 1000
-            : undefined,
+        splitLine: {
+          show: showGrid,
+          lineStyle: { type: "dashed", opacity: 0.3 },
+        },
+        min: minMs,
+        max: nowMs,
       },
       yAxis: {
         type: "value",
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { fontSize: 10 },
-        splitLine: { lineStyle: { type: "dashed", opacity: 0.3 } },
+        splitLine: {
+          show: showGrid,
+          lineStyle: { type: "dashed", opacity: 0.3 },
+        },
         ...(config.scaling?.type === "fixed" &&
         config.scaling.yMin !== undefined
           ? { min: config.scaling.yMin }
@@ -159,7 +172,7 @@ export default function Chart22StackedArea({
       },
       series: echartsSeries,
     };
-  }, [timestamps, seriesData, seriesSlots, config, useStack]);
+  }, [timestamps, seriesData, seriesSlots, config, useStack, showGrid, durationMinutes]);
 
   const displayOption = useMemo(
     () => applyEChartsHighlight(option, highlighted),

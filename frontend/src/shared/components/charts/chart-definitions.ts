@@ -14,6 +14,9 @@ export type ChartLibrary =
   | "TanStack";
 export type ChartContext = "console" | "dashboard" | "designer" | "report";
 
+/** Which point data categories a chart type can meaningfully render. */
+export type PointTypeCategory = "analog" | "boolean" | "discrete_enum" | "any";
+
 export interface ChartScenario {
   role: string;
   title: string;
@@ -34,6 +37,8 @@ export interface ChartDefinition {
   scenarios?: ChartScenario[];
   /** If present, chart is only available in the listed contexts. Omit = available everywhere. */
   contexts?: ChartContext[];
+  /** Which point type categories this chart can render. "any" means unrestricted. */
+  acceptedPointTypes: PointTypeCategory[];
 }
 
 export const CHART_DEFINITIONS: ChartDefinition[] = [
@@ -45,6 +50,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "uPlot",
     realTime: true,
+    acceptedPointTypes: ["any"],
     description:
       "Auto-scrolling real-time trend showing current point values as they arrive. The chart continuously appends new data and scrolls left, discarding data that falls off the trailing edge. Up to 12 pens on a single axis let operators compare related variables side by side.",
     benefits: [
@@ -93,6 +99,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "uPlot",
     realTime: false,
+    acceptedPointTypes: ["any"],
     description:
       "Fixed time range trend for archived data. User selects start/end time and the chart renders the full range. Resolution adjusts automatically as you zoom — wide windows show hourly averages, tight windows reveal raw sample-by-sample data.",
     benefits: [
@@ -140,6 +147,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "uPlot",
     realTime: true,
+    acceptedPointTypes: ["any"],
     description:
       "Multiple Y-axes for parameters with different engineering units sharing a synchronized time axis. Supports side-by-side axes (left/right) and vertically stacked panes. A synchronized crosshair spanning all axes makes it easy to read corresponding values at any moment in time.",
     benefits: [
@@ -187,6 +195,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "uPlot",
     realTime: true,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Horizontal-then-vertical step interpolation for discrete/digital values. A valve is either OPEN or CLOSED — never mid-transition. Rendering discrete states with a sloped line between them implies a smooth transition that does not exist and misrepresents the data.",
     benefits: [
@@ -231,6 +240,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "uPlot",
     realTime: false,
+    acceptedPointTypes: ["any"],
     description:
       "Multiple time-series from different time periods overlaid on a common relative time axis (elapsed time from batch start). Compare this batch against a golden batch — the best-performing historical run — to see exactly where and when the current process deviated.",
     benefits: [
@@ -272,6 +282,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "uPlot",
     realTime: true,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Line chart with colored fill below each series, stacked so total height represents the cumulative sum. Shows both the total and each component's contribution over time. The bottom series is the most readable; upper series show relative contribution rather than precise values.",
     benefits: [
@@ -321,6 +332,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "uPlot",
     realTime: false,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "The foundational SPC chart. Time-series with center line (process mean), UCL at +3σ, and LCL at -3σ. Automated Western Electric rules flag pattern violations with highlighted markers — a single point outside the 3σ limits, or eight consecutive points on one side of the mean, are both signals that the process has changed.",
     benefits: [
@@ -368,6 +380,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "uPlot",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Cumulative sum of deviations from a target. Specifically designed to detect small sustained shifts (1σ or less) that Shewhart charts miss. A 0.5σ drift produces a steadily climbing line that eventually signals, where a Shewhart chart would show nothing for weeks.",
     benefits: [
@@ -409,6 +422,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "uPlot",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Exponentially weighted moving average with adaptive control limits. More robust than Shewhart for autocorrelated or non-normal data — most continuous process measurements are autocorrelated (the current value depends on the previous value), which makes EWMA a better default than Shewhart for many process variables. Lambda controls the balance between sensitivity and noise rejection.",
     benefits: [
@@ -452,6 +466,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "One process variable plotted against another (not time). Shows relationships and correlations — compressor discharge pressure vs. speed, heat exchanger effectiveness vs. throughput, reactor conversion vs. temperature. Each point is a moment in time; the cloud of points reveals the underlying process relationship. Density mode bins the X/Y space and colors each bin by point density — essential when thousands of overlapping points make individual markers unreadable.",
     benefits: [
@@ -497,6 +512,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Distribution summary showing median, Q1, Q3, whiskers at 1.5×IQR, and individual outlier points. Ideal for side-by-side comparison of the same variable across shifts, time periods, or operating modes. The box width represents the middle 50% of values — a wide box means high variability, a narrow box means tight control.",
     benefits: [
@@ -538,6 +554,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Two display modes in one chart type. Histogram mode reveals the full distribution shape — normal, right-skewed, bimodal, or otherwise. Violin mode overlays a kernel density estimate with box plot statistics — a bimodal violin (two bulges) immediately reveals two distinct operating modes that a box plot would show as just a wide IQR.",
     benefits: [
@@ -586,6 +603,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "uPlot",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Fitted mathematical curve (linear, polynomial, exponential, logarithmic, or power law) overlaid on time-series or scatter data. Shows trend direction and rate with equation, R², and optional confidence band.",
     benefits: [
@@ -633,6 +651,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Square grid showing pairwise correlation coefficients between multiple variables, color-coded from strong negative (blue) to zero (white) to strong positive (red). The fastest way to screen many variables for relationships — a single matrix replaces hundreds of individual scatter plots.",
     benefits: [
@@ -680,6 +699,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "Plotly",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Normal Q-Q (quantile-quantile) plot comparing your actual data against a theoretical normal distribution. If the data is normally distributed, points fall on the straight reference line. An S-curve indicates heavy tails; a bend at one end indicates skewness; a step pattern indicates a mixture of two populations.",
     benefits: [
@@ -722,6 +742,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "ECharts",
     realTime: "optional",
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Vertical (column) or horizontal (bar) charts for categorical comparisons. Supports grouped, stacked, and 100%-stacked variants. A combination mode overlays a secondary line series on the same chart area. Error bars show ±σ or min/max spread per bar.",
     benefits: [
@@ -770,6 +791,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "ECharts",
     realTime: "optional",
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       'Circular proportional chart. Limited to approximately 7 slices; additional values bucketed into "Other." Donut variant embeds a total or summary label in the center. Slice area is proportional to value, making large differences obvious but small differences hard to compare.',
     benefits: [
@@ -817,6 +839,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: "optional",
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Compact bar showing actual value against a target marker, with shaded background bands for qualitative performance levels. One-fifth the screen space of a gauge for the same information — a column of 8–10 bullet charts fits on a single dashboard. Supports horizontal and vertical orientations.",
     benefits: [
@@ -863,6 +886,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Bar chart sorted by frequency/impact (descending) with overlaid cumulative percentage line. Three ranking modes: count, standing time (ISA-18.2 nuisance alarm KPI), and rate. Priority distribution mode checks alarm priority balance against ISA-18.2 targets.",
     benefits: [
@@ -911,6 +935,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Sequential bar chart showing how positive and negative contributions accumulate to a total. Each bar starts where the previous ended. Green bars add to the total, red bars subtract — the final bar is the net result.",
     benefits: [
@@ -960,6 +985,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "ECharts",
     realTime: "optional",
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Flow diagram where link widths are proportional to flow quantity. Shows how a total splits, merges, and routes through a system. At a glance, the widest links are the dominant flows and the thinnest links are the minor ones.",
     benefits: [
@@ -1001,6 +1027,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Nested rectangles where area is proportional to value within a hierarchy. Color encodes a second dimension. The largest, darkest rectangle is your highest-priority problem — visible at a glance.",
     benefits: [
@@ -1042,6 +1069,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "ECharts",
     realTime: "optional",
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Stacked trapezoids of decreasing width representing progressive reduction through sequential stages. Width proportional to value makes drop-off rates between stages immediately visible — a dramatic narrowing between two stages is where the bottleneck or attrition occurs.",
     benefits: [
@@ -1083,6 +1111,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "ECharts",
     realTime: "optional",
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Multi-axis polygon where each axis represents a different attribute. A perfectly balanced polygon means all attributes are equal; a lopsided shape immediately points to the weak attribute.",
     benefits: [
@@ -1126,6 +1155,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "Custom",
     realTime: true,
+    acceptedPointTypes: ["any"],
     description:
       'Single large value display with label, trend indicator (up/down arrow), threshold coloring, and optional embedded sparkline. The "big number" widget for dashboards — readable from across a control room.',
     benefits: [
@@ -1171,6 +1201,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "ECharts",
     realTime: true,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Circular radial gauge showing a single value against a range with colored threshold zones. Maps directly to the physical instrument analogy — operators who came up through the field recognize a gauge face immediately.",
     benefits: [
@@ -1212,6 +1243,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "uPlot",
     realTime: true,
+    acceptedPointTypes: ["any"],
     description:
       'Miniature inline trend chart with no axes, no labels, no interactive features. Answers only one question — "which direction is this going?" — in the smallest possible space.',
     benefits: [
@@ -1245,6 +1277,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "Custom",
     realTime: true,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       'ISA-101 "moving analog indicator" — segmented zone bar with moving pointer. Shows value position relative to operating limits, alarm thresholds, and setpoint in a compact linear format.',
     benefits: [
@@ -1279,6 +1312,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "Custom",
     realTime: true,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Level indicator showing physical capacity as a continuous fill. A 62% value fills 62% of the gauge. Supports vessel overlay mode (fills a custom equipment shape) and standalone bar mode.",
     benefits: [
@@ -1312,6 +1346,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "Custom",
     realTime: true,
+    acceptedPointTypes: ["any"],
     description:
       "ISA-101 priority-coded alarm indicator. Triple redundant coding (shape + color + text) ensures the priority is readable even by colorblind operators. Completely invisible when no alarm is active.",
     benefits: [
@@ -1348,6 +1383,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: "optional",
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Two display modes in one chart type. Matrix mode: X/Y grid where color intensity represents value magnitude at each cell intersection. Calendar mode: full calendar layout — each day colored by its aggregate value. Reveals 2D patterns invisible in trend charts.",
     benefits: [
@@ -1398,6 +1434,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "Custom",
     realTime: true,
+    acceptedPointTypes: ["any"],
     description:
       "Horizontal timeline showing events, alarms, and state changes as colored bars and markers. Multiple rows for different alarm sources. A synchronized crosshair connects the event timeline with adjacent trend charts.",
     benefits: [
@@ -1447,6 +1484,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "TanStack",
     realTime: true,
+    acceptedPointTypes: ["any"],
     description:
       "Full-featured data table with sorting, filtering, conditional formatting, and real-time cell updates. Handles very large datasets without slowing down — suitable for point lists, event logs, and any tabular data that needs precise reading of individual values.",
     benefits: [
@@ -1497,6 +1535,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "initial",
     library: "Custom",
     realTime: true,
+    acceptedPointTypes: ["boolean", "discrete_enum"],
     description:
       "Shows discrete equipment states as colored horizontal bands over time. Multiple equipment items share a synchronized time axis. Distinct from Event Timeline: State Timeline shows the continuous state at every moment, not just when events occur.",
     benefits: [
@@ -1535,6 +1574,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "TanStack",
     realTime: true,
+    acceptedPointTypes: ["analog", "boolean", "discrete_enum"],
     description:
       "Multi-KPI table where each cell is individually color-coded green/yellow/red against configurable thresholds. Rows are time periods or parallel assets. Each column is a KPI point.",
     benefits: [
@@ -1581,6 +1621,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Each process variable is a vertical axis arranged side by side. Each observation — a shift, a day, a batch run — becomes a line connecting all axes at its values. Lines that cross or deviate from the main cluster are the outliers.",
     benefits: [
@@ -1622,6 +1663,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "mid",
     library: "uPlot",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Subgroup SPC chart with two synchronized panels tracking both process centering (X-bar) and process spread (R or S chart). Both must be in control for the process to be considered stable.",
     benefits: [
@@ -1663,6 +1705,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "ECharts",
     realTime: false,
+    acceptedPointTypes: ["boolean", "discrete_enum"],
     description:
       "SPC chart for count and proportion data. Four variants: p-chart (fraction defective, variable sample), np-chart (count defective, fixed sample), c-chart (defect count per unit, fixed sample), u-chart (defects per unit, variable sample). Control limits derived from binomial or Poisson distributions, not the normal distribution.",
     benefits: [
@@ -1706,6 +1749,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     tier: "late",
     library: "Plotly",
     realTime: false,
+    acceptedPointTypes: ["analog"],
     description:
       "Three-dimensional surface or 2D contour projection showing how a response variable (Z) changes across two inputs (X, Y). Interactive 3D rotation, zoom, and pan. The ridge or valley on the surface is your optimal operating region.",
     benefits: [

@@ -1,19 +1,35 @@
 import type { DigitalStatusConfig } from "../../types/graphics";
 import { ALARM_COLORS, DE_COLORS } from "../displayElementColors";
+import type { PointDetail } from "../../../api/points";
+import { resolvePointLabel } from "../../utils/resolvePointLabel";
 
 interface Props {
   config: DigitalStatusConfig;
   rawValue?: string | null;
+  pointMeta?: PointDetail;
   x?: number;
   y?: number;
 }
 
-export function DigitalStatus({ config, rawValue, x = 0, y = 0 }: Props) {
+export function DigitalStatus({ config, rawValue, pointMeta, x = 0, y = 0 }: Props) {
   const { stateLabels, normalStates, abnormalPriority } = config;
 
   const valStr =
     rawValue !== null && rawValue !== undefined ? String(rawValue) : null;
-  const label = valStr !== null ? (stateLabels[valStr] ?? valStr) : "---";
+
+  // For numeric OPC UA discrete/boolean points, resolve via enum_labels first
+  const numericVal = valStr !== null ? Number(valStr) : null;
+  const discreteLabel =
+    pointMeta && numericVal !== null && !Number.isNaN(numericVal)
+      ? resolvePointLabel(numericVal, pointMeta.point_category, pointMeta.enum_labels)
+      : null;
+
+  // stateLabels config takes precedence (designer-configured overrides), then
+  // enum_labels resolution, then raw value string, then placeholder
+  const label =
+    valStr !== null
+      ? (stateLabels[valStr] ?? discreteLabel ?? valStr)
+      : "---";
   const isNormal = valStr === null || normalStates.includes(valStr);
 
   const fill = isNormal

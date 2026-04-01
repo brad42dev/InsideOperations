@@ -13,6 +13,7 @@ import {
   autoColorForTheme,
   makeSlotId,
 } from "./chart-config-types";
+import type { PointTypeCategory } from "./chart-definitions";
 import { useThemeName } from "../../theme/ThemeContext";
 
 interface ChartPointSelectorProps {
@@ -21,6 +22,8 @@ interface ChartPointSelectorProps {
   /** No longer required — component fetches its own list server-side. */
   allPoints?: PointMeta[];
   onChange: (points: ChartPointSlot[]) => void;
+  /** When set, dims points whose point_category is incompatible */
+  acceptedPointTypes?: PointTypeCategory[];
 }
 
 function ColorSwatch({
@@ -57,10 +60,19 @@ function ColorSwatch({
   );
 }
 
+function isPointCompatible(point: PointMeta, acceptedPointTypes?: PointTypeCategory[]): boolean {
+  if (!acceptedPointTypes || acceptedPointTypes.length === 0) return true;
+  if (acceptedPointTypes.includes("any")) return true;
+  // If point_category is unknown (migration not yet run), allow all
+  if (!point.point_category) return true;
+  return acceptedPointTypes.includes(point.point_category as PointTypeCategory);
+}
+
 export default function ChartPointSelector({
   slotDefs,
   points,
   onChange,
+  acceptedPointTypes,
 }: ChartPointSelectorProps) {
   const theme = useThemeName();
   const [search, setSearch] = useState("");
@@ -298,7 +310,9 @@ export default function ChartPointSelector({
               {isSearching ? "Searching…" : search ? "No matches" : "Loading…"}
             </div>
           )}
-          {filtered.map((pt) => (
+          {filtered.map((pt) => {
+            const compatible = isPointCompatible(pt, acceptedPointTypes);
+            return (
             <div
               key={pt.id}
               draggable
@@ -314,7 +328,9 @@ export default function ChartPointSelector({
                 if (target) assignPoint(target.id, pt.id);
               }}
               title={
-                pt.display_name
+                !compatible
+                  ? `${pt.tagname} — incompatible with this chart type`
+                  : pt.display_name
                   ? `${pt.tagname}\n${pt.display_name}`
                   : pt.tagname
               }
@@ -325,6 +341,7 @@ export default function ChartPointSelector({
                 borderBottom: "1px solid var(--io-border)",
                 color: "var(--io-text-primary)",
                 userSelect: "none",
+                opacity: compatible ? 1 : 0.35,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "var(--io-surface-hover)";
@@ -333,15 +350,37 @@ export default function ChartPointSelector({
                 e.currentTarget.style.background = "";
               }}
             >
-              <div
-                style={{
-                  fontWeight: 500,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {pt.tagname}
+              <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontWeight: 500,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  {pt.tagname}
+                </div>
+                {acceptedPointTypes && !acceptedPointTypes.includes("any") && compatible && pt.point_category !== "analog" && (
+                  <span
+                    style={{
+                      fontSize: "0.7em",
+                      fontWeight: 600,
+                      letterSpacing: "0.04em",
+                      padding: "1px 5px",
+                      borderRadius: 3,
+                      flexShrink: 0,
+                      background: pt.point_category === "boolean"
+                        ? "color-mix(in srgb, #10B981 20%, transparent)"
+                        : "color-mix(in srgb, #8B5CF6 20%, transparent)",
+                      color: pt.point_category === "boolean" ? "#10B981" : "#8B5CF6",
+                    }}
+                  >
+                    {pt.point_category === "boolean" ? "BOOL" : "ENUM"}
+                  </span>
+                )}
               </div>
               {pt.display_name && (
                 <div
@@ -357,7 +396,7 @@ export default function ChartPointSelector({
                 </div>
               )}
             </div>
-          ))}
+          )})}
           {/* Sentinel: triggers next-page fetch when scrolled into view */}
           <div
             ref={sentinelRef}

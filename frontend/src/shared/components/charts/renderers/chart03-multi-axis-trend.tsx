@@ -9,7 +9,7 @@ import { useRef, useState } from "react";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import { type ChartConfig, autoColor, makeSlotLabeler, resolveSeriesScales } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 
 interface RendererProps {
@@ -51,6 +51,11 @@ export default function Chart03MultiAxisTrend({
     color: slot.color ?? autoColor(i),
     strokeWidth: 1.5,
   }));
+
+  const seriesScales = resolveSeriesScales(
+    config.scaling,
+    seriesSlots.map((s) => s.slotId),
+  );
 
   const legendItems: LegendItem[] = seriesSlots.map((slot, i) => ({
     label: slotLabel(slot),
@@ -167,11 +172,12 @@ export default function Chart03MultiAxisTrend({
               xRange={xRangeRef.current}
               highlighted={highlighted}
               onSeriesClick={toggle}
+              seriesScales={seriesScales}
             />
           </div>
         )}
 
-        {/* Stacked view — one chart per series */}
+        {/* Stacked view — one chart per series (each series on its own scale) */}
         {pointIds.length > 0 && viewMode === "stacked" && (
           <div
             style={{
@@ -182,7 +188,7 @@ export default function Chart03MultiAxisTrend({
               overflow: "hidden",
             }}
           >
-            {allSeries.map((s) => (
+            {allSeries.map((s, i) => (
               <div
                 key={s.label}
                 style={{
@@ -217,6 +223,7 @@ export default function Chart03MultiAxisTrend({
                   xRange={xRangeRef.current}
                   highlighted={highlighted}
                   onSeriesClick={toggle}
+                  seriesScales={seriesScales[i] ? [seriesScales[i]] : undefined}
                 />
               </div>
             ))}

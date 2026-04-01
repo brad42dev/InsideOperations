@@ -54,6 +54,7 @@ export interface PointMeta {
   eu_range_low: number | null;
   /** OPC UA AnalogItemType.EURange.high — engineering maximum (from OPC UA metadata crawl) */
   eu_range_high: number | null;
+  point_category: "analog" | "boolean" | "discrete_enum";
 }
 
 export interface HistoryRow {
@@ -78,6 +79,12 @@ export interface HistoryResult {
 // New types for point detail panel / shared UI components
 // ---------------------------------------------------------------------------
 
+/** A single enum label entry for a discrete point */
+export interface EnumLabel {
+  idx: number;
+  label: string;
+}
+
 /** Rich point metadata returned by GET /api/points/:id */
 export interface PointDetail {
   id: string;
@@ -87,6 +94,10 @@ export interface PointDetail {
   data_type: string;
   source_id: string;
   source_name: string;
+  eu_range_low: number | null;
+  eu_range_high: number | null;
+  point_category: "analog" | "boolean" | "discrete_enum";
+  enum_labels: EnumLabel[];
 }
 
 /**

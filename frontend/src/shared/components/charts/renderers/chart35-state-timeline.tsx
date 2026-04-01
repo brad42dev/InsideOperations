@@ -7,9 +7,10 @@
 
 import { useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { type ChartConfig } from "../chart-config-types";
+import { type ChartConfig, makeSlotLabeler } from "../chart-config-types";
 import { usePlaybackStore } from "../../../../store/playback";
 import { pointsApi } from "../../../../api/points";
+import { usePointMeta } from "../../../../shared/hooks/usePointMeta";
 
 interface RendererProps {
   config: ChartConfig;
@@ -73,6 +74,7 @@ function resolveToken(token: string): string {
 export default function StateTimelineChart({ config }: RendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const slotLabel = makeSlotLabeler(config);
 
   const itemSlots = config.points.filter((p) => p.role === "item");
   const durationMinutes = config.durationMinutes ?? 60;
@@ -99,17 +101,21 @@ export default function StateTimelineChart({ config }: RendererProps) {
   const isHistorical = playbackMode === "historical";
 
   // Truncate live timestamps to nearest minute for stable query keys (prevents refetch on every render)
+  // Round both ends to the minute so the query key is stable between renders
   const windowEndMs = isHistorical
     ? new Date(timeRange.end).getTime()
-    : Date.now();
+    : Math.floor(Date.now() / 60_000) * 60_000;
   const windowStartMs = isHistorical
     ? new Date(timeRange.start).getTime()
-    : Math.floor((windowEndMs - durationMinutes * 60_000) / 60_000) * 60_000;
+    : windowEndMs - durationMinutes * 60_000;
 
   const end = new Date(windowEndMs).toISOString();
   const start = new Date(windowStartMs).toISOString();
 
   const pointIds = itemSlots.map((s) => s.pointId);
+
+  // Per-point enum labels from DB (each point can have different label mappings)
+  const pointMetaMap = usePointMeta(pointIds);
 
   const { data: historyBatch, isLoading } = useQuery({
     queryKey: ["history-batch", ...pointIds, start, end, "state-timeline"],
@@ -126,17 +132,24 @@ export default function StateTimelineChart({ config }: RendererProps) {
     return itemSlots.map((slot) => {
       const batch = historyBatch.find((r) => r.point_id === slot.pointId);
       const rows: HistoryRow[] = batch?.rows ?? [];
+      // Build per-point label map from DB enum_labels (idx → label)
+      const meta = pointMetaMap.get(slot.pointId);
+      const enumLabels = new Map<number, string>(
+        (meta?.enum_labels ?? []).map((e) => [e.idx, e.label]),
+      );
       return {
         slotId: slot.slotId,
         pointId: slot.pointId,
+        label: slotLabel(slot),
         segments: buildSegments(rows, windowEndMs),
+        enumLabels,
         currentValue:
           rows.length > 0
             ? String(Math.round(rows[rows.length - 1].value ?? 0))
             : null,
       };
     });
-  }, [historyBatch, itemSlots, windowEndMs]);
+  }, [historyBatch, itemSlots, windowEndMs, pointMetaMap]);
 
   const LABEL_WIDTH = 120;
   const AXIS_HEIGHT = 24;
@@ -150,6 +163,8 @@ export default function StateTimelineChart({ config }: RendererProps) {
     const H = rowSegments.length * rowHeight + AXIS_HEIGHT;
     canvas.width = W;
     canvas.height = H;
+    // Keep CSS height in sync with canvas pixel height to prevent stretching
+    canvas.style.height = `${H}px`;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -194,14 +209,13 @@ export default function StateTimelineChart({ config }: RendererProps) {
       const y = rowIdx * rowHeight;
       const rowMidY = y + rowHeight / 2;
 
-      // Row label
+      // Row label — use slot label (tagname), truncate to fit LABEL_WIDTH
       ctx.fillStyle = textPrimary;
       ctx.font = "11px system-ui, sans-serif";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      const shortId =
-        row.pointId.length > 16 ? row.pointId.slice(-16) : row.pointId;
-      ctx.fillText(shortId, LABEL_WIDTH - 6, rowMidY);
+      const rowLabel = row.label || row.pointId.slice(-12);
+      ctx.fillText(rowLabel, LABEL_WIDTH - 6, rowMidY);
 
       // Row separator
       ctx.strokeStyle = border;
@@ -234,7 +248,11 @@ export default function StateTimelineChart({ config }: RendererProps) {
         // Label inside segment if wide enough
         const segWidth = clampedEnd - clampedStart;
         if (segWidth > 40) {
-          const label = stateLabels[seg.value] ?? seg.value;
+          const segNum = parseInt(seg.value);
+          const label =
+            row.enumLabels.get(segNum) ??
+            stateLabels[seg.value] ??
+            seg.value;
           ctx.fillStyle = "rgba(255,255,255,0.9)";
           ctx.font = "10px system-ui, sans-serif";
           ctx.textAlign = "center";
@@ -245,7 +263,11 @@ export default function StateTimelineChart({ config }: RendererProps) {
 
       // Current value label on right edge
       if (showCurrentValue && row.currentValue !== null) {
-        const label = stateLabels[row.currentValue] ?? row.currentValue;
+        const curNum = parseInt(row.currentValue);
+        const label =
+          row.enumLabels.get(curNum) ??
+          stateLabels[row.currentValue] ??
+          row.currentValue;
         const color = stateColors[row.currentValue] ?? "#6B7280";
         ctx.fillStyle = color;
         ctx.font = "bold 11px system-ui, sans-serif";
@@ -254,15 +276,8 @@ export default function StateTimelineChart({ config }: RendererProps) {
         ctx.fillText(label, chartRight + 6, rowMidY);
       }
     });
-  }, [
-    rowSegments,
-    rowHeight,
-    stateColors,
-    stateLabels,
-    showCurrentValue,
-    windowStartMs,
-    windowEndMs,
-  ]);
+  // rowSegments already contains enumLabels per row; no extra dep needed
+  }, [rowSegments, rowHeight, stateColors, stateLabels, showCurrentValue, windowStartMs, windowEndMs]);
 
   if (itemSlots.length === 0) {
     return (

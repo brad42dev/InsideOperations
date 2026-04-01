@@ -124,17 +124,25 @@ export interface SlotDefinition {
   maxPoints?: number;
 }
 
-export type AxisScaleMode = "auto" | "range" | "custom";
+export type AxisScaleMode = "auto" | "range" | "custom" | "same_as_above";
 
 export interface PerSeriesScale {
   mode: AxisScaleMode;
   /** Used when mode === 'custom' */
   min?: number;
   max?: number;
+  /** Whether this series shows its own axis label on the chart */
+  axisLabelVisible?: boolean;
 }
 
 export interface ChartScaling {
   type: "auto" | "fixed" | "multiscale";
+  /**
+   * Sub-mode for auto scaling.
+   * 'largest_visible' — fit the data currently in the chart window.
+   * 'largest_eu_range' — fit the full engineering unit range from the OPC server.
+   */
+  autoMode?: "largest_visible" | "largest_eu_range";
   /** Fixed Y-axis minimum */
   yMin?: number;
   /** Fixed Y-axis maximum */
@@ -145,6 +153,8 @@ export interface ChartScaling {
   xMax?: number;
   /** Per-series scaling — keyed by slotId, only used when type === 'multiscale' */
   perSeries?: Record<string, PerSeriesScale>;
+  /** User-defined display order of series in the multi-scale table (array of slotIds) */
+  seriesOrder?: string[];
 }
 
 export interface ChartLegend {
@@ -361,4 +371,73 @@ export function makeSlotId(
 ): string {
   const sameRole = existingSlots.filter((s) => s.role === role);
   return `${role}-${sameRole.length}`;
+}
+
+// ---------------------------------------------------------------------------
+// Scaling resolution helpers (used by chart renderers)
+// ---------------------------------------------------------------------------
+
+export interface ResolvedSeriesScale {
+  /** uPlot scale key — series sharing the same key share a y axis. */
+  scaleKey: string;
+  /** Fixed range for this scale. Undefined = auto-range. */
+  range?: [number, number];
+}
+
+/**
+ * Resolves per-series scale assignments from a ChartScaling config.
+ * Returns one entry per slotId in the same order as the input array.
+ * Handles "same_as_above" chains using seriesOrder (or slotIds order as fallback).
+ */
+export function resolveSeriesScales(
+  scaling: ChartScaling | undefined,
+  slotIds: string[],
+): ResolvedSeriesScale[] {
+  // Fixed mode: all series share the global y scale with a fixed range.
+  if (scaling?.type === "fixed") {
+    const range: [number, number] | undefined =
+      scaling.yMin != null && scaling.yMax != null
+        ? [scaling.yMin, scaling.yMax]
+        : undefined;
+    return slotIds.map(() => ({ scaleKey: "y", range }));
+  }
+
+  // Auto or unset: no overrides.
+  if (!scaling || scaling.type !== "multiscale" || !scaling.perSeries) {
+    return slotIds.map(() => ({ scaleKey: "y" }));
+  }
+
+  // Multiscale: resolve same_as_above chains using seriesOrder.
+  const orderedIds =
+    scaling.seriesOrder && scaling.seriesOrder.length > 0
+      ? scaling.seriesOrder
+      : slotIds;
+
+  const resolvedBySlotId = new Map<string, ResolvedSeriesScale>();
+
+  for (let i = 0; i < orderedIds.length; i++) {
+    const slotId = orderedIds[i];
+    const ps = scaling.perSeries[slotId];
+
+    if (!ps || ps.mode === "auto") {
+      resolvedBySlotId.set(slotId, { scaleKey: `y-${slotId}` });
+    } else if (ps.mode === "custom") {
+      const range: [number, number] | undefined =
+        ps.min != null && ps.max != null ? [ps.min, ps.max] : undefined;
+      resolvedBySlotId.set(slotId, { scaleKey: `y-${slotId}`, range });
+    } else if (ps.mode === "same_as_above") {
+      // Walk back to find the nearest resolved ancestor.
+      let ancestor: ResolvedSeriesScale | undefined;
+      for (let j = i - 1; j >= 0; j--) {
+        const a = resolvedBySlotId.get(orderedIds[j]);
+        if (a) { ancestor = a; break; }
+      }
+      resolvedBySlotId.set(slotId, ancestor ?? { scaleKey: `y-${slotId}` });
+    } else {
+      // "range" (EU range) — fall back to auto until point metadata is available.
+      resolvedBySlotId.set(slotId, { scaleKey: `y-${slotId}` });
+    }
+  }
+
+  return slotIds.map((id) => resolvedBySlotId.get(id) ?? { scaleKey: "y" });
 }
