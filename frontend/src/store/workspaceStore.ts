@@ -88,12 +88,14 @@ function layoutPaneCount(layout: LayoutPreset): number {
 export function makeNewWorkspace(
   name: string,
   layout: LayoutPreset = "2x2",
+  description?: string,
 ): WorkspaceLayout {
   return {
     id: uuidv4(),
     name,
     layout,
     panes: makeBlankPanes(layoutPaneCount(layout)),
+    ...(description ? { description } : {}),
   };
 }
 

@@ -20,6 +20,8 @@ export interface PaneConfig {
   trendDuration?: number; // minutes, default 60
   /** Full chart configuration — replaces trendPointIds/trendDuration when present */
   chartConfig?: ChartConfig;
+  /** When true, TrendPane opens Configure Chart on mount (set when dropped from palette). Cleared after first render. */
+  promptConfig?: boolean;
   // point_table pane
   tablePointIds?: string[];
   // alarm_list pane
@@ -81,6 +83,8 @@ export interface WorkspaceLayout {
   published?: boolean;
   /** ID of the user who owns this workspace */
   owner_id?: string;
+  /** Optional user-provided description */
+  description?: string;
 }
 
 export interface ConsoleState {

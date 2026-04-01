@@ -239,7 +239,7 @@ export default function PaneWrapper({
 
   const isSwapSource = swapModeSourceId === config.id;
   const isSwapTarget =
-    swapModeSourceId !== null && swapModeSourceId !== config.id;
+    swapModeSourceId != null && swapModeSourceId !== config.id;
 
   function handlePaneClick(e: React.MouseEvent) {
     // If swap mode is active and this is a valid target, complete the swap
@@ -703,7 +703,7 @@ export default function PaneWrapper({
                       window.open(
                         `/detached/console/${workspaceId}`,
                         "_blank",
-                        "noopener,noreferrer",
+                        "noopener,noreferrer,width=1400,height=900",
                       );
                     },
                   },

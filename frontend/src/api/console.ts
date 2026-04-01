@@ -13,12 +13,14 @@ import type {
 interface WorkspaceSummary {
   id: string;
   name: string;
+  owner_id?: string;
   metadata?: {
     layout?: LayoutPreset;
     panes?: PaneConfig[];
     gridItems?: GridItem[];
     overflowPanes?: PaneConfig[];
     published?: boolean;
+    description?: string;
   } | null;
   created_at?: string;
 }
@@ -40,6 +42,8 @@ function normalizeWorkspace(raw: WorkspaceSummary): WorkspaceLayout {
       ? meta.overflowPanes
       : undefined,
     published: meta.published ?? false,
+    owner_id: raw.owner_id,
+    description: meta.description,
   };
 }
 
@@ -73,6 +77,7 @@ export const consoleApi = {
         gridItems: ws.gridItems,
         overflowPanes: ws.overflowPanes,
         published: ws.published,
+        description: ws.description,
       },
       id: ws.id,
     };

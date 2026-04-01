@@ -19,6 +19,7 @@ import {
   type ChartContext,
   type PointTypeCategory,
 } from "./chart-definitions";
+import SaveChartModal from "./SaveChartModal";
 
 interface ChartConfigPanelProps {
   /** Initial config to populate the panel from */
@@ -27,6 +28,10 @@ interface ChartConfigPanelProps {
   onClose: () => void;
   /** Restricts chart type picker to types available in this context. */
   context?: ChartContext;
+  /** Called when the user saves the chart via Save As or Publish. */
+  onSaveChart?: (config: ChartConfig, name: string, description: string, publish: boolean) => void;
+  /** Whether the current user can publish charts. */
+  canPublish?: boolean;
 }
 
 type Tab = "type" | "points" | "scaling" | "options";
@@ -43,12 +48,15 @@ export default function ChartConfigPanel({
   onSave,
   onClose,
   context,
+  onSaveChart,
+  canPublish,
 }: ChartConfigPanelProps) {
   const [config, setConfig] = useState<ChartConfig>(() => ({
     durationMinutes: 60,
     ...initialConfig,
   }));
   const [tab, setTab] = useState<Tab>("type");
+  const [saveModal, setSaveModal] = useState<{ publish: boolean } | null>(null);
 
   // Fetch real point metadata (including eu_range_low/eu_range_high) for all
   // configured points. Only needed for the Scaling tab, but cheap enough to
@@ -414,7 +422,41 @@ export default function ChartConfigPanel({
             })}
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {onSaveChart && (
+              <button
+                onClick={() => setSaveModal({ publish: false })}
+                title="Save this chart configuration for reuse"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
+                  color: "var(--io-text-muted)",
+                  borderRadius: 6,
+                  padding: "7px 14px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                Save As…
+              </button>
+            )}
+            {onSaveChart && canPublish && (
+              <button
+                onClick={() => setSaveModal({ publish: true })}
+                title="Save and publish this chart to all users"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--io-border)",
+                  color: "var(--io-text-muted)",
+                  borderRadius: 6,
+                  padding: "7px 14px",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                Publish…
+              </button>
+            )}
             <button
               onClick={onClose}
               style={{
@@ -441,16 +483,22 @@ export default function ChartConfigPanel({
                 fontWeight: 600,
                 cursor: "pointer",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = "0.9";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = "1";
-              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
             >
               Apply
             </button>
           </div>
+          {saveModal && onSaveChart && (
+            <SaveChartModal
+              publish={saveModal.publish}
+              onConfirm={(name, description) => {
+                onSaveChart(config, name, description, saveModal.publish);
+                setSaveModal(null);
+              }}
+              onCancel={() => setSaveModal(null)}
+            />
+          )}
         </div>
       </div>
     </div>,

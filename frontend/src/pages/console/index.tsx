@@ -26,6 +26,7 @@ import { ExportDialog } from "../../shared/components/ExportDialog";
 import { exportsApi, type ExportFormat } from "../../api/exports";
 import { showToast } from "../../shared/components/Toast";
 import { useConsoleWorkspaceFavorites } from "../../shared/hooks/useConsoleWorkspaceFavorites";
+import { useConsolePanelResize } from "../../shared/hooks/useConsolePanelResize";
 
 // ---------------------------------------------------------------------------
 // ConsoleStatusBar
@@ -121,6 +122,26 @@ function ConsoleStatusBar({ workspaceName }: { workspaceName: string }) {
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "io-console-workspaces";
+const DRAFT_PREFIX = "io-console-ws-draft-";
+
+function saveDraftLocal(ws: WorkspaceLayout): void {
+  try {
+    localStorage.setItem(DRAFT_PREFIX + ws.id, JSON.stringify(ws));
+  } catch { /* ignore quota errors */ }
+}
+
+function loadDraftLocal(id: string): WorkspaceLayout | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_PREFIX + id);
+    return raw ? (JSON.parse(raw) as WorkspaceLayout) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraftLocal(id: string): void {
+  try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* ignore */ }
+}
 
 function loadWorkspacesLocal(): WorkspaceLayout[] {
   try {
@@ -182,6 +203,8 @@ export default function ConsolePage() {
   const { isAuthenticated, user } = useAuthStore();
   const canPublish =
     user?.permissions.includes("console:workspace_publish") ?? false;
+  const canWrite =
+    user?.permissions.includes("console:write") ?? false;
 
   // ---- Kiosk mode -----------------------------------------------------------
 
@@ -227,9 +250,34 @@ export default function ConsolePage() {
     removePane,
     swapPanes,
     clearPanes,
+    setWorkspace,
   } = useWorkspaceStore();
 
   const temporal = useWorkspaceTemporal();
+
+  // Which workspace IDs are currently open as tabs (subset of all workspaces)
+  const [openTabIds, setOpenTabIds] = useState<string[]>([]);
+  // Server-saved snapshots per workspace — used for dirty detection and revert
+  const serverSnapshotsRef = useRef<Record<string, string>>({});
+  // Workspace name modal (create / rename)
+  const [nameModal, setNameModal] = useState<{
+    mode: "create" | "rename";
+    workspaceId?: string;
+    initialName: string;
+    initialDescription?: string;
+  } | null>(null);
+  // Close-tab confirmation dialog (shown when closing with unsaved changes)
+  const [closeDialog, setCloseDialog] = useState<{
+    workspaceId: string;
+    workspaceName: string;
+  } | null>(null);
+  // Delete confirmation dialog
+  const [deleteDialog, setDeleteDialog] = useState<{
+    workspaceId: string;
+    workspaceName: string;
+  } | null>(null);
+  // After save-and-close, close this workspace once the save mutation resolves
+  const pendingCloseAfterSaveRef = useRef<string | null>(null);
 
   const { toggleFavorite, isFavorite } = useConsoleWorkspaceFavorites();
 
@@ -265,25 +313,27 @@ export default function ConsolePage() {
   // Sync API workspaces → WorkspaceStore when they load
   useEffect(() => {
     if (useApi && apiWorkspaces) {
-      setWorkspaces(apiWorkspaces);
+      // Seed per-workspace server snapshots and apply any localStorage drafts
+      const resolvedWorkspaces = apiWorkspaces.map((ws) => {
+        serverSnapshotsRef.current[ws.id] = JSON.stringify(ws);
+        const draft = loadDraftLocal(ws.id);
+        return draft ?? ws;
+      });
+      setWorkspaces(resolvedWorkspaces);
+      setOpenTabIds(resolvedWorkspaces.map((w) => w.id));
       const newActiveId =
-        apiWorkspaces.length > 0 &&
-        (activeId === null || !apiWorkspaces.find((w) => w.id === activeId))
-          ? apiWorkspaces[0].id
+        resolvedWorkspaces.length > 0 &&
+        (activeId === null || !resolvedWorkspaces.find((w) => w.id === activeId))
+          ? resolvedWorkspaces[0].id
           : activeId;
-      if (newActiveId !== activeId) {
-        setActiveId(newActiveId);
-      }
-      // Seed the saved snapshot from the freshly loaded server data so the
-      // dirty detector starts in a clean state after load.
+      if (newActiveId !== activeId) setActiveId(newActiveId);
       const targetId = newActiveId ?? activeId;
-      const activeWs = apiWorkspaces.find((w) => w.id === targetId);
+      const activeWs = resolvedWorkspaces.find((w) => w.id === targetId);
       if (activeWs) {
-        lastSavedSnapshotRef.current = JSON.stringify(activeWs);
-        setIsDirty(false);
+        lastSavedSnapshotRef.current = serverSnapshotsRef.current[activeWs.id] ?? JSON.stringify(activeWs);
       }
     }
-  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]);
+  }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync localStorage workspaces → WorkspaceStore when not using API
   const [localWorkspacesLoaded, setLocalWorkspacesLoaded] = useState(false);
@@ -291,15 +341,14 @@ export default function ConsolePage() {
     if (!useApi && !localWorkspacesLoaded) {
       const local = loadWorkspacesLocal();
       setWorkspaces(local);
+      setOpenTabIds(local.map((w) => w.id));
       if (local.length > 0) {
         setActiveId(local[0].id);
-        // Seed the saved snapshot from localStorage so we start clean.
         lastSavedSnapshotRef.current = JSON.stringify(local[0]);
-        setIsDirty(false);
       }
       setLocalWorkspacesLoaded(true);
     }
-  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId]);
+  }, [useApi, localWorkspacesLoaded, setWorkspaces, setActiveId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- API mutations --------------------------------------------------------
 
@@ -393,16 +442,20 @@ export default function ConsolePage() {
       }
       saveFailCountRef.current = 0;
       setShowSaveBanner(false);
-      // Update the saved snapshot so the subscription-based dirty detector
-      // knows this workspace is now clean.  Only update the snapshot for the
-      // workspace that was just saved — not for a different active workspace.
+      // Update server snapshot and clear draft for the saved workspace
+      serverSnapshotsRef.current[ws.id] = JSON.stringify(ws);
+      clearDraftLocal(ws.id);
       if (ws.id === useWorkspaceStore.getState().activeId) {
         lastSavedSnapshotRef.current = JSON.stringify(ws);
       }
-      setIsDirty(false);
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
         retryTimerRef.current = null;
+      }
+      // If user saved-and-closed, close the tab now
+      if (pendingCloseAfterSaveRef.current === ws.id) {
+        pendingCloseAfterSaveRef.current = null;
+        setOpenTabIds((prev) => prev.filter((id) => id !== ws.id));
       }
       void queryClient.invalidateQueries({ queryKey: ["console-workspaces"] });
     },
@@ -519,24 +572,30 @@ export default function ConsolePage() {
         // localStorage saves are synchronous — update snapshot immediately so the
         // dirty indicator clears right away (no async success callback on this path).
         lastSavedSnapshotRef.current = JSON.stringify(ws);
-        setIsDirty(false);
       }
     },
     [useApi, saveMutation],
   );
 
-  // ---- Debounced auto-save (2s after last layout change) -----------------
+  // ---- Debounced draft save (2s after last layout change → localStorage only) --
+  // Changes are stored locally for session recovery. The server is only written
+  // when the user explicitly clicks Save (handleExplicitSave).
 
   const scheduleSave = useCallback(
     (ws: WorkspaceLayout) => {
-      setIsDirty(true);
       if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
       saveDebounceRef.current = setTimeout(() => {
-        persistWorkspace(ws);
+        // Draft-only: keep local copy for crash/refresh recovery
+        if (useApi) {
+          saveDraftLocal(ws);
+        } else {
+          // Non-API path: still persist to localStorage as the source of truth
+          persistWorkspace(ws);
+        }
         saveDebounceRef.current = null;
       }, 2000);
     },
-    [persistWorkspace],
+    [useApi, persistWorkspace],
   );
 
   // Clear debounce on unmount to avoid stale saves
@@ -545,6 +604,105 @@ export default function ConsolePage() {
       if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
     };
   }, []);
+
+  // ---- RBAC helpers ----------------------------------------------------------
+
+  const canSaveWorkspace = useCallback(
+    (ws: WorkspaceLayout) => {
+      if (!ws.published) return canWrite;
+      // Published workspace: only the owner or an admin (canPublish) can overwrite
+      return ws.owner_id === user?.id || canPublish;
+    },
+    [canWrite, canPublish, user?.id],
+  );
+
+  const canSaveAsPersonal = useCallback(
+    (ws: WorkspaceLayout) => ws.published && !canSaveWorkspace(ws) && canWrite,
+    [canSaveWorkspace, canWrite],
+  );
+
+  // ---- Explicit save ---------------------------------------------------------
+
+  const handleExplicitSave = useCallback(() => {
+    const ws = useWorkspaceStore
+      .getState()
+      .workspaces.find((w) => w.id === activeId);
+    if (!ws) return;
+    persistWorkspace(ws);
+  }, [activeId, persistWorkspace]);
+
+  const handleSaveAsPersonal = useCallback(() => {
+    const ws = useWorkspaceStore
+      .getState()
+      .workspaces.find((w) => w.id === activeId);
+    if (!ws) return;
+    const copy: WorkspaceLayout = {
+      ...ws,
+      id: uuidv4(),
+      published: false,
+      owner_id: user?.id,
+    };
+    const current = useWorkspaceStore.getState().workspaces;
+    setWorkspaces([...current, copy]);
+    setOpenTabIds((prev) => [...prev.filter((id) => id !== ws.id), copy.id]);
+    setActiveId(copy.id);
+    persistWorkspace(copy);
+  }, [activeId, user?.id, setWorkspaces, setActiveId, persistWorkspace]);
+
+  // ---- Close tab logic -------------------------------------------------------
+
+  const doCloseWorkspace = useCallback(
+    (wsId: string) => {
+      clearDraftLocal(wsId);
+      setOpenTabIds((prev) => {
+        const next = prev.filter((id) => id !== wsId);
+        if (activeId === wsId) setActiveId(next[0] ?? null);
+        return next;
+      });
+    },
+    [activeId, setActiveId],
+  );
+
+  const handleCloseWorkspace = useCallback(
+    (wsId: string) => {
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === wsId);
+      if (!ws) return;
+      const snap = serverSnapshotsRef.current[wsId];
+      const dirty = snap ? JSON.stringify(ws) !== snap : false;
+      if (dirty) {
+        setCloseDialog({ workspaceId: wsId, workspaceName: ws.name });
+      } else {
+        doCloseWorkspace(wsId);
+      }
+    },
+    [doCloseWorkspace],
+  );
+
+  const handleSaveAndClose = useCallback(
+    (wsId: string) => {
+      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === wsId);
+      if (!ws) return;
+      pendingCloseAfterSaveRef.current = wsId;
+      persistWorkspace(ws);
+      setCloseDialog(null);
+    },
+    [persistWorkspace],
+  );
+
+  const handleDiscardAndClose = useCallback(
+    (wsId: string) => {
+      // Revert the workspace in the store to its last server-saved state
+      const snap = serverSnapshotsRef.current[wsId];
+      if (snap) {
+        try {
+          setWorkspace(JSON.parse(snap) as WorkspaceLayout);
+        } catch { /* ignore */ }
+      }
+      setCloseDialog(null);
+      doCloseWorkspace(wsId);
+    },
+    [setWorkspace, doCloseWorkspace],
+  );
 
   // ---- Undo / Redo (via zundo temporal store) ----------------------------
 
@@ -578,45 +736,10 @@ export default function ConsolePage() {
 
   const saveFailCountRef = useRef(0);
   const [showSaveBanner, setShowSaveBanner] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ---- Dirty detection via store subscription ----------------------------
-  //
-  // Rather than relying solely on event-handler callbacks to call setIsDirty,
-  // we track a JSON snapshot of the last-saved workspace state and subscribe
-  // to the Zustand workspace store.  Any change to the active workspace (from
-  // any code path including programmatic Zustand mutations or direct DOM
-  // manipulation via test tooling) will be detected within one render cycle.
-  //
-  // The snapshot is updated when:
-  //   • the API save mutation succeeds (onSuccess)
-  //   • the localStorage synchronous save completes (persistWorkspace)
-  //   • the active workspace changes (reset to the new workspace's current state)
   const lastSavedSnapshotRef = useRef<string | null>(null);
-
-  // Subscribe to workspace store: recompute isDirty whenever the active
-  // workspace content changes compared to the last-saved snapshot.
-  // This catches programmatic store mutations (e.g. from test tooling or
-  // Zustand actions that bypass the UI onChange handlers).
-  useEffect(() => {
-    const unsub = useWorkspaceStore.subscribe((state) => {
-      const ws = state.workspaces.find((w) => w.id === state.activeId);
-      if (!ws) {
-        setIsDirty(false);
-        return;
-      }
-      const snap = lastSavedSnapshotRef.current;
-      if (snap === null) {
-        // No saved snapshot yet — treat as clean (happens on initial load)
-        return;
-      }
-      const current = JSON.stringify(ws);
-      setIsDirty(current !== snap);
-    });
-    return unsub;
-  }, []);
 
   // When the active workspace changes, reset the saved snapshot so the new
   // workspace starts in a clean state.  Also clear any pending debounce so
@@ -630,7 +753,6 @@ export default function ConsolePage() {
       .getState()
       .workspaces.find((w) => w.id === activeId);
     lastSavedSnapshotRef.current = ws ? JSON.stringify(ws) : null;
-    setIsDirty(false);
   }, [activeId]);
 
   // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
@@ -645,6 +767,11 @@ export default function ConsolePage() {
   const pendingRenameIdsRef = useRef<Set<string>>(new Set());
 
   const [paletteVisible, setPaletteVisible] = useState(true);
+  const {
+    panelWidth,
+    onResizeHandleMouseDown: onPanelResizeMouseDown,
+    isResizing: isPanelResizing,
+  } = useConsolePanelResize();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [configuringPaneId, setConfiguringPaneId] = useState<string | null>(
     null,
@@ -693,17 +820,25 @@ export default function ConsolePage() {
   // ---- Workspace management -----------------------------------------------
 
   const createWorkspace = () => {
-    const name = `Workspace ${workspaces.length + 1}`;
-    const ws = makeNewWorkspace(name);
-    // Add to store
-    updateWorkspace(ws.id, () => ws); // won't find it — use setWorkspaces approach
+    setNameModal({
+      mode: "create",
+      initialName: `Workspace ${workspaces.length + 1}`,
+      initialDescription: "",
+    });
+  };
+
+  const confirmCreateWorkspace = (name: string, description?: string) => {
+    setNameModal(null);
+    const ws = makeNewWorkspace(
+      name.trim() || `Workspace ${workspaces.length + 1}`,
+      "2x2",
+      description?.trim() || undefined,
+    );
     const currentWorkspaces = useWorkspaceStore.getState().workspaces;
     setWorkspaces([...currentWorkspaces, ws]);
+    setOpenTabIds((prev) => [...prev, ws.id]);
     setActiveId(ws.id);
     setEditMode(true);
-    // Mark as a new creation so saveMutation (API path) or saveEdit (local path)
-    // can show a toast on success. Always track, regardless of useApi, so the
-    // local-storage path also shows a success toast when Done is clicked.
     pendingCreateIdsRef.current.add(ws.id);
     persistWorkspace(ws);
     if (useApi) {
@@ -714,16 +849,23 @@ export default function ConsolePage() {
     }
   };
 
-  const deleteActiveWorkspace = () => {
-    if (!activeId) return;
-    const nextWorkspaces = workspaces.filter((w) => w.id !== activeId);
+  const confirmDeleteWorkspace = useCallback((id: string) => {
+    setDeleteDialog(null);
+    const nextWorkspaces = workspaces.filter((w) => w.id !== id);
     setWorkspaces(nextWorkspaces);
-    setActiveId(nextWorkspaces[0]?.id ?? null);
+    if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null);
     if (useApi) {
-      deleteMutation.mutate(activeId);
+      deleteMutation.mutate(id);
     } else {
       saveWorkspacesLocal(nextWorkspaces);
     }
+  }, [workspaces, activeId, useApi, setWorkspaces, setActiveId, deleteMutation]);
+
+  const deleteActiveWorkspace = () => {
+    if (!activeId) return;
+    const ws = workspaces.find((w) => w.id === activeId);
+    if (!ws) return;
+    setDeleteDialog({ workspaceId: activeId, workspaceName: ws.name });
   };
 
   const duplicateWorkspace = (id: string) => {
@@ -758,16 +900,16 @@ export default function ConsolePage() {
     [],
   );
 
-  const handleRenameWorkspace = (id: string, name: string) => {
+  const handleRenameWorkspace = useCallback((id: string, name: string, description?: string) => {
     renameWorkspace(id, name);
     const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id);
     if (ws) {
       if (useApi) {
         pendingRenameIdsRef.current.add(id);
       }
-      persistWorkspace({ ...ws, name });
+      persistWorkspace({ ...ws, name, description: description?.trim() || ws.description });
     }
-  };
+  }, [renameWorkspace, useApi, persistWorkspace]);
 
   const handleChangeLayout = (layout: LayoutPreset) => {
     if (!activeId) return;
@@ -822,15 +964,10 @@ export default function ConsolePage() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const ctrl = e.ctrlKey || e.metaKey;
-      // Ctrl+S — save active workspace
+      // Ctrl+S — explicit save active workspace
       if (ctrl && e.key === "s") {
         e.preventDefault();
-        if (activeId) {
-          const ws = useWorkspaceStore
-            .getState()
-            .workspaces.find((w) => w.id === activeId);
-          if (ws) persistWorkspace(ws);
-        }
+        handleExplicitSave();
         return;
       }
       // Undo / redo
@@ -1105,25 +1242,14 @@ export default function ConsolePage() {
         panes: w.panes.map((p) => {
           if (p.id !== paneId) return p;
           switch (item.itemType) {
-            case "trend":
+            case "chart":
               return {
                 ...p,
                 type: "trend" as const,
-                trendPointIds: item.pointIds ?? p.trendPointIds ?? [],
+                chartConfig: item.chartConfig ?? p.chartConfig,
+                trendPointIds: item.chartConfig ? [] : (item.pointIds ?? []),
                 title: item.label ?? p.title,
-              };
-            case "point_table":
-              return {
-                ...p,
-                type: "point_table" as const,
-                tablePointIds: item.pointIds ?? p.tablePointIds ?? [],
-                title: item.label ?? p.title,
-              };
-            case "alarm_list":
-              return {
-                ...p,
-                type: "alarm_list" as const,
-                title: item.label ?? p.title,
+                promptConfig: !item.chartConfig && !item.pointIds?.length ? true : undefined,
               };
             case "graphic":
               return {
@@ -1153,25 +1279,14 @@ export default function ConsolePage() {
       updateWorkspace(activeId, (w) => {
         const applyItem = (p: PaneConfig): PaneConfig => {
           switch (item.itemType) {
-            case "trend":
+            case "chart":
               return {
                 ...p,
                 type: "trend" as const,
-                trendPointIds: item.pointIds ?? [],
+                chartConfig: item.chartConfig ?? p.chartConfig,
+                trendPointIds: item.chartConfig ? [] : (item.pointIds ?? []),
                 title: item.label ?? p.title,
-              };
-            case "point_table":
-              return {
-                ...p,
-                type: "point_table" as const,
-                tablePointIds: item.pointIds ?? [],
-                title: item.label ?? p.title,
-              };
-            case "alarm_list":
-              return {
-                ...p,
-                type: "alarm_list" as const,
-                title: item.label ?? p.title,
+                promptConfig: !item.chartConfig && !item.pointIds?.length ? true : undefined,
               };
             case "graphic":
               return {
@@ -1326,26 +1441,33 @@ export default function ConsolePage() {
           display: "flex",
           alignItems: "center",
           gap: 0,
-          padding: "0 12px",
+          padding: "0 12px 0 0",
           height: 48,
           flexShrink: 0,
           background: "var(--io-surface)",
           borderBottom: "1px solid var(--io-border)",
         }}
       >
-        {/* Title */}
-        <span
-          style={{
-            fontSize: 15,
-            fontWeight: 600,
-            color: "var(--io-text-primary)",
-            marginRight: 16,
-            flexShrink: 0,
-          }}
-        >
-          Console
-        </span>
-
+        {/* Module name — occupies the palette column in the header */}
+        {!isKiosk && paletteVisible && (
+          <div
+            style={{
+              width: panelWidth,
+              minWidth: panelWidth,
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 16px",
+              fontSize: 15,
+              fontWeight: 600,
+              color: "var(--io-text-primary)",
+              borderRight: "1px solid var(--io-border)",
+              height: "100%",
+            }}
+          >
+            Console
+          </div>
+        )}
         {/* Workspace tabs */}
         <div
           style={{
@@ -1354,66 +1476,102 @@ export default function ConsolePage() {
             alignItems: "stretch",
             gap: 2,
             overflow: "hidden",
+            paddingLeft: 10,
           }}
         >
-          {workspaces.map((ws) => (
-            <button
-              key={ws.id}
-              onClick={() => setActiveId(ws.id)}
-              onContextMenu={(e) => handleTabContextMenu(e, ws.id)}
-              style={{
-                background:
-                  ws.id === activeId
-                    ? "var(--io-surface-secondary)"
-                    : "transparent",
-                border: "none",
-                borderBottom:
-                  ws.id === activeId
-                    ? "2px solid var(--io-accent)"
-                    : "2px solid transparent",
-                padding: "0 14px",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: ws.id === activeId ? 600 : 400,
-                color:
-                  ws.id === activeId
-                    ? "var(--io-text-primary)"
-                    : "var(--io-text-muted)",
-                whiteSpace: "nowrap",
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              {ws.published && (
-                <span
-                  title="Published workspace"
+          {workspaces
+            .filter((ws) => openTabIds.includes(ws.id))
+            .map((ws) => {
+              const wsSnap = serverSnapshotsRef.current[ws.id];
+              const wsIsDirty = wsSnap
+                ? JSON.stringify(ws) !== wsSnap
+                : false;
+              return (
+                <div
+                  key={ws.id}
                   style={{
-                    color: "var(--io-accent)",
-                    fontSize: 8,
-                    marginRight: 3,
-                  }}
-                >
-                  ●
-                </span>
-              )}
-              {ws.name}
-              {isDirty && ws.id === activeId && (
-                <span
-                  title="Unsaved changes"
-                  style={{
-                    display: "inline-block",
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "var(--io-warning)",
-                    marginLeft: 5,
+                    display: "flex",
+                    alignItems: "center",
+                    borderBottom:
+                      ws.id === activeId
+                        ? "2px solid var(--io-accent)"
+                        : "2px solid transparent",
+                    height: "100%",
                     flexShrink: 0,
                   }}
-                />
-              )}
-            </button>
-          ))}
+                >
+                  <button
+                    onClick={() => setActiveId(ws.id)}
+                    onContextMenu={(e) => handleTabContextMenu(e, ws.id)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      padding: "0 4px 0 10px",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: ws.id === activeId ? 600 : 400,
+                      color:
+                        ws.id === activeId
+                          ? "var(--io-text-primary)"
+                          : "var(--io-text-muted)",
+                      whiteSpace: "nowrap",
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    {ws.published && (
+                      <span
+                        title="Published workspace"
+                        style={{ color: "var(--io-accent)", fontSize: 8 }}
+                      >
+                        ●
+                      </span>
+                    )}
+                    {ws.name}
+                    {wsIsDirty && (
+                      <span
+                        title="Unsaved changes"
+                        style={{
+                          display: "inline-block",
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: "var(--io-warning)",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                  </button>
+                  {/* Close tab button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseWorkspace(ws.id);
+                    }}
+                    title="Close workspace"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "2px 6px 2px 2px",
+                      display: "flex",
+                      alignItems: "center",
+                      color: "var(--io-text-muted)",
+                      fontSize: 14,
+                      lineHeight: 1,
+                      opacity: 0.6,
+                      height: "100%",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.6"; }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
 
           {/* + New tab */}
           <button
@@ -1567,12 +1725,12 @@ export default function ConsolePage() {
               {/* Rename button */}
               <button
                 onClick={() => {
-                  const newName = prompt(
-                    "Workspace name:",
-                    activeWorkspace.name,
-                  );
-                  if (newName && newName.trim())
-                    handleRenameWorkspace(activeWorkspace.id, newName.trim());
+                  setNameModal({
+                    mode: "rename",
+                    workspaceId: activeWorkspace.id,
+                    initialName: activeWorkspace.name,
+                    initialDescription: activeWorkspace.description ?? "",
+                  });
                 }}
                 title="Rename workspace"
                 style={{
@@ -1658,6 +1816,54 @@ export default function ConsolePage() {
               </button>
             </>
           )}
+
+          {/* Explicit Save / Save as Personal — shown when not in edit mode and workspace is dirty */}
+          {!editMode && activeWorkspace && (() => {
+            const wsSnap = serverSnapshotsRef.current[activeWorkspace.id];
+            const wsIsDirty = wsSnap ? JSON.stringify(activeWorkspace) !== wsSnap : false;
+            if (!wsIsDirty) return null;
+            if (canSaveWorkspace(activeWorkspace)) {
+              return (
+                <button
+                  onClick={handleExplicitSave}
+                  title="Save workspace (Ctrl+S)"
+                  style={{
+                    background: "var(--io-accent)",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "5px 14px",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#fff",
+                  }}
+                >
+                  Save
+                </button>
+              );
+            }
+            if (canSaveAsPersonal(activeWorkspace)) {
+              return (
+                <button
+                  onClick={handleSaveAsPersonal}
+                  title="Save a personal copy of this workspace"
+                  style={{
+                    background: "var(--io-accent)",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "5px 14px",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#fff",
+                  }}
+                >
+                  Save as Personal
+                </button>
+              );
+            }
+            return null;
+          })()}
 
           {/* Aspect ratio toggle — always visible when a workspace is active */}
           {activeWorkspace && (
@@ -1886,6 +2092,56 @@ export default function ConsolePage() {
             </div>
           )}
 
+          {/* Close workspace — shown when a workspace is open and not in edit mode */}
+          {activeWorkspace && !editMode && !isKiosk && (
+            <button
+              onClick={() => handleCloseWorkspace(activeWorkspace.id)}
+              title="Close workspace"
+              style={{
+                background: "transparent",
+                border: "1px solid var(--io-border)",
+                borderRadius: 6,
+                padding: "5px 8px",
+                cursor: "pointer",
+                color: "var(--io-text-muted)",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+
+          {/* Publish toggle — visible outside edit mode when user has publish permission */}
+          {activeWorkspace && !editMode && canPublish && (
+            <button
+              onClick={() =>
+                publishMutation.mutate({
+                  id: activeWorkspace.id,
+                  published: !activeWorkspace.published,
+                })
+              }
+              title={activeWorkspace.published ? "Unpublish workspace" : "Publish workspace"}
+              style={{
+                background: activeWorkspace.published ? "var(--io-accent-subtle)" : "transparent",
+                border: "1px solid var(--io-border)",
+                borderRadius: 6,
+                padding: "4px 10px",
+                cursor: "pointer",
+                fontSize: 12,
+                color: activeWorkspace.published ? "var(--io-accent)" : "var(--io-text-muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              {activeWorkspace.published ? "● Published" : "○ Publish"}
+            </button>
+          )}
+
           {/* Open in New Window */}
           {activeWorkspace && !editMode && !isKiosk && (
             <button
@@ -1893,7 +2149,7 @@ export default function ConsolePage() {
                 window.open(
                   `/detached/console/${activeWorkspace.id}`,
                   "_blank",
-                  "noopener,noreferrer",
+                  "noopener,noreferrer,width=1400,height=900",
                 )
               }
               title="Open workspace in new window"
@@ -2009,25 +2265,25 @@ export default function ConsolePage() {
             onQuickPlace={handleQuickPlace}
             workspaces={workspaces}
             activeWorkspaceId={activeId}
-            onSelectWorkspace={setActiveId}
+            onSelectWorkspace={(id) => {
+              if (!openTabIds.includes(id)) {
+                setOpenTabIds((prev) => [...prev, id]);
+              }
+              setActiveId(id);
+            }}
             onRenameWorkspace={(id) => {
               const ws = workspaces.find((w) => w.id === id);
               if (!ws) return;
-              const newName = prompt("Workspace name:", ws.name);
-              if (newName && newName.trim())
-                handleRenameWorkspace(id, newName.trim());
+              setNameModal({ mode: "rename", workspaceId: id, initialName: ws.name, initialDescription: ws.description ?? "" });
             }}
             onDuplicateWorkspace={duplicateWorkspace}
             onDeleteWorkspace={(id) => {
-              const nextWorkspaces = workspaces.filter((w) => w.id !== id);
-              setWorkspaces(nextWorkspaces);
-              if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null);
-              if (useApi) {
-                deleteMutation.mutate(id);
-              } else {
-                saveWorkspacesLocal(nextWorkspaces);
-              }
+              const target = workspaces.find((w) => w.id === id);
+              if (target) setDeleteDialog({ workspaceId: id, workspaceName: target.name });
             }}
+            panelWidth={panelWidth}
+            onPanelResizeMouseDown={onPanelResizeMouseDown}
+            isPanelResizing={isPanelResizing}
           />
         )}
 
@@ -2314,14 +2570,66 @@ export default function ConsolePage() {
                   const ws = useWorkspaceStore
                     .getState()
                     .workspaces.find((w) => w.id === activeId);
-                  const newName = prompt("Workspace name:", ws?.name ?? "");
-                  if (newName?.trim()) {
-                    handleRenameWorkspace(activeId, newName.trim());
-                  }
+                  setNameModal({ mode: "rename", workspaceId: activeId, initialName: ws?.name ?? "", initialDescription: ws?.description ?? "" });
+                }
+              },
+            },
+            {
+              label: "Save and Close",
+              onClick: () => {
+                setWorkspaceBgCtxMenu(null);
+                if (activeId) handleCloseWorkspace(activeId);
+              },
+            },
+            {
+              label: "Delete…",
+              divider: true,
+              onClick: () => {
+                setWorkspaceBgCtxMenu(null);
+                if (activeId) {
+                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId);
+                  if (ws) setDeleteDialog({ workspaceId: activeId, workspaceName: ws.name });
                 }
               },
             },
           ]}
+        />
+      )}
+
+      {/* Workspace name modal (create & rename) */}
+      {nameModal && (
+        <WorkspaceNameModal
+          mode={nameModal.mode}
+          initialName={nameModal.initialName}
+          initialDescription={nameModal.initialDescription ?? ""}
+          onConfirm={(name, description) => {
+            if (nameModal.mode === "create") {
+              confirmCreateWorkspace(name, description);
+            } else if (nameModal.workspaceId) {
+              handleRenameWorkspace(nameModal.workspaceId, name, description);
+              setNameModal(null);
+            }
+          }}
+          onCancel={() => setNameModal(null)}
+        />
+      )}
+
+      {/* Close-without-save confirmation dialog */}
+      {closeDialog && (
+        <CloseConfirmDialog
+          workspaceName={closeDialog.workspaceName}
+          onSave={() => handleSaveAndClose(closeDialog.workspaceId)}
+          onDiscard={() => handleDiscardAndClose(closeDialog.workspaceId)}
+          onCancel={() => setCloseDialog(null)}
+        />
+      )}
+
+      {/* Delete confirmation dialog */}
+      {deleteDialog && (
+        <DeleteConfirmDialog
+          workspaceName={deleteDialog.workspaceName}
+          onConfirm={() => confirmDeleteWorkspace(deleteDialog.workspaceId)}
+          onCancel={() => setDeleteDialog(null)}
         />
       )}
 
@@ -2343,6 +2651,17 @@ export default function ConsolePage() {
                   onClick: () => setActiveId(ws.id),
                 },
                 {
+                  label: "Open in New Window",
+                  onClick: () => {
+                    window.open(
+                      `/detached/console/${ws.id}`,
+                      "_blank",
+                      "noopener,noreferrer,width=1400,height=900",
+                    );
+                    setTabContextMenu(null);
+                  },
+                },
+                {
                   label: isFavorite(ws.id)
                     ? "Remove from Favorites"
                     : "Add to Favorites",
@@ -2355,14 +2674,20 @@ export default function ConsolePage() {
                   label: "Rename…",
                   divider: false,
                   onClick: () => {
-                    const newName = prompt("Workspace name:", ws.name);
-                    if (newName && newName.trim())
-                      handleRenameWorkspace(ws.id, newName.trim());
+                    setNameModal({ mode: "rename", workspaceId: ws.id, initialName: ws.name });
+                    setTabContextMenu(null);
                   },
                 },
                 {
                   label: "Duplicate",
                   onClick: () => duplicateWorkspace(ws.id),
+                },
+                {
+                  label: "Save and Close",
+                  onClick: () => {
+                    setTabContextMenu(null);
+                    handleCloseWorkspace(ws.id);
+                  },
                 },
                 ...(canPublish
                   ? [
@@ -2378,27 +2703,324 @@ export default function ConsolePage() {
                     ]
                   : []),
                 {
-                  label: "Delete",
+                  label: "Delete…",
                   divider: true,
                   onClick: () => {
-                    const nextWorkspaces = workspaces.filter(
-                      (w) => w.id !== ws.id,
-                    );
-                    setWorkspaces(nextWorkspaces);
-                    if (activeId === ws.id)
-                      setActiveId(nextWorkspaces[0]?.id ?? null);
-                    if (useApi) {
-                      deleteMutation.mutate(ws.id);
-                    } else {
-                      saveWorkspacesLocal(nextWorkspaces);
-                    }
                     setTabContextMenu(null);
+                    setDeleteDialog({ workspaceId: ws.id, workspaceName: ws.name });
                   },
                 },
               ]}
             />
           );
         })()}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WorkspaceNameModal — used for both create and rename flows
+// ---------------------------------------------------------------------------
+
+function WorkspaceNameModal({
+  mode,
+  initialName,
+  initialDescription = "",
+  onConfirm,
+  onCancel,
+}: {
+  mode: "create" | "rename";
+  initialName: string;
+  initialDescription?: string;
+  onConfirm: (name: string, description: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && name.trim()) onConfirm(name.trim(), description.trim());
+    if (e.key === "Escape") onCancel();
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div
+        style={{
+          background: "var(--io-surface)",
+          border: "1px solid var(--io-border)",
+          borderRadius: 8,
+          padding: "20px 24px",
+          minWidth: 360,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
+          {mode === "create" ? "New Workspace" : "Rename Workspace"}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}>Name</label>
+          <input
+            autoFocus
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Workspace name"
+            style={{
+              padding: "6px 10px",
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text)",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}>Description <span style={{ fontWeight: 400 }}>(optional)</span></label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+            placeholder="Brief description of this workspace"
+            rows={3}
+            style={{
+              padding: "6px 10px",
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text)",
+              fontSize: 13,
+              outline: "none",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "5px 14px",
+              background: "transparent",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text-muted)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (name.trim()) onConfirm(name.trim(), description.trim()); }}
+            disabled={!name.trim()}
+            style={{
+              padding: "5px 14px",
+              background: "var(--io-accent)",
+              border: "none",
+              borderRadius: 4,
+              color: "#fff",
+              fontSize: 12,
+              cursor: name.trim() ? "pointer" : "not-allowed",
+              opacity: name.trim() ? 1 : 0.5,
+            }}
+          >
+            {mode === "create" ? "Create" : "Rename"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DeleteConfirmDialog — confirm before permanently deleting a workspace
+// ---------------------------------------------------------------------------
+
+function DeleteConfirmDialog({
+  workspaceName,
+  onConfirm,
+  onCancel,
+}: {
+  workspaceName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div
+        style={{
+          background: "var(--io-surface)",
+          border: "1px solid var(--io-border)",
+          borderRadius: 8,
+          padding: "20px 24px",
+          minWidth: 340,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
+          Delete workspace?
+        </div>
+        <div style={{ fontSize: 13, color: "var(--io-text-muted)", lineHeight: 1.5 }}>
+          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong> will be permanently
+          deleted. This cannot be undone.
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "5px 14px",
+              background: "transparent",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text-muted)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: "5px 14px",
+              background: "var(--io-danger)",
+              border: "none",
+              borderRadius: 4,
+              color: "#fff",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CloseConfirmDialog — save / discard / cancel when closing with unsaved changes
+// ---------------------------------------------------------------------------
+
+function CloseConfirmDialog({
+  workspaceName,
+  onSave,
+  onDiscard,
+  onCancel,
+}: {
+  workspaceName: string;
+  onSave: () => void;
+  onDiscard: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div
+        style={{
+          background: "var(--io-surface)",
+          border: "1px solid var(--io-border)",
+          borderRadius: 8,
+          padding: "20px 24px",
+          minWidth: 340,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
+          Unsaved changes
+        </div>
+        <div style={{ fontSize: 13, color: "var(--io-text-muted)", lineHeight: 1.5 }}>
+          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong> has unsaved changes.
+          Save before closing?
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "5px 14px",
+              background: "transparent",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text-muted)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onDiscard}
+            style={{
+              padding: "5px 14px",
+              background: "transparent",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text-muted)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Discard
+          </button>
+          <button
+            onClick={onSave}
+            style={{
+              padding: "5px 14px",
+              background: "var(--io-accent)",
+              border: "none",
+              borderRadius: 4,
+              color: "#fff",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

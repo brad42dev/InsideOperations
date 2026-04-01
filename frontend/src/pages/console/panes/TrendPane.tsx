@@ -6,6 +6,7 @@ import {
   lazy,
   Suspense,
 } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useWebSocket } from "../../../shared/hooks/useWebSocket";
 import { usePlaybackStore } from "../../../store/playback";
@@ -26,6 +27,9 @@ import {
   defaultBucketSeconds,
 } from "../../../shared/components/charts/chart-aggregate-config";
 import { useWorkspaceStore } from "../../../store/workspaceStore";
+import { useSavedChartsStore } from "../../../store/savedChartsStore";
+import { usePermission } from "../../../shared/hooks/usePermission";
+import SaveChartModal from "../../../shared/components/charts/SaveChartModal";
 
 const ChartConfigPanel = lazy(
   () => import("../../../shared/components/charts/ChartConfigPanel"),
@@ -144,7 +148,22 @@ export default function TrendPane({
   onConfigurePoints,
 }: TrendPaneProps) {
   const [showConfig, setShowConfig] = useState(false);
+  const [saveModal, setSaveModal] = useState<{ publish: boolean } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const { updatePane, activeId } = useWorkspaceStore();
+  const { saveChart, publishChart } = useSavedChartsStore();
+  const canPublish = usePermission("console:publish");
+
+  // Auto-open Configure Chart when pane was placed from the Charts palette item.
+  useEffect(() => {
+    if (config.promptConfig) {
+      setShowConfig(true);
+      if (activeId) {
+        updatePane(activeId, { ...config, promptConfig: undefined });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount
 
   // If a full ChartConfig is present, delegate to ChartRenderer entirely.
   // Legacy mode uses the inline trend logic below.
@@ -464,11 +483,50 @@ export default function TrendPane({
     if (activeId) updatePane(activeId, { ...config, chartConfig: newConfig });
   }
 
+  function handleSaveChart(cfg: ChartConfig, name: string, description: string, publish: boolean) {
+    const saved = saveChart({
+      name,
+      description: description || undefined,
+      chartType: cfg.chartType,
+      config: cfg,
+      published: publish || undefined,
+    });
+    if (publish) publishChart(saved.id, true);
+    setSaveModal(null);
+  }
+
+  function handleContextMenu(e: React.MouseEvent) {
+    // Always stop propagation so PaneWrapper's pane context menu never opens
+    // over the chart — we either show our own menu or suppress entirely.
+    e.stopPropagation();
+    if (!chartConfig) return;
+    // Skip for WebGL canvas targets (3D charts) — calling preventDefault on the
+    // contextmenu event disrupts ECharts' pointer capture, leaving the rotation
+    // gesture active and causing apparent lag on subsequent mouse moves.
+    const target = e.target as HTMLElement;
+    if (target.tagName === "CANVAS") {
+      const canvas = target as HTMLCanvasElement;
+      if (canvas.getContext("webgl") || canvas.getContext("webgl2")) {
+        e.preventDefault();
+        return;
+      }
+    }
+    e.preventDefault();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }
+
+  function handleLegacyContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }
+
   // ── Render: ChartRenderer mode (when chartConfig present) ─────────────────
   if (chartConfig) {
     return (
       <div
         data-trend-pane
+        onContextMenu={handleContextMenu}
         style={{
           flex: 1,
           display: "flex",
@@ -515,8 +573,77 @@ export default function TrendPane({
               onSave={handleSaveConfig}
               onClose={() => setShowConfig(false)}
               context="console"
+              onSaveChart={handleSaveChart}
+              canPublish={canPublish}
             />
           </Suspense>
+        )}
+
+        {/* Right-click context menu — portalled to body to escape grid transforms */}
+        {ctxMenu && createPortal(
+          <>
+            <div
+              style={{ position: "fixed", inset: 0, zIndex: 999 }}
+              onClick={() => setCtxMenu(null)}
+              onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}
+            />
+            <div
+              style={{
+                position: "fixed",
+                top: ctxMenu.y,
+                left: ctxMenu.x,
+                zIndex: 1000,
+                background: "var(--io-surface-elevated)",
+                border: "1px solid var(--io-border)",
+                borderRadius: 6,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                minWidth: 180,
+                paddingTop: 4,
+                paddingBottom: 4,
+              }}
+            >
+              {[
+                {
+                  label: "Save As…",
+                  onClick: () => { setCtxMenu(null); setSaveModal({ publish: false }); },
+                },
+                ...(canPublish ? [{
+                  label: "Publish…",
+                  onClick: () => { setCtxMenu(null); setSaveModal({ publish: true }); },
+                }] : []),
+                {
+                  label: "Configure Chart…",
+                  onClick: () => { setCtxMenu(null); setShowConfig(true); },
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  onClick={item.onClick}
+                  style={{
+                    padding: "6px 14px",
+                    fontSize: 13,
+                    color: "var(--io-text)",
+                    cursor: "pointer",
+                    userSelect: "none",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-accent-subtle)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  {item.label}
+                </div>
+              ))}
+            </div>
+          </>,
+          document.body,
+        )}
+
+        {/* Save / Publish modal (triggered from right-click, independent of config panel) */}
+        {saveModal && (
+          <SaveChartModal
+            publish={saveModal.publish}
+            onConfirm={(name, description) => handleSaveChart(chartConfig, name, description, saveModal.publish)}
+            onCancel={() => setSaveModal(null)}
+          />
         )}
       </div>
     );
@@ -572,6 +699,8 @@ export default function TrendPane({
               onSave={handleSaveConfig}
               onClose={() => setShowConfig(false)}
               context="console"
+              onSaveChart={handleSaveChart}
+              canPublish={canPublish}
             />
           </Suspense>
         )}
@@ -598,6 +727,7 @@ export default function TrendPane({
   return (
     <div
       data-trend-pane
+      onContextMenu={handleLegacyContextMenu}
       style={{
         flex: 1,
         display: "flex",
@@ -788,6 +918,8 @@ export default function TrendPane({
             onSave={handleSaveConfig}
             onClose={() => setShowConfig(false)}
             context="console"
+            onSaveChart={handleSaveChart}
+            canPublish={canPublish}
           />
         </Suspense>
       )}
@@ -812,6 +944,49 @@ export default function TrendPane({
           Configure Points
         </button>
       )}
+
+      {/* Right-click context menu (legacy path) — portalled to body to escape grid transforms */}
+      {ctxMenu && createPortal(
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 999 }}
+            onClick={() => setCtxMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: ctxMenu.y,
+              left: ctxMenu.x,
+              zIndex: 1000,
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: 6,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+              minWidth: 180,
+              paddingTop: 4,
+              paddingBottom: 4,
+            }}
+          >
+            <div
+              onClick={() => { setCtxMenu(null); setShowConfig(true); }}
+              style={{
+                padding: "6px 14px",
+                fontSize: 13,
+                color: "var(--io-text)",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-accent-subtle)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              Configure Chart…
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
+
     </div>
   );
 }

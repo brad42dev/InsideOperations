@@ -1261,33 +1261,51 @@ function ThumbnailRadar() {
 }
 
 function ThumbnailSurface3D() {
+  // Heights (px upward) at each vertex of a 4-row × 5-col quad grid (5×6 vertex grid).
+  // Two peaks (back-centre and front-right ridge) with a valley between them.
+  const H = [
+    [ 0,  2,  4,  3,  1,  0],  // ri=0  front
+    [ 1,  8, 18, 13,  5,  1],
+    [ 2, 12, 26, 19,  9,  2],
+    [ 1,  6, 14, 22, 13,  4],
+    [ 0,  3,  7, 11,  5,  1],  // ri=4  back
+  ];
+  const vx = (ri: number, ci: number) => 8 + ci * 16 + ri * 5;
+  const vy = (ri: number, h: number) => 70 - ri * 9 - h;
+
+  // Build quads back-to-front so peaks occlude the tiles behind them.
+  const quads: { pts: string; r: number; g: number; b: number; key: string }[] = [];
+  for (let ri = 3; ri >= 0; ri--) {
+    for (let ci = 0; ci < 5; ci++) {
+      const h00 = H[ri][ci],   h01 = H[ri][ci + 1];
+      const h10 = H[ri + 1][ci], h11 = H[ri + 1][ci + 1];
+      const avgH = (h00 + h01 + h10 + h11) / 4;
+      const pts = [
+        `${vx(ri, ci)},${vy(ri, h00)}`,
+        `${vx(ri, ci + 1)},${vy(ri, h01)}`,
+        `${vx(ri + 1, ci + 1)},${vy(ri + 1, h11)}`,
+        `${vx(ri + 1, ci)},${vy(ri + 1, h10)}`,
+      ].join(" ");
+      // Blue (low) → teal → yellow → red (high)
+      const t = avgH / 24;
+      const r = Math.round(Math.min(1, t * 2) * 220);
+      const g = Math.round(Math.sin(t * Math.PI) * 120);
+      const b = Math.round((1 - Math.min(1, t * 1.5)) * 200);
+      quads.push({ pts, r, g, b, key: `${ri}-${ci}` });
+    }
+  }
   return (
     <svg viewBox="0 0 120 80" width={120} height={80}>
-      {Array.from({ length: 4 }, (_, ri) =>
-        Array.from({ length: 5 }, (_, ci) => {
-          const x1 = 10 + ci * 22 + ri * 5,
-            y1 = 60 - ri * 12;
-          const x2 = x1 + 22,
-            y2 = y1;
-          const x3 = x2 + 5,
-            y3 = y1 - 12;
-          const x4 = x1 + 5,
-            y4 = y1 - 12;
-          const heat = (ri + ci) / 7;
-          const r = Math.round(heat * 220),
-            b = Math.round((1 - heat) * 200);
-          return (
-            <polygon
-              key={`${ri}-${ci}`}
-              points={`${x1},${y1} ${x2},${y2} ${x3},${y3} ${x4},${y4}`}
-              fill={`rgb(${r},80,${b})`}
-              opacity={0.7}
-              stroke="var(--io-surface)"
-              strokeWidth={0.5}
-            />
-          );
-        }),
-      )}
+      {quads.map(({ pts, r, g, b, key }) => (
+        <polygon
+          key={key}
+          points={pts}
+          fill={`rgb(${r},${g},${b})`}
+          opacity={0.88}
+          stroke="var(--io-surface)"
+          strokeWidth={0.5}
+        />
+      ))}
     </svg>
   );
 }
@@ -1749,7 +1767,7 @@ const THUMBNAILS: Record<number, () => JSX.Element> = {
 // ── Micro-icons for the list ─────────────────────────────────────────────────
 // 24×16 viewBox, uses currentColor so tier color flows through.
 
-function MicroIcon({ id }: { id: number }) {
+export function MicroIcon({ id }: { id: number }) {
   const s = {
     stroke: "currentColor",
     fill: "none",
@@ -1761,7 +1779,7 @@ function MicroIcon({ id }: { id: number }) {
   const props = { viewBox: "0 0 24 16", width: 24, height: 16 };
 
   switch (id) {
-    case 1: // Live Trend — wave line auto-scrolling
+    case 1: // Trend — wave line with live dot
       return (
         <svg {...props}>
           <polyline
