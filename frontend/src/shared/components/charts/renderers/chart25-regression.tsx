@@ -7,7 +7,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import {
+  type ChartConfig,
+  autoColor,
+  makeSlotLabeler,
+} from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import { pointsApi } from "../../../../api/points";
 import { useHighlight } from "../hooks/useHighlight";

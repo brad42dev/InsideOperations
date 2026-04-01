@@ -181,7 +181,8 @@ export default function Chart34Surface3d({ config }: RendererProps) {
         if (v !== null) allZ.push(v);
       }),
     );
-    const zFill = allZ.length > 0 ? allZ.reduce((a, b) => a + b, 0) / allZ.length : 0;
+    const zFill =
+      allZ.length > 0 ? allZ.reduce((a, b) => a + b, 0) / allZ.length : 0;
     const zMatrix: number[][] = zMatrixRaw.map((row) =>
       row.map((v) => (v !== null ? v : zFill)),
     );

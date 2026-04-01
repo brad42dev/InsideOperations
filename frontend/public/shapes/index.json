@@ -1,70 +1,290 @@
 {
   "shapes": [
-    { "id": "valve-gate",                       "category": "valves",       "label": "Gate Valve" },
-    { "id": "valve-globe",                      "category": "valves",       "label": "Globe Valve" },
-    { "id": "valve-ball",                       "category": "valves",       "label": "Ball Valve" },
-    { "id": "valve-butterfly",                  "category": "valves",       "label": "Butterfly Valve" },
-    { "id": "valve-control",                    "category": "valves",       "label": "Control Valve" },
-    { "id": "valve-relief",                     "category": "valves",       "label": "Relief / Safety Valve" },
-    { "id": "pump-centrifugal",                 "category": "pumps",        "label": "Centrifugal Pump" },
-    { "id": "pump-positive-displacement",       "category": "pumps",        "label": "Positive Displacement Pump" },
-    { "id": "compressor",                       "category": "rotating",     "label": "Compressor" },
-    { "id": "fan-blower",                       "category": "rotating",     "label": "Fan / Blower" },
-    { "id": "motor",                            "category": "rotating",     "label": "Motor" },
-    { "id": "hx-shell-tube",                    "category": "heat-exchange","label": "Shell & Tube HX" },
-    { "id": "hx-plate",                         "category": "heat-exchange","label": "Plate HX" },
-    { "id": "heater-fired",                     "category": "heat-exchange","label": "Fired Heater / Furnace" },
-    { "id": "air-cooler",                       "category": "heat-exchange","label": "Air Cooler / Fin-Fan" },
-    { "id": "instrument-field",                 "category": "instruments",  "label": "Instrument (Field)" },
-    { "id": "instrument-panel",                 "category": "instruments",  "label": "Instrument (Panel)" },
-    { "id": "instrument-behind-panel",          "category": "instruments",  "label": "Instrument (Behind Panel)" },
-    { "id": "vessel-vertical",                  "category": "vessels",      "label": "Vertical Vessel (Welded)" },
-    { "id": "vessel-vertical-flanged-top",      "category": "vessels",      "label": "Vertical Vessel (Flanged Top)" },
-    { "id": "vessel-vertical-flanged-bottom",   "category": "vessels",      "label": "Vertical Vessel (Flanged Bottom)" },
-    { "id": "vessel-vertical-flanged",          "category": "vessels",      "label": "Vertical Vessel (Flanged Both)" },
-    { "id": "vessel-horizontal",                "category": "vessels",      "label": "Horizontal Vessel (Welded)" },
-    { "id": "vessel-horizontal-flanged-left",   "category": "vessels",      "label": "Horizontal Vessel (Flanged Left)" },
-    { "id": "vessel-horizontal-flanged-right",  "category": "vessels",      "label": "Horizontal Vessel (Flanged Right)" },
-    { "id": "vessel-horizontal-flanged",        "category": "vessels",      "label": "Horizontal Vessel (Flanged Both)" },
-    { "id": "reactor",                          "category": "reactors",     "label": "Reactor (Base)" },
-    { "id": "reactor-flat-top",                 "category": "reactors",     "label": "Reactor (Flat Top)" },
-    { "id": "reactor-closed",                   "category": "reactors",     "label": "Reactor (Closed)" },
-    { "id": "reactor-trayed",                   "category": "reactors",     "label": "Reactor (Trayed)" },
-    { "id": "agitator-turbine",                 "category": "agitators",    "label": "Agitator — Turbine" },
-    { "id": "agitator-propeller",               "category": "agitators",    "label": "Agitator — Propeller" },
-    { "id": "agitator-anchor",                  "category": "agitators",    "label": "Agitator — Anchor" },
-    { "id": "agitator-paddle",                  "category": "agitators",    "label": "Agitator — Paddle" },
-    { "id": "agitator-helical",                 "category": "agitators",    "label": "Agitator — Helical" },
-    { "id": "support-skirt",                    "category": "supports",     "label": "Support — Skirt" },
-    { "id": "support-legs-3",                   "category": "supports",     "label": "Support — 3 Splayed Legs" },
-    { "id": "support-legs-4",                   "category": "supports",     "label": "Support — 4 Straight Legs" },
-    { "id": "support-legs-splayed",             "category": "supports",     "label": "Support — Splayed Legs" },
-    { "id": "support-saddles",                  "category": "supports",     "label": "Support — Saddles" },
-    { "id": "column-distillation",              "category": "columns",      "label": "Column — Standard Plain" },
-    { "id": "column-distillation-trayed",       "category": "columns",      "label": "Column — Trayed-6 (Default)" },
-    { "id": "column-distillation-trayed-10",    "category": "columns",      "label": "Column — Trayed-10" },
-    { "id": "column-distillation-packed",       "category": "columns",      "label": "Column — Packed" },
-    { "id": "column-distillation-narrow",          "category": "columns",      "label": "Column — Narrow Plain" },
-    { "id": "column-distillation-narrow-trayed",   "category": "columns",      "label": "Column — Narrow Trayed-6" },
-    { "id": "column-distillation-narrow-trayed-10","category": "columns",      "label": "Column — Narrow Trayed-10" },
-    { "id": "column-distillation-narrow-packed",   "category": "columns",      "label": "Column — Narrow Packed" },
-    { "id": "column-distillation-wide",            "category": "columns",      "label": "Column — Wide Plain" },
-    { "id": "column-distillation-wide-trayed",     "category": "columns",      "label": "Column — Wide Trayed-6" },
-    { "id": "column-distillation-wide-trayed-10",  "category": "columns",      "label": "Column — Wide Trayed-10" },
-    { "id": "column-distillation-wide-packed",     "category": "columns",      "label": "Column — Wide Packed" },
-    { "id": "tank-storage-cone-roof",           "category": "tanks",        "label": "Tank — Cone Roof" },
-    { "id": "tank-storage-dome-roof",           "category": "tanks",        "label": "Tank — Dome Roof" },
-    { "id": "tank-storage-open-top",            "category": "tanks",        "label": "Tank — Open Top" },
-    { "id": "tank-storage-floating-roof",       "category": "tanks",        "label": "Tank — Floating Roof" },
-    { "id": "tank-storage-sphere",              "category": "tanks",        "label": "Tank — Sphere" },
-    { "id": "tank-storage-capsule",             "category": "tanks",        "label": "Tank — Capsule" },
-    { "id": "filter",                           "category": "filters",      "label": "Filter (Standard)" },
-    { "id": "filter-vacuum",                    "category": "filters",      "label": "Filter (Vacuum)" },
-    { "id": "alarm-annunciator",                "category": "annunciators", "label": "Alarm Annunciator" },
-    { "id": "mixer",                            "category": "mixers",       "label": "Mixer — Agitator" },
-    { "id": "mixer-motor",                      "category": "mixers",       "label": "Mixer — Agitator + Motor" },
-    { "id": "mixer-inline",                     "category": "mixers",       "label": "Mixer — Inline Static" },
-    { "id": "interlock",                        "category": "interlocks",   "label": "Interlock — BPCS Diamond" },
-    { "id": "interlock-sis",                    "category": "interlocks",   "label": "Interlock — SIS" }
+    { "id": "valve-gate", "category": "valves", "label": "Gate Valve" },
+    { "id": "valve-globe", "category": "valves", "label": "Globe Valve" },
+    { "id": "valve-ball", "category": "valves", "label": "Ball Valve" },
+    {
+      "id": "valve-butterfly",
+      "category": "valves",
+      "label": "Butterfly Valve"
+    },
+    { "id": "valve-control", "category": "valves", "label": "Control Valve" },
+    {
+      "id": "valve-relief",
+      "category": "valves",
+      "label": "Relief / Safety Valve"
+    },
+    {
+      "id": "pump-centrifugal",
+      "category": "pumps",
+      "label": "Centrifugal Pump"
+    },
+    {
+      "id": "pump-positive-displacement",
+      "category": "pumps",
+      "label": "Positive Displacement Pump"
+    },
+    { "id": "compressor", "category": "rotating", "label": "Compressor" },
+    { "id": "fan-blower", "category": "rotating", "label": "Fan / Blower" },
+    { "id": "motor", "category": "rotating", "label": "Motor" },
+    {
+      "id": "hx-shell-tube",
+      "category": "heat-exchange",
+      "label": "Shell & Tube HX"
+    },
+    { "id": "hx-plate", "category": "heat-exchange", "label": "Plate HX" },
+    {
+      "id": "heater-fired",
+      "category": "heat-exchange",
+      "label": "Fired Heater / Furnace"
+    },
+    {
+      "id": "air-cooler",
+      "category": "heat-exchange",
+      "label": "Air Cooler / Fin-Fan"
+    },
+    {
+      "id": "instrument-field",
+      "category": "instruments",
+      "label": "Instrument (Field)"
+    },
+    {
+      "id": "instrument-panel",
+      "category": "instruments",
+      "label": "Instrument (Panel)"
+    },
+    {
+      "id": "instrument-behind-panel",
+      "category": "instruments",
+      "label": "Instrument (Behind Panel)"
+    },
+    {
+      "id": "vessel-vertical",
+      "category": "vessels",
+      "label": "Vertical Vessel (Welded)"
+    },
+    {
+      "id": "vessel-vertical-flanged-top",
+      "category": "vessels",
+      "label": "Vertical Vessel (Flanged Top)"
+    },
+    {
+      "id": "vessel-vertical-flanged-bottom",
+      "category": "vessels",
+      "label": "Vertical Vessel (Flanged Bottom)"
+    },
+    {
+      "id": "vessel-vertical-flanged",
+      "category": "vessels",
+      "label": "Vertical Vessel (Flanged Both)"
+    },
+    {
+      "id": "vessel-horizontal",
+      "category": "vessels",
+      "label": "Horizontal Vessel (Welded)"
+    },
+    {
+      "id": "vessel-horizontal-flanged-left",
+      "category": "vessels",
+      "label": "Horizontal Vessel (Flanged Left)"
+    },
+    {
+      "id": "vessel-horizontal-flanged-right",
+      "category": "vessels",
+      "label": "Horizontal Vessel (Flanged Right)"
+    },
+    {
+      "id": "vessel-horizontal-flanged",
+      "category": "vessels",
+      "label": "Horizontal Vessel (Flanged Both)"
+    },
+    { "id": "reactor", "category": "reactors", "label": "Reactor (Base)" },
+    {
+      "id": "reactor-flat-top",
+      "category": "reactors",
+      "label": "Reactor (Flat Top)"
+    },
+    {
+      "id": "reactor-closed",
+      "category": "reactors",
+      "label": "Reactor (Closed)"
+    },
+    {
+      "id": "reactor-trayed",
+      "category": "reactors",
+      "label": "Reactor (Trayed)"
+    },
+    {
+      "id": "agitator-turbine",
+      "category": "agitators",
+      "label": "Agitator — Turbine"
+    },
+    {
+      "id": "agitator-propeller",
+      "category": "agitators",
+      "label": "Agitator — Propeller"
+    },
+    {
+      "id": "agitator-anchor",
+      "category": "agitators",
+      "label": "Agitator — Anchor"
+    },
+    {
+      "id": "agitator-paddle",
+      "category": "agitators",
+      "label": "Agitator — Paddle"
+    },
+    {
+      "id": "agitator-helical",
+      "category": "agitators",
+      "label": "Agitator — Helical"
+    },
+    {
+      "id": "support-skirt",
+      "category": "supports",
+      "label": "Support — Skirt"
+    },
+    {
+      "id": "support-legs-3",
+      "category": "supports",
+      "label": "Support — 3 Splayed Legs"
+    },
+    {
+      "id": "support-legs-4",
+      "category": "supports",
+      "label": "Support — 4 Straight Legs"
+    },
+    {
+      "id": "support-legs-splayed",
+      "category": "supports",
+      "label": "Support — Splayed Legs"
+    },
+    {
+      "id": "support-saddles",
+      "category": "supports",
+      "label": "Support — Saddles"
+    },
+    {
+      "id": "column-distillation",
+      "category": "columns",
+      "label": "Column — Standard Plain"
+    },
+    {
+      "id": "column-distillation-trayed",
+      "category": "columns",
+      "label": "Column — Trayed-6 (Default)"
+    },
+    {
+      "id": "column-distillation-trayed-10",
+      "category": "columns",
+      "label": "Column — Trayed-10"
+    },
+    {
+      "id": "column-distillation-packed",
+      "category": "columns",
+      "label": "Column — Packed"
+    },
+    {
+      "id": "column-distillation-narrow",
+      "category": "columns",
+      "label": "Column — Narrow Plain"
+    },
+    {
+      "id": "column-distillation-narrow-trayed",
+      "category": "columns",
+      "label": "Column — Narrow Trayed-6"
+    },
+    {
+      "id": "column-distillation-narrow-trayed-10",
+      "category": "columns",
+      "label": "Column — Narrow Trayed-10"
+    },
+    {
+      "id": "column-distillation-narrow-packed",
+      "category": "columns",
+      "label": "Column — Narrow Packed"
+    },
+    {
+      "id": "column-distillation-wide",
+      "category": "columns",
+      "label": "Column — Wide Plain"
+    },
+    {
+      "id": "column-distillation-wide-trayed",
+      "category": "columns",
+      "label": "Column — Wide Trayed-6"
+    },
+    {
+      "id": "column-distillation-wide-trayed-10",
+      "category": "columns",
+      "label": "Column — Wide Trayed-10"
+    },
+    {
+      "id": "column-distillation-wide-packed",
+      "category": "columns",
+      "label": "Column — Wide Packed"
+    },
+    {
+      "id": "tank-storage-cone-roof",
+      "category": "tanks",
+      "label": "Tank — Cone Roof"
+    },
+    {
+      "id": "tank-storage-dome-roof",
+      "category": "tanks",
+      "label": "Tank — Dome Roof"
+    },
+    {
+      "id": "tank-storage-open-top",
+      "category": "tanks",
+      "label": "Tank — Open Top"
+    },
+    {
+      "id": "tank-storage-floating-roof",
+      "category": "tanks",
+      "label": "Tank — Floating Roof"
+    },
+    {
+      "id": "tank-storage-sphere",
+      "category": "tanks",
+      "label": "Tank — Sphere"
+    },
+    {
+      "id": "tank-storage-capsule",
+      "category": "tanks",
+      "label": "Tank — Capsule"
+    },
+    { "id": "filter", "category": "filters", "label": "Filter (Standard)" },
+    {
+      "id": "filter-vacuum",
+      "category": "filters",
+      "label": "Filter (Vacuum)"
+    },
+    {
+      "id": "alarm-annunciator",
+      "category": "annunciators",
+      "label": "Alarm Annunciator"
+    },
+    { "id": "mixer", "category": "mixers", "label": "Mixer — Agitator" },
+    {
+      "id": "mixer-motor",
+      "category": "mixers",
+      "label": "Mixer — Agitator + Motor"
+    },
+    {
+      "id": "mixer-inline",
+      "category": "mixers",
+      "label": "Mixer — Inline Static"
+    },
+    {
+      "id": "interlock",
+      "category": "interlocks",
+      "label": "Interlock — BPCS Diamond"
+    },
+    {
+      "id": "interlock-sis",
+      "category": "interlocks",
+      "label": "Interlock — SIS"
+    }
   ]
 }

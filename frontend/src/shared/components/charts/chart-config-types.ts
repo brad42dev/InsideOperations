@@ -430,7 +430,10 @@ export function resolveSeriesScales(
       let ancestor: ResolvedSeriesScale | undefined;
       for (let j = i - 1; j >= 0; j--) {
         const a = resolvedBySlotId.get(orderedIds[j]);
-        if (a) { ancestor = a; break; }
+        if (a) {
+          ancestor = a;
+          break;
+        }
       }
       resolvedBySlotId.set(slotId, ancestor ?? { scaleKey: `y-${slotId}` });
     } else {

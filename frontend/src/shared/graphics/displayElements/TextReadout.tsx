@@ -31,7 +31,13 @@ function formatValue(raw: string | number | null, fmt: string): string {
   return String(raw);
 }
 
-export function TextReadout({ config, pointValue, pointMeta, x = 0, y = 0 }: Props) {
+export function TextReadout({
+  config,
+  pointValue,
+  pointMeta,
+  x = 0,
+  y = 0,
+}: Props) {
   const { showBox, showLabel, labelText, showUnits, valueFormat, minWidth } =
     config;
   const priority = pointValue?.alarmPriority ?? null;
@@ -49,9 +55,10 @@ export function TextReadout({ config, pointValue, pointMeta, x = 0, y = 0 }: Pro
         )
       : null;
 
-  const valueStr = discreteLabel !== null
-    ? discreteLabel
-    : formatValue(pointValue?.value ?? null, valueFormat);
+  const valueStr =
+    discreteLabel !== null
+      ? discreteLabel
+      : formatValue(pointValue?.value ?? null, valueFormat);
   // Hide engineering unit suffix when showing a discrete label
   const unitStr =
     discreteLabel === null && showUnits && pointValue?.units

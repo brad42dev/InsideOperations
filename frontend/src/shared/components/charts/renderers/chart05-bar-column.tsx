@@ -8,7 +8,11 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { EChartsOption } from "echarts";
 import EChart from "../EChart";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import {
+  type ChartConfig,
+  autoColor,
+  makeSlotLabeler,
+} from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import { useWebSocket } from "../../../hooks/useWebSocket";
 import { pointsApi } from "../../../../api/points";
@@ -105,7 +109,9 @@ export default function BarColumnChart({ config }: RendererProps) {
       const batch = historyBatch.find((r) => r.point_id === slot.pointId);
       const vals = (batch?.rows ?? [])
         .map((r) => r.value)
-        .filter((v): v is number => v !== null && v !== undefined && isFinite(v));
+        .filter(
+          (v): v is number => v !== null && v !== undefined && isFinite(v),
+        );
       if (vals.length < 2) return null;
       const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
       const stddev = Math.sqrt(

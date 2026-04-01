@@ -15,19 +15,49 @@
   },
   "alarmBinding": {
     "stateSource": "point_alarm_state",
-    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "priorityMapping": {
+      "1": "alarm_critical",
+      "2": "alarm_high",
+      "3": "alarm_medium",
+      "4": "alarm_advisory"
+    },
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
   "geometry": { "viewBox": "-2 -2 48 64", "width": 48, "height": 64 },
   "connections": [
-    { "id": "inlet",        "type": "process", "x": 22, "y": 0,  "direction": "top" },
-    { "id": "outlet-left",  "type": "process", "x": 7,  "y": 43, "direction": "left" },
-    { "id": "outlet-right", "type": "process", "x": 37, "y": 43, "direction": "right" },
-    { "id": "burner",       "type": "process", "x": 22, "y": 62, "direction": "bottom" }
+    { "id": "inlet", "type": "process", "x": 22, "y": 0, "direction": "top" },
+    {
+      "id": "outlet-left",
+      "type": "process",
+      "x": 7,
+      "y": 43,
+      "direction": "left"
+    },
+    {
+      "id": "outlet-right",
+      "type": "process",
+      "x": 37,
+      "y": 43,
+      "direction": "right"
+    },
+    {
+      "id": "burner",
+      "type": "process",
+      "x": 22,
+      "y": 62,
+      "direction": "bottom"
+    }
   ],
   "textZones": [
-    { "id": "tagname", "x": 22, "y": -8, "width": 48, "anchor": "middle", "fontSize": 11 }
+    {
+      "id": "tagname",
+      "x": 22,
+      "y": -8,
+      "width": 48,
+      "anchor": "middle",
+      "fontSize": 11
+    }
   ],
   "valueAnchors": [
     { "nx": 1.2, "ny": 0.5, "preferredElement": "text_readout" }

@@ -15,18 +15,42 @@
   },
   "alarmBinding": {
     "stateSource": "point_alarm_state",
-    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "priorityMapping": {
+      "1": "alarm_critical",
+      "2": "alarm_high",
+      "3": "alarm_medium",
+      "4": "alarm_advisory"
+    },
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
   "geometry": { "viewBox": "0 0 50 60", "width": 50, "height": 60 },
   "connections": [
-    { "id": "inlet",  "type": "process", "x": 6,  "y": 10, "direction": "left" },
-    { "id": "outlet", "type": "process", "x": 44, "y": 10, "direction": "right" },
-    { "id": "drain",  "type": "process", "x": 25, "y": 50, "direction": "bottom" }
+    { "id": "inlet", "type": "process", "x": 6, "y": 10, "direction": "left" },
+    {
+      "id": "outlet",
+      "type": "process",
+      "x": 44,
+      "y": 10,
+      "direction": "right"
+    },
+    {
+      "id": "drain",
+      "type": "process",
+      "x": 25,
+      "y": 50,
+      "direction": "bottom"
+    }
   ],
   "textZones": [
-    { "id": "tagname", "x": 25, "y": -6, "width": 50, "anchor": "middle", "fontSize": 11 }
+    {
+      "id": "tagname",
+      "x": 25,
+      "y": -6,
+      "width": 50,
+      "anchor": "middle",
+      "fontSize": 11
+    }
   ],
   "valueAnchors": [
     { "nx": 0.5, "ny": 1.1, "preferredElement": "text_readout" }

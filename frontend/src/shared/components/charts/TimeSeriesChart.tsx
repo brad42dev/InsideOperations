@@ -233,13 +233,18 @@ export default function TimeSeriesChart({
   // Stable serialised key for the seriesScales prop — triggers a chart rebuild
   // only when scale assignments or ranges actually change.
   const seriesScalesKey = seriesScales
-    ? seriesScales.map((s) => `${s.scaleKey}:${s.range?.join(",") ?? ""}`).join("|")
+    ? seriesScales
+        .map((s) => `${s.scaleKey}:${s.range?.join(",") ?? ""}`)
+        .join("|")
     : "";
 
   // Stable key for enumLabels — triggers a chart rebuild only when labels change.
   const enumLabelsKey = enumLabels
     ? Array.from(enumLabels.entries())
-        .map(([pid, lbls]) => `${pid}:${lbls.map((l) => `${l.idx}=${l.label}`).join(",")}`)
+        .map(
+          ([pid, lbls]) =>
+            `${pid}:${lbls.map((l) => `${l.idx}=${l.label}`).join(",")}`,
+        )
         .join("|")
     : "";
 
@@ -255,7 +260,8 @@ export default function TimeSeriesChart({
     const uniqueScales = new Map<string, [number, number] | undefined>();
     if (seriesScales) {
       for (const ss of seriesScales) {
-        if (!uniqueScales.has(ss.scaleKey)) uniqueScales.set(ss.scaleKey, ss.range);
+        if (!uniqueScales.has(ss.scaleKey))
+          uniqueScales.set(ss.scaleKey, ss.range);
       }
     } else {
       uniqueScales.set("y", undefined);
@@ -300,7 +306,9 @@ export default function TimeSeriesChart({
     if (enumLabels && enumLabels.size > 0) {
       const firstLabels = enumLabels.values().next().value;
       if (firstLabels && firstLabels.length > 0) {
-        enumLabelMap = new Map(firstLabels.map((el: EnumLabel) => [el.idx, el.label]));
+        enumLabelMap = new Map(
+          firstLabels.map((el: EnumLabel) => [el.idx, el.label]),
+        );
       }
     }
 
@@ -538,7 +546,13 @@ export default function TimeSeriesChart({
       uplotRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedWidth, resolvedHeight, seriesCount, seriesScalesKey, enumLabelsKey]);
+  }, [
+    resolvedWidth,
+    resolvedHeight,
+    seriesCount,
+    seriesScalesKey,
+    enumLabelsKey,
+  ]);
 
   // Update data without rebuilding the chart (hot path — runs on every tick).
   useEffect(() => {

@@ -11,7 +11,13 @@ interface Props {
   y?: number;
 }
 
-export function DigitalStatus({ config, rawValue, pointMeta, x = 0, y = 0 }: Props) {
+export function DigitalStatus({
+  config,
+  rawValue,
+  pointMeta,
+  x = 0,
+  y = 0,
+}: Props) {
   const { stateLabels, normalStates, abnormalPriority } = config;
 
   const valStr =
@@ -21,15 +27,17 @@ export function DigitalStatus({ config, rawValue, pointMeta, x = 0, y = 0 }: Pro
   const numericVal = valStr !== null ? Number(valStr) : null;
   const discreteLabel =
     pointMeta && numericVal !== null && !Number.isNaN(numericVal)
-      ? resolvePointLabel(numericVal, pointMeta.point_category, pointMeta.enum_labels)
+      ? resolvePointLabel(
+          numericVal,
+          pointMeta.point_category,
+          pointMeta.enum_labels,
+        )
       : null;
 
   // stateLabels config takes precedence (designer-configured overrides), then
   // enum_labels resolution, then raw value string, then placeholder
   const label =
-    valStr !== null
-      ? (stateLabels[valStr] ?? discreteLabel ?? valStr)
-      : "---";
+    valStr !== null ? (stateLabels[valStr] ?? discreteLabel ?? valStr) : "---";
   const isNormal = valStr === null || normalStates.includes(valStr);
 
   const fill = isNormal

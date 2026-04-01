@@ -7,7 +7,12 @@ import { useRef } from "react";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor, makeSlotLabeler, resolveSeriesScales } from "../chart-config-types";
+import {
+  type ChartConfig,
+  autoColor,
+  makeSlotLabeler,
+  resolveSeriesScales,
+} from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 
 interface RendererProps {

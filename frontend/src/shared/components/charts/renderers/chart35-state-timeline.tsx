@@ -250,9 +250,7 @@ export default function StateTimelineChart({ config }: RendererProps) {
         if (segWidth > 40) {
           const segNum = parseInt(seg.value);
           const label =
-            row.enumLabels.get(segNum) ??
-            stateLabels[seg.value] ??
-            seg.value;
+            row.enumLabels.get(segNum) ?? stateLabels[seg.value] ?? seg.value;
           ctx.fillStyle = "rgba(255,255,255,0.9)";
           ctx.font = "10px system-ui, sans-serif";
           ctx.textAlign = "center";
@@ -276,8 +274,16 @@ export default function StateTimelineChart({ config }: RendererProps) {
         ctx.fillText(label, chartRight + 6, rowMidY);
       }
     });
-  // rowSegments already contains enumLabels per row; no extra dep needed
-  }, [rowSegments, rowHeight, stateColors, stateLabels, showCurrentValue, windowStartMs, windowEndMs]);
+    // rowSegments already contains enumLabels per row; no extra dep needed
+  }, [
+    rowSegments,
+    rowHeight,
+    stateColors,
+    stateLabels,
+    showCurrentValue,
+    windowStartMs,
+    windowEndMs,
+  ]);
 
   if (itemSlots.length === 0) {
     return (

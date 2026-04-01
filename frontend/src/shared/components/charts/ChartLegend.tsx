@@ -139,7 +139,9 @@ interface FloatingProps {
 
 function FloatingLegend({ items, highlighted, onHighlight }: FloatingProps) {
   // null = use CSS right/top defaults; once dragged, switch to left/top pixel values
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const isDragging = useRef(false);
   const isResizing = useRef(false);
@@ -164,14 +166,27 @@ function FloatingLegend({ items, highlighted, onHighlight }: FloatingProps) {
 
     function onMove(me: PointerEvent) {
       if (!isDragging.current) return;
-      const parentRect = panelRef.current?.parentElement?.getBoundingClientRect();
+      const parentRect =
+        panelRef.current?.parentElement?.getBoundingClientRect();
       const panelRect = panelRef.current?.getBoundingClientRect();
       if (!parentRect || !panelRect) return;
       const maxX = parentRect.width - panelRect.width;
       const maxY = parentRect.height - panelRect.height;
       setPosition({
-        x: Math.max(0, Math.min(maxX, dragOrigin.current.px + me.clientX - dragOrigin.current.mx)),
-        y: Math.max(0, Math.min(maxY, dragOrigin.current.py + me.clientY - dragOrigin.current.my)),
+        x: Math.max(
+          0,
+          Math.min(
+            maxX,
+            dragOrigin.current.px + me.clientX - dragOrigin.current.mx,
+          ),
+        ),
+        y: Math.max(
+          0,
+          Math.min(
+            maxY,
+            dragOrigin.current.py + me.clientY - dragOrigin.current.my,
+          ),
+        ),
       });
     }
     function onUp() {
@@ -189,7 +204,12 @@ function FloatingLegend({ items, highlighted, onHighlight }: FloatingProps) {
     const rect = panelRef.current?.getBoundingClientRect();
     if (!rect) return;
     isResizing.current = true;
-    resizeOrigin.current = { mx: e.clientX, my: e.clientY, w: rect.width, h: rect.height };
+    resizeOrigin.current = {
+      mx: e.clientX,
+      my: e.clientY,
+      w: rect.width,
+      h: rect.height,
+    };
 
     function onMove(me: PointerEvent) {
       if (!isResizing.current) return;
@@ -239,54 +259,57 @@ function FloatingLegend({ items, highlighted, onHighlight }: FloatingProps) {
       }}
     >
       {items.map((item) => {
-          const isActive = !hasHighlight || highlighted!.has(item.label);
-          return (
-            <div
-              key={item.label}
-              data-legend-item="1"
-              onClick={
-                onHighlight
-                  ? (e) => {
-                      e.stopPropagation();
-                      onHighlight(item.label, e.ctrlKey || e.metaKey);
-                    }
-                  : undefined
-              }
+        const isActive = !hasHighlight || highlighted!.has(item.label);
+        return (
+          <div
+            key={item.label}
+            data-legend-item="1"
+            onClick={
+              onHighlight
+                ? (e) => {
+                    e.stopPropagation();
+                    onHighlight(item.label, e.ctrlKey || e.metaKey);
+                  }
+                : undefined
+            }
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 11,
+              color: isActive
+                ? "var(--io-text-secondary)"
+                : "var(--io-text-muted)",
+              opacity: isActive ? 1 : 0.4,
+              cursor: onHighlight ? "pointer" : "grab",
+              transition: "opacity 0.15s",
+            }}
+          >
+            <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                fontSize: 11,
-                color: isActive ? "var(--io-text-secondary)" : "var(--io-text-muted)",
+                width: 10,
+                height: 10,
+                borderRadius: 2,
+                background: item.color,
+                flexShrink: 0,
                 opacity: isActive ? 1 : 0.4,
-                cursor: onHighlight ? "pointer" : "grab",
-                transition: "opacity 0.15s",
               }}
+            />
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                fontWeight:
+                  hasHighlight && highlighted!.has(item.label) ? 700 : 400,
+              }}
+              title={item.label}
             >
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 2,
-                  background: item.color,
-                  flexShrink: 0,
-                  opacity: isActive ? 1 : 0.4,
-                }}
-              />
-              <span
-                style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontWeight: hasHighlight && highlighted!.has(item.label) ? 700 : 400,
-                }}
-                title={item.label}
-              >
-                {item.label}
-              </span>
-            </div>
-          );
-        })}
+              {item.label}
+            </span>
+          </div>
+        );
+      })}
       {/* Resize handle — bottom-right corner */}
       <div
         data-resize-handle="1"

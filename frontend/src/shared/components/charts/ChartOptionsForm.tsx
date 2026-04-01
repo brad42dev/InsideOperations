@@ -980,7 +980,10 @@ function ExtrasCusum({
           style={inputStyle}
         />
       </Row>
-      <Row label="Allowance (k)" title="Slack parameter: shifts the reference value by ±k·σ before accumulating. k=0.5 is standard (detects ≥1σ shifts). Lower k = more sensitive, more false alarms.">
+      <Row
+        label="Allowance (k)"
+        title="Slack parameter: shifts the reference value by ±k·σ before accumulating. k=0.5 is standard (detects ≥1σ shifts). Lower k = more sensitive, more false alarms."
+      >
         <input
           type="number"
           step={0.01}
@@ -989,7 +992,10 @@ function ExtrasCusum({
           style={inputStyle}
         />
       </Row>
-      <Row label="Control limit (h)" title="Decision interval in σ units: signals an out-of-control condition when CUSUM exceeds h·σ. h=4–5 is standard. Higher h = fewer false alarms, slower detection.">
+      <Row
+        label="Control limit (h)"
+        title="Decision interval in σ units: signals an out-of-control condition when CUSUM exceeds h·σ. h=4–5 is standard. Higher h = fewer false alarms, slower detection."
+      >
         <input
           type="number"
           step={0.1}
@@ -1203,7 +1209,10 @@ function ExtrasHeatmap({
           <select
             value={calendarMode ? "calendar" : "matrix"}
             onChange={(e) =>
-              onExtras({ ...extras, calendarMode: e.target.value === "calendar" })
+              onExtras({
+                ...extras,
+                calendarMode: e.target.value === "calendar",
+              })
             }
             style={selectStyle}
           >
@@ -1217,7 +1226,9 @@ function ExtrasHeatmap({
               type="number"
               min={2000}
               max={2100}
-              value={(extras.calendarYear as number) ?? new Date().getFullYear()}
+              value={
+                (extras.calendarYear as number) ?? new Date().getFullYear()
+              }
               onChange={(e) =>
                 onExtras({ ...extras, calendarYear: Number(e.target.value) })
               }
@@ -1228,7 +1239,9 @@ function ExtrasHeatmap({
         <Row label="Color scale">
           <select
             value={(extras.colorScale as string) ?? "blue-red"}
-            onChange={(e) => onExtras({ ...extras, colorScale: e.target.value })}
+            onChange={(e) =>
+              onExtras({ ...extras, colorScale: e.target.value })
+            }
             style={selectStyle}
           >
             <option value="blue-red">Blue → Yellow → Red</option>
@@ -1285,7 +1298,11 @@ function ExtrasBatchComparison({
       ...extras,
       batches: [
         ...batches,
-        { label: `Batch ${batches.length + 1}`, start: toLocal(oneHourAgo), end: toLocal(now) },
+        {
+          label: `Batch ${batches.length + 1}`,
+          start: toLocal(oneHourAgo),
+          end: toLocal(now),
+        },
       ],
     });
   }
@@ -1886,8 +1903,7 @@ function ExtrasStateTimeline({
   const stateColors = (extras.stateColors as Record<string, string>) ?? {};
   const stateLabels = (extras.stateLabels as Record<string, string>) ?? {};
   const hasCustom =
-    Object.keys(stateColors).length > 0 ||
-    Object.keys(stateLabels).length > 0;
+    Object.keys(stateColors).length > 0 || Object.keys(stateLabels).length > 0;
   const stateRows: StateMapRow[] = hasCustom
     ? Array.from(
         new Set([...Object.keys(stateColors), ...Object.keys(stateLabels)]),

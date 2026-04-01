@@ -58,7 +58,11 @@ export function FillGauge({
   // Resolve discrete label if applicable — shown instead of numeric format
   const discreteLabel =
     pointMeta && value !== null
-      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      ? resolvePointLabel(
+          value,
+          pointMeta.point_category,
+          pointMeta.enum_labels,
+        )
       : null;
 
   const formattedValue = (() => {

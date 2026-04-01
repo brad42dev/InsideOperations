@@ -10,12 +10,12 @@
 /* ── RUNNING ─────────────────────────────────────────────── */
 /* Green fill/stroke — equipment is energised and operating */
 .io-running .io-stateful {
-  stroke: #047857 !important;  /* emerald-700 */
+  stroke: #047857 !important; /* emerald-700 */
   fill: none !important;
 }
 /* Circle-based shapes (pumps, motors, compressors) get a subtle green fill */
 .io-running .io-stateful circle {
-  fill: rgba(5, 150, 105, 0.15) !important;  /* emerald-600 @ 15% */
+  fill: rgba(5, 150, 105, 0.15) !important; /* emerald-600 @ 15% */
   stroke: #047857 !important;
 }
 
@@ -29,24 +29,29 @@
 /* ── FAULT ───────────────────────────────────────────────── */
 /* Red — equipment fault (not an alarm, a physical state) */
 .io-fault .io-stateful {
-  stroke: #DC2626 !important;  /* red-600 */
+  stroke: #dc2626 !important; /* red-600 */
   fill: none !important;
 }
 .io-fault .io-stateful circle {
   fill: rgba(220, 38, 38, 0.12) !important;
-  stroke: #DC2626 !important;
+  stroke: #dc2626 !important;
 }
 
 /* ── TRANSITIONING ───────────────────────────────────────── */
 /* Amber — starting up or shutting down */
 .io-transitioning .io-stateful {
-  stroke: #D97706 !important;  /* amber-600 */
+  stroke: #d97706 !important; /* amber-600 */
   fill: none !important;
 }
 
 @keyframes io-state-transitioning-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 .io-transitioning .io-stateful {
   animation: io-state-transitioning-pulse 1.5s ease-in-out infinite;

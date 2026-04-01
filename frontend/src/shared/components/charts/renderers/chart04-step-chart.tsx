@@ -8,7 +8,12 @@ import { useRef } from "react";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
-import { type ChartConfig, autoColor, makeSlotLabeler, resolveSeriesScales } from "../chart-config-types";
+import {
+  type ChartConfig,
+  autoColor,
+  makeSlotLabeler,
+  resolveSeriesScales,
+} from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import type { EnumLabel } from "../../../../api/points";
 
@@ -19,7 +24,11 @@ interface RendererProps {
   enumLabels?: Map<string, EnumLabel[]>;
 }
 
-export default function Chart04StepChart({ config, bufferKey, enumLabels }: RendererProps) {
+export default function Chart04StepChart({
+  config,
+  bufferKey,
+  enumLabels,
+}: RendererProps) {
   const slotLabel = makeSlotLabeler(config);
   const { highlighted, toggle } = useHighlight();
   const durationMinutes = config.durationMinutes ?? 60;

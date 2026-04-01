@@ -57,9 +57,19 @@ export default function Chart29Cusum({ config }: RendererProps) {
     const rows =
       histResult?.success && histResult.data?.rows ? histResult.data.rows : [];
     if (rows.length === 0)
-      return { timestamps: [], series: [], xRange: undefined, emptyReason: "no_data" as const };
+      return {
+        timestamps: [],
+        series: [],
+        xRange: undefined,
+        emptyReason: "no_data" as const,
+      };
     if (rows.length < 4)
-      return { timestamps: [], series: [], xRange: undefined, emptyReason: "insufficient" as const };
+      return {
+        timestamps: [],
+        series: [],
+        xRange: undefined,
+        emptyReason: "insufficient" as const,
+      };
 
     const tsArr = rows.map((r) => new Date(r.timestamp).getTime() / 1000);
     const vals = rows
@@ -67,7 +77,12 @@ export default function Chart29Cusum({ config }: RendererProps) {
       .filter((v): v is number => v !== null);
 
     if (vals.length < 4)
-      return { timestamps: [], series: [], xRange: undefined, emptyReason: "insufficient" as const };
+      return {
+        timestamps: [],
+        series: [],
+        xRange: undefined,
+        emptyReason: "insufficient" as const,
+      };
 
     const mean = math.mean(vals) as number;
     const sigma = math.std(vals) as unknown as number; // sample std dev (N-1), correct for SPC

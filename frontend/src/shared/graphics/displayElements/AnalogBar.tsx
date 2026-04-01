@@ -44,7 +44,11 @@ export function AnalogBar({
   // Resolve discrete label if applicable
   const discreteLabel =
     pointMeta && value !== null
-      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      ? resolvePointLabel(
+          value,
+          pointMeta.point_category,
+          pointMeta.enum_labels,
+        )
       : null;
 
   const range = rangeHi - rangeLo || 1;

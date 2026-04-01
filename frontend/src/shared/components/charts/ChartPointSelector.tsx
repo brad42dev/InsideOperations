@@ -60,7 +60,10 @@ function ColorSwatch({
   );
 }
 
-function isPointCompatible(point: PointMeta, acceptedPointTypes?: PointTypeCategory[]): boolean {
+function isPointCompatible(
+  point: PointMeta,
+  acceptedPointTypes?: PointTypeCategory[],
+): boolean {
   if (!acceptedPointTypes || acceptedPointTypes.length === 0) return true;
   if (acceptedPointTypes.includes("any")) return true;
   // If point_category is unknown (migration not yet run), allow all
@@ -92,7 +95,7 @@ export default function ChartPointSelector({
         ),
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Debounce search input so we don't fire a query on every keystroke
@@ -166,7 +169,14 @@ export default function ChartPointSelector({
       const colorIdx = without.length;
       onChange([
         ...without,
-        { slotId: role, role, pointId, label, tagname, color: autoColorForTheme(colorIdx, theme) },
+        {
+          slotId: role,
+          role,
+          pointId,
+          label,
+          tagname,
+          color: autoColorForTheme(colorIdx, theme),
+        },
       ]);
     } else {
       // Don't add if already present in this role
@@ -178,7 +188,14 @@ export default function ChartPointSelector({
       const colorIdx = points.length;
       onChange([
         ...points,
-        { slotId, role, pointId, label, tagname, color: autoColorForTheme(colorIdx, theme) },
+        {
+          slotId,
+          role,
+          pointId,
+          label,
+          tagname,
+          color: autoColorForTheme(colorIdx, theme),
+        },
       ]);
     }
   }
@@ -186,7 +203,12 @@ export default function ChartPointSelector({
   function removePoint(slotId: string) {
     const updated = points.filter((p) => p.slotId !== slotId);
     // Re-color remaining points, preserving any manually set colors
-    onChange(updated.map((p, i) => ({ ...p, color: p.color ?? autoColorForTheme(i, theme) })));
+    onChange(
+      updated.map((p, i) => ({
+        ...p,
+        color: p.color ?? autoColorForTheme(i, theme),
+      })),
+    );
   }
 
   function updateColor(slotId: string, color: string) {
@@ -288,31 +310,31 @@ export default function ChartPointSelector({
         style={{ ...inputStyle, gridColumn: 1, gridRow: 2 }}
       />
       {/* ── Left row 3: scrollable list ─────────────────────────────────── */}
-        <div
-          style={{
-            gridColumn: 1,
-            gridRow: 3,
-            overflowY: "auto",
-            border: "1px solid var(--io-border)",
-            borderRadius: 4,
-            background: "var(--io-surface)",
-            minHeight: 0,
-          }}
-        >
-          {filtered.length === 0 && (
-            <div
-              style={{
-                padding: 12,
-                color: "var(--io-text-muted)",
-                fontSize: 12,
-              }}
-            >
-              {isSearching ? "Searching…" : search ? "No matches" : "Loading…"}
-            </div>
-          )}
-          {filtered.map((pt) => {
-            const compatible = isPointCompatible(pt, acceptedPointTypes);
-            return (
+      <div
+        style={{
+          gridColumn: 1,
+          gridRow: 3,
+          overflowY: "auto",
+          border: "1px solid var(--io-border)",
+          borderRadius: 4,
+          background: "var(--io-surface)",
+          minHeight: 0,
+        }}
+      >
+        {filtered.length === 0 && (
+          <div
+            style={{
+              padding: 12,
+              color: "var(--io-text-muted)",
+              fontSize: 12,
+            }}
+          >
+            {isSearching ? "Searching…" : search ? "No matches" : "Loading…"}
+          </div>
+        )}
+        {filtered.map((pt) => {
+          const compatible = isPointCompatible(pt, acceptedPointTypes);
+          return (
             <div
               key={pt.id}
               draggable
@@ -323,7 +345,10 @@ export default function ChartPointSelector({
                 const target = slotDefs.find((s) => {
                   const filled = points.filter((p) => p.role === s.id);
                   const max = s.multi ? (s.maxPoints ?? 12) : 1;
-                  return filled.length < max && !filled.some((p) => p.pointId === pt.id);
+                  return (
+                    filled.length < max &&
+                    !filled.some((p) => p.pointId === pt.id)
+                  );
                 });
                 if (target) assignPoint(target.id, pt.id);
               }}
@@ -331,8 +356,8 @@ export default function ChartPointSelector({
                 !compatible
                   ? `${pt.tagname} — incompatible with this chart type`
                   : pt.display_name
-                  ? `${pt.tagname}\n${pt.display_name}`
-                  : pt.tagname
+                    ? `${pt.tagname}\n${pt.display_name}`
+                    : pt.tagname
               }
               style={{
                 padding: "4px 8px",
@@ -350,7 +375,14 @@ export default function ChartPointSelector({
                 e.currentTarget.style.background = "";
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  minWidth: 0,
+                }}
+              >
                 <div
                   style={{
                     fontWeight: 500,
@@ -363,24 +395,31 @@ export default function ChartPointSelector({
                 >
                   {pt.tagname}
                 </div>
-                {acceptedPointTypes && !acceptedPointTypes.includes("any") && compatible && pt.point_category !== "analog" && (
-                  <span
-                    style={{
-                      fontSize: "0.7em",
-                      fontWeight: 600,
-                      letterSpacing: "0.04em",
-                      padding: "1px 5px",
-                      borderRadius: 3,
-                      flexShrink: 0,
-                      background: pt.point_category === "boolean"
-                        ? "color-mix(in srgb, #10B981 20%, transparent)"
-                        : "color-mix(in srgb, #8B5CF6 20%, transparent)",
-                      color: pt.point_category === "boolean" ? "#10B981" : "#8B5CF6",
-                    }}
-                  >
-                    {pt.point_category === "boolean" ? "BOOL" : "ENUM"}
-                  </span>
-                )}
+                {acceptedPointTypes &&
+                  !acceptedPointTypes.includes("any") &&
+                  compatible &&
+                  pt.point_category !== "analog" && (
+                    <span
+                      style={{
+                        fontSize: "0.7em",
+                        fontWeight: 600,
+                        letterSpacing: "0.04em",
+                        padding: "1px 5px",
+                        borderRadius: 3,
+                        flexShrink: 0,
+                        background:
+                          pt.point_category === "boolean"
+                            ? "color-mix(in srgb, #10B981 20%, transparent)"
+                            : "color-mix(in srgb, #8B5CF6 20%, transparent)",
+                        color:
+                          pt.point_category === "boolean"
+                            ? "#10B981"
+                            : "#8B5CF6",
+                      }}
+                    >
+                      {pt.point_category === "boolean" ? "BOOL" : "ENUM"}
+                    </span>
+                  )}
               </div>
               {pt.display_name && (
                 <div
@@ -396,25 +435,23 @@ export default function ChartPointSelector({
                 </div>
               )}
             </div>
-          )})}
-          {/* Sentinel: triggers next-page fetch when scrolled into view */}
+          );
+        })}
+        {/* Sentinel: triggers next-page fetch when scrolled into view */}
+        <div ref={sentinelRef} style={{ height: 1, flexShrink: 0 }} />
+        {isSearching && filtered.length > 0 && (
           <div
-            ref={sentinelRef}
-            style={{ height: 1, flexShrink: 0 }}
-          />
-          {isSearching && filtered.length > 0 && (
-            <div
-              style={{
-                padding: "6px 8px",
-                fontSize: 11,
-                color: "var(--io-text-muted)",
-                textAlign: "center",
-              }}
-            >
-              Loading…
-            </div>
-          )}
-        </div>
+            style={{
+              padding: "6px 8px",
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              textAlign: "center",
+            }}
+          >
+            Loading…
+          </div>
+        )}
+      </div>
       {/* ── Left row 4: hint ────────────────────────────────────────────── */}
       <div
         style={{
@@ -428,37 +465,46 @@ export default function ChartPointSelector({
       </div>
 
       {/* ── Right row 1: first slot label ───────────────────────────────── */}
-      {slotDefs[0] && (() => {
-        const s = slotDefs[0];
-        const pts = points.filter((p) => p.role === s.id);
-        const max = s.maxPoints ?? 12;
-        const cap = s.multi ? max : 1;
-        const full = s.multi ? pts.length >= max : pts.length >= 1;
-        return (
-          <div
-            style={{
-              gridColumn: 2,
-              gridRow: 1,
-              display: "flex",
-              alignItems: "baseline",
-              gap: 6,
-              fontSize: "0.85em",
-              fontWeight: 600,
-              color: "var(--io-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-            }}
-          >
-            {s.label}
-            {s.required && <span style={{ color: "var(--io-accent)" }}>*</span>}
-            {pts.length > 0 && (
-              <span style={{ fontWeight: 600, color: full ? "var(--io-accent)" : "var(--io-text-muted)" }}>
-                {pts.length}/{cap}{full ? " — full" : ""}
-              </span>
-            )}
-          </div>
-        );
-      })()}
+      {slotDefs[0] &&
+        (() => {
+          const s = slotDefs[0];
+          const pts = points.filter((p) => p.role === s.id);
+          const max = s.maxPoints ?? 12;
+          const cap = s.multi ? max : 1;
+          const full = s.multi ? pts.length >= max : pts.length >= 1;
+          return (
+            <div
+              style={{
+                gridColumn: 2,
+                gridRow: 1,
+                display: "flex",
+                alignItems: "baseline",
+                gap: 6,
+                fontSize: "0.85em",
+                fontWeight: 600,
+                color: "var(--io-text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              {s.label}
+              {s.required && (
+                <span style={{ color: "var(--io-accent)" }}>*</span>
+              )}
+              {pts.length > 0 && (
+                <span
+                  style={{
+                    fontWeight: 600,
+                    color: full ? "var(--io-accent)" : "var(--io-text-muted)",
+                  }}
+                >
+                  {pts.length}/{cap}
+                  {full ? " — full" : ""}
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
       {/* ── Right row 3: slot boxes ───────────────────────────────────────── */}
       <div
@@ -505,7 +551,9 @@ export default function ChartPointSelector({
                   >
                     {slot.label}
                     {slot.required && (
-                      <span style={{ color: "var(--io-accent)", marginLeft: 4 }}>
+                      <span
+                        style={{ color: "var(--io-accent)", marginLeft: 4 }}
+                      >
                         *
                       </span>
                     )}
@@ -515,10 +563,13 @@ export default function ChartPointSelector({
                       style={{
                         fontSize: "0.75em",
                         fontWeight: 600,
-                        color: isFull ? "var(--io-accent)" : "var(--io-text-muted)",
+                        color: isFull
+                          ? "var(--io-accent)"
+                          : "var(--io-text-muted)",
                       }}
                     >
-                      {count}/{cap}{isFull ? " — full" : ""}
+                      {count}/{cap}
+                      {isFull ? " — full" : ""}
                     </span>
                   )}
                 </div>
@@ -539,18 +590,19 @@ export default function ChartPointSelector({
                     isOver
                       ? "var(--io-accent)"
                       : isFull
-                      ? "var(--io-border)"
-                      : "color-mix(in srgb, var(--io-accent) 35%, var(--io-border))"
+                        ? "var(--io-border)"
+                        : "color-mix(in srgb, var(--io-accent) 35%, var(--io-border))"
                   }`,
                   borderRadius: 6,
                   padding: isEmpty ? "18px 12px" : "6px 8px",
                   background: isOver
                     ? "color-mix(in srgb, var(--io-accent) 8%, var(--io-surface))"
                     : isEmpty
-                    ? "color-mix(in srgb, var(--io-accent) 4%, var(--io-surface))"
-                    : "var(--io-surface)",
+                      ? "color-mix(in srgb, var(--io-accent) 4%, var(--io-surface))"
+                      : "var(--io-surface)",
                   opacity: isFull ? 0.7 : 1,
-                  transition: "border-color 0.15s, background 0.15s, padding 0.15s",
+                  transition:
+                    "border-color 0.15s, background 0.15s, padding 0.15s",
                   display: "flex",
                   flexDirection: "column",
                   gap: 4,
@@ -564,15 +616,44 @@ export default function ChartPointSelector({
                       flexDirection: "column",
                       alignItems: "center",
                       gap: 6,
-                      color: isOver ? "var(--io-accent)" : "var(--io-text-muted)",
+                      color: isOver
+                        ? "var(--io-accent)"
+                        : "var(--io-text-muted)",
                       pointerEvents: "none",
                     }}
                   >
-                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" style={{ opacity: 0.5 }}>
-                      <rect x="1" y="5" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2"/>
-                      <path d="M11 9v6M8 12l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 22 22"
+                      fill="none"
+                      style={{ opacity: 0.5 }}
+                    >
+                      <rect
+                        x="1"
+                        y="5"
+                        width="20"
+                        height="14"
+                        rx="2"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeDasharray="3 2"
+                      />
+                      <path
+                        d="M11 9v6M8 12l3-3 3 3"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
-                    <span style={{ fontSize: "0.82em", textAlign: "center", lineHeight: 1.4 }}>
+                    <span
+                      style={{
+                        fontSize: "0.82em",
+                        textAlign: "center",
+                        lineHeight: 1.4,
+                      }}
+                    >
                       {slot.multi
                         ? `Drag points here · up to ${maxPoints}`
                         : "Drag a point here"}
@@ -583,7 +664,9 @@ export default function ChartPointSelector({
                 {/* Assigned points */}
                 {slotPoints.map((sp) => {
                   const meta = filtered.find((p) => p.id === sp.pointId);
-                  const globalIdx = points.findIndex((p) => p.slotId === sp.slotId);
+                  const globalIdx = points.findIndex(
+                    (p) => p.slotId === sp.slotId,
+                  );
                   return (
                     <div
                       key={sp.slotId}
@@ -599,10 +682,18 @@ export default function ChartPointSelector({
                       }}
                     >
                       <ColorSwatch
-                        color={sp.color ?? autoColorForTheme(globalIdx >= 0 ? globalIdx : 0, theme)}
+                        color={
+                          sp.color ??
+                          autoColorForTheme(
+                            globalIdx >= 0 ? globalIdx : 0,
+                            theme,
+                          )
+                        }
                         onChange={(c) => updateColor(sp.slotId, c)}
                       />
-                      <span style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                      <span
+                        style={{ flex: 1, overflow: "hidden", minWidth: 0 }}
+                      >
                         <div
                           style={{
                             overflow: "hidden",
@@ -652,7 +743,9 @@ export default function ChartPointSelector({
                   <div
                     style={{
                       fontSize: "0.78em",
-                      color: isOver ? "var(--io-accent)" : "var(--io-text-muted)",
+                      color: isOver
+                        ? "var(--io-accent)"
+                        : "var(--io-text-muted)",
                       padding: "4px 2px 2px",
                       borderTop: "1px dashed var(--io-border)",
                       marginTop: 2,

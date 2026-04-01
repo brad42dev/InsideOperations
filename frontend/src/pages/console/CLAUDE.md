@@ -9,6 +9,7 @@
 This spec takes priority over design-docs/07_CONSOLE_MODULE.md when they conflict.
 
 Key spec sections to check for common tasks:
+
 - Zustand stores → "3 Zustand stores (WorkspaceStore with zundo, SelectionStore, RealtimeStore)"
 - Grid layouts → "16 even templates + 8 asymmetric templates, react-grid-layout v2"
 - Real-time update pipeline → "WebSocket → mutable buffer → requestAnimationFrame → O(1) point-to-element lookup → direct DOM mutation"

@@ -175,7 +175,10 @@ export function SceneRenderer({
         }
         if (n.type === "symbol_instance") {
           const si = n as SymbolInstance;
-          if (si.stateBinding?.pointId && UUID_RE_OUTER.test(si.stateBinding.pointId))
+          if (
+            si.stateBinding?.pointId &&
+            UUID_RE_OUTER.test(si.stateBinding.pointId)
+          )
             ids.push(si.stateBinding.pointId);
           for (const child of si.children) {
             const de = child as DisplayElement;
@@ -310,7 +313,14 @@ export function SceneRenderer({
               if (!nodeId) continue;
               const conf = nodeConfigMapRef.current.get(nodeId);
               if (!conf) continue;
-              applyPointValue(el, conf.displayType, conf.config, update, pid, pointMetaMapRef.current);
+              applyPointValue(
+                el,
+                conf.displayType,
+                conf.config,
+                update,
+                pid,
+                pointMetaMapRef.current,
+              );
             }
           }
         });
@@ -337,7 +347,14 @@ export function SceneRenderer({
         if (!nodeId) continue;
         const conf = nodeConfigMapRef.current.get(nodeId);
         if (!conf) continue;
-        applyPointValue(el, conf.displayType, conf.config, pvWithAlarm, alarm.point_id, pointMetaMapRef.current);
+        applyPointValue(
+          el,
+          conf.displayType,
+          conf.config,
+          pvWithAlarm,
+          alarm.point_id,
+          pointMetaMapRef.current,
+        );
       }
     };
 
@@ -2802,7 +2819,11 @@ function applyPointValue(
     typeof value === "number" &&
     !isCommFail &&
     !isBad
-      ? resolvePointLabel(value, pointMeta.point_category, pointMeta.enum_labels)
+      ? resolvePointLabel(
+          value,
+          pointMeta.point_category,
+          pointMeta.enum_labels,
+        )
       : null;
 
   switch (displayType) {

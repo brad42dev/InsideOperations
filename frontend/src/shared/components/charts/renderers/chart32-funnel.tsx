@@ -7,7 +7,11 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { EChartsOption } from "echarts";
 import EChart from "../EChart";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import {
+  type ChartConfig,
+  autoColor,
+  makeSlotLabeler,
+} from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import { useWebSocket } from "../../../hooks/useWebSocket";
 import { pointsApi } from "../../../../api/points";

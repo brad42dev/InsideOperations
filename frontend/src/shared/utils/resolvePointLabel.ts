@@ -17,7 +17,10 @@ export function resolvePointLabel(
   if (value === null) return null;
   if (category === "boolean") {
     const idx = value === 0 ? 0 : 1;
-    return enumLabels.find((l) => l.idx === idx)?.label ?? (value === 0 ? "False" : "True");
+    return (
+      enumLabels.find((l) => l.idx === idx)?.label ??
+      (value === 0 ? "False" : "True")
+    );
   }
   if (category === "discrete_enum") {
     const idx = Math.round(value);

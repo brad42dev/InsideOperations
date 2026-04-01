@@ -8,7 +8,11 @@
 import { useMemo } from "react";
 import EChart from "../EChart";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
-import { type ChartConfig, autoColor, makeSlotLabeler } from "../chart-config-types";
+import {
+  type ChartConfig,
+  autoColor,
+  makeSlotLabeler,
+} from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
 import type { EChartsOption } from "echarts";
 import { useHighlight } from "../hooks/useHighlight";
@@ -172,7 +176,15 @@ export default function Chart22StackedArea({
       },
       series: echartsSeries,
     };
-  }, [timestamps, seriesData, seriesSlots, config, useStack, showGrid, durationMinutes]);
+  }, [
+    timestamps,
+    seriesData,
+    seriesSlots,
+    config,
+    useStack,
+    showGrid,
+    durationMinutes,
+  ]);
 
   const displayOption = useMemo(
     () => applyEChartsHighlight(option, highlighted),

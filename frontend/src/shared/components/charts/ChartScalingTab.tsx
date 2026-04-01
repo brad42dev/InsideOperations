@@ -121,8 +121,18 @@ function NumericInput({
   disabled?: boolean;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 80 }}>
-      <label style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        flex: 1,
+        minWidth: 80,
+      }}
+    >
+      <label
+        style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}
+      >
         {label}
       </label>
       <input
@@ -155,7 +165,10 @@ export default function ChartScalingTab({
   pointMeta,
   onChange,
 }: ChartScalingTabProps) {
-  const scaling = config.scaling ?? { type: "auto", autoMode: "largest_visible" };
+  const scaling = config.scaling ?? {
+    type: "auto",
+    autoMode: "largest_visible",
+  };
   const activeMode = scaling.type ?? "auto";
   const autoMode = scaling.autoMode ?? "largest_visible";
 
@@ -316,7 +329,9 @@ export default function ChartScalingTab({
       { value: "auto", label: "Auto" },
       {
         value: "range",
-        label: hasRange ? "Scale to EU Range" : "Scale to EU Range (unavailable)",
+        label: hasRange
+          ? "Scale to EU Range"
+          : "Scale to EU Range (unavailable)",
         disabled: !hasRange,
       },
       { value: "custom", label: "Custom" },
@@ -327,17 +342,35 @@ export default function ChartScalingTab({
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 700 }}>
-
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        maxWidth: 700,
+      }}
+    >
       {/* ═══ AUTO BUBBLE ═══════════════════════════════════════════════════ */}
       <div style={bubbleStyle(activeMode === "auto")}>
         <div style={bubbleHeaderStyle()} onClick={() => setMode("auto")}>
           <RadioDot active={activeMode === "auto"} />
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text-primary)" }}>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
+              }}
+            >
               Auto
             </div>
-            <div style={{ fontSize: 12, color: "var(--io-text-muted)", marginTop: 1 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--io-text-muted)",
+                marginTop: 1,
+              }}
+            >
               Automatically scale axes to fit data
             </div>
           </div>
@@ -362,13 +395,36 @@ export default function ChartScalingTab({
               onClick={() => patchScaling({ autoMode: "largest_visible" })}
               title="Zooms the Y axis to fit only the values currently visible in the chart window. The scale adjusts as you pan or zoom in time."
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <RadioDot active={activeMode === "auto" && autoMode === "largest_visible"} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--io-text-primary)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <RadioDot
+                  active={
+                    activeMode === "auto" && autoMode === "largest_visible"
+                  }
+                />
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--io-text-primary)",
+                  }}
+                >
                   Largest Visible
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--io-text-muted)", paddingLeft: 24 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--io-text-muted)",
+                  paddingLeft: 24,
+                }}
+              >
                 Scale to the range of data visible in the current time window
               </div>
             </div>
@@ -390,13 +446,36 @@ export default function ChartScalingTab({
               onClick={() => patchScaling({ autoMode: "largest_eu_range" })}
               title="Fixes the Y axis to span the full engineering unit range defined in the OPC server for these points. The scale stays constant regardless of current values."
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <RadioDot active={activeMode === "auto" && autoMode === "largest_eu_range"} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--io-text-primary)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <RadioDot
+                  active={
+                    activeMode === "auto" && autoMode === "largest_eu_range"
+                  }
+                />
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--io-text-primary)",
+                  }}
+                >
                   Largest EU Range
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--io-text-muted)", paddingLeft: 24 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--io-text-muted)",
+                  paddingLeft: 24,
+                }}
+              >
                 Scale to the full operating range defined in the OPC server
               </div>
             </div>
@@ -409,10 +488,22 @@ export default function ChartScalingTab({
         <div style={bubbleHeaderStyle()} onClick={() => setMode("fixed")}>
           <RadioDot active={activeMode === "fixed"} />
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text-primary)" }}>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: "var(--io-text-primary)",
+              }}
+            >
               Fixed
             </div>
-            <div style={{ fontSize: 12, color: "var(--io-text-muted)", marginTop: 1 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--io-text-muted)",
+                marginTop: 1,
+              }}
+            >
               Pin the axis to a specific range regardless of data values
             </div>
           </div>
@@ -422,24 +513,62 @@ export default function ChartScalingTab({
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {/* Y Axis */}
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--io-text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--io-text-muted)",
+                  marginBottom: 8,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
                 Y Axis Range
               </div>
               <div style={{ display: "flex", gap: 12 }}>
-                <NumericInput label="Y Min" value={scaling.yMin} onChange={(v) => patchScaling({ yMin: v })} disabled={activeMode !== "fixed"} />
-                <NumericInput label="Y Max" value={scaling.yMax} onChange={(v) => patchScaling({ yMax: v })} disabled={activeMode !== "fixed"} />
+                <NumericInput
+                  label="Y Min"
+                  value={scaling.yMin}
+                  onChange={(v) => patchScaling({ yMin: v })}
+                  disabled={activeMode !== "fixed"}
+                />
+                <NumericInput
+                  label="Y Max"
+                  value={scaling.yMax}
+                  onChange={(v) => patchScaling({ yMax: v })}
+                  disabled={activeMode !== "fixed"}
+                />
               </div>
             </div>
 
             {/* X Axis (XY charts only) */}
             {isXY && (
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--io-text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--io-text-muted)",
+                    marginBottom: 8,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
                   X Axis Range
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
-                  <NumericInput label="X Min" value={scaling.xMin} onChange={(v) => patchScaling({ xMin: v })} disabled={activeMode !== "fixed"} />
-                  <NumericInput label="X Max" value={scaling.xMax} onChange={(v) => patchScaling({ xMax: v })} disabled={activeMode !== "fixed"} />
+                  <NumericInput
+                    label="X Min"
+                    value={scaling.xMin}
+                    onChange={(v) => patchScaling({ xMin: v })}
+                    disabled={activeMode !== "fixed"}
+                  />
+                  <NumericInput
+                    label="X Max"
+                    value={scaling.xMax}
+                    onChange={(v) => patchScaling({ xMax: v })}
+                    disabled={activeMode !== "fixed"}
+                  />
                 </div>
               </div>
             )}
@@ -454,21 +583,43 @@ export default function ChartScalingTab({
       {/* ═══ MULTI-SCALE BUBBLE ════════════════════════════════════════════ */}
       {supportsMultiScale && (
         <div style={bubbleStyle(activeMode === "multiscale")}>
-          <div style={bubbleHeaderStyle()} onClick={() => setMode("multiscale")}>
+          <div
+            style={bubbleHeaderStyle()}
+            onClick={() => setMode("multiscale")}
+          >
             <RadioDot active={activeMode === "multiscale"} />
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text-primary)" }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--io-text-primary)",
+                }}
+              >
                 Multi-Scale
               </div>
-              <div style={{ fontSize: 12, color: "var(--io-text-muted)", marginTop: 1 }}>
-                Independent scaling per point — stack similar ranges to share axis labels
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--io-text-muted)",
+                  marginTop: 1,
+                }}
+              >
+                Independent scaling per point — stack similar ranges to share
+                axis labels
               </div>
             </div>
           </div>
 
           <div style={bubbleContentStyle(activeMode === "multiscale")}>
             {seriesSlots.length === 0 ? (
-              <div style={{ fontSize: 13, color: "var(--io-text-muted)", padding: "4px 0 8px" }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "var(--io-text-muted)",
+                  padding: "4px 0 8px",
+                }}
+              >
                 No points assigned. Add points in the Data Points tab first.
               </div>
             ) : (
@@ -492,7 +643,10 @@ export default function ChartScalingTab({
                   <span>Scale Mode</span>
                   <span>Min</span>
                   <span>Max</span>
-                  <span style={{ textAlign: "center" }} title="Show axis label for this series">
+                  <span
+                    style={{ textAlign: "center" }}
+                    title="Show axis label for this series"
+                  >
                     Label
                   </span>
                 </div>
@@ -500,14 +654,20 @@ export default function ChartScalingTab({
                 {/* Rows */}
                 {orderedSlots.map((slot, idx) => {
                   const ss = getSeriesScale(slot.slotId);
-                  const effective = resolveScale(slot.slotId, orderedSlots, scaling.perSeries ?? {});
+                  const effective = resolveScale(
+                    slot.slotId,
+                    orderedSlots,
+                    scaling.perSeries ?? {},
+                  );
                   const meta = pointMeta.get(slot.pointId);
                   const hasRange =
                     meta?.eu_range_low != null || meta?.eu_range_high != null;
                   const isFirst = idx === 0;
                   const isSameAsAbove = ss.mode === "same_as_above";
                   const inputsDisabled =
-                    isSameAsAbove || effective.mode === "auto" || effective.mode === "range";
+                    isSameAsAbove ||
+                    effective.mode === "auto" ||
+                    effective.mode === "range";
                   const isDragTarget = dragOverId === slot.slotId;
 
                   return (
@@ -545,12 +705,24 @@ export default function ChartScalingTab({
                         }}
                       >
                         <span
-                          style={{ fontSize: 14, cursor: "grab", lineHeight: 1, padding: "0 2px", opacity: 0.6 }}
+                          style={{
+                            fontSize: 14,
+                            cursor: "grab",
+                            lineHeight: 1,
+                            padding: "0 2px",
+                            opacity: 0.6,
+                          }}
                           title="Drag to reorder"
                         >
                           ⠿
                         </span>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 0,
+                          }}
+                        >
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -562,7 +734,9 @@ export default function ChartScalingTab({
                               border: "none",
                               padding: "1px 3px",
                               cursor: isFirst ? "not-allowed" : "pointer",
-                              color: isFirst ? "var(--io-text-disabled, #666)" : "var(--io-text-muted)",
+                              color: isFirst
+                                ? "var(--io-text-disabled, #666)"
+                                : "var(--io-text-muted)",
                               fontSize: 9,
                               lineHeight: 1,
                             }}
@@ -580,7 +754,10 @@ export default function ChartScalingTab({
                               background: "none",
                               border: "none",
                               padding: "1px 3px",
-                              cursor: idx === orderedSlots.length - 1 ? "not-allowed" : "pointer",
+                              cursor:
+                                idx === orderedSlots.length - 1
+                                  ? "not-allowed"
+                                  : "pointer",
                               color:
                                 idx === orderedSlots.length - 1
                                   ? "var(--io-text-disabled, #666)"
@@ -657,7 +834,11 @@ export default function ChartScalingTab({
                         }}
                       >
                         {seriesModeOptions(slot, isFirst).map((opt) => (
-                          <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+                          <option
+                            key={opt.value}
+                            value={opt.value}
+                            disabled={opt.disabled}
+                          >
                             {opt.label}
                           </option>
                         ))}
@@ -667,7 +848,11 @@ export default function ChartScalingTab({
                       <div style={{ position: "relative" }}>
                         <input
                           type="number"
-                          value={isSameAsAbove ? (effective.min ?? "") : (ss.min ?? "")}
+                          value={
+                            isSameAsAbove
+                              ? (effective.min ?? "")
+                              : (ss.min ?? "")
+                          }
                           placeholder={
                             effective.mode === "range" && hasRange
                               ? String(meta?.eu_range_low ?? "—")
@@ -692,7 +877,11 @@ export default function ChartScalingTab({
                       <div>
                         <input
                           type="number"
-                          value={isSameAsAbove ? (effective.max ?? "") : (ss.max ?? "")}
+                          value={
+                            isSameAsAbove
+                              ? (effective.max ?? "")
+                              : (ss.max ?? "")
+                          }
                           placeholder={
                             effective.mode === "range" && hasRange
                               ? String(meta?.eu_range_high ?? "—")
@@ -714,7 +903,9 @@ export default function ChartScalingTab({
                       </div>
 
                       {/* Axis label visible */}
-                      <div style={{ display: "flex", justifyContent: "center" }}>
+                      <div
+                        style={{ display: "flex", justifyContent: "center" }}
+                      >
                         <input
                           type="checkbox"
                           checked={ss.axisLabelVisible ?? false}
@@ -724,16 +915,29 @@ export default function ChartScalingTab({
                             })
                           }
                           title="Show Y-axis label for this series"
-                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: "var(--io-accent)" }}
+                          style={{
+                            width: 15,
+                            height: 15,
+                            cursor: "pointer",
+                            accentColor: "var(--io-accent)",
+                          }}
                         />
                       </div>
                     </div>
                   );
                 })}
 
-                <div style={{ fontSize: 12, color: "var(--io-text-muted)", marginTop: 4 }}>
-                  <b>Scale to EU Range</b> uses the engineering unit range from the OPC server.{" "}
-                  <b>Same as Above</b> inherits the row above it — stack like-ranged points and enable one axis label to group them.
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--io-text-muted)",
+                    marginTop: 4,
+                  }}
+                >
+                  <b>Scale to EU Range</b> uses the engineering unit range from
+                  the OPC server. <b>Same as Above</b> inherits the row above it
+                  — stack like-ranged points and enable one axis label to group
+                  them.
                 </div>
               </div>
             )}

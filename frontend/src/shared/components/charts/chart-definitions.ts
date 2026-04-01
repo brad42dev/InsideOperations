@@ -253,7 +253,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       "Historical data only",
     ],
     usage:
-      'In the Data Points tab, assign the variable you want to compare across batches. In the Options tab, set the Reference batch label to identify your golden batch — the best-performing historical run (best yield, best quality, best energy efficiency) — so operators see a clear reference name rather than a timestamp. Select your golden batch time window and overlay the current or recent batches against it. Deviations from the golden batch shape in the first 20–30% of elapsed time often predict end-of-batch quality, making this chart valuable for early intervention. When a batch fails, compare it against the golden batch to identify which phase introduced the deviation — the crossing point of the lines is where the run went wrong.',
+      "In the Data Points tab, assign the variable you want to compare across batches. In the Options tab, set the Reference batch label to identify your golden batch — the best-performing historical run (best yield, best quality, best energy efficiency) — so operators see a clear reference name rather than a timestamp. Select your golden batch time window and overlay the current or recent batches against it. Deviations from the golden batch shape in the first 20–30% of elapsed time often predict end-of-batch quality, making this chart valuable for early intervention. When a batch fails, compare it against the golden batch to identify which phase introduced the deviation — the crossing point of the lines is where the run went wrong.",
     scenarios: [
       {
         role: "Process Engineer",
@@ -721,13 +721,15 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       },
       {
         role: "Environmental / HSE Engineer",
-        title: "Emissions Data Validation — Are Our Measurements Representative?",
+        title:
+          "Emissions Data Validation — Are Our Measurements Representative?",
         description:
           "Run the Probability Plot on a year of CEMS NOx hourly averages before submitting the annual compliance report. A heavy right tail reveals that a small number of startup and upset events are skewing the annual average far above the steady-state operating level — this distribution information supports a request to the regulator for a separate startup/shutdown emissions averaging methodology rather than a single annual average.",
       },
       {
         role: "Process Engineer",
-        title: "Validating EWMA Chart Choice for Autocorrelated Temperature Data",
+        title:
+          "Validating EWMA Chart Choice for Autocorrelated Temperature Data",
         description:
           "Apply the Probability Plot to residuals from an autocorrelation model for the reformer reactor inlet temperature before deploying an EWMA chart. If the residuals (the portion of variation that isn't explained by yesterday's value) fall on the normal reference line, the EWMA control limits are statistically valid. If the residuals are heavy-tailed, the lambda must be tuned conservatively to avoid excessive false alarms on genuinely normal process variation.",
       },
@@ -1163,7 +1165,9 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       "Threshold coloring responds live to alarm state changes",
       "Optional sparkline shows recent trend direction",
     ],
-    downsides: ["Only shows one value — no time-series context without sparkline"],
+    downsides: [
+      "Only shows one value — no time-series context without sparkline",
+    ],
     usage:
       "Reserve KPI Cards for the 5–10 metrics that matter most at shift level. In the Scaling tab, set warning and critical thresholds — the card background color changes automatically. Enable the sparkline to show the last 2–4 hours of trend direction alongside the current value. Group related KPI Cards together in a pane for a complete status picture.",
     scenarios: [
@@ -1286,7 +1290,9 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       "Optional setpoint marker for control loop monitoring",
       "Horizontal or vertical orientation",
     ],
-    downsides: ["Only for continuous analog variables with defined operating zones"],
+    downsides: [
+      "Only for continuous analog variables with defined operating zones",
+    ],
     usage:
       "In the Scaling tab, set the full engineering range and define colored operating zones. Add a setpoint marker in Options when the variable is under automatic control. Mount vertically to mimic panel instrument orientation, or horizontally for compact dashboards.",
     scenarios: [
@@ -1320,7 +1326,9 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       "Fill color follows alarm state automatically",
       "Vessel overlay mode fills a drawn equipment shape in the Designer",
     ],
-    downsides: ["Only for physical levels (volume, mass, percentage of capacity)"],
+    downsides: [
+      "Only for physical levels (volume, mass, percentage of capacity)",
+    ],
     usage:
       "In the Scaling tab, set the scale to actual engineering units and configure alarm thresholds — the fill color shifts automatically when live values cross each threshold. In the Designer module, use vessel overlay mode to place the fill inside a drawn vessel shape so the level appears to fill the actual vessel outline.",
     scenarios: [
@@ -1463,7 +1471,8 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       },
       {
         role: "Safety Engineer",
-        title: "ESD Sequence Verification — Did the Shutdown Execute Correctly?",
+        title:
+          "ESD Sequence Verification — Did the Shutdown Execute Correctly?",
         description:
           "Render an event timeline of all ESD valve closures, pump trips, and compressor coast-down confirmations during a unit trip, each as a bar with start and end timestamps. The timeline confirms whether the ESD executed within its design response time (typically under 2 seconds for critical valves) and whether all shutdown elements completed in the correct sequence — required for the post-trip safety system performance report.",
       },
@@ -1543,7 +1552,9 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       "Synchronized with adjacent trend charts via shared time cursor",
       "Simultaneous trips appear as a vertical boundary across multiple rows",
     ],
-    downsides: ["Only for discrete digital points — not for continuous analog values"],
+    downsides: [
+      "Only for discrete digital points — not for continuous analog values",
+    ],
     usage:
       "Add each equipment point in the Data Points tab — each becomes one labeled row. In the Options tab, configure the State mapping table to match your actual discrete values with labels and colors. Set the toolbar duration to the shift or investigation window. Place above or below a trend chart for correlation.",
     scenarios: [
@@ -1583,7 +1594,9 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       "Aggregate function configurable per deployment",
       "Auto-refreshes on a configurable interval",
     ],
-    downsides: ["Aggregated view only — not for reading raw values at specific timestamps"],
+    downsides: [
+      "Aggregated view only — not for reading raw values at specific timestamps",
+    ],
     usage:
       "Assign each KPI as a Metric point in the Data Points tab. In the Options tab, set Row period (Hour, Shift, Day, Week) and Aggregate function (Average, Last, Sum). Configure green/yellow/red threshold bands in the Scaling tab per column. Set Refresh interval to keep cells current.",
     scenarios: [
@@ -1650,7 +1663,8 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       },
       {
         role: "Accounting / Finance",
-        title: "Shift Profitability Profile — Identifying Best and Worst Shifts",
+        title:
+          "Shift Profitability Profile — Identifying Best and Worst Shifts",
         description:
           "Add throughput, energy intensity, product quality premium, maintenance events, and calculated shift margin as axes over 6 months of shift-level data. Color lines by shift team. When one shift team's lines cluster in a distinct region — higher energy intensity and lower quality premium — the parallel coordinate plot reveals a systematic operational pattern that a Shewhart chart on a single metric would miss entirely, pointing to a specific training or procedure gap.",
       },
@@ -1767,7 +1781,8 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     scenarios: [
       {
         role: "Process Engineer",
-        title: "HCU Yield Optimization — Temperature and Pressure Response Surface",
+        title:
+          "HCU Yield Optimization — Temperature and Pressure Response Surface",
         description:
           "Assign reactor temperature (X), operating pressure (Y), and VGO conversion (Z) over 6 months of varied operating conditions. The resulting surface maps the conversion response across the entire operating envelope — the ridge of maximum conversion at each pressure-temperature combination defines the optimal severity curve, replacing a static licensor table with a surface built from actual plant performance data.",
       },

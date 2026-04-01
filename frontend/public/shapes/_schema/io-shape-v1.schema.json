@@ -5,9 +5,22 @@
   "description": "Schema for Inside/Operations shape sidecar JSON files",
   "type": "object",
   "required": [
-    "$schema", "shape_id", "version", "display_name", "category",
-    "subcategory", "tags", "recognition_class", "variants", "alarmBinding",
-    "geometry", "connections", "textZones", "valueAnchors", "alarmAnchor", "states"
+    "$schema",
+    "shape_id",
+    "version",
+    "display_name",
+    "category",
+    "subcategory",
+    "tags",
+    "recognition_class",
+    "variants",
+    "alarmBinding",
+    "geometry",
+    "connections",
+    "textZones",
+    "valueAnchors",
+    "alarmAnchor",
+    "states"
   ],
   "properties": {
     "$schema": {
@@ -83,7 +96,12 @@
     },
     "alarmBinding": {
       "type": "object",
-      "required": ["stateSource", "priorityMapping", "unacknowledgedFlash", "flashRate"],
+      "required": [
+        "stateSource",
+        "priorityMapping",
+        "unacknowledgedFlash",
+        "flashRate"
+      ],
       "properties": {
         "stateSource": {
           "type": "string",
@@ -119,10 +137,16 @@
         "required": ["id", "type", "x", "y", "direction"],
         "properties": {
           "id": { "type": "string" },
-          "type": { "type": "string", "enum": ["process", "signal", "mechanical", "electrical"] },
+          "type": {
+            "type": "string",
+            "enum": ["process", "signal", "mechanical", "electrical"]
+          },
           "x": { "type": "number" },
           "y": { "type": "number" },
-          "direction": { "type": "string", "enum": ["left", "right", "top", "bottom"] }
+          "direction": {
+            "type": "string",
+            "enum": ["left", "right", "top", "bottom"]
+          }
         }
       }
     },

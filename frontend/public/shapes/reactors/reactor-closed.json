@@ -18,23 +18,53 @@
   },
   "alarmBinding": {
     "stateSource": "point_alarm_state",
-    "priorityMapping": { "1": "alarm_critical", "2": "alarm_high", "3": "alarm_medium", "4": "alarm_advisory" },
+    "priorityMapping": {
+      "1": "alarm_critical",
+      "2": "alarm_high",
+      "3": "alarm_medium",
+      "4": "alarm_advisory"
+    },
     "unacknowledgedFlash": true,
     "flashRate": "1Hz"
   },
   "geometry": { "viewBox": "0 0 40 80", "width": 40, "height": 80 },
   "connections": [
-    { "id": "inlet",        "type": "process", "x": 10, "y": 30, "direction": "left" },
-    { "id": "outlet",       "type": "process", "x": 10, "y": 60, "direction": "left" },
-    { "id": "top-nozzle",   "type": "process", "x": 20, "y": 12, "direction": "top" },
-    { "id": "bottom-drain", "type": "process", "x": 20, "y": 68, "direction": "bottom" }
+    { "id": "inlet", "type": "process", "x": 10, "y": 30, "direction": "left" },
+    {
+      "id": "outlet",
+      "type": "process",
+      "x": 10,
+      "y": 60,
+      "direction": "left"
+    },
+    {
+      "id": "top-nozzle",
+      "type": "process",
+      "x": 20,
+      "y": 12,
+      "direction": "top"
+    },
+    {
+      "id": "bottom-drain",
+      "type": "process",
+      "x": 20,
+      "y": 68,
+      "direction": "bottom"
+    }
   ],
   "textZones": [
-    { "id": "tagname", "x": 20, "y": -6, "width": 40, "anchor": "middle", "fontSize": 11 }
+    {
+      "id": "tagname",
+      "x": 20,
+      "y": -6,
+      "width": 40,
+      "anchor": "middle",
+      "fontSize": 11
+    }
   ],
   "valueAnchors": [
     { "nx": 0.5, "ny": 1.08, "preferredElement": "text_readout" },
-    { "nx": 1.2, "ny": 0.5,  "preferredElement": "analog_bar" }
+    { "nx": 1.2, "ny": 0.5, "preferredElement": "analog_bar" }
   ],
   "alarmAnchor": { "nx": 1.15, "ny": -0.05 },
   "vesselInteriorPath": "M10,12 A10,5 0 0,1 30,12 L30,68 A10,5 0 0,1 10,68 Z",

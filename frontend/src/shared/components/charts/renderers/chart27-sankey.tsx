@@ -62,7 +62,9 @@ export default function SankeyChart({ config }: RendererProps) {
             color: textMuted,
             fontSize: 11,
           },
-          nodeAlign: (config.extras?.nodeAlign as "justify" | "left" | "right") ?? "justify",
+          nodeAlign:
+            (config.extras?.nodeAlign as "justify" | "left" | "right") ??
+            "justify",
           layoutIterations: 32,
         },
       ],

@@ -14,7 +14,11 @@ import ChartTypePicker from "./ChartTypePicker";
 import ChartPointSelector from "./ChartPointSelector";
 import ChartOptionsForm from "./ChartOptionsForm";
 import ChartScalingTab from "./ChartScalingTab";
-import { CHART_DEFINITIONS, type ChartContext, type PointTypeCategory } from "./chart-definitions";
+import {
+  CHART_DEFINITIONS,
+  type ChartContext,
+  type PointTypeCategory,
+} from "./chart-definitions";
 
 interface ChartConfigPanelProps {
   /** Initial config to populate the panel from */
@@ -61,7 +65,10 @@ export default function ChartConfigPanel({
   const pointMeta = new Map(
     config.points.map((p) => {
       const fetched = metaQueries[uniquePointIds.indexOf(p.pointId)]?.data;
-      const detail = fetched && "success" in fetched && fetched.success ? fetched.data : null;
+      const detail =
+        fetched && "success" in fetched && fetched.success
+          ? fetched.data
+          : null;
       return [
         p.pointId,
         {
@@ -312,7 +319,10 @@ export default function ChartConfigPanel({
                 slotDefs={slotDefs}
                 points={config.points}
                 onChange={(pts) => patchConfig({ points: pts })}
-                acceptedPointTypes={CHART_DEFINITIONS.find(d => d.id === config.chartType)?.acceptedPointTypes}
+                acceptedPointTypes={
+                  CHART_DEFINITIONS.find((d) => d.id === config.chartType)
+                    ?.acceptedPointTypes
+                }
               />
             </div>
           )}

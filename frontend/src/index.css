@@ -206,7 +206,9 @@
   --io-duration-slow: 350ms;
 
   /* Typography — font stacks (static, all themes) */
-  --io-font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --io-font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", "Fira Code", "Courier New",
+    monospace;
 }
 
 /* ---- Light theme ------------------------------------------- */
@@ -610,14 +612,23 @@
 
 /* Skeleton loading pulse */
 @keyframes io-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 /* Skeleton shimmer — module-shaped loading states */
 @keyframes io-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .io-skeleton {
@@ -633,8 +644,14 @@
 
 /* Unacknowledged — 1Hz flash between alarm color and gray */
 @keyframes io-alarm-flash {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0.25; }
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.25;
+  }
 }
 
 .io-unack {
@@ -696,8 +713,15 @@ body {
   margin: 0;
   background: var(--io-surface-primary);
   color: var(--io-text-primary);
-  font-family: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', sans-serif;
+  font-family:
+    "InterVariable",
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    sans-serif;
   font-size: var(--io-text-base, 0.875rem);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -705,9 +729,13 @@ body {
 }
 
 /* Monospace for code/data contexts */
-code, pre, kbd,
+code,
+pre,
+kbd,
 .io-mono {
-  font-family: 'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-family:
+    "JetBrains Mono Variable", "JetBrains Mono", "Fira Code", "Courier New",
+    monospace;
   font-size: var(--io-text-code, 0.8125rem);
 }
 
