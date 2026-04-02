@@ -5,6 +5,7 @@ import type {
   LayoutPreset,
   GridItem,
 } from "../pages/console/types";
+import { migrateGridItems } from "../pages/console/layout-utils";
 
 // ---------------------------------------------------------------------------
 // WorkspaceSummary — shape returned by the backend (metadata blob)
@@ -37,7 +38,9 @@ function normalizeWorkspace(raw: WorkspaceSummary): WorkspaceLayout {
     name: raw.name,
     layout: meta.layout ?? "2x2",
     panes: Array.isArray(meta.panes) ? meta.panes : [],
-    gridItems: Array.isArray(meta.gridItems) ? meta.gridItems : undefined,
+    gridItems: Array.isArray(meta.gridItems)
+      ? migrateGridItems(meta.gridItems)
+      : undefined,
     overflowPanes: Array.isArray(meta.overflowPanes)
       ? meta.overflowPanes
       : undefined,

@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usePermission } from "../../shared/hooks/usePermission";
 
 import WorkspaceGrid, { presetToGridItems } from "./WorkspaceGrid";
+import { migrateGridItems } from "./layout-utils";
 import type { GridItem } from "./types";
 import ConsolePalette, { type ConsoleDragItem } from "./ConsolePalette";
 import HistoricalPlaybackBar from "../../shared/components/HistoricalPlaybackBar";
@@ -130,10 +131,16 @@ function saveDraftLocal(ws: WorkspaceLayout): void {
   } catch { /* ignore quota errors */ }
 }
 
+function migrateWorkspace(ws: WorkspaceLayout): WorkspaceLayout {
+  if (!ws.gridItems?.length) return ws;
+  const migrated = migrateGridItems(ws.gridItems);
+  return migrated === ws.gridItems ? ws : { ...ws, gridItems: migrated };
+}
+
 function loadDraftLocal(id: string): WorkspaceLayout | null {
   try {
     const raw = localStorage.getItem(DRAFT_PREFIX + id);
-    return raw ? (JSON.parse(raw) as WorkspaceLayout) : null;
+    return raw ? migrateWorkspace(JSON.parse(raw) as WorkspaceLayout) : null;
   } catch {
     return null;
   }
@@ -147,7 +154,7 @@ function loadWorkspacesLocal(): WorkspaceLayout[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as WorkspaceLayout[];
+    return (JSON.parse(raw) as WorkspaceLayout[]).map(migrateWorkspace);
   } catch {
     return [];
   }
@@ -234,14 +241,15 @@ export default function ConsolePage() {
   const {
     workspaces,
     activeId,
-    editMode,
     preserveAspectRatio,
     hideTitles,
     setWorkspaces,
     setActiveId,
-    setEditMode,
     setPreserveAspectRatio,
     setHideTitles,
+    toggleLocked,
+    pinPane,
+    unpinPane,
     updateWorkspace,
     renameWorkspace,
     changeLayout,
@@ -320,7 +328,18 @@ export default function ConsolePage() {
         return draft ?? ws;
       });
       setWorkspaces(resolvedWorkspaces);
-      setOpenTabIds(resolvedWorkspaces.map((w) => w.id));
+      // Additive merge: first load opens all tabs; subsequent refreshes (e.g. after
+      // save invalidates the query, or activeId changes) only add newly created
+      // workspaces — never re-open tabs the user explicitly closed.
+      setOpenTabIds((prev) => {
+        const allIds = resolvedWorkspaces.map((w) => w.id);
+        if (prev.length === 0) return allIds; // first load
+        const allSet = new Set(allIds);
+        const prevSet = new Set(prev);
+        const kept = prev.filter((id) => allSet.has(id)); // remove server-deleted
+        const added = allIds.filter((id) => !prevSet.has(id)); // add brand-new
+        return [...kept, ...added];
+      });
       const newActiveId =
         resolvedWorkspaces.length > 0 &&
         (activeId === null || !resolvedWorkspaces.find((w) => w.id === activeId))
@@ -422,14 +441,7 @@ export default function ConsolePage() {
       const isCreate = pendingCreateIdsRef.current.has(ws.id);
       if (isCreate) {
         pendingCreateIdsRef.current.delete(ws.id);
-        // If the user is still configuring in edit mode, defer the toast until they
-        // click Done — otherwise it auto-dismisses before they ever look at it.
-        // If edit mode is already exited (fast backend or slow user), show immediately.
-        if (useWorkspaceStore.getState().editMode) {
-          confirmedCreateIdsRef.current.add(ws.id);
-        } else {
-          showToast({ title: "Workspace created", variant: "success" });
-        }
+        showToast({ title: "Workspace created", variant: "success" });
       }
       const isDuplicate = pendingDuplicateIdsRef.current.has(ws.id);
       if (isDuplicate) {
@@ -695,7 +707,7 @@ export default function ConsolePage() {
       const snap = serverSnapshotsRef.current[wsId];
       if (snap) {
         try {
-          setWorkspace(JSON.parse(snap) as WorkspaceLayout);
+          setWorkspace(migrateWorkspace(JSON.parse(snap) as WorkspaceLayout));
         } catch { /* ignore */ }
       }
       setCloseDialog(null);
@@ -757,10 +769,6 @@ export default function ConsolePage() {
 
   // Track workspace IDs that are being created (not auto-saved) so we can toast on success/failure
   const pendingCreateIdsRef = useRef<Set<string>>(new Set());
-  // Track workspace IDs where the backend confirmed creation success but the user is still in edit
-  // mode. The success toast is deferred until Done is clicked so the user actually sees it rather
-  // than it auto-dismissing silently while they are still configuring the workspace.
-  const confirmedCreateIdsRef = useRef<Set<string>>(new Set());
   // Track workspace IDs that are being duplicated so we can show specific toasts
   const pendingDuplicateIdsRef = useRef<Set<string>>(new Set());
   // Track workspace IDs that are being renamed so we can show specific toasts
@@ -795,6 +803,12 @@ export default function ConsolePage() {
   }, []);
 
   const activeWorkspace = workspaces.find((w) => w.id === activeId) ?? null;
+  const isLocked = activeWorkspace?.locked ?? false;
+  const pinnedIds = useMemo(
+    () => new Set(activeWorkspace?.panes.filter((p) => p.pinned).map((p) => p.id) ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeWorkspace?.panes],
+  );
 
   // ---- Browser fullscreen --------------------------------------------------
 
@@ -838,7 +852,6 @@ export default function ConsolePage() {
     setWorkspaces([...currentWorkspaces, ws]);
     setOpenTabIds((prev) => [...prev, ws.id]);
     setActiveId(ws.id);
-    setEditMode(true);
     pendingCreateIdsRef.current.add(ws.id);
     persistWorkspace(ws);
     if (useApi) {
@@ -932,32 +945,6 @@ export default function ConsolePage() {
     [activeId, updateGridItems, scheduleSave],
   );
 
-  const saveEdit = () => {
-    // Flush any deferred create-success toast. The toast was held in confirmedCreateIdsRef
-    // while the user was in edit mode so it fires at Done-click time — the moment the user
-    // finishes creating the workspace — rather than silently auto-dismissing before they look.
-    if (activeId) {
-      if (confirmedCreateIdsRef.current.has(activeId)) {
-        // API path: backend already confirmed success while user was still in edit mode.
-        // Fire the toast now that they have clicked Done and will actually see it.
-        confirmedCreateIdsRef.current.delete(activeId);
-        showToast({ title: "Workspace created", variant: "success" });
-      } else if (!useApi && pendingCreateIdsRef.current.has(activeId)) {
-        // Local-storage path: persistWorkspace called saveWorkspacesLocal synchronously,
-        // so the save is already complete. Show the success toast now.
-        pendingCreateIdsRef.current.delete(activeId);
-        const ws = useWorkspaceStore
-          .getState()
-          .workspaces.find((w) => w.id === activeId);
-        showToast({
-          title: "Workspace created",
-          description: ws?.name ? `"${ws.name}" was saved locally.` : undefined,
-          variant: "success",
-        });
-      }
-    }
-    setEditMode(false);
-  };
 
   // ---- Keyboard shortcuts -------------------------------------------------
 
@@ -981,8 +968,8 @@ export default function ConsolePage() {
         handleRedo();
         return;
       }
-      // Ctrl+A — select all panes in active workspace
-      if (ctrl && e.key === "a" && editMode && activeId) {
+      // Ctrl+A — select all panes in active workspace (when unlocked)
+      if (ctrl && e.key === "a" && !isLocked && activeId) {
         e.preventDefault();
         const ws = useWorkspaceStore
           .getState()
@@ -990,11 +977,11 @@ export default function ConsolePage() {
         if (ws) selectAll(ws.panes.map((p) => p.id));
         return;
       }
-      // Ctrl+C — copy selected panes
+      // Ctrl+C — copy selected panes (when unlocked)
       if (
         ctrl &&
         e.key === "c" &&
-        editMode &&
+        !isLocked &&
         activeId &&
         selectedPaneIds.size > 0
       ) {
@@ -1009,11 +996,11 @@ export default function ConsolePage() {
         }
         return;
       }
-      // Ctrl+V — paste copied panes into active workspace
+      // Ctrl+V — paste copied panes into active workspace (when unlocked)
       if (
         ctrl &&
         e.key === "v" &&
-        editMode &&
+        !isLocked &&
         activeId &&
         copiedPanesRef.current.length > 0
       ) {
@@ -1041,10 +1028,10 @@ export default function ConsolePage() {
         clearSelection();
         return;
       }
-      // Delete / Backspace — remove selected panes (edit mode only)
+      // Delete / Backspace — remove selected panes (when unlocked)
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
-        editMode &&
+        !isLocked &&
         activeId
       ) {
         const currentSelection = useSelectionStore.getState().selectedPaneIds;
@@ -1065,7 +1052,7 @@ export default function ConsolePage() {
   }, [
     handleUndo,
     handleRedo,
-    editMode,
+    isLocked,
     activeId,
     selectedPaneIds,
     swapModeSourceId,
@@ -1146,6 +1133,22 @@ export default function ConsolePage() {
       if (ws) scheduleSave(ws);
     },
     [activeId, updateWorkspace, scheduleSave],
+  );
+
+  const handlePinToggle = useCallback(
+    (paneId: string, pinned: boolean) => {
+      if (!activeId) return;
+      if (pinned) {
+        pinPane(activeId, paneId);
+      } else {
+        unpinPane(activeId, paneId);
+      }
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === activeId);
+      if (ws) scheduleSave(ws);
+    },
+    [activeId, pinPane, unpinPane, scheduleSave],
   );
 
   // ---------------------------------------------------------------------------
@@ -1602,7 +1605,7 @@ export default function ConsolePage() {
             flexShrink: 0,
           }}
         >
-          {editMode && activeWorkspace && (
+          {activeWorkspace && (
             <>
               {/* Undo / Redo */}
               <button
@@ -1798,27 +1801,36 @@ export default function ConsolePage() {
                 Delete
               </button>
 
-              {/* Save / Done button */}
+              {/* Lock toggle button — replaces Edit/Done */}
               <button
-                onClick={saveEdit}
+                onClick={() => activeId && toggleLocked(activeId)}
+                title={isLocked ? "Unlock workspace (enable drag/resize)" : "Lock workspace (freeze layout)"}
                 style={{
-                  background: "var(--io-accent)",
-                  border: "none",
+                  background: isLocked ? "var(--io-accent-subtle)" : "transparent",
+                  border: "1px solid var(--io-border)",
                   borderRadius: 6,
-                  padding: "5px 14px",
+                  padding: "4px 8px",
                   cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "#fff",
+                  color: isLocked ? "var(--io-accent)" : "var(--io-text-muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
                 }}
               >
-                Done
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  {isLocked ? (
+                    <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>
+                  ) : (
+                    <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>
+                  )}
+                </svg>
+                {isLocked ? "Locked" : "Lock"}
               </button>
             </>
           )}
 
-          {/* Explicit Save / Save as Personal — shown when not in edit mode and workspace is dirty */}
-          {!editMode && activeWorkspace && (() => {
+          {/* Explicit Save / Save as Personal — shown when workspace is dirty */}
+          {activeWorkspace && (() => {
             const wsSnap = serverSnapshotsRef.current[activeWorkspace.id];
             const wsIsDirty = wsSnap ? JSON.stringify(activeWorkspace) !== wsSnap : false;
             if (!wsIsDirty) return null;
@@ -1920,7 +1932,7 @@ export default function ConsolePage() {
           )}
 
           {/* TT — hide-all pane titles toggle (spec MOD-CONSOLE-038 §4) */}
-          {activeWorkspace && !editMode && (
+          {activeWorkspace && (
             <button
               onClick={() => setHideTitles(!hideTitles)}
               title={
@@ -1944,7 +1956,7 @@ export default function ConsolePage() {
           )}
 
           {/* Export split button — gated by console:export */}
-          {activeWorkspace && !editMode && canExport && (
+          {activeWorkspace && canExport && (
             <div style={{ position: "relative", display: "inline-flex" }}>
               {/* Left: open full Export Dialog */}
               <button
@@ -2092,8 +2104,8 @@ export default function ConsolePage() {
             </div>
           )}
 
-          {/* Close workspace — shown when a workspace is open and not in edit mode */}
-          {activeWorkspace && !editMode && !isKiosk && (
+          {/* Close workspace */}
+          {activeWorkspace && !isKiosk && (
             <button
               onClick={() => handleCloseWorkspace(activeWorkspace.id)}
               title="Close workspace"
@@ -2115,8 +2127,8 @@ export default function ConsolePage() {
             </button>
           )}
 
-          {/* Publish toggle — visible outside edit mode when user has publish permission */}
-          {activeWorkspace && !editMode && canPublish && (
+          {/* Publish toggle */}
+          {activeWorkspace && canPublish && (
             <button
               onClick={() =>
                 publishMutation.mutate({
@@ -2143,7 +2155,7 @@ export default function ConsolePage() {
           )}
 
           {/* Open in New Window */}
-          {activeWorkspace && !editMode && !isKiosk && (
+          {activeWorkspace && !isKiosk && (
             <button
               onClick={() =>
                 window.open(
@@ -2179,39 +2191,6 @@ export default function ConsolePage() {
             </button>
           )}
 
-          {/* Edit toggle */}
-          {activeWorkspace && !editMode && (
-            <button
-              onClick={() => setEditMode(true)}
-              title="Edit workspace layout"
-              style={{
-                background: "transparent",
-                border: "1px solid var(--io-border)",
-                borderRadius: 6,
-                padding: "5px 12px",
-                cursor: "pointer",
-                fontSize: 13,
-                color: "var(--io-text-primary)",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              {/* Pencil icon */}
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-              Edit
-            </button>
-          )}
 
           {/* Browser fullscreen toggle — always visible when workspace active (spec §CX-CONSOLE-WORKSPACE-FULLSCREEN) */}
           {activeWorkspace && (
@@ -2435,7 +2414,8 @@ export default function ConsolePage() {
           ) : activeWorkspace ? (
             <WorkspaceGrid
               workspace={activeWorkspace}
-              editMode={editMode}
+              locked={isLocked}
+              pinnedIds={pinnedIds}
               selectedPaneIds={selectedPaneIds}
               preserveAspectRatio={preserveAspectRatio}
               hideTitles={hideTitles}
@@ -2449,6 +2429,7 @@ export default function ConsolePage() {
               onSwapWith={handleSwapWith}
               onSwapComplete={handleSwapComplete}
               onReplace={handleReplacePane}
+              onPinToggle={handlePinToggle}
               onBrowserFullscreen={toggleFullscreen}
             />
           ) : (

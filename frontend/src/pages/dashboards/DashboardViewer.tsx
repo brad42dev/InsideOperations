@@ -483,7 +483,7 @@ export default function DashboardViewer({ kiosk: kioskProp }: Props) {
                   window.open(
                     `/detached/dashboard/${id}`,
                     "_blank",
-                    "noopener,noreferrer",
+                    "noopener,noreferrer,width=1400,height=900",
                   )
                 }
                 title="Open dashboard in new window"

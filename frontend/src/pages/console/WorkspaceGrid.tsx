@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { GridLayout, noCompactor, type LayoutItem } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
@@ -7,148 +7,37 @@ import "./WorkspaceGrid.css";
 import PaneWrapper from "./PaneWrapper";
 import { ErrorBoundary } from "../../shared/components/ErrorBoundary";
 import type { ConsoleDragItem } from "./ConsolePalette";
-import type {
-  WorkspaceLayout,
-  PaneConfig,
-  LayoutPreset,
-  GridItem,
-} from "./types";
+import type { WorkspaceLayout, PaneConfig, GridItem } from "./types";
+import {
+  GRID_COLS,
+  GRID_ROWS,
+  MIN_W,
+  MIN_H,
+  presetToGridItems,
+  resolveCollisions,
+  type ResizeAxisHint,
+} from "./layout-utils";
+
+export { presetToGridItems };
 
 // ---------------------------------------------------------------------------
-// AABB overlap ratio helper — returns the fraction of rectA's area that
-// overlaps with rectB.
+// gridCompactor — noCompactor with allowOverlap:true
 // ---------------------------------------------------------------------------
+//
+// RGL's noCompactor (type:null, allowOverlap:false) has a special branch in
+// moveElementAwayFromCollision that fires when compactType===null and there is
+// a north collision during a user action. It swaps the y positions of the two
+// items, causing the pane to teleport to y=0 mid-drag and the neighbour to get
+// pushed far down. This only manifests for north/NW/NE resize because those are
+// the only handles that move the item's y position during the drag.
+//
+// Setting allowOverlap:true makes moveElement return early (cloneLayout) when
+// collisions are detected, so items can overlap during the interaction. Our
+// handleResizeStop / handleDragStop already call resolveCollisions to clean up
+// at the end of every gesture — allowOverlap here just keeps the mid-drag
+// frames clean.
 
-function overlapRatio(
-  aX: number,
-  aY: number,
-  aW: number,
-  aH: number,
-  bX: number,
-  bY: number,
-  bW: number,
-  bH: number,
-): number {
-  const ix = Math.max(0, Math.min(aX + aW, bX + bW) - Math.max(aX, bX));
-  const iy = Math.max(0, Math.min(aY + aH, bY + bH) - Math.max(aY, bY));
-  const area = aW * aH;
-  if (area === 0) return 0;
-  return (ix * iy) / area;
-}
-
-// ---------------------------------------------------------------------------
-// Preset → default grid items (12-column × 12-row coordinate system)
-// ---------------------------------------------------------------------------
-
-export function presetToGridItems(
-  layout: LayoutPreset,
-  panes: PaneConfig[],
-): GridItem[] {
-  const slots = defaultSlots(layout);
-  return panes.slice(0, slots.length).map((p, idx) => ({
-    i: p.id,
-    x: slots[idx]?.x ?? 0,
-    y: slots[idx]?.y ?? 0,
-    w: slots[idx]?.w ?? 12,
-    h: slots[idx]?.h ?? 12,
-  }));
-}
-
-type Slot = { x: number; y: number; w: number; h: number };
-
-function defaultSlots(layout: LayoutPreset): Slot[] {
-  switch (layout) {
-    case "1x1":
-      return [s(0, 0, 12, 12)];
-    case "2x1":
-      return [s(0, 0, 6, 12), s(6, 0, 6, 12)];
-    case "1x2":
-      return [s(0, 0, 12, 6), s(0, 6, 12, 6)];
-    case "2x2":
-      return [s(0, 0, 6, 6), s(6, 0, 6, 6), s(0, 6, 6, 6), s(6, 6, 6, 6)];
-    case "3x1":
-      return [s(0, 0, 4, 12), s(4, 0, 4, 12), s(8, 0, 4, 12)];
-    case "1x3":
-      return [s(0, 0, 12, 4), s(0, 4, 12, 4), s(0, 8, 12, 4)];
-    case "3x2":
-      return [
-        s(0, 0, 4, 6),
-        s(4, 0, 4, 6),
-        s(8, 0, 4, 6),
-        s(0, 6, 4, 6),
-        s(4, 6, 4, 6),
-        s(8, 6, 4, 6),
-      ];
-    case "2x3":
-      return [
-        s(0, 0, 6, 4),
-        s(6, 0, 6, 4),
-        s(0, 4, 6, 4),
-        s(6, 4, 6, 4),
-        s(0, 8, 6, 4),
-        s(6, 8, 6, 4),
-      ];
-    case "3x3":
-      return evenGrid(3, 3);
-    case "4x1":
-      return [s(0, 0, 3, 12), s(3, 0, 3, 12), s(6, 0, 3, 12), s(9, 0, 3, 12)];
-    case "1x4":
-      return [s(0, 0, 12, 3), s(0, 3, 12, 3), s(0, 6, 12, 3), s(0, 9, 12, 3)];
-    case "4x2":
-      return evenGrid(4, 2);
-    case "2x4":
-      return evenGrid(2, 4);
-    case "4x3":
-      return evenGrid(4, 3);
-    case "3x4":
-      return evenGrid(3, 4);
-    case "4x4":
-      return evenGrid(4, 4);
-    case "big-left-3-right":
-      return [s(0, 0, 8, 12), s(8, 0, 4, 4), s(8, 4, 4, 4), s(8, 8, 4, 4)];
-    case "big-right-3-left":
-      return [s(0, 0, 4, 4), s(0, 4, 4, 4), s(0, 8, 4, 4), s(4, 0, 8, 12)];
-    case "big-top-3-bottom":
-      return [s(0, 0, 12, 8), s(0, 8, 4, 4), s(4, 8, 4, 4), s(8, 8, 4, 4)];
-    case "big-bottom-3-top":
-      return [s(0, 0, 4, 4), s(4, 0, 4, 4), s(8, 0, 4, 4), s(0, 4, 12, 8)];
-    case "2-big-4-small":
-      return [
-        s(0, 0, 6, 8),
-        s(6, 0, 6, 8),
-        s(0, 8, 3, 4),
-        s(3, 8, 3, 4),
-        s(6, 8, 3, 4),
-        s(9, 8, 3, 4),
-      ];
-    case "pip":
-      return [s(0, 0, 12, 12), s(9, 9, 3, 3)];
-    case "featured-sidebar":
-      return [s(0, 0, 8, 12), s(8, 0, 4, 12)];
-    case "side-by-side-unequal":
-      return [s(0, 0, 7, 12), s(7, 0, 5, 12)];
-    case "2x1+1":
-      return [s(0, 0, 6, 6), s(6, 0, 6, 6), s(0, 6, 12, 6)];
-    default:
-      return [s(0, 0, 12, 12)];
-  }
-}
-
-function s(x: number, y: number, w: number, h: number): Slot {
-  return { x, y, w, h };
-}
-
-function evenGrid(cols: number, rows: number): Slot[] {
-  const w = Math.floor(12 / cols);
-  const h = Math.floor(12 / rows);
-  const slots: Slot[] = [];
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      slots.push(s(col * w, row * h, w, h));
-    }
-  }
-  return slots;
-}
+const gridCompactor = { ...noCompactor, allowOverlap: true };
 
 // ---------------------------------------------------------------------------
 // Props
@@ -156,10 +45,13 @@ function evenGrid(cols: number, rows: number): Slot[] {
 
 export interface WorkspaceGridProps {
   workspace: WorkspaceLayout;
-  editMode: boolean;
+  /** When true, all drag/resize/remove/pin interactions are disabled. */
+  locked?: boolean;
+  /** Set of pane IDs that are pinned (protected from displacement). */
+  pinnedIds?: Set<string>;
   selectedPaneIds?: Set<string>;
   preserveAspectRatio?: boolean;
-  /** When true, all pane title bars are suppressed in live mode (workspace-level TT toggle). */
+  /** When true, all pane title bars are suppressed (workspace-level TT toggle). */
   hideTitles?: boolean;
   onConfigurePane: (paneId: string) => void;
   onRemovePane: (paneId: string) => void;
@@ -178,20 +70,18 @@ export interface WorkspaceGridProps {
   onReplace?: (paneId: string, graphicId: string, graphicName: string) => void;
   /** Called when F11 is pressed with no pane selected — triggers workspace browser fullscreen */
   onBrowserFullscreen?: () => void;
+  /** Called when pin state changes on a pane */
+  onPinToggle?: (paneId: string, pinned: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
 // WorkspaceGrid — react-grid-layout (12-col drag-resize, doc 07)
 // ---------------------------------------------------------------------------
 
-const GRID_COLS = 12;
-const GRID_ROWS = 12;
-const MIN_ITEM_W = 2;
-const MIN_ITEM_H = 2;
-
 export default function WorkspaceGrid({
   workspace,
-  editMode,
+  locked = false,
+  pinnedIds = new Set<string>(),
   selectedPaneIds,
   preserveAspectRatio = true,
   hideTitles = false,
@@ -206,6 +96,7 @@ export default function WorkspaceGrid({
   onSwapComplete,
   onReplace,
   onBrowserFullscreen,
+  onPinToggle,
 }: WorkspaceGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(800);
@@ -223,9 +114,6 @@ export default function WorkspaceGrid({
       return next;
     });
   }, []);
-
-  // ── Swap target visual indicator ─────────────────────────────────────────
-  const [swapTargetId, setSwapTargetId] = useState<string | null>(null);
 
   // ── Fullscreen state (spec §5.11) ────────────────────────────────────────
   // Active fullscreen pane ID, or null when not in fullscreen.
@@ -327,15 +215,62 @@ export default function WorkspaceGrid({
     [workspace.panes],
   );
 
-  // rowHeight fills the container: subtract gap between rows (margin=4 per gap, GRID_ROWS+1 gaps)
-  const rowHeight = Math.max(
-    40,
-    Math.floor((containerHeight - (GRID_ROWS + 1) * 4) / GRID_ROWS),
+  // rowHeight: container divided by 288 rows — gives ~2px per row at 600px height
+  const rowHeight = Math.max(1, containerHeight / GRID_ROWS);
+
+  // Track whether a drag or resize is in progress so handleLayoutChange skips
+  // the store update during intermediate frames. RGL fires onLayoutChange on
+  // every mouse-move during drag/resize; we only want the final settled layout
+  // (from onDragStop / onResizeStop) written to the store.
+  const isDraggingRef = useRef(false);
+  const isResizingRef = useRef(false);
+
+  // Shift+corner aspect-ratio lock: record starting grid dimensions when resize begins.
+  // On stop, if shift is held and both w and h changed, we snap h to maintain the
+  // starting w/h grid-unit ratio. (Separate from the AR button, which locks to the
+  // underlying graphic's pixel aspect ratio.)
+  const shiftKeyRef = useRef(false);
+  const resizeStartRef = useRef<{ i: string; x: number; y: number; w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const onDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") shiftKeyRef.current = true;
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") shiftKeyRef.current = false;
+    };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+    };
+  }, []);
+
+  const handleDragStart = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
+  const handleResizeStart = useCallback(
+    (
+      _layout: readonly LayoutItem[],
+      _oldItem: LayoutItem | null,
+      newItem: LayoutItem | null,
+    ) => {
+      isResizingRef.current = true;
+      if (newItem) {
+        resizeStartRef.current = { i: newItem.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h };
+      }
+    },
+    [],
   );
 
   const handleLayoutChange = useCallback(
     (layout: readonly LayoutItem[]) => {
-      if (!editMode || !onGridLayoutChange) return;
+      if (locked || !onGridLayoutChange) return;
+      // Skip intermediate frames during active drag/resize — the stop handlers
+      // apply the final resolved layout once the gesture completes.
+      if (isDraggingRef.current || isResizingRef.current) return;
       onGridLayoutChange(
         layout.map((item) => ({
           i: item.i,
@@ -346,334 +281,115 @@ export default function WorkspaceGrid({
         })),
       );
     },
-    [editMode, onGridLayoutChange],
+    [locked, onGridLayoutChange],
   );
 
-  // ── Neighbor auto-resize on resize stop ──────────────────────────────────
-  // Adjusts border-sharing neighbors when a pane is resized, maintaining
-  // gap-free and overlap-free layout. Uses reading-order priority (y asc, x asc).
-  //
-  // The noCompactor is intentional (fixed positions) — so we must manually
-  // adjust neighbors here. Algorithm per spec §5.7 and task doc.
+  // ── Resize stop — run collision resolver ─────────────────────────────────
 
   const handleResizeStop = useCallback(
     (
-      layout: readonly LayoutItem[],
-      oldItem: LayoutItem | null,
+      _layout: readonly LayoutItem[],
+      _oldItem: LayoutItem | null,
       newItem: LayoutItem | null,
     ) => {
-      if (!editMode || !onGridLayoutChange || !oldItem || !newItem) return;
+      // Keep isResizingRef true until the next animation frame — RGL calls
+      // onLayoutChange(finalLayout) synchronously after this handler returns,
+      // and we need handleLayoutChange to ignore that unresolved layout.
+      requestAnimationFrame(() => {
+        isResizingRef.current = false;
+      });
+      const startDims = resizeStartRef.current;
+      resizeStartRef.current = null;
 
-      // Build a mutable copy of the layout; we will adjust neighbors in-place.
-      const adjusted = layout.map((item) => ({ ...item }));
+      if (locked || !onGridLayoutChange || !newItem) return;
 
-      // Helper: find mutable item by id
-      const findItem = (id: string) =>
-        adjusted.find((it) => it.i === id) ?? null;
+      // Detect single-axis resize direction to hint the collision resolver.
+      // Without this, a north resize into a wide neighbor produces large x-overlap
+      // and small y-overlap, causing the resolver to (incorrectly) push horizontally.
+      let axisHint: ResizeAxisHint | undefined;
+      if (startDims) {
+        const yChanged = newItem.y !== startDims.y || newItem.h !== startDims.h;
+        const xChanged = newItem.x !== startDims.x || newItem.w !== startDims.w;
+        if (yChanged && !xChanged) axisHint = "y"; // n/s edge handle
+        else if (xChanged && !yChanged) axisHint = "x"; // e/w edge handle
+        // both changed = corner handle → no hint, use overlap heuristic
+      }
 
-      // Reading-order sort comparator: y asc then x asc (lower = higher priority)
-      const readingOrder = (
-        a: { x: number; y: number },
-        b: { x: number; y: number },
-      ) => (a.y !== b.y ? a.y - b.y : a.x - b.x);
+      let finalW = newItem.w;
+      let finalH = newItem.h;
 
-      // ── Right edge changed ────────────────────────────────────────────────
-      // oldItem.x + oldItem.w = old right edge
-      // newItem.x + newItem.w = new right edge
-      // delta > 0: pane expanded right → right neighbors must shrink/move right
-      // delta < 0: pane shrank right → right neighbors must grow/move left
-      const oldRight = oldItem.x + oldItem.w;
-      const newRight = newItem.x + newItem.w;
-      const rightDelta = newRight - oldRight; // positive = expanded, negative = shrank
-
-      if (rightDelta !== 0) {
-        // Panes whose left edge was at oldRight (directly right-adjacent)
-        const rightNeighbors = adjusted
-          .filter((it) => it.i !== newItem.i && it.x === oldRight)
-          .sort(readingOrder);
-
-        for (const neighbor of rightNeighbors) {
-          if (rightDelta > 0) {
-            // Source expanded right → neighbor shifts right and shrinks
-            const newNeighborX = neighbor.x + rightDelta;
-            const newNeighborW = neighbor.w - rightDelta;
-            if (newNeighborW < MIN_ITEM_W) {
-              // Neighbor can't yield fully — clamp both
-              const maxDelta = neighbor.w - MIN_ITEM_W;
-              const src = findItem(newItem.i);
-              if (src) src.w = oldItem.w + maxDelta;
-              neighbor.x = neighbor.x + maxDelta;
-              neighbor.w = MIN_ITEM_W;
-            } else {
-              neighbor.x = newNeighborX;
-              neighbor.w = newNeighborW;
-            }
-          } else {
-            // Source shrank right → neighbor shifts left and grows
-            neighbor.x = neighbor.x + rightDelta; // rightDelta is negative
-            neighbor.w = neighbor.w - rightDelta; // grow by abs(rightDelta)
-          }
+      // Shift+corner: lock to starting grid-unit aspect ratio.
+      // Only fires when both w and h changed (corner handle), not side handles.
+      if (
+        shiftKeyRef.current &&
+        startDims?.i === newItem.i &&
+        newItem.w !== startDims.w &&
+        newItem.h !== startDims.h
+      ) {
+        const ar = startDims.w / startDims.h; // grid-unit ratio
+        const wScale = newItem.w / startDims.w;
+        const hScale = newItem.h / startDims.h;
+        // Honour whichever axis changed proportionally more
+        if (wScale >= hScale) {
+          finalH = Math.max(MIN_H, Math.round(newItem.w / ar));
+        } else {
+          finalW = Math.max(MIN_W, Math.round(newItem.h * ar));
         }
       }
 
-      // ── Bottom edge changed ───────────────────────────────────────────────
-      const oldBottom = oldItem.y + oldItem.h;
-      const newBottom = newItem.y + newItem.h;
-      const bottomDelta = newBottom - oldBottom;
-
-      if (bottomDelta !== 0) {
-        const bottomNeighbors = adjusted
-          .filter((it) => it.i !== newItem.i && it.y === oldBottom)
-          .sort(readingOrder);
-
-        for (const neighbor of bottomNeighbors) {
-          if (bottomDelta > 0) {
-            const newNeighborY = neighbor.y + bottomDelta;
-            const newNeighborH = neighbor.h - bottomDelta;
-            if (newNeighborH < MIN_ITEM_H) {
-              const maxDelta = neighbor.h - MIN_ITEM_H;
-              const src = findItem(newItem.i);
-              if (src) src.h = oldItem.h + maxDelta;
-              neighbor.y = neighbor.y + maxDelta;
-              neighbor.h = MIN_ITEM_H;
-            } else {
-              neighbor.y = newNeighborY;
-              neighbor.h = newNeighborH;
-            }
-          } else {
-            neighbor.y = neighbor.y + bottomDelta;
-            neighbor.h = neighbor.h - bottomDelta;
-          }
-        }
-      }
-
-      // ── Left edge changed (x increased = shrank from left) ───────────────
-      // newItem.x > oldItem.x → left edge moved right → left neighbors can expand
-      // newItem.x < oldItem.x → left edge moved left → left neighbors must shrink
-      const leftDelta = newItem.x - oldItem.x; // positive = left edge moved right
-
-      if (leftDelta !== 0) {
-        // Panes whose right edge (x + w) was at oldItem.x (directly left-adjacent)
-        const leftNeighbors = adjusted
-          .filter((it) => it.i !== newItem.i && it.x + it.w === oldItem.x)
-          .sort(readingOrder);
-
-        for (const neighbor of leftNeighbors) {
-          if (leftDelta > 0) {
-            // Source shrank from left → left neighbors can expand right
-            neighbor.w = neighbor.w + leftDelta;
-          } else {
-            // Source expanded left → left neighbors must shrink
-            const newNeighborW = neighbor.w + leftDelta; // leftDelta negative
-            if (newNeighborW < MIN_ITEM_W) {
-              const maxDelta = -(neighbor.w - MIN_ITEM_W); // negative
-              const src = findItem(newItem.i);
-              if (src) {
-                src.x = oldItem.x + maxDelta; // clamp source left edge
-                src.w = src.w - maxDelta;
-              }
-              neighbor.w = MIN_ITEM_W;
-            } else {
-              neighbor.w = newNeighborW;
-            }
-          }
-        }
-      }
-
-      // ── Top edge changed (y increased = shrank from top) ─────────────────
-      const topDelta = newItem.y - oldItem.y;
-
-      if (topDelta !== 0) {
-        const topNeighbors = adjusted
-          .filter((it) => it.i !== newItem.i && it.y + it.h === oldItem.y)
-          .sort(readingOrder);
-
-        for (const neighbor of topNeighbors) {
-          if (topDelta > 0) {
-            // Source shrank from top → top neighbors can expand down
-            neighbor.h = neighbor.h + topDelta;
-          } else {
-            // Source expanded top → top neighbors must shrink
-            const newNeighborH = neighbor.h + topDelta;
-            if (newNeighborH < MIN_ITEM_H) {
-              const maxDelta = -(neighbor.h - MIN_ITEM_H);
-              const src = findItem(newItem.i);
-              if (src) {
-                src.y = oldItem.y + maxDelta;
-                src.h = src.h - maxDelta;
-              }
-              neighbor.h = MIN_ITEM_H;
-            } else {
-              neighbor.h = newNeighborH;
-            }
-          }
-        }
-      }
-
-      // Clamp all panes to minimum size as a final safety pass
-      for (const item of adjusted) {
-        item.w = Math.max(item.w, MIN_ITEM_W);
-        item.h = Math.max(item.h, MIN_ITEM_H);
-      }
-
+      // Apply final size to the resized item, then resolve collisions once.
+      const withNewSize = gridItems.map((item): GridItem =>
+        item.i === newItem.i
+          ? { i: item.i, x: newItem.x, y: newItem.y, w: finalW, h: finalH }
+          : item,
+      );
       onGridLayoutChange(
-        adjusted.map((item) => ({
-          i: item.i,
-          x: item.x,
-          y: item.y,
-          w: item.w,
-          h: item.h,
-        })),
+        resolveCollisions(withNewSize, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS, axisHint),
       );
     },
-    [editMode, onGridLayoutChange],
+    [locked, gridItems, pinnedIds, onGridLayoutChange],
   );
 
-  // ── Pane swap on drag stop ────────────────────────────────────────────────
-  // When a dragged pane overlaps another pane by >50%, swap their grid positions.
+  // ── Drag stop — run collision resolver ────────────────────────────────────
 
   const handleDragStop = useCallback(
     (
-      layout: readonly LayoutItem[],
+      _layout: readonly LayoutItem[],
       _oldItem: LayoutItem | null,
       newItem: LayoutItem | null,
     ) => {
-      if (!editMode || !onGridLayoutChange) return;
-      setSwapTargetId(null);
-
-      if (!newItem) {
-        onGridLayoutChange(
-          layout.map((item) => ({
-            i: item.i,
-            x: item.x,
-            y: item.y,
-            w: item.w,
-            h: item.h,
-          })),
-        );
-        return;
-      }
-
-      // Find if the dragged item overlaps another pane by more than 50%
-      let swapCandidate: LayoutItem | null = null;
-      for (const other of layout) {
-        if (other.i === newItem.i) continue;
-        const ratio = overlapRatio(
-          newItem.x,
-          newItem.y,
-          newItem.w,
-          newItem.h,
-          other.x,
-          other.y,
-          other.w,
-          other.h,
-        );
-        if (ratio > 0.5) {
-          swapCandidate = other;
-          break;
-        }
-      }
-
-      if (!swapCandidate) {
-        // Out-of-bounds check: remove the pane if dragged outside the 12×12 grid
-        if (
-          newItem.x + newItem.w > GRID_COLS ||
-          newItem.x < 0 ||
-          newItem.y + newItem.h > GRID_ROWS ||
-          newItem.y < 0
-        ) {
-          onRemovePane(newItem.i);
-          return;
-        }
-        // Only update the dragged pane; keep all others at pre-drag coords from
-        // workspace state — NOT the RGL layout, which contains collision displacements
-        // that would push untouched panes off-screen.
-        const updated = gridItems.map((item): GridItem => {
-          if (item.i === newItem.i) {
-            return {
-              i: item.i,
-              x: newItem.x,
-              y: newItem.y,
-              w: newItem.w,
-              h: newItem.h,
-            };
-          }
-          return item;
-        });
-        onGridLayoutChange(updated);
-        return;
-      }
-
-      // Perform swap: the dragged pane takes candidate's slot, candidate takes dragged pane's original slot
-      const candidateId = swapCandidate.i;
-      const swapped = layout.map((item): GridItem => {
-        if (item.i === newItem.i) {
-          // Dragged pane goes to where the candidate was
-          return {
-            i: item.i,
-            x: swapCandidate!.x,
-            y: swapCandidate!.y,
-            w: swapCandidate!.w,
-            h: swapCandidate!.h,
-          };
-        }
-        if (item.i === candidateId) {
-          // Candidate goes to where the dragged pane now is (newItem position)
-          return {
-            i: item.i,
-            x: newItem.x,
-            y: newItem.y,
-            w: newItem.w,
-            h: newItem.h,
-          };
-        }
-        return { i: item.i, x: item.x, y: item.y, w: item.w, h: item.h };
+      // Keep isDraggingRef true until the next animation frame — RGL calls
+      // onLayoutChange(finalLayout) synchronously after this handler returns,
+      // and we need handleLayoutChange to ignore that unresolved layout.
+      requestAnimationFrame(() => {
+        isDraggingRef.current = false;
       });
-      onGridLayoutChange(swapped);
-    },
-    [editMode, gridItems, onGridLayoutChange, onRemovePane],
-  );
+      if (locked || !onGridLayoutChange) return;
 
-  // During drag, update visual swap indicator
-  const handleDrag = useCallback(
-    (
-      layout: readonly LayoutItem[],
-      _oldItem: LayoutItem | null,
-      newItem: LayoutItem | null,
-    ) => {
-      if (!editMode) return;
       if (!newItem) {
-        setSwapTargetId(null);
+        onGridLayoutChange(gridItems);
         return;
       }
-      let candidateId: string | null = null;
-      for (const other of layout) {
-        if (other.i === newItem.i) continue;
-        const ratio = overlapRatio(
-          newItem.x,
-          newItem.y,
-          newItem.w,
-          newItem.h,
-          other.x,
-          other.y,
-          other.w,
-          other.h,
-        );
-        if (ratio > 0.5) {
-          candidateId = other.i;
-          break;
-        }
-      }
-      setSwapTargetId(candidateId);
+
+      // Apply new position to the dragged pane, then resolve collisions
+      // (resolveCollisions Phase 3 clamps panes to grid bounds — no out-of-bounds deletion on drag)
+      const withNewPos = gridItems.map((item): GridItem =>
+        item.i === newItem.i
+          ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
+          : item,
+      );
+      onGridLayoutChange(
+        resolveCollisions(withNewPos, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS),
+      );
     },
-    [editMode],
+    [locked, gridItems, pinnedIds, onGridLayoutChange, onRemovePane],
   );
 
   // Augment grid items with min size constraints
   const layoutWithConstraints: LayoutItem[] = gridItems.map((item) => ({
     ...item,
-    minW: MIN_ITEM_W,
-    minH: MIN_ITEM_H,
+    minW: MIN_W,
+    minH: MIN_H,
   }));
 
   // ── Box selection ──────────────────────────────────────────────────────────
@@ -688,10 +404,15 @@ export default function WorkspaceGrid({
 
   const handleGridPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!editMode || !onSelectPane) return;
-      // Only start box-select when clicking on empty grid background (not on a pane)
+      if (locked || !onSelectPane) return;
       const target = e.target as HTMLElement;
+      // Only start box-select when clicking on empty grid background (not on a pane)
       if (target.closest("[data-pane-id]")) return;
+      // React portals propagate events through the React tree, not the DOM tree.
+      // A click inside a portal (e.g. ChartConfigPanel) will bubble here even though
+      // the DOM target is outside the grid container. Check the actual DOM containment
+      // to avoid capturing pointer events meant for modals and overlays.
+      if (!containerRef.current?.contains(target)) return;
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -700,7 +421,7 @@ export default function WorkspaceGrid({
       boxStartRef.current = { x, y };
       setBoxRect({ x1: x, y1: y, x2: x, y2: y });
     },
-    [editMode, onSelectPane],
+    [locked, onSelectPane],
   );
 
   const handleGridPointerMove = useCallback(
@@ -807,26 +528,27 @@ export default function WorkspaceGrid({
         gridConfig={{
           cols: GRID_COLS,
           rowHeight,
-          margin: [4, 4],
-          containerPadding: [4, 4],
+          margin: [0, 0],
+          containerPadding: [0, 0],
           maxRows: Infinity,
         }}
         dragConfig={{
-          enabled: editMode,
+          enabled: !locked,
           handle: ".io-pane-drag-handle",
           bounded: false,
           threshold: 3,
         }}
         resizeConfig={{
-          enabled: editMode,
+          enabled: !locked,
           handles: ["se", "sw", "ne", "nw", "e", "w", "n", "s"],
         }}
-        compactor={noCompactor}
+        compactor={gridCompactor}
         autoSize={false}
         style={{ height: "100%" }}
         onLayoutChange={handleLayoutChange}
+        onDragStart={handleDragStart}
         onDragStop={handleDragStop}
-        onDrag={handleDrag}
+        onResizeStart={handleResizeStart}
         onResizeStop={handleResizeStop}
         className="io-workspace-grid"
       >
@@ -836,20 +558,14 @@ export default function WorkspaceGrid({
           // Hide ALL grid items while any pane is fullscreen — the fullscreen pane
           // is rendered via a portal outside the RGL transform ancestor (spec §5.11).
           const isHiddenForFullscreen = fullscreenPaneId !== null;
-          const isSwapTarget = swapTargetId === pane.id;
           const retryCount = paneRetryCounters.get(pane.id) ?? 0;
           return (
             <div
               key={pane.id}
               data-pane-id={pane.id}
-              data-swap-target={isSwapTarget ? "true" : undefined}
               style={{
                 overflow: "hidden",
                 display: isHiddenForFullscreen ? "none" : undefined,
-                outline: isSwapTarget
-                  ? "2px dashed var(--io-accent)"
-                  : undefined,
-                outlineOffset: isSwapTarget ? "-2px" : undefined,
               }}
             >
               <ErrorBoundary
@@ -890,7 +606,7 @@ export default function WorkspaceGrid({
               >
                 <PaneWrapper
                   config={pane}
-                  editMode={editMode}
+                  locked={locked}
                   isSelected={selectedPaneIds?.has(pane.id) ?? false}
                   isFullscreen={false}
                   onToggleFullscreen={() => toggleFullscreen(pane.id)}
@@ -904,6 +620,7 @@ export default function WorkspaceGrid({
                   onSwapWith={onSwapWith}
                   onSwapComplete={onSwapComplete}
                   onReplace={onReplace}
+                  onPinToggle={onPinToggle}
                   workspaceId={workspace.id}
                 />
               </ErrorBoundary>
@@ -966,7 +683,7 @@ export default function WorkspaceGrid({
               >
                 <PaneWrapper
                   config={fsPane}
-                  editMode={false}
+                  locked={locked}
                   isSelected={selectedPaneIds?.has(fsPane.id) ?? false}
                   isFullscreen={true}
                   onToggleFullscreen={exitFullscreen}
@@ -989,7 +706,7 @@ export default function WorkspaceGrid({
         })()}
 
       {/* Box selection rect */}
-      {boxRect && editMode && (
+      {boxRect && !locked && (
         <div
           style={{
             position: "absolute",

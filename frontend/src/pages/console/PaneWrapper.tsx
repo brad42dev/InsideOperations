@@ -13,7 +13,8 @@ import type { PaneConfig } from "./types";
 
 export interface PaneWrapperProps {
   config: PaneConfig;
-  editMode: boolean;
+  /** When true, all interactive controls (drag, resize, configure, remove) are hidden. */
+  locked?: boolean;
   isSelected?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -38,6 +39,8 @@ export interface PaneWrapperProps {
   onSwapComplete?: (targetId: string) => void;
   /** Called when user selects a new graphic in the Replace dialog */
   onReplace?: (paneId: string, graphicId: string, graphicName: string) => void;
+  /** Called when user toggles the pin on a pane header */
+  onPinToggle?: (paneId: string, pinned: boolean) => void;
   /** Workspace ID — used to construct the detached window URL for "Open in New Window" */
   workspaceId?: string;
   /** When true, suppresses this pane's title bar in live mode (workspace-level override).
@@ -78,11 +81,11 @@ function PaneTypeBadge({ type }: { type: string }) {
 // ---------------------------------------------------------------------------
 
 function BlankPane({
-  editMode,
+  locked,
   onConfigure,
   paneId,
 }: {
-  editMode: boolean;
+  locked: boolean;
   onConfigure: (id: string) => void;
   paneId: string;
 }) {
@@ -111,7 +114,7 @@ function BlankPane({
         <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 2" />
       </svg>
       <span>Empty pane</span>
-      {editMode && (
+      {!locked && (
         <button
           onClick={() => onConfigure(paneId)}
           style={{
@@ -138,7 +141,7 @@ function BlankPane({
 
 export default function PaneWrapper({
   config,
-  editMode,
+  locked = false,
   isSelected = false,
   isFullscreen = false,
   onToggleFullscreen,
@@ -155,6 +158,7 @@ export default function PaneWrapper({
   swapModeSourceId,
   onSwapComplete,
   onReplace,
+  onPinToggle,
   workspaceId,
   hideTitles = false,
 }: PaneWrapperProps) {
@@ -259,19 +263,22 @@ export default function PaneWrapper({
   const fullscreenStyle: React.CSSProperties = { height: "100%" };
 
   // Double-click on the pane background activates fullscreen (spec §5.11).
-  // Guards: not in edit mode, not on a point-bound element, not on a button.
+  // Guards: not on a point-bound element, not on a button.
   function handleDoubleClick(e: React.MouseEvent) {
-    if (editMode) return;
     const target = e.target as HTMLElement;
     if (target.closest("[data-point-id]")) return; // point-bound → Point Detail, not fullscreen
     if (target.closest('button, [role="menu"]')) return;
     handleToggleMaximize();
   }
 
-  // In live mode, determine whether the title bar should render.
-  // - editMode: always render header (drag handle + action buttons required)
-  // - live mode: render only when showTitle is true AND workspace hideTitles is false
-  const showHeader = editMode || (!hideTitles && config.showTitle === true);
+  // Determine whether the title bar should render.
+  // - locked: render only when showTitle is true AND workspace hideTitles is false
+  // - unlocked + hideTitles OFF: always render (drag handle + configure/remove buttons)
+  // - unlocked + hideTitles ON: suppress full header; a thin drag strip is shown instead
+  const showHeader = !hideTitles && (!locked || config.showTitle !== false);
+  // Thin drag affordance when TT is ON in unlocked mode — no visible header but pane
+  // must still have an io-pane-drag-handle element for react-grid-layout dragging.
+  const showDragStrip = hideTitles && !locked;
 
   return (
     <div
@@ -317,12 +324,21 @@ export default function PaneWrapper({
         ...fullscreenStyle,
       }}
     >
-      {/* Header — io-pane-drag-handle is the react-grid-layout drag target in edit mode.
-          In live mode this is only rendered when showTitle:true AND !hideTitles.
-          In edit mode it always renders (drag handle + action buttons). */}
+      {/* Thin drag strip — only when TT is ON in unlocked mode. Gives react-grid-layout
+          a drag handle without showing a visible title bar. */}
+      {showDragStrip && (
+        <div
+          className="io-pane-drag-handle"
+          style={{ height: 4, flexShrink: 0, cursor: "grab" }}
+        />
+      )}
+
+      {/* Header — io-pane-drag-handle when titles are visible.
+          When unlocked + hideTitles OFF: always renders (drag handle + configure/remove buttons).
+          When locked: renders only when showTitle:true AND !hideTitles. */}
       {showHeader && (
         <div
-          className={editMode ? "io-pane-drag-handle" : undefined}
+          className="io-pane-drag-handle"
           onContextMenu={(e) => {
             // Header context menu — always show regardless of target
             e.preventDefault();
@@ -338,7 +354,7 @@ export default function PaneWrapper({
             flexShrink: 0,
             background: "var(--io-surface-secondary)",
             borderBottom: "1px solid var(--io-border)",
-            cursor: editMode ? "grab" : "context-menu",
+            cursor: !locked ? "grab" : "context-menu",
           }}
         >
           <span
@@ -352,14 +368,14 @@ export default function PaneWrapper({
               whiteSpace: "nowrap",
             }}
           >
-            {/* In edit mode show the title or an empty string (no type-label fallback) */}
-            {editMode ? (config.title ?? "") : title}
+            {/* When unlocked show the raw title (no type-label fallback); locked shows display title */}
+            {!locked ? (config.title ?? "") : title}
           </span>
 
-          {editMode && <PaneTypeBadge type={config.type} />}
+          {!locked && <PaneTypeBadge type={config.type} />}
 
-          {/* Fill-workspace + browser-fullscreen buttons — live mode only */}
-          {!editMode && (
+          {/* Fill-workspace + browser-fullscreen buttons — locked/live mode only */}
+          {locked && (
             <>
               {/* Fill workspace (maximize/restore within the workspace) */}
               <button
@@ -461,8 +477,40 @@ export default function PaneWrapper({
             </>
           )}
 
-          {editMode && (
+          {!locked && (
             <>
+              {/* Pin button */}
+              <button
+                onClick={() => onPinToggle?.(config.id, !config.pinned)}
+                title={config.pinned ? "Unpin pane" : "Pin pane"}
+                style={{
+                  background: config.pinned
+                    ? "var(--io-accent-subtle)"
+                    : "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: config.pinned
+                    ? "var(--io-accent)"
+                    : "var(--io-text-muted)",
+                  padding: "3px 5px",
+                  borderRadius: 4,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill={config.pinned ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <line x1="12" y1="17" x2="12" y2="22" />
+                  <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                </svg>
+              </button>
+
               {/* Configure button */}
               <button
                 onClick={() => onConfigure(config.id)}
@@ -537,7 +585,7 @@ export default function PaneWrapper({
         {/* Hover-overlay fullscreen button — shown when header is hidden in live mode.
             Spec §5.2 (MOD-CONSOLE-038): "the fullscreen button moves to a hover-revealed overlay
             (absolutely positioned top-right corner of the pane, appears on hovered state)". */}
-        {!showHeader && !editMode && hovered && (
+        {!showHeader && hovered && (
           <div
             style={{
               position: "absolute",
@@ -648,14 +696,14 @@ export default function PaneWrapper({
           {config.type === "trend" && (
             <TrendPane
               config={config}
-              editMode={editMode}
+              editMode={!locked}
               onConfigurePoints={onConfigure}
             />
           )}
           {config.type === "point_table" && (
             <PointTablePane
               config={config}
-              editMode={editMode}
+              editMode={!locked}
               onConfigurePoints={onConfigure}
             />
           )}
@@ -668,14 +716,14 @@ export default function PaneWrapper({
           )}
           {config.type === "graphic" && !config.graphicId && (
             <BlankPane
-              editMode={editMode}
+              locked={locked}
               onConfigure={onConfigure}
               paneId={config.id}
             />
           )}
           {config.type === "blank" && (
             <BlankPane
-              editMode={editMode}
+              locked={locked}
               onConfigure={onConfigure}
               paneId={config.id}
             />

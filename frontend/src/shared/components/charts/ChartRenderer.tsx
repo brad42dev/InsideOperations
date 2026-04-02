@@ -65,8 +65,8 @@ class ChartErrorBoundary extends Component<
 // Lazy-load all renderers
 const RENDERERS = {
   1: lazy(() => import("./renderers/chart01-live-trend")),
-  2: lazy(() => import("./renderers/chart02-historical-trend")),
-  3: lazy(() => import("./renderers/chart03-multi-axis-trend")),
+  2: lazy(() => import("./renderers/chart01-live-trend")), // merged into chart01
+  3: lazy(() => import("./renderers/chart01-live-trend")), // merged into chart01
   4: lazy(() => import("./renderers/chart04-step-chart")),
   5: lazy(() => import("./renderers/chart05-bar-column")),
   6: lazy(() => import("./renderers/chart06-pie-donut")),

@@ -2413,7 +2413,7 @@ export default function ProcessPage() {
                     window.open(
                       `/detached/process/${selectedId}`,
                       "_blank",
-                      "noopener,noreferrer",
+                      "noopener,noreferrer,width=1400,height=900",
                     );
                 }}
                 title={

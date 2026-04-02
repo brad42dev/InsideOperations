@@ -13,9 +13,9 @@ import type { AggregateType, ChartTypeId } from "./chart-config-types";
 export const CHART_AGGREGATE_TYPES: Partial<
   Record<ChartTypeId, AggregateType[]>
 > = {
-  1: ["avg", "min", "max", "first", "last", "median", "sum"], // Live Trend
-  2: ["avg", "min", "max", "first", "last", "median", "sum"], // Historical Trend
-  3: ["avg", "min", "max", "first", "last", "median", "sum"], // Multi-Axis Trend
+  1: ["avg", "min", "max", "first", "last", "median", "sum"], // Trend
+  2: ["avg", "min", "max", "first", "last", "median", "sum"], // Trend (legacy alias)
+  3: ["avg", "min", "max", "first", "last", "median", "sum"], // Trend (legacy alias)
   4: ["last", "first", "avg", "min", "max"], // Step Chart (discrete — no median)
   5: ["sum", "avg", "max", "min", "count"], // Bar / Column
   17: ["avg", "sum", "count"], // Heatmap

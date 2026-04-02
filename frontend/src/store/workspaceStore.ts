@@ -15,6 +15,11 @@ import type {
   PaneConfig,
   GridItem,
 } from "../pages/console/types";
+import {
+  defaultSlots,
+  presetToGridItems,
+  reflowPanesToPreset,
+} from "../pages/console/layout-utils";
 import { uuidv4 } from "../lib/uuid";
 
 // ---------------------------------------------------------------------------
@@ -29,60 +34,7 @@ function makeBlankPanes(count: number): PaneConfig[] {
 }
 
 function layoutPaneCount(layout: LayoutPreset): number {
-  switch (layout) {
-    case "1x1":
-      return 1;
-    case "2x1":
-      return 2;
-    case "1x2":
-      return 2;
-    case "2x2":
-      return 4;
-    case "3x1":
-      return 3;
-    case "1x3":
-      return 3;
-    case "3x2":
-      return 6;
-    case "2x3":
-      return 6;
-    case "3x3":
-      return 9;
-    case "4x1":
-      return 4;
-    case "1x4":
-      return 4;
-    case "4x2":
-      return 8;
-    case "2x4":
-      return 8;
-    case "4x3":
-      return 12;
-    case "3x4":
-      return 12;
-    case "4x4":
-      return 16;
-    case "big-left-3-right":
-      return 4;
-    case "big-right-3-left":
-      return 4;
-    case "big-top-3-bottom":
-      return 4;
-    case "big-bottom-3-top":
-      return 4;
-    case "2-big-4-small":
-      return 6;
-    case "pip":
-      return 2;
-    case "featured-sidebar":
-      return 2;
-    case "side-by-side-unequal":
-      return 2;
-    case "2x1+1":
-      return 3;
-    default:
-      return 1;
-  }
+  return defaultSlots(layout).length;
 }
 
 export function makeNewWorkspace(
@@ -90,11 +42,21 @@ export function makeNewWorkspace(
   layout: LayoutPreset = "2x2",
   description?: string,
 ): WorkspaceLayout {
+  const slots = defaultSlots(layout);
+  const panes = makeBlankPanes(slots.length);
+  const gridItems: GridItem[] = panes.map((p, i) => ({
+    i: p.id,
+    x: slots[i]!.x,
+    y: slots[i]!.y,
+    w: slots[i]!.w,
+    h: slots[i]!.h,
+  }));
   return {
     id: uuidv4(),
     name,
     layout,
-    panes: makeBlankPanes(layoutPaneCount(layout)),
+    panes,
+    gridItems,
     ...(description ? { description } : {}),
   };
 }
@@ -109,7 +71,6 @@ export { layoutPaneCount, makeBlankPanes };
 export interface WorkspaceState {
   workspaces: WorkspaceLayout[];
   activeId: string | null;
-  editMode: boolean;
   preserveAspectRatio: boolean;
   /** Session-only workspace-level toggle: when true all pane title bars are hidden
    *  regardless of per-pane showTitle setting. Not persisted to the server. */
@@ -118,7 +79,6 @@ export interface WorkspaceState {
   // Workspace CRUD
   setWorkspaces: (workspaces: WorkspaceLayout[]) => void;
   setActiveId: (id: string | null) => void;
-  setEditMode: (editMode: boolean) => void;
   setPreserveAspectRatio: (value: boolean) => void;
   setHideTitles: (value: boolean) => void;
 
@@ -133,6 +93,9 @@ export interface WorkspaceState {
   setWorkspace: (ws: WorkspaceLayout) => void;
   renameWorkspace: (id: string, name: string) => void;
   changeLayout: (id: string, layout: LayoutPreset) => void;
+  toggleLocked: (workspaceId: string) => void;
+  pinPane: (workspaceId: string, paneId: string) => void;
+  unpinPane: (workspaceId: string, paneId: string) => void;
   updateGridItems: (id: string, gridItems: GridItem[]) => void;
   updatePane: (workspaceId: string, pane: PaneConfig) => void;
   removePane: (workspaceId: string, paneId: string) => void;
@@ -154,13 +117,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     (set, get) => ({
       workspaces: [],
       activeId: null,
-      editMode: false,
       preserveAspectRatio: true,
       hideTitles: false,
 
       setWorkspaces: (workspaces) => set({ workspaces }),
       setActiveId: (activeId) => set({ activeId }),
-      setEditMode: (editMode) => set({ editMode }),
       setPreserveAspectRatio: (preserveAspectRatio) =>
         set({ preserveAspectRatio }),
       setHideTitles: (hideTitles) => set({ hideTitles }),
@@ -171,7 +132,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set((s) => ({
           workspaces: [...s.workspaces, ws],
           activeId: ws.id,
-          editMode: true,
         }));
         return ws;
       },
@@ -221,35 +181,58 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         set((s) => ({
           workspaces: s.workspaces.map((w) => {
             if (w.id !== id) return w;
-            const needed = layoutPaneCount(layout);
-            const currentPanes = w.panes;
-            const currentOverflow = w.overflowPanes ?? [];
-
-            // Active panes that still fit in the new template
-            const activePanes = currentPanes.slice(0, needed);
-            // Panes that no longer fit — move to overflow (not discarded)
-            const newlyOverflowing = currentPanes.slice(needed);
-
-            // Pull from overflow to fill any remaining slots
-            const slotsRemaining = needed - activePanes.length;
-            const fromOverflow = currentOverflow.slice(0, slotsRemaining);
-            const leftoverOverflow = currentOverflow.slice(slotsRemaining);
-
-            // Blank panes for any slots still unfilled
-            const blankCount = Math.max(
-              0,
-              slotsRemaining - fromOverflow.length,
+            // Resolve current grid positions (needed for reading-order sort)
+            const currentItems: GridItem[] = w.gridItems?.length
+              ? w.gridItems
+              : presetToGridItems(w.layout, w.panes);
+            const { panes, gridItems } = reflowPanesToPreset(
+              w.panes,
+              currentItems,
+              layout,
             );
-            const blanks = makeBlankPanes(blankCount);
-
             return {
               ...w,
               layout,
-              panes: [...activePanes, ...fromOverflow, ...blanks],
-              gridItems: undefined,
-              overflowPanes: [...newlyOverflowing, ...leftoverOverflow],
+              panes,
+              gridItems,
+              overflowPanes: undefined,
             };
           }),
+        })),
+
+      toggleLocked: (workspaceId) =>
+        set((s) => ({
+          workspaces: s.workspaces.map((w) =>
+            w.id === workspaceId ? { ...w, locked: !w.locked } : w,
+          ),
+        })),
+
+      pinPane: (workspaceId, paneId) =>
+        set((s) => ({
+          workspaces: s.workspaces.map((w) =>
+            w.id === workspaceId
+              ? {
+                  ...w,
+                  panes: w.panes.map((p) =>
+                    p.id === paneId ? { ...p, pinned: true } : p,
+                  ),
+                }
+              : w,
+          ),
+        })),
+
+      unpinPane: (workspaceId, paneId) =>
+        set((s) => ({
+          workspaces: s.workspaces.map((w) =>
+            w.id === workspaceId
+              ? {
+                  ...w,
+                  panes: w.panes.map((p) =>
+                    p.id === paneId ? { ...p, pinned: false } : p,
+                  ),
+                }
+              : w,
+          ),
         })),
 
       updateGridItems: (id, gridItems) =>

@@ -6,6 +6,7 @@ import type {
 } from "../../api/graphics";
 import { graphicsApi } from "../../api/graphics";
 import ContextMenu from "../../shared/components/ContextMenu";
+import PointsBrowserPanel from "../../shared/components/PointsBrowserPanel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -293,9 +294,34 @@ function GraphicThumb({
   onClick: () => void;
 }) {
   const [errored, setErrored] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+
   return (
+    <>
+    {ctxMenu && (
+      <ContextMenu
+        x={ctxMenu.x}
+        y={ctxMenu.y}
+        onClose={() => setCtxMenu(null)}
+        items={[
+          { label: "Open", onClick: () => { onClick(); setCtxMenu(null); } },
+          {
+            label: "Open in New Window",
+            onClick: () => {
+              window.open(
+                `/detached/process/${id}`,
+                "_blank",
+                "noopener,noreferrer,width=1400,height=900",
+              );
+              setCtxMenu(null);
+            },
+          },
+        ]}
+      />
+    )}
     <button
       onClick={onClick}
+      onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
       title={name}
       style={{
         display: "flex",
@@ -364,6 +390,7 @@ function GraphicThumb({
         {name}
       </span>
     </button>
+    </>
   );
 }
 
@@ -671,7 +698,17 @@ export default function ProcessSidebar({
           <NavigationTree selectedId={selectedId} onSelectView={onSelectView} />
         </AccordionSection>
 
-        {/* Section 4: Recent Views */}
+        {/* Section 4: Points */}
+        <AccordionSection title="Points" defaultOpen={false}>
+          <div style={{ display: "flex", flexDirection: "column", height: 260, overflow: "hidden" }}>
+            <PointsBrowserPanel
+              cacheKey="process-points-browser"
+              emptyHint="Browse points bound to this graphic."
+            />
+          </div>
+        </AccordionSection>
+
+        {/* Section 5: Recent Views */}
         <AccordionSection title="Recent Views" defaultOpen>
           {recentViews.length === 0 ? (
             <div

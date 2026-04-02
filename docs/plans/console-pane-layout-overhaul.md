@@ -1,6 +1,6 @@
 # Console Pane Layout Overhaul Plan
 
-**Status:** READY TO IMPLEMENT  
+**Status:** COMPLETE  
 **Spec authority:** `/home/io/spec_docs/console-implementation-spec.md`  
 **Grid library:** react-grid-layout v2 (non-negotiable per CLAUDE.md)
 
@@ -209,13 +209,13 @@ These are the grid-unit positions for each preset. Grid is 12 cols × 8 rows.
 
 ## Implementation Order
 
-1. `types.ts` — add `pinned`
-2. `workspaceStore.ts` — remove editMode, add locked/pin actions, update changeLayout
-3. `layout-utils.ts` (new) — pure collision resolver, unit-testable
-4. `WorkspaceGrid.tsx` — wire locked, wire collision resolver
-5. `PaneWrapper.tsx` — remove editMode, add locked/pin UI
-6. `index.tsx` — remove Edit/Done, add lock button, move layout picker
-7. `ConsolePalette.tsx` — remove editMode drop guard
+1. ✓ `types.ts` — add `pinned`
+2. ✓ `workspaceStore.ts` — remove editMode, add locked/pin actions, update changeLayout
+3. ✓ `layout-utils.ts` (new) — pure collision resolver, unit-testable
+4. ✓ `WorkspaceGrid.tsx` — wire locked, wire collision resolver
+5. ✓ `PaneWrapper.tsx` — remove editMode, add locked/pin UI
+6. ✓ `index.tsx` — remove Edit/Done, add lock button, move layout picker
+7. ✓ `ConsolePalette.tsx` — no editMode references (no changes needed)
 
 ---
 

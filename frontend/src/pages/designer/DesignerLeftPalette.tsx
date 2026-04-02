@@ -19,8 +19,7 @@ import type {
   WidgetType,
 } from "../../shared/types/graphics";
 import { graphicsApi } from "../../api/graphics";
-import { pointsApi } from "../../api/points";
-import type { PointMeta } from "../../api/points";
+import PointsBrowserPanel from "../../shared/components/PointsBrowserPanel";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -2729,35 +2728,6 @@ function ReportElementsSection({ collapsed }: { collapsed: boolean }) {
 // ---------------------------------------------------------------------------
 
 function PointBrowserSection({ collapsed }: { collapsed: boolean }) {
-  const [search, setSearch] = useState("");
-  const [points, setPoints] = useState<PointMeta[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const PAGE_SIZE = 30;
-
-  const fetchPoints = useCallback(async (q: string, p: number) => {
-    setLoading(true);
-    const result = await pointsApi
-      .list({ search: q || undefined, page: p, limit: PAGE_SIZE })
-      .catch(() => null);
-    if (result?.success) {
-      setPoints((prev) =>
-        p === 1 ? result.data.data : [...prev, ...result.data.data],
-      );
-      setTotal(result.data.pagination.total);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPage(1);
-      fetchPoints(search, 1);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [search, fetchPoints]);
-
   if (collapsed) {
     return (
       <div
@@ -2774,129 +2744,27 @@ function PointBrowserSection({ collapsed }: { collapsed: boolean }) {
       </div>
     );
   }
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "4px 6px",
-    background: "var(--io-surface-elevated)",
-    border: "1px solid var(--io-border)",
-    borderRadius: "var(--io-radius)",
-    color: "var(--io-text-primary)",
-    fontSize: 11,
-    outline: "none",
-    boxSizing: "border-box",
-  };
-
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        maxHeight: 240,
-        overflow: "hidden",
-        flexShrink: 0,
-      }}
-    >
-      <div style={{ padding: "4px 8px" }}>
-        <input
-          type="search"
-          placeholder="Search points…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={inputStyle}
-        />
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        {points.map((pt) => (
-          <div
-            key={pt.id}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData(
-                "application/io-point",
-                JSON.stringify({
-                  type: "point",
-                  pointId: pt.id,
-                  tagname: pt.tagname,
-                  displayName: pt.display_name ?? pt.tagname,
-                  unit: pt.unit ?? "",
-                }),
-              );
-              e.dataTransfer.effectAllowed = "copy";
-            }}
-            title={`${pt.tagname}${pt.unit ? ` [${pt.unit}]` : ""}`}
-            style={{
-              padding: "4px 8px",
-              fontSize: 11,
-              cursor: "grab",
-              borderBottom: "1px solid var(--io-border-subtle)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 1,
-            }}
-          >
-            <span
-              style={{
-                color: "var(--io-text-primary)",
-                fontFamily: "var(--io-font-mono)",
-                fontSize: 10,
-              }}
-            >
-              {pt.tagname}
-            </span>
-            {pt.display_name && pt.display_name !== pt.tagname && (
-              <span style={{ color: "var(--io-text-muted)", fontSize: 10 }}>
-                {pt.display_name}
-              </span>
-            )}
-          </div>
-        ))}
-        {!loading && points.length === 0 && (
-          <div
-            style={{
-              padding: "8px",
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              textAlign: "center",
-            }}
-          >
-            {search ? "No matching points" : "No points configured"}
-          </div>
-        )}
-        {loading && (
-          <div
-            style={{
-              padding: "8px",
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              textAlign: "center",
-            }}
-          >
-            Loading…
-          </div>
-        )}
-        {!loading && points.length < total && (
-          <button
-            onClick={() => {
-              const next = page + 1;
-              setPage(next);
-              fetchPoints(search, next);
-            }}
-            style={{
-              width: "100%",
-              padding: "4px",
-              fontSize: 10,
-              background: "transparent",
-              border: "none",
-              borderTop: "1px solid var(--io-border)",
-              color: "var(--io-accent)",
-              cursor: "pointer",
-            }}
-          >
-            Load more ({total - points.length} remaining)
-          </button>
-        )}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", maxHeight: 280, overflow: "hidden" }}>
+      <PointsBrowserPanel
+        cacheKey="designer-points-browser"
+        emptyHint="Drag a point onto a symbol to bind it."
+        onDragStart={(e, pts) => {
+          // Designer binds one point at a time; use the first (or only) point.
+          const pt = pts[0];
+          e.dataTransfer.setData(
+            "application/io-point",
+            JSON.stringify({
+              type: "point",
+              pointId: pt.id,
+              tagname: pt.tagname,
+              displayName: pt.display_name ?? pt.tagname,
+              unit: pt.unit ?? "",
+            }),
+          );
+          e.dataTransfer.effectAllowed = "copy";
+        }}
+      />
     </div>
   );
 }

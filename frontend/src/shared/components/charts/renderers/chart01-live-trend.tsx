@@ -1,9 +1,13 @@
 // ---------------------------------------------------------------------------
-// Chart 01 — Live Trend
-// Streaming auto-scroll view backed by the shared time-series ring buffer.
+// Chart 01 — Trend
+// Unified time-series line chart. Auto-scrolls in live mode; renders a fixed
+// window in historical/playback mode. Supports multiple Y-axes via the
+// Scaling tab and a Combined/Stacked layout toggle.
+// Supersedes chart02 (Historical Trend) and chart03 (Multi-Axis Trend).
+// Saved configs with chartType 2 or 3 are remapped here by ChartRenderer.
 // ---------------------------------------------------------------------------
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useTimeSeriesBuffer } from "../hooks/useTimeSeriesBuffer";
 import { useHighlight } from "../hooks/useHighlight";
 import TimeSeriesChart, { type Series } from "../TimeSeriesChart";
@@ -14,18 +18,26 @@ import {
   resolveSeriesScales,
 } from "../chart-config-types";
 import { ChartLegendLayout, type LegendItem } from "../ChartLegend";
+import { usePlaybackStore } from "../../../../store/playback";
 
 interface RendererProps {
   config: ChartConfig;
   bufferKey: string;
 }
 
-export default function Chart01LiveTrend({ config, bufferKey }: RendererProps) {
+type ViewMode = "combined" | "stacked";
+
+export default function Chart01Trend({ config, bufferKey }: RendererProps) {
   const slotLabel = makeSlotLabeler(config);
   const { highlighted, toggle } = useHighlight();
   const durationMinutes = config.durationMinutes ?? 60;
   const seriesSlots = config.points.filter((p) => p.role === "series");
   const pointIds = seriesSlots.map((p) => p.pointId);
+
+  const [viewMode, setViewMode] = useState<ViewMode>("combined");
+
+  const { mode: playbackMode, timeRange } = usePlaybackStore();
+  const isHistorical = playbackMode === "historical";
 
   const { timestamps, seriesData, isFetching } = useTimeSeriesBuffer({
     bufferKey,
@@ -36,16 +48,21 @@ export default function Chart01LiveTrend({ config, bufferKey }: RendererProps) {
     aggregateType: config.aggregateType,
   });
 
-  // xRange is recomputed each render so the chart auto-scrolls forward in time.
-  // We use a ref so the same object reference is stable across re-renders — only
-  // the values inside change. TimeSeriesChart reads xRange via xRangeRef so it
-  // always gets the freshest window without needing a chart rebuild.
-  const xRangeRef = useRef<{ min: number; max: number }>({ min: 0, max: 0 });
+  // Live mode: auto-scrolling window anchored to now.
+  // Historical mode: fixed window from the playback time range.
+  const liveXRangeRef = useRef<{ min: number; max: number }>({
+    min: 0,
+    max: 0,
+  });
   const nowSec = Date.now() / 1000;
-  xRangeRef.current.min = nowSec - durationMinutes * 60;
-  xRangeRef.current.max = nowSec;
+  liveXRangeRef.current.min = nowSec - durationMinutes * 60;
+  liveXRangeRef.current.max = nowSec;
 
-  const series: Series[] = seriesSlots.map((slot, i) => ({
+  const xRange = isHistorical
+    ? { min: timeRange.start / 1000, max: timeRange.end / 1000 }
+    : liveXRangeRef.current;
+
+  const allSeries: Series[] = seriesSlots.map((slot, i) => ({
     label: slotLabel(slot),
     data: seriesData.get(slot.pointId) ?? [],
     color: slot.color ?? autoColor(i),
@@ -78,20 +95,70 @@ export default function Chart01LiveTrend({ config, bufferKey }: RendererProps) {
           position: "relative",
         }}
       >
-        {/* Loading indicator */}
-        {isFetching && (
+        {/* Toolbar — only shown when there are series to display */}
+        {pointIds.length > 0 && (
           <div
             style={{
-              position: "absolute",
-              top: 4,
-              right: 8,
-              fontSize: 11,
-              color: "var(--io-text-muted)",
-              zIndex: 10,
-              pointerEvents: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 8px",
+              borderBottom: "1px solid var(--io-border)",
+              background: "var(--io-surface)",
+              flexShrink: 0,
             }}
           >
-            Loading…
+            {isHistorical && (
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "var(--io-text-muted)",
+                  background: "var(--io-surface-elevated)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: 4,
+                  padding: "1px 6px",
+                }}
+              >
+                Historical
+              </span>
+            )}
+            <span
+              style={{ fontSize: 11, color: "var(--io-text-muted)", marginRight: 2 }}
+            >
+              View:
+            </span>
+            {(["combined", "stacked"] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                style={{
+                  fontSize: 11,
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  border: "1px solid var(--io-border)",
+                  background:
+                    viewMode === mode
+                      ? "var(--io-accent)"
+                      : "var(--io-surface-elevated)",
+                  color: viewMode === mode ? "#fff" : "var(--io-text)",
+                  cursor: "pointer",
+                  textTransform: "capitalize",
+                }}
+              >
+                {mode}
+              </button>
+            ))}
+            {isFetching && (
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: 11,
+                  color: "var(--io-text-muted)",
+                }}
+              >
+                Loading…
+              </span>
+            )}
           </div>
         )}
 
@@ -111,16 +178,71 @@ export default function Chart01LiveTrend({ config, bufferKey }: RendererProps) {
           </div>
         )}
 
+        {/* Combined view — all series on shared time axis */}
         {pointIds.length > 0 && (
-          <div style={{ flex: 1, minHeight: 0 }}>
+          <div
+            style={{ flex: 1, minHeight: 0, display: viewMode === "combined" ? undefined : "none" }}
+          >
             <TimeSeriesChart
               timestamps={timestamps}
-              series={series}
-              xRange={xRangeRef.current}
+              series={allSeries}
+              xRange={xRange}
               highlighted={highlighted}
               onSeriesClick={toggle}
               seriesScales={seriesScales}
             />
+          </div>
+        )}
+
+        {/* Stacked view — one chart per series, each on its own Y scale */}
+        {pointIds.length > 0 && (
+          <div
+            style={{
+              display: viewMode === "stacked" ? "flex" : "none",
+              flexDirection: "column",
+              flex: 1,
+              minHeight: 0,
+              overflow: "hidden",
+            }}
+          >
+            {allSeries.map((s, i) => (
+              <div
+                key={s.label}
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  borderBottom: "1px solid var(--io-border)",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    left: 8,
+                    fontSize: 10,
+                    color: s.color ?? "#4A9EFF",
+                    zIndex: 5,
+                    pointerEvents: "none",
+                    fontWeight: 600,
+                    background: "var(--io-surface)",
+                    padding: "1px 4px",
+                    borderRadius: 3,
+                    border: "1px solid var(--io-border)",
+                  }}
+                >
+                  {s.label}
+                </div>
+                <TimeSeriesChart
+                  timestamps={timestamps}
+                  series={[s]}
+                  xRange={xRange}
+                  highlighted={highlighted}
+                  onSeriesClick={toggle}
+                  seriesScales={seriesScales[i] ? [seriesScales[i]] : undefined}
+                />
+              </div>
+            ))}
           </div>
         )}
       </div>

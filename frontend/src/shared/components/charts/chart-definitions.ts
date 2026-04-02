@@ -45,146 +45,49 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
   // ── Time-Series Trends ──────────────────────────────────────────────────────
   {
     id: 1,
-    name: "Live Trend",
+    name: "Trend",
     category: "Time-Series",
     tier: "initial",
     library: "uPlot",
     realTime: true,
     acceptedPointTypes: ["any"],
     description:
-      "Auto-scrolling real-time trend showing current point values as they arrive. The chart continuously appends new data and scrolls left, discarding data that falls off the trailing edge. Up to 12 pens on a single axis let operators compare related variables side by side.",
+      "Multi-pen time-series line chart. Auto-scrolls in live console mode; renders a fixed historical window when the console timeline is engaged. Supports multiple independent Y-axes for variables with different engineering units, and a stacked layout that gives each pen its own horizontal band on a shared time axis.",
     benefits: [
-      "Always shows right now — no manual refresh",
-      "Up to 12 pens — compare related variables on one axis",
-      "Lookback window configurable from 1 minute to hours",
-      "Sub-second live updates direct from the OPC pipeline",
+      "Live and historical in one chart — mode follows the console timeline",
+      "Up to 12 pens on shared or independent Y-axes",
+      "Stacked layout separates variables with incompatible magnitudes",
+      "Synchronized crosshair reads all axes at the same instant",
     ],
     downsides: [
-      "Cannot review the past beyond the lookback window",
-      "Not useful for deep historical analysis",
+      "Beyond 4–5 independent axes, two separate panes are easier to read",
     ],
     usage:
-      "Assign related process variables in the Data Points tab — inlet temperature, outlet temperature, and setpoint together; or feed flow, product flow, and recycle flow together. Set the toolbar duration to match your monitoring horizon: 1–2 hours suits most active operator tasks; 8–12 hours gives shift-level context. When a process upset is developing, shrink the duration to 5–15 minutes so the fast dynamics fill the chart and you can read the sequence of events clearly. Use the Scaling tab to set engineering-unit ranges per pen; auto-scale works for a first look but fixed ranges let you compare the same pane across shifts without the Y-axis jumping.",
+      "Assign related process variables in the Data Points tab. For variables that share engineering units (e.g. multiple temperatures in °C), leave them on the default shared axis — the Scaling tab lets you set a common min/max so proportional comparison is preserved. For variables with incompatible units (e.g. temperature °C, pressure bar, and flow kg/h), assign each to its own axis group in the Scaling tab; the synchronized crosshair lets you read all three at the same moment without unit confusion. Use the Stacked toggle in the toolbar when magnitudes differ so much that a shared axis would visually compress the smaller signal — each pen fills its own band while the time axis stays locked. In live mode the chart auto-scrolls and the duration slider sets how far back you see; in historical mode (console timeline) the chart freezes to the selected window and a Historical badge appears in the toolbar.",
     scenarios: [
       {
         role: "Operator",
         title: "HCU Quench Hydrogen Early Warning",
         description:
-          "Watch quench H₂ flow, bed-3 outlet temperature, and reactor differential pressure together on a 15-minute window during a rate increase. A rising bed temperature that outpaces quench response gives 3–5 minutes of warning before the high-temperature alarm fires — enough time to bring the quench controller into manual and add flow before the trip interlock activates.",
+          "Watch quench H₂ flow, bed-3 outlet temperature, and reactor differential pressure together on a 15-minute live window during a rate increase. A rising bed temperature that outpaces quench response gives 3–5 minutes of warning before the high-temperature alarm fires — enough time to bring the quench controller into manual and add flow before the trip interlock activates.",
       },
       {
         role: "Controls Engineer",
-        title: "Anti-Surge Controller Tuning — Live Response",
+        title: "PID Loop Tuning — SP, PV, and Output on Independent Axes",
         description:
-          "Monitor recycle compressor suction flow, suction pressure, and shaft speed on a 10-minute live trend during a planned rate change. Watching the operating point relative to the surge boundary in real time lets you tune the anti-surge setpoint without triggering an actual surge event — one surge can mechanically damage the impeller and costs more to repair than the tuning session.",
+          "Place setpoint (SP), process variable (PV), and controller output (MV) on three independent axes — PV and SP on °C, output on % — and watch all three during a setpoint step test. The lag between SP change and PV response and the resulting output trajectory directly reveals whether integral time is too aggressive (overshoot) or too slow (long settling). Switch to stacked layout so the output signal isn't visually lost against the temperature scale.",
       },
-      {
-        role: "Reliability Engineer",
-        title: "Pump Vibration on Seal-Replacement Restart",
-        description:
-          "During the restart of a crude charge pump after a seal change, watch drive-end vibration, non-drive-end vibration, and bearing temperature on a 5-minute window. Any vibration spike above 4 mm/s that does not self-attenuate within 90 seconds means the seal is misaligned — stop the pump immediately rather than run it to failure.",
-      },
-      {
-        role: "Marketing / Trading",
-        title: "Blending Component Qualities During Gasoline Blend",
-        description:
-          "Track reformate RON, alkylate RVP, and FCCU naphtha sulfur from the online analyzers on a live trend during an active gasoline blend operation. When a component quality swings outside the blending recipe tolerance, the trader or blending coordinator can call for a blend ratio adjustment before the final product sample is taken — avoiding a tank downgrade that costs several dollars per barrel on a 50,000-barrel parcel.",
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Historical Trend",
-    category: "Time-Series",
-    tier: "initial",
-    library: "uPlot",
-    realTime: false,
-    acceptedPointTypes: ["any"],
-    description:
-      "Fixed time range trend for archived data. User selects start/end time and the chart renders the full range. Resolution adjusts automatically as you zoom — wide windows show hourly averages, tight windows reveal raw sample-by-sample data.",
-    benefits: [
-      "Review any historical period — days, weeks, or months back",
-      "Zoom in progressively to full raw resolution",
-      "Best tool for post-incident investigation",
-    ],
-    downsides: [
-      "Static — no live updates while viewing historical data",
-      "Best paired with Event Timeline for alarm correlation",
-    ],
-    usage:
-      "Start with a wide window (days or weeks) to locate the event region, then zoom in to the minutes surrounding an upset to read exact values and transition times. Set the toolbar duration to bracket the period of interest and use the bucket size control to balance resolution against query speed — Auto works well for most cases, but switching to a fixed bucket (1 min or 5 min) gives consistent point density regardless of zoom level. Compare before-and-after a process change by setting the time range to span the change date: the inflection in the trend is often immediately visible. Pair with the Event Timeline chart in an adjacent pane so alarms and state changes are correlated against the process values on the same time axis.",
-    scenarios: [
       {
         role: "Process Engineer",
         title: "Root Cause Analysis for WABT Exceedance",
         description:
-          "Pull a 6-hour window around a documented reactor WABT exceedance, overlaying quench hydrogen flow, recycle purity, and bed outlet temperatures at 1-minute resolution. The historical trend reveals whether the temperature rose before or after the quench flow dropped — that sequence determines whether the root cause is a controller failure, a hydrogen supply issue, or an operator action.",
-      },
-      {
-        role: "Reliability Engineer",
-        title: "Bearing Failure Signature — Weeks Before Failure",
-        description:
-          "After a fin-fan motor bearing failure, retrieve 2 weeks of motor current, vibration, and bearing temperature leading up to the failure. The trend typically shows a gradual current rise 5–7 days before failure and a vibration spike 12–18 hours before — this timing recalibrates the predictive maintenance inspection interval for similar equipment.",
-      },
-      {
-        role: "Environmental / HSE Engineer",
-        title: "Flare Event Documentation for Regulatory Report",
-        description:
-          "Retrieve a 4-hour window around a flare event, plotting flare header pressure, total flow, and molecular seal differential alongside the fence-line H₂S monitor. This documents whether flaring stayed within permitted limits and whether the molecular seal was functional throughout — required for the EPA incident report due within 2 business days.",
-      },
-      {
-        role: "Accounting / Finance",
-        title: "Fuel Gas Consumption vs. Energy Budget — Month Review",
-        description:
-          "Pull 30 days of fuel gas consumption totalisers across all fired heaters and compare them as a multi-pen trend against the monthly energy budget line (a calculated constant tag). Any period where actual fuel consumption diverges significantly above the budget line corresponds to a specific production event — startup, rate push, or equipment inefficiency — that the finance team can quantify and report.",
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Multi-Axis Trend",
-    category: "Time-Series",
-    tier: "initial",
-    library: "uPlot",
-    realTime: true,
-    acceptedPointTypes: ["any"],
-    description:
-      "Multiple Y-axes for parameters with different engineering units sharing a synchronized time axis. Supports side-by-side axes (left/right) and vertically stacked panes. A synchronized crosshair spanning all axes makes it easy to read corresponding values at any moment in time.",
-    benefits: [
-      "Correlate variables with incompatible units on one chart (°C, bar, kg/h)",
-      "Synchronized crosshair reads all axes at the same instant",
-      "Stacked or side-by-side axis layouts",
-    ],
-    downsides: [
-      "More complex to configure than a simple trend",
-      "Risk of axis crowding beyond 4–5 series",
-    ],
-    usage:
-      "In the Data Points tab, assign each variable and configure its axis in the Scaling tab — variables sharing the same engineering units can go on a shared axis to preserve proportional comparison, while independently-scaled variables each get their own axis. A common three-axis layout: reactor temperature (°C) on the left, pressure (bar) on the right, and feed flow (kg/h) on a third. Use stacked layout when variables have very different magnitudes that would visually compress each other — each variable fills its own horizontal band and the shared time axis keeps them synchronized. The crosshair is the key feature: drag it to the moment of interest and read corresponding values across all axes simultaneously. Limit to 4–5 axes before it becomes harder to read than two separate trend panes.",
-    scenarios: [
-      {
-        role: "Controls Engineer",
-        title: "PID Loop Tuning — SP, PV, and Output Together",
-        description:
-          "Place setpoint (SP), process variable (PV), and controller output (MV) on three separate axes with their native units — the PV and SP on °C, the output on % — and watch all three during a setpoint step test. The lag between SP change and PV response, and the resulting output trajectory, directly reveals whether the integral time is too aggressive (overshoot) or too slow (long settling time).",
-      },
-      {
-        role: "Process Engineer",
-        title: "Fired Heater Combustion Analysis",
-        description:
-          "Stack fuel gas flow (MMBtu/hr), coil outlet temperature (°F), and stack O₂ (%) in three panes during a burner management change. The coupling between excess air, fuel rate, and coil outlet temperature is impossible to read on a shared Y-axis because the units and magnitudes are incompatible — three synchronized axes reveal whether an O₂ drop during a load swing is causing a furnace efficiency penalty.",
+          "Engage the console timeline, set a 6-hour window around a documented reactor WABT exceedance, and overlay quench hydrogen flow, recycle purity, and bed outlet temperatures at 1-minute resolution. The historical trend reveals whether temperature rose before or after quench flow dropped — that sequence determines whether the root cause is a controller failure, a hydrogen supply issue, or an operator action.",
       },
       {
         role: "Reliability Engineer",
         title: "Centrifugal Compressor Performance Map Validation",
         description:
-          "Plot suction flow (MMSCFD), discharge pressure (psig), shaft speed (RPM), and power (kW) on four panes after a rotor replacement to verify the machine is tracking its published performance curve. Any departure from the expected flow-head relationship at a given speed is immediately visible and quantified in real engineering units.",
-      },
-      {
-        role: "Energy Manager",
-        title: "Steam Header Supply vs. Consumer Demand Balance",
-        description:
-          "Monitor high-pressure steam production (klb/hr) on one axis and the sum of consumer demands on a second axis, with the header pressure on a third. When the header pressure drops while production holds steady, the multi-axis crosshair pinpoints which consumer ramped up and by how much — critical for dispatching a demand reduction call to the right unit.",
+          "Plot suction flow (MMSCFD), discharge pressure (psig), shaft speed (RPM), and power (kW) on four independent axes in stacked layout after a rotor replacement. Each pen fills its own band so no signal is compressed, and the shared time axis makes it immediately visible if flow-head relationship at a given speed has changed from the pre-replacement baseline.",
       },
     ],
   },
@@ -205,7 +108,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     ],
     downsides: ["Not appropriate for analog continuous variables"],
     usage:
-      "Use wherever a point has a finite number of named states: valve open/closed, pump running/stopped, compressor mode (auto/manual/cascade), or any on/off permissive. Assign the digital point in the Data Points tab and configure the label and color for each state value in the Scaling tab. Combine with a Live Trend or Multi-Axis Trend in the same or adjacent pane — layering pump status below a pressure trend immediately shows whether pressure drops correlate with pump trips. The step function preserves the exact transition time, which is critical for root cause analysis: a sloped line would imply a gradual change that never actually happened.",
+      "Use wherever a point has a finite number of named states: valve open/closed, pump running/stopped, compressor mode (auto/manual/cascade), or any on/off permissive. Assign the digital point in the Data Points tab and configure the label and color for each state value in the Scaling tab. Combine with a Trend chart in the same or adjacent pane — layering pump status below a pressure trend immediately shows whether pressure drops correlate with pump trips. The step function preserves the exact transition time, which is critical for root cause analysis: a sloped line would imply a gradual change that never actually happened.",
     scenarios: [
       {
         role: "Controls Engineer",
@@ -1455,7 +1358,7 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
       "Not for continuous measurement trends",
     ],
     usage:
-      "Place in a pane directly below a Multi-Axis Trend for investigation layouts. Filter to High and High-High in the Options tab to remove background noise. Enable duration bars to see how long each alarm was active. Use the synchronized crosshair to step from an alarm event to the corresponding moment on the trend.",
+      "Place in a pane directly below a Trend chart for investigation layouts. Filter to High and High-High in the Options tab to remove background noise. Enable duration bars to see how long each alarm was active. Use the synchronized crosshair to step from an alarm event to the corresponding moment on the trend.",
     scenarios: [
       {
         role: "Process Engineer",

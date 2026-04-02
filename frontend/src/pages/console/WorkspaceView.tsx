@@ -259,7 +259,7 @@ export default function WorkspaceView({ detached = false }: Props) {
           {!isLoading && workspace && (
             <WorkspaceGrid
               workspace={workspace}
-              editMode={false}
+              locked={true}
               onConfigurePane={() => undefined}
               onRemovePane={() => undefined}
             />
@@ -305,7 +305,7 @@ export default function WorkspaceView({ detached = false }: Props) {
       {!isLoading && workspace && (
         <WorkspaceGrid
           workspace={workspace}
-          editMode={false}
+          locked={true}
           onConfigurePane={() => undefined}
           onRemovePane={() => undefined}
         />

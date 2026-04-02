@@ -200,6 +200,18 @@ const DashboardCard = memo(function DashboardCard({
                       disabled: false,
                     },
                     {
+                      label: "Open in New Window",
+                      action: () => {
+                        window.open(
+                          `/detached/dashboard/${dashboard.id}`,
+                          "_blank",
+                          "noopener,noreferrer,width=1400,height=900",
+                        );
+                        setMenuOpen(false);
+                      },
+                      disabled: false,
+                    },
+                    {
                       label: "Duplicate",
                       action: () => {
                         onDuplicate(dashboard.id);
@@ -582,15 +594,6 @@ export default function DashboardsPage() {
           borderBottom: "1px solid var(--io-border)",
         }}
       >
-        <span
-          style={{
-            fontSize: "15px",
-            fontWeight: 600,
-            color: "var(--io-text-primary)",
-          }}
-        >
-          Dashboards
-        </span>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {canExport && (
             <div ref={exportMenuRef} style={{ position: "relative" }}>

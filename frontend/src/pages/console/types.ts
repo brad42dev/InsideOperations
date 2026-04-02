@@ -13,6 +13,8 @@ export interface PaneConfig {
   id: string;
   type: PaneType;
   title?: string;
+  /** When true, other panes cannot displace this pane during drag/resize. */
+  pinned?: boolean;
   /** When true, the pane title bar is shown in live mode. Default absent = false (hidden). */
   showTitle?: boolean;
   // trend pane — legacy fields kept for backward compat, superseded by chartConfig
@@ -85,10 +87,11 @@ export interface WorkspaceLayout {
   owner_id?: string;
   /** Optional user-provided description */
   description?: string;
+  /** When true, the workspace is fully frozen: no drag, resize, pin, or × interactions. */
+  locked?: boolean;
 }
 
 export interface ConsoleState {
   workspaces: WorkspaceLayout[];
   activeWorkspaceId: string | null;
-  editMode: boolean;
 }

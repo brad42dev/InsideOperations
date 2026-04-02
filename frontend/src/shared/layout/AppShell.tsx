@@ -1217,6 +1217,10 @@ export default function AppShell() {
 
   const pageTitle = getPageTitle(location.pathname);
   const breadcrumbs = buildBreadcrumbs(location.pathname);
+  // Top-level module pages (e.g. /console, /settings) show their name in the
+  // module's own header — don't repeat it in the app top bar.
+  const isTopLevelModulePage =
+    location.pathname.split("/").filter(Boolean).length === 1;
 
   return (
     <div
@@ -1775,86 +1779,88 @@ export default function AppShell() {
             </button>
           )}
 
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "1px",
-              minWidth: 0,
-            }}
-          >
-            {breadcrumbs.length > 1 ? (
-              <>
+          {!isTopLevelModulePage && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "1px",
+                minWidth: 0,
+              }}
+            >
+              {breadcrumbs.length > 1 ? (
+                <>
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: "15px",
+                      fontWeight: 600,
+                      color: "var(--io-text-primary)",
+                      lineHeight: 1.2,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {pageTitle}
+                  </h1>
+                  <div
+                    aria-label="Breadcrumb"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      fontSize: "11px",
+                      color: "var(--io-text-muted)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {breadcrumbs.map((crumb, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        {idx > 0 && <span style={{ opacity: 0.5 }}>›</span>}
+                        {idx < breadcrumbs.length - 1 ? (
+                          <NavLink
+                            to={crumb.path}
+                            style={{
+                              color: "var(--io-text-muted)",
+                              textDecoration: "none",
+                            }}
+                          >
+                            {crumb.label}
+                          </NavLink>
+                        ) : (
+                          <span style={{ color: "var(--io-text-muted)" }}>
+                            {crumb.label}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : (
                 <h1
                   style={{
                     margin: 0,
                     fontSize: "15px",
                     fontWeight: 600,
                     color: "var(--io-text-primary)",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
                   }}
                 >
                   {pageTitle}
                 </h1>
-                <div
-                  aria-label="Breadcrumb"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    fontSize: "11px",
-                    color: "var(--io-text-muted)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                  }}
-                >
-                  {breadcrumbs.map((crumb, idx) => (
-                    <span
-                      key={idx}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                    >
-                      {idx > 0 && <span style={{ opacity: 0.5 }}>›</span>}
-                      {idx < breadcrumbs.length - 1 ? (
-                        <NavLink
-                          to={crumb.path}
-                          style={{
-                            color: "var(--io-text-muted)",
-                            textDecoration: "none",
-                          }}
-                        >
-                          {crumb.label}
-                        </NavLink>
-                      ) : (
-                        <span style={{ color: "var(--io-text-muted)" }}>
-                          {crumb.label}
-                        </span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "15px",
-                  fontWeight: 600,
-                  color: "var(--io-text-primary)",
-                }}
-              >
-                {pageTitle}
-              </h1>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto" }}>
             {/* Command palette trigger button */}
             {!isKiosk && (
               <button

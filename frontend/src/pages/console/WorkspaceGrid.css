@@ -1,5 +1,11 @@
 /* WorkspaceGrid — fullscreen pane portal animations (spec §5.11) */
 
+/* Visual gap between panes — replaces the RGL margin (now [0,0]) */
+.io-workspace-grid > .react-grid-item {
+  padding: 2px;
+  box-sizing: border-box;
+}
+
 @keyframes io-pane-fullscreen-enter {
   from {
     opacity: 0;
@@ -20,6 +26,38 @@
     opacity: 0;
     transform: scale(0.98);
   }
+}
+
+/* North resize handles: override RGL defaults with higher specificity (0,4,0 > RGL's 0,3,0).
+   Widen the N handle to span the full top edge and give all north handles z-index so they
+   sit above the drag-handle title bar inside the pane content. */
+.io-workspace-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-n {
+  top: 0;
+  left: 20px;
+  right: 20px;
+  width: auto;
+  height: 10px;
+  margin: 0;
+  cursor: n-resize;
+  z-index: 10;
+  transform: none; /* override react-resizable's rotate(225deg) — distorts bounding rect */
+}
+
+.io-workspace-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+  z-index: 10;
+  transform: none;
+}
+
+.io-workspace-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+  left: auto;
+  cursor: ne-resize;
+  z-index: 10;
+  transform: none;
 }
 
 .io-pane-fullscreen-portal {

@@ -84,6 +84,15 @@ export default function ChartPointSelector({
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // Map pointId → assigned colors (a point can appear in multiple slots)
+  const assignedColors = new Map<string, string[]>();
+  for (const p of points) {
+    if (!p.color) continue;
+    const existing = assignedColors.get(p.pointId);
+    if (existing) existing.push(p.color);
+    else assignedColors.set(p.pointId, [p.color]);
+  }
+
   // On mount: fill in colors for any points that were saved without one
   // (e.g. charts created before per-point colors were added).
   const themeRef = useRef(theme);
@@ -334,6 +343,12 @@ export default function ChartPointSelector({
         )}
         {filtered.map((pt) => {
           const compatible = isPointCompatible(pt, acceptedPointTypes);
+          const colors = assignedColors.get(pt.id);
+          const isAssigned = Boolean(colors?.length);
+          const primaryColor = colors?.[0];
+          const assignedBg = primaryColor
+            ? `color-mix(in srgb, ${primaryColor} 12%, transparent)`
+            : undefined;
           return (
             <div
               key={pt.id}
@@ -367,12 +382,18 @@ export default function ChartPointSelector({
                 color: "var(--io-text-primary)",
                 userSelect: "none",
                 opacity: compatible ? 1 : 0.35,
+                background: assignedBg,
+                borderLeft: isAssigned
+                  ? `3px solid ${primaryColor}`
+                  : "3px solid transparent",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--io-surface-hover)";
+                e.currentTarget.style.background = assignedBg
+                  ? `color-mix(in srgb, ${primaryColor} 22%, var(--io-surface-hover))`
+                  : "var(--io-surface-hover)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "";
+                e.currentTarget.style.background = assignedBg ?? "";
               }}
             >
               <div
@@ -420,6 +441,20 @@ export default function ChartPointSelector({
                       {pt.point_category === "boolean" ? "BOOL" : "ENUM"}
                     </span>
                   )}
+                {colors && colors.length > 1 &&
+                  colors.map((c, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: c,
+                        flexShrink: 0,
+                        display: "inline-block",
+                      }}
+                    />
+                  ))}
               </div>
               {pt.display_name && (
                 <div
