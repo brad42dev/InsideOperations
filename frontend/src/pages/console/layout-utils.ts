@@ -788,18 +788,64 @@ function _columnBatchPush(
 
     // Sort by y and pack from moved's bottom edge
     columnItems.sort((a, b) => a.y - b.y);
-    let cursor = moved.y + moved.h;
-    for (let i = 0; i < columnItems.length; i++) {
-      const pane = columnItems[i];
-      const panesLeft = columnItems.length - i;
-      const spaceTillEnd = rows - cursor;
-      pane.y = cursor;
-      pane.h = Math.max(
-        min,
-        Math.min(pane.h, spaceTillEnd - (panesLeft - 1) * min),
-      );
-      cursor = pane.y + pane.h;
-      repacked.add(pane.i);
+    const cursorStart = moved.y + moved.h;
+    const spaceBelow = rows - cursorStart;
+
+    if (spaceBelow >= min) {
+      // Normal case: pack below moved
+      let cursor = cursorStart;
+      for (let i = 0; i < columnItems.length; i++) {
+        const pane = columnItems[i];
+        const panesLeft = columnItems.length - i;
+        const spaceTillEnd = rows - cursor;
+        pane.y = cursor;
+        pane.h = Math.max(
+          min,
+          Math.min(pane.h, spaceTillEnd - (panesLeft - 1) * min),
+        );
+        cursor = pane.y + pane.h;
+        repacked.add(pane.i);
+      }
+    } else {
+      // No room below moved (bottom-row resize). Pack items ABOVE moved.
+      // Include all items in the same x-band above moved so the full column
+      // is repacked together, preventing the displaced items from landing on
+      // existing panes.
+      const aboveItems: GridItem[] = [];
+      const aboveSet = new Set<string>();
+      for (const item of allItems) {
+        if (item.i === movedId) continue;
+        if (columnSet.has(item.i)) continue; // already in columnItems
+        if (repacked.has(item.i)) continue;
+        const xOvlp =
+          Math.min(bandRight, item.x + item.w) - Math.max(bandLeft, item.x);
+        if (xOvlp <= 0) continue;
+        if (item.y + item.h > moved.y) continue; // not above moved
+        if (!aboveSet.has(item.i)) {
+          aboveSet.add(item.i);
+          aboveItems.push(item);
+        }
+      }
+
+      // Merge above items and displaced items, sort by y, pack from top to moved.y
+      const fullColumn = [...aboveItems, ...columnItems];
+      fullColumn.sort((a, b) => a.y - b.y);
+
+      // Pack the entire column into [0, moved.y)
+      const availableH = moved.y;
+      let cursor = 0;
+      for (let i = 0; i < fullColumn.length; i++) {
+        const pane = fullColumn[i];
+        const panesLeft = fullColumn.length - i;
+        const spaceTillEnd = availableH - cursor;
+        pane.y = cursor;
+        pane.h = Math.max(
+          min,
+          Math.min(pane.h, spaceTillEnd - (panesLeft - 1) * min),
+        );
+        cursor = pane.y + pane.h;
+        repacked.add(pane.i);
+      }
     }
   }
 }
