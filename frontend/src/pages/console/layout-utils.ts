@@ -566,10 +566,11 @@ export function resolveCollisions(
  *   shrunk to fit). Coordinates are monotonically non-decreasing and bounded
  *   above by cols/rows, so this always converges. Up to 20 passes.
  *
- * Phase 2 — Scan placement (nuclear fallback, only if Phase 1 left overlaps):
- *   Collect all still-overlapping panes, scan grid positions in reading order,
- *   and place each at the first non-overlapping position. Guaranteed to find
- *   a placement for realistic pane counts.
+ * Phase 2 — Water-level compaction (fallback, only if Phase 1 left overlaps):
+ *   Sort all items in reading order. Maintain a per-column water level
+ *   (initially 0, pre-filled by pinned panes). Place each non-pinned item
+ *   at the maximum water level across its column range, then advance the
+ *   water level. Guarantees zero overlaps in a single pass.
  *
  * Pinned panes are never moved — they act as fixed obstacles.
  */
@@ -655,40 +656,58 @@ export function finalizeLayout(
     if (!anyChange) break;
   }
 
-  // ── Phase 2: scan placement (nuclear fallback) ──────────────────────────
+  // ── Phase 2: water-level compaction (guaranteed zero overlaps) ───────────
   //
-  // If Phase 1 left ANY overlaps (theoretically shouldn't for small pane
-  // counts, but guarantees correctness), collect overlapping panes and
-  // place them one-by-one at the first non-overlapping grid position.
+  // If Phase 1 left ANY overlaps (e.g. settled items cover the entire grid
+  // so directional pushes have nowhere to go), compact all items using a
+  // water-level algorithm: each item is placed at the lowest available y
+  // in its column range, so no two items can overlap.
 
   if (_hasAnyOverlap(items)) {
-    // Identify which panes are involved in overlaps
-    const overlapping = new Set<string>();
-    for (let i = 0; i < items.length; i++) {
-      for (let j = i + 1; j < items.length; j++) {
-        const [dw, dh] = _overlap(items[i], items[j]);
-        if (dw > 0 && dh > 0) {
-          if (!pinnedIds.has(items[i].i)) overlapping.add(items[i].i);
-          if (!pinnedIds.has(items[j].i)) overlapping.add(items[j].i);
-        }
+    // Sort ALL items in reading order (y ASC, x ASC)
+    const sorted = [...items].sort((a, b) =>
+      a.y !== b.y ? a.y - b.y : a.x - b.x,
+    );
+
+    // Water level: for each column unit, the lowest y that is already occupied
+    const waterLevel = new Array<number>(cols).fill(0);
+
+    // Pre-fill water level with pinned panes (they act as fixed obstacles)
+    for (const item of sorted) {
+      if (!pinnedIds.has(item.i)) continue;
+      const xEnd = Math.min(item.x + item.w, cols);
+      for (let cx = item.x; cx < xEnd; cx++) {
+        waterLevel[cx] = Math.max(waterLevel[cx], item.y + item.h);
       }
     }
 
-    // Sort overlapping panes by original position (reading order)
-    const toPlace = items
-      .filter((it) => overlapping.has(it.i))
-      .sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
+    // Place each non-pinned item at the water level for its column range
+    for (const item of sorted) {
+      if (pinnedIds.has(item.i)) continue;
 
-    // Settled panes = everything NOT being re-placed
-    const settled = items.filter((it) => !overlapping.has(it.i));
+      // Compute the highest water level across this item's column range
+      const xEnd = Math.min(item.x + item.w, cols);
+      let minY = 0;
+      for (let cx = item.x; cx < xEnd; cx++) {
+        if (waterLevel[cx] > minY) minY = waterLevel[cx];
+      }
 
-    for (const pane of toPlace) {
-      const placed = _scanPlace(pane, settled, cols, rows);
-      pane.x = placed.x;
-      pane.y = placed.y;
-      pane.w = placed.w;
-      pane.h = placed.h;
-      settled.push(pane);
+      item.y = minY;
+
+      // Edge case: item would be completely off-grid
+      if (item.y >= rows) {
+        item.y = rows - MIN_H;
+        item.h = MIN_H;
+      } else if (item.y + item.h > rows) {
+        // Item partially off-grid: shrink to fit
+        item.h = Math.max(MIN_H, rows - item.y);
+      }
+
+      // Update water level for this item's column range
+      const finalXEnd = Math.min(item.x + item.w, cols);
+      for (let cx = item.x; cx < finalXEnd; cx++) {
+        waterLevel[cx] = Math.max(waterLevel[cx], item.y + item.h);
+      }
     }
   }
 
@@ -704,45 +723,6 @@ function _hasAnyOverlap(items: GridItem[]): boolean {
     }
   }
   return false;
-}
-
-/**
- * Scan grid positions in reading order and return the first position where
- * `pane` fits without overlapping any item in `settled`.
- * Tries original size first, then falls back to MIN_W x MIN_H.
- */
-function _scanPlace(
-  pane: GridItem,
-  settled: GridItem[],
-  cols: number,
-  rows: number,
-): { x: number; y: number; w: number; h: number } {
-  // Try with original size first, then minimum size
-  const sizes: Array<[number, number]> = [[pane.w, pane.h]];
-  if (pane.w !== MIN_W || pane.h !== MIN_H) {
-    sizes.push([MIN_W, MIN_H]);
-  }
-
-  for (const [tw, th] of sizes) {
-    for (let ty = 0; ty + th <= rows; ty += MIN_H) {
-      for (let tx = 0; tx + tw <= cols; tx += MIN_W) {
-        const candidate = { i: pane.i, x: tx, y: ty, w: tw, h: th };
-        let fits = true;
-        for (const s of settled) {
-          const [dw, dh] = _overlap(candidate, s);
-          if (dw > 0 && dh > 0) {
-            fits = false;
-            break;
-          }
-        }
-        if (fits) return { x: tx, y: ty, w: tw, h: th };
-      }
-    }
-  }
-
-  // Absolute last resort: place at bottom-right corner at minimum size.
-  // This should never be reached for realistic pane counts.
-  return { x: cols - MIN_W, y: rows - MIN_H, w: MIN_W, h: MIN_H };
 }
 
 // ---------------------------------------------------------------------------
