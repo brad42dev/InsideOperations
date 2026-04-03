@@ -1860,7 +1860,14 @@ export default function AppShell() {
             </div>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginLeft: "auto",
+            }}
+          >
             {/* Command palette trigger button */}
             {!isKiosk && (
               <button

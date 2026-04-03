@@ -14,14 +14,16 @@ import {
 } from "../../shared/hooks/useConsoleSectionViewMode";
 import * as RadixContextMenu from "@radix-ui/react-context-menu";
 import PointsBrowserPanel from "../../shared/components/PointsBrowserPanel";
-import { useSavedChartsStore, type SavedChart } from "../../store/savedChartsStore";
+import {
+  useSavedChartsStore,
+  type SavedChart,
+} from "../../store/savedChartsStore";
 import { MicroIcon } from "../../shared/components/charts/ChartTypePicker";
 import { usePermission } from "../../shared/hooks/usePermission";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
 
 // Drag data key used to communicate drops from palette to panes
 export const CONSOLE_DRAG_KEY = "application/io-console-item";
@@ -81,7 +83,6 @@ const chevron = (open: boolean): React.CSSProperties => ({
   transform: open ? "rotate(90deg)" : "rotate(0deg)",
   flexShrink: 0,
 });
-
 
 const listItem = (dragging?: boolean): React.CSSProperties => ({
   display: "flex",
@@ -368,14 +369,30 @@ function AccordionSection({
               flexShrink: 0,
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
           </button>
         )}
       </div>
       {open && searchActive && (
-        <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--io-border)", flexShrink: 0 }}>
+        <div
+          style={{
+            padding: "4px 8px",
+            borderBottom: "1px solid var(--io-border)",
+            flexShrink: 0,
+          }}
+        >
           <input
             ref={searchInputRef}
             type="search"
@@ -483,7 +500,13 @@ function StarIcon({ filled }: { filled: boolean }) {
 // SubGroupLabel — static non-interactive sub-group label
 // ---------------------------------------------------------------------------
 
-function SubGroupLabel({ label, icon }: { label: string; icon?: React.ReactNode }) {
+function SubGroupLabel({
+  label,
+  icon,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+}) {
   return (
     <div
       style={{
@@ -511,7 +534,17 @@ function SubGroupLabel({ label, icon }: { label: string; icon?: React.ReactNode 
 
 function LockIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--io-text-muted)", flexShrink: 0 }}>
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ color: "var(--io-text-muted)", flexShrink: 0 }}
+    >
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </svg>
@@ -524,7 +557,17 @@ function LockIcon() {
 
 function PersonIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--io-text-muted)", flexShrink: 0 }}>
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ color: "var(--io-text-muted)", flexShrink: 0 }}
+    >
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
     </svg>
@@ -1285,7 +1328,14 @@ function ChartsSection({
   }
 
   return (
-    <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+    <div
+      style={{
+        padding: "6px 8px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+      }}
+    >
       {/* Blank "any chart" item */}
       <div
         draggable
@@ -1295,7 +1345,10 @@ function ChartsSection({
           setDragging(true);
         }}
         onDragEnd={() => setDragging(false)}
-        onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace?.(blankItem); }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onQuickPlace?.(blankItem);
+        }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
         title="Drag onto a pane, or double-click to place in the selected pane"
@@ -1306,15 +1359,33 @@ function ChartsSection({
           padding: "6px 8px",
           borderRadius: 4,
           cursor: "grab",
-          background: dragging ? "var(--io-accent-subtle)" : hovering ? "var(--io-surface-elevated)" : "transparent",
-          border: dragging ? "1px solid var(--io-accent)" : "1px solid transparent",
+          background: dragging
+            ? "var(--io-accent-subtle)"
+            : hovering
+              ? "var(--io-surface-elevated)"
+              : "transparent",
+          border: dragging
+            ? "1px solid var(--io-accent)"
+            : "1px solid transparent",
           userSelect: "none",
         }}
       >
         {CHART_ITEM_ICON_SM}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, color: "var(--io-text)", fontWeight: 500 }}>Chart</div>
-          <div style={{ fontSize: 10, color: "var(--io-text-muted)", marginTop: 1 }}>Trend · Table · Alarm · Any chart type</div>
+          <div
+            style={{ fontSize: 12, color: "var(--io-text)", fontWeight: 500 }}
+          >
+            Chart
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--io-text-muted)",
+              marginTop: 1,
+            }}
+          >
+            Trend · Table · Alarm · Any chart type
+          </div>
         </div>
       </div>
 
@@ -1323,7 +1394,16 @@ function ChartsSection({
         <>
           {published.length > 0 && (
             <>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--io-text-muted)", padding: "6px 8px 2px", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "var(--io-text-muted)",
+                  padding: "6px 8px 2px",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
                 Published
               </div>
               {published.map((chart) => (
@@ -1332,7 +1412,13 @@ function ChartsSection({
                   chart={chart}
                   canPublish={canPublish}
                   onDragStart={dragSaved}
-                  onQuickPlace={() => onQuickPlace?.({ itemType: "chart", label: chart.name, chartConfig: chart.config })}
+                  onQuickPlace={() =>
+                    onQuickPlace?.({
+                      itemType: "chart",
+                      label: chart.name,
+                      chartConfig: chart.config,
+                    })
+                  }
                   onPublish={(pub) => publishChart(chart.id, pub)}
                   onDelete={() => deleteChart(chart.id)}
                 />
@@ -1341,7 +1427,16 @@ function ChartsSection({
           )}
           {personal.length > 0 && (
             <>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--io-text-muted)", padding: "6px 8px 2px", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: "var(--io-text-muted)",
+                  padding: "6px 8px 2px",
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
                 Personal
               </div>
               {personal.map((chart) => (
@@ -1350,7 +1445,13 @@ function ChartsSection({
                   chart={chart}
                   canPublish={canPublish}
                   onDragStart={dragSaved}
-                  onQuickPlace={() => onQuickPlace?.({ itemType: "chart", label: chart.name, chartConfig: chart.config })}
+                  onQuickPlace={() =>
+                    onQuickPlace?.({
+                      itemType: "chart",
+                      label: chart.name,
+                      chartConfig: chart.config,
+                    })
+                  }
                   onPublish={(pub) => publishChart(chart.id, pub)}
                   onDelete={() => deleteChart(chart.id)}
                 />
@@ -1386,7 +1487,10 @@ function SavedChartRow({
         <div
           draggable
           onDragStart={(e) => onDragStart(e, chart)}
-          onDoubleClick={(e) => { e.stopPropagation(); onQuickPlace(); }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            onQuickPlace();
+          }}
           onMouseEnter={() => setHovering(true)}
           onMouseLeave={() => setHovering(false)}
           title={`${chart.name}${chart.description ? `\n${chart.description}` : ""}\nDrag to place · double-click to quick-place`}
@@ -1401,15 +1505,39 @@ function SavedChartRow({
             userSelect: "none",
           }}
         >
-          <span style={{ color: "var(--io-accent)", flexShrink: 0, display: "flex", alignItems: "center" }}>
+          <span
+            style={{
+              color: "var(--io-accent)",
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
             <MicroIcon id={chart.chartType} />
           </span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, color: "var(--io-text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--io-text)",
+                fontWeight: 500,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {chart.name}
             </div>
             {chart.description && (
-              <div style={{ fontSize: 10, color: "var(--io-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--io-text-muted)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {chart.description}
               </div>
             )}
@@ -1430,12 +1558,18 @@ function SavedChartRow({
             outline: "none",
           }}
         >
-          <RadixContextMenu.Item onSelect={onQuickPlace} style={ctxMenuItemStyle}>
+          <RadixContextMenu.Item
+            onSelect={onQuickPlace}
+            style={ctxMenuItemStyle}
+          >
             Place in Active Pane
           </RadixContextMenu.Item>
           <RadixContextMenu.Separator style={ctxMenuSeparatorStyle} />
           {canPublish && (
-            <RadixContextMenu.Item onSelect={() => onPublish(!chart.published)} style={ctxMenuItemStyle}>
+            <RadixContextMenu.Item
+              onSelect={() => onPublish(!chart.published)}
+              style={ctxMenuItemStyle}
+            >
               {chart.published ? "Unpublish" : "Publish"}
             </RadixContextMenu.Item>
           )}
@@ -1476,7 +1610,6 @@ function PointsSection({ search }: { search?: string }) {
     />
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // Graphic thumbnail tile — drag-to-drop onto console pane
@@ -1968,7 +2101,6 @@ export default function ConsolePalette({
     points: false,
   });
 
-
   // Workspace favorites — uses legacy hook for backward-compat with existing LS key
   const {
     favoriteIds: workspaceFavoriteIds,
@@ -2146,7 +2278,14 @@ export default function ConsolePalette({
       </div>
 
       {/* Sections container — flex column, sections with flexible prop fill remaining space */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
         <AccordionSection
           title="Workspaces"
           open={openSections.workspaces}
@@ -2154,7 +2293,9 @@ export default function ConsolePalette({
           badge={workspaces.length}
           viewMode={workspacesViewMode}
           onViewModeChange={setWorkspacesViewMode}
-          sectionHeight={openSections.workspaces ? sectionHeights.workspaces : undefined}
+          sectionHeight={
+            openSections.workspaces ? sectionHeights.workspaces : undefined
+          }
           onHeightResizeMouseDown={handleSectionResizeMouseDown("workspaces")}
           isHeightResizing={resizingSection === "workspaces"}
           searchable
@@ -2181,7 +2322,9 @@ export default function ConsolePalette({
           onToggle={() => toggleSection("graphics")}
           viewMode={graphicsViewMode}
           onViewModeChange={setGraphicsViewMode}
-          sectionHeight={openSections.graphics ? sectionHeights.graphics : undefined}
+          sectionHeight={
+            openSections.graphics ? sectionHeights.graphics : undefined
+          }
           onHeightResizeMouseDown={handleSectionResizeMouseDown("graphics")}
           isHeightResizing={resizingSection === "graphics"}
           searchable

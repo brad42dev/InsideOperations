@@ -123,7 +123,11 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
               </span>
             )}
             <span
-              style={{ fontSize: 11, color: "var(--io-text-muted)", marginRight: 2 }}
+              style={{
+                fontSize: 11,
+                color: "var(--io-text-muted)",
+                marginRight: 2,
+              }}
             >
               View:
             </span>
@@ -181,7 +185,11 @@ export default function Chart01Trend({ config, bufferKey }: RendererProps) {
         {/* Combined view — all series on shared time axis */}
         {pointIds.length > 0 && (
           <div
-            style={{ flex: 1, minHeight: 0, display: viewMode === "combined" ? undefined : "none" }}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: viewMode === "combined" ? undefined : "none",
+            }}
           >
             <TimeSeriesChart
               timestamps={timestamps}

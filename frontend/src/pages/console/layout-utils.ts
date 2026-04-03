@@ -169,9 +169,18 @@ export function reflowPanesToPreset(
 
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
-    const pane: PaneConfig = sorted[i] ?? { id: uuidv4(), type: "blank" as const };
+    const pane: PaneConfig = sorted[i] ?? {
+      id: uuidv4(),
+      type: "blank" as const,
+    };
     newPanes.push(pane);
-    newGridItems.push({ i: pane.id, x: slot.x, y: slot.y, w: slot.w, h: slot.h });
+    newGridItems.push({
+      i: pane.id,
+      x: slot.x,
+      y: slot.y,
+      w: slot.w,
+      h: slot.h,
+    });
   }
 
   return { panes: newPanes, gridItems: newGridItems };
@@ -236,7 +245,13 @@ export function resolveCollisions(
   //   without any special-casing — the formula is general.
   if (axisHint && items.length > 1) {
     const axis = axisHint === "x" ? "w" : "h";
-    const maxSize = _computeMaxMovedSize(moved, axis, items.length - 1, cols, rows);
+    const maxSize = _computeMaxMovedSize(
+      moved,
+      axis,
+      items.length - 1,
+      cols,
+      rows,
+    );
     if (moved[axis] > maxSize) {
       moved[axis] = maxSize;
     }
@@ -325,7 +340,7 @@ export function resolveCollisions(
         } else {
           // Drag or corner resize: try shrink first; push if can't fit.
           const newX = moved.x + moved.w;
-          const newW = (other.x + other.w) - newX;
+          const newW = other.x + other.w - newX;
           if (newW >= MIN_W) {
             other.x = newX;
             other.w = newW;
@@ -377,7 +392,7 @@ export function resolveCollisions(
         } else {
           // Drag or corner resize: try shrink first; push if can't fit.
           const newY = moved.y + moved.h;
-          const newH = (other.y + other.h) - newY;
+          const newH = other.y + other.h - newY;
           if (newH >= MIN_H) {
             other.y = newY;
             other.h = newH;
@@ -409,9 +424,15 @@ export function resolveCollisions(
       moved.x + moved.w + rightPush.length * MIN_W,
     );
     for (const other of items) {
-      if (other.i === movedId || rightPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+      if (
+        other.i === movedId ||
+        rightPushSet.has(other.i) ||
+        pinnedIds.has(other.i)
+      )
+        continue;
       const yOvlp =
-        Math.min(moved.y + moved.h, other.y + other.h) - Math.max(moved.y, other.y);
+        Math.min(moved.y + moved.h, other.y + other.h) -
+        Math.max(moved.y, other.y);
       if (yOvlp <= 0) continue;
       if (other.x >= moved.x && other.x < estimatedBound) {
         rightPushSet.add(other.i);
@@ -425,7 +446,12 @@ export function resolveCollisions(
   for (let qi = 0; qi < rightPush.length; qi++) {
     const current = rightPush[qi];
     for (const other of items) {
-      if (other.i === movedId || rightPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+      if (
+        other.i === movedId ||
+        rightPushSet.has(other.i) ||
+        pinnedIds.has(other.i)
+      )
+        continue;
       const [dw, dh] = _overlap(current, other);
       if (dw <= 0 || dh <= 0) continue;
       if (dw <= dh && current.x + current.w * 0.5 <= other.x + other.w * 0.5) {
@@ -445,7 +471,12 @@ export function resolveCollisions(
       let expanded = false;
       for (const pushed of rightPush) {
         for (const other of items) {
-          if (other.i === movedId || rightPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+          if (
+            other.i === movedId ||
+            rightPushSet.has(other.i) ||
+            pinnedIds.has(other.i)
+          )
+            continue;
           const [dw2, dh2] = _overlap(pushed, other);
           if (dw2 <= 0 || dh2 <= 0) continue;
           rightPushSet.add(other.i);
@@ -463,7 +494,12 @@ export function resolveCollisions(
   for (let qi = 0; qi < downPush.length; qi++) {
     const current = downPush[qi];
     for (const other of items) {
-      if (other.i === movedId || downPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+      if (
+        other.i === movedId ||
+        downPushSet.has(other.i) ||
+        pinnedIds.has(other.i)
+      )
+        continue;
       const [dw, dh] = _overlap(current, other);
       if (dw <= 0 || dh <= 0) continue;
       if (dh < dw && current.y + current.h * 0.5 <= other.y + other.h * 0.5) {
@@ -493,7 +529,12 @@ export function resolveCollisions(
       let expanded = false;
       for (const pushed of downPush) {
         for (const other of items) {
-          if (other.i === movedId || downPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+          if (
+            other.i === movedId ||
+            downPushSet.has(other.i) ||
+            pinnedIds.has(other.i)
+          )
+            continue;
           const [dw2, dh2] = _overlap(pushed, other);
           if (dw2 <= 0 || dh2 <= 0) continue;
           downPushSet.add(other.i);
@@ -585,144 +626,193 @@ export function finalizeLayout(
   // Ensure all items are clamped before we start
   for (const item of items) _clamp(item, cols, rows);
 
-  // ── Phase 1: directional push (monotonically convergent) ────────────────
+  // ── Scan-line placement (guaranteed zero overlaps in ONE pass) ──────────
   //
-  // Items only move right or down (or shrink). Since coordinates are bounded
-  // above by cols/rows, the total sum of (x + y) across all items is
-  // monotonically non-decreasing and bounded, so it must converge.
+  // Inspired by react-grid-layout's compact algorithm and Grafana's approach.
+  // Unlike a directional push (which can leave residual overlaps after complex
+  // cascades), this places every item exactly once into a conflict-free position.
+  //
+  // Algorithm:
+  //   1. Sort: pinned items first (fixed obstacles), then all others by (y, x)
+  //      reading order to preserve spatial relationships.
+  //   2. Build a "settled" list starting with pinned items.
+  //   3. For each non-pinned item:
+  //      a. If it doesn't overlap any settled item at its current (x, y) → keep it.
+  //      b. If it overlaps → find the (x, y) slot closest to its original position
+  //         (minimizing Manhattan distance) that fits without overlapping settled items.
+  //      c. If no slot fits at current size → shrink to MIN and scan.
+  //   4. This always produces zero overlaps — each item is checked against ALL
+  //      previously settled items before being accepted.
 
-  for (let pass = 0; pass < 20; pass++) {
-    let anyChange = false;
+  const sorted = items.slice().sort((a, b) => {
+    const ap = pinnedIds.has(a.i) ? 0 : 1;
+    const bp = pinnedIds.has(b.i) ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    return a.y !== b.y ? a.y - b.y : a.x - b.x;
+  });
 
-    // Re-sort in reading order each pass (items move during passes)
-    const order = items
-      .map((_, idx) => idx)
-      .sort((a, b) => {
-        const ai = items[a], bi = items[b];
-        return ai.y !== bi.y ? ai.y - bi.y : ai.x - bi.x;
-      });
+  const settled: GridItem[] = [];
 
-    for (let oi = 0; oi < order.length; oi++) {
-      for (let oj = oi + 1; oj < order.length; oj++) {
-        const iItem = items[order[oi]];
-        const jItem = items[order[oj]];
-
-        const [dw, dh] = _overlap(iItem, jItem);
-        if (dw <= 0 || dh <= 0) continue;
-
-        // Pinned items never move
-        if (pinnedIds.has(jItem.i)) {
-          // j is pinned — i must yield (but only if i is not also pinned)
-          if (!pinnedIds.has(iItem.i)) {
-            _yieldAway(iItem, jItem, dw, dh);
-            _clamp(iItem, cols, rows);
-            anyChange = true;
-          }
-          continue;
-        }
-
-        // i is the "winner" (earlier in reading order or pinned), j is the "loser"
-        // j moves right or down, never left or up
-        anyChange = true;
-
-        if (dw <= dh) {
-          // Resolve horizontally: push j right past i
-          jItem.x = iItem.x + iItem.w;
-          if (jItem.x + jItem.w > cols) {
-            jItem.w = Math.max(MIN_W, cols - jItem.x);
-          }
-          // If j is pushed completely off-grid, shrink and pin to right edge
-          if (jItem.x >= cols) {
-            jItem.x = cols - MIN_W;
-            jItem.w = MIN_W;
-          }
-        } else {
-          // Resolve vertically: push j down past i
-          jItem.y = iItem.y + iItem.h;
-          if (jItem.y + jItem.h > rows) {
-            jItem.h = Math.max(MIN_H, rows - jItem.y);
-          }
-          // If j is pushed completely off-grid, shrink and pin to bottom edge
-          if (jItem.y >= rows) {
-            jItem.y = rows - MIN_H;
-            jItem.h = MIN_H;
-          }
-        }
-
-        _clamp(jItem, cols, rows);
-      }
+  for (const item of sorted) {
+    if (pinnedIds.has(item.i)) {
+      settled.push(item);
+      continue;
     }
 
-    if (!anyChange) break;
-  }
+    // Clamp dimensions before placement
+    item.w = Math.max(MIN_W, Math.min(item.w, cols));
+    item.h = Math.max(MIN_H, Math.min(item.h, rows));
 
-  // ── Phase 2: water-level compaction (guaranteed zero overlaps) ───────────
-  //
-  // If Phase 1 left ANY overlaps (e.g. settled items cover the entire grid
-  // so directional pushes have nowhere to go), compact all items using a
-  // water-level algorithm: each item is placed at the lowest available y
-  // in its column range, so no two items can overlap.
+    // Step 1: try current position — if no overlap with settled, keep as-is
+    if (!_overlapsAnySettled(item.x, item.y, item.w, item.h, settled)) {
+      settled.push(item);
+      continue;
+    }
 
-  if (_hasAnyOverlap(items)) {
-    // Sort ALL items in reading order (y ASC, x ASC)
-    const sorted = [...items].sort((a, b) =>
-      a.y !== b.y ? a.y - b.y : a.x - b.x,
+    // Step 2: find nearest available slot (minimize displacement from original position)
+    const slot = _findNearestSlot(
+      item.x,
+      item.y,
+      item.w,
+      item.h,
+      settled,
+      cols,
+      rows,
     );
-
-    // Water level: for each column unit, the lowest y that is already occupied
-    const waterLevel = new Array<number>(cols).fill(0);
-
-    // Pre-fill water level with pinned panes (they act as fixed obstacles)
-    for (const item of sorted) {
-      if (!pinnedIds.has(item.i)) continue;
-      const xEnd = Math.min(item.x + item.w, cols);
-      for (let cx = item.x; cx < xEnd; cx++) {
-        waterLevel[cx] = Math.max(waterLevel[cx], item.y + item.h);
-      }
+    if (slot) {
+      item.x = slot.x;
+      item.y = slot.y;
+      settled.push(item);
+      continue;
     }
 
-    // Place each non-pinned item at the water level for its column range
-    for (const item of sorted) {
-      if (pinnedIds.has(item.i)) continue;
-
-      // Compute the highest water level across this item's column range
-      const xEnd = Math.min(item.x + item.w, cols);
-      let minY = 0;
-      for (let cx = item.x; cx < xEnd; cx++) {
-        if (waterLevel[cx] > minY) minY = waterLevel[cx];
+    // Step 3: no slot fits at current size — shrink to MIN and find nearest slot
+    const origX = item.x,
+      origY = item.y;
+    item.w = MIN_W;
+    item.h = MIN_H;
+    const minSlot = _findNearestSlot(
+      origX,
+      origY,
+      MIN_W,
+      MIN_H,
+      settled,
+      cols,
+      rows,
+    );
+    if (minSlot) {
+      item.x = minSlot.x;
+      item.y = minSlot.y;
+    } else {
+      // Paranoia fallback: scan coarse grid
+      let placed = false;
+      outer: for (let ty = 0; ty + MIN_H <= rows; ty += MIN_H) {
+        for (let tx = 0; tx + MIN_W <= cols; tx += MIN_W) {
+          if (!_overlapsAnySettled(tx, ty, MIN_W, MIN_H, settled)) {
+            item.x = tx;
+            item.y = ty;
+            placed = true;
+            break outer;
+          }
+        }
       }
-
-      item.y = minY;
-
-      // Edge case: item would be completely off-grid
-      if (item.y >= rows) {
-        item.y = rows - MIN_H;
-        item.h = MIN_H;
-      } else if (item.y + item.h > rows) {
-        // Item partially off-grid: shrink to fit
-        item.h = Math.max(MIN_H, rows - item.y);
-      }
-
-      // Update water level for this item's column range
-      const finalXEnd = Math.min(item.x + item.w, cols);
-      for (let cx = item.x; cx < finalXEnd; cx++) {
-        waterLevel[cx] = Math.max(waterLevel[cx], item.y + item.h);
+      if (!placed) {
+        item.x = 0;
+        item.y = 0;
       }
     }
+    settled.push(item);
   }
 
   return items;
 }
 
-/** Check if any pair of items overlaps. */
-function _hasAnyOverlap(items: GridItem[]): boolean {
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      const [dw, dh] = _overlap(items[i], items[j]);
-      if (dw > 0 && dh > 0) return true;
-    }
+/**
+ * Check if a rectangle at (x, y, w, h) overlaps any item in the settled list.
+ */
+function _overlapsAnySettled(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  settled: GridItem[],
+): boolean {
+  for (const s of settled) {
+    const dw = Math.min(x + w, s.x + s.w) - Math.max(x, s.x);
+    const dh = Math.min(y + h, s.y + s.h) - Math.max(y, s.y);
+    if (dw > 0 && dh > 0) return true;
   }
   return false;
+}
+
+/**
+ * Find the nearest (x, y) position for an item of size (w, h) that doesn't
+ * overlap any settled item, minimizing Manhattan distance from (origX, origY).
+ *
+ * Strategy: build a set of candidate y-values from settled items' bottom edges
+ * (these are the "interesting" y positions where new slots open up), plus y=0
+ * and the original y. For each candidate y, scan x positions. Among all valid
+ * slots, pick the one with minimum Manhattan distance to (origX, origY).
+ *
+ * This is O(settled² × candidateX) in the worst case, which is fast for the
+ * typical 1-16 pane count in console workspaces.
+ */
+function _findNearestSlot(
+  origX: number,
+  origY: number,
+  w: number,
+  h: number,
+  settled: GridItem[],
+  cols: number,
+  rows: number,
+): { x: number; y: number } | null {
+  // Collect candidate y values: 0, origY, and every settled item's bottom edge
+  const candidateYs = new Set<number>();
+  candidateYs.add(0);
+  candidateYs.add(origY);
+  for (const s of settled) {
+    candidateYs.add(s.y + s.h); // bottom edge — slot opens below this item
+    candidateYs.add(s.y); // top edge — might fit above
+  }
+
+  // Collect candidate x values: 0, origX, and every settled item's right/left edges
+  const candidateXs = new Set<number>();
+  candidateXs.add(0);
+  candidateXs.add(origX);
+  for (const s of settled) {
+    candidateXs.add(s.x + s.w); // right edge
+    candidateXs.add(s.x); // left edge
+  }
+
+  // Filter to valid ranges
+  const ys = [...candidateYs]
+    .filter((y) => y >= 0 && y + h <= rows)
+    .sort((a, b) => a - b);
+  const xs = [...candidateXs]
+    .filter((x) => x >= 0 && x + w <= cols)
+    .sort((a, b) => a - b);
+
+  let bestX = -1;
+  let bestY = -1;
+  let bestDist = Infinity;
+
+  for (const cy of ys) {
+    for (const cx of xs) {
+      const dist = Math.abs(cx - origX) + Math.abs(cy - origY);
+      // Early exit: can't beat current best
+      if (dist >= bestDist) continue;
+
+      if (!_overlapsAnySettled(cx, cy, w, h, settled)) {
+        bestX = cx;
+        bestY = cy;
+        bestDist = dist;
+        if (bestDist === 0) return { x: bestX, y: bestY };
+      }
+    }
+  }
+
+  if (bestX >= 0) return { x: bestX, y: bestY };
+  return null;
 }
 
 // ---------------------------------------------------------------------------

@@ -18,7 +18,10 @@ interface PointsBrowserPanelProps {
    * points (when the dragged row is part of the selection) or just the one
    * row being dragged. Caller sets the dataTransfer payload.
    */
-  onDragStart?: (e: React.DragEvent<HTMLDivElement>, points: PointMeta[]) => void;
+  onDragStart?: (
+    e: React.DragEvent<HTMLDivElement>,
+    points: PointMeta[],
+  ) => void;
   /** Called when a point row is double-clicked (single point). */
   onDoubleClick?: (point: PointMeta) => void;
   /** Hint text when list is empty and no search is active. */
@@ -82,10 +85,9 @@ export default function PointsBrowserPanel({
     ? infiniteData.pages.flatMap((p) => (p.success ? p.data.data : []))
     : [];
 
-  const total: number =
-    infiniteData?.pages[0]?.success
-      ? infiniteData.pages[0].data.pagination.total
-      : 0;
+  const total: number = infiniteData?.pages[0]?.success
+    ? infiniteData.pages[0].data.pagination.total
+    : 0;
 
   // Toggle a single point in/out of the selection
   const toggleSelect = useCallback((id: string) => {
@@ -111,7 +113,9 @@ export default function PointsBrowserPanel({
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(handleIntersect, { threshold: 0.1 });
+    const observer = new IntersectionObserver(handleIntersect, {
+      threshold: 0.1,
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, [handleIntersect]);
@@ -120,38 +124,49 @@ export default function PointsBrowserPanel({
   const selectedPoints = points.filter((p) => selected.has(p.id));
   const selectionCount = selected.size;
 
-  function handleDragStart(e: React.DragEvent<HTMLDivElement>, point: PointMeta) {
+  function handleDragStart(
+    e: React.DragEvent<HTMLDivElement>,
+    point: PointMeta,
+  ) {
     if (!onDragStart) return;
     // Drag all selected points if this row is part of the selection,
     // otherwise drag just this one row without touching the selection.
-    const dragPoints = selected.has(point.id) && selectionCount > 1
-      ? selectedPoints
-      : [point];
+    const dragPoints =
+      selected.has(point.id) && selectionCount > 1 ? selectedPoints : [point];
     onDragStart(e, dragPoints);
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+      }}
+    >
       {/* Search bar — hidden when search is driven externally by AccordionSection */}
-      {externalSearch === undefined && <div style={{ padding: "6px 8px", flexShrink: 0 }}>
-        <input
-          type="search"
-          placeholder="Search points…"
-          value={internalSearch}
-          onChange={(e) => setInternalSearch(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "4px 7px",
-            background: "var(--io-surface-elevated)",
-            border: "1px solid var(--io-border)",
-            borderRadius: 4,
-            color: "var(--io-text)",
-            fontSize: 11,
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>}
+      {externalSearch === undefined && (
+        <div style={{ padding: "6px 8px", flexShrink: 0 }}>
+          <input
+            type="search"
+            placeholder="Search points…"
+            value={internalSearch}
+            onChange={(e) => setInternalSearch(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "4px 7px",
+              background: "var(--io-surface-elevated)",
+              border: "1px solid var(--io-border)",
+              borderRadius: 4,
+              color: "var(--io-text)",
+              fontSize: 11,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+      )}
 
       {/* Count / selection bar */}
       <div
@@ -166,7 +181,14 @@ export default function PointsBrowserPanel({
       >
         {selectionCount > 0 ? (
           <>
-            <span style={{ fontSize: 10, color: "var(--io-accent)", fontWeight: 600, flex: 1 }}>
+            <span
+              style={{
+                fontSize: 10,
+                color: "var(--io-accent)",
+                fontWeight: 600,
+                flex: 1,
+              }}
+            >
               {selectionCount} selected — drag to add
             </span>
             <button
@@ -212,13 +234,27 @@ export default function PointsBrowserPanel({
         <div ref={sentinelRef} style={{ height: 1 }} />
 
         {isFetching && (
-          <div style={{ padding: "6px 10px", fontSize: 11, color: "var(--io-text-muted)", textAlign: "center" }}>
+          <div
+            style={{
+              padding: "6px 10px",
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              textAlign: "center",
+            }}
+          >
             Loading…
           </div>
         )}
 
         {!isFetching && points.length === 0 && (
-          <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--io-text-muted)", lineHeight: 1.5 }}>
+          <div
+            style={{
+              padding: "8px 10px",
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              lineHeight: 1.5,
+            }}
+          >
             {debouncedSearch ? "No points match the search." : emptyHint}
           </div>
         )}
@@ -286,7 +322,9 @@ function PointRow({
             ? "var(--io-surface-elevated)"
             : "transparent",
         borderBottom: "1px solid var(--io-border-subtle, var(--io-border))",
-        borderLeft: selected ? "2px solid var(--io-accent)" : "2px solid transparent",
+        borderLeft: selected
+          ? "2px solid var(--io-accent)"
+          : "2px solid transparent",
         display: "flex",
         alignItems: "center",
         gap: 6,
@@ -294,14 +332,26 @@ function PointRow({
       }}
     >
       {/* Checkbox — visible on hover, when selected, or when any row is selected */}
-      <div style={{ width: 14, flexShrink: 0, display: "flex", alignItems: "center" }}>
+      <div
+        style={{
+          width: 14,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
         {showCheckbox && (
           <input
             type="checkbox"
             checked={selected}
             onChange={handleCheckboxChange}
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 12, height: 12, cursor: "pointer", accentColor: "var(--io-accent)" }}
+            style={{
+              width: 12,
+              height: 12,
+              cursor: "pointer",
+              accentColor: "var(--io-accent)",
+            }}
           />
         )}
       </div>

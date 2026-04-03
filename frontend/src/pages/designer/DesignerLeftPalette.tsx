@@ -2745,7 +2745,14 @@ function PointBrowserSection({ collapsed }: { collapsed: boolean }) {
     );
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", maxHeight: 280, overflow: "hidden" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        maxHeight: 280,
+        overflow: "hidden",
+      }}
+    >
       <PointsBrowserPanel
         cacheKey="designer-points-browser"
         emptyHint="Drag a point onto a symbol to bind it."

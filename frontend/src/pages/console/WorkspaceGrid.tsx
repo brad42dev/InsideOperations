@@ -1,4 +1,10 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 import { createPortal } from "react-dom";
 import { GridLayout, noCompactor, type LayoutItem } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
@@ -239,7 +245,13 @@ export default function WorkspaceGrid({
   // starting w/h grid-unit ratio. (Separate from the AR button, which locks to the
   // underlying graphic's pixel aspect ratio.)
   const shiftKeyRef = useRef(false);
-  const resizeStartRef = useRef<{ i: string; x: number; y: number; w: number; h: number } | null>(null);
+  const resizeStartRef = useRef<{
+    i: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
 
   // ── Drag/resize preview (ghost outlines for displaced panes) ─────────────
   // gestureIdRef: ID of the pane currently being dragged/resized (excluded
@@ -279,14 +291,27 @@ export default function WorkspaceGrid({
     ) => {
       if (!newItem) return;
       gestureIdRef.current = newItem.i;
-      const withNewPos = gridItemsRef.current.map((item): GridItem =>
-        item.i === newItem.i
-          ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
-          : item,
+      const withNewPos = gridItemsRef.current.map(
+        (item): GridItem =>
+          item.i === newItem.i
+            ? {
+                i: item.i,
+                x: newItem.x,
+                y: newItem.y,
+                w: newItem.w,
+                h: newItem.h,
+              }
+            : item,
       );
       rawGestureLayoutRef.current = withNewPos;
       setPreviewLayout(
-        resolveCollisions(withNewPos, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS),
+        resolveCollisions(
+          withNewPos,
+          newItem.i,
+          pinnedIds,
+          GRID_COLS,
+          GRID_ROWS,
+        ),
       );
     },
     [pinnedIds],
@@ -309,14 +334,28 @@ export default function WorkspaceGrid({
         if (yChanged && !xChanged) axisHint = "y";
         else if (xChanged && !yChanged) axisHint = "x";
       }
-      const withNewSize = gridItemsRef.current.map((item): GridItem =>
-        item.i === newItem.i
-          ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
-          : item,
+      const withNewSize = gridItemsRef.current.map(
+        (item): GridItem =>
+          item.i === newItem.i
+            ? {
+                i: item.i,
+                x: newItem.x,
+                y: newItem.y,
+                w: newItem.w,
+                h: newItem.h,
+              }
+            : item,
       );
       rawGestureLayoutRef.current = withNewSize;
       setPreviewLayout(
-        resolveCollisions(withNewSize, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS, axisHint),
+        resolveCollisions(
+          withNewSize,
+          newItem.i,
+          pinnedIds,
+          GRID_COLS,
+          GRID_ROWS,
+          axisHint,
+        ),
       );
     },
     [pinnedIds],
@@ -330,7 +369,13 @@ export default function WorkspaceGrid({
     ) => {
       isResizingRef.current = true;
       if (newItem) {
-        resizeStartRef.current = { i: newItem.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h };
+        resizeStartRef.current = {
+          i: newItem.i,
+          x: newItem.x,
+          y: newItem.y,
+          w: newItem.w,
+          h: newItem.h,
+        };
       }
     },
     [],
@@ -384,7 +429,8 @@ export default function WorkspaceGrid({
       if (startDims) {
         const yChanged = newItem.y !== startDims.y || newItem.h !== startDims.h;
         const xChanged = newItem.x !== startDims.x || newItem.w !== startDims.w;
-        if (yChanged && !xChanged) axisHint = "y"; // n/s edge handle
+        if (yChanged && !xChanged)
+          axisHint = "y"; // n/s edge handle
         else if (xChanged && !yChanged) axisHint = "x"; // e/w edge handle
         // both changed = corner handle → no hint, use overlap heuristic
       }
@@ -412,15 +458,25 @@ export default function WorkspaceGrid({
       }
 
       // Apply final size to the resized item, then resolve collisions once.
-      const withNewSize = gridItemsRef.current.map((item): GridItem =>
-        item.i === newItem.i
-          ? { i: item.i, x: newItem.x, y: newItem.y, w: finalW, h: finalH }
-          : item,
+      const withNewSize = gridItemsRef.current.map(
+        (item): GridItem =>
+          item.i === newItem.i
+            ? { i: item.i, x: newItem.x, y: newItem.y, w: finalW, h: finalH }
+            : item,
       );
       onGridLayoutChange(
         finalizeLayout(
-          resolveCollisions(withNewSize, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS, axisHint),
-          pinnedIds, GRID_COLS, GRID_ROWS,
+          resolveCollisions(
+            withNewSize,
+            newItem.i,
+            pinnedIds,
+            GRID_COLS,
+            GRID_ROWS,
+            axisHint,
+          ),
+          pinnedIds,
+          GRID_COLS,
+          GRID_ROWS,
         ),
       );
     },
@@ -453,15 +509,30 @@ export default function WorkspaceGrid({
 
       // Apply new position to the dragged pane, then resolve collisions
       // (resolveCollisions Phase 3 clamps panes to grid bounds — no out-of-bounds deletion on drag)
-      const withNewPos = gridItemsRef.current.map((item): GridItem =>
-        item.i === newItem.i
-          ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
-          : item,
+      const withNewPos = gridItemsRef.current.map(
+        (item): GridItem =>
+          item.i === newItem.i
+            ? {
+                i: item.i,
+                x: newItem.x,
+                y: newItem.y,
+                w: newItem.w,
+                h: newItem.h,
+              }
+            : item,
       );
       onGridLayoutChange(
         finalizeLayout(
-          resolveCollisions(withNewPos, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS),
-          pinnedIds, GRID_COLS, GRID_ROWS,
+          resolveCollisions(
+            withNewPos,
+            newItem.i,
+            pinnedIds,
+            GRID_COLS,
+            GRID_ROWS,
+          ),
+          pinnedIds,
+          GRID_COLS,
+          GRID_ROWS,
         ),
       );
     },
@@ -794,86 +865,91 @@ export default function WorkspaceGrid({
           Rendered only when a gesture is active. Each ghost shows where a
           non-active pane will end up after collision resolution. The active
           pane itself is excluded (RGL's own placeholder covers it).          */}
-      {previewLayout && !locked && (() => {
-        const activeId = gestureIdRef.current;
-        const colWidth = containerWidth / GRID_COLS;
+      {previewLayout &&
+        !locked &&
+        (() => {
+          const activeId = gestureIdRef.current;
+          const colWidth = containerWidth / GRID_COLS;
 
-        // Displaced-pane ghosts: panes (other than the active one) whose
-        // resolved position differs from their current stored position.
-        const ghosts = previewLayout.filter((preview) => {
-          if (preview.i === activeId) return false;
-          const current = gridItems.find((g) => g.i === preview.i);
-          if (!current) return false;
-          return (
-            preview.x !== current.x ||
-            preview.y !== current.y ||
-            preview.w !== current.w ||
-            preview.h !== current.h
+          // Displaced-pane ghosts: panes (other than the active one) whose
+          // resolved position differs from their current stored position.
+          const ghosts = previewLayout.filter((preview) => {
+            if (preview.i === activeId) return false;
+            const current = gridItems.find((g) => g.i === preview.i);
+            if (!current) return false;
+            return (
+              preview.x !== current.x ||
+              preview.y !== current.y ||
+              preview.w !== current.w ||
+              preview.h !== current.h
+            );
+          });
+
+          // Active-pane cap ghost: if resolveCollisions clamped the active pane
+          // below what the user dragged to, show a ghost at the capped size so
+          // the user can see the hard limit during the gesture.
+          const rawActive = rawGestureLayoutRef.current?.find(
+            (g) => g.i === activeId,
           );
-        });
+          const resolvedActive = previewLayout.find((g) => g.i === activeId);
+          const activeWasCapped =
+            rawActive &&
+            resolvedActive &&
+            (resolvedActive.w !== rawActive.w ||
+              resolvedActive.h !== rawActive.h);
 
-        // Active-pane cap ghost: if resolveCollisions clamped the active pane
-        // below what the user dragged to, show a ghost at the capped size so
-        // the user can see the hard limit during the gesture.
-        const rawActive = rawGestureLayoutRef.current?.find((g) => g.i === activeId);
-        const resolvedActive = previewLayout.find((g) => g.i === activeId);
-        const activeWasCapped =
-          rawActive &&
-          resolvedActive &&
-          (resolvedActive.w !== rawActive.w || resolvedActive.h !== rawActive.h);
+          if (ghosts.length === 0 && !activeWasCapped) return null;
 
-        if (ghosts.length === 0 && !activeWasCapped) return null;
-
-        return (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              pointerEvents: "none",
-              zIndex: 40,
-            }}
-          >
-            {ghosts.map((preview) => (
-              <div
-                key={preview.i}
-                style={{
-                  position: "absolute",
-                  left: preview.x * colWidth,
-                  top: preview.y * rowHeight,
-                  width: preview.w * colWidth,
-                  height: preview.h * rowHeight,
-                  border: "2px dashed var(--io-accent)",
-                  background: "var(--io-accent-subtle)",
-                  boxSizing: "border-box",
-                  borderRadius: "var(--io-radius)",
-                  opacity: 0.75,
-                  transition:
-                    "left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease",
-                }}
-              />
-            ))}
-            {activeWasCapped && resolvedActive && (
-              <div
-                key={`${resolvedActive.i}-cap`}
-                style={{
-                  position: "absolute",
-                  left: resolvedActive.x * colWidth,
-                  top: resolvedActive.y * rowHeight,
-                  width: resolvedActive.w * colWidth,
-                  height: resolvedActive.h * rowHeight,
-                  border: "2px solid var(--io-accent)",
-                  background: "transparent",
-                  boxSizing: "border-box",
-                  borderRadius: "var(--io-radius)",
-                  opacity: 0.9,
-                  transition:
-                    "left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease",
-                }}
-              />
-            )}
-          </div>
-        );
-      })()}
+          return (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                zIndex: 40,
+              }}
+            >
+              {ghosts.map((preview) => (
+                <div
+                  key={preview.i}
+                  style={{
+                    position: "absolute",
+                    left: preview.x * colWidth,
+                    top: preview.y * rowHeight,
+                    width: preview.w * colWidth,
+                    height: preview.h * rowHeight,
+                    border: "2px dashed var(--io-accent)",
+                    background: "var(--io-accent-subtle)",
+                    boxSizing: "border-box",
+                    borderRadius: "var(--io-radius)",
+                    opacity: 0.75,
+                    transition:
+                      "left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease",
+                  }}
+                />
+              ))}
+              {activeWasCapped && resolvedActive && (
+                <div
+                  key={`${resolvedActive.i}-cap`}
+                  style={{
+                    position: "absolute",
+                    left: resolvedActive.x * colWidth,
+                    top: resolvedActive.y * rowHeight,
+                    width: resolvedActive.w * colWidth,
+                    height: resolvedActive.h * rowHeight,
+                    border: "2px solid var(--io-accent)",
+                    background: "transparent",
+                    boxSizing: "border-box",
+                    borderRadius: "var(--io-radius)",
+                    opacity: 0.9,
+                    transition:
+                      "left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease",
+                  }}
+                />
+              )}
+            </div>
+          );
+        })()}
 
       {/* Box selection rect */}
       {boxRect && !locked && (

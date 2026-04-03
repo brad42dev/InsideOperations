@@ -21,7 +21,8 @@ export default function SaveChartModal({
   const [description, setDescription] = useState(initialDescription);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && name.trim()) onConfirm(name.trim(), description.trim());
+    if (e.key === "Enter" && name.trim())
+      onConfirm(name.trim(), description.trim());
     if (e.key === "Escape") onCancel();
   }
 
@@ -48,7 +49,9 @@ export default function SaveChartModal({
         justifyContent: "center",
         zIndex: 9999,
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
     >
       <div
         style={{
@@ -68,7 +71,13 @@ export default function SaveChartModal({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}>
+          <label
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              fontWeight: 500,
+            }}
+          >
             Name
           </label>
           <input
@@ -83,13 +92,21 @@ export default function SaveChartModal({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}>
+          <label
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              fontWeight: 500,
+            }}
+          >
             Description <span style={{ fontWeight: 400 }}>(optional)</span>
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") onCancel();
+            }}
             placeholder="Brief description of this chart"
             rows={3}
             style={{
@@ -101,15 +118,18 @@ export default function SaveChartModal({
         </div>
 
         {publish && (
-          <div style={{
-            fontSize: 11,
-            color: "var(--io-text-muted)",
-            background: "var(--io-surface-elevated)",
-            borderRadius: 4,
-            padding: "6px 10px",
-            lineHeight: 1.5,
-          }}>
-            Publishing makes this chart visible to all users in the Charts palette.
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              background: "var(--io-surface-elevated)",
+              borderRadius: 4,
+              padding: "6px 10px",
+              lineHeight: 1.5,
+            }}
+          >
+            Publishing makes this chart visible to all users in the Charts
+            palette.
           </div>
         )}
 
@@ -129,7 +149,9 @@ export default function SaveChartModal({
             Cancel
           </button>
           <button
-            onClick={() => { if (name.trim()) onConfirm(name.trim(), description.trim()); }}
+            onClick={() => {
+              if (name.trim()) onConfirm(name.trim(), description.trim());
+            }}
             disabled={!name.trim()}
             style={{
               padding: "5px 14px",

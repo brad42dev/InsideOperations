@@ -29,7 +29,12 @@ interface ChartConfigPanelProps {
   /** Restricts chart type picker to types available in this context. */
   context?: ChartContext;
   /** Called when the user saves the chart via Save As or Publish. */
-  onSaveChart?: (config: ChartConfig, name: string, description: string, publish: boolean) => void;
+  onSaveChart?: (
+    config: ChartConfig,
+    name: string,
+    description: string,
+    publish: boolean,
+  ) => void;
   /** Whether the current user can publish charts. */
   canPublish?: boolean;
 }
@@ -483,8 +488,12 @@ export default function ChartConfigPanel({
                 fontWeight: 600,
                 cursor: "pointer",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.9"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.9";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
             >
               Apply
             </button>

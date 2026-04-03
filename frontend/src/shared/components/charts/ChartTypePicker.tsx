@@ -1264,21 +1264,24 @@ function ThumbnailSurface3D() {
   // Heights (px upward) at each vertex of a 4-row × 5-col quad grid (5×6 vertex grid).
   // Two peaks (back-centre and front-right ridge) with a valley between them.
   const H = [
-    [ 0,  2,  4,  3,  1,  0],  // ri=0  front
-    [ 1,  8, 18, 13,  5,  1],
-    [ 2, 12, 26, 19,  9,  2],
-    [ 1,  6, 14, 22, 13,  4],
-    [ 0,  3,  7, 11,  5,  1],  // ri=4  back
+    [0, 2, 4, 3, 1, 0], // ri=0  front
+    [1, 8, 18, 13, 5, 1],
+    [2, 12, 26, 19, 9, 2],
+    [1, 6, 14, 22, 13, 4],
+    [0, 3, 7, 11, 5, 1], // ri=4  back
   ];
   const vx = (ri: number, ci: number) => 8 + ci * 16 + ri * 5;
   const vy = (ri: number, h: number) => 70 - ri * 9 - h;
 
   // Build quads back-to-front so peaks occlude the tiles behind them.
-  const quads: { pts: string; r: number; g: number; b: number; key: string }[] = [];
+  const quads: { pts: string; r: number; g: number; b: number; key: string }[] =
+    [];
   for (let ri = 3; ri >= 0; ri--) {
     for (let ci = 0; ci < 5; ci++) {
-      const h00 = H[ri][ci],   h01 = H[ri][ci + 1];
-      const h10 = H[ri + 1][ci], h11 = H[ri + 1][ci + 1];
+      const h00 = H[ri][ci],
+        h01 = H[ri][ci + 1];
+      const h10 = H[ri + 1][ci],
+        h11 = H[ri + 1][ci + 1];
       const avgH = (h00 + h01 + h10 + h11) / 4;
       const pts = [
         `${vx(ri, ci)},${vy(ri, h00)}`,

@@ -298,98 +298,107 @@ function GraphicThumb({
 
   return (
     <>
-    {ctxMenu && (
-      <ContextMenu
-        x={ctxMenu.x}
-        y={ctxMenu.y}
-        onClose={() => setCtxMenu(null)}
-        items={[
-          { label: "Open", onClick: () => { onClick(); setCtxMenu(null); } },
-          {
-            label: "Open in New Window",
-            onClick: () => {
-              window.open(
-                `/detached/process/${id}`,
-                "_blank",
-                "noopener,noreferrer,width=1400,height=900",
-              );
-              setCtxMenu(null);
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={() => setCtxMenu(null)}
+          items={[
+            {
+              label: "Open",
+              onClick: () => {
+                onClick();
+                setCtxMenu(null);
+              },
             },
-          },
-        ]}
-      />
-    )}
-    <button
-      onClick={onClick}
-      onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
-      title={name}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "5px 10px",
-        border: "none",
-        background: selected ? "var(--io-accent-subtle)" : "transparent",
-        cursor: "pointer",
-        width: "100%",
-        textAlign: "left",
-        borderLeft: selected
-          ? "2px solid var(--io-accent)"
-          : "2px solid transparent",
-      }}
-    >
-      <div
+            {
+              label: "Open in New Window",
+              onClick: () => {
+                window.open(
+                  `/detached/process/${id}`,
+                  "_blank",
+                  "noopener,noreferrer,width=1400,height=900",
+                );
+                setCtxMenu(null);
+              },
+            },
+          ]}
+        />
+      )}
+      <button
+        onClick={onClick}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setCtxMenu({ x: e.clientX, y: e.clientY });
+        }}
+        title={name}
         style={{
-          width: 36,
-          height: 24,
-          flexShrink: 0,
-          background: "var(--io-bg)",
-          borderRadius: 2,
-          overflow: "hidden",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          gap: 8,
+          padding: "5px 10px",
+          border: "none",
+          background: selected ? "var(--io-accent-subtle)" : "transparent",
+          cursor: "pointer",
+          width: "100%",
+          textAlign: "left",
+          borderLeft: selected
+            ? "2px solid var(--io-accent)"
+            : "2px solid transparent",
         }}
       >
-        {errored ? (
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--io-text-muted)"
-            strokeWidth="1.5"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M3 9h18M9 21V9" />
-          </svg>
-        ) : (
-          <img
-            src={graphicsApi.thumbnailUrl(id)}
-            alt={name}
-            onError={() => setErrored(true)}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              display: "block",
-            }}
-          />
-        )}
-      </div>
-      <span
-        style={{
-          fontSize: 12,
-          color: "var(--io-text-primary)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          flex: 1,
-        }}
-      >
-        {name}
-      </span>
-    </button>
+        <div
+          style={{
+            width: 36,
+            height: 24,
+            flexShrink: 0,
+            background: "var(--io-bg)",
+            borderRadius: 2,
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {errored ? (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--io-text-muted)"
+              strokeWidth="1.5"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18M9 21V9" />
+            </svg>
+          ) : (
+            <img
+              src={graphicsApi.thumbnailUrl(id)}
+              alt={name}
+              onError={() => setErrored(true)}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
+          )}
+        </div>
+        <span
+          style={{
+            fontSize: 12,
+            color: "var(--io-text-primary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+          }}
+        >
+          {name}
+        </span>
+      </button>
     </>
   );
 }
@@ -700,7 +709,14 @@ export default function ProcessSidebar({
 
         {/* Section 4: Points */}
         <AccordionSection title="Points" defaultOpen={false}>
-          <div style={{ display: "flex", flexDirection: "column", height: 260, overflow: "hidden" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              height: 260,
+              overflow: "hidden",
+            }}
+          >
             <PointsBrowserPanel
               cacheKey="process-points-browser"
               emptyHint="Browse points bound to this graphic."

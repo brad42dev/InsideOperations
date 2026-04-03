@@ -22,7 +22,12 @@ describe("presetToGridItems — even grid layouts", () => {
   it("1x1 maps to one full-grid item (12×12 in old coords = 288×288 scaled)", () => {
     const items = presetToGridItems("1x1" as LayoutPreset, makePanes(1));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ x: 0, y: 0, w: 12 * GRID_SCALE, h: 12 * GRID_SCALE });
+    expect(items[0]).toMatchObject({
+      x: 0,
+      y: 0,
+      w: 12 * GRID_SCALE,
+      h: 12 * GRID_SCALE,
+    });
   });
 
   it("2x1 produces two side-by-side panes", () => {

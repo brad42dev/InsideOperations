@@ -162,7 +162,7 @@ export default function TrendPane({
         updatePane(activeId, { ...config, promptConfig: undefined });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount
 
   // If a full ChartConfig is present, delegate to ChartRenderer entirely.
@@ -483,7 +483,12 @@ export default function TrendPane({
     if (activeId) updatePane(activeId, { ...config, chartConfig: newConfig });
   }
 
-  function handleSaveChart(cfg: ChartConfig, name: string, description: string, publish: boolean) {
+  function handleSaveChart(
+    cfg: ChartConfig,
+    name: string,
+    description: string,
+    publish: boolean,
+  ) {
     const saved = saveChart({
       name,
       description: description || undefined,
@@ -580,68 +585,92 @@ export default function TrendPane({
         )}
 
         {/* Right-click context menu — portalled to body to escape grid transforms */}
-        {ctxMenu && createPortal(
-          <>
-            <div
-              style={{ position: "fixed", inset: 0, zIndex: 999 }}
-              onClick={() => setCtxMenu(null)}
-              onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}
-            />
-            <div
-              style={{
-                position: "fixed",
-                top: ctxMenu.y,
-                left: ctxMenu.x,
-                zIndex: 1000,
-                background: "var(--io-surface-elevated)",
-                border: "1px solid var(--io-border)",
-                borderRadius: 6,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-                minWidth: 180,
-                paddingTop: 4,
-                paddingBottom: 4,
-              }}
-            >
-              {[
-                {
-                  label: "Save As…",
-                  onClick: () => { setCtxMenu(null); setSaveModal({ publish: false }); },
-                },
-                ...(canPublish ? [{
-                  label: "Publish…",
-                  onClick: () => { setCtxMenu(null); setSaveModal({ publish: true }); },
-                }] : []),
-                {
-                  label: "Configure Chart…",
-                  onClick: () => { setCtxMenu(null); setShowConfig(true); },
-                },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  onClick={item.onClick}
-                  style={{
-                    padding: "6px 14px",
-                    fontSize: 13,
-                    color: "var(--io-text)",
-                    cursor: "pointer",
-                    userSelect: "none",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-accent-subtle)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  {item.label}
-                </div>
-              ))}
-            </div>
-          </>,
-          document.body,
-        )}
+        {ctxMenu &&
+          createPortal(
+            <>
+              <div
+                style={{ position: "fixed", inset: 0, zIndex: 999 }}
+                onClick={() => setCtxMenu(null)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setCtxMenu(null);
+                }}
+              />
+              <div
+                style={{
+                  position: "fixed",
+                  top: ctxMenu.y,
+                  left: ctxMenu.x,
+                  zIndex: 1000,
+                  background: "var(--io-surface-elevated)",
+                  border: "1px solid var(--io-border)",
+                  borderRadius: 6,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  minWidth: 180,
+                  paddingTop: 4,
+                  paddingBottom: 4,
+                }}
+              >
+                {[
+                  {
+                    label: "Save As…",
+                    onClick: () => {
+                      setCtxMenu(null);
+                      setSaveModal({ publish: false });
+                    },
+                  },
+                  ...(canPublish
+                    ? [
+                        {
+                          label: "Publish…",
+                          onClick: () => {
+                            setCtxMenu(null);
+                            setSaveModal({ publish: true });
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    label: "Configure Chart…",
+                    onClick: () => {
+                      setCtxMenu(null);
+                      setShowConfig(true);
+                    },
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    onClick={item.onClick}
+                    style={{
+                      padding: "6px 14px",
+                      fontSize: 13,
+                      color: "var(--io-text)",
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background =
+                        "var(--io-accent-subtle)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+            </>,
+            document.body,
+          )}
 
         {/* Save / Publish modal (triggered from right-click, independent of config panel) */}
         {saveModal && (
           <SaveChartModal
             publish={saveModal.publish}
-            onConfirm={(name, description) => handleSaveChart(chartConfig, name, description, saveModal.publish)}
+            onConfirm={(name, description) =>
+              handleSaveChart(chartConfig, name, description, saveModal.publish)
+            }
             onCancel={() => setSaveModal(null)}
           />
         )}
@@ -946,47 +975,57 @@ export default function TrendPane({
       )}
 
       {/* Right-click context menu (legacy path) — portalled to body to escape grid transforms */}
-      {ctxMenu && createPortal(
-        <>
-          <div
-            style={{ position: "fixed", inset: 0, zIndex: 999 }}
-            onClick={() => setCtxMenu(null)}
-            onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}
-          />
-          <div
-            style={{
-              position: "fixed",
-              top: ctxMenu.y,
-              left: ctxMenu.x,
-              zIndex: 1000,
-              background: "var(--io-surface-elevated)",
-              border: "1px solid var(--io-border)",
-              borderRadius: 6,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-              minWidth: 180,
-              paddingTop: 4,
-              paddingBottom: 4,
-            }}
-          >
+      {ctxMenu &&
+        createPortal(
+          <>
             <div
-              onClick={() => { setCtxMenu(null); setShowConfig(true); }}
-              style={{
-                padding: "6px 14px",
-                fontSize: 13,
-                color: "var(--io-text)",
-                cursor: "pointer",
-                userSelect: "none",
+              style={{ position: "fixed", inset: 0, zIndex: 999 }}
+              onClick={() => setCtxMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setCtxMenu(null);
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--io-accent-subtle)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            />
+            <div
+              style={{
+                position: "fixed",
+                top: ctxMenu.y,
+                left: ctxMenu.x,
+                zIndex: 1000,
+                background: "var(--io-surface-elevated)",
+                border: "1px solid var(--io-border)",
+                borderRadius: 6,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                minWidth: 180,
+                paddingTop: 4,
+                paddingBottom: 4,
+              }}
             >
-              Configure Chart…
+              <div
+                onClick={() => {
+                  setCtxMenu(null);
+                  setShowConfig(true);
+                }}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 13,
+                  color: "var(--io-text)",
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--io-accent-subtle)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                }}
+              >
+                Configure Chart…
+              </div>
             </div>
-          </div>
-        </>,
-        document.body,
-      )}
-
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

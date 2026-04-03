@@ -128,7 +128,9 @@ const DRAFT_PREFIX = "io-console-ws-draft-";
 function saveDraftLocal(ws: WorkspaceLayout): void {
   try {
     localStorage.setItem(DRAFT_PREFIX + ws.id, JSON.stringify(ws));
-  } catch { /* ignore quota errors */ }
+  } catch {
+    /* ignore quota errors */
+  }
 }
 
 function migrateWorkspace(ws: WorkspaceLayout): WorkspaceLayout {
@@ -147,7 +149,11 @@ function loadDraftLocal(id: string): WorkspaceLayout | null {
 }
 
 function clearDraftLocal(id: string): void {
-  try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(DRAFT_PREFIX + id);
+  } catch {
+    /* ignore */
+  }
 }
 
 function loadWorkspacesLocal(): WorkspaceLayout[] {
@@ -210,8 +216,7 @@ export default function ConsolePage() {
   const { isAuthenticated, user } = useAuthStore();
   const canPublish =
     user?.permissions.includes("console:workspace_publish") ?? false;
-  const canWrite =
-    user?.permissions.includes("console:write") ?? false;
+  const canWrite = user?.permissions.includes("console:write") ?? false;
 
   // ---- Kiosk mode -----------------------------------------------------------
 
@@ -342,14 +347,16 @@ export default function ConsolePage() {
       });
       const newActiveId =
         resolvedWorkspaces.length > 0 &&
-        (activeId === null || !resolvedWorkspaces.find((w) => w.id === activeId))
+        (activeId === null ||
+          !resolvedWorkspaces.find((w) => w.id === activeId))
           ? resolvedWorkspaces[0].id
           : activeId;
       if (newActiveId !== activeId) setActiveId(newActiveId);
       const targetId = newActiveId ?? activeId;
       const activeWs = resolvedWorkspaces.find((w) => w.id === targetId);
       if (activeWs) {
-        lastSavedSnapshotRef.current = serverSnapshotsRef.current[activeWs.id] ?? JSON.stringify(activeWs);
+        lastSavedSnapshotRef.current =
+          serverSnapshotsRef.current[activeWs.id] ?? JSON.stringify(activeWs);
       }
     }
   }, [useApi, apiWorkspaces, setWorkspaces, activeId, setActiveId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -677,7 +684,9 @@ export default function ConsolePage() {
 
   const handleCloseWorkspace = useCallback(
     (wsId: string) => {
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === wsId);
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === wsId);
       if (!ws) return;
       const snap = serverSnapshotsRef.current[wsId];
       const dirty = snap ? JSON.stringify(ws) !== snap : false;
@@ -692,7 +701,9 @@ export default function ConsolePage() {
 
   const handleSaveAndClose = useCallback(
     (wsId: string) => {
-      const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === wsId);
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === wsId);
       if (!ws) return;
       pendingCloseAfterSaveRef.current = wsId;
       persistWorkspace(ws);
@@ -708,7 +719,9 @@ export default function ConsolePage() {
       if (snap) {
         try {
           setWorkspace(migrateWorkspace(JSON.parse(snap) as WorkspaceLayout));
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       setCloseDialog(null);
       doCloseWorkspace(wsId);
@@ -805,7 +818,10 @@ export default function ConsolePage() {
   const activeWorkspace = workspaces.find((w) => w.id === activeId) ?? null;
   const isLocked = activeWorkspace?.locked ?? false;
   const pinnedIds = useMemo(
-    () => new Set(activeWorkspace?.panes.filter((p) => p.pinned).map((p) => p.id) ?? []),
+    () =>
+      new Set(
+        activeWorkspace?.panes.filter((p) => p.pinned).map((p) => p.id) ?? [],
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeWorkspace?.panes],
   );
@@ -862,17 +878,20 @@ export default function ConsolePage() {
     }
   };
 
-  const confirmDeleteWorkspace = useCallback((id: string) => {
-    setDeleteDialog(null);
-    const nextWorkspaces = workspaces.filter((w) => w.id !== id);
-    setWorkspaces(nextWorkspaces);
-    if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null);
-    if (useApi) {
-      deleteMutation.mutate(id);
-    } else {
-      saveWorkspacesLocal(nextWorkspaces);
-    }
-  }, [workspaces, activeId, useApi, setWorkspaces, setActiveId, deleteMutation]);
+  const confirmDeleteWorkspace = useCallback(
+    (id: string) => {
+      setDeleteDialog(null);
+      const nextWorkspaces = workspaces.filter((w) => w.id !== id);
+      setWorkspaces(nextWorkspaces);
+      if (activeId === id) setActiveId(nextWorkspaces[0]?.id ?? null);
+      if (useApi) {
+        deleteMutation.mutate(id);
+      } else {
+        saveWorkspacesLocal(nextWorkspaces);
+      }
+    },
+    [workspaces, activeId, useApi, setWorkspaces, setActiveId, deleteMutation],
+  );
 
   const deleteActiveWorkspace = () => {
     if (!activeId) return;
@@ -913,16 +932,25 @@ export default function ConsolePage() {
     [],
   );
 
-  const handleRenameWorkspace = useCallback((id: string, name: string, description?: string) => {
-    renameWorkspace(id, name);
-    const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === id);
-    if (ws) {
-      if (useApi) {
-        pendingRenameIdsRef.current.add(id);
+  const handleRenameWorkspace = useCallback(
+    (id: string, name: string, description?: string) => {
+      renameWorkspace(id, name);
+      const ws = useWorkspaceStore
+        .getState()
+        .workspaces.find((w) => w.id === id);
+      if (ws) {
+        if (useApi) {
+          pendingRenameIdsRef.current.add(id);
+        }
+        persistWorkspace({
+          ...ws,
+          name,
+          description: description?.trim() || ws.description,
+        });
       }
-      persistWorkspace({ ...ws, name, description: description?.trim() || ws.description });
-    }
-  }, [renameWorkspace, useApi, persistWorkspace]);
+    },
+    [renameWorkspace, useApi, persistWorkspace],
+  );
 
   const handleChangeLayout = (layout: LayoutPreset) => {
     if (!activeId) return;
@@ -944,7 +972,6 @@ export default function ConsolePage() {
     },
     [activeId, updateGridItems, scheduleSave],
   );
-
 
   // ---- Keyboard shortcuts -------------------------------------------------
 
@@ -1252,7 +1279,10 @@ export default function ConsolePage() {
                 chartConfig: item.chartConfig ?? p.chartConfig,
                 trendPointIds: item.chartConfig ? [] : (item.pointIds ?? []),
                 title: item.label ?? p.title,
-                promptConfig: !item.chartConfig && !item.pointIds?.length ? true : undefined,
+                promptConfig:
+                  !item.chartConfig && !item.pointIds?.length
+                    ? true
+                    : undefined,
               };
             case "graphic":
               return {
@@ -1289,7 +1319,10 @@ export default function ConsolePage() {
                 chartConfig: item.chartConfig ?? p.chartConfig,
                 trendPointIds: item.chartConfig ? [] : (item.pointIds ?? []),
                 title: item.label ?? p.title,
-                promptConfig: !item.chartConfig && !item.pointIds?.length ? true : undefined,
+                promptConfig:
+                  !item.chartConfig && !item.pointIds?.length
+                    ? true
+                    : undefined,
               };
             case "graphic":
               return {
@@ -1486,9 +1519,7 @@ export default function ConsolePage() {
             .filter((ws) => openTabIds.includes(ws.id))
             .map((ws) => {
               const wsSnap = serverSnapshotsRef.current[ws.id];
-              const wsIsDirty = wsSnap
-                ? JSON.stringify(ws) !== wsSnap
-                : false;
+              const wsIsDirty = wsSnap ? JSON.stringify(ws) !== wsSnap : false;
               return (
                 <div
                   key={ws.id}
@@ -1567,8 +1598,12 @@ export default function ConsolePage() {
                       opacity: 0.6,
                       height: "100%",
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.6"; }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.opacity = "1";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.opacity = "0.6";
+                    }}
                   >
                     ×
                   </button>
@@ -1804,9 +1839,15 @@ export default function ConsolePage() {
               {/* Lock toggle button — replaces Edit/Done */}
               <button
                 onClick={() => activeId && toggleLocked(activeId)}
-                title={isLocked ? "Unlock workspace (enable drag/resize)" : "Lock workspace (freeze layout)"}
+                title={
+                  isLocked
+                    ? "Unlock workspace (enable drag/resize)"
+                    : "Lock workspace (freeze layout)"
+                }
                 style={{
-                  background: isLocked ? "var(--io-accent-subtle)" : "transparent",
+                  background: isLocked
+                    ? "var(--io-accent-subtle)"
+                    : "transparent",
                   border: "1px solid var(--io-border)",
                   borderRadius: 6,
                   padding: "4px 8px",
@@ -1817,11 +1858,24 @@ export default function ConsolePage() {
                   gap: 4,
                 }}
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   {isLocked ? (
-                    <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>
+                    <>
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </>
                   ) : (
-                    <><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>
+                    <>
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                    </>
                   )}
                 </svg>
                 {isLocked ? "Locked" : "Lock"}
@@ -1830,52 +1884,55 @@ export default function ConsolePage() {
           )}
 
           {/* Explicit Save / Save as Personal — shown when workspace is dirty */}
-          {activeWorkspace && (() => {
-            const wsSnap = serverSnapshotsRef.current[activeWorkspace.id];
-            const wsIsDirty = wsSnap ? JSON.stringify(activeWorkspace) !== wsSnap : false;
-            if (!wsIsDirty) return null;
-            if (canSaveWorkspace(activeWorkspace)) {
-              return (
-                <button
-                  onClick={handleExplicitSave}
-                  title="Save workspace (Ctrl+S)"
-                  style={{
-                    background: "var(--io-accent)",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "5px 14px",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#fff",
-                  }}
-                >
-                  Save
-                </button>
-              );
-            }
-            if (canSaveAsPersonal(activeWorkspace)) {
-              return (
-                <button
-                  onClick={handleSaveAsPersonal}
-                  title="Save a personal copy of this workspace"
-                  style={{
-                    background: "var(--io-accent)",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "5px 14px",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#fff",
-                  }}
-                >
-                  Save as Personal
-                </button>
-              );
-            }
-            return null;
-          })()}
+          {activeWorkspace &&
+            (() => {
+              const wsSnap = serverSnapshotsRef.current[activeWorkspace.id];
+              const wsIsDirty = wsSnap
+                ? JSON.stringify(activeWorkspace) !== wsSnap
+                : false;
+              if (!wsIsDirty) return null;
+              if (canSaveWorkspace(activeWorkspace)) {
+                return (
+                  <button
+                    onClick={handleExplicitSave}
+                    title="Save workspace (Ctrl+S)"
+                    style={{
+                      background: "var(--io-accent)",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "5px 14px",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#fff",
+                    }}
+                  >
+                    Save
+                  </button>
+                );
+              }
+              if (canSaveAsPersonal(activeWorkspace)) {
+                return (
+                  <button
+                    onClick={handleSaveAsPersonal}
+                    title="Save a personal copy of this workspace"
+                    style={{
+                      background: "var(--io-accent)",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "5px 14px",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#fff",
+                    }}
+                  >
+                    Save as Personal
+                  </button>
+                );
+              }
+              return null;
+            })()}
 
           {/* Aspect ratio toggle — always visible when a workspace is active */}
           {activeWorkspace && (
@@ -2120,7 +2177,14 @@ export default function ConsolePage() {
                 alignItems: "center",
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -2136,15 +2200,23 @@ export default function ConsolePage() {
                   published: !activeWorkspace.published,
                 })
               }
-              title={activeWorkspace.published ? "Unpublish workspace" : "Publish workspace"}
+              title={
+                activeWorkspace.published
+                  ? "Unpublish workspace"
+                  : "Publish workspace"
+              }
               style={{
-                background: activeWorkspace.published ? "var(--io-accent-subtle)" : "transparent",
+                background: activeWorkspace.published
+                  ? "var(--io-accent-subtle)"
+                  : "transparent",
                 border: "1px solid var(--io-border)",
                 borderRadius: 6,
                 padding: "4px 10px",
                 cursor: "pointer",
                 fontSize: 12,
-                color: activeWorkspace.published ? "var(--io-accent)" : "var(--io-text-muted)",
+                color: activeWorkspace.published
+                  ? "var(--io-accent)"
+                  : "var(--io-text-muted)",
                 display: "flex",
                 alignItems: "center",
                 gap: 4,
@@ -2190,7 +2262,6 @@ export default function ConsolePage() {
               </svg>
             </button>
           )}
-
 
           {/* Browser fullscreen toggle — always visible when workspace active (spec §CX-CONSOLE-WORKSPACE-FULLSCREEN) */}
           {activeWorkspace && (
@@ -2253,12 +2324,21 @@ export default function ConsolePage() {
             onRenameWorkspace={(id) => {
               const ws = workspaces.find((w) => w.id === id);
               if (!ws) return;
-              setNameModal({ mode: "rename", workspaceId: id, initialName: ws.name, initialDescription: ws.description ?? "" });
+              setNameModal({
+                mode: "rename",
+                workspaceId: id,
+                initialName: ws.name,
+                initialDescription: ws.description ?? "",
+              });
             }}
             onDuplicateWorkspace={duplicateWorkspace}
             onDeleteWorkspace={(id) => {
               const target = workspaces.find((w) => w.id === id);
-              if (target) setDeleteDialog({ workspaceId: id, workspaceName: target.name });
+              if (target)
+                setDeleteDialog({
+                  workspaceId: id,
+                  workspaceName: target.name,
+                });
             }}
             panelWidth={panelWidth}
             onPanelResizeMouseDown={onPanelResizeMouseDown}
@@ -2551,7 +2631,12 @@ export default function ConsolePage() {
                   const ws = useWorkspaceStore
                     .getState()
                     .workspaces.find((w) => w.id === activeId);
-                  setNameModal({ mode: "rename", workspaceId: activeId, initialName: ws?.name ?? "", initialDescription: ws?.description ?? "" });
+                  setNameModal({
+                    mode: "rename",
+                    workspaceId: activeId,
+                    initialName: ws?.name ?? "",
+                    initialDescription: ws?.description ?? "",
+                  });
                 }
               },
             },
@@ -2568,8 +2653,14 @@ export default function ConsolePage() {
               onClick: () => {
                 setWorkspaceBgCtxMenu(null);
                 if (activeId) {
-                  const ws = useWorkspaceStore.getState().workspaces.find((w) => w.id === activeId);
-                  if (ws) setDeleteDialog({ workspaceId: activeId, workspaceName: ws.name });
+                  const ws = useWorkspaceStore
+                    .getState()
+                    .workspaces.find((w) => w.id === activeId);
+                  if (ws)
+                    setDeleteDialog({
+                      workspaceId: activeId,
+                      workspaceName: ws.name,
+                    });
                 }
               },
             },
@@ -2655,7 +2746,11 @@ export default function ConsolePage() {
                   label: "Rename…",
                   divider: false,
                   onClick: () => {
-                    setNameModal({ mode: "rename", workspaceId: ws.id, initialName: ws.name });
+                    setNameModal({
+                      mode: "rename",
+                      workspaceId: ws.id,
+                      initialName: ws.name,
+                    });
                     setTabContextMenu(null);
                   },
                 },
@@ -2688,7 +2783,10 @@ export default function ConsolePage() {
                   divider: true,
                   onClick: () => {
                     setTabContextMenu(null);
-                    setDeleteDialog({ workspaceId: ws.id, workspaceName: ws.name });
+                    setDeleteDialog({
+                      workspaceId: ws.id,
+                      workspaceName: ws.name,
+                    });
                   },
                 },
               ]}
@@ -2720,7 +2818,8 @@ function WorkspaceNameModal({
   const [description, setDescription] = useState(initialDescription);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && name.trim()) onConfirm(name.trim(), description.trim());
+    if (e.key === "Enter" && name.trim())
+      onConfirm(name.trim(), description.trim());
     if (e.key === "Escape") onCancel();
   }
 
@@ -2735,7 +2834,9 @@ function WorkspaceNameModal({
         justifyContent: "center",
         zIndex: 9999,
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
     >
       <div
         style={{
@@ -2753,7 +2854,15 @@ function WorkspaceNameModal({
           {mode === "create" ? "New Workspace" : "Rename Workspace"}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}>Name</label>
+          <label
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              fontWeight: 500,
+            }}
+          >
+            Name
+          </label>
           <input
             autoFocus
             type="text"
@@ -2773,11 +2882,21 @@ function WorkspaceNameModal({
           />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 11, color: "var(--io-text-muted)", fontWeight: 500 }}>Description <span style={{ fontWeight: 400 }}>(optional)</span></label>
+          <label
+            style={{
+              fontSize: 11,
+              color: "var(--io-text-muted)",
+              fontWeight: 500,
+            }}
+          >
+            Description <span style={{ fontWeight: 400 }}>(optional)</span>
+          </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") onCancel();
+            }}
             placeholder="Brief description of this workspace"
             rows={3}
             style={{
@@ -2809,7 +2928,9 @@ function WorkspaceNameModal({
             Cancel
           </button>
           <button
-            onClick={() => { if (name.trim()) onConfirm(name.trim(), description.trim()); }}
+            onClick={() => {
+              if (name.trim()) onConfirm(name.trim(), description.trim());
+            }}
             disabled={!name.trim()}
             style={{
               padding: "5px 14px",
@@ -2854,7 +2975,9 @@ function DeleteConfirmDialog({
         justifyContent: "center",
         zIndex: 9999,
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
     >
       <div
         style={{
@@ -2871,9 +2994,15 @@ function DeleteConfirmDialog({
         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
           Delete workspace?
         </div>
-        <div style={{ fontSize: 13, color: "var(--io-text-muted)", lineHeight: 1.5 }}>
-          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong> will be permanently
-          deleted. This cannot be undone.
+        <div
+          style={{
+            fontSize: 13,
+            color: "var(--io-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong>{" "}
+          will be permanently deleted. This cannot be undone.
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button
@@ -2936,7 +3065,9 @@ function CloseConfirmDialog({
         justifyContent: "center",
         zIndex: 9999,
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
     >
       <div
         style={{
@@ -2953,9 +3084,15 @@ function CloseConfirmDialog({
         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--io-text)" }}>
           Unsaved changes
         </div>
-        <div style={{ fontSize: 13, color: "var(--io-text-muted)", lineHeight: 1.5 }}>
-          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong> has unsaved changes.
-          Save before closing?
+        <div
+          style={{
+            fontSize: 13,
+            color: "var(--io-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "var(--io-text)" }}>{workspaceName}</strong>{" "}
+          has unsaved changes. Save before closing?
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button

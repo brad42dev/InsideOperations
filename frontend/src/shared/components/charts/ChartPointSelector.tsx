@@ -441,7 +441,8 @@ export default function ChartPointSelector({
                       {pt.point_category === "boolean" ? "BOOL" : "ENUM"}
                     </span>
                   )}
-                {colors && colors.length > 1 &&
+                {colors &&
+                  colors.length > 1 &&
                   colors.map((c, i) => (
                     <span
                       key={i}
