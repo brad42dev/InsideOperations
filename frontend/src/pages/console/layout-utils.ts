@@ -437,6 +437,25 @@ export function resolveCollisions(
 
   if (rightPush.length > 0) {
     _batchPush(moved, rightPush, "x", "w", cols, MIN_W);
+
+    // Post-batchPush overlap expansion: pushed items at their new positions
+    // may overlap non-pushed items that weren't in the estimated cursor zone.
+    // Pull those into the set and re-pack (up to 5 iterations).
+    for (let iter = 0; iter < 5; iter++) {
+      let expanded = false;
+      for (const pushed of rightPush) {
+        for (const other of items) {
+          if (other.i === movedId || rightPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+          const [dw2, dh2] = _overlap(pushed, other);
+          if (dw2 <= 0 || dh2 <= 0) continue;
+          rightPushSet.add(other.i);
+          rightPush.push(other);
+          expanded = true;
+        }
+      }
+      if (!expanded) break;
+      _batchPush(moved, rightPush, "x", "w", cols, MIN_W);
+    }
   }
 
   // ── Down-push batch: BFS + pack (only panes that couldn't shrink in place)
@@ -455,7 +474,36 @@ export function resolveCollisions(
   }
 
   if (downPush.length > 0) {
-    _batchPush(moved, downPush, "y", "h", rows, MIN_H);
+    // Use column-aware packing instead of _batchPush for the y-axis.
+    //
+    // _batchPush treats all pushed items as a single column and would either:
+    //   (a) over-shrink moved.h because items in different x-bands don't
+    //       actually compete for vertical space, or
+    //   (b) pack pushed items onto existing non-pushed items in the same
+    //       x-band (e.g. 4×4 east resize pushes p1/p2/p3 onto p5/p6/p7).
+    //
+    // _columnBatchPush groups items by x-overlap and includes non-pushed
+    // column-mates, so each column is packed independently and correctly.
+    //
+    // After the initial pack, scan for new overlaps (pushed items may now
+    // conflict with non-pushed items not yet in the set) and re-pack.
+    _columnBatchPush(moved, downPush, items, movedId, rows, MIN_H);
+
+    for (let iter = 0; iter < 5; iter++) {
+      let expanded = false;
+      for (const pushed of downPush) {
+        for (const other of items) {
+          if (other.i === movedId || downPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+          const [dw2, dh2] = _overlap(pushed, other);
+          if (dw2 <= 0 || dh2 <= 0) continue;
+          downPushSet.add(other.i);
+          downPush.push(other);
+          expanded = true;
+        }
+      }
+      if (!expanded) break;
+      _columnBatchPush(moved, downPush, items, movedId, rows, MIN_H);
+    }
   }
 
   // ── Phase 2: cascade — resolve inter-neighbor overlaps (up to 10 passes) ──
@@ -619,6 +667,140 @@ function _batchPush(
       ),
     );
     cursor = pane[pos] + pane[size];
+  }
+}
+
+/**
+ * Column-aware batch push for the y-axis.
+ *
+ * When items displaced downward overlap with existing items below `moved`, the
+ * standard `_batchPush` treats them as a single column and runs out of space
+ * because items at different x-positions don't actually compete for vertical
+ * space.
+ *
+ * This helper groups pushed items by x-overlap, then for each group finds ALL
+ * items in the same x-band (including non-pushed ones) below moved, and repacks
+ * that column vertically. This ensures pushed items don't land on top of
+ * existing panes.
+ *
+ * May shrink moved.h if the most crowded column can't fit all its items at
+ * min size — a per-column cap that supplements the global size cap.
+ */
+function _columnBatchPush(
+  moved: GridItem,
+  pushed: GridItem[],
+  allItems: GridItem[],
+  movedId: string,
+  rows: number,
+  min: number,
+): void {
+  if (pushed.length === 0) return;
+
+  // Build groups of pushed items that share x-overlap (union-find style).
+  // Each group represents one "column band" that must be packed together.
+  const groups: GridItem[][] = [];
+  for (const pane of pushed) {
+    const overlapping: number[] = [];
+    for (let gi = 0; gi < groups.length; gi++) {
+      for (const member of groups[gi]) {
+        const xOvlp =
+          Math.min(pane.x + pane.w, member.x + member.w) -
+          Math.max(pane.x, member.x);
+        if (xOvlp > 0) {
+          overlapping.push(gi);
+          break;
+        }
+      }
+    }
+    if (overlapping.length === 0) {
+      groups.push([pane]);
+    } else {
+      const target = groups[overlapping[0]];
+      for (let oi = overlapping.length - 1; oi >= 1; oi--) {
+        target.push(...groups[overlapping[oi]]);
+        groups.splice(overlapping[oi], 1);
+      }
+      target.push(pane);
+    }
+  }
+
+  // ── Pre-pass: compute per-column item counts and cap moved.h if any column
+  //    can't fit its items at min size.
+  //
+  //    The global size cap (_computeMaxMovedSize) assumes items distribute
+  //    evenly across the full grid width. But displaced items stay in their
+  //    original columns, so a column with 4 items needs 4×min vertical space.
+  //    Without this per-column cap, moved grows past the point where some
+  //    columns overflow, causing unresolvable pileups after Phase 3 clamp.
+  let maxColumnItems = 0;
+  for (const group of groups) {
+    let bandLeft = Infinity;
+    let bandRight = -Infinity;
+    for (const p of group) {
+      bandLeft = Math.min(bandLeft, p.x);
+      bandRight = Math.max(bandRight, p.x + p.w);
+    }
+    let count = 0;
+    for (const item of allItems) {
+      if (item.i === movedId) continue;
+      const xOvlp =
+        Math.min(bandRight, item.x + item.w) - Math.max(bandLeft, item.x);
+      if (xOvlp <= 0) continue;
+      if (item.y + item.h <= moved.y) continue;
+      count++;
+    }
+    maxColumnItems = Math.max(maxColumnItems, count);
+  }
+  if (maxColumnItems > 0) {
+    const maxMovedH = rows - moved.y - maxColumnItems * min;
+    if (maxMovedH < moved.h && maxMovedH >= min) {
+      moved.h = maxMovedH;
+    }
+  }
+
+  // For each group, collect ALL items in the same x-band below moved and repack
+  const repacked = new Set<string>();
+  for (const group of groups) {
+    // Determine the x-band envelope for this group
+    let bandLeft = Infinity;
+    let bandRight = -Infinity;
+    for (const p of group) {
+      bandLeft = Math.min(bandLeft, p.x);
+      bandRight = Math.max(bandRight, p.x + p.w);
+    }
+
+    // Find ALL items (pushed or not) that x-overlap this band and sit below
+    // moved's top edge. Skip moved itself and already-repacked items.
+    const columnItems: GridItem[] = [];
+    const columnSet = new Set<string>();
+    for (const item of allItems) {
+      if (item.i === movedId) continue;
+      if (repacked.has(item.i)) continue;
+      const xOvlp =
+        Math.min(bandRight, item.x + item.w) - Math.max(bandLeft, item.x);
+      if (xOvlp <= 0) continue;
+      if (item.y + item.h <= moved.y) continue; // entirely above moved
+      if (!columnSet.has(item.i)) {
+        columnSet.add(item.i);
+        columnItems.push(item);
+      }
+    }
+
+    // Sort by y and pack from moved's bottom edge
+    columnItems.sort((a, b) => a.y - b.y);
+    let cursor = moved.y + moved.h;
+    for (let i = 0; i < columnItems.length; i++) {
+      const pane = columnItems[i];
+      const panesLeft = columnItems.length - i;
+      const spaceTillEnd = rows - cursor;
+      pane.y = cursor;
+      pane.h = Math.max(
+        min,
+        Math.min(pane.h, spaceTillEnd - (panesLeft - 1) * min),
+      );
+      cursor = pane.y + pane.h;
+      repacked.add(pane.i);
+    }
   }
 }
 
