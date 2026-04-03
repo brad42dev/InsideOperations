@@ -15,6 +15,7 @@ import {
   MIN_H,
   presetToGridItems,
   resolveCollisions,
+  finalizeLayout,
   type ResizeAxisHint,
 } from "./layout-utils";
 
@@ -209,6 +210,14 @@ export default function WorkspaceGrid({
     ? workspace.gridItems
     : presetToGridItems(workspace.layout, safePanes);
 
+  // Always-current ref: callbacks (handleResizeStop, handleDragStop) capture
+  // gridItems at closure creation time. If a second gesture starts before React
+  // re-renders from the first gesture's onGridLayoutChange, those callbacks see
+  // stale positions. Assigning the ref during render (not in useEffect) ensures
+  // it's synchronously up-to-date on every render cycle.
+  const gridItemsRef = useRef(gridItems);
+  gridItemsRef.current = gridItems;
+
   const paneById = useMemo(
     () => new Map<string, PaneConfig>(safePanes.map((p) => [p.id, p])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,6 +241,17 @@ export default function WorkspaceGrid({
   const shiftKeyRef = useRef(false);
   const resizeStartRef = useRef<{ i: string; x: number; y: number; w: number; h: number } | null>(null);
 
+  // ── Drag/resize preview (ghost outlines for displaced panes) ─────────────
+  // gestureIdRef: ID of the pane currently being dragged/resized (excluded
+  //   from ghost rendering — it already has RGL's own placeholder).
+  // previewLayout: resolved layout computed on every onDrag/onResize frame.
+  // rawGestureLayout: unclamped layout as reported by RGL (before resolveCollisions).
+  //   Used to detect when moved was capped below the user's drag position so
+  //   we can render a ghost showing the actual committed size.
+  const gestureIdRef = useRef<string | null>(null);
+  const [previewLayout, setPreviewLayout] = useState<GridItem[] | null>(null);
+  const rawGestureLayoutRef = useRef<GridItem[] | null>(null);
+
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       if (e.key === "Shift") shiftKeyRef.current = true;
@@ -250,6 +270,57 @@ export default function WorkspaceGrid({
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
   }, []);
+
+  const handleDrag = useCallback(
+    (
+      _layout: readonly LayoutItem[],
+      _old: LayoutItem | null,
+      newItem: LayoutItem | null,
+    ) => {
+      if (!newItem) return;
+      gestureIdRef.current = newItem.i;
+      const withNewPos = gridItemsRef.current.map((item): GridItem =>
+        item.i === newItem.i
+          ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
+          : item,
+      );
+      rawGestureLayoutRef.current = withNewPos;
+      setPreviewLayout(
+        resolveCollisions(withNewPos, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS),
+      );
+    },
+    [pinnedIds],
+  );
+
+  const handleResize = useCallback(
+    (
+      _layout: readonly LayoutItem[],
+      _old: LayoutItem | null,
+      newItem: LayoutItem | null,
+    ) => {
+      if (!newItem) return;
+      gestureIdRef.current = newItem.i;
+      // Mirror the axis-hint logic from handleResizeStop for accurate preview
+      let axisHint: ResizeAxisHint | undefined;
+      const startDims = resizeStartRef.current;
+      if (startDims && startDims.i === newItem.i) {
+        const yChanged = newItem.y !== startDims.y || newItem.h !== startDims.h;
+        const xChanged = newItem.x !== startDims.x || newItem.w !== startDims.w;
+        if (yChanged && !xChanged) axisHint = "y";
+        else if (xChanged && !yChanged) axisHint = "x";
+      }
+      const withNewSize = gridItemsRef.current.map((item): GridItem =>
+        item.i === newItem.i
+          ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
+          : item,
+      );
+      rawGestureLayoutRef.current = withNewSize;
+      setPreviewLayout(
+        resolveCollisions(withNewSize, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS, axisHint),
+      );
+    },
+    [pinnedIds],
+  );
 
   const handleResizeStart = useCallback(
     (
@@ -298,6 +369,9 @@ export default function WorkspaceGrid({
       requestAnimationFrame(() => {
         isResizingRef.current = false;
       });
+      setPreviewLayout(null);
+      gestureIdRef.current = null;
+      rawGestureLayoutRef.current = null;
       const startDims = resizeStartRef.current;
       resizeStartRef.current = null;
 
@@ -338,16 +412,19 @@ export default function WorkspaceGrid({
       }
 
       // Apply final size to the resized item, then resolve collisions once.
-      const withNewSize = gridItems.map((item): GridItem =>
+      const withNewSize = gridItemsRef.current.map((item): GridItem =>
         item.i === newItem.i
           ? { i: item.i, x: newItem.x, y: newItem.y, w: finalW, h: finalH }
           : item,
       );
       onGridLayoutChange(
-        resolveCollisions(withNewSize, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS, axisHint),
+        finalizeLayout(
+          resolveCollisions(withNewSize, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS, axisHint),
+          pinnedIds, GRID_COLS, GRID_ROWS,
+        ),
       );
     },
-    [locked, gridItems, pinnedIds, onGridLayoutChange],
+    [locked, pinnedIds, onGridLayoutChange],
   );
 
   // ── Drag stop — run collision resolver ────────────────────────────────────
@@ -364,6 +441,9 @@ export default function WorkspaceGrid({
       requestAnimationFrame(() => {
         isDraggingRef.current = false;
       });
+      setPreviewLayout(null);
+      gestureIdRef.current = null;
+      rawGestureLayoutRef.current = null;
       if (locked || !onGridLayoutChange) return;
 
       if (!newItem) {
@@ -373,16 +453,19 @@ export default function WorkspaceGrid({
 
       // Apply new position to the dragged pane, then resolve collisions
       // (resolveCollisions Phase 3 clamps panes to grid bounds — no out-of-bounds deletion on drag)
-      const withNewPos = gridItems.map((item): GridItem =>
+      const withNewPos = gridItemsRef.current.map((item): GridItem =>
         item.i === newItem.i
           ? { i: item.i, x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }
           : item,
       );
       onGridLayoutChange(
-        resolveCollisions(withNewPos, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS),
+        finalizeLayout(
+          resolveCollisions(withNewPos, newItem.i, pinnedIds, GRID_COLS, GRID_ROWS),
+          pinnedIds, GRID_COLS, GRID_ROWS,
+        ),
       );
     },
-    [locked, gridItems, pinnedIds, onGridLayoutChange, onRemovePane],
+    [locked, pinnedIds, onGridLayoutChange, onRemovePane],
   );
 
   // Augment grid items with min size constraints
@@ -547,8 +630,10 @@ export default function WorkspaceGrid({
         style={{ height: "100%" }}
         onLayoutChange={handleLayoutChange}
         onDragStart={handleDragStart}
+        onDrag={handleDrag}
         onDragStop={handleDragStop}
         onResizeStart={handleResizeStart}
+        onResize={handleResize}
         onResizeStop={handleResizeStop}
         className="io-workspace-grid"
       >
@@ -704,6 +789,91 @@ export default function WorkspaceGrid({
             containerRef.current,
           );
         })()}
+
+      {/* Drag/resize preview — ghost outlines for displaced panes ────────────
+          Rendered only when a gesture is active. Each ghost shows where a
+          non-active pane will end up after collision resolution. The active
+          pane itself is excluded (RGL's own placeholder covers it).          */}
+      {previewLayout && !locked && (() => {
+        const activeId = gestureIdRef.current;
+        const colWidth = containerWidth / GRID_COLS;
+
+        // Displaced-pane ghosts: panes (other than the active one) whose
+        // resolved position differs from their current stored position.
+        const ghosts = previewLayout.filter((preview) => {
+          if (preview.i === activeId) return false;
+          const current = gridItems.find((g) => g.i === preview.i);
+          if (!current) return false;
+          return (
+            preview.x !== current.x ||
+            preview.y !== current.y ||
+            preview.w !== current.w ||
+            preview.h !== current.h
+          );
+        });
+
+        // Active-pane cap ghost: if resolveCollisions clamped the active pane
+        // below what the user dragged to, show a ghost at the capped size so
+        // the user can see the hard limit during the gesture.
+        const rawActive = rawGestureLayoutRef.current?.find((g) => g.i === activeId);
+        const resolvedActive = previewLayout.find((g) => g.i === activeId);
+        const activeWasCapped =
+          rawActive &&
+          resolvedActive &&
+          (resolvedActive.w !== rawActive.w || resolvedActive.h !== rawActive.h);
+
+        if (ghosts.length === 0 && !activeWasCapped) return null;
+
+        return (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+              zIndex: 40,
+            }}
+          >
+            {ghosts.map((preview) => (
+              <div
+                key={preview.i}
+                style={{
+                  position: "absolute",
+                  left: preview.x * colWidth,
+                  top: preview.y * rowHeight,
+                  width: preview.w * colWidth,
+                  height: preview.h * rowHeight,
+                  border: "2px dashed var(--io-accent)",
+                  background: "var(--io-accent-subtle)",
+                  boxSizing: "border-box",
+                  borderRadius: "var(--io-radius)",
+                  opacity: 0.75,
+                  transition:
+                    "left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease",
+                }}
+              />
+            ))}
+            {activeWasCapped && resolvedActive && (
+              <div
+                key={`${resolvedActive.i}-cap`}
+                style={{
+                  position: "absolute",
+                  left: resolvedActive.x * colWidth,
+                  top: resolvedActive.y * rowHeight,
+                  width: resolvedActive.w * colWidth,
+                  height: resolvedActive.h * rowHeight,
+                  border: "2px solid var(--io-accent)",
+                  background: "transparent",
+                  boxSizing: "border-box",
+                  borderRadius: "var(--io-radius)",
+                  opacity: 0.9,
+                  transition:
+                    "left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease",
+                }}
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {/* Box selection rect */}
       {boxRect && !locked && (

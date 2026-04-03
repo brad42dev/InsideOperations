@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { presetToGridItems } from "../pages/console/WorkspaceGrid";
+import { GRID_SCALE } from "../pages/console/layout-utils";
 import type { LayoutPreset, PaneConfig } from "../pages/console/types";
 
 // ---------------------------------------------------------------------------
@@ -18,40 +19,40 @@ function makePanes(count: number): PaneConfig[] {
 // ---------------------------------------------------------------------------
 
 describe("presetToGridItems — even grid layouts", () => {
-  it("1x1 maps to one full-grid item (12×12)", () => {
+  it("1x1 maps to one full-grid item (12×12 in old coords = 288×288 scaled)", () => {
     const items = presetToGridItems("1x1" as LayoutPreset, makePanes(1));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ x: 0, y: 0, w: 12, h: 12 });
+    expect(items[0]).toMatchObject({ x: 0, y: 0, w: 12 * GRID_SCALE, h: 12 * GRID_SCALE });
   });
 
   it("2x1 produces two side-by-side panes", () => {
     const items = presetToGridItems("2x1" as LayoutPreset, makePanes(2));
     expect(items).toHaveLength(2);
-    // Each should be 6 cols wide
-    expect(items[0].w).toBe(6);
-    expect(items[1].w).toBe(6);
+    // Each should be 6 cols wide (in old coords), scaled by GRID_SCALE
+    expect(items[0].w).toBe(6 * GRID_SCALE);
+    expect(items[1].w).toBe(6 * GRID_SCALE);
     // Both start at row 0
     expect(items[0].y).toBe(0);
     expect(items[1].y).toBe(0);
-    // Second pane starts at column 6
-    expect(items[1].x).toBe(6);
+    // Second pane starts at column 6 (scaled)
+    expect(items[1].x).toBe(6 * GRID_SCALE);
   });
 
   it("2x2 produces four equally-sized panes", () => {
     const items = presetToGridItems("2x2" as LayoutPreset, makePanes(4));
     expect(items).toHaveLength(4);
     for (const item of items) {
-      expect(item.w).toBe(6);
-      expect(item.h).toBe(6);
+      expect(item.w).toBe(6 * GRID_SCALE);
+      expect(item.h).toBe(6 * GRID_SCALE);
     }
   });
 
-  it("3x3 produces nine panes each 4×4", () => {
+  it("3x3 produces nine panes each 4×4 (scaled)", () => {
     const items = presetToGridItems("3x3" as LayoutPreset, makePanes(9));
     expect(items).toHaveLength(9);
     for (const item of items) {
-      expect(item.w).toBe(4);
-      expect(item.h).toBe(4);
+      expect(item.w).toBe(4 * GRID_SCALE);
+      expect(item.h).toBe(4 * GRID_SCALE);
     }
   });
 
