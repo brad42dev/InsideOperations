@@ -178,9 +178,31 @@ export function reflowPanesToPreset(
 }
 
 // ---------------------------------------------------------------------------
-// Collision resolver — strip-based reflow
+// Collision resolver
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolves overlaps after pane `movedId` has been dragged/resized.
+ *
+ * Guarantees after resolution:
+ *   - Every pane is within [0,cols]×[0,rows]
+ *   - Every pane has w ≥ MIN_W, h ≥ MIN_H
+ *   - No pane is pushed off-screen; at worst it shrinks to minimum size
+ *   - Panes pushed in the same direction maintain their original left-to-right
+ *     (or top-to-bottom) order — no swapping
+ *
+ * Strategy:
+ *   Phase 1 — moved vs neighbors, batch-per-direction:
+ *     1a. Pinned neighbors: moved yields to them first
+ *     1b. Left-shrink: neighbors to the left get their right edge trimmed
+ *     1c. Up-shrink: neighbors above get their bottom edge trimmed
+ *     1d. Right-push (batch): all right-side neighbors sorted by original x,
+ *         packed sequentially; moved shrinks only enough to fit all at MIN_W
+ *     1e. Down-push (batch): same, vertical axis
+ *   Phase 2 — cascade up to 5 passes: resolve any inter-neighbor overlaps
+ *     created by Phase 1 pushes
+ *   Phase 3 — hard clamp all items to grid bounds
+ */
 /**
  * Optional axis hint — when the caller knows the operation is a single-axis resize,
  * this overrides the overlap-area heuristic used to pick the resolution axis.
@@ -189,185 +211,334 @@ export function reflowPanesToPreset(
  */
 export type ResizeAxisHint = "x" | "y";
 
-/**
- * Resolves overlaps after pane `movedId` has been dragged/resized.
- *
- * Strategy: strip-based reflow.
- *   1. Place `moved` at its requested position (clamped to grid bounds).
- *   2. Cap moved's size so the surrounding strips can hold all other panes.
- *   3. Yield moved to any pinned neighbors.
- *   4. Decompose the remaining grid space (everything except moved) into
- *      4 non-overlapping rectangular strips: above, below, left, right.
- *   5. Assign each non-moved pane to the strip it overlaps most (by area).
- *   6. Tile each strip's assigned panes proportionally.
- *
- * Guarantees:
- *   - Every pane is within [0,cols]×[0,rows]
- *   - Every pane has w ≥ MIN_W, h ≥ MIN_H
- *   - No two panes overlap
- *   - moved ends up at exactly its requested position (after clamping)
- */
 export function resolveCollisions(
   layout: GridItem[],
   movedId: string,
   pinnedIds: Set<string>,
   cols: number = GRID_COLS,
   rows: number = GRID_ROWS,
-  _axisHint?: ResizeAxisHint,
+  axisHint?: ResizeAxisHint,
 ): GridItem[] {
   const items = layout.map((it) => ({ ...it }));
   const moved = items.find((it) => it.i === movedId);
   if (!moved) return items;
 
-  // Clamp moved to grid bounds
+  // Clamp moved to grid bounds first
   _clamp(moved, cols, rows);
 
-  // Cap moved so surrounding strips can hold all other panes at MIN size
-  const otherCount = items.length - 1;
-  if (otherCount > 0) {
-    // Try both axes and apply the tighter cap
-    for (const axis of ["w", "h"] as const) {
-      const maxSize = _computeMaxMovedSize(moved, axis, otherCount, cols, rows);
-      if (moved[axis] > maxSize) {
-        moved[axis] = maxSize;
-      }
+  // ── Hard size cap: moved cannot expand past the point where all other
+  //   panes would be forced below their minimum size.
+  //
+  //   The 4 strips around moved (above, below, left, right) tile the rest of
+  //   the grid. We binary-search for the largest size on the resize axis such
+  //   that those strips can still hold (items.length - 1) panes of MIN_W×MIN_H.
+  //   This prevents the "16-pane pile-up in the bottom-right corner" scenario
+  //   without any special-casing — the formula is general.
+  if (axisHint && items.length > 1) {
+    const axis = axisHint === "x" ? "w" : "h";
+    const maxSize = _computeMaxMovedSize(moved, axis, items.length - 1, cols, rows);
+    if (moved[axis] > maxSize) {
+      moved[axis] = maxSize;
     }
     _clamp(moved, cols, rows);
   }
 
-  // Yield moved to pinned neighbors
+  // ── Phase 1a: pinned neighbors — moved yields to them ───────────────────
+
   for (const other of items) {
-    if (other.i === movedId || !pinnedIds.has(other.i)) continue;
+    if (other.i === movedId) continue;
+    if (!pinnedIds.has(other.i)) continue;
     const [dw, dh] = _overlap(moved, other);
     if (dw <= 0 || dh <= 0) continue;
     _yieldAway(moved, other, dw, dh);
   }
   _clamp(moved, cols, rows);
 
-  // ── If no other panes, we're done
-  const others = items.filter((it) => it.i !== movedId);
-  if (others.length === 0) return items;
+  // ── Phase 1b-e: shrink-first, push-as-fallback ──────────────────────────
+  // For each overlapping neighbor, determine which axis to resolve on, then:
+  //   - Shrink other's TRAILING edge if moved's center is past other's center
+  //     (moved approaching from behind — same as old Phase 1b/c).
+  //   - Shrink other's LEADING edge if moved's center is before other's center
+  //     (moved's expanding edge pushes into the neighbor — new behavior).
+  //     Only fall back to push if the shrink would violate MIN size.
+  // This ensures e.g. expanding a pane's bottom edge shrinks the pane below
+  // in place (anchored at its far edge) rather than pushing it into further panes.
 
-  // ── Compute the 4 strips around moved (non-overlapping, tile the grid minus moved)
-  //
-  // Layout:
-  //   +------------------cols------------------+
-  //   |            ABOVE (full width)          |  y: [0, my)
-  //   +--------+----------+--------------------+
-  //   | LEFT   |  MOVED   |  RIGHT             |  y: [my, my+mh)
-  //   +--------+----------+--------------------+
-  //   |            BELOW (full width)          |  y: [my+mh, rows)
-  //   +----------------------------------------+
-  //
-  const mx = moved.x, my = moved.y, mw = moved.w, mh = moved.h;
+  const rightPushSet = new Set<string>();
+  const rightPush: GridItem[] = [];
+  const downPushSet = new Set<string>();
+  const downPush: GridItem[] = [];
 
-  type Strip = { x: number; y: number; w: number; h: number };
-  const strips: Strip[] = [];
+  for (const other of items) {
+    if (other.i === movedId || pinnedIds.has(other.i)) continue;
+    const [dw, dh] = _overlap(moved, other);
+    if (dw <= 0 || dh <= 0) continue;
 
-  const aboveH = my;
-  if (aboveH >= MIN_H && cols >= MIN_W)
-    strips.push({ x: 0, y: 0, w: cols, h: aboveH });
+    // Pick resolution axis: honour caller hint for single-axis resizes; fall back
+    // to the overlap-area heuristic (smaller overlap axis = easier to resolve) for
+    // drags and corner resizes where both axes may have moved.
+    const resolveHoriz =
+      axisHint === "x" ? true : axisHint === "y" ? false : dw <= dh;
 
-  const belowY = my + mh;
-  const belowH = rows - belowY;
-  if (belowH >= MIN_H && cols >= MIN_W)
-    strips.push({ x: 0, y: belowY, w: cols, h: belowH });
-
-  const leftW = mx;
-  if (leftW >= MIN_W && mh >= MIN_H)
-    strips.push({ x: 0, y: my, w: leftW, h: mh });
-
-  const rightX = mx + mw;
-  const rightW = cols - rightX;
-  if (rightW >= MIN_W && mh >= MIN_H)
-    strips.push({ x: rightX, y: my, w: rightW, h: mh });
-
-  // ── Assign panes to strips based on maximum overlap area with original position
-  // Sort others by reading order (y asc, x asc) for stable assignment
-  others.sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
-
-  // For each pane, compute overlap with each strip and pick the best
-  const stripAssignments: GridItem[][] = strips.map(() => []);
-
-  for (const pane of others) {
-    let bestStrip = -1;
-    let bestArea = -1;
-
-    for (let si = 0; si < strips.length; si++) {
-      const strip = strips[si];
-      const overlapX = Math.min(pane.x + pane.w, strip.x + strip.w) - Math.max(pane.x, strip.x);
-      const overlapY = Math.min(pane.y + pane.h, strip.y + strip.h) - Math.max(pane.y, strip.y);
-      const area = overlapX > 0 && overlapY > 0 ? overlapX * overlapY : 0;
-      if (area > bestArea) {
-        bestArea = area;
-        bestStrip = si;
+    if (resolveHoriz) {
+      // Horizontal resolution
+      if (moved.x + moved.w * 0.5 > other.x + other.w * 0.5) {
+        // Moved is right of other (other center is left of moved center).
+        if (axisHint === "x" && other.x >= moved.x) {
+          // East resize engulfed other (other starts inside moved, not before
+          // moved's left edge). Shrinking other's trailing edge and then
+          // adjusting moved.x would incorrectly displace the moved pane.
+          // Push other away instead.
+          if (moved.x + moved.w + MIN_W <= cols) {
+            rightPushSet.add(other.i);
+            rightPush.push(other);
+          } else {
+            downPushSet.add(other.i);
+            downPush.push(other);
+          }
+        } else {
+          // Other starts before moved's left edge — shrink other's trailing edge.
+          other.w = Math.max(MIN_W, moved.x - other.x);
+          // If other hit MIN_W and moved still overlaps, clamp moved's left edge
+          const otherRight = other.x + other.w;
+          if (moved.x < otherRight) {
+            const excess = otherRight - moved.x;
+            moved.x = otherRight;
+            moved.w = Math.max(MIN_W, moved.w - excess);
+          }
+        }
+      } else {
+        // Moved is left of other (expanding into it from the left).
+        if (axisHint === "x") {
+          // East/west resize: batch ALL displaced items together so _batchPush
+          // can compute moved's maximum width in one pass. If we shrink some
+          // in-place and batch others, both groups land at moved.x+moved.w,
+          // causing an overlap that the cascade can't resolve when space runs out.
+          // When there's no horizontal room at all (moved spans full width), push down.
+          if (moved.x + moved.w + MIN_W <= cols) {
+            rightPushSet.add(other.i);
+            rightPush.push(other);
+          } else {
+            downPushSet.add(other.i);
+            downPush.push(other);
+          }
+        } else {
+          // Drag or corner resize: try shrink first; push if can't fit.
+          const newX = moved.x + moved.w;
+          const newW = (other.x + other.w) - newX;
+          if (newW >= MIN_W) {
+            other.x = newX;
+            other.w = newW;
+          } else {
+            rightPushSet.add(other.i);
+            rightPush.push(other);
+          }
+        }
       }
-    }
-
-    // If no overlap with any strip (e.g., pane was entirely behind moved),
-    // use center-distance as fallback
-    if (bestStrip < 0 || bestArea === 0) {
-      const paneCx = pane.x + pane.w / 2;
-      const paneCy = pane.y + pane.h / 2;
-      let bestDist = Infinity;
-      for (let si = 0; si < strips.length; si++) {
-        const strip = strips[si];
-        const stripCx = strip.x + strip.w / 2;
-        const stripCy = strip.y + strip.h / 2;
-        const dist = Math.abs(paneCx - stripCx) + Math.abs(paneCy - stripCy);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestStrip = si;
+    } else {
+      // Vertical resolution
+      if (moved.y + moved.h * 0.5 > other.y + other.h * 0.5) {
+        // Moved is below other (other center is above moved center).
+        if (axisHint === "y" && other.y >= moved.y) {
+          // South resize engulfed other (other starts inside moved, not before
+          // moved's top edge). Shrinking other's trailing edge would produce a
+          // negative trim and then shift moved.y upward — wrong.
+          // Push other down/right instead.
+          if (moved.y + moved.h + MIN_H <= rows) {
+            downPushSet.add(other.i);
+            downPush.push(other);
+          } else {
+            rightPushSet.add(other.i);
+            rightPush.push(other);
+          }
+        } else {
+          // Other starts before moved's top edge — shrink other's trailing edge.
+          other.h = Math.max(MIN_H, moved.y - other.y);
+          // If other hit MIN_H and moved still overlaps, clamp moved's top edge
+          const otherBottom = other.y + other.h;
+          if (moved.y < otherBottom) {
+            const excess = otherBottom - moved.y;
+            moved.y = otherBottom;
+            moved.h = Math.max(MIN_H, moved.h - excess);
+          }
+        }
+      } else {
+        // Moved is above other (expanding into it from above).
+        if (axisHint === "y") {
+          // North/south resize: batch ALL displaced items together.
+          // Same rationale as the axisHint="x" case above.
+          if (moved.y + moved.h + MIN_H <= rows) {
+            downPushSet.add(other.i);
+            downPush.push(other);
+          } else {
+            rightPushSet.add(other.i);
+            rightPush.push(other);
+          }
+        } else {
+          // Drag or corner resize: try shrink first; push if can't fit.
+          const newY = moved.y + moved.h;
+          const newH = (other.y + other.h) - newY;
+          if (newH >= MIN_H) {
+            other.y = newY;
+            other.h = newH;
+          } else {
+            downPushSet.add(other.i);
+            downPush.push(other);
+          }
         }
       }
     }
-
-    // If still no strip (all strips zero-area — shouldn't happen with size cap)
-    // fall back to the first available strip
-    if (bestStrip < 0 && strips.length > 0) bestStrip = 0;
-
-    if (bestStrip >= 0) {
-      stripAssignments[bestStrip].push(pane);
-    }
   }
+  _clamp(moved, cols, rows);
 
-  // ── Redistribute: if any strip has more panes than it can hold, spill to neighbors
-  for (let si = 0; si < strips.length; si++) {
-    const strip = strips[si];
-    const maxPanes = _stripCapacity(strip);
-    const assigned = stripAssignments[si];
-    if (assigned.length <= maxPanes) continue;
+  // ── Pre-expand push sets to catch cascade items in the estimated cursor zone ──
+  //
+  // Phase 1 adds items that directly overlap moved. But pushed items cascade into
+  // adjacent non-overlapping items (e.g. in a 4×4 east resize, pane3 doesn't
+  // touch pane0 at intermediate widths, but pane2 when pushed WILL hit pane3).
+  // We estimate the final cursor range and pull those items into the push set NOW,
+  // so _batchPush sees all displaced items and shrinks moved by the correct amount
+  // in one pass — preventing the "pane2 and pane3 both land at x=cols" collision.
+  //
+  // y-overlap filter (for rightPush) ensures we only include items in the same
+  // horizontal band as moved; x-overlap filter (for downPush) does the same.
 
-    // Spill excess panes to strips with remaining capacity
-    const excess = assigned.splice(maxPanes);
-    for (const pane of excess) {
-      let placed = false;
-      // Try each other strip, prefer one with most remaining capacity
-      const candidates = strips
-        .map((s, idx) => ({ idx, remaining: _stripCapacity(s) - stripAssignments[idx].length }))
-        .filter((c) => c.idx !== si && c.remaining > 0)
-        .sort((a, b) => b.remaining - a.remaining);
-      for (const c of candidates) {
-        stripAssignments[c.idx].push(pane);
-        placed = true;
-        break;
-      }
-      if (!placed) {
-        // Force it back into the original strip — tiling will compress everything to min
-        assigned.push(pane);
+  if (rightPush.length > 0) {
+    const estimatedBound = Math.min(
+      cols,
+      moved.x + moved.w + rightPush.length * MIN_W,
+    );
+    for (const other of items) {
+      if (other.i === movedId || rightPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+      const yOvlp =
+        Math.min(moved.y + moved.h, other.y + other.h) - Math.max(moved.y, other.y);
+      if (yOvlp <= 0) continue;
+      if (other.x >= moved.x && other.x < estimatedBound) {
+        rightPushSet.add(other.i);
+        rightPush.push(other);
       }
     }
   }
 
-  // ── Tile each strip with its assigned panes
-  for (let si = 0; si < strips.length; si++) {
-    const strip = strips[si];
-    const assigned = stripAssignments[si];
-    if (assigned.length === 0) continue;
-    _tileStrip(strip, assigned, cols, rows);
+  // ── Right-push batch: BFS + pack (only panes that couldn't shrink in place)
+
+  for (let qi = 0; qi < rightPush.length; qi++) {
+    const current = rightPush[qi];
+    for (const other of items) {
+      if (other.i === movedId || rightPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+      const [dw, dh] = _overlap(current, other);
+      if (dw <= 0 || dh <= 0) continue;
+      if (dw <= dh && current.x + current.w * 0.5 <= other.x + other.w * 0.5) {
+        rightPushSet.add(other.i);
+        rightPush.push(other);
+      }
+    }
   }
 
-  // Final clamp for safety
+  if (rightPush.length > 0) {
+    _batchPush(moved, rightPush, "x", "w", cols, MIN_W);
+
+    // Post-batchPush overlap expansion: pushed items at their new positions
+    // may overlap non-pushed items that weren't in the estimated cursor zone.
+    // Pull those into the set and re-pack (up to 5 iterations).
+    for (let iter = 0; iter < 5; iter++) {
+      let expanded = false;
+      for (const pushed of rightPush) {
+        for (const other of items) {
+          if (other.i === movedId || rightPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+          const [dw2, dh2] = _overlap(pushed, other);
+          if (dw2 <= 0 || dh2 <= 0) continue;
+          rightPushSet.add(other.i);
+          rightPush.push(other);
+          expanded = true;
+        }
+      }
+      if (!expanded) break;
+      _batchPush(moved, rightPush, "x", "w", cols, MIN_W);
+    }
+  }
+
+  // ── Down-push batch: BFS + pack (only panes that couldn't shrink in place)
+
+  for (let qi = 0; qi < downPush.length; qi++) {
+    const current = downPush[qi];
+    for (const other of items) {
+      if (other.i === movedId || downPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+      const [dw, dh] = _overlap(current, other);
+      if (dw <= 0 || dh <= 0) continue;
+      if (dh < dw && current.y + current.h * 0.5 <= other.y + other.h * 0.5) {
+        downPushSet.add(other.i);
+        downPush.push(other);
+      }
+    }
+  }
+
+  if (downPush.length > 0) {
+    // Use column-aware packing instead of _batchPush for the y-axis.
+    //
+    // _batchPush treats all pushed items as a single column and would either:
+    //   (a) over-shrink moved.h because items in different x-bands don't
+    //       actually compete for vertical space, or
+    //   (b) pack pushed items onto existing non-pushed items in the same
+    //       x-band (e.g. 4×4 east resize pushes p1/p2/p3 onto p5/p6/p7).
+    //
+    // _columnBatchPush groups items by x-overlap and includes non-pushed
+    // column-mates, so each column is packed independently and correctly.
+    //
+    // After the initial pack, scan for new overlaps (pushed items may now
+    // conflict with non-pushed items not yet in the set) and re-pack.
+    _columnBatchPush(moved, downPush, items, movedId, rows, MIN_H);
+
+    for (let iter = 0; iter < 5; iter++) {
+      let expanded = false;
+      for (const pushed of downPush) {
+        for (const other of items) {
+          if (other.i === movedId || downPushSet.has(other.i) || pinnedIds.has(other.i)) continue;
+          const [dw2, dh2] = _overlap(pushed, other);
+          if (dw2 <= 0 || dh2 <= 0) continue;
+          downPushSet.add(other.i);
+          downPush.push(other);
+          expanded = true;
+        }
+      }
+      if (!expanded) break;
+      _columnBatchPush(moved, downPush, items, movedId, rows, MIN_H);
+    }
+  }
+
+  // ── Phase 2: cascade — resolve inter-neighbor overlaps (up to 10 passes) ──
+  //
+  // moved is allowed as a SOURCE (items[i]) so that any residual overlaps
+  // between moved and non-moved panes (e.g. created by the yield-to-pinned
+  // path in Phase 1a) are resolved here by pushing non-moved panes away.
+  // moved is never allowed as a VICTIM (items[j]) — its final position is
+  // set by Phase 1 and must not be disturbed by cascade pushes.
+
+  for (let pass = 0; pass < 10; pass++) {
+    let anyChange = false;
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        if (items[j].i === movedId) continue; // moved is never pushed in cascade
+        const [dw, dh] = _overlap(items[i], items[j]);
+        if (dw <= 0 || dh <= 0) continue;
+        anyChange = true;
+        if (items[i].i === movedId) {
+          // moved is always ground-truth — push victim away
+          _pushBestEffort(items[i], items[j], dw, dh, cols, rows);
+        } else if (pinnedIds.has(items[i].i)) {
+          _yieldAway(items[j], items[i], dw, dh);
+        } else if (pinnedIds.has(items[j].i)) {
+          _yieldAway(items[i], items[j], dw, dh);
+        } else {
+          _pushBestEffort(items[i], items[j], dw, dh, cols, rows);
+        }
+      }
+    }
+    if (!anyChange) break;
+  }
+
+  // ── Phase 3: hard clamp all items to grid bounds ─────────────────────────
+
   for (const item of items) {
     _clamp(item, cols, rows);
   }
@@ -376,16 +547,23 @@ export function resolveCollisions(
 }
 
 // ---------------------------------------------------------------------------
-// Final overlap elimination — guaranteed reflow fallback
+// Final overlap elimination pass
 // ---------------------------------------------------------------------------
 
 /**
  * Safety-net pass called after resolveCollisions at gesture stop (drag/resize).
  *
- * With the strip-based reflow, resolveCollisions should produce zero overlaps.
- * This function verifies that invariant and, if any overlap remains (e.g. due
- * to pinned panes creating impossible constraints), performs a second reflow
- * pass to guarantee a clean result.
+ * resolveCollisions reasons about a single "moved" pane and resolves outward
+ * from it. Edge cases — complex cascades, corner resizes, multi-pane chain
+ * reactions — can leave residual overlaps between non-moved pairs.
+ *
+ * finalizeLayout re-scans all pairs with no "moved" concept, clamping between
+ * passes so off-grid pushes don't hide real overlaps. Up to 10 extra passes
+ * are run; most layouts converge in 1–2. Pinned panes still have priority.
+ *
+ * This does NOT fix spatially impossible cases (e.g. 5 panes each needing
+ * MIN_W all crammed into a strip narrower than 5×MIN_W), but it eliminates
+ * overlap in every practical layout.
  */
 export function finalizeLayout(
   layout: GridItem[],
@@ -395,21 +573,6 @@ export function finalizeLayout(
 ): GridItem[] {
   const items = layout.map((it) => ({ ...it }));
 
-  // Quick check: any overlaps?
-  let hasOverlap = false;
-  for (let i = 0; i < items.length && !hasOverlap; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      const [dw, dh] = _overlap(items[i], items[j]);
-      if (dw > 0 && dh > 0) {
-        hasOverlap = true;
-        break;
-      }
-    }
-  }
-
-  if (!hasOverlap) return items;
-
-  // Overlaps remain — use pairwise push as last resort (up to 10 passes)
   for (let pass = 0; pass < 10; pass++) {
     let anyChange = false;
 
@@ -429,7 +592,12 @@ export function finalizeLayout(
       }
     }
 
+    // Clamp between passes: out-of-bounds items shrink/shift back into the
+    // grid so subsequent iterations see accurate positions. Without this,
+    // a pane pushed to x=cols would remain there until the final clamp,
+    // masking its true overlap with neighbouring panes.
     for (const item of items) _clamp(item, cols, rows);
+
     if (!anyChange) break;
   }
 
@@ -449,93 +617,235 @@ function _overlap(a: GridItem, b: GridItem): [number, number] {
 }
 
 /**
- * How many MIN_W×MIN_H panes can fit inside a strip.
+ * Batch-push a group of overlapping neighbors away from `moved` along one axis.
+ *
+ * Neighbors are sorted by their current position on the axis (preserving visual
+ * order), then packed sequentially starting at `moved`'s trailing edge.
+ * `moved` is only shrunk if there isn't enough room to fit all neighbors at
+ * their minimum size — and only shrunk once (not once per neighbor).
+ *
+ * @param pos   axis position key: "x" or "y"
+ * @param size  axis size key: "w" or "h"
+ * @param limit grid bound in this axis (cols or rows)
+ * @param min   minimum size in this axis (MIN_W or MIN_H)
  */
-function _stripCapacity(strip: { w: number; h: number }): number {
-  return Math.floor(strip.w / MIN_W) * Math.floor(strip.h / MIN_H);
+function _batchPush(
+  moved: GridItem,
+  neighbors: GridItem[],
+  pos: "x" | "y",
+  size: "w" | "h",
+  limit: number,
+  min: number,
+): void {
+  // Sort neighbors by original position on this axis to preserve visual order
+  const sorted = [...neighbors].sort((a, b) => a[pos] - b[pos]);
+
+  const minNeeded = sorted.length * min;
+  const trailingEdge = moved[pos] + moved[size];
+
+  // Shrink moved once if there isn't enough room for all neighbors at minimum size
+  if (trailingEdge + minNeeded > limit) {
+    moved[size] = Math.max(min, limit - moved[pos] - minNeeded);
+  }
+
+  // Pack neighbors sequentially from moved's trailing edge.
+  // Cap each pane at its original trailing edge to prevent cascading into
+  // further panes when an earlier pane absorbs its full original size.
+  let cursor = moved[pos] + moved[size];
+  for (let i = 0; i < sorted.length; i++) {
+    const pane = sorted[i];
+    const panesLeft = sorted.length - i;
+    const spaceTillEnd = limit - cursor;
+    const originalTrailing = pane[pos] + pane[size]; // capture before move
+    pane[pos] = cursor;
+    pane[size] = Math.max(
+      min,
+      Math.min(
+        pane[size],
+        originalTrailing - cursor,
+        spaceTillEnd - (panesLeft - 1) * min,
+      ),
+    );
+    cursor = pane[pos] + pane[size];
+  }
 }
 
 /**
- * Tile `panes` into a rectangular `strip`, arranging them in a grid.
+ * Column-aware batch push for the y-axis.
  *
- * The algorithm picks a grid arrangement (tileCols × tileRows) that fits
- * all panes and gives each cell the most area. Panes are placed in reading
- * order (the caller sorts them before passing).
+ * When items displaced downward overlap with existing items below `moved`, the
+ * standard `_batchPush` treats them as a single column and runs out of space
+ * because items at different x-positions don't actually compete for vertical
+ * space.
  *
- * Each pane gets the same cell size. If the strip can't hold all panes
- * even at MIN size, the last panes get compressed.
+ * This helper groups pushed items by x-overlap, then for each group finds ALL
+ * items in the same x-band (including non-pushed ones) below moved, and repacks
+ * that column vertically. This ensures pushed items don't land on top of
+ * existing panes.
+ *
+ * May shrink moved.h if the most crowded column can't fit all its items at
+ * min size — a per-column cap that supplements the global size cap.
  */
-function _tileStrip(
-  strip: { x: number; y: number; w: number; h: number },
-  panes: GridItem[],
-  _cols: number,
-  _rows: number,
+function _columnBatchPush(
+  moved: GridItem,
+  pushed: GridItem[],
+  allItems: GridItem[],
+  movedId: string,
+  rows: number,
+  min: number,
 ): void {
-  const n = panes.length;
-  if (n === 0) return;
+  if (pushed.length === 0) return;
 
-  // Special case: 1 pane fills the whole strip
-  if (n === 1) {
-    panes[0].x = strip.x;
-    panes[0].y = strip.y;
-    panes[0].w = Math.max(MIN_W, strip.w);
-    panes[0].h = Math.max(MIN_H, strip.h);
-    return;
-  }
-
-  // Find best grid arrangement: try all valid (tileCols, tileRows) combos
-  // Constraint: tileCols * tileRows >= n, each cell >= MIN_W x MIN_H
-  const maxCols = Math.floor(strip.w / MIN_W);
-  const maxRows = Math.floor(strip.h / MIN_H);
-
-  let bestCols = 1;
-  let bestRows = n;
-  let bestScore = -1;
-
-  for (let tc = 1; tc <= Math.min(n, maxCols); tc++) {
-    const tr = Math.ceil(n / tc);
-    if (tr > maxRows) continue;
-    const cellW = Math.floor(strip.w / tc);
-    const cellH = Math.floor(strip.h / tr);
-    if (cellW < MIN_W || cellH < MIN_H) continue;
-    // Score = cell area (prefer squarish, large cells)
-    const score = cellW * cellH;
-    if (score > bestScore) {
-      bestScore = score;
-      bestCols = tc;
-      bestRows = tr;
+  // Build groups of pushed items that share x-overlap (union-find style).
+  // Each group represents one "column band" that must be packed together.
+  const groups: GridItem[][] = [];
+  for (const pane of pushed) {
+    const overlapping: number[] = [];
+    for (let gi = 0; gi < groups.length; gi++) {
+      for (const member of groups[gi]) {
+        const xOvlp =
+          Math.min(pane.x + pane.w, member.x + member.w) -
+          Math.max(pane.x, member.x);
+        if (xOvlp > 0) {
+          overlapping.push(gi);
+          break;
+        }
+      }
+    }
+    if (overlapping.length === 0) {
+      groups.push([pane]);
+    } else {
+      const target = groups[overlapping[0]];
+      for (let oi = overlapping.length - 1; oi >= 1; oi--) {
+        target.push(...groups[overlapping[oi]]);
+        groups.splice(overlapping[oi], 1);
+      }
+      target.push(pane);
     }
   }
 
-  // If no valid arrangement found (too many panes for strip), pack as tight as possible
-  if (bestScore < 0) {
-    // Use maximum columns, compute rows needed
-    bestCols = Math.max(1, maxCols);
-    bestRows = Math.max(1, Math.ceil(n / bestCols));
+  // ── Pre-pass: compute per-column item counts and cap moved.h if any column
+  //    can't fit its items at min size.
+  //
+  //    The global size cap (_computeMaxMovedSize) assumes items distribute
+  //    evenly across the full grid width. But displaced items stay in their
+  //    original columns, so a column with 4 items needs 4×min vertical space.
+  //    Without this per-column cap, moved grows past the point where some
+  //    columns overflow, causing unresolvable pileups after Phase 3 clamp.
+  let maxColumnItems = 0;
+  for (const group of groups) {
+    let bandLeft = Infinity;
+    let bandRight = -Infinity;
+    for (const p of group) {
+      bandLeft = Math.min(bandLeft, p.x);
+      bandRight = Math.max(bandRight, p.x + p.w);
+    }
+    let count = 0;
+    for (const item of allItems) {
+      if (item.i === movedId) continue;
+      const xOvlp =
+        Math.min(bandRight, item.x + item.w) - Math.max(bandLeft, item.x);
+      if (xOvlp <= 0) continue;
+      if (item.y + item.h <= moved.y) continue;
+      count++;
+    }
+    maxColumnItems = Math.max(maxColumnItems, count);
+  }
+  if (maxColumnItems > 0) {
+    const maxMovedH = rows - moved.y - maxColumnItems * min;
+    if (maxMovedH < moved.h && maxMovedH >= min) {
+      moved.h = maxMovedH;
+    }
   }
 
-  const cellW = Math.max(MIN_W, Math.floor(strip.w / bestCols));
-  const cellH = Math.max(MIN_H, Math.floor(strip.h / bestRows));
-
-  for (let idx = 0; idx < n; idx++) {
-    const col = idx % bestCols;
-    const row = Math.floor(idx / bestCols);
-    const pane = panes[idx];
-
-    pane.x = strip.x + col * cellW;
-    pane.y = strip.y + row * cellH;
-
-    // Last column/row absorb remainder pixels to fill the strip exactly
-    if (col === bestCols - 1) {
-      pane.w = Math.max(MIN_W, strip.x + strip.w - pane.x);
-    } else {
-      pane.w = cellW;
+  // For each group, collect ALL items in the same x-band below moved and repack
+  const repacked = new Set<string>();
+  for (const group of groups) {
+    // Determine the x-band envelope for this group
+    let bandLeft = Infinity;
+    let bandRight = -Infinity;
+    for (const p of group) {
+      bandLeft = Math.min(bandLeft, p.x);
+      bandRight = Math.max(bandRight, p.x + p.w);
     }
-    if (row === bestRows - 1 || idx >= n - bestCols) {
-      // Last row of panes
-      pane.h = Math.max(MIN_H, strip.y + strip.h - pane.y);
+
+    // Find ALL items (pushed or not) that x-overlap this band and sit below
+    // moved's top edge. Skip moved itself and already-repacked items.
+    const columnItems: GridItem[] = [];
+    const columnSet = new Set<string>();
+    for (const item of allItems) {
+      if (item.i === movedId) continue;
+      if (repacked.has(item.i)) continue;
+      const xOvlp =
+        Math.min(bandRight, item.x + item.w) - Math.max(bandLeft, item.x);
+      if (xOvlp <= 0) continue;
+      if (item.y + item.h <= moved.y) continue; // entirely above moved
+      if (!columnSet.has(item.i)) {
+        columnSet.add(item.i);
+        columnItems.push(item);
+      }
+    }
+
+    // Sort by y and pack from moved's bottom edge
+    columnItems.sort((a, b) => a.y - b.y);
+    const cursorStart = moved.y + moved.h;
+    const spaceBelow = rows - cursorStart;
+
+    if (spaceBelow >= min) {
+      // Normal case: pack below moved
+      let cursor = cursorStart;
+      for (let i = 0; i < columnItems.length; i++) {
+        const pane = columnItems[i];
+        const panesLeft = columnItems.length - i;
+        const spaceTillEnd = rows - cursor;
+        pane.y = cursor;
+        pane.h = Math.max(
+          min,
+          Math.min(pane.h, spaceTillEnd - (panesLeft - 1) * min),
+        );
+        cursor = pane.y + pane.h;
+        repacked.add(pane.i);
+      }
     } else {
-      pane.h = cellH;
+      // No room below moved (bottom-row resize). Pack items ABOVE moved.
+      // Include all items in the same x-band above moved so the full column
+      // is repacked together, preventing the displaced items from landing on
+      // existing panes.
+      const aboveItems: GridItem[] = [];
+      const aboveSet = new Set<string>();
+      for (const item of allItems) {
+        if (item.i === movedId) continue;
+        if (columnSet.has(item.i)) continue; // already in columnItems
+        if (repacked.has(item.i)) continue;
+        const xOvlp =
+          Math.min(bandRight, item.x + item.w) - Math.max(bandLeft, item.x);
+        if (xOvlp <= 0) continue;
+        if (item.y + item.h > moved.y) continue; // not above moved
+        if (!aboveSet.has(item.i)) {
+          aboveSet.add(item.i);
+          aboveItems.push(item);
+        }
+      }
+
+      // Merge above items and displaced items, sort by y, pack from top to moved.y
+      const fullColumn = [...aboveItems, ...columnItems];
+      fullColumn.sort((a, b) => a.y - b.y);
+
+      // Pack the entire column into [0, moved.y)
+      const availableH = moved.y;
+      let cursor = 0;
+      for (let i = 0; i < fullColumn.length; i++) {
+        const pane = fullColumn[i];
+        const panesLeft = fullColumn.length - i;
+        const spaceTillEnd = availableH - cursor;
+        pane.y = cursor;
+        pane.h = Math.max(
+          min,
+          Math.min(pane.h, spaceTillEnd - (panesLeft - 1) * min),
+        );
+        cursor = pane.y + pane.h;
+        repacked.add(pane.i);
+      }
     }
   }
 }
@@ -566,7 +876,8 @@ function _yieldAway(
 }
 
 /**
- * Push `victim` away from `source` — best-effort for finalizeLayout fallback.
+ * Push `victim` away from `source` in cascade phase — best-effort, no clamping
+ * of source. Victim is shrunk to MIN size if pushed to the boundary.
  */
 function _pushBestEffort(
   source: GridItem,
@@ -600,6 +911,12 @@ function _pushBestEffort(
 /**
  * Returns how many MIN_W×MIN_H panes fit in the 4 non-overlapping strips
  * surrounding moved when it has size `newSize` on the given axis.
+ *
+ * Strips (non-overlapping, tile the full grid minus moved):
+ *   above — full width × moved.y
+ *   below — full width × (rows − moved.y − mh)
+ *   left  — moved.x × mh
+ *   right — (cols − moved.x − mw) × mh
  */
 function _capacityAround(
   moved: GridItem,
@@ -633,6 +950,10 @@ function _computeMaxMovedSize(
   const min = axis === "w" ? MIN_W : MIN_H;
   const limit = axis === "w" ? cols - moved.x : rows - moved.y;
   if (otherCount <= 0) return limit;
+  // Fast path: current size already fits.
+  if (_capacityAround(moved, axis, moved[axis], cols, rows) >= otherCount) {
+    // Still need to verify the exact limit (size may exceed and we need the max).
+  }
   let lo = min;
   let hi = limit;
   while (lo < hi) {
