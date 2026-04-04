@@ -10,9 +10,9 @@ use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::io::Cursor;
 
+use super::{resolve_file_content, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{resolve_file_content, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // ExcelFileConnector
@@ -63,22 +63,21 @@ impl EtlConnector for ExcelFileConnector {
             .map_err(|e| anyhow!("excel_file: failed to open workbook: {e}"))?;
 
         // Select sheet by name or index
-        let sheet_name = if let Some(name) =
-            cfg.source_config.get("sheet_name").and_then(|v| v.as_str())
-        {
-            name.to_string()
-        } else {
-            let idx = cfg
-                .source_config
-                .get("sheet_index")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0) as usize;
-            workbook
-                .sheet_names()
-                .get(idx)
-                .cloned()
-                .ok_or_else(|| anyhow!("excel_file: sheet index {idx} out of range"))?
-        };
+        let sheet_name =
+            if let Some(name) = cfg.source_config.get("sheet_name").and_then(|v| v.as_str()) {
+                name.to_string()
+            } else {
+                let idx = cfg
+                    .source_config
+                    .get("sheet_index")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0) as usize;
+                workbook
+                    .sheet_names()
+                    .get(idx)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("excel_file: sheet index {idx} out of range"))?
+            };
 
         let range = workbook
             .worksheet_range(&sheet_name)
@@ -114,9 +113,10 @@ impl EtlConnector for ExcelFileConnector {
                 .map(|(h, cell)| {
                     let val = match cell {
                         Data::String(s) => JsonValue::String(s.clone()),
-                        Data::Float(f) => {
-                            JsonValue::Number(serde_json::Number::from_f64(*f).unwrap_or_else(|| serde_json::Number::from(0)))
-                        }
+                        Data::Float(f) => JsonValue::Number(
+                            serde_json::Number::from_f64(*f)
+                                .unwrap_or_else(|| serde_json::Number::from(0)),
+                        ),
                         Data::Int(i) => JsonValue::Number((*i).into()),
                         Data::Bool(b) => JsonValue::Bool(*b),
                         Data::Empty => JsonValue::Null,

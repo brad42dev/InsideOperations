@@ -14,9 +14,9 @@ use tiberius::{AuthMethod, Client, Config, EncryptionLevel};
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
+use super::{validate_sql_identifier, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{validate_sql_identifier, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // MssqlConnector
@@ -71,7 +71,9 @@ impl MssqlConnector {
         Ok((config, addr))
     }
 
-    async fn connect(cfg: &EtlConnectorConfig) -> Result<Client<tokio_util::compat::Compat<TcpStream>>> {
+    async fn connect(
+        cfg: &EtlConnectorConfig,
+    ) -> Result<Client<tokio_util::compat::Compat<TcpStream>>> {
         let (config, addr) = Self::build_config(cfg)?;
         let tcp = TcpStream::connect(&addr)
             .await
@@ -92,7 +94,10 @@ impl MssqlConnector {
             .or_else(|| row.get::<f64, _>(idx).map(JsonValue::from))
             .or_else(|| row.get::<f32, _>(idx).map(|v| JsonValue::from(v as f64)))
             .or_else(|| row.get::<bool, _>(idx).map(JsonValue::Bool))
-            .or_else(|| row.get::<&str, _>(idx).map(|v| JsonValue::String(v.to_string())))
+            .or_else(|| {
+                row.get::<&str, _>(idx)
+                    .map(|v| JsonValue::String(v.to_string()))
+            })
             .unwrap_or(JsonValue::Null)
     }
 
@@ -211,19 +216,21 @@ impl EtlConnector for MssqlConnector {
 
         // Apply watermark filter by wrapping the user's query in a subquery
         let sql = if let Some(ref wm) = cfg.watermark_state {
-            let wm_column = cfg.source_config
+            let wm_column = cfg
+                .source_config
                 .get("watermark_column")
                 .and_then(|v| v.as_str());
-            let wm_type = wm.get("watermark_type")
+            let wm_type = wm
+                .get("watermark_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("timestamp");
-            let last_value = wm.get("last_value")
-                .and_then(|v| v.as_str());
+            let last_value = wm.get("last_value").and_then(|v| v.as_str());
 
             if let (Some(col), Some(val)) = (wm_column, last_value) {
                 validate_sql_identifier(col)
                     .map_err(|e| anyhow!("mssql: invalid watermark_column: {e}"))?;
-                let lookback_seconds = cfg.source_config
+                let lookback_seconds = cfg
+                    .source_config
                     .get("watermark_lookback_seconds")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(120);
@@ -234,8 +241,11 @@ impl EtlConnector for MssqlConnector {
                     })?;
                     format!("SELECT * FROM ({base_sql}) _wm WHERE _wm.[{col}] > {n}")
                 } else {
-                    chrono::DateTime::parse_from_rfc3339(val)
-                        .map_err(|_| anyhow!("mssql: watermark last_value is not a valid RFC3339 timestamp: {val}"))?;
+                    chrono::DateTime::parse_from_rfc3339(val).map_err(|_| {
+                        anyhow!(
+                            "mssql: watermark last_value is not a valid RFC3339 timestamp: {val}"
+                        )
+                    })?;
                     format!(
                         "SELECT * FROM ({base_sql}) _wm \
                          WHERE _wm.[{col}] > DATEADD(SECOND, -{lookback_seconds}, CAST('{val}' AS DATETIME2))"
@@ -307,7 +317,8 @@ impl MssqlConnector {
                 wm.get("last_sync_version")
                     .or_else(|| wm.get("last_value"))
                     .and_then(|v| {
-                        v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                        v.as_i64()
+                            .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
                     })
             })
             .unwrap_or(0);

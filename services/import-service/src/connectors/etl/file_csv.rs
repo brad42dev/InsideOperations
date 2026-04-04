@@ -8,9 +8,9 @@ use anyhow::Result;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 
+use super::{resolve_file_content, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{resolve_file_content, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // Shared CSV parsing helper

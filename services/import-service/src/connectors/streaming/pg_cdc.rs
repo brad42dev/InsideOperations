@@ -262,7 +262,13 @@ fn parse_pgoutput(
         b'R' => {
             // Relation — update the relation map; no event emitted
             if let Some((oid, table_name, columns)) = pg_parse_relation(data, &mut pos) {
-                rel_map.insert(oid, RelationInfo { table_name, columns });
+                rel_map.insert(
+                    oid,
+                    RelationInfo {
+                        table_name,
+                        columns,
+                    },
+                );
             }
             None
         }
@@ -275,7 +281,10 @@ fn parse_pgoutput(
             let mut m = serde_json::Map::new();
             m.insert("op".into(), "insert".into());
             m.insert("table".into(), rel.table_name.clone().into());
-            m.insert("row".into(), JsonValue::Object(pg_parse_tuple(data, &mut pos, &rel.columns)));
+            m.insert(
+                "row".into(),
+                JsonValue::Object(pg_parse_tuple(data, &mut pos, &rel.columns)),
+            );
             Some(("insert", m))
         }
         b'U' => {
@@ -294,7 +303,10 @@ fn parse_pgoutput(
             let mut m = serde_json::Map::new();
             m.insert("op".into(), "update".into());
             m.insert("table".into(), rel.table_name.clone().into());
-            m.insert("after".into(), JsonValue::Object(pg_parse_tuple(data, &mut pos, &rel.columns)));
+            m.insert(
+                "after".into(),
+                JsonValue::Object(pg_parse_tuple(data, &mut pos, &rel.columns)),
+            );
             Some(("update", m))
         }
         b'D' => {
@@ -307,7 +319,10 @@ fn parse_pgoutput(
             let mut m = serde_json::Map::new();
             m.insert("op".into(), "delete".into());
             m.insert("table".into(), rel.table_name.clone().into());
-            m.insert("row".into(), JsonValue::Object(pg_parse_tuple(data, &mut pos, &rel.columns)));
+            m.insert(
+                "row".into(),
+                JsonValue::Object(pg_parse_tuple(data, &mut pos, &rel.columns)),
+            );
             Some(("delete", m))
         }
         _ => None,
@@ -331,7 +346,11 @@ fn pg_parse_relation(data: &[u8], pos: &mut usize) -> Option<(u32, String, Vec<S
     Some((oid, table_name, columns))
 }
 
-fn pg_parse_tuple(data: &[u8], pos: &mut usize, cols: &[String]) -> serde_json::Map<String, JsonValue> {
+fn pg_parse_tuple(
+    data: &[u8],
+    pos: &mut usize,
+    cols: &[String],
+) -> serde_json::Map<String, JsonValue> {
     let mut map = serde_json::Map::new();
     let num_cols = match pg_read_u16_be(data, pos) {
         Some(n) => n as usize,

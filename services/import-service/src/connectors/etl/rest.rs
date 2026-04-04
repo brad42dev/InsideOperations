@@ -10,9 +10,9 @@ use anyhow::{anyhow, Result};
 use serde_json::Value as JsonValue;
 use tracing::info;
 
+use super::{apply_auth_etl, extract_by_path, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{apply_auth_etl, extract_by_path, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // Connector struct
@@ -125,10 +125,12 @@ impl EtlConnector for GenericRestConnector {
             .unwrap_or(100);
 
         // Apply watermark as a query parameter on the starting URL
-        let watermark_param = cfg.source_config
+        let watermark_param = cfg
+            .source_config
             .get("watermark_param")
             .and_then(|v| v.as_str());
-        let watermark_value = cfg.watermark_state
+        let watermark_value = cfg
+            .watermark_state
             .as_ref()
             .and_then(|wm| wm.get("last_value"))
             .and_then(|v| v.as_str());

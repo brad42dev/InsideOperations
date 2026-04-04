@@ -59,7 +59,10 @@ impl DcsConnector for AspenIp21Connector {
         );
         let resp = req.send().await?;
         if !resp.status().is_success() {
-            return Err(anyhow!("aspen_ip21 test_connection: HTTP {}", resp.status()));
+            return Err(anyhow!(
+                "aspen_ip21 test_connection: HTTP {}",
+                resp.status()
+            ));
         }
         Ok(())
     }
@@ -89,15 +92,12 @@ impl DcsConnector for AspenIp21Connector {
                 }
             };
 
-            let items = match resp
-                .as_array()
-                .cloned()
-                .or_else(|| {
-                    resp.get("data")
-                        .or_else(|| resp.get("items"))
-                        .and_then(|v| v.as_array())
-                        .cloned()
-                }) {
+            let items = match resp.as_array().cloned().or_else(|| {
+                resp.get("data")
+                    .or_else(|| resp.get("items"))
+                    .and_then(|v| v.as_array())
+                    .cloned()
+            }) {
                 Some(a) => a,
                 None => break,
             };
@@ -125,24 +125,12 @@ impl DcsConnector for AspenIp21Connector {
                         .or_else(|| item.get("Units"))
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string()),
-                    eu_range_low: item
-                        .get("IP_INPUT_MIN")
-                        .and_then(|v| v.as_f64()),
-                    eu_range_high: item
-                        .get("IP_INPUT_MAX")
-                        .and_then(|v| v.as_f64()),
-                    alarm_limit_hh: item
-                        .get("IP_ALMHIHI_PV")
-                        .and_then(|v| v.as_f64()),
-                    alarm_limit_h: item
-                        .get("IP_ALMHI_PV")
-                        .and_then(|v| v.as_f64()),
-                    alarm_limit_l: item
-                        .get("IP_ALMLO_PV")
-                        .and_then(|v| v.as_f64()),
-                    alarm_limit_ll: item
-                        .get("IP_ALMLOLO_PV")
-                        .and_then(|v| v.as_f64()),
+                    eu_range_low: item.get("IP_INPUT_MIN").and_then(|v| v.as_f64()),
+                    eu_range_high: item.get("IP_INPUT_MAX").and_then(|v| v.as_f64()),
+                    alarm_limit_hh: item.get("IP_ALMHIHI_PV").and_then(|v| v.as_f64()),
+                    alarm_limit_h: item.get("IP_ALMHI_PV").and_then(|v| v.as_f64()),
+                    alarm_limit_l: item.get("IP_ALMLO_PV").and_then(|v| v.as_f64()),
+                    alarm_limit_ll: item.get("IP_ALMLOLO_PV").and_then(|v| v.as_f64()),
                 });
             }
 
@@ -164,9 +152,8 @@ impl DcsConnector for AspenIp21Connector {
         let client = client(cfg)?;
         let start_str = since.to_rfc3339();
 
-        let url = format!(
-            "{base}/processdata/api/v1/events?startTime={start_str}&endTime=*&filter=*"
-        );
+        let url =
+            format!("{base}/processdata/api/v1/events?startTime={start_str}&endTime=*&filter=*");
         let req = apply_auth(client.get(&url), cfg);
         let resp: serde_json::Value = match req.send().await?.json().await {
             Ok(v) => v,
@@ -176,15 +163,12 @@ impl DcsConnector for AspenIp21Connector {
             }
         };
 
-        let items = match resp
-            .as_array()
-            .cloned()
-            .or_else(|| {
-                resp.get("data")
-                    .or_else(|| resp.get("items"))
-                    .and_then(|v| v.as_array())
-                    .cloned()
-            }) {
+        let items = match resp.as_array().cloned().or_else(|| {
+            resp.get("data")
+                .or_else(|| resp.get("items"))
+                .and_then(|v| v.as_array())
+                .cloned()
+        }) {
             Some(a) => a,
             None => return Ok(vec![]),
         };
@@ -215,7 +199,10 @@ impl DcsConnector for AspenIp21Connector {
                 event_type: "process_alarm".to_string(),
                 source_name,
                 timestamp,
-                severity: item.get("Priority").and_then(|v| v.as_i64()).map(|v| v as i32),
+                severity: item
+                    .get("Priority")
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32),
                 message: item
                     .get("Message")
                     .or_else(|| item.get("description"))

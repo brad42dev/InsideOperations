@@ -1225,8 +1225,10 @@ pub async fn trigger_run(
     let master_key = state.config.master_key;
     let upload_dir = state.config.upload_dir.clone();
     tokio::spawn(async move {
-        if let Err(e) =
-            pipeline::execute(&db_clone, run_id, def_id, dry_run, master_key, upload_dir, None).await
+        if let Err(e) = pipeline::execute(
+            &db_clone, run_id, def_id, dry_run, master_key, upload_dir, None,
+        )
+        .await
         {
             tracing::warn!(run_id = %run_id, error = %e, "import pipeline error");
         }
@@ -1582,9 +1584,7 @@ pub async fn discover_schema(
 
     let row = match row {
         Ok(Some(r)) => r,
-        Ok(None) => {
-            return IoError::NotFound(format!("Connection {id} not found")).into_response()
-        }
+        Ok(None) => return IoError::NotFound(format!("Connection {id} not found")).into_response(),
         Err(e) => return IoError::Database(e).into_response(),
     };
 
@@ -1610,9 +1610,7 @@ pub async fn discover_schema(
         };
         match etl.discover_schema(&etl_cfg).await {
             Ok(tables) => Json(ApiResponse::ok(tables)).into_response(),
-            Err(e) => {
-                IoError::Internal(format!("Schema discovery failed: {e}")).into_response()
-            }
+            Err(e) => IoError::Internal(format!("Schema discovery failed: {e}")).into_response(),
         }
     } else {
         // DCS supplemental connectors don't implement schema discovery — return empty.

@@ -63,13 +63,11 @@ impl StreamingConnector for MongoChangeStreamConnector {
             .and_then(|v| serde_json::from_value::<ResumeToken>(v.clone()).ok());
 
         let mut stream = match resume_token {
-            Some(token) => {
-                collection
-                    .watch()
-                    .resume_after(token)
-                    .await
-                    .map_err(|e| anyhow!("mongo_cdc: watch (resume) failed: {e}"))?
-            }
+            Some(token) => collection
+                .watch()
+                .resume_after(token)
+                .await
+                .map_err(|e| anyhow!("mongo_cdc: watch (resume) failed: {e}"))?,
             None => collection
                 .watch()
                 .await

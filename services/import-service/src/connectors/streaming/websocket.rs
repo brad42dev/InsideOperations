@@ -136,8 +136,7 @@ impl StreamingConnector for WebSocketConnector {
                         _ = tokio::time::sleep(Duration::from_millis(sleep_ms)) => {}
                     }
 
-                    backoff_ms =
-                        ((backoff_ms as f64 * BACKOFF_FACTOR) as u64).min(MAX_BACKOFF_MS);
+                    backoff_ms = ((backoff_ms as f64 * BACKOFF_FACTOR) as u64).min(MAX_BACKOFF_MS);
                 }
             }
         }
@@ -158,12 +157,9 @@ async fn run_ws_connection(
     let builder = apply_ws_auth(Request::builder().uri(&url), config);
     let request = builder.body(())?;
 
-    let (ws_stream, _) = tokio::time::timeout(
-        Duration::from_secs(30),
-        connect_async(request),
-    )
-    .await
-    .map_err(|_| anyhow!("WebSocket connect timed out"))??;
+    let (ws_stream, _) = tokio::time::timeout(Duration::from_secs(30), connect_async(request))
+        .await
+        .map_err(|_| anyhow!("WebSocket connect timed out"))??;
 
     // Session is now connected
     let _ = sqlx::query(

@@ -76,9 +76,8 @@ impl DcsConnector for FoxboroConnector {
         let mut offset = 0u64;
 
         loop {
-            let url = format!(
-                "{base}/foxconnect/api/v1/compounds?count={page_size}&offset={offset}"
-            );
+            let url =
+                format!("{base}/foxconnect/api/v1/compounds?count={page_size}&offset={offset}");
             let req = apply_auth(client.get(&url), cfg);
             let resp: serde_json::Value = match req.send().await?.json().await {
                 Ok(v) => v,
@@ -88,16 +87,13 @@ impl DcsConnector for FoxboroConnector {
                 }
             };
 
-            let compounds = match resp
-                .as_array()
-                .cloned()
-                .or_else(|| {
-                    resp.get("compounds")
-                        .or_else(|| resp.get("data"))
-                        .or_else(|| resp.get("items"))
-                        .and_then(|v| v.as_array())
-                        .cloned()
-                }) {
+            let compounds = match resp.as_array().cloned().or_else(|| {
+                resp.get("compounds")
+                    .or_else(|| resp.get("data"))
+                    .or_else(|| resp.get("items"))
+                    .and_then(|v| v.as_array())
+                    .cloned()
+            }) {
                 Some(a) => a,
                 None => break,
             };
@@ -112,11 +108,7 @@ impl DcsConnector for FoxboroConnector {
                     .to_string();
 
                 // A compound may embed its blocks directly, or blocks may be nested
-                let blocks = match compound
-                    .get("blocks")
-                    .and_then(|v| v.as_array())
-                    .cloned()
-                {
+                let blocks = match compound.get("blocks").and_then(|v| v.as_array()).cloned() {
                     Some(b) => b,
                     None => {
                         // If no inline blocks, treat compound itself as a tag entry
@@ -211,16 +203,13 @@ impl DcsConnector for FoxboroConnector {
             }
         };
 
-        let items = match resp
-            .as_array()
-            .cloned()
-            .or_else(|| {
-                resp.get("alarms")
-                    .or_else(|| resp.get("data"))
-                    .or_else(|| resp.get("items"))
-                    .and_then(|v| v.as_array())
-                    .cloned()
-            }) {
+        let items = match resp.as_array().cloned().or_else(|| {
+            resp.get("alarms")
+                .or_else(|| resp.get("data"))
+                .or_else(|| resp.get("items"))
+                .and_then(|v| v.as_array())
+                .cloned()
+        }) {
             Some(a) => a,
             None => return Ok(vec![]),
         };

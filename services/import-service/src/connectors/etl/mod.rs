@@ -4,21 +4,21 @@
 //! `SourceRecord`s for the pipeline), as opposed to the supplemental `DcsConnector`
 //! trait which augments OPC UA metadata with side-channel data.
 
-pub mod rest;
 pub mod file_csv;
 pub mod file_excel;
 pub mod file_json;
-pub mod file_xml;
-pub mod sql_postgres;
-pub mod sql_mysql;
-pub mod sql_mssql;
-pub mod odbc;
-pub mod sftp;
-pub mod mongodb;
 pub mod file_polling;
+pub mod file_xml;
 pub mod ftp;
 pub mod local_file;
+pub mod mongodb;
+pub mod odbc;
+pub mod rest;
 pub mod s3;
+pub mod sftp;
+pub mod sql_mssql;
+pub mod sql_mysql;
+pub mod sql_postgres;
 
 use anyhow::Result;
 use serde_json::Value as JsonValue;
@@ -109,7 +109,10 @@ pub fn get_etl_connector(connection_type: &str) -> Option<Box<dyn EtlConnector>>
 
 /// Read file bytes from either an uploaded file (by file_id prefix match in upload_dir)
 /// or from inline `source_config.data` text.
-pub async fn resolve_file_content(source_config: &JsonValue, upload_dir: &str) -> anyhow::Result<Vec<u8>> {
+pub async fn resolve_file_content(
+    source_config: &JsonValue,
+    upload_dir: &str,
+) -> anyhow::Result<Vec<u8>> {
     if let Some(file_id) = source_config.get("file_id").and_then(|v| v.as_str()) {
         let mut entries = tokio::fs::read_dir(upload_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
@@ -117,7 +120,9 @@ pub async fn resolve_file_content(source_config: &JsonValue, upload_dir: &str) -
                 return Ok(tokio::fs::read(entry.path()).await?);
             }
         }
-        Err(anyhow::anyhow!("Uploaded file not found: file_id={file_id}"))
+        Err(anyhow::anyhow!(
+            "Uploaded file not found: file_id={file_id}"
+        ))
     } else if let Some(data) = source_config.get("data").and_then(|v| v.as_str()) {
         Ok(data.as_bytes().to_vec())
     } else {
@@ -188,7 +193,10 @@ pub fn validate_sql_identifier(name: &str) -> anyhow::Result<()> {
     if name.is_empty() {
         anyhow::bail!("SQL identifier cannot be empty");
     }
-    if name.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '[' | ']')) {
+    if name
+        .chars()
+        .all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '[' | ']'))
+    {
         Ok(())
     } else {
         anyhow::bail!("invalid SQL identifier '{name}': contains disallowed characters")

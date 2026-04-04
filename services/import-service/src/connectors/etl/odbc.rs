@@ -81,7 +81,8 @@ impl EtlConnector for OdbcConnector {
 
                 let num_cols = cursor
                     .num_result_cols()
-                    .map_err(|e| anyhow!("odbc: num_result_cols failed: {e}"))? as usize;
+                    .map_err(|e| anyhow!("odbc: num_result_cols failed: {e}"))?
+                    as usize;
 
                 let mut fields: Vec<SchemaField> = Vec::with_capacity(num_cols);
                 for i in 1..=num_cols {
@@ -99,7 +100,10 @@ impl EtlConnector for OdbcConnector {
             .await
             .map_err(|e| anyhow!("odbc: spawn_blocking error: {e}"))??;
 
-            return Ok(vec![SchemaTable { name: table, fields }]);
+            return Ok(vec![SchemaTable {
+                name: table,
+                fields,
+            }]);
         }
 
         // Fallback: derive from first extracted record.
@@ -161,7 +165,8 @@ impl EtlConnector for OdbcConnector {
 
             let num_cols = cursor
                 .num_result_cols()
-                .map_err(|e| anyhow!("odbc: num_result_cols failed: {e}"))? as usize;
+                .map_err(|e| anyhow!("odbc: num_result_cols failed: {e}"))?
+                as usize;
 
             let mut col_names: Vec<String> = Vec::with_capacity(num_cols);
             for i in 1..=num_cols {
@@ -190,8 +195,7 @@ impl EtlConnector for OdbcConnector {
                     if records.len() >= max_rows {
                         break 'outer;
                     }
-                    let mut fields: HashMap<String, JsonValue> =
-                        HashMap::with_capacity(num_cols);
+                    let mut fields: HashMap<String, JsonValue> = HashMap::with_capacity(num_cols);
                     for (col_idx, name) in col_names.iter().cloned().enumerate() {
                         let val = match batch.at(col_idx, row_idx) {
                             Some(bytes) => {

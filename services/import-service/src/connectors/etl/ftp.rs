@@ -24,8 +24,8 @@ use super::{
     file_csv::{CsvFileConnector, TsvFileConnector},
     file_excel::ExcelFileConnector,
     file_json::JsonFileConnector,
-    file_xml::XmlFileConnector,
     file_polling::{make_sentinel, matches_pattern, FilePollingState},
+    file_xml::XmlFileConnector,
     EtlConnector, EtlConnectorConfig,
 };
 use crate::handlers::import::{SchemaField, SchemaTable};
@@ -78,7 +78,10 @@ impl FtpConnector {
         Ok(ftp)
     }
 
-    async fn poll_directory(cfg: &EtlConnectorConfig, remote_dir: &str) -> Result<Vec<SourceRecord>> {
+    async fn poll_directory(
+        cfg: &EtlConnectorConfig,
+        remote_dir: &str,
+    ) -> Result<Vec<SourceRecord>> {
         let file_pattern = cfg
             .source_config
             .get("file_pattern")
@@ -131,10 +134,7 @@ impl FtpConnector {
             let remote_path = format!("{}/{}", remote_dir.trim_end_matches('/'), file_name);
 
             // Fetch size (best-effort)
-            let size: u64 = ftp
-                .size(&remote_path)
-                .await
-                .unwrap_or(0) as u64;
+            let size: u64 = ftp.size(&remote_path).await.unwrap_or(0) as u64;
 
             // Fetch mtime via MDTM (best-effort).
             // suppaftp returns NaiveDateTime; use .and_utc() to get Unix timestamp.
@@ -277,7 +277,10 @@ impl EtlConnector for FtpConnector {
 fn make_inline_cfg(cfg: &EtlConnectorConfig, file_id: &str) -> EtlConnectorConfig {
     let mut inline_source = cfg.source_config.clone();
     if let Some(obj) = inline_source.as_object_mut() {
-        obj.insert("file_id".to_string(), serde_json::Value::String(file_id.to_string()));
+        obj.insert(
+            "file_id".to_string(),
+            serde_json::Value::String(file_id.to_string()),
+        );
     }
     let mut inline_cfg = cfg.clone();
     inline_cfg.source_config = inline_source;

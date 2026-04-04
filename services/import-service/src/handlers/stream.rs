@@ -20,10 +20,7 @@ use crate::state::AppState;
 
 pub fn stream_routes() -> Router<AppState> {
     Router::new()
-        .route(
-            "/definitions/:id/stream-session",
-            get(get_stream_session),
-        )
+        .route("/definitions/:id/stream-session", get(get_stream_session))
         .route(
             "/definitions/:id/stream-session/stop",
             post(stop_stream_session),
@@ -59,8 +56,9 @@ async fn get_stream_session(
             let session_id: Uuid = r.try_get("id").unwrap_or_default();
             let status: String = r.try_get("status").unwrap_or_default();
             let session_type: String = r.try_get("session_type").unwrap_or_default();
-            let started_at: chrono::DateTime<chrono::Utc> =
-                r.try_get("started_at").unwrap_or_else(|_| chrono::Utc::now());
+            let started_at: chrono::DateTime<chrono::Utc> = r
+                .try_get("started_at")
+                .unwrap_or_else(|_| chrono::Utc::now());
             let last_event_at: Option<chrono::DateTime<chrono::Utc>> =
                 r.try_get("last_event_at").ok().flatten();
             let reconnect_count: i32 = r.try_get("reconnect_count").unwrap_or(0);

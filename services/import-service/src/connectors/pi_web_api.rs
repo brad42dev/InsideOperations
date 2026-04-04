@@ -110,7 +110,9 @@ impl DcsConnector for PiWebApiConnector {
                             // PI stores Zero (lower bound) and Span (delta from Zero).
                             // eu_range_high is the absolute upper bound: Zero + Span.
                             let zero = p.get("Zero").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                            p.get("Span").and_then(|v| v.as_f64()).map(|span| zero + span)
+                            p.get("Span")
+                                .and_then(|v| v.as_f64())
+                                .map(|span| zero + span)
                         },
                         alarm_limit_hh: None,
                         alarm_limit_h: None,

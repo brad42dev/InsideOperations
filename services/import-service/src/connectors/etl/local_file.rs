@@ -21,8 +21,8 @@ use super::{
     file_csv::{CsvFileConnector, TsvFileConnector},
     file_excel::ExcelFileConnector,
     file_json::JsonFileConnector,
-    file_xml::XmlFileConnector,
     file_polling::{make_sentinel, matches_pattern, FilePollingState},
+    file_xml::XmlFileConnector,
     EtlConnector, EtlConnectorConfig,
 };
 use crate::handlers::import::{SchemaField, SchemaTable};
@@ -35,7 +35,10 @@ use crate::pipeline::SourceRecord;
 pub struct LocalFileConnector;
 
 impl LocalFileConnector {
-    async fn poll_directory(cfg: &EtlConnectorConfig, watch_dir: &str) -> Result<Vec<SourceRecord>> {
+    async fn poll_directory(
+        cfg: &EtlConnectorConfig,
+        watch_dir: &str,
+    ) -> Result<Vec<SourceRecord>> {
         let file_pattern = cfg
             .source_config
             .get("file_pattern")
@@ -58,7 +61,10 @@ impl LocalFileConnector {
         // Verify watch directory exists
         let watch_path = Path::new(watch_dir);
         if !watch_path.exists() {
-            warn!(watch_dir, "local_file: watch directory does not exist; returning empty");
+            warn!(
+                watch_dir,
+                "local_file: watch directory does not exist; returning empty"
+            );
             all_records.push(make_sentinel(&state));
             return Ok(all_records);
         }
@@ -69,9 +75,11 @@ impl LocalFileConnector {
             .await
             .map_err(|e| anyhow!("local_file: read_dir({watch_dir}) failed: {e}"))?;
 
-        while let Some(entry) = dir.next_entry().await.map_err(|e| {
-            anyhow!("local_file: read_dir entry error in {watch_dir}: {e}")
-        })? {
+        while let Some(entry) = dir
+            .next_entry()
+            .await
+            .map_err(|e| anyhow!("local_file: read_dir entry error in {watch_dir}: {e}"))?
+        {
             let file_name = entry.file_name().to_string_lossy().into_owned();
             if !matches_pattern(&file_name, file_pattern) {
                 continue;
@@ -217,7 +225,10 @@ impl EtlConnector for LocalFileConnector {
 fn make_inline_cfg(cfg: &EtlConnectorConfig, file_id: &str) -> EtlConnectorConfig {
     let mut inline_source = cfg.source_config.clone();
     if let Some(obj) = inline_source.as_object_mut() {
-        obj.insert("file_id".to_string(), serde_json::Value::String(file_id.to_string()));
+        obj.insert(
+            "file_id".to_string(),
+            serde_json::Value::String(file_id.to_string()),
+        );
     }
     let mut inline_cfg = cfg.clone();
     inline_cfg.source_config = inline_source;

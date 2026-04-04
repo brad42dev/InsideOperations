@@ -58,8 +58,13 @@ impl S3FileConnector {
                 .get("secret_access_key")
                 .and_then(|v| v.as_str()),
         ) {
-            config_loader = config_loader
-                .credentials_provider(Credentials::new(key_id, secret, None, None, "io-import"));
+            config_loader = config_loader.credentials_provider(Credentials::new(
+                key_id,
+                secret,
+                None,
+                None,
+                "io-import",
+            ));
         }
 
         let sdk_config = config_loader.load().await;
@@ -193,10 +198,7 @@ impl EtlConnector for S3FileConnector {
                 continue;
             }
 
-            let mtime: i64 = obj
-                .last_modified()
-                .map(|dt| dt.secs())
-                .unwrap_or(0);
+            let mtime: i64 = obj.last_modified().map(|dt| dt.secs()).unwrap_or(0);
             let size: u64 = obj.size().unwrap_or(0) as u64;
 
             if state.is_new(file_name, mtime, size) {
@@ -216,13 +218,7 @@ impl EtlConnector for S3FileConnector {
             info!(key = %key, "s3: processing new/modified object");
 
             // Download object
-            let bytes = match client
-                .get_object()
-                .bucket(&bucket)
-                .key(&key)
-                .send()
-                .await
-            {
+            let bytes = match client.get_object().bucket(&bucket).key(&key).send().await {
                 Ok(output) => match output.body.collect().await {
                     Ok(aggregated) => aggregated.into_bytes().to_vec(),
                     Err(e) => {
@@ -259,8 +255,7 @@ impl EtlConnector for S3FileConnector {
 
                     // Archive: S3 copy + delete (no server-side rename)
                     if let Some(ref archive) = archive_prefix {
-                        let dest_key =
-                            format!("{}/{}", archive.trim_end_matches('/'), file_name);
+                        let dest_key = format!("{}/{}", archive.trim_end_matches('/'), file_name);
                         let copy_source = format!("{}/{}", bucket, key);
                         let copy_ok = client
                             .copy_object()

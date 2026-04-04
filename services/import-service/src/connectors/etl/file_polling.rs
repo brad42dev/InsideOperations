@@ -82,10 +82,7 @@ use crate::pipeline::SourceRecord;
 /// as the signal. The pipeline strips this record before mapping/loading.
 pub fn make_sentinel(state: &FilePollingState) -> SourceRecord {
     let mut fields = HashMap::new();
-    fields.insert(
-        "__io_fp_state__".to_string(),
-        state.to_watermark(),
-    );
+    fields.insert("__io_fp_state__".to_string(), state.to_watermark());
     SourceRecord {
         row_number: 0,
         raw: String::new(),

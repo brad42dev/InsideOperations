@@ -25,10 +25,7 @@ use futures::future::BoxFuture;
 use mysql_cdc::{
     binlog_client::BinlogClient,
     binlog_options::BinlogOptions,
-    events::{
-        binlog_event::BinlogEvent,
-        row_events::mysql_value::MySqlValue,
-    },
+    events::{binlog_event::BinlogEvent, row_events::mysql_value::MySqlValue},
     replica_options::ReplicaOptions,
     ssl_mode::SslMode,
 };
@@ -227,12 +224,15 @@ fn binlog_event_to_json(
             for row in &e.rows {
                 rows.push(cells_to_json(&row.cells, table_info));
             }
-            Some(("insert".into(), serde_json::json!({
-                "op": "insert",
-                "table": table_info.map(|t| t.table_name.as_str()).unwrap_or("?"),
-                "database": table_info.map(|t| t.database_name.as_str()).unwrap_or("?"),
-                "rows": rows,
-            })))
+            Some((
+                "insert".into(),
+                serde_json::json!({
+                    "op": "insert",
+                    "table": table_info.map(|t| t.table_name.as_str()).unwrap_or("?"),
+                    "database": table_info.map(|t| t.database_name.as_str()).unwrap_or("?"),
+                    "rows": rows,
+                }),
+            ))
         }
         BinlogEvent::UpdateRowsEvent(e) => {
             let table_info = table_map.get(&e.table_id);
@@ -243,12 +243,15 @@ fn binlog_event_to_json(
                     "after": cells_to_json(&row.after_update.cells, table_info),
                 }));
             }
-            Some(("update".into(), serde_json::json!({
-                "op": "update",
-                "table": table_info.map(|t| t.table_name.as_str()).unwrap_or("?"),
-                "database": table_info.map(|t| t.database_name.as_str()).unwrap_or("?"),
-                "rows": rows,
-            })))
+            Some((
+                "update".into(),
+                serde_json::json!({
+                    "op": "update",
+                    "table": table_info.map(|t| t.table_name.as_str()).unwrap_or("?"),
+                    "database": table_info.map(|t| t.database_name.as_str()).unwrap_or("?"),
+                    "rows": rows,
+                }),
+            ))
         }
         BinlogEvent::DeleteRowsEvent(e) => {
             let table_info = table_map.get(&e.table_id);
@@ -256,12 +259,15 @@ fn binlog_event_to_json(
             for row in &e.rows {
                 rows.push(cells_to_json(&row.cells, table_info));
             }
-            Some(("delete".into(), serde_json::json!({
-                "op": "delete",
-                "table": table_info.map(|t| t.table_name.as_str()).unwrap_or("?"),
-                "database": table_info.map(|t| t.database_name.as_str()).unwrap_or("?"),
-                "rows": rows,
-            })))
+            Some((
+                "delete".into(),
+                serde_json::json!({
+                    "op": "delete",
+                    "table": table_info.map(|t| t.table_name.as_str()).unwrap_or("?"),
+                    "database": table_info.map(|t| t.database_name.as_str()).unwrap_or("?"),
+                    "rows": rows,
+                }),
+            ))
         }
         _ => None,
     }
@@ -283,7 +289,10 @@ fn cells_to_json(
                 .and_then(|names| names.get(i))
                 .cloned()
                 .unwrap_or_else(|| format!("col_{i}"));
-            let val = cell.as_ref().map(mysql_value_to_json).unwrap_or(JsonValue::Null);
+            let val = cell
+                .as_ref()
+                .map(mysql_value_to_json)
+                .unwrap_or(JsonValue::Null);
             (key, val)
         })
         .collect();
@@ -307,10 +316,10 @@ fn mysql_value_to_json(v: &MySqlValue) -> JsonValue {
         MySqlValue::String(s) => JsonValue::String(s.clone()),
         MySqlValue::Blob(b) => JsonValue::String(BASE64_STANDARD.encode(b)),
         MySqlValue::Bit(bits) => {
-            let val: u64 = bits
-                .iter()
-                .enumerate()
-                .fold(0u64, |acc, (i, &b)| if b { acc | (1u64 << i) } else { acc });
+            let val: u64 =
+                bits.iter()
+                    .enumerate()
+                    .fold(0u64, |acc, (i, &b)| if b { acc | (1u64 << i) } else { acc });
             JsonValue::Number(val.into())
         }
         MySqlValue::Enum(n) => JsonValue::Number((*n as i64).into()),

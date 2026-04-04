@@ -24,8 +24,8 @@ use super::{
     file_csv::{CsvFileConnector, TsvFileConnector},
     file_excel::ExcelFileConnector,
     file_json::JsonFileConnector,
-    file_xml::XmlFileConnector,
     file_polling::{make_sentinel, matches_pattern, FilePollingState},
+    file_xml::XmlFileConnector,
     EtlConnector, EtlConnectorConfig,
 };
 use crate::handlers::import::{SchemaField, SchemaTable};
@@ -146,8 +146,7 @@ impl SftpConnector {
 
         // Write to a temp file in upload_dir
         let file_id = Uuid::new_v4().to_string();
-        let temp_path: std::path::PathBuf = std::path::Path::new(&cfg.upload_dir)
-            .join(&file_id);
+        let temp_path: std::path::PathBuf = std::path::Path::new(&cfg.upload_dir).join(&file_id);
         tokio::fs::write(&temp_path, &bytes)
             .await
             .map_err(|e| anyhow!("sftp: failed to write temp file: {e}"))?;
@@ -155,10 +154,7 @@ impl SftpConnector {
         // Build an EtlConnectorConfig variant that references the temp file
         let mut inline_source = cfg.source_config.clone();
         if let Some(obj) = inline_source.as_object_mut() {
-            obj.insert(
-                "file_id".to_string(),
-                JsonValue::String(file_id),
-            );
+            obj.insert("file_id".to_string(), JsonValue::String(file_id));
         }
         let mut inline_cfg = cfg.clone();
         inline_cfg.source_config = inline_source;
@@ -200,7 +196,10 @@ impl SftpConnector {
 
     /// Directory polling mode: list `remote_dir`, filter by `file_pattern`,
     /// download new/modified files, dispatch to parser, optionally archive.
-    async fn poll_directory(cfg: &EtlConnectorConfig, remote_dir: &str) -> Result<Vec<SourceRecord>> {
+    async fn poll_directory(
+        cfg: &EtlConnectorConfig,
+        remote_dir: &str,
+    ) -> Result<Vec<SourceRecord>> {
         let file_pattern = cfg
             .source_config
             .get("file_pattern")
@@ -279,11 +278,8 @@ impl SftpConnector {
 
                             // Archive: rename on the remote server
                             if let Some(ref archive) = archive_dir {
-                                let dest = format!(
-                                    "{}/{}",
-                                    archive.trim_end_matches('/'),
-                                    file_name
-                                );
+                                let dest =
+                                    format!("{}/{}", archive.trim_end_matches('/'), file_name);
                                 if let Err(e) = sftp.rename(&remote_path, &dest).await {
                                     warn!(file = %file_name, archive = %archive, "sftp: archive rename failed: {e}");
                                 }
@@ -348,10 +344,7 @@ impl EtlConnector for SftpConnector {
 
     async fn extract(&self, cfg: &EtlConnectorConfig) -> Result<Vec<SourceRecord>> {
         // Directory polling mode when remote_dir is set; single-file otherwise.
-        let remote_dir = cfg
-            .source_config
-            .get("remote_dir")
-            .and_then(|v| v.as_str());
+        let remote_dir = cfg.source_config.get("remote_dir").and_then(|v| v.as_str());
 
         if let Some(dir) = remote_dir {
             Self::poll_directory(cfg, dir).await

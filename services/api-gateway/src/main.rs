@@ -1159,10 +1159,7 @@ async fn proxy_import(
 
 /// Proxy webhook receiver to import-service WITHOUT JWT validation or RBAC checks.
 /// Security is provided by the HMAC-SHA256 signature validation inside import-service.
-async fn proxy_import_webhook(
-    State(state): State<AppState>,
-    req: Request,
-) -> Response {
+async fn proxy_import_webhook(State(state): State<AppState>, req: Request) -> Response {
     let path = req
         .uri()
         .path()

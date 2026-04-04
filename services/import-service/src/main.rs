@@ -171,8 +171,10 @@ async fn service_secret_middleware(
 /// Individual connectors are polled only when their configured interval has elapsed.
 async fn run_supplemental_connectors(db: sqlx::PgPool, master_key: [u8; 32]) {
     // Per-connection last-poll timestamps: (last_metadata_poll, last_event_poll)
-    let mut last_polls: std::collections::HashMap<uuid::Uuid, (std::time::Instant, std::time::Instant)> =
-        std::collections::HashMap::new();
+    let mut last_polls: std::collections::HashMap<
+        uuid::Uuid,
+        (std::time::Instant, std::time::Instant),
+    > = std::collections::HashMap::new();
 
     let mut interval = tokio::time::interval(Duration::from_secs(60));
     loop {
@@ -247,9 +249,10 @@ async fn poll_supplemental_connectors(
         let event_interval = Duration::from_secs(event_interval_secs);
 
         let now = std::time::Instant::now();
-        let (last_meta, last_event) = last_polls
-            .entry(conn_id)
-            .or_insert((now - meta_interval - Duration::from_secs(1), now - event_interval - Duration::from_secs(1)));
+        let (last_meta, last_event) = last_polls.entry(conn_id).or_insert((
+            now - meta_interval - Duration::from_secs(1),
+            now - event_interval - Duration::from_secs(1),
+        ));
 
         let do_metadata = now.duration_since(*last_meta) >= meta_interval;
         let do_events = connector.has_events() && now.duration_since(*last_event) >= event_interval;
@@ -303,8 +306,8 @@ async fn poll_supplemental_connectors(
 
         // Fetch and write events (only if connector supports it and interval elapsed)
         if do_events {
-            let since = chrono::Utc::now()
-                - chrono::Duration::seconds(event_interval_secs as i64 + 60);
+            let since =
+                chrono::Utc::now() - chrono::Duration::seconds(event_interval_secs as i64 + 60);
             match connector.fetch_events(&cfg, since).await {
                 Ok(events) => {
                     let event_count = events.len() as i32;
@@ -446,12 +449,10 @@ async fn poll_import_schedules(
                 "failed to create import_run for scheduled job: {e}"
             );
             // Clear running flag so the schedule can be retried next cycle.
-            let _ = sqlx::query(
-                "UPDATE import_schedules SET running = false WHERE id = $1",
-            )
-            .bind(schedule_id)
-            .execute(db)
-            .await;
+            let _ = sqlx::query("UPDATE import_schedules SET running = false WHERE id = $1")
+                .bind(schedule_id)
+                .execute(db)
+                .await;
         } else {
             // Spawn the ETL pipeline.
             // The running=false and next_run_at update happen INSIDE the spawned task
@@ -499,9 +500,8 @@ async fn poll_import_schedules(
                                 None
                             }
                         }),
-                    "interval" => interval_secs.map(|secs| {
-                        chrono::Utc::now() + chrono::Duration::seconds(secs as i64)
-                    }),
+                    "interval" => interval_secs
+                        .map(|secs| chrono::Utc::now() + chrono::Duration::seconds(secs as i64)),
                     "file_arrival" => {
                         let poll_interval = sched_cfg
                             .get("poll_interval_seconds")
@@ -529,9 +529,9 @@ async fn poll_import_schedules(
                     .bind(next)
                     .execute(&db_inner)
                     .await
-                    .map_err(|e| {
-                        warn!(schedule_id = %sched_id, "failed to advance next_run_at: {e}")
-                    });
+                    .map_err(
+                        |e| warn!(schedule_id = %sched_id, "failed to advance next_run_at: {e}"),
+                    );
                 } else {
                     let _ = sqlx::query(
                         "UPDATE import_schedules SET running = false WHERE id = $1",
@@ -539,9 +539,9 @@ async fn poll_import_schedules(
                     .bind(sched_id)
                     .execute(&db_inner)
                     .await
-                    .map_err(|e| {
-                        warn!(schedule_id = %sched_id, "failed to clear running flag: {e}")
-                    });
+                    .map_err(
+                        |e| warn!(schedule_id = %sched_id, "failed to clear running flag: {e}"),
+                    );
                 }
             });
         }
@@ -1581,8 +1581,8 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
         let target_tables: Vec<String> = t.target_tables.iter().map(|s| s.to_string()).collect();
         let required_fields_json: serde_json::Value =
             serde_json::from_str(t.required_fields).unwrap_or(serde_json::Value::Array(vec![]));
-        let template_config_json: serde_json::Value =
-            serde_json::from_str(t.template_config).unwrap_or(serde_json::Value::Object(Default::default()));
+        let template_config_json: serde_json::Value = serde_json::from_str(t.template_config)
+            .unwrap_or(serde_json::Value::Object(Default::default()));
         let result = sqlx::query(
             "INSERT INTO connector_templates \
              (slug, name, domain, vendor, description, template_config, required_fields, target_tables, version) \

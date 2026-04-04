@@ -95,11 +95,7 @@ impl EtlConnector for MongoConnector {
         for name in collection_names {
             let collection = db.collection::<Document>(&name);
             // Sample one document to infer field names
-            let fields = if let Some(doc) = collection
-                .find_one(doc! {})
-                .await
-                .unwrap_or(None)
-            {
+            let fields = if let Some(doc) = collection.find_one(doc! {}).await.unwrap_or(None) {
                 doc.keys()
                     .map(|k| SchemaField {
                         name: k.clone(),
@@ -125,21 +121,22 @@ impl EtlConnector for MongoConnector {
             .to_string();
 
         let mut filter_doc = Self::json_to_doc(cfg.source_config.get("filter"));
-        let projection_doc =
-            cfg.source_config
-                .get("projection")
-                .and_then(|v| serde_json::from_value::<Document>(v.clone()).ok());
+        let projection_doc = cfg
+            .source_config
+            .get("projection")
+            .and_then(|v| serde_json::from_value::<Document>(v.clone()).ok());
 
         // Apply watermark filter
         if let Some(ref wm) = cfg.watermark_state {
-            let wm_column = cfg.source_config
+            let wm_column = cfg
+                .source_config
                 .get("watermark_column")
                 .and_then(|v| v.as_str());
-            let last_value = wm.get("last_value")
-                .and_then(|v| v.as_str());
+            let last_value = wm.get("last_value").and_then(|v| v.as_str());
 
             if let (Some(col), Some(val)) = (wm_column, last_value) {
-                let wm_type = wm.get("watermark_type")
+                let wm_type = wm
+                    .get("watermark_type")
                     .and_then(|v| v.as_str())
                     .unwrap_or("timestamp");
                 if wm_type == "objectid" {

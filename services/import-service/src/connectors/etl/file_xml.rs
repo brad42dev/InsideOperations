@@ -10,9 +10,9 @@ use quick_xml::Reader;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 
+use super::{resolve_file_content, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{resolve_file_content, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // XmlFileConnector
@@ -70,8 +70,8 @@ impl EtlConnector for XmlFileConnector {
                     .collect()
             });
 
-        let text = std::str::from_utf8(&bytes)
-            .map_err(|e| anyhow!("xml_file: invalid UTF-8: {e}"))?;
+        let text =
+            std::str::from_utf8(&bytes).map_err(|e| anyhow!("xml_file: invalid UTF-8: {e}"))?;
 
         let mut reader = Reader::from_str(text);
         reader.config_mut().trim_text(true);
@@ -106,12 +106,8 @@ impl EtlConnector for XmlFileConnector {
                 Ok(Event::Text(e)) => {
                     if in_record {
                         if let Some(ref field_name) = current_child {
-                            let text_val = e
-                                .unescape()
-                                .map(|s| s.into_owned())
-                                .unwrap_or_default();
-                            current_fields
-                                .insert(field_name.clone(), JsonValue::String(text_val));
+                            let text_val = e.unescape().map(|s| s.into_owned()).unwrap_or_default();
+                            current_fields.insert(field_name.clone(), JsonValue::String(text_val));
                         }
                     }
                 }

@@ -13,9 +13,9 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgRow, PgSslMode};
 use sqlx::{Column, Row, TypeInfo};
 use std::collections::HashMap;
 
+use super::{validate_sql_identifier, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{validate_sql_identifier, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // PostgresConnector
@@ -94,9 +94,7 @@ impl PostgresConnector {
                     .try_get::<bool, _>(idx)
                     .map(JsonValue::Bool)
                     .unwrap_or(JsonValue::Null),
-                "JSON" | "JSONB" => row
-                    .try_get::<JsonValue, _>(idx)
-                    .unwrap_or(JsonValue::Null),
+                "JSON" | "JSONB" => row.try_get::<JsonValue, _>(idx).unwrap_or(JsonValue::Null),
                 _ => row
                     .try_get::<String, _>(idx)
                     .map(JsonValue::String)
@@ -149,7 +147,9 @@ impl EtlConnector for PostgresConnector {
                 .iter()
                 .map(|r| SchemaField {
                     name: r.try_get::<String, _>(0).unwrap_or_default(),
-                    data_type: r.try_get::<String, _>(1).unwrap_or_else(|_| "text".to_string()),
+                    data_type: r
+                        .try_get::<String, _>(1)
+                        .unwrap_or_else(|_| "text".to_string()),
                 })
                 .collect();
             return Ok(vec![SchemaTable {
@@ -188,19 +188,21 @@ impl EtlConnector for PostgresConnector {
         // Apply watermark filter by wrapping the user's query in a subquery
         let effective_query;
         let sql = if let Some(ref wm) = cfg.watermark_state {
-            let wm_column = cfg.source_config
+            let wm_column = cfg
+                .source_config
                 .get("watermark_column")
                 .and_then(|v| v.as_str());
-            let wm_type = wm.get("watermark_type")
+            let wm_type = wm
+                .get("watermark_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("timestamp");
-            let last_value = wm.get("last_value")
-                .and_then(|v| v.as_str());
+            let last_value = wm.get("last_value").and_then(|v| v.as_str());
 
             if let (Some(col), Some(val)) = (wm_column, last_value) {
                 validate_sql_identifier(col)
                     .map_err(|e| anyhow!("postgresql: invalid watermark_column: {e}"))?;
-                let lookback_seconds = cfg.source_config
+                let lookback_seconds = cfg
+                    .source_config
                     .get("watermark_lookback_seconds")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(120);

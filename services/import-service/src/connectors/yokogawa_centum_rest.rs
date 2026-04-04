@@ -53,10 +53,7 @@ impl DcsConnector for YokogawaCentumConnector {
         let resp = req.send().await?;
         if !resp.status().is_success() {
             // Try the tags endpoint as a fallback health check
-            let req2 = apply_auth(
-                client.get(format!("{base}/prm/api/v1/tags?count=1")),
-                cfg,
-            );
+            let req2 = apply_auth(client.get(format!("{base}/prm/api/v1/tags?count=1")), cfg);
             let resp2 = req2.send().await?;
             if !resp2.status().is_success() {
                 return Err(anyhow!(
@@ -81,8 +78,7 @@ impl DcsConnector for YokogawaCentumConnector {
         let mut offset = 0u64;
 
         loop {
-            let url =
-                format!("{base}/prm/api/v1/tags?count={page_size}&offset={offset}");
+            let url = format!("{base}/prm/api/v1/tags?count={page_size}&offset={offset}");
             let req = apply_auth(client.get(&url), cfg);
             let resp: serde_json::Value = match req.send().await?.json().await {
                 Ok(v) => v,
@@ -92,16 +88,13 @@ impl DcsConnector for YokogawaCentumConnector {
                 }
             };
 
-            let items = match resp
-                .as_array()
-                .cloned()
-                .or_else(|| {
-                    resp.get("data")
-                        .or_else(|| resp.get("items"))
-                        .or_else(|| resp.get("tags"))
-                        .and_then(|v| v.as_array())
-                        .cloned()
-                }) {
+            let items = match resp.as_array().cloned().or_else(|| {
+                resp.get("data")
+                    .or_else(|| resp.get("items"))
+                    .or_else(|| resp.get("tags"))
+                    .and_then(|v| v.as_array())
+                    .cloned()
+            }) {
                 Some(a) => a,
                 None => break,
             };
@@ -177,8 +170,7 @@ impl DcsConnector for YokogawaCentumConnector {
         let start_str = since.to_rfc3339();
         let end_str = Utc::now().to_rfc3339();
 
-        let url =
-            format!("{base}/prm/api/v1/alarms?startTime={start_str}&endTime={end_str}");
+        let url = format!("{base}/prm/api/v1/alarms?startTime={start_str}&endTime={end_str}");
         let req = apply_auth(client.get(&url), cfg);
         let resp: serde_json::Value = match req.send().await?.json().await {
             Ok(v) => v,
@@ -188,16 +180,13 @@ impl DcsConnector for YokogawaCentumConnector {
             }
         };
 
-        let items = match resp
-            .as_array()
-            .cloned()
-            .or_else(|| {
-                resp.get("alarms")
-                    .or_else(|| resp.get("data"))
-                    .or_else(|| resp.get("items"))
-                    .and_then(|v| v.as_array())
-                    .cloned()
-            }) {
+        let items = match resp.as_array().cloned().or_else(|| {
+            resp.get("alarms")
+                .or_else(|| resp.get("data"))
+                .or_else(|| resp.get("items"))
+                .and_then(|v| v.as_array())
+                .cloned()
+        }) {
             Some(a) => a,
             None => return Ok(vec![]),
         };

@@ -9,9 +9,9 @@ use anyhow::{anyhow, Result};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 
+use super::{extract_by_path, resolve_file_content, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{extract_by_path, resolve_file_content, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // JsonFileConnector

@@ -67,15 +67,11 @@ pub async fn receive_webhook(
     };
 
     let definition_id: uuid::Uuid = schedule_row.try_get("definition_id").unwrap();
-    let schedule_config: serde_json::Value = schedule_row
-        .try_get("schedule_config")
-        .unwrap_or_default();
+    let schedule_config: serde_json::Value =
+        schedule_row.try_get("schedule_config").unwrap_or_default();
 
     // 2. HMAC validation (if hmac_secret is configured)
-    if let Some(hmac_secret) = schedule_config
-        .get("hmac_secret")
-        .and_then(|v| v.as_str())
-    {
+    if let Some(hmac_secret) = schedule_config.get("hmac_secret").and_then(|v| v.as_str()) {
         let signature_header = headers
             .get("x-io-signature")
             .and_then(|v| v.to_str().ok())
@@ -86,10 +82,7 @@ pub async fn receive_webhook(
         mac.update(&body);
         let expected = hex::encode(mac.finalize().into_bytes());
 
-        if !constant_time_eq::constant_time_eq(
-            signature_header.as_bytes(),
-            expected.as_bytes(),
-        ) {
+        if !constant_time_eq::constant_time_eq(signature_header.as_bytes(), expected.as_bytes()) {
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({"error": "invalid signature"})),
@@ -174,13 +167,12 @@ pub async fn generate_webhook_token(
     Path(definition_id): Path<uuid::Uuid>,
 ) -> impl IntoResponse {
     // Verify the definition exists
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM import_definitions WHERE id = $1)",
-    )
-    .bind(definition_id)
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(false);
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM import_definitions WHERE id = $1)")
+            .bind(definition_id)
+            .fetch_one(&state.db)
+            .await
+            .unwrap_or(false);
 
     if !exists {
         return (

@@ -13,9 +13,9 @@ use mysql_async::{OptsBuilder, Row as MysqlRow, Value as MysqlValue};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 
+use super::{validate_sql_identifier, EtlConnector, EtlConnectorConfig};
 use crate::handlers::import::{SchemaField, SchemaTable};
 use crate::pipeline::SourceRecord;
-use super::{validate_sql_identifier, EtlConnector, EtlConnectorConfig};
 
 // ---------------------------------------------------------------------------
 // MySqlConnector
@@ -65,9 +65,7 @@ impl MySqlConnector {
     fn mysql_value_to_json(value: MysqlValue) -> JsonValue {
         match value {
             MysqlValue::NULL => JsonValue::Null,
-            MysqlValue::Bytes(b) => {
-                JsonValue::String(String::from_utf8_lossy(&b).into_owned())
-            }
+            MysqlValue::Bytes(b) => JsonValue::String(String::from_utf8_lossy(&b).into_owned()),
             MysqlValue::Int(i) => JsonValue::from(i),
             MysqlValue::UInt(u) => JsonValue::from(u),
             MysqlValue::Float(f) => JsonValue::from(f as f64),
@@ -190,19 +188,21 @@ impl EtlConnector for MySqlConnector {
 
         // Apply watermark filter by wrapping the user's query in a subquery
         let sql = if let Some(ref wm) = cfg.watermark_state {
-            let wm_column = cfg.source_config
+            let wm_column = cfg
+                .source_config
                 .get("watermark_column")
                 .and_then(|v| v.as_str());
-            let wm_type = wm.get("watermark_type")
+            let wm_type = wm
+                .get("watermark_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("timestamp");
-            let last_value = wm.get("last_value")
-                .and_then(|v| v.as_str());
+            let last_value = wm.get("last_value").and_then(|v| v.as_str());
 
             if let (Some(col), Some(val)) = (wm_column, last_value) {
                 validate_sql_identifier(col)
                     .map_err(|e| anyhow!("mysql: invalid watermark_column: {e}"))?;
-                let lookback_seconds = cfg.source_config
+                let lookback_seconds = cfg
+                    .source_config
                     .get("watermark_lookback_seconds")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(120);
@@ -213,10 +213,16 @@ impl EtlConnector for MySqlConnector {
                     })?;
                     format!("SELECT * FROM ({base_sql}) _wm WHERE _wm.`{col}` > {n}")
                 } else {
-                    let dt = chrono::DateTime::parse_from_rfc3339(val)
-                        .map_err(|_| anyhow!("mysql: watermark last_value is not a valid RFC3339 timestamp: {val}"))?;
+                    let dt = chrono::DateTime::parse_from_rfc3339(val).map_err(|_| {
+                        anyhow!(
+                            "mysql: watermark last_value is not a valid RFC3339 timestamp: {val}"
+                        )
+                    })?;
                     // Reformat as MySQL datetime literal (no timezone offset)
-                    let mysql_dt = dt.with_timezone(&chrono::Utc).format("%Y-%m-%d %H:%M:%S").to_string();
+                    let mysql_dt = dt
+                        .with_timezone(&chrono::Utc)
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string();
                     format!(
                         "SELECT * FROM ({base_sql}) _wm \
                          WHERE _wm.`{col}` > DATE_SUB('{mysql_dt}', INTERVAL {lookback_seconds} SECOND)"

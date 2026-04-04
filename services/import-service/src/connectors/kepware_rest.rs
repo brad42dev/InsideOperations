@@ -177,12 +177,10 @@ impl DcsConnector for KepwareConnector {
                             Ok(v) => {
                                 if let Some(arr) = v.as_array() {
                                     for g in arr {
-                                        if let Some(name) = g
-                                            .get("common.ALLTYPES_NAME")
-                                            .and_then(|v| v.as_str())
+                                        if let Some(name) =
+                                            g.get("common.ALLTYPES_NAME").and_then(|v| v.as_str())
                                         {
-                                            group_stack
-                                                .push((name.to_string(), name.to_string()));
+                                            group_stack.push((name.to_string(), name.to_string()));
                                         }
                                     }
                                 }
@@ -262,9 +260,7 @@ impl DcsConnector for KepwareConnector {
                         }
                         Ok(_) => {} // 404 — group has no tags
                         Err(e) => {
-                            warn!(
-                                "kepware: request error fetching tags for group {api_path}: {e}"
-                            );
+                            warn!("kepware: request error fetching tags for group {api_path}: {e}");
                         }
                     }
 
@@ -306,9 +302,7 @@ impl DcsConnector for KepwareConnector {
                         }
                         Ok(_) => {} // 404 — group has no sub-groups
                         Err(e) => {
-                            warn!(
-                                "kepware: request error fetching sub-groups for {api_path}: {e}"
-                            );
+                            warn!("kepware: request error fetching sub-groups for {api_path}: {e}");
                         }
                     }
                 }

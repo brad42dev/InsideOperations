@@ -413,9 +413,7 @@ async fn load_records(
     source_config: &JsonValue,
 ) -> Result<i64> {
     let mut loaded: i64 = 0;
-    let id_field = source_config
-        .get("id_field")
-        .and_then(|v| v.as_str());
+    let id_field = source_config.get("id_field").and_then(|v| v.as_str());
     let use_upsert = id_field.is_some();
 
     for record in records {
@@ -528,8 +526,15 @@ async fn run_pipeline_in_tx(
 
     // ── EXTRACT ──────────────────────────────────────────────────────────────
     let extract_start = Instant::now();
-    let raw_records =
-        extract_records(db, source_config, connection_id, master_key, upload_dir, prev_watermark).await?;
+    let raw_records = extract_records(
+        db,
+        source_config,
+        connection_id,
+        master_key,
+        upload_dir,
+        prev_watermark,
+    )
+    .await?;
     stats.extract_duration_ms = extract_start.elapsed().as_millis() as i64;
 
     // File-based connectors (SFTP directory, FTP, local_file) append a sentinel record
@@ -883,13 +888,12 @@ pub async fn execute(
                 tx.commit().await?;
                 // Write new watermark after successful commit (not in dry-run)
                 if let Some(ref wm) = s.new_watermark {
-                    if let Err(e) = sqlx::query(
-                        "UPDATE import_runs SET watermark_state = $2 WHERE id = $1",
-                    )
-                    .bind(run_id)
-                    .bind(wm)
-                    .execute(db)
-                    .await
+                    if let Err(e) =
+                        sqlx::query("UPDATE import_runs SET watermark_state = $2 WHERE id = $1")
+                            .bind(run_id)
+                            .bind(wm)
+                            .execute(db)
+                            .await
                     {
                         warn!(%run_id, error = %e, "failed to write watermark_state to import_runs");
                     }
