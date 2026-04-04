@@ -357,7 +357,9 @@ export default function WorkspaceGrid({
       newItem: LayoutItem | null,
     ) => {
       isResizingRef.current = true;
-      preGestureLayoutRef.current = gridItemsRef.current.map((it) => ({ ...it }));
+      preGestureLayoutRef.current = gridItemsRef.current.map((it) => ({
+        ...it,
+      }));
       if (newItem) {
         resizeStartRef.current = {
           i: newItem.i,

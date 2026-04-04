@@ -229,7 +229,10 @@ export function scanLineCompact(
 ): GridItem[] {
   // 1. Deep-clone all items. Build pre-gesture position map.
   const items = layout.map((it) => ({ ...it }));
-  const preMap = new Map<string, { x: number; y: number; w: number; h: number }>();
+  const preMap = new Map<
+    string,
+    { x: number; y: number; w: number; h: number }
+  >();
   for (const it of items) {
     const pre = preGestureLayout?.find((p) => p.i === it.i);
     preMap.set(it.i, pre ?? { x: it.x, y: it.y, w: it.w, h: it.h });
@@ -395,10 +398,7 @@ function _packIntoFreeSpace(
   const segCounts: number[] = segCaps.map(() => 0);
   let assigned = 0;
   for (let si = 0; si < segs.length && assigned < n; si++) {
-    const share =
-      totalCap > 0
-        ? Math.round((segCaps[si] / totalCap) * n)
-        : 0;
+    const share = totalCap > 0 ? Math.round((segCaps[si] / totalCap) * n) : 0;
     const count = Math.min(share, segCaps[si], n - assigned);
     segCounts[si] = count;
     assigned += count;
@@ -444,13 +444,9 @@ function _packIntoFreeSpace(
       pane.x = seg.x + col * cellW;
       pane.y = seg.y + row * cellH;
       pane.w =
-        col === segCols - 1
-          ? Math.max(MIN_W, seg.x + seg.w - pane.x)
-          : cellW;
+        col === segCols - 1 ? Math.max(MIN_W, seg.x + seg.w - pane.x) : cellW;
       pane.h =
-        row === segRows - 1
-          ? Math.max(MIN_H, seg.y + seg.h - pane.y)
-          : cellH;
+        row === segRows - 1 ? Math.max(MIN_H, seg.y + seg.h - pane.y) : cellH;
       settled.push(pane);
     }
   }
@@ -468,9 +464,7 @@ function _packIntoFreeSpace(
 /**
  * Compute total packing capacity of segments in MIN-sized cells.
  */
-function _totalSegmentCapacity(
-  segs: { w: number; h: number }[],
-): number {
+function _totalSegmentCapacity(segs: { w: number; h: number }[]): number {
   let cap = 0;
   for (const seg of segs) {
     cap += Math.max(1, Math.floor(seg.w / MIN_W)) * Math.floor(seg.h / MIN_H);

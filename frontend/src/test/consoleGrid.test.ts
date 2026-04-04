@@ -8,7 +8,11 @@ import {
   MIN_H,
   scanLineCompact,
 } from "../pages/console/layout-utils";
-import type { LayoutPreset, PaneConfig, GridItem } from "../pages/console/types";
+import type {
+  LayoutPreset,
+  PaneConfig,
+  GridItem,
+} from "../pages/console/types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -388,12 +392,7 @@ describe("scanLineCompact", () => {
       gi("c", 0, S, S, S),
       gi("d", S, S, S, S),
     ];
-    const result = scanLineCompact(
-      withNewPos,
-      "a",
-      new Set(["b"]),
-      preGesture,
-    );
+    const result = scanLineCompact(withNewPos, "a", new Set(["b"]), preGesture);
     const bResult = result.find((it) => it.i === "b")!;
     expect(bResult.x).toBe(S);
     expect(bResult.y).toBe(0);
@@ -404,16 +403,10 @@ describe("scanLineCompact", () => {
 
   it("moved pane stays at exact gesture-stop position (when no pinned conflict)", () => {
     const S = 6 * GRID_SCALE;
-    const preGesture = [
-      gi("a", 0, 0, S, S),
-      gi("b", S, 0, S, S),
-    ];
+    const preGesture = [gi("a", 0, 0, S, S), gi("b", S, 0, S, S)];
     const stopX = 40;
     const stopY = 20;
-    const withNewPos = [
-      gi("a", stopX, stopY, S, S),
-      gi("b", S, 0, S, S),
-    ];
+    const withNewPos = [gi("a", stopX, stopY, S, S), gi("b", S, 0, S, S)];
     const result = scanLineCompact(withNewPos, "a", new Set(), preGesture);
     const aResult = result.find((it) => it.i === "a")!;
     expect(aResult.x).toBe(stopX);
@@ -497,13 +490,10 @@ describe("scanLineCompact", () => {
     // "b" was at (144, 0) pre-gesture; current layout has it at (0, 0) due to some
     // intermediate state. scanLineCompact should search from (144, 0), not (0, 0).
     const S = 6 * GRID_SCALE; // 144
-    const preGesture = [
-      gi("a", 0, 0, S, S),
-      gi("b", S, 0, S, S),
-    ];
+    const preGesture = [gi("a", 0, 0, S, S), gi("b", S, 0, S, S)];
     const currentLayout = [
       gi("a", 0, 0, S * 2, S), // "a" expanded
-      gi("b", 0, 0, S, S),     // "b" at corrupted position (0,0)
+      gi("b", 0, 0, S, S), // "b" at corrupted position (0,0)
     ];
     const result = scanLineCompact(currentLayout, "a", new Set(), preGesture);
     // "b" should be displaced from (144, 0) to a conflict-free slot, NOT stay at (0,0)
@@ -515,10 +505,7 @@ describe("scanLineCompact", () => {
   it("touching panes (shared edge, dw=0 or dh=0) are NOT counted as overlapping", () => {
     const S = 6 * GRID_SCALE;
     // "a" right edge == "b" left edge — touching, not overlapping
-    const layout = [
-      gi("a", 0, 0, S, S),
-      gi("b", S, 0, S, S),
-    ];
+    const layout = [gi("a", 0, 0, S, S), gi("b", S, 0, S, S)];
     const result = scanLineCompact(layout, null, new Set(), null);
     expect(hasOverlap(result)).toBe(false);
     // Both should stay put since there's no real overlap
@@ -529,10 +516,7 @@ describe("scanLineCompact", () => {
   it("movedId=null runs pure compaction with no fixed moved pane", () => {
     const S = 6 * GRID_SCALE;
     // Two panes overlapping — pure compaction should resolve
-    const layout = [
-      gi("a", 0, 0, S, S),
-      gi("b", S - 10, 0, S, S),
-    ];
+    const layout = [gi("a", 0, 0, S, S), gi("b", S - 10, 0, S, S)];
     const result = scanLineCompact(layout, null, new Set(), null);
     expect(hasOverlap(result)).toBe(false);
     expect(allInBounds(result)).toBe(true);
