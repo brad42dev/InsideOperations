@@ -124,6 +124,24 @@ function ConsoleStatusBar({ workspaceName }: { workspaceName: string }) {
 
 const STORAGE_KEY = "io-console-workspaces";
 const DRAFT_PREFIX = "io-console-ws-draft-";
+const CLOSED_TABS_KEY = "io-console-closed-tabs";
+
+function loadClosedTabIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(CLOSED_TABS_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveClosedTabIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(CLOSED_TABS_KEY, JSON.stringify([...ids]));
+  } catch {
+    /* ignore quota errors */
+  }
+}
 
 function saveDraftLocal(ws: WorkspaceLayout): void {
   try {
@@ -270,6 +288,8 @@ export default function ConsolePage() {
 
   // Which workspace IDs are currently open as tabs (subset of all workspaces)
   const [openTabIds, setOpenTabIds] = useState<string[]>([]);
+  // IDs the user has explicitly closed — persisted so refresh doesn't re-open them
+  const explicitlyClosedIdsRef = useRef<Set<string>>(loadClosedTabIds());
   // Server-saved snapshots per workspace — used for dirty detection and revert
   const serverSnapshotsRef = useRef<Record<string, string>>({});
   // Workspace name modal (create / rename)
@@ -338,11 +358,14 @@ export default function ConsolePage() {
       // workspaces — never re-open tabs the user explicitly closed.
       setOpenTabIds((prev) => {
         const allIds = resolvedWorkspaces.map((w) => w.id);
-        if (prev.length === 0) return allIds; // first load
+        const closed = explicitlyClosedIdsRef.current;
+        // True first load: no tabs open yet and user hasn't closed anything
+        if (prev.length === 0 && closed.size === 0) return allIds;
         const allSet = new Set(allIds);
         const prevSet = new Set(prev);
         const kept = prev.filter((id) => allSet.has(id)); // remove server-deleted
-        const added = allIds.filter((id) => !prevSet.has(id)); // add brand-new
+        // Only open IDs that are brand-new (not previously seen, not user-closed)
+        const added = allIds.filter((id) => !prevSet.has(id) && !closed.has(id));
         return [...kept, ...added];
       });
       const newActiveId =
@@ -672,6 +695,8 @@ export default function ConsolePage() {
 
   const doCloseWorkspace = useCallback(
     (wsId: string) => {
+      explicitlyClosedIdsRef.current.add(wsId);
+      saveClosedTabIds(explicitlyClosedIdsRef.current);
       clearDraftLocal(wsId);
       setOpenTabIds((prev) => {
         const next = prev.filter((id) => id !== wsId);
@@ -2316,6 +2341,8 @@ export default function ConsolePage() {
             workspaces={workspaces}
             activeWorkspaceId={activeId}
             onSelectWorkspace={(id) => {
+              explicitlyClosedIdsRef.current.delete(id);
+              saveClosedTabIds(explicitlyClosedIdsRef.current);
               if (!openTabIds.includes(id)) {
                 setOpenTabIds((prev) => [...prev, id]);
               }
@@ -2434,7 +2461,7 @@ export default function ConsolePage() {
             </div>
           )}
 
-          {workspaces.length === 0 ? (
+          {workspaces.length === 0 || openTabIds.length === 0 ? (
             /* Empty state */
             <div
               style={{
@@ -2469,10 +2496,14 @@ export default function ConsolePage() {
                     color: "var(--io-text-primary)",
                   }}
                 >
-                  No workspaces yet
+                  {workspaces.length === 0
+                    ? "No workspaces yet"
+                    : "No open workspaces"}
                 </p>
                 <p style={{ margin: 0, fontSize: 13 }}>
-                  Create your first workspace to start monitoring
+                  {workspaces.length === 0
+                    ? "Create your first workspace to start monitoring"
+                    : "Open one from the palette, or create a new one"}
                 </p>
               </div>
               <button
