@@ -8,7 +8,7 @@ import type { ApiResult } from "./client";
 export interface TemplateFieldDef {
   key: string;
   label: string;
-  type: "text" | "secret" | "number" | "select";
+  type: "text" | "secret" | "number" | "select" | "textarea";
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
 }

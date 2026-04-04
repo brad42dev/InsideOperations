@@ -345,7 +345,7 @@ function ConnectorsTab() {
 
   return (
     <div>
-      {Object.entries(grouped).map(([domain, items]) => (
+      {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([domain, items]) => (
         <div key={domain} style={{ marginBottom: "32px" }}>
           <div
             style={{
@@ -482,6 +482,17 @@ function TemplateField({
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.placeholder ?? ""}
         style={inputStyle}
+      />
+    );
+  }
+  if (field.type === "textarea") {
+    return (
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field.placeholder ?? ""}
+        rows={4}
+        style={{ ...inputStyle, resize: "vertical", fontFamily: "monospace" }}
       />
     );
   }

@@ -658,22 +658,6 @@ function WorkspaceRow({
             >
               {ws.name}
             </span>
-            {ws.published && (
-              <span
-                style={{
-                  fontSize: 9,
-                  background: "var(--io-accent)",
-                  color: "#fff",
-                  borderRadius: 3,
-                  padding: "1px 4px",
-                  fontWeight: 600,
-                  letterSpacing: "0.03em",
-                  flexShrink: 0,
-                }}
-              >
-                PUB
-              </span>
-            )}
           </button>
           {/* Star button — visible on hover or when already favorited */}
           <button

@@ -742,6 +742,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/email/delivery-log", any(proxy_email))
         .route("/api/email/internal/send", any(proxy_email))
         // Universal Import (proxied to import-service)
+        // Webhook receiver — no JWT required (HMAC validated by import-service)
+        // MUST be registered before the /*path wildcard so it takes priority.
+        .route("/api/import/webhooks/:token", any(proxy_import_webhook))
         .route("/api/import/*path", any(proxy_import))
         // Recognition Service — status endpoint handled locally so it always returns
         // a valid response even when the recognition-service is not running.
@@ -1100,7 +1103,7 @@ async fn proxy_email(State(state): State<AppState>, req: Request) -> Response {
 ///   system:import_history      — /runs (GET), /runs/:id (GET), /runs/:id/errors (GET)
 async fn proxy_import(
     State(state): State<AppState>,
-    Extension(claims): Extension<Arc<Claims>>,
+    Extension(claims): Extension<Claims>,
     req: Request,
 ) -> Response {
     use axum::http::StatusCode;
@@ -1152,6 +1155,21 @@ async fn proxy_import(
         .unwrap_or(&path)
         .to_string();
     proxy::proxy(&state, req, &state.config.import_service_url, &downstream).await
+}
+
+/// Proxy webhook receiver to import-service WITHOUT JWT validation or RBAC checks.
+/// Security is provided by the HMAC-SHA256 signature validation inside import-service.
+async fn proxy_import_webhook(
+    State(state): State<AppState>,
+    req: Request,
+) -> Response {
+    let path = req
+        .uri()
+        .path()
+        .strip_prefix("/api/import")
+        .unwrap_or(req.uri().path())
+        .to_string();
+    proxy::proxy(&state, req, &state.config.import_service_url, &path).await
 }
 
 /// GET /api/recognition/status — local handler that always returns a valid response.

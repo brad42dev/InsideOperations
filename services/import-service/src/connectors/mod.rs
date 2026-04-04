@@ -1,11 +1,17 @@
+pub mod etl;
+pub mod streaming;
+
+pub mod aspen_ip21_rest;
 pub mod canary_rest;
 pub mod db_writes;
 pub mod experion_rest;
+pub mod foxboro_rest;
 pub mod kepware_rest;
 pub mod pi_web_api;
 pub mod s800xa_rest;
 pub mod siemens_sph_rest;
 pub mod wincc_oa_rest;
+pub mod yokogawa_centum_rest;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -75,6 +81,12 @@ pub trait DcsConnector: Send + Sync {
         cfg: &ConnectorConfig,
         since: DateTime<Utc>,
     ) -> Result<Vec<SupplementalEvent>>;
+
+    /// Whether this connector type has an alarm event history API.
+    /// When false, the supervisor skips event fetching entirely.
+    fn has_events(&self) -> bool {
+        true
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +102,9 @@ pub fn get_connector(connector_type: &str) -> Option<Box<dyn DcsConnector>> {
         "s800xa_rest" => Some(Box::new(s800xa_rest::AbbImConnector)),
         "kepware_rest" => Some(Box::new(kepware_rest::KepwareConnector)),
         "canary_rest" => Some(Box::new(canary_rest::CanaryConnector)),
+        "aspen_ip21_rest" => Some(Box::new(aspen_ip21_rest::AspenIp21Connector)),
+        "yokogawa_centum_rest" => Some(Box::new(yokogawa_centum_rest::YokogawaCentumConnector)),
+        "foxboro_rest" => Some(Box::new(foxboro_rest::FoxboroConnector)),
         _ => None,
     }
 }

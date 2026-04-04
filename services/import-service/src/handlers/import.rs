@@ -731,6 +731,20 @@ pub async fn test_connection(
                 Ok(()) => ("connected".to_string(), "Connection successful".to_string()),
                 Err(e) => ("error".to_string(), e.to_string()),
             }
+        } else if let Some(etl) = connectors::etl::get_etl_connector(&connection_type) {
+            let etl_cfg = crate::connectors::etl::EtlConnectorConfig {
+                connection_id: id,
+                connection_config: config.clone(),
+                auth_type: auth_type.clone(),
+                auth_config,
+                source_config: JsonValue::Null,
+                upload_dir: state.config.upload_dir.clone(),
+                watermark_state: None,
+            };
+            match etl.test_connection(&etl_cfg).await {
+                Ok(()) => ("connected".to_string(), "Connection successful".to_string()),
+                Err(e) => ("error".to_string(), e.to_string()),
+            }
         } else {
             (
                 "error".to_string(),
@@ -1208,8 +1222,12 @@ pub async fn trigger_run(
 
     // Spawn background ETL pipeline task
     let db_clone = state.db.clone();
+    let master_key = state.config.master_key;
+    let upload_dir = state.config.upload_dir.clone();
     tokio::spawn(async move {
-        if let Err(e) = pipeline::execute(&db_clone, run_id, def_id, dry_run).await {
+        if let Err(e) =
+            pipeline::execute(&db_clone, run_id, def_id, dry_run, master_key, upload_dir, None).await
+        {
             tracing::warn!(run_id = %run_id, error = %e, "import pipeline error");
         }
     });
@@ -1378,7 +1396,18 @@ pub async fn instantiate_template(
     let conn_name = body
         .connection_name
         .unwrap_or_else(|| format!("{} Connection", tmpl.name));
-    let conn_type = tmpl.slug.clone();
+    // Derive connection_type from the first definition's source_type so that
+    // get_etl_connector() and get_connector() can dispatch correctly.
+    // The slug is a UI identifier; source_type is the registry key.
+    let conn_type = substituted_config
+        .get("definitions")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|def| def.get("source_config"))
+        .and_then(|sc| sc.get("source_type"))
+        .and_then(|v| v.as_str())
+        .unwrap_or(&tmpl.slug)
+        .to_string();
 
     // Insert the import_connection
     let conn_row = sqlx::query(
@@ -1540,22 +1569,54 @@ pub async fn discover_schema(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    // Fetch the connection row to verify it exists
-    let row = sqlx::query("SELECT id, connection_type FROM import_connections WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await;
+    use crate::connectors;
 
-    match row {
-        Ok(Some(_)) => {
-            // Schema discovery is stubbed: return an empty table list.
-            // Full per-connector discovery will be implemented incrementally
-            // as integration profiles are written.
-            let stub: Vec<SchemaTable> = Vec::new();
-            Json(ApiResponse::ok(stub)).into_response()
+    // Fetch the full connection row for ETL connector dispatch.
+    let row = sqlx::query(
+        "SELECT id, connection_type, config, auth_type, auth_config \
+         FROM import_connections WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await;
+
+    let row = match row {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return IoError::NotFound(format!("Connection {id} not found")).into_response()
         }
-        Ok(None) => IoError::NotFound(format!("Connection {id} not found")).into_response(),
-        Err(e) => IoError::Database(e).into_response(),
+        Err(e) => return IoError::Database(e).into_response(),
+    };
+
+    let connection_type: String = row.try_get("connection_type").unwrap_or_default();
+    let config: JsonValue = row
+        .try_get::<JsonValue, _>("config")
+        .unwrap_or(JsonValue::Null);
+    let auth_type: String = row.try_get("auth_type").unwrap_or_default();
+    let auth_config_raw: JsonValue = row
+        .try_get::<JsonValue, _>("auth_config")
+        .unwrap_or(JsonValue::Null);
+    let auth_config = crypto::decrypt_sensitive_fields(&auth_config_raw, &state.config.master_key);
+
+    if let Some(etl) = connectors::etl::get_etl_connector(&connection_type) {
+        let etl_cfg = crate::connectors::etl::EtlConnectorConfig {
+            connection_id: id,
+            connection_config: config,
+            auth_type,
+            auth_config,
+            source_config: JsonValue::Null,
+            upload_dir: state.config.upload_dir.clone(),
+            watermark_state: None,
+        };
+        match etl.discover_schema(&etl_cfg).await {
+            Ok(tables) => Json(ApiResponse::ok(tables)).into_response(),
+            Err(e) => {
+                IoError::Internal(format!("Schema discovery failed: {e}")).into_response()
+            }
+        }
+    } else {
+        // DCS supplemental connectors don't implement schema discovery — return empty.
+        Json(ApiResponse::ok(Vec::<SchemaTable>::new())).into_response()
     }
 }
 

@@ -26,6 +26,7 @@ const SENSITIVE_FIELDS: &[&str] = &[
     "client_secret",
     "key_passphrase",
     "bearer_token",
+    "connection_string", // Phase 4: ODBC/MongoDB URIs may embed credentials
 ];
 
 const ENC_PREFIX: &str = "$enc:";

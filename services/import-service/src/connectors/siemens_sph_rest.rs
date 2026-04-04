@@ -30,9 +30,11 @@ impl DcsConnector for SiemensSphConnector {
         let base = base(cfg)?;
         let client = client()?;
         if cfg.auth_type == "ntlm" {
-            warn!(
-                "siemens_sph_rest: NTLM auth not supported in pure Rust; proceeding without auth"
-            );
+            return Err(anyhow!(
+                "siemens_sph_rest: NTLM authentication is not supported. \
+                 Configure HTTP Basic auth on the SPH server, or use a reverse proxy \
+                 that handles NTLM and exposes Basic/Bearer auth to I/O."
+            ));
         }
         let req = apply_auth(client.get(format!("{base}/api/v1/status")), cfg);
         let resp = req.send().await?;
@@ -50,7 +52,11 @@ impl DcsConnector for SiemensSphConnector {
         let client = client()?;
 
         if cfg.auth_type == "ntlm" {
-            warn!("siemens_sph_rest: NTLM auth not supported; metadata may be unavailable");
+            return Err(anyhow!(
+                "siemens_sph_rest: NTLM authentication is not supported. \
+                 Configure HTTP Basic auth on the SPH server, or use a reverse proxy \
+                 that handles NTLM and exposes Basic/Bearer auth to I/O."
+            ));
         }
 
         let req = apply_auth(client.get(format!("{base}/api/v1/tags")), cfg);
@@ -96,6 +102,13 @@ impl DcsConnector for SiemensSphConnector {
         cfg: &ConnectorConfig,
         since: DateTime<Utc>,
     ) -> Result<Vec<SupplementalEvent>> {
+        if cfg.auth_type == "ntlm" {
+            return Err(anyhow!(
+                "siemens_sph_rest: NTLM authentication is not supported. \
+                 Configure HTTP Basic auth on the SPH server, or use a reverse proxy \
+                 that handles NTLM and exposes Basic/Bearer auth to I/O."
+            ));
+        }
         let base = base(cfg)?;
         let client = client()?;
         let now = Utc::now();

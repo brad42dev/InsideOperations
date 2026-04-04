@@ -1582,14 +1582,6 @@ export default function ConsolePage() {
                       gap: 5,
                     }}
                   >
-                    {ws.published && (
-                      <span
-                        title="Published workspace"
-                        style={{ color: "var(--io-accent)", fontSize: 8 }}
-                      >
-                        ●
-                      </span>
-                    )}
                     {ws.name}
                     {wsIsDirty && (
                       <span
@@ -1846,22 +1838,6 @@ export default function ConsolePage() {
                 </button>
               )}
 
-              {/* Delete workspace */}
-              <button
-                onClick={deleteActiveWorkspace}
-                title="Delete workspace"
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--io-border)",
-                  borderRadius: 6,
-                  padding: "4px 10px",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  color: "var(--io-danger)",
-                }}
-              >
-                Delete
-              </button>
 
               {/* Lock toggle button — replaces Edit/Done */}
               <button
@@ -1910,8 +1886,44 @@ export default function ConsolePage() {
             </>
           )}
 
-          {/* Explicit Save / Save as Personal — shown when workspace is dirty */}
-          {activeWorkspace &&
+          {/* Delete workspace — always visible; grayed out when no workspace active */}
+          <button
+            onClick={activeWorkspace ? deleteActiveWorkspace : undefined}
+            disabled={!activeWorkspace}
+            title="Delete workspace"
+            style={{
+              background: "transparent",
+              border: "1px solid var(--io-border)",
+              borderRadius: 6,
+              padding: "4px 10px",
+              cursor: activeWorkspace ? "pointer" : "default",
+              fontSize: 12,
+              color: activeWorkspace ? "var(--io-danger)" : "var(--io-text-disabled)",
+              opacity: activeWorkspace ? 1 : 0.4,
+            }}
+          >
+            Delete
+          </button>
+
+          {/* Save / Save as Personal — always visible; grayed when no workspace; hidden when clean */}
+          {!activeWorkspace ? (
+            <button
+              disabled
+              title="Save workspace"
+              style={{
+                background: "transparent",
+                border: "1px solid var(--io-border)",
+                borderRadius: 6,
+                padding: "4px 10px",
+                cursor: "default",
+                fontSize: 12,
+                color: "var(--io-text-disabled)",
+                opacity: 0.4,
+              }}
+            >
+              Save
+            </button>
+          ) : (
             (() => {
               const wsSnap = serverSnapshotsRef.current[activeWorkspace.id];
               const wsIsDirty = wsSnap
@@ -1924,14 +1936,13 @@ export default function ConsolePage() {
                     onClick={handleExplicitSave}
                     title="Save workspace (Ctrl+S)"
                     style={{
-                      background: "var(--io-accent)",
-                      border: "none",
+                      background: "transparent",
+                      border: "1px solid var(--io-border)",
                       borderRadius: 6,
-                      padding: "5px 14px",
+                      padding: "4px 10px",
                       cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#fff",
+                      fontSize: 12,
+                      color: "var(--io-accent)",
                     }}
                   >
                     Save
@@ -1944,14 +1955,13 @@ export default function ConsolePage() {
                     onClick={handleSaveAsPersonal}
                     title="Save a personal copy of this workspace"
                     style={{
-                      background: "var(--io-accent)",
-                      border: "none",
+                      background: "transparent",
+                      border: "1px solid var(--io-border)",
                       borderRadius: 6,
-                      padding: "5px 14px",
+                      padding: "4px 10px",
                       cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#fff",
+                      fontSize: 12,
+                      color: "var(--io-accent)",
                     }}
                   >
                     Save as Personal
@@ -1959,7 +1969,8 @@ export default function ConsolePage() {
                 );
               }
               return null;
-            })()}
+            })()
+          )}
 
           {/* Aspect ratio toggle — always visible when a workspace is active */}
           {activeWorkspace && (

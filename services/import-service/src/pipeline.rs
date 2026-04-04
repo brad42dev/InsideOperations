@@ -8,6 +8,7 @@
 //! Dry-run mode wraps the full pipeline in a transaction and rolls back.
 
 use anyhow::{anyhow, Result};
+use chrono::Utc;
 use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use std::time::Instant;
@@ -62,6 +63,8 @@ pub struct RunStats {
     pub load_duration_ms: i64,
     pub total_duration_ms: i64,
     pub errors: Vec<ErrorRecord>,
+    /// New watermark computed from this run's extracted records (None if not configured).
+    pub new_watermark: Option<JsonValue>,
 }
 
 // ---------------------------------------------------------------------------
@@ -233,8 +236,15 @@ fn validate_record(record: &MappedRecord, source_config: &JsonValue) -> Result<(
 /// Supported types:
 /// - `csv` / `csv_inline` — inline CSV in `source_config.data`
 /// - `json_array`          — inline JSON array in `source_config.data`
-/// - anything else         — connector-backed; returns empty for now (DD-24-002 wires real connectors)
-async fn extract_records(source_config: &JsonValue) -> Result<Vec<SourceRecord>> {
+/// - anything else         — dispatched to an `EtlConnector` via `connection_id`
+async fn extract_records(
+    db: &PgPool,
+    source_config: &JsonValue,
+    connection_id: Option<Uuid>,
+    master_key: &[u8; 32],
+    upload_dir: &str,
+    prev_watermark: Option<JsonValue>,
+) -> Result<Vec<SourceRecord>> {
     let source_type = source_config
         .get("source_type")
         .and_then(|v| v.as_str())
@@ -243,12 +253,65 @@ async fn extract_records(source_config: &JsonValue) -> Result<Vec<SourceRecord>>
     match source_type {
         "csv" | "csv_inline" => extract_csv(source_config),
         "json_array" => extract_json_array(source_config),
-        other => {
-            info!(
-                source_type = other,
-                "no inline extractor for source type; returning empty set (connector dispatch in DD-24-002)"
-            );
-            Ok(vec![])
+        _ => {
+            // ETL connector dispatch
+            if let Some(conn_id) = connection_id {
+                use crate::connectors::etl::{get_etl_connector, EtlConnectorConfig};
+                use sqlx::Row as _;
+
+                let row = sqlx::query(
+                    "SELECT connection_type, config, auth_type, auth_config \
+                     FROM import_connections WHERE id = $1",
+                )
+                .bind(conn_id)
+                .fetch_optional(db)
+                .await?;
+
+                let row = match row {
+                    Some(r) => r,
+                    None => {
+                        warn!(connection_id = %conn_id, "connection not found for ETL dispatch");
+                        return Ok(vec![]);
+                    }
+                };
+
+                let connection_type: String = row.try_get("connection_type").unwrap_or_default();
+                let config: JsonValue = row
+                    .try_get::<JsonValue, _>("config")
+                    .unwrap_or(JsonValue::Null);
+                let auth_type: String = row.try_get("auth_type").unwrap_or_default();
+                let auth_config_raw: JsonValue = row
+                    .try_get::<JsonValue, _>("auth_config")
+                    .unwrap_or(JsonValue::Null);
+                let auth_config =
+                    crate::crypto::decrypt_sensitive_fields(&auth_config_raw, master_key);
+
+                if let Some(connector) = get_etl_connector(&connection_type) {
+                    let etl_cfg = EtlConnectorConfig {
+                        connection_id: conn_id,
+                        connection_config: config,
+                        auth_type,
+                        auth_config,
+                        source_config: source_config.clone(),
+                        upload_dir: upload_dir.to_string(),
+                        watermark_state: prev_watermark,
+                    };
+                    connector.extract(&etl_cfg).await
+                } else {
+                    info!(
+                        source_type,
+                        connection_type,
+                        "no ETL connector implementation for type; returning empty"
+                    );
+                    Ok(vec![])
+                }
+            } else {
+                info!(
+                    source_type,
+                    "connector-backed source has no connection_id; returning empty"
+                );
+                Ok(vec![])
+            }
         }
     }
 }
@@ -338,31 +401,65 @@ fn extract_json_array(source_config: &JsonValue) -> Result<Vec<SourceRecord>> {
 // Loader
 // ---------------------------------------------------------------------------
 
-/// Bulk-insert loaded records into `custom_import_data`.
+/// Bulk-insert (or upsert) loaded records into `custom_import_data`.
 ///
-/// All general connector data goes into `custom_import_data` for phase 7.
-/// Each record is stored as a JSONB `data` object.
-/// The `source_row_id` is set to the row number for traceability.
+/// When `source_config.id_field` is set, uses the field value as `source_row_id`
+/// and performs an upsert (ON CONFLICT DO UPDATE) for deduplication.
+/// Otherwise uses the row number and plain INSERT.
 async fn load_records(
     executor: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     def_id: Uuid,
     records: &[MappedRecord],
+    source_config: &JsonValue,
 ) -> Result<i64> {
     let mut loaded: i64 = 0;
+    let id_field = source_config
+        .get("id_field")
+        .and_then(|v| v.as_str());
+    let use_upsert = id_field.is_some();
 
     for record in records {
         let data_json = serde_json::to_value(&record.fields)?;
-        let source_row_id = record.row_number.to_string();
-        let result = sqlx::query(
-            "INSERT INTO custom_import_data \
-             (import_definition_id, data, source_row_id, imported_at) \
-             VALUES ($1, $2, $3, NOW())",
-        )
-        .bind(def_id)
-        .bind(data_json)
-        .bind(&source_row_id)
-        .execute(&mut **executor)
-        .await;
+        let source_row_id = if let Some(field) = id_field {
+            record
+                .fields
+                .get(field)
+                .and_then(|v| match v {
+                    JsonValue::String(s) => Some(s.clone()),
+                    JsonValue::Number(n) => Some(n.to_string()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| record.row_number.to_string())
+        } else {
+            record.row_number.to_string()
+        };
+
+        let result = if use_upsert {
+            sqlx::query(
+                "INSERT INTO custom_import_data \
+                 (import_definition_id, data, source_row_id, imported_at) \
+                 VALUES ($1, $2, $3, NOW()) \
+                 ON CONFLICT (import_definition_id, source_row_id) \
+                 WHERE source_row_id IS NOT NULL \
+                 DO UPDATE SET data = EXCLUDED.data, imported_at = NOW()",
+            )
+            .bind(def_id)
+            .bind(data_json)
+            .bind(&source_row_id)
+            .execute(&mut **executor)
+            .await
+        } else {
+            sqlx::query(
+                "INSERT INTO custom_import_data \
+                 (import_definition_id, data, source_row_id, imported_at) \
+                 VALUES ($1, $2, $3, NOW())",
+            )
+            .bind(def_id)
+            .bind(data_json)
+            .bind(&source_row_id)
+            .execute(&mut **executor)
+            .await
+        };
 
         match result {
             Ok(_) => loaded += 1,
@@ -411,24 +508,95 @@ async fn write_errors(
 // Inner pipeline — runs inside a transaction so dry-run can rollback
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::too_many_arguments)]
 async fn run_pipeline_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    db: &PgPool,
     run_id: Uuid,
     def_id: Uuid,
     source_config: &JsonValue,
     field_mappings: &JsonValue,
     transforms: &JsonValue,
     _target_table: &str,
+    connection_id: Option<Uuid>,
+    master_key: &[u8; 32],
+    upload_dir: &str,
+    prev_watermark: Option<JsonValue>,
 ) -> Result<RunStats> {
     let mut stats = RunStats::default();
     let total_start = Instant::now();
 
     // ── EXTRACT ──────────────────────────────────────────────────────────────
     let extract_start = Instant::now();
-    let source_records = extract_records(source_config).await?;
+    let raw_records =
+        extract_records(db, source_config, connection_id, master_key, upload_dir, prev_watermark).await?;
     stats.extract_duration_ms = extract_start.elapsed().as_millis() as i64;
+
+    // File-based connectors (SFTP directory, FTP, local_file) append a sentinel record
+    // (row_number == 0, fields == {"__io_fp_state__": <json>}) carrying the updated
+    // FilePollingState. Strip it here before any mapping/loading; use it as new_watermark.
+    let file_poll_state: Option<JsonValue> = raw_records
+        .iter()
+        .find(|r| r.fields.contains_key("__io_fp_state__"))
+        .and_then(|r| r.fields.get("__io_fp_state__"))
+        .cloned();
+    let source_records: Vec<SourceRecord> = if file_poll_state.is_some() {
+        raw_records
+            .into_iter()
+            .filter(|r| !r.fields.contains_key("__io_fp_state__"))
+            .collect()
+    } else {
+        raw_records
+    };
+
     stats.rows_extracted = source_records.len() as i64;
     info!(run_id = %run_id, extracted = stats.rows_extracted, "extract stage complete");
+
+    // ── COMPUTE NEW WATERMARK ─────────────────────────────────────────────────
+    // For file-polling connectors: use the sentinel state from extraction.
+    // For DB/REST connectors: compute from the max value of watermark_column.
+    stats.new_watermark = file_poll_state.or_else(|| {
+        let wm_column = source_config
+            .get("watermark_column")
+            .and_then(|v| v.as_str());
+        if let Some(col) = wm_column {
+            let wm_type = source_config
+                .get("watermark_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("timestamp");
+            let mut max_value: Option<String> = None;
+            for rec in &source_records {
+                let val_str = match rec.fields.get(col) {
+                    Some(JsonValue::String(s)) => Some(s.clone()),
+                    Some(JsonValue::Number(n)) => Some(n.to_string()),
+                    _ => None,
+                };
+                if let Some(val) = val_str {
+                    let should_update = match max_value.as_ref() {
+                        None => true,
+                        Some(m) if wm_type == "integer" => {
+                            val.parse::<i64>().unwrap_or(i64::MIN)
+                                > m.parse::<i64>().unwrap_or(i64::MIN)
+                        }
+                        Some(m) => val > *m,
+                    };
+                    if should_update {
+                        max_value = Some(val);
+                    }
+                }
+            }
+            max_value.map(|val| {
+                serde_json::json!({
+                    "watermark_type": wm_type,
+                    "watermark_column": col,
+                    "last_value": val,
+                    "last_run_completed_at": Utc::now().to_rfc3339(),
+                })
+            })
+        } else {
+            None
+        }
+    });
 
     // ── MAP + TRANSFORM + VALIDATE ────────────────────────────────────────────
     let transform_start = Instant::now();
@@ -505,7 +673,7 @@ async fn run_pipeline_in_tx(
     // ── LOAD ─────────────────────────────────────────────────────────────────
     let load_start = Instant::now();
 
-    let loaded = load_records(tx, def_id, &valid_records).await?;
+    let loaded = load_records(tx, def_id, &valid_records, source_config).await?;
 
     stats.load_duration_ms = load_start.elapsed().as_millis() as i64;
     stats.rows_loaded = loaded;
@@ -540,7 +708,15 @@ async fn run_pipeline_in_tx(
 ///   3. Executes Extract → Map → Transform → Validate → Load inside a transaction
 ///   4. If `dry_run`: rolls back the transaction but still records statistics
 ///   5. Updates `import_runs` with final status, row counts, and timing metadata
-pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> Result<()> {
+pub async fn execute(
+    db: &PgPool,
+    run_id: Uuid,
+    def_id: Uuid,
+    dry_run: bool,
+    master_key: [u8; 32],
+    upload_dir: String,
+    schedule_id: Option<Uuid>,
+) -> Result<()> {
     // Count this import run being started.
     metrics::counter!("io_import_runs_total").increment(1);
 
@@ -552,6 +728,28 @@ pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> 
     .bind(run_id)
     .execute(db)
     .await?;
+
+    // ── Heartbeat task for scheduled runs ────────────────────────────────────
+    // Writes last_heartbeat_at every 60 s so the scheduler's stale-run detector
+    // (running = true AND last_heartbeat_at < NOW() - INTERVAL '5 minutes')
+    // does not reclaim this run while it is still executing.
+    let heartbeat_handle = if let Some(sched_id) = schedule_id {
+        let db_hb = db.clone();
+        Some(tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                let _ = sqlx::query(
+                    "UPDATE import_schedules SET last_heartbeat_at = NOW() WHERE id = $1",
+                )
+                .bind(sched_id)
+                .execute(&db_hb)
+                .await;
+            }
+        }))
+    } else {
+        None
+    };
 
     // NOTIFY import_status — running
     let running_payload = serde_json::json!({
@@ -571,7 +769,7 @@ pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> 
 
     // ── Fetch import definition ───────────────────────────────────────────────
     let def_row = sqlx::query(
-        "SELECT source_config, field_mappings, transforms, target_table \
+        "SELECT connection_id, source_config, field_mappings, transforms, target_table \
          FROM import_definitions WHERE id = $1",
     )
     .bind(def_id)
@@ -628,6 +826,7 @@ pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> 
         }
     };
 
+    let connection_id: Option<Uuid> = def_row.try_get("connection_id").ok().flatten();
     let source_config: JsonValue = def_row
         .try_get::<JsonValue, _>("source_config")
         .unwrap_or(JsonValue::Null);
@@ -641,17 +840,37 @@ pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> 
         .try_get::<String, _>("target_table")
         .unwrap_or_else(|_| "custom_import_data".to_string());
 
+    // ── Read previous watermark from the latest successful run ───────────────
+    let prev_watermark: Option<JsonValue> = sqlx::query_scalar(
+        "SELECT watermark_state FROM import_runs \
+         WHERE import_definition_id = $1 \
+           AND status IN ('completed', 'partial') \
+           AND watermark_state IS NOT NULL \
+         ORDER BY completed_at DESC \
+         LIMIT 1",
+    )
+    .bind(def_id)
+    .fetch_optional(db)
+    .await
+    .unwrap_or(None)
+    .flatten();
+
     // ── Execute inside a transaction (always — rollback if dry_run) ───────────
     let mut tx = db.begin().await?;
 
     let stats_result = run_pipeline_in_tx(
         &mut tx,
+        db,
         run_id,
         def_id,
         &source_config,
         &field_mappings,
         &transforms,
         &target_table,
+        connection_id,
+        &master_key,
+        &upload_dir,
+        prev_watermark,
     )
     .await;
 
@@ -662,6 +881,19 @@ pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> 
                 tx.rollback().await?;
             } else {
                 tx.commit().await?;
+                // Write new watermark after successful commit (not in dry-run)
+                if let Some(ref wm) = s.new_watermark {
+                    if let Err(e) = sqlx::query(
+                        "UPDATE import_runs SET watermark_state = $2 WHERE id = $1",
+                    )
+                    .bind(run_id)
+                    .bind(wm)
+                    .execute(db)
+                    .await
+                    {
+                        warn!(%run_id, error = %e, "failed to write watermark_state to import_runs");
+                    }
+                }
             }
             s
         }
@@ -769,6 +1001,11 @@ pub async fn execute(db: &PgPool, run_id: Uuid, def_id: Uuid, dry_run: bool) -> 
         total_ms = stats.total_duration_ms,
         "import run complete"
     );
+
+    // ── Abort heartbeat task ──────────────────────────────────────────────────
+    if let Some(handle) = heartbeat_handle {
+        handle.abort();
+    }
 
     // Emit import metrics.
     if stats.rows_loaded > 0 {

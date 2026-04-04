@@ -89,4 +89,8 @@ impl DcsConnector for CanaryConnector {
         // Canary is values-only — no alarm history
         Ok(vec![])
     }
+
+    fn has_events(&self) -> bool {
+        false
+    }
 }

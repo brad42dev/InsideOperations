@@ -124,6 +124,8 @@ fn is_public_path(path: &str) -> bool {
         || path.starts_with("/api/auth/saml/")
         || path.starts_with("/api/auth/ldap/")
         || path.starts_with("/scim/v2/")
+        // Webhook receiver — HMAC-SHA256 validated internally by import-service
+        || path.starts_with("/api/import/webhooks/")
 }
 
 fn extract_bearer(headers: &axum::http::HeaderMap) -> Option<&str> {
