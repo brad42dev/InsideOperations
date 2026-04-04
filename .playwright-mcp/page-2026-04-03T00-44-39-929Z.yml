@@ -1,0 +1,524 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - button "I/O" [ref=e6] [cursor=pointer]:
+        - generic [ref=e7]: I/O
+      - navigation "Main navigation" [ref=e8]:
+        - generic [ref=e9]:
+          - link "Console" [ref=e10] [cursor=pointer]:
+            - /url: /console
+            - img [ref=e12]
+          - link "Process" [ref=e14] [cursor=pointer]:
+            - /url: /process
+            - img [ref=e16]
+        - generic [ref=e20]:
+          - link "Dashboards" [ref=e22] [cursor=pointer]:
+            - /url: /dashboards
+            - img [ref=e24]
+          - link "Reports" [ref=e29] [cursor=pointer]:
+            - /url: /reports
+            - img [ref=e31]
+          - link "Forensics" [ref=e34] [cursor=pointer]:
+            - /url: /forensics
+            - img [ref=e36]
+        - generic [ref=e39]:
+          - link "Log" [ref=e41] [cursor=pointer]:
+            - /url: /log
+            - img [ref=e43]
+          - link "Rounds" [ref=e45] [cursor=pointer]:
+            - /url: /rounds
+            - img [ref=e47]
+          - link "Alerts" [ref=e50] [cursor=pointer]:
+            - /url: /alerts
+            - img [ref=e52]
+        - generic [ref=e55]:
+          - link "Shifts" [ref=e57] [cursor=pointer]:
+            - /url: /shifts
+            - img [ref=e59]
+          - link "Settings" [ref=e64] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e66]
+          - link "Designer" [ref=e69] [cursor=pointer]:
+            - /url: /designer
+            - img [ref=e71]
+      - button "Hide sidebar (Ctrl+\\)" [ref=e76] [cursor=pointer]:
+        - img [ref=e77]
+      - button "Health status unknown" [ref=e81] [cursor=pointer]
+    - generic [ref=e83]:
+      - banner [ref=e84]:
+        - generic [ref=e87]:
+          - button "⌕ Search ⌃K" [ref=e88] [cursor=pointer]:
+            - generic [ref=e89]: ⌕
+            - generic [ref=e90]: Search
+            - generic [ref=e91]: ⌃K
+          - button "Alerts" [ref=e92] [cursor=pointer]:
+            - img [ref=e93]
+          - button "▲" [ref=e96] [cursor=pointer]
+          - button "A admin ▾" [ref=e98] [cursor=pointer]:
+            - generic [ref=e99]: A
+            - generic [ref=e100]: admin
+            - generic [ref=e101]: ▾
+      - main [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - generic [ref=e105]: Console
+            - generic [ref=e106]:
+              - generic [ref=e107]:
+                - button "Workspace 5 Unsaved changes" [ref=e108] [cursor=pointer]:
+                  - text: Workspace 5
+                  - generic "Unsaved changes" [ref=e109]
+                - button "×" [ref=e110] [cursor=pointer]
+              - generic [ref=e111]:
+                - button "Workspace 4 Unsaved changes" [ref=e112] [cursor=pointer]:
+                  - text: Workspace 4
+                  - generic "Unsaved changes" [ref=e113]
+                - button "×" [ref=e114] [cursor=pointer]
+              - generic [ref=e115]:
+                - button "Workspace 3 Unsaved changes" [ref=e116] [cursor=pointer]:
+                  - text: Workspace 3
+                  - generic "Unsaved changes" [ref=e117]
+                - button "×" [ref=e118] [cursor=pointer]
+              - generic [ref=e119]:
+                - button "Workspace 2 Unsaved changes" [ref=e120] [cursor=pointer]:
+                  - text: Workspace 2
+                  - generic "Unsaved changes" [ref=e121]
+                - button "×" [ref=e122] [cursor=pointer]
+              - generic [ref=e123]:
+                - button "● HCU + H2 Plant Overview" [ref=e124] [cursor=pointer]:
+                  - generic "Published workspace" [ref=e125]: ●
+                  - text: HCU + H2 Plant Overview
+                - button "×" [ref=e126] [cursor=pointer]
+              - button "+" [ref=e127] [cursor=pointer]
+            - generic [ref=e128]:
+              - button "Undo" [ref=e129] [cursor=pointer]:
+                - img [ref=e130]
+                - text: Undo
+              - button "Redo" [disabled] [ref=e133]:
+                - text: Redo
+                - img [ref=e134]
+              - combobox [ref=e137] [cursor=pointer]:
+                - option "1×1"
+                - option "2×1"
+                - option "1×2"
+                - option "2×2"
+                - option "3×1"
+                - option "1×3"
+                - option "3×2"
+                - option "2×3"
+                - option "3×3"
+                - option "4×1"
+                - option "1×4"
+                - option "4×2"
+                - option "2×4"
+                - option "4×3"
+                - option "3×4"
+                - option "4×4" [selected]
+                - option "Big Left + 3 Right"
+                - option "Big Right + 3 Left"
+                - option "Big Top + 3 Bottom"
+                - option "Big Bottom + 3 Top"
+                - option "2 Big + 4 Small"
+                - option "Picture in Picture"
+                - option "Featured + Sidebar"
+                - option "Side by Side Unequal"
+              - button "Clear" [ref=e138] [cursor=pointer]
+              - button "Rename" [ref=e139] [cursor=pointer]
+              - button "○ Publish" [ref=e140] [cursor=pointer]
+              - button "Delete" [ref=e141] [cursor=pointer]
+              - button "Lock" [ref=e142] [cursor=pointer]:
+                - img [ref=e143]
+                - text: Lock
+              - button "Save" [ref=e146] [cursor=pointer]
+              - button "AR" [ref=e147] [cursor=pointer]:
+                - img [ref=e148]
+                - text: AR
+              - button "TT" [ref=e151] [cursor=pointer]
+              - generic [ref=e152]:
+                - button "Export" [ref=e153] [cursor=pointer]
+                - button "Quick export format" [ref=e154] [cursor=pointer]:
+                  - img [ref=e155]
+              - button "Close workspace" [ref=e157] [cursor=pointer]:
+                - img [ref=e158]
+              - button "○ Publish" [ref=e161] [cursor=pointer]
+              - button "Open workspace in new window" [ref=e162] [cursor=pointer]:
+                - img [ref=e163]
+              - button "Enter fullscreen" [ref=e167] [cursor=pointer]:
+                - img [ref=e168]
+          - generic [ref=e170]:
+            - generic [ref=e171]:
+              - generic [ref=e172]:
+                - generic [ref=e173]: Assets
+                - button "Collapse palette" [ref=e174] [cursor=pointer]:
+                  - img [ref=e175]
+              - generic [ref=e177]:
+                - generic [ref=e178]:
+                  - button "Workspaces 5" [ref=e179] [cursor=pointer]:
+                    - img [ref=e180]
+                    - generic [ref=e182]: Workspaces
+                    - generic [ref=e183]: "5"
+                    - generic [ref=e184]:
+                      - button "List view" [ref=e185]:
+                        - img [ref=e186]
+                      - button "Thumbnails view" [ref=e187]:
+                        - img [ref=e188]
+                      - button "Grid view" [ref=e191]:
+                        - img [ref=e192]
+                    - button "Search" [ref=e197]:
+                      - img [ref=e198]
+                  - generic [ref=e201]:
+                    - generic [ref=e203]:
+                      - generic [ref=e204]:
+                        - img [ref=e205]
+                        - text: Published
+                      - generic "HCU + H2 Plant Overview" [ref=e209] [cursor=pointer]:
+                        - img [ref=e211]
+                        - generic [ref=e216]: HCU + H2 Plant Overview
+                        - button "Add to Favorites" [ref=e217]:
+                          - img [ref=e218]
+                      - generic [ref=e220]:
+                        - img [ref=e221]
+                        - text: Personal
+                      - generic [ref=e224]:
+                        - generic "Workspace 5" [ref=e225] [cursor=pointer]:
+                          - img [ref=e227]
+                          - generic [ref=e232]: Workspace 5
+                          - button "Add to Favorites" [ref=e233]:
+                            - img [ref=e234]
+                        - generic "Workspace 4" [ref=e236] [cursor=pointer]:
+                          - img [ref=e238]
+                          - generic [ref=e243]: Workspace 4
+                          - button "Add to Favorites" [ref=e244]:
+                            - img [ref=e245]
+                        - generic "Workspace 3" [ref=e247] [cursor=pointer]:
+                          - img [ref=e249]
+                          - generic [ref=e254]: Workspace 3
+                          - button "Add to Favorites" [ref=e255]:
+                            - img [ref=e256]
+                        - generic "Workspace 2" [ref=e258] [cursor=pointer]:
+                          - img [ref=e260]
+                          - generic [ref=e265]: Workspace 2
+                          - button "Add to Favorites" [ref=e266]:
+                            - img [ref=e267]
+                    - separator "Resize Workspaces section height" [ref=e269]
+                - generic [ref=e270]:
+                  - button "Graphics" [ref=e271] [cursor=pointer]:
+                    - img [ref=e272]
+                    - generic [ref=e274]: Graphics
+                    - generic [ref=e275]:
+                      - button "List view" [ref=e276]:
+                        - img [ref=e277]
+                      - button "Thumbnails view" [ref=e278]:
+                        - img [ref=e279]
+                      - button "Grid view" [ref=e282]:
+                        - img [ref=e283]
+                    - button "Search" [ref=e288]:
+                      - img [ref=e289]
+                  - generic [ref=e292]:
+                    - generic [ref=e294]:
+                      - generic [ref=e295]:
+                        - img [ref=e296]
+                        - text: Favorites
+                      - generic [ref=e299]:
+                        - img [ref=e301]
+                        - generic [ref=e304]: Test Graphic 8
+                        - button "Remove from Favorites" [ref=e305] [cursor=pointer]:
+                          - img [ref=e306]
+                      - generic [ref=e308]: Library
+                      - generic [ref=e309]:
+                        - generic [ref=e310]:
+                          - img [ref=e312]
+                          - generic [ref=e315]: Test Graphic 6
+                          - button "Add to Favorites" [ref=e316] [cursor=pointer]:
+                            - img [ref=e317]
+                        - generic [ref=e319]:
+                          - img [ref=e321]
+                          - generic [ref=e324]: HCU Recycle Gas Compressor
+                          - button "Add to Favorites" [ref=e325] [cursor=pointer]:
+                            - img [ref=e326]
+                        - generic [ref=e328]:
+                          - img [ref=e330]
+                          - generic [ref=e333]: HCU Reactor R-2502 (Cracker)
+                          - button "Add to Favorites" [ref=e334] [cursor=pointer]:
+                            - img [ref=e335]
+                        - generic [ref=e337]:
+                          - img [ref=e339]
+                          - generic [ref=e342]: HCU Reactor R-2501 (Pretreater)
+                          - button "Add to Favorites" [ref=e343] [cursor=pointer]:
+                            - img [ref=e344]
+                        - generic [ref=e346]:
+                          - img [ref=e348]
+                          - generic [ref=e351]: HCU Overview / Performance
+                          - button "Add to Favorites" [ref=e352] [cursor=pointer]:
+                            - img [ref=e353]
+                        - generic [ref=e355]:
+                          - img [ref=e357]
+                          - generic [ref=e360]: HCU Light Ends
+                          - button "Add to Favorites" [ref=e361] [cursor=pointer]:
+                            - img [ref=e362]
+                        - generic [ref=e364]:
+                          - img [ref=e366]
+                          - generic [ref=e369]: HCU HP Separation
+                          - button "Add to Favorites" [ref=e370] [cursor=pointer]:
+                            - img [ref=e371]
+                        - generic [ref=e373]:
+                          - img [ref=e375]
+                          - generic [ref=e378]: HCU Fractionator
+                          - button "Add to Favorites" [ref=e379] [cursor=pointer]:
+                            - img [ref=e380]
+                        - generic [ref=e382]:
+                          - img [ref=e384]
+                          - generic [ref=e387]: HCU Feed Preheat & Charge Heater
+                          - button "Add to Favorites" [ref=e388] [cursor=pointer]:
+                            - img [ref=e389]
+                        - generic [ref=e391]:
+                          - img [ref=e393]
+                          - generic [ref=e396]: H2 Plant — Steam System / Compression / Utilities
+                          - button "Add to Favorites" [ref=e397] [cursor=pointer]:
+                            - img [ref=e398]
+                        - generic [ref=e400]:
+                          - img [ref=e402]
+                          - generic [ref=e405]: H2 Plant Overview — Reformer & Shift
+                          - button "Add to Favorites" [ref=e406] [cursor=pointer]:
+                            - img [ref=e407]
+                    - separator "Resize Graphics section height" [ref=e409]
+                - generic [ref=e410]:
+                  - button "Charts" [ref=e411] [cursor=pointer]:
+                    - img [ref=e412]
+                    - generic [ref=e414]: Charts
+                  - generic [ref=e415]:
+                    - generic "Drag onto a pane, or double-click to place in the selected pane" [ref=e418]:
+                      - img [ref=e419]
+                      - generic [ref=e421]:
+                        - generic [ref=e422]: Chart
+                        - generic [ref=e423]: Trend · Table · Alarm · Any chart type
+                    - separator "Resize Charts section height" [ref=e424]
+                - button "Points" [ref=e426] [cursor=pointer]:
+                  - img [ref=e427]
+                  - generic [ref=e429]: Points
+                  - button "Search" [ref=e430]:
+                    - img [ref=e431]
+              - generic [ref=e434]: Drag items onto panes to assign them
+              - separator "Resize assets palette width" [ref=e435]
+            - generic [ref=e436]:
+              - generic [ref=e438]:
+                - generic [ref=e440]:
+                  - generic [ref=e441]:
+                    - generic [ref=e442]: Blank
+                    - button "Pin pane" [ref=e443] [cursor=pointer]:
+                      - img [ref=e444]
+                    - button "Configure pane" [ref=e446] [cursor=pointer]:
+                      - img [ref=e447]
+                    - button "Remove pane" [ref=e450] [cursor=pointer]:
+                      - img [ref=e451]
+                  - generic [ref=e455]:
+                    - img [ref=e456]
+                    - generic [ref=e458]: Empty pane
+                    - button "Configure Pane" [ref=e459] [cursor=pointer]
+                - generic [ref=e469]:
+                  - generic [ref=e470]:
+                    - generic [ref=e471]: Blank
+                    - button "Pin pane" [ref=e472] [cursor=pointer]:
+                      - img [ref=e473]
+                    - button "Configure pane" [ref=e475] [cursor=pointer]:
+                      - img [ref=e476]
+                    - button "Remove pane" [ref=e479] [cursor=pointer]:
+                      - img [ref=e480]
+                  - generic [ref=e484]:
+                    - img [ref=e485]
+                    - generic [ref=e487]: Empty pane
+                    - button "Configure Pane" [ref=e488] [cursor=pointer]
+                - generic [ref=e498]:
+                  - generic [ref=e499]:
+                    - generic [ref=e500]: Blank
+                    - button "Pin pane" [ref=e501] [cursor=pointer]:
+                      - img [ref=e502]
+                    - button "Configure pane" [ref=e504] [cursor=pointer]:
+                      - img [ref=e505]
+                    - button "Remove pane" [ref=e508] [cursor=pointer]:
+                      - img [ref=e509]
+                  - generic [ref=e513]:
+                    - img [ref=e514]
+                    - generic [ref=e516]: Empty pane
+                    - button "Configure Pane" [ref=e517] [cursor=pointer]
+                - generic [ref=e527]:
+                  - generic [ref=e528]:
+                    - generic [ref=e529]: Blank
+                    - button "Pin pane" [ref=e530] [cursor=pointer]:
+                      - img [ref=e531]
+                    - button "Configure pane" [ref=e533] [cursor=pointer]:
+                      - img [ref=e534]
+                    - button "Remove pane" [ref=e537] [cursor=pointer]:
+                      - img [ref=e538]
+                  - generic [ref=e542]:
+                    - img [ref=e543]
+                    - generic [ref=e545]: Empty pane
+                    - button "Configure Pane" [ref=e546] [cursor=pointer]
+                - generic [ref=e556]:
+                  - generic [ref=e557]:
+                    - generic [ref=e558]: Blank
+                    - button "Pin pane" [ref=e559] [cursor=pointer]:
+                      - img [ref=e560]
+                    - button "Configure pane" [ref=e562] [cursor=pointer]:
+                      - img [ref=e563]
+                    - button "Remove pane" [ref=e566] [cursor=pointer]:
+                      - img [ref=e567]
+                  - generic [ref=e571]:
+                    - img [ref=e572]
+                    - generic [ref=e574]: Empty pane
+                    - button "Configure Pane" [ref=e575] [cursor=pointer]
+                - generic [ref=e585]:
+                  - generic [ref=e586]:
+                    - generic [ref=e587]: Blank
+                    - button "Pin pane" [ref=e588] [cursor=pointer]:
+                      - img [ref=e589]
+                    - button "Configure pane" [ref=e591] [cursor=pointer]:
+                      - img [ref=e592]
+                    - button "Remove pane" [ref=e595] [cursor=pointer]:
+                      - img [ref=e596]
+                  - generic [ref=e600]:
+                    - img [ref=e601]
+                    - generic [ref=e603]: Empty pane
+                    - button "Configure Pane" [ref=e604] [cursor=pointer]
+                - generic [ref=e614]:
+                  - generic [ref=e615]:
+                    - generic [ref=e616]: Blank
+                    - button "Pin pane" [ref=e617] [cursor=pointer]:
+                      - img [ref=e618]
+                    - button "Configure pane" [ref=e620] [cursor=pointer]:
+                      - img [ref=e621]
+                    - button "Remove pane" [ref=e624] [cursor=pointer]:
+                      - img [ref=e625]
+                  - generic [ref=e629]:
+                    - img [ref=e630]
+                    - generic [ref=e632]: Empty pane
+                    - button "Configure Pane" [ref=e633] [cursor=pointer]
+                - generic [ref=e643]:
+                  - generic [ref=e644]:
+                    - generic [ref=e645]: Blank
+                    - button "Pin pane" [ref=e646] [cursor=pointer]:
+                      - img [ref=e647]
+                    - button "Configure pane" [ref=e649] [cursor=pointer]:
+                      - img [ref=e650]
+                    - button "Remove pane" [ref=e653] [cursor=pointer]:
+                      - img [ref=e654]
+                  - generic [ref=e658]:
+                    - img [ref=e659]
+                    - generic [ref=e661]: Empty pane
+                    - button "Configure Pane" [ref=e662] [cursor=pointer]
+                - generic [ref=e672]:
+                  - generic [ref=e673]:
+                    - generic [ref=e674]: Blank
+                    - button "Pin pane" [ref=e675] [cursor=pointer]:
+                      - img [ref=e676]
+                    - button "Configure pane" [ref=e678] [cursor=pointer]:
+                      - img [ref=e679]
+                    - button "Remove pane" [ref=e682] [cursor=pointer]:
+                      - img [ref=e683]
+                  - generic [ref=e687]:
+                    - img [ref=e688]
+                    - generic [ref=e690]: Empty pane
+                    - button "Configure Pane" [ref=e691] [cursor=pointer]
+                - generic [ref=e701]:
+                  - generic [ref=e702]:
+                    - generic [ref=e703]: Blank
+                    - button "Pin pane" [ref=e704] [cursor=pointer]:
+                      - img [ref=e705]
+                    - button "Configure pane" [ref=e707] [cursor=pointer]:
+                      - img [ref=e708]
+                    - button "Remove pane" [ref=e711] [cursor=pointer]:
+                      - img [ref=e712]
+                  - generic [ref=e716]:
+                    - img [ref=e717]
+                    - generic [ref=e719]: Empty pane
+                    - button "Configure Pane" [ref=e720] [cursor=pointer]
+                - generic [ref=e730]:
+                  - generic [ref=e731]:
+                    - generic [ref=e732]: Blank
+                    - button "Pin pane" [ref=e733] [cursor=pointer]:
+                      - img [ref=e734]
+                    - button "Configure pane" [ref=e736] [cursor=pointer]:
+                      - img [ref=e737]
+                    - button "Remove pane" [ref=e740] [cursor=pointer]:
+                      - img [ref=e741]
+                  - generic [ref=e745]:
+                    - img [ref=e746]
+                    - generic [ref=e748]: Empty pane
+                    - button "Configure Pane" [ref=e749] [cursor=pointer]
+                - generic [ref=e759]:
+                  - generic [ref=e760]:
+                    - generic [ref=e761]: Blank
+                    - button "Pin pane" [ref=e762] [cursor=pointer]:
+                      - img [ref=e763]
+                    - button "Configure pane" [ref=e765] [cursor=pointer]:
+                      - img [ref=e766]
+                    - button "Remove pane" [ref=e769] [cursor=pointer]:
+                      - img [ref=e770]
+                  - generic [ref=e774]:
+                    - img [ref=e775]
+                    - generic [ref=e777]: Empty pane
+                    - button "Configure Pane" [ref=e778] [cursor=pointer]
+                - generic [ref=e788]:
+                  - generic [ref=e789]:
+                    - generic [ref=e790]: Blank
+                    - button "Pin pane" [ref=e791] [cursor=pointer]:
+                      - img [ref=e792]
+                    - button "Configure pane" [ref=e794] [cursor=pointer]:
+                      - img [ref=e795]
+                    - button "Remove pane" [ref=e798] [cursor=pointer]:
+                      - img [ref=e799]
+                  - generic [ref=e803]:
+                    - img [ref=e804]
+                    - generic [ref=e806]: Empty pane
+                    - button "Configure Pane" [ref=e807] [cursor=pointer]
+                - generic [ref=e817]:
+                  - generic [ref=e818]:
+                    - generic [ref=e819]: Blank
+                    - button "Pin pane" [ref=e820] [cursor=pointer]:
+                      - img [ref=e821]
+                    - button "Configure pane" [ref=e823] [cursor=pointer]:
+                      - img [ref=e824]
+                    - button "Remove pane" [ref=e827] [cursor=pointer]:
+                      - img [ref=e828]
+                  - generic [ref=e832]:
+                    - img [ref=e833]
+                    - generic [ref=e835]: Empty pane
+                    - button "Configure Pane" [ref=e836] [cursor=pointer]
+                - generic [ref=e846]:
+                  - generic [ref=e847]:
+                    - generic [ref=e848]: Blank
+                    - button "Pin pane" [ref=e849] [cursor=pointer]:
+                      - img [ref=e850]
+                    - button "Configure pane" [ref=e852] [cursor=pointer]:
+                      - img [ref=e853]
+                    - button "Remove pane" [ref=e856] [cursor=pointer]:
+                      - img [ref=e857]
+                  - generic [ref=e861]:
+                    - img [ref=e862]
+                    - generic [ref=e864]: Empty pane
+                    - button "Configure Pane" [ref=e865] [cursor=pointer]
+                - generic [ref=e875]:
+                  - generic [ref=e876]:
+                    - generic [ref=e877]: Blank
+                    - button "Pin pane" [ref=e878] [cursor=pointer]:
+                      - img [ref=e879]
+                    - button "Configure pane" [ref=e881] [cursor=pointer]:
+                      - img [ref=e882]
+                    - button "Remove pane" [ref=e885] [cursor=pointer]:
+                      - img [ref=e886]
+                  - generic [ref=e890]:
+                    - img [ref=e891]
+                    - generic [ref=e893]: Empty pane
+                    - button "Configure Pane" [ref=e894] [cursor=pointer]
+              - generic [ref=e903]:
+                - button "LIVE" [ref=e904] [cursor=pointer]: LIVE
+                - generic [ref=e906]: Click to enter historical playback
+              - generic [ref=e907]:
+                - generic [ref=e908]: Disconnected
+                - generic [ref=e910]: "|"
+                - generic [ref=e911]: 0 points subscribed
+                - generic [ref=e912]: "|"
+                - generic [ref=e913]: Workspace 5
+                - generic [ref=e914]: "|"
+                - generic [ref=e915]: Live
+  - region "Notifications (F8)":
+    - list

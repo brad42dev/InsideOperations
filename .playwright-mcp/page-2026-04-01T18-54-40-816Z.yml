@@ -1,0 +1,355 @@
+- generic:
+  - generic:
+    - generic:
+      - complementary:
+        - generic:
+          - button:
+            - generic: I/O
+        - navigation:
+          - generic:
+            - link:
+              - /url: /console
+              - generic:
+                - img
+            - link:
+              - /url: /process
+              - generic:
+                - img
+          - generic:
+            - link:
+              - /url: /dashboards
+              - generic:
+                - img
+            - link:
+              - /url: /reports
+              - generic:
+                - img
+            - link:
+              - /url: /forensics
+              - generic:
+                - img
+          - generic:
+            - link:
+              - /url: /log
+              - generic:
+                - img
+            - link:
+              - /url: /rounds
+              - generic:
+                - img
+            - link:
+              - /url: /alerts
+              - generic:
+                - img
+          - generic:
+            - link:
+              - /url: /shifts
+              - generic:
+                - img
+            - link:
+              - /url: /settings
+              - generic:
+                - img
+            - link:
+              - /url: /designer
+              - generic:
+                - img
+        - button:
+          - img
+        - generic:
+          - generic:
+            - button
+      - generic:
+        - banner:
+          - generic:
+            - heading [level=1]: Console
+          - generic:
+            - button:
+              - generic: ⌕
+              - generic: Search
+              - generic: ⌃K
+            - button:
+              - img
+            - button: ▲
+            - generic:
+              - button:
+                - generic: A
+                - generic: admin
+                - generic: ▾
+        - main:
+          - generic:
+            - generic:
+              - generic: Console
+              - button: Workspace 4
+              - button: Workspace 3
+              - button: Workspace 2
+              - button:
+                - generic: ●
+                - text: HCU + H2 Plant Overview
+              - button: +
+              - generic:
+                - button:
+                  - img
+                  - text: Undo
+                - button [disabled]:
+                  - text: Redo
+                  - img
+                - combobox
+                - button: Clear
+                - button: Rename
+                - button: ○ Publish
+                - button: Delete
+                - button: Done
+                - button:
+                  - img
+                  - text: AR
+                - button:
+                  - img
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Assets
+                  - button:
+                    - img
+                - generic:
+                  - generic:
+                    - button:
+                      - img
+                      - generic: Workspaces
+                      - generic: "4"
+                      - generic:
+                        - button:
+                          - img
+                        - button:
+                          - img
+                        - button:
+                          - img
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - searchbox
+                          - generic:
+                            - button:
+                              - img
+                              - img
+                              - generic: Favorites
+                            - generic: No favorites yet
+                          - generic:
+                            - generic:
+                              - generic:
+                                - img
+                              - generic:
+                                - generic: Workspace 4
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic:
+                                - generic: Workspace 3
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic:
+                                - generic: Workspace 2
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic:
+                                - generic: HCU + H2 Plant Overview
+                              - button:
+                                - img
+                      - separator
+                  - generic:
+                    - button:
+                      - img
+                      - generic: Graphics
+                      - generic:
+                        - button:
+                          - img
+                        - button:
+                          - img
+                        - button:
+                          - img
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - searchbox
+                          - generic:
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: Test Graphic 8
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: Test Graphic 6
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU Recycle Gas Compressor
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU Reactor R-2502 (Cracker)
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU Reactor R-2501 (Pretreater)
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU Overview / Performance
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU Light Ends
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU HP Separation
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU Fractionator
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: HCU Feed Preheat & Charge Heater
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: H2 Plant — Steam System / Compression / Utilities
+                              - button:
+                                - img
+                            - generic:
+                              - generic:
+                                - img
+                              - generic: H2 Plant Overview — Reformer & Shift
+                              - button:
+                                - img
+                      - separator
+                  - generic:
+                    - button:
+                      - img
+                      - generic: Widgets
+                      - generic:
+                        - button:
+                          - img
+                        - button:
+                          - img
+                        - button:
+                          - img
+                  - generic:
+                    - button:
+                      - img
+                      - generic: Points
+                - generic: Drag items onto panes to assign them
+                - separator
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Blank
+                          - button:
+                            - img
+                          - button:
+                            - img
+                        - generic:
+                          - generic:
+                            - img
+                            - generic: Empty pane
+                            - button: Configure Pane
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Blank
+                          - button:
+                            - img
+                          - button:
+                            - img
+                        - generic:
+                          - generic:
+                            - img
+                            - generic: Empty pane
+                            - button: Configure Pane
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Blank
+                          - button:
+                            - img
+                          - button:
+                            - img
+                        - generic:
+                          - generic:
+                            - img
+                            - generic: Empty pane
+                            - button: Configure Pane
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Blank
+                          - button:
+                            - img
+                          - button:
+                            - img
+                        - generic:
+                          - generic:
+                            - img
+                            - generic: Empty pane
+                            - button: Configure Pane
+                - generic:
+                  - button: LIVE
+                  - generic: Click to enter historical playback
+                - generic:
+                  - generic: Connected
+                  - generic: "|"
+                  - generic: 0 points subscribed
+                  - generic: "|"
+                  - generic: Workspace 4
+                  - generic: "|"
+                  - generic: Live
+  - dialog "Configure Pane" [ref=e615]:
+    - heading "Configure Pane" [level=2] [ref=e616]
+    - generic [ref=e617]:
+      - generic [ref=e618]: Pane Type
+      - generic [ref=e619]:
+        - button "Trend" [active] [ref=e620] [cursor=pointer]
+        - button "Point Table" [ref=e621] [cursor=pointer]
+        - button "Alarm List" [ref=e622] [cursor=pointer]
+        - button "Blank" [ref=e623] [cursor=pointer]
+    - generic [ref=e624]:
+      - generic [ref=e625]: Title (optional)
+      - textbox "e.g. Blank" [ref=e626]
+    - generic [ref=e627]:
+      - button "Cancel" [ref=e628] [cursor=pointer]
+      - button "Save" [ref=e629] [cursor=pointer]
