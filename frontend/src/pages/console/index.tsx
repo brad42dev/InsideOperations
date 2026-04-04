@@ -365,7 +365,9 @@ export default function ConsolePage() {
         const prevSet = new Set(prev);
         const kept = prev.filter((id) => allSet.has(id)); // remove server-deleted
         // Only open IDs that are brand-new (not previously seen, not user-closed)
-        const added = allIds.filter((id) => !prevSet.has(id) && !closed.has(id));
+        const added = allIds.filter(
+          (id) => !prevSet.has(id) && !closed.has(id),
+        );
         return [...kept, ...added];
       });
       const newActiveId =
