@@ -345,81 +345,83 @@ function ConnectorsTab() {
 
   return (
     <div>
-      {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([domain, items]) => (
-        <div key={domain} style={{ marginBottom: "32px" }}>
-          <div
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "var(--io-text-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: "12px",
-            }}
-          >
-            {domain.replace(/_/g, " ")}
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: "12px",
-            }}
-          >
-            {items.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  setSelectedTemplate(t);
-                  setSetupOpen(true);
-                }}
-                style={{
-                  background: "var(--io-surface-secondary)",
-                  border: "1px solid var(--io-border)",
-                  borderRadius: "var(--io-radius)",
-                  padding: "16px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  transition: "border-color 0.15s",
-                }}
-              >
-                <div
+      {Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([domain, items]) => (
+          <div key={domain} style={{ marginBottom: "32px" }}>
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--io-text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: "12px",
+              }}
+            >
+              {domain.replace(/_/g, " ")}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                gap: "12px",
+              }}
+            >
+              {items.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setSelectedTemplate(t);
+                    setSetupOpen(true);
+                  }}
                   style={{
-                    fontWeight: 600,
-                    fontSize: "14px",
-                    marginBottom: "4px",
+                    background: "var(--io-surface-secondary)",
+                    border: "1px solid var(--io-border)",
+                    borderRadius: "var(--io-radius)",
+                    padding: "16px",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "border-color 0.15s",
                   }}
                 >
-                  {t.name}
-                </div>
-                <div style={{ marginBottom: "8px" }}>
-                  <DomainBadge domain={t.domain} />
-                  <span
-                    style={{
-                      marginLeft: "6px",
-                      fontSize: "11px",
-                      color: "var(--io-text-muted)",
-                    }}
-                  >
-                    {t.vendor}
-                  </span>
-                </div>
-                {t.description && (
                   <div
                     style={{
-                      fontSize: "12px",
-                      color: "var(--io-text-secondary)",
-                      lineHeight: 1.4,
+                      fontWeight: 600,
+                      fontSize: "14px",
+                      marginBottom: "4px",
                     }}
                   >
-                    {t.description}
+                    {t.name}
                   </div>
-                )}
-              </button>
-            ))}
+                  <div style={{ marginBottom: "8px" }}>
+                    <DomainBadge domain={t.domain} />
+                    <span
+                      style={{
+                        marginLeft: "6px",
+                        fontSize: "11px",
+                        color: "var(--io-text-muted)",
+                      }}
+                    >
+                      {t.vendor}
+                    </span>
+                  </div>
+                  {t.description && (
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--io-text-secondary)",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {t.description}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
 
       {templates.length === 0 && (
         <div

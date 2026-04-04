@@ -1838,7 +1838,6 @@ export default function ConsolePage() {
                 </button>
               )}
 
-
               {/* Lock toggle button — replaces Edit/Done */}
               <button
                 onClick={() => activeId && toggleLocked(activeId)}
@@ -1898,7 +1897,9 @@ export default function ConsolePage() {
               padding: "4px 10px",
               cursor: activeWorkspace ? "pointer" : "default",
               fontSize: 12,
-              color: activeWorkspace ? "var(--io-danger)" : "var(--io-text-disabled)",
+              color: activeWorkspace
+                ? "var(--io-danger)"
+                : "var(--io-text-disabled)",
               opacity: activeWorkspace ? 1 : 0.4,
             }}
           >
