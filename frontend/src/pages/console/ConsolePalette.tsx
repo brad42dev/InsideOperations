@@ -2133,6 +2133,7 @@ export default function ConsolePalette({
   const resizeStartYRef = useRef(0);
   const resizeStartHeightRef = useRef(0);
   const [resizingSection, setResizingSection] = useState<string | null>(null);
+  const [expandHovered, setExpandHovered] = useState(false);
 
   const handleSectionResizeMouseDown = useCallback(
     (sectionKey: string) => (e: React.MouseEvent) => {
@@ -2170,48 +2171,58 @@ export default function ConsolePalette({
   }, []);
 
   if (!visible) {
-    // Collapsed — show a slim toggle button
     return (
       <div
-        style={{
-          width: 24,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          background: "var(--io-surface-secondary)",
-          borderRight: "1px solid var(--io-border)",
-          paddingTop: 8,
-        }}
+        style={{ position: "relative", width: 0, flexShrink: 0, zIndex: 10 }}
+        onMouseEnter={() => setExpandHovered(true)}
+        onMouseLeave={() => setExpandHovered(false)}
       >
-        <button
-          onClick={onToggle}
-          title="Show asset palette"
+        {/* Invisible hover zone — widens on hover to reveal the expand button */}
+        <div
           style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--io-text-muted)",
-            padding: "4px",
-            borderRadius: 4,
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: expandHovered ? 28 : 8,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 20,
-            height: 20,
+            transition: "width 0.15s",
+            overflow: "hidden",
           }}
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+          <button
+            onClick={onToggle}
+            title="Show palette"
+            style={{
+              background: "var(--io-surface-secondary)",
+              border: "1px solid var(--io-border)",
+              borderLeft: "none",
+              borderRadius: "0 4px 4px 0",
+              cursor: "pointer",
+              color: "var(--io-text-muted)",
+              padding: "6px 4px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: expandHovered ? 1 : 0,
+              transition: "opacity 0.15s",
+              flexShrink: 0,
+            }}
           >
-            <polyline points="6 4 10 8 6 12" />
-          </svg>
-        </button>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <polyline points="6 4 10 8 6 12" />
+            </svg>
+          </button>
+        </div>
       </div>
     );
   }
