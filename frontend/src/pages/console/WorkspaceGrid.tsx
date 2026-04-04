@@ -20,9 +20,7 @@ import {
   MIN_W,
   MIN_H,
   presetToGridItems,
-  resolveCollisions,
-  finalizeLayout,
-  type ResizeAxisHint,
+  scanLineCompact,
 } from "./layout-utils";
 
 export { presetToGridItems };
@@ -262,7 +260,7 @@ export default function WorkspaceGrid({
   //   we can render a ghost showing the actual committed size.
   const gestureIdRef = useRef<string | null>(null);
   const [previewLayout, setPreviewLayout] = useState<GridItem[] | null>(null);
-  const rawGestureLayoutRef = useRef<GridItem[] | null>(null);
+  const preGestureLayoutRef = useRef<GridItem[] | null>(null);
 
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
@@ -281,6 +279,7 @@ export default function WorkspaceGrid({
 
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
+    preGestureLayoutRef.current = gridItemsRef.current.map((it) => ({ ...it }));
   }, []);
 
   const handleDrag = useCallback(
@@ -303,12 +302,12 @@ export default function WorkspaceGrid({
               }
             : item,
       );
-      rawGestureLayoutRef.current = withNewPos;
       setPreviewLayout(
-        resolveCollisions(
+        scanLineCompact(
           withNewPos,
           newItem.i,
           pinnedIds,
+          preGestureLayoutRef.current,
           GRID_COLS,
           GRID_ROWS,
         ),
@@ -325,15 +324,6 @@ export default function WorkspaceGrid({
     ) => {
       if (!newItem) return;
       gestureIdRef.current = newItem.i;
-      // Mirror the axis-hint logic from handleResizeStop for accurate preview
-      let axisHint: ResizeAxisHint | undefined;
-      const startDims = resizeStartRef.current;
-      if (startDims && startDims.i === newItem.i) {
-        const yChanged = newItem.y !== startDims.y || newItem.h !== startDims.h;
-        const xChanged = newItem.x !== startDims.x || newItem.w !== startDims.w;
-        if (yChanged && !xChanged) axisHint = "y";
-        else if (xChanged && !yChanged) axisHint = "x";
-      }
       const withNewSize = gridItemsRef.current.map(
         (item): GridItem =>
           item.i === newItem.i
@@ -346,15 +336,14 @@ export default function WorkspaceGrid({
               }
             : item,
       );
-      rawGestureLayoutRef.current = withNewSize;
       setPreviewLayout(
-        resolveCollisions(
+        scanLineCompact(
           withNewSize,
           newItem.i,
           pinnedIds,
+          preGestureLayoutRef.current,
           GRID_COLS,
           GRID_ROWS,
-          axisHint,
         ),
       );
     },
@@ -368,6 +357,7 @@ export default function WorkspaceGrid({
       newItem: LayoutItem | null,
     ) => {
       isResizingRef.current = true;
+      preGestureLayoutRef.current = gridItemsRef.current.map((it) => ({ ...it }));
       if (newItem) {
         resizeStartRef.current = {
           i: newItem.i,
@@ -400,7 +390,7 @@ export default function WorkspaceGrid({
     [locked, onGridLayoutChange],
   );
 
-  // ── Resize stop — run collision resolver ─────────────────────────────────
+  // ── Resize stop — scan-line compaction ───────────────────────────────────
 
   const handleResizeStop = useCallback(
     (
@@ -416,24 +406,12 @@ export default function WorkspaceGrid({
       });
       setPreviewLayout(null);
       gestureIdRef.current = null;
-      rawGestureLayoutRef.current = null;
+      const preGesture = preGestureLayoutRef.current;
+      preGestureLayoutRef.current = null;
       const startDims = resizeStartRef.current;
       resizeStartRef.current = null;
 
       if (locked || !onGridLayoutChange || !newItem) return;
-
-      // Detect single-axis resize direction to hint the collision resolver.
-      // Without this, a north resize into a wide neighbor produces large x-overlap
-      // and small y-overlap, causing the resolver to (incorrectly) push horizontally.
-      let axisHint: ResizeAxisHint | undefined;
-      if (startDims) {
-        const yChanged = newItem.y !== startDims.y || newItem.h !== startDims.h;
-        const xChanged = newItem.x !== startDims.x || newItem.w !== startDims.w;
-        if (yChanged && !xChanged)
-          axisHint = "y"; // n/s edge handle
-        else if (xChanged && !yChanged) axisHint = "x"; // e/w edge handle
-        // both changed = corner handle → no hint, use overlap heuristic
-      }
 
       let finalW = newItem.w;
       let finalH = newItem.h;
@@ -457,7 +435,6 @@ export default function WorkspaceGrid({
         }
       }
 
-      // Apply final size to the resized item, then resolve collisions once.
       const withNewSize = gridItemsRef.current.map(
         (item): GridItem =>
           item.i === newItem.i
@@ -465,16 +442,11 @@ export default function WorkspaceGrid({
             : item,
       );
       onGridLayoutChange(
-        finalizeLayout(
-          resolveCollisions(
-            withNewSize,
-            newItem.i,
-            pinnedIds,
-            GRID_COLS,
-            GRID_ROWS,
-            axisHint,
-          ),
+        scanLineCompact(
+          withNewSize,
+          newItem.i,
           pinnedIds,
+          preGesture,
           GRID_COLS,
           GRID_ROWS,
         ),
@@ -483,7 +455,7 @@ export default function WorkspaceGrid({
     [locked, pinnedIds, onGridLayoutChange],
   );
 
-  // ── Drag stop — run collision resolver ────────────────────────────────────
+  // ── Drag stop — scan-line compaction ─────────────────────────────────────
 
   const handleDragStop = useCallback(
     (
@@ -499,7 +471,9 @@ export default function WorkspaceGrid({
       });
       setPreviewLayout(null);
       gestureIdRef.current = null;
-      rawGestureLayoutRef.current = null;
+      const preGesture = preGestureLayoutRef.current;
+      preGestureLayoutRef.current = null;
+
       if (locked || !onGridLayoutChange) return;
 
       if (!newItem) {
@@ -507,8 +481,6 @@ export default function WorkspaceGrid({
         return;
       }
 
-      // Apply new position to the dragged pane, then resolve collisions
-      // (resolveCollisions Phase 3 clamps panes to grid bounds — no out-of-bounds deletion on drag)
       const withNewPos = gridItemsRef.current.map(
         (item): GridItem =>
           item.i === newItem.i
@@ -522,21 +494,17 @@ export default function WorkspaceGrid({
             : item,
       );
       onGridLayoutChange(
-        finalizeLayout(
-          resolveCollisions(
-            withNewPos,
-            newItem.i,
-            pinnedIds,
-            GRID_COLS,
-            GRID_ROWS,
-          ),
+        scanLineCompact(
+          withNewPos,
+          newItem.i,
           pinnedIds,
+          preGesture,
           GRID_COLS,
           GRID_ROWS,
         ),
       );
     },
-    [locked, pinnedIds, onGridLayoutChange, onRemovePane],
+    [locked, pinnedIds, onGridLayoutChange],
   );
 
   // Augment grid items with min size constraints
@@ -885,20 +853,7 @@ export default function WorkspaceGrid({
             );
           });
 
-          // Active-pane cap ghost: if resolveCollisions clamped the active pane
-          // below what the user dragged to, show a ghost at the capped size so
-          // the user can see the hard limit during the gesture.
-          const rawActive = rawGestureLayoutRef.current?.find(
-            (g) => g.i === activeId,
-          );
-          const resolvedActive = previewLayout.find((g) => g.i === activeId);
-          const activeWasCapped =
-            rawActive &&
-            resolvedActive &&
-            (resolvedActive.w !== rawActive.w ||
-              resolvedActive.h !== rawActive.h);
-
-          if (ghosts.length === 0 && !activeWasCapped) return null;
+          if (ghosts.length === 0) return null;
 
           return (
             <div
@@ -928,25 +883,6 @@ export default function WorkspaceGrid({
                   }}
                 />
               ))}
-              {activeWasCapped && resolvedActive && (
-                <div
-                  key={`${resolvedActive.i}-cap`}
-                  style={{
-                    position: "absolute",
-                    left: resolvedActive.x * colWidth,
-                    top: resolvedActive.y * rowHeight,
-                    width: resolvedActive.w * colWidth,
-                    height: resolvedActive.h * rowHeight,
-                    border: "2px solid var(--io-accent)",
-                    background: "transparent",
-                    boxSizing: "border-box",
-                    borderRadius: "var(--io-radius)",
-                    opacity: 0.9,
-                    transition:
-                      "left 60ms ease, top 60ms ease, width 60ms ease, height 60ms ease",
-                  }}
-                />
-              )}
             </div>
           );
         })()}
