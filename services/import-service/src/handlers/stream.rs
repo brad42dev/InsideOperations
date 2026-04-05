@@ -20,6 +20,7 @@ use crate::state::AppState;
 
 pub fn stream_routes() -> Router<AppState> {
     Router::new()
+        .route("/stream-sessions", get(list_stream_sessions))
         .route("/definitions/:id/stream-session", get(get_stream_session))
         .route(
             "/definitions/:id/stream-session/stop",
@@ -29,6 +30,85 @@ pub fn stream_routes() -> Router<AppState> {
             "/definitions/:id/stream-session/restart",
             post(restart_stream_session),
         )
+}
+
+// ---------------------------------------------------------------------------
+// GET /import/stream-sessions — list all stream_session definitions + latest session
+// ---------------------------------------------------------------------------
+
+async fn list_stream_sessions(State(state): State<AppState>) -> impl IntoResponse {
+    let rows = sqlx::query(
+        "SELECT idef.id AS definition_id, idef.name AS definition_name, \
+                ic.name AS connection_name, \
+                latest.session_id, latest.status, latest.events_received, \
+                latest.last_event_at, latest.reconnect_count, latest.error_message, \
+                latest.started_at \
+         FROM import_definitions idef \
+         JOIN import_connections ic ON idef.connection_id = ic.id \
+         INNER JOIN import_schedules isched \
+             ON isched.definition_id = idef.id AND isched.schedule_type = 'stream_session' \
+         LEFT JOIN LATERAL ( \
+             SELECT id AS session_id, status, events_received, last_event_at, \
+                    reconnect_count, error_message, started_at \
+             FROM import_stream_sessions \
+             WHERE import_definition_id = idef.id \
+             ORDER BY started_at DESC LIMIT 1 \
+         ) latest ON true \
+         ORDER BY idef.name",
+    )
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rows) => {
+            let sessions: Vec<serde_json::Value> = rows
+                .iter()
+                .map(|r| {
+                    let def_id: Uuid = r.try_get("definition_id").unwrap_or_default();
+                    let session_id: Option<Uuid> = r.try_get("session_id").ok().flatten();
+                    let status: Option<String> = r.try_get("status").ok().flatten();
+                    let events_received: Option<i64> =
+                        r.try_get("events_received").ok().flatten();
+                    let last_event_at: Option<chrono::DateTime<chrono::Utc>> =
+                        r.try_get("last_event_at").ok().flatten();
+                    let reconnect_count: Option<i32> =
+                        r.try_get("reconnect_count").ok().flatten();
+                    let error_message: Option<String> =
+                        r.try_get("error_message").ok().flatten();
+                    let started_at: Option<chrono::DateTime<chrono::Utc>> =
+                        r.try_get("started_at").ok().flatten();
+                    let supervisor_running = state.supervisor.is_running(def_id);
+
+                    json!({
+                        "definition_id": def_id,
+                        "definition_name": r.try_get::<String, _>("definition_name").unwrap_or_default(),
+                        "connection_name": r.try_get::<String, _>("connection_name").unwrap_or_default(),
+                        "session_id": session_id,
+                        "status": status.unwrap_or_else(|| "stopped".to_string()),
+                        "events_received": events_received.unwrap_or(0),
+                        "last_event_at": last_event_at,
+                        "reconnect_count": reconnect_count.unwrap_or(0),
+                        "error_message": error_message,
+                        "started_at": started_at,
+                        "supervisor_running": supervisor_running,
+                    })
+                })
+                .collect();
+
+            Json(json!({ "success": true, "data": sessions })).into_response()
+        }
+        Err(e) => {
+            warn!("list_stream_sessions db error: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false,
+                    "error": { "code": "DB_ERROR", "message": e.to_string() }
+                })),
+            )
+                .into_response()
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

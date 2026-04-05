@@ -199,6 +199,9 @@ const ExportPresets = lazy(() => import("./pages/settings/ExportPresets"));
 const EmailSettingsPage = lazy(() => import("./pages/settings/Email"));
 const SecurityPage = lazy(() => import("./pages/settings/Security"));
 const ImportSettingsPage = lazy(() => import("./pages/settings/Import"));
+const StreamingSessionsPage = lazy(
+  () => import("./pages/settings/StreamingSessions"),
+);
 const RecognitionPage = lazy(() => import("./pages/settings/Recognition"));
 const AuthProvidersPage = lazy(() => import("./pages/settings/AuthProviders"));
 const MfaSettingsPage = lazy(() => import("./pages/settings/MfaSettings"));
@@ -1290,6 +1293,14 @@ function AppRoutes() {
               element={
                 <PermissionGuard permission="settings:write">
                   <ImportSettingsPage />
+                </PermissionGuard>
+              }
+            />
+            <Route
+              path="import-streaming"
+              element={
+                <PermissionGuard permission="settings:write">
+                  <StreamingSessionsPage />
                 </PermissionGuard>
               }
             />

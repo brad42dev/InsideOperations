@@ -9,6 +9,7 @@ import {
   type MusterAccounting,
   type MusterPoint,
   type BadgeSource,
+  type BadgeEvent,
   type CreateShiftPayload,
   type CreateCrewPayload,
   type DeclareMusterPayload,
@@ -147,7 +148,7 @@ function SummaryCard({
 // Tab bar
 // ---------------------------------------------------------------------------
 
-type Tab = "roster" | "schedule" | "presence" | "muster";
+type Tab = "roster" | "schedule" | "presence" | "muster" | "badge-events";
 
 function TabBar({
   active,
@@ -161,6 +162,7 @@ function TabBar({
     { id: "schedule", label: "Schedule" },
     { id: "presence", label: "Presence" },
     { id: "muster", label: "Muster" },
+    { id: "badge-events", label: "Badge Events" },
   ];
   return (
     <div
@@ -332,7 +334,7 @@ function ScheduleTab() {
     queryFn: async () => {
       const r = await shiftsApi.listShifts();
       if (!r.success) throw new Error(r.error.message);
-      return r.data;
+      return r.data.data;
     },
   });
 
@@ -341,7 +343,7 @@ function ScheduleTab() {
     queryFn: async () => {
       const r = await shiftsApi.listCrews();
       if (!r.success) throw new Error(r.error.message);
-      return r.data;
+      return r.data.data;
     },
   });
 
@@ -737,8 +739,39 @@ function ShiftRow({
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 500, fontSize: 14, color: "var(--io-text)" }}>
+        <div
+          style={{
+            fontWeight: 500,
+            fontSize: 14,
+            color: "var(--io-text)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
           {shift.name}
+          {shift.source === "external" && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                padding: "2px 8px",
+                borderRadius: 100,
+                background: "rgba(99, 102, 241, 0.12)",
+                color: "#6366f1",
+                border: "1px solid rgba(99, 102, 241, 0.3)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span style={{ fontSize: 12 }}>&#128274;</span>
+              {shift.source_system || "External"}
+            </span>
+          )}
         </div>
         <div
           style={{ fontSize: 12, color: "var(--io-text-muted)", marginTop: 2 }}
@@ -751,20 +784,22 @@ function ShiftRow({
         </div>
       </div>
       <StatusBadge status={shift.status} />
-      <button
-        onClick={() => onDelete(shift.id)}
-        style={{
-          padding: "4px 10px",
-          border: "1px solid var(--io-border)",
-          borderRadius: 4,
-          background: "none",
-          color: "var(--io-text-muted)",
-          cursor: "pointer",
-          fontSize: 12,
-        }}
-      >
-        Delete
-      </button>
+      {shift.source !== "external" && (
+        <button
+          onClick={() => onDelete(shift.id)}
+          style={{
+            padding: "4px 10px",
+            border: "1px solid var(--io-border)",
+            borderRadius: 4,
+            background: "none",
+            color: "var(--io-text-muted)",
+            cursor: "pointer",
+            fontSize: 12,
+          }}
+        >
+          Delete
+        </button>
+      )}
     </div>
   );
 }
@@ -1014,7 +1049,7 @@ function MusterTab() {
     queryFn: async () => {
       const r = await shiftsApi.listMusterEvents({ status: "active" });
       if (!r.success) throw new Error(r.error.message);
-      return r.data;
+      return r.data.data;
     },
     refetchInterval: 10_000,
   });
@@ -1024,7 +1059,7 @@ function MusterTab() {
     queryFn: async () => {
       const r = await shiftsApi.listMusterEvents();
       if (!r.success) throw new Error(r.error.message);
-      return r.data;
+      return r.data.data;
     },
   });
 
@@ -1033,7 +1068,7 @@ function MusterTab() {
     queryFn: async () => {
       const r = await shiftsApi.listMusterPoints();
       if (!r.success) throw new Error(r.error.message);
-      return r.data;
+      return r.data.data;
     },
   });
 
@@ -1592,7 +1627,7 @@ function BadgeSourcesSection() {
     queryFn: async () => {
       const r = await shiftsApi.listBadgeSources();
       if (!r.success) throw new Error(r.error.message);
-      return r.data;
+      return r.data.data;
     },
   });
 
@@ -1851,6 +1886,166 @@ const ghostBtnAccent: React.CSSProperties = {
 };
 
 // ---------------------------------------------------------------------------
+// BadgeEventsTab
+// ---------------------------------------------------------------------------
+
+const EVENT_TYPE_COLORS: Record<string, [string, string]> = {
+  access_granted: ["#22c55e", "rgba(34,197,94,0.12)"],
+  SwipeIn: ["#22c55e", "rgba(34,197,94,0.12)"],
+  access_denied: ["#ef4444", "rgba(239,68,68,0.12)"],
+  AccessDenied: ["#ef4444", "rgba(239,68,68,0.12)"],
+  DoorForced: ["#ef4444", "rgba(239,68,68,0.12)"],
+  Duress: ["#ef4444", "rgba(239,68,68,0.12)"],
+  Tailgate: ["#ef4444", "rgba(239,68,68,0.12)"],
+  PassbackViolation: ["#ef4444", "rgba(239,68,68,0.12)"],
+  SwipeOut: ["#6b7280", "rgba(107,114,128,0.12)"],
+};
+
+function BadgeEventsTab() {
+  const eventsQuery = useQuery({
+    queryKey: ["badge-events"],
+    queryFn: async () => {
+      const result = await shiftsApi.listBadgeEvents();
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+    refetchInterval: 10000,
+  });
+
+  const events: BadgeEvent[] = eventsQuery.data ?? [];
+
+  const eventBadge = (eventType: string) => {
+    const [color, bg] =
+      EVENT_TYPE_COLORS[eventType] ?? ["#eab308", "rgba(234,179,8,0.12)"];
+    return (
+      <span
+        style={{
+          ...badge(color, bg),
+          fontSize: 11,
+        }}
+      >
+        {eventType.replace(/_/g, " ")}
+      </span>
+    );
+  };
+
+  return (
+    <div style={{ ...surface, padding: 0, overflow: "hidden" }}>
+      <div
+        style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid var(--io-border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 14 }}>
+          Recent Badge Events
+        </span>
+        <span style={{ fontSize: 12, color: "var(--io-text-muted)" }}>
+          {eventsQuery.isFetching ? "Refreshing…" : "Auto-refresh 10s"}
+        </span>
+      </div>
+
+      {eventsQuery.isError && (
+        <div
+          style={{
+            padding: "12px 16px",
+            color: "var(--io-danger)",
+            fontSize: 13,
+          }}
+        >
+          {eventsQuery.error?.message ?? "Failed to load badge events"}
+        </div>
+      )}
+
+      {!eventsQuery.isLoading && events.length === 0 && (
+        <div
+          style={{
+            padding: "32px",
+            textAlign: "center",
+            color: "var(--io-text-muted)",
+            fontSize: 13,
+          }}
+        >
+          No badge events recorded yet.
+        </div>
+      )}
+
+      {events.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              {["Time", "Employee ID", "Event Type", "Door"].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "var(--io-text-muted)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    textAlign: "left",
+                    borderBottom: "1px solid var(--io-border)",
+                    background: "var(--io-surface-secondary)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((e: BadgeEvent) => (
+              <tr
+                key={e.id}
+                style={{ borderBottom: "1px solid var(--io-border-subtle)" }}
+              >
+                <td
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: 12,
+                    color: "var(--io-text-muted)",
+                    whiteSpace: "nowrap",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {new Date(e.event_time).toLocaleString()}
+                </td>
+                <td
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    color: "var(--io-text-primary)",
+                  }}
+                >
+                  {e.employee_id ?? e.badge_id ?? "—"}
+                </td>
+                <td style={{ padding: "8px 14px" }}>
+                  {eventBadge(e.event_type)}
+                </td>
+                <td
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    color: "var(--io-text-secondary)",
+                  }}
+                >
+                  {e.door_name ?? e.door_id ?? "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Root ShiftsPage
 // ---------------------------------------------------------------------------
 
@@ -1863,7 +2058,7 @@ export default function ShiftsPage() {
     queryFn: async () => {
       const r = await shiftsApi.listPresence();
       if (!r.success) throw new Error(r.error.message);
-      return r.data;
+      return r.data.data;
     },
     refetchInterval: 15_000,
   });
@@ -1909,6 +2104,8 @@ export default function ShiftsPage() {
       {tab === "presence" && <PresenceTab presence={presence} />}
 
       {tab === "muster" && <MusterTab />}
+
+      {tab === "badge-events" && <BadgeEventsTab />}
     </div>
   );
 }

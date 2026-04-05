@@ -130,22 +130,22 @@ export default function ShiftScheduleEditor() {
   }, [shiftDetail]);
 
   // Load crews for dropdown
-  const { data: crewsData } = useQuery<ShiftCrew[]>({
+  const { data: crewsData } = useQuery({
     queryKey: ["shifts", "crews"],
     queryFn: async () => {
       const res = await shiftsApi.listCrews();
       if (!res.success) throw new Error(res.error.message);
-      return res.data;
+      return res.data.data;
     },
   });
 
   // Load patterns for dropdown
-  const { data: patternsData } = useQuery<ShiftPattern[]>({
+  const { data: patternsData } = useQuery({
     queryKey: ["shifts", "patterns"],
     queryFn: async () => {
       const res = await shiftsApi.listPatterns();
       if (!res.success) throw new Error(res.error.message);
-      return res.data;
+      return res.data.data;
     },
   });
 
@@ -189,6 +189,7 @@ export default function ShiftScheduleEditor() {
   const isPending = createMutation.isPending || updateMutation.isPending;
   // Show skeleton while waiting for edit data to load
   const formReady = !isEdit || Boolean(shiftDetail);
+  const isExternal = shiftDetail?.shift.source === "external";
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -318,6 +319,26 @@ export default function ShiftScheduleEditor() {
             </div>
           )}
 
+          {isExternal && (
+            <div
+              style={{
+                padding: "12px 16px",
+                background: "rgba(99, 102, 241, 0.08)",
+                border: "1px solid rgba(99, 102, 241, 0.25)",
+                borderRadius: 8,
+                marginBottom: 4,
+                fontSize: 13,
+                color: "#6366f1",
+              }}
+            >
+              &#128274; This shift is managed by{" "}
+              <strong>
+                {shiftDetail?.shift.source_system || "an external system"}
+              </strong>
+              . To modify it, update the source system and re-import.
+            </div>
+          )}
+
           {/* Name */}
           <div>
             <label style={fieldLabel}>Shift Name *</label>
@@ -327,6 +348,7 @@ export default function ShiftScheduleEditor() {
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Day Shift — Week 12"
               required
+              disabled={isExternal}
             />
           </div>
 
@@ -342,6 +364,7 @@ export default function ShiftScheduleEditor() {
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 required
+                disabled={isExternal}
               />
             </div>
             <div>
@@ -352,6 +375,7 @@ export default function ShiftScheduleEditor() {
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 required
+                disabled={isExternal}
               />
             </div>
           </div>
@@ -363,6 +387,7 @@ export default function ShiftScheduleEditor() {
               style={selectStyle}
               value={crewId}
               onChange={(e) => setCrewId(e.target.value)}
+              disabled={isExternal}
             >
               <option value="">— No crew assigned —</option>
               {crews.map((c: ShiftCrew) => (
@@ -380,6 +405,7 @@ export default function ShiftScheduleEditor() {
               style={selectStyle}
               value={patternId}
               onChange={(e) => setPatternId(e.target.value)}
+              disabled={isExternal}
             >
               <option value="">— No pattern —</option>
               {patterns.map((p: ShiftPattern) => (
@@ -400,6 +426,7 @@ export default function ShiftScheduleEditor() {
               style={{ ...inputStyle, maxWidth: 120 }}
               value={handoverMinutes}
               onChange={(e) => setHandoverMinutes(Number(e.target.value))}
+              disabled={isExternal}
             />
             <p
               style={{
@@ -420,6 +447,7 @@ export default function ShiftScheduleEditor() {
                 style={selectStyle}
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
+                disabled={isExternal}
               >
                 {["scheduled", "active", "completed", "cancelled"].map((s) => (
                   <option key={s} value={s}>
@@ -438,6 +466,7 @@ export default function ShiftScheduleEditor() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional handover notes or instructions…"
+              disabled={isExternal}
             />
           </div>
 
@@ -463,24 +492,28 @@ export default function ShiftScheduleEditor() {
                 fontSize: 13,
               }}
             >
-              Cancel
+              {isExternal ? "Back" : "Cancel"}
             </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              style={{
-                padding: "8px 20px",
-                borderRadius: 6,
-                border: "none",
-                background: isPending ? "var(--io-border)" : "var(--io-accent)",
-                color: "#fff",
-                cursor: isPending ? "not-allowed" : "pointer",
-                fontSize: 13,
-                fontWeight: 500,
-              }}
-            >
-              {isPending ? "Saving…" : isEdit ? "Save Changes" : "Create Shift"}
-            </button>
+            {!isExternal && (
+              <button
+                type="submit"
+                disabled={isPending}
+                style={{
+                  padding: "8px 20px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: isPending
+                    ? "var(--io-border)"
+                    : "var(--io-accent)",
+                  color: "#fff",
+                  cursor: isPending ? "not-allowed" : "pointer",
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                {isPending ? "Saving…" : isEdit ? "Save Changes" : "Create Shift"}
+              </button>
+            )}
           </div>
         </form>
       )}

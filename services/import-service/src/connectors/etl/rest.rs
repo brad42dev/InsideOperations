@@ -56,7 +56,9 @@ impl EtlConnector for GenericRestConnector {
     /// Test connectivity by making a GET request to `base_url`.
     async fn test_connection(&self, cfg: &EtlConnectorConfig) -> Result<()> {
         let url = Self::base_url(cfg)?;
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()?;
         let resp = apply_auth_etl(client.get(url), cfg).send().await?;
         if !resp.status().is_success() {
             return Err(anyhow!(
@@ -141,7 +143,9 @@ impl EtlConnector for GenericRestConnector {
             base_url.clone()
         };
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()?;
         let mut all_records: Vec<SourceRecord> = Vec::new();
         let mut next_url: Option<String> = Some(url.clone());
         let mut offset: u64 = 0;

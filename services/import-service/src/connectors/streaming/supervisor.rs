@@ -218,6 +218,23 @@ pub async fn spawn_session_for_definition(
     let auth_config_raw: serde_json::Value = row.try_get("auth_config")?;
     let auth_config = crate::crypto::decrypt_sensitive_fields(&auth_config_raw, &master_key);
 
+    let pipeline_row = sqlx::query(
+        "SELECT field_mappings, target_table FROM import_definitions WHERE id = $1",
+    )
+    .bind(def_id)
+    .fetch_one(db)
+    .await?;
+
+    let field_mappings: serde_json::Value = pipeline_row.try_get("field_mappings")?;
+    let target_table: String = pipeline_row
+        .try_get::<String, _>("target_table")
+        .unwrap_or_else(|_| "custom_import_data".to_string());
+
+    let event_kind_filter: Option<String> = source_config
+        .get("event_kind_filter")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     let connector = get_streaming_connector(&connection_type)
         .ok_or_else(|| anyhow::anyhow!("no streaming connector for type '{connection_type}'"))?;
 
@@ -272,22 +289,41 @@ pub async fn spawn_session_for_definition(
         connection_config,
         auth_type,
         auth_config,
-        source_config,
+        source_config: source_config.clone(),
         resume_token,
         cancel: cancel.clone(),
     };
 
-    // Build the on_event callback.  For Phase E this logs and updates stats;
-    // pipeline integration is added in later phases.
-    let on_event: Box<dyn Fn(StreamEvent) -> BoxFuture<'static, anyhow::Result<()>> + Send + Sync> =
+    // Build the on_event callback: map fields and load into target_table.
+    let db_event = db.clone();
+    let on_event: Box<dyn Fn(StreamEvent) -> BoxFuture<'static, anyhow::Result<()>> + Send + Sync> = {
+        let field_mappings = field_mappings.clone();
+        let target_table = target_table.clone();
+        let event_kind_filter = event_kind_filter.clone();
+        let def_source_config = source_config.clone();
+
         Box::new(move |event: StreamEvent| {
-            tracing::debug!(
-                session_id = %session_id,
-                event_type = ?event.event_type,
-                "stream event received"
-            );
-            Box::pin(async { Ok(()) })
-        });
+            let db = db_event.clone();
+            let field_mappings = field_mappings.clone();
+            let target_table = target_table.clone();
+            let event_kind_filter = event_kind_filter.clone();
+            let def_source_config = def_source_config.clone();
+
+            Box::pin(async move {
+                crate::pipeline::process_stream_event(
+                    &db,
+                    session_id,
+                    def_id,
+                    &event,
+                    &field_mappings,
+                    &target_table,
+                    &def_source_config,
+                    event_kind_filter.as_deref(),
+                )
+                .await
+            })
+        })
+    };
 
     let db_task = db.clone();
     let handle_task = handle.clone();

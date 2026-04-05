@@ -36,7 +36,7 @@ export default function ShiftInfoWidget({ config: _config }: Props) {
     queryFn: async () => {
       const result = await shiftsApi.listShifts({ status: "active" });
       if (!result.success) throw new Error(result.error.message);
-      return result.data;
+      return result.data.data;
     },
     refetchInterval: 60000,
   });

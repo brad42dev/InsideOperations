@@ -46,7 +46,10 @@ impl StreamingConnector for SseConnector {
             )
         };
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap_or_default();
         let mut builder = client.get(&url);
         builder = apply_sse_auth(builder, config);
 
@@ -96,19 +99,20 @@ impl StreamingConnector for SseConnector {
                                 Some(serde_json::json!({ "last_event_id": msg.id }))
                             };
 
-                            // Update session statistics
-                            let _ = sqlx::query(
-                                "UPDATE import_stream_sessions \
-                                 SET events_received = events_received + 1, \
-                                     last_event_at = NOW(), \
-                                     updated_at = NOW(), \
-                                     resume_token = COALESCE($2, resume_token) \
-                                 WHERE id = $1",
-                            )
-                            .bind(config.session_id)
-                            .bind(resume_token.as_ref())
-                            .execute(db)
-                            .await;
+                            // Only update resume_token here; last_event_at and
+                            // events_received are incremented in process_stream_event
+                            // after event_kind_filter passes and the load succeeds.
+                            if resume_token.is_some() {
+                                let _ = sqlx::query(
+                                    "UPDATE import_stream_sessions \
+                                     SET resume_token = $2, updated_at = NOW() \
+                                     WHERE id = $1",
+                                )
+                                .bind(config.session_id)
+                                .bind(resume_token.as_ref())
+                                .execute(db)
+                                .await;
+                            }
 
                             let stream_event = StreamEvent {
                                 event_type,

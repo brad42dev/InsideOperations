@@ -41,6 +41,7 @@ pub struct StreamConfig {
 /// A single event received from the stream.
 #[derive(Debug, Clone)]
 pub struct StreamEvent {
+    #[allow(dead_code)]
     pub event_type: Option<String>,
     #[allow(dead_code)]
     pub data: JsonValue,

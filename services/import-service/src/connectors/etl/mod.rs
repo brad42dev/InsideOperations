@@ -19,6 +19,8 @@ pub mod sftp;
 pub mod sql_mssql;
 pub mod sql_mysql;
 pub mod sql_postgres;
+pub mod shiftboard;
+pub mod ukg_wfm;
 
 use anyhow::Result;
 use serde_json::Value as JsonValue;
@@ -99,6 +101,8 @@ pub fn get_etl_connector(connection_type: &str) -> Option<Box<dyn EtlConnector>>
         "ftp" => Some(Box::new(ftp::FtpConnector)),
         "local_file" => Some(Box::new(local_file::LocalFileConnector)),
         "s3" => Some(Box::new(s3::S3FileConnector)),
+        "shiftboard_jsonrpc" => Some(Box::new(shiftboard::ShiftboardJsonRpcConnector)),
+        "ukg_wfm" => Some(Box::new(ukg_wfm::UkgWfmConnector)),
         _ => None,
     }
 }

@@ -1790,6 +1790,63 @@ pub async fn clone_definition(
 }
 
 // ---------------------------------------------------------------------------
+// GET /tickets — list typed ticket records
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ListTicketsParams {
+    source_system: Option<String>,
+    status: Option<String>,
+    limit: Option<i64>,
+}
+
+pub async fn list_tickets(
+    State(state): State<AppState>,
+    Query(params): Query<ListTicketsParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(50).min(500);
+
+    let rows = sqlx::query(
+        "SELECT id, ticket_number, title, status, priority, \
+                assigned_to, source_system, created_at_source, created_at \
+         FROM tickets \
+         WHERE ($1::text IS NULL OR source_system = $1) \
+           AND ($2::text IS NULL OR status = $2) \
+         ORDER BY created_at DESC \
+         LIMIT $3",
+    )
+    .bind(params.source_system)
+    .bind(params.status)
+    .bind(limit)
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rows) => {
+            use serde_json::json;
+            let data: Vec<serde_json::Value> = rows
+                .iter()
+                .map(|r| {
+                    json!({
+                        "id": r.try_get::<Uuid, _>("id").ok(),
+                        "ticket_number": r.try_get::<String, _>("ticket_number").unwrap_or_default(),
+                        "title": r.try_get::<String, _>("title").unwrap_or_default(),
+                        "status": r.try_get::<String, _>("status").unwrap_or_default(),
+                        "priority": r.try_get::<String, _>("priority").unwrap_or_default(),
+                        "assigned_to": r.try_get::<Option<String>, _>("assigned_to").ok().flatten(),
+                        "source_system": r.try_get::<Option<String>, _>("source_system").ok().flatten(),
+                        "created_at_source": r.try_get::<Option<DateTime<Utc>>, _>("created_at_source").ok().flatten(),
+                        "created_at": r.try_get::<DateTime<Utc>, _>("created_at").ok(),
+                    })
+                })
+                .collect();
+            (StatusCode::OK, Json(ApiResponse::ok(data))).into_response()
+        }
+        Err(e) => IoError::Database(e).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -1843,4 +1900,6 @@ pub fn import_routes() -> Router<AppState> {
         .route("/runs/:id", get(get_run))
         .route("/runs/:id/errors", get(get_run_errors))
         .route("/runs/:id/cancel", post(cancel_run))
+        // Typed import data
+        .route("/tickets", get(list_tickets))
 }

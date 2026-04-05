@@ -230,7 +230,7 @@ export default function PresenceBoard() {
     queryFn: async () => {
       const res = await shiftsApi.listPresence();
       if (!res.success) throw new Error(res.error.message);
-      return res.data;
+      return res.data.data;
     },
     refetchInterval: REFRESH_INTERVAL_MS,
   });

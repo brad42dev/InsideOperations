@@ -54,6 +54,7 @@ mysql_cdc = "0.2"
 aws-sdk-s3 = "1"
 aws-config = "1"
 hmac = "0.12"
+sha1.workspace = true
 sha2 = "0.10"
 constant_time_eq = "0.3"
 

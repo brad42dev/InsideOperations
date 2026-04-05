@@ -1,5 +1,5 @@
 import { api, queryString } from "./client";
-import type { ApiResult } from "./client";
+import type { ApiResult, PaginatedResult } from "./client";
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -62,6 +62,9 @@ export interface Shift {
   handover_minutes: number;
   notes: string | null;
   status: "scheduled" | "active" | "completed" | "cancelled";
+  source: string;
+  source_system: string | null;
+  external_id: string | null;
   created_at: string;
   created_by: string | null;
 }
@@ -224,6 +227,16 @@ export interface AccountPersonPayload {
   notes?: string;
 }
 
+export interface BadgeEvent {
+  id: string;
+  employee_id: string | null;
+  event_type: string;
+  door_id: string | null;
+  door_name: string | null;
+  event_time: string;
+  badge_id: string | null;
+}
+
 export interface CreateBadgeSourcePayload {
   name: string;
   adapter_type: string;
@@ -246,12 +259,12 @@ export interface UpdateBadgeSourcePayload {
 
 export const shiftsApi = {
   // --- Shift patterns ---
-  listPatterns(): Promise<ApiResult<ShiftPattern[]>> {
+  listPatterns(): Promise<ApiResult<PaginatedResult<ShiftPattern>>> {
     return api.get("/api/shifts/patterns");
   },
 
   // --- Shift crews ---
-  listCrews(): Promise<ApiResult<ShiftCrew[]>> {
+  listCrews(): Promise<ApiResult<PaginatedResult<ShiftCrew>>> {
     return api.get("/api/shifts/crews");
   },
   createCrew(payload: CreateCrewPayload): Promise<ApiResult<ShiftCrew>> {
@@ -288,7 +301,7 @@ export const shiftsApi = {
     to?: string;
     status?: string;
     crew_id?: string;
-  }): Promise<ApiResult<Shift[]>> {
+  }): Promise<ApiResult<PaginatedResult<Shift>>> {
     return api.get(`/api/shifts${queryString(params)}`);
   },
   createShift(payload: CreateShiftPayload): Promise<ApiResult<Shift>> {
@@ -308,7 +321,7 @@ export const shiftsApi = {
   },
 
   // --- Presence ---
-  listPresence(): Promise<ApiResult<PresenceStatus[]>> {
+  listPresence(): Promise<ApiResult<PaginatedResult<PresenceStatus>>> {
     return api.get("/api/presence");
   },
   getPresence(userId: string): Promise<ApiResult<PresenceStatus>> {
@@ -321,7 +334,7 @@ export const shiftsApi = {
   },
 
   // --- Muster points ---
-  listMusterPoints(): Promise<ApiResult<MusterPoint[]>> {
+  listMusterPoints(): Promise<ApiResult<PaginatedResult<MusterPoint>>> {
     return api.get("/api/muster/points");
   },
   createMusterPoint(
@@ -333,7 +346,7 @@ export const shiftsApi = {
   // --- Muster events ---
   listMusterEvents(params?: {
     status?: string;
-  }): Promise<ApiResult<MusterEvent[]>> {
+  }): Promise<ApiResult<PaginatedResult<MusterEvent>>> {
     return api.get(`/api/muster/events${queryString(params)}`);
   },
   declareMusterEvent(
@@ -357,8 +370,13 @@ export const shiftsApi = {
     return api.post(`/api/muster/events/${eventId}/account`, payload);
   },
 
+  // --- Badge events ---
+  listBadgeEvents(): Promise<ApiResult<BadgeEvent[]>> {
+    return api.get("/api/badge-events");
+  },
+
   // --- Badge sources ---
-  listBadgeSources(): Promise<ApiResult<BadgeSource[]>> {
+  listBadgeSources(): Promise<ApiResult<PaginatedResult<BadgeSource>>> {
     return api.get("/api/badge-sources");
   },
   createBadgeSource(

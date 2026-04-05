@@ -31,6 +31,7 @@ const PREDEFINED_CATEGORIES = [
   { id: "personnel", label: "Personnel" },
   { id: "financial", label: "Financial" },
   { id: "maintenance", label: "Maintenance" },
+  { id: "shift_management", label: "Shift Management" },
   { id: "ticketing", label: "Ticketing" },
   { id: "environmental", label: "Environmental" },
   { id: "general", label: "General" },

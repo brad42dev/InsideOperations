@@ -201,6 +201,11 @@ async fn validate_agg_type(
             .await?
             .unwrap_or(0);
 
+    // agg_types == 0 means "not configured" — treat as unrestricted.
+    if agg_types == 0 {
+        return Ok(());
+    }
+
     match agg_str.as_str() {
         "avg" | "median" | "stddev" if (agg_types & 1) == 0 => Err(IoError::BadRequest(format!(
             "This point does not permit '{}' (aggregation_types bit 0 not set)",
@@ -504,7 +509,12 @@ pub async fn get_point_history(
                 .fetch_optional(&state.db)
                 .await?
                 .unwrap_or(0);
-        ((agg_types & 1) != 0, (agg_types & 2) != 0)
+        // agg_types == 0 means "not configured" — treat as unrestricted.
+        if agg_types == 0 {
+            (true, true)
+        } else {
+            ((agg_types & 1) != 0, (agg_types & 2) != 0)
+        }
     } else {
         (true, true)
     };
@@ -856,7 +866,12 @@ pub async fn get_batch_history(
                     .fetch_optional(&state.db)
                     .await?
                     .unwrap_or(0);
-            ((agg_types & 1) != 0, (agg_types & 2) != 0)
+            // agg_types == 0 means "not configured" — treat as unrestricted.
+            if agg_types == 0 {
+                (true, true)
+            } else {
+                ((agg_types & 1) != 0, (agg_types & 2) != 0)
+            }
         } else {
             (true, true)
         };
@@ -1090,7 +1105,8 @@ pub async fn get_point_rolling(
             .await?
             .unwrap_or(0);
 
-    if (agg_types & 1) == 0 {
+    // agg_types == 0 means "not configured" — treat as unrestricted.
+    if agg_types != 0 && (agg_types & 1) == 0 {
         return Err(IoError::BadRequest(
             "This point does not permit averaging (aggregation_types bit 0 not set)".to_string(),
         ));

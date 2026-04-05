@@ -579,12 +579,12 @@ export default function CrewList() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useQuery<ShiftCrew[]>({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["shifts", "crews"],
     queryFn: async () => {
       const res = await shiftsApi.listCrews();
       if (!res.success) throw new Error(res.error.message);
-      return res.data;
+      return res.data.data;
     },
   });
 

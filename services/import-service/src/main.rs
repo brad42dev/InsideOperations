@@ -1531,6 +1531,330 @@ async fn seed_connector_templates(db: &sqlx::PgPool) {
             }"##,
         },
         GenericTemplateSpec {
+            slug: "generic-shift-csv",
+            name: "Shift Schedule CSV Import",
+            domain: "shift_management",
+            vendor: "Generic",
+            description: "Import shift schedules from a CSV file. Expected columns: shift_name, employee_id, start_time (ISO-8601), end_time (ISO-8601), role_label, crew_name, external_id.",
+            target_tables: &["shifts", "shift_assignments"],
+            required_fields: r##"[
+                {"key":"file_id","label":"Uploaded File ID","placeholder":"UUID of the uploaded CSV file","type":"text"},
+                {"key":"source_system","label":"Source System Name","placeholder":"e.g. kronos, sap","type":"text"},
+                {"key":"delimiter","label":"Delimiter","type":"select","options":[
+                    {"value":",","label":"Comma (,)"},
+                    {"value":";","label":"Semicolon (;)"},
+                    {"value":"|","label":"Pipe (|)"}
+                ]}
+            ]"##,
+            template_config: r##"{
+                "connection": {},
+                "auth_type": "none",
+                "auth_config": {},
+                "definitions": [{
+                    "name": "Shift Schedule CSV Import",
+                    "source_config": {
+                        "source_type": "csv_file",
+                        "file_id": "{{file_id}}",
+                        "delimiter": "{{delimiter}}",
+                        "has_header": true,
+                        "skip_rows": 0,
+                        "source_system": "{{source_system}}"
+                    },
+                    "field_mappings": [
+                        {"source": "shift_name", "target": "name"},
+                        {"source": "employee_id", "target": "employee_id"},
+                        {"source": "start_time", "target": "start_time"},
+                        {"source": "end_time", "target": "end_time"},
+                        {"source": "role_label", "target": "role_label"},
+                        {"source": "crew_name", "target": "crew_name"},
+                        {"source": "external_id", "target": "external_id"}
+                    ],
+                    "target_table": "shifts"
+                }]
+            }"##,
+        },
+        GenericTemplateSpec {
+            slug: "generic-shift-rest",
+            name: "Shift Schedule REST Import",
+            domain: "shift_management",
+            vendor: "Generic",
+            description: "Import shift schedules from a REST API endpoint. Configure the endpoint URL, authentication, and JSON path to records array.",
+            target_tables: &["shifts", "shift_assignments"],
+            required_fields: r##"[
+                {"key":"base_url","label":"Base URL","placeholder":"https://your-wfm-server/api","type":"text"},
+                {"key":"endpoint","label":"Schedule Endpoint","placeholder":"/shifts","type":"text"},
+                {"key":"records_path","label":"JSON Path to Records","placeholder":"data.shifts","type":"text"},
+                {"key":"source_system","label":"Source System Name","placeholder":"e.g. kronos, custom","type":"text"},
+                {"key":"username","label":"Username (optional)","type":"text"},
+                {"key":"password","label":"Password (optional)","type":"secret"}
+            ]"##,
+            template_config: r##"{
+                "connection": {
+                    "base_url": "{{base_url}}"
+                },
+                "auth_type": "basic",
+                "auth_config": {
+                    "username": "{{username}}",
+                    "password": "{{password}}"
+                },
+                "definitions": [{
+                    "name": "Shift Schedule REST Import",
+                    "source_config": {
+                        "source_type": "generic_rest",
+                        "endpoint": "{{endpoint}}",
+                        "method": "GET",
+                        "records_path": "{{records_path}}",
+                        "pagination": "none",
+                        "source_system": "{{source_system}}"
+                    },
+                    "field_mappings": [
+                        {"source": "name", "target": "name"},
+                        {"source": "employee_id", "target": "employee_id"},
+                        {"source": "start_time", "target": "start_time"},
+                        {"source": "end_time", "target": "end_time"},
+                        {"source": "role_label", "target": "role_label"},
+                        {"source": "crew_name", "target": "crew_name"},
+                        {"source": "external_id", "target": "external_id"}
+                    ],
+                    "target_table": "shifts"
+                }]
+            }"##,
+        },
+        GenericTemplateSpec {
+            slug: "ukg-pro-wfm-shifts",
+            name: "UKG Pro WFM Shift Schedules",
+            domain: "shift_management",
+            vendor: "UKG (Kronos)",
+            description: "Import shift schedules and personnel assignments from UKG Pro Workforce Management (formerly Kronos Workforce Central/Dimensions) via the REST API.",
+            target_tables: &["shifts", "shift_assignments"],
+            required_fields: r##"[
+                {"key":"base_url","label":"UKG Tenant URL","placeholder":"https://your-tenant.mykronos.com","type":"text"},
+                {"key":"username","label":"API Username","type":"text"},
+                {"key":"password","label":"API Password","type":"secret"},
+                {"key":"client_id","label":"OAuth Client ID","type":"text"},
+                {"key":"client_secret","label":"OAuth Client Secret","type":"secret"},
+                {"key":"app_key","label":"App Key (optional, older tenants)","type":"text"},
+                {"key":"hyperfind","label":"Hyperfind Qualifier","placeholder":"All Home","type":"text"},
+                {"key":"source_system","label":"Source System Name","placeholder":"ukg","type":"text"}
+            ]"##,
+            template_config: r##"{
+                "connection": {
+                    "base_url": "{{base_url}}",
+                    "app_key": "{{app_key}}"
+                },
+                "auth_type": "custom_token",
+                "auth_config": {
+                    "username": "{{username}}",
+                    "password": "{{password}}",
+                    "client_id": "{{client_id}}",
+                    "client_secret": "{{client_secret}}"
+                },
+                "definitions": [{
+                    "name": "UKG Shift Schedules",
+                    "source_config": {
+                        "source_type": "ukg_wfm",
+                        "hyperfind_qualifier": "{{hyperfind}}",
+                        "source_system": "{{source_system}}",
+                        "watermark_column": "end_time",
+                        "watermark_type": "timestamp"
+                    },
+                    "field_mappings": [
+                        {"source": "name", "target": "name"},
+                        {"source": "external_id", "target": "external_id"},
+                        {"source": "start_time", "target": "start_time"},
+                        {"source": "end_time", "target": "end_time"},
+                        {"source": "employee_id", "target": "employee_id"},
+                        {"source": "role_label", "target": "role_label"},
+                        {"source": "shift_external_id", "target": "shift_external_id"}
+                    ],
+                    "target_table": "shifts"
+                }]
+            }"##,
+        },
+        GenericTemplateSpec {
+            slug: "shiftboard-shifts",
+            name: "Shiftboard SchedulePro Shifts",
+            domain: "shift_management",
+            vendor: "Shiftboard",
+            description: "Import shift schedules from Shiftboard SchedulePro via JSON-RPC 2.0 API with HMAC-SHA1 authentication.",
+            target_tables: &["shifts", "shift_assignments"],
+            required_fields: r##"[
+                {"key":"access_key_id","label":"Access Key ID","type":"text"},
+                {"key":"secret_key","label":"Secret Key","type":"secret"},
+                {"key":"base_url","label":"API Base URL","placeholder":"https://api.shiftboard.com/","type":"text"},
+                {"key":"source_system","label":"Source System Name","placeholder":"shiftboard","type":"text"}
+            ]"##,
+            template_config: r##"{
+                "connection": {
+                    "base_url": "{{base_url}}"
+                },
+                "auth_type": "custom_token",
+                "auth_config": {
+                    "access_key_id": "{{access_key_id}}",
+                    "secret_key": "{{secret_key}}"
+                },
+                "definitions": [{
+                    "name": "Shiftboard Shift Schedules",
+                    "source_config": {
+                        "source_type": "shiftboard_jsonrpc",
+                        "source_system": "{{source_system}}",
+                        "watermark_column": "end_time",
+                        "watermark_type": "timestamp"
+                    },
+                    "field_mappings": [
+                        {"source": "name", "target": "name"},
+                        {"source": "external_id", "target": "external_id"},
+                        {"source": "start_time", "target": "start_time"},
+                        {"source": "end_time", "target": "end_time"},
+                        {"source": "employee_id", "target": "employee_id"},
+                        {"source": "role_label", "target": "role_label"},
+                        {"source": "shift_external_id", "target": "shift_external_id"},
+                        {"source": "crew_name", "target": "crew_name"}
+                    ],
+                    "target_table": "shifts"
+                }]
+            }"##,
+        },
+        GenericTemplateSpec {
+            slug: "sap-sf-shift-schedules",
+            name: "SAP SuccessFactors Work Schedules",
+            domain: "shift_management",
+            vendor: "SAP SE",
+            description: "Import employee work schedules and roster data from SAP SuccessFactors Employee Central via OData V2 API.",
+            target_tables: &["shifts", "shift_assignments"],
+            required_fields: r##"[
+                {"key":"api_server","label":"API Server","placeholder":"https://apiN.successfactors.com","type":"text"},
+                {"key":"company_id","label":"Company ID (Tenant)","type":"text"},
+                {"key":"username","label":"API Username","type":"text"},
+                {"key":"password","label":"Password","type":"secret"},
+                {"key":"source_system","label":"Source System Name","placeholder":"sap_sf","type":"text"}
+            ]"##,
+            template_config: r##"{
+                "connection": {
+                    "base_url": "{{api_server}}/odata/v2"
+                },
+                "auth_type": "basic",
+                "auth_config": {
+                    "username": "{{username}}@{{company_id}}",
+                    "password": "{{password}}"
+                },
+                "definitions": [{
+                    "name": "SAP SF Work Schedules",
+                    "source_config": {
+                        "source_type": "generic_rest",
+                        "endpoint": "/EmpJob?$expand=workScheduleNav,userNav&$filter=emplStatus eq 'A'&$select=userId,startDate,department,jobTitle,workScheduleCode,workScheduleNav/externalCode,workScheduleNav/startTime,workScheduleNav/endTime,userNav/firstName,userNav/lastName&$format=json",
+                        "method": "GET",
+                        "records_path": "d.results",
+                        "pagination": "offset_limit",
+                        "page_size": 100,
+                        "offset_param": "$skip",
+                        "limit_param": "$top",
+                        "source_system": "{{source_system}}"
+                    },
+                    "field_mappings": [
+                        {"source": "userId", "target": "employee_id"},
+                        {"source": "workScheduleNav.externalCode", "target": "external_id"},
+                        {"source": "workScheduleNav.startTime", "target": "start_time"},
+                        {"source": "workScheduleNav.endTime", "target": "end_time"},
+                        {"source": "jobTitle", "target": "role_label"},
+                        {"source": "department", "target": "crew_name"},
+                        {"source": "workScheduleCode", "target": "name"}
+                    ],
+                    "target_table": "shifts"
+                }]
+            }"##,
+        },
+        GenericTemplateSpec {
+            slug: "oracle-p6-turnaround-schedules",
+            name: "Oracle Primavera P6 Turnaround Schedules",
+            domain: "shift_management",
+            vendor: "Oracle",
+            description: "Import turnaround/shutdown craft labor schedules from Oracle Primavera P6 EPPM. Activities map to shifts; labor resource assignments map to personnel assignments.",
+            target_tables: &["shifts", "shift_assignments"],
+            required_fields: r##"[
+                {"key":"server_url","label":"P6 Server URL","placeholder":"https://your-p6-server/p6ws/restapi","type":"text"},
+                {"key":"username","label":"Username","type":"text"},
+                {"key":"password","label":"Password","type":"secret"},
+                {"key":"project_filter","label":"Project Filter (optional)","placeholder":"Status:eq:'Active'","type":"text"},
+                {"key":"source_system","label":"Source System Name","placeholder":"oracle_p6","type":"text"}
+            ]"##,
+            template_config: r##"{
+                "connection": {
+                    "base_url": "{{server_url}}"
+                },
+                "auth_type": "basic",
+                "auth_config": {
+                    "username": "{{username}}",
+                    "password": "{{password}}"
+                },
+                "definitions": [{
+                    "name": "P6 Resource Assignments (Labor)",
+                    "source_config": {
+                        "source_type": "generic_rest",
+                        "endpoint": "/resourceAssignment?Fields=ResourceName,ActivityName,PlannedStartDate,PlannedFinishDate,ActualStartDate,ActualFinishDate,ResourceType,ResourceObjectId&Filter=ResourceType:eq:'Labor'",
+                        "method": "GET",
+                        "records_path": "",
+                        "pagination": "none",
+                        "source_system": "{{source_system}}"
+                    },
+                    "field_mappings": [
+                        {"source": "ActivityName", "target": "name"},
+                        {"source": "ResourceObjectId", "target": "external_id"},
+                        {"source": "PlannedStartDate", "target": "start_time"},
+                        {"source": "PlannedFinishDate", "target": "end_time"},
+                        {"source": "ResourceName", "target": "employee_id"},
+                        {"source": "ActivityName", "target": "role_label"}
+                    ],
+                    "target_table": "shifts"
+                }]
+            }"##,
+        },
+        GenericTemplateSpec {
+            slug: "hexagon-j5-logbook",
+            name: "Hexagon j5 Shift Logbook",
+            domain: "shift_management",
+            vendor: "Hexagon",
+            description: "Import shift logbook entries, handover notes, and operator rounds from Hexagon j5 Operations Management Suite. Entries are correlated to shifts by timestamp.",
+            target_tables: &["shift_log_entries"],
+            required_fields: r##"[
+                {"key":"server_url","label":"j5 Server URL","placeholder":"https://your-j5-server/restserver/28.0","type":"text"},
+                {"key":"username","label":"Username","type":"text"},
+                {"key":"password","label":"Password","type":"secret"},
+                {"key":"logbook_name","label":"Logbook Name","placeholder":"general_logbook","type":"text"},
+                {"key":"source_system","label":"Source System Name","placeholder":"hexagon_j5","type":"text"}
+            ]"##,
+            template_config: r##"{
+                "connection": {
+                    "base_url": "{{server_url}}"
+                },
+                "auth_type": "basic",
+                "auth_config": {
+                    "username": "{{username}}",
+                    "password": "{{password}}"
+                },
+                "definitions": [{
+                    "name": "j5 Logbook Entries",
+                    "source_config": {
+                        "source_type": "generic_rest",
+                        "endpoint": "/industraform/logbook-query-v2/{{logbook_name}}?attribute_names=$Form.Area,$Form.Status,EventTime,CreatedByUser.DisplayValue,Summary",
+                        "method": "GET",
+                        "records_path": "values",
+                        "pagination": "cursor",
+                        "cursor_field": "nextLink",
+                        "source_system": "{{source_system}}"
+                    },
+                    "field_mappings": [
+                        {"source": "EventTime", "target": "event_time"},
+                        {"source": "$Form.Area", "target": "area"},
+                        {"source": "CreatedByUser.DisplayValue", "target": "author"},
+                        {"source": "Summary", "target": "summary"},
+                        {"source": "$Form.Status", "target": "status"}
+                    ],
+                    "target_table": "shift_log_entries"
+                }]
+            }"##,
+        },
+        GenericTemplateSpec {
             slug: "generic-rest-api",
             name: "Generic REST API",
             domain: "generic_api",

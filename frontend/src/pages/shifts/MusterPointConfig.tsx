@@ -354,12 +354,12 @@ export default function MusterPointConfig() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useQuery<MusterPoint[]>({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["shifts", "muster-points"],
     queryFn: async () => {
       const res = await shiftsApi.listMusterPoints();
       if (!res.success) throw new Error(res.error.message);
-      return res.data;
+      return res.data.data;
     },
   });
 

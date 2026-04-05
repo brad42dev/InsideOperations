@@ -108,6 +108,9 @@ pub struct ShiftRow {
     pub handover_minutes: i32,
     pub notes: Option<String>,
     pub status: String,
+    pub source: String,
+    pub source_system: Option<String>,
+    pub external_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub created_by: Option<Uuid>,
 }
@@ -1388,6 +1391,7 @@ pub async fn list_shifts(
         r#"
         SELECT s.id, s.name, s.crew_id, sc.name AS crew_name, s.pattern_id,
                s.start_time, s.end_time, s.handover_minutes, s.notes, s.status,
+               s.source, s.source_system, s.external_id,
                s.created_at, s.created_by
         FROM shifts s
         LEFT JOIN shift_crews sc ON sc.id = s.crew_id
@@ -1423,6 +1427,9 @@ pub async fn list_shifts(
                     handover_minutes: r.get("handover_minutes"),
                     notes: r.get("notes"),
                     status: r.get("status"),
+                    source: r.get("source"),
+                    source_system: r.get("source_system"),
+                    external_id: r.get("external_id"),
                     created_at: r.get("created_at"),
                     created_by: r.get("created_by"),
                 })
@@ -1470,7 +1477,8 @@ pub async fn create_shift(
         r#"INSERT INTO shifts (name, crew_id, pattern_id, start_time, end_time, handover_minutes, notes, created_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING id, name, crew_id, pattern_id, start_time, end_time,
-                     handover_minutes, notes, status, created_at, created_by"#,
+                     handover_minutes, notes, status, source, source_system, external_id,
+                     created_at, created_by"#,
     )
     .bind(&body.name)
     .bind(body.crew_id)
@@ -1512,6 +1520,9 @@ pub async fn create_shift(
                 handover_minutes: r.get("handover_minutes"),
                 notes: r.get("notes"),
                 status: r.get("status"),
+                source: r.get("source"),
+                source_system: r.get("source_system"),
+                external_id: r.get("external_id"),
                 created_at: r.get("created_at"),
                 created_by: r.get("created_by"),
             })
@@ -1550,6 +1561,7 @@ pub async fn get_shift(
     let shift_row = sqlx::query(
         r#"SELECT s.id, s.name, s.crew_id, sc.name AS crew_name, s.pattern_id,
                   s.start_time, s.end_time, s.handover_minutes, s.notes, s.status,
+                  s.source, s.source_system, s.external_id,
                   s.created_at, s.created_by
            FROM shifts s
            LEFT JOIN shift_crews sc ON sc.id = s.crew_id
@@ -1571,6 +1583,9 @@ pub async fn get_shift(
             handover_minutes: r.get("handover_minutes"),
             notes: r.get("notes"),
             status: r.get("status"),
+            source: r.get("source"),
+            source_system: r.get("source_system"),
+            external_id: r.get("external_id"),
             created_at: r.get("created_at"),
             created_by: r.get("created_by"),
         },
@@ -1661,7 +1676,8 @@ pub async fn update_shift(
                status           = COALESCE($9, status)
            WHERE id = $1
            RETURNING id, name, crew_id, pattern_id, start_time, end_time,
-                     handover_minutes, notes, status, created_at, created_by"#,
+                     handover_minutes, notes, status, source, source_system, external_id,
+                     created_at, created_by"#,
     )
     .bind(id)
     .bind(&body.name)
@@ -1687,6 +1703,9 @@ pub async fn update_shift(
             handover_minutes: r.get("handover_minutes"),
             notes: r.get("notes"),
             status: r.get("status"),
+            source: r.get("source"),
+            source_system: r.get("source_system"),
+            external_id: r.get("external_id"),
             created_at: r.get("created_at"),
             created_by: r.get("created_by"),
         })
@@ -3015,6 +3034,7 @@ pub async fn get_current_shifts(
         r#"
         SELECT s.id, s.name, s.crew_id, sc.name AS crew_name, s.pattern_id,
                s.start_time, s.end_time, s.handover_minutes, s.notes, s.status,
+               s.source, s.source_system, s.external_id,
                s.created_at, s.created_by
         FROM shifts s
         LEFT JOIN shift_crews sc ON sc.id = s.crew_id
@@ -3041,6 +3061,9 @@ pub async fn get_current_shifts(
                     handover_minutes: r.get("handover_minutes"),
                     notes: r.get("notes"),
                     status: r.get("status"),
+                    source: r.get("source"),
+                    source_system: r.get("source_system"),
+                    external_id: r.get("external_id"),
                     created_at: r.get("created_at"),
                     created_by: r.get("created_by"),
                 })
@@ -3116,6 +3139,50 @@ pub async fn get_current_personnel(
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/badge-events — recent badge swipe events
+// ---------------------------------------------------------------------------
+
+pub async fn list_badge_events(State(state): State<AppState>) -> impl IntoResponse {
+    let rows = sqlx::query(
+        "SELECT id, employee_id, event_type, door_id, door_name, event_time, badge_id \
+         FROM badge_events \
+         ORDER BY event_time DESC \
+         LIMIT 100",
+    )
+    .fetch_all(&state.db)
+    .await;
+
+    match rows {
+        Ok(rows) => {
+            let events: Vec<serde_json::Value> = rows
+                .iter()
+                .map(|r| {
+                    json!({
+                        "id": r.try_get::<Uuid, _>("id").ok(),
+                        "employee_id": r.try_get::<Option<String>, _>("employee_id").ok().flatten(),
+                        "event_type": r.try_get::<String, _>("event_type").unwrap_or_default(),
+                        "door_id": r.try_get::<Option<String>, _>("door_id").ok().flatten(),
+                        "door_name": r.try_get::<Option<String>, _>("door_name").ok().flatten(),
+                        "event_time": r.try_get::<DateTime<Utc>, _>("event_time").ok(),
+                        "badge_id": r.try_get::<Option<String>, _>("badge_id").ok().flatten(),
+                    })
+                })
+                .collect();
+            ok(events).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "list_badge_events query failed");
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "DB_ERROR",
+                "Failed to fetch badge events",
+            )
+            .into_response()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Route builder (called from main.rs)
 // ---------------------------------------------------------------------------
 
@@ -3181,4 +3248,6 @@ pub fn shifts_routes() -> axum::Router<AppState> {
             "/api/badge-sources/:id",
             put(update_badge_source).delete(delete_badge_source),
         )
+        // Badge events (read-only feed)
+        .route("/api/badge-events", get(list_badge_events))
 }

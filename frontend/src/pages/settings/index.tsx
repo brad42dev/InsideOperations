@@ -29,6 +29,7 @@ const SUB_NAV: SubNavItem[] = [
   { path: "/settings/bulk-update", label: "Bulk Update" },
   { path: "/settings/snapshots", label: "Change Snapshots" },
   { path: "/settings/import", label: "Import" },
+  { path: "/settings/import-streaming", label: "Streaming Sessions" },
   { path: "/settings/recognition", label: "Recognition" },
   { path: "/settings/eula", label: "EULA" },
   { path: "/settings/about", label: "About" },

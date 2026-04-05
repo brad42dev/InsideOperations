@@ -109,6 +109,32 @@ export interface ImportError {
   created_at: string;
 }
 
+export interface StreamSession {
+  definition_id: string;
+  definition_name: string;
+  connection_name: string;
+  session_id: string | null;
+  status: "connecting" | "active" | "reconnecting" | "stopped" | "failed";
+  events_received: number;
+  last_event_at: string | null;
+  reconnect_count: number;
+  error_message: string | null;
+  started_at: string | null;
+  supervisor_running: boolean;
+}
+
+export interface ImportTicket {
+  id: string;
+  ticket_number: string;
+  title: string;
+  status: string;
+  priority: string;
+  assigned_to: string | null;
+  source_system: string | null;
+  created_at_source: string | null;
+  created_at: string;
+}
+
 export interface SupplementalConnector {
   id: string;
   name: string;
@@ -354,6 +380,35 @@ export const importApi = {
 
   cancelRun(id: string): Promise<ApiResult<{ cancelled: boolean }>> {
     return api.post<{ cancelled: boolean }>(`${BASE}/runs/${id}/cancel`, {});
+  },
+
+  // Stream sessions
+  listStreamSessions(): Promise<ApiResult<StreamSession[]>> {
+    return api.get<StreamSession[]>(`${BASE}/stream-sessions`);
+  },
+
+  stopStreamSession(
+    definitionId: string,
+  ): Promise<ApiResult<{ definition_id: string; was_running: boolean; message: string }>> {
+    return api.post(`${BASE}/definitions/${definitionId}/stream-session/stop`, {});
+  },
+
+  restartStreamSession(
+    definitionId: string,
+  ): Promise<ApiResult<{ definition_id: string; message: string }>> {
+    return api.post(
+      `${BASE}/definitions/${definitionId}/stream-session/restart`,
+      {},
+    );
+  },
+
+  // Typed import data
+  listTickets(params?: {
+    source_system?: string;
+    status?: string;
+    limit?: number;
+  }): Promise<ApiResult<ImportTicket[]>> {
+    return api.get<ImportTicket[]>(`${BASE}/tickets${queryString(params)}`);
   },
 
   // Supplemental Point Data connectors

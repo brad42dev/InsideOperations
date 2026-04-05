@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { shiftsApi, type Shift, type ShiftCrew } from "../../api/shifts";
+import { shiftsApi, type Shift } from "../../api/shifts";
 import { showToast } from "../../shared/components/Toast";
 
 // ---------------------------------------------------------------------------
@@ -113,12 +113,12 @@ function PatternWizardDialog({
   );
   const [crewId, setCrewId] = useState("");
 
-  const { data: crewsData } = useQuery<ShiftCrew[]>({
+  const { data: crewsData } = useQuery({
     queryKey: ["shifts", "crews"],
     queryFn: async () => {
       const res = await shiftsApi.listCrews();
       if (!res.success) throw new Error(res.error.message);
-      return res.data;
+      return res.data.data;
     },
     enabled: open,
   });
@@ -438,6 +438,36 @@ function formatDuration(start: string, end: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// External badge
+// ---------------------------------------------------------------------------
+
+function ExternalBadge({ shift }: { shift: Shift }) {
+  if (shift.source !== "external") return null;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        padding: "2px 8px",
+        borderRadius: 100,
+        background: "rgba(99, 102, 241, 0.12)",
+        color: "#6366f1",
+        border: "1px solid rgba(99, 102, 241, 0.3)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ fontSize: 12 }}>&#128274;</span>
+      {shift.source_system || "External"}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
 
@@ -500,7 +530,10 @@ function ShiftRow({ shift }: { shift: Shift }) {
           fontWeight: 500,
         }}
       >
-        {shift.name}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {shift.name}
+          <ExternalBadge shift={shift} />
+        </div>
       </td>
       <td
         style={{
@@ -576,14 +609,14 @@ export default function ShiftSchedule() {
   toDate.setDate(toDate.getDate() + 30);
   const to = toDate.toISOString();
 
-  const { data, isLoading, isError, refetch } = useQuery<Shift[]>({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["shifts", "list", statusFilter],
     queryFn: async () => {
       const params: Record<string, string> = { from, to };
       if (statusFilter !== "all") params.status = statusFilter;
       const res = await shiftsApi.listShifts(params);
       if (!res.success) throw new Error(res.error.message);
-      return res.data;
+      return res.data.data;
     },
   });
 
