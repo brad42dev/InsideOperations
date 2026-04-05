@@ -16,10 +16,10 @@ pub mod odbc;
 pub mod rest;
 pub mod s3;
 pub mod sftp;
+pub mod shiftboard;
 pub mod sql_mssql;
 pub mod sql_mysql;
 pub mod sql_postgres;
-pub mod shiftboard;
 pub mod ukg_wfm;
 
 use anyhow::Result;

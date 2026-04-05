@@ -433,11 +433,18 @@ async fn load_records(
         "vendor_master" => load_vendor_master(executor, def_id, records, source_config).await,
         "badge_events" => load_badge_events(executor, records, source_config).await,
         "shifts" => load_shifts(executor, def_id, records, source_config).await,
-        "shift_assignments" => load_shift_assignments(executor, def_id, records, source_config).await,
-        "shift_log_entries" => load_shift_log_entries(executor, def_id, records, source_config).await,
+        "shift_assignments" => {
+            load_shift_assignments(executor, def_id, records, source_config).await
+        }
+        "shift_log_entries" => {
+            load_shift_log_entries(executor, def_id, records, source_config).await
+        }
         "custom_import_data" | "" => load_custom(executor, def_id, records, source_config).await,
         other => {
-            warn!(target_table = other, "unknown target_table; falling back to custom_import_data");
+            warn!(
+                target_table = other,
+                "unknown target_table; falling back to custom_import_data"
+            );
             load_custom(executor, def_id, records, source_config).await
         }
     }
@@ -537,10 +544,7 @@ fn field_f64(record: &MappedRecord, key: &str) -> Option<f64> {
     })
 }
 
-fn field_timestamp(
-    record: &MappedRecord,
-    key: &str,
-) -> Option<chrono::DateTime<chrono::Utc>> {
+fn field_timestamp(record: &MappedRecord, key: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     record.fields.get(key).and_then(|v| match v {
         JsonValue::String(s) => chrono::DateTime::parse_from_rfc3339(s)
             .ok()
@@ -668,16 +672,14 @@ async fn load_tickets(
         let external_id = field_str(record, id_field)
             .or_else(|| field_str(record, "external_id"))
             .unwrap_or_else(|| record.row_number.to_string());
-        let ticket_number = field_str(record, "ticket_number")
-            .unwrap_or_else(|| external_id.clone());
+        let ticket_number =
+            field_str(record, "ticket_number").unwrap_or_else(|| external_id.clone());
         let ticket_type =
             normalize_ticket_type(field_str(record, "ticket_type").as_deref().unwrap_or(""));
         let title = field_str(record, "title").unwrap_or_else(|| "Untitled".to_string());
         let description = field_str(record, "description");
-        let status =
-            normalize_ticket_status(field_str(record, "status").as_deref().unwrap_or(""));
-        let priority =
-            normalize_priority(field_str(record, "priority").as_deref().unwrap_or(""));
+        let status = normalize_ticket_status(field_str(record, "status").as_deref().unwrap_or(""));
+        let priority = normalize_priority(field_str(record, "priority").as_deref().unwrap_or(""));
         let assigned_to = field_str(record, "assigned_to");
         let resolved_at = field_timestamp(record, "resolved_at");
         let closed_at = field_timestamp(record, "closed_at");
@@ -762,11 +764,9 @@ async fn load_work_orders(
             .or_else(|| wo_number.clone())
             .unwrap_or_else(|| "Untitled".to_string());
         let description = field_str(record, "description");
-        let status = normalize_work_order_status(
-            field_str(record, "status").as_deref().unwrap_or(""),
-        );
-        let priority =
-            normalize_priority(field_str(record, "priority").as_deref().unwrap_or(""));
+        let status =
+            normalize_work_order_status(field_str(record, "status").as_deref().unwrap_or(""));
+        let priority = normalize_priority(field_str(record, "priority").as_deref().unwrap_or(""));
         let assigned_to = field_str(record, "assigned_to");
         let scheduled_start = field_timestamp(record, "scheduled_start");
         let scheduled_end = field_timestamp(record, "scheduled_end");
@@ -851,7 +851,10 @@ async fn load_inventory_items(
         let part_number = match field_str(record, "part_number") {
             Some(p) => p,
             None => {
-                warn!(row = record.row_number, "inventory_items: skipping row missing part_number");
+                warn!(
+                    row = record.row_number,
+                    "inventory_items: skipping row missing part_number"
+                );
                 continue;
             }
         };
@@ -932,15 +935,12 @@ async fn load_purchase_orders(
         let external_id = field_str(record, id_field)
             .or_else(|| field_str(record, "external_id"))
             .unwrap_or_else(|| record.row_number.to_string());
-        let po_number = field_str(record, "po_number")
-            .unwrap_or_else(|| external_id.clone());
-        let status =
-            normalize_po_status(field_str(record, "status").as_deref().unwrap_or(""));
+        let po_number = field_str(record, "po_number").unwrap_or_else(|| external_id.clone());
+        let status = normalize_po_status(field_str(record, "status").as_deref().unwrap_or(""));
         let vendor_name = field_str(record, "vendor_name");
         let order_date = field_timestamp(record, "order_date");
         let total_amount = field_f64(record, "total_amount");
-        let currency = field_str(record, "currency")
-            .unwrap_or_else(|| "USD".to_string());
+        let currency = field_str(record, "currency").unwrap_or_else(|| "USD".to_string());
         let extra_data = field_json_extra(record, KNOWN);
 
         let result = sqlx::query(
@@ -1009,12 +1009,14 @@ async fn load_vendor_master(
         let name = match field_str(record, "name") {
             Some(n) => n,
             None => {
-                warn!(row = record.row_number, "vendor_master: skipping row missing name");
+                warn!(
+                    row = record.row_number,
+                    "vendor_master: skipping row missing name"
+                );
                 continue;
             }
         };
-        let vendor_code = field_str(record, "vendor_code")
-            .unwrap_or_else(|| external_id.clone());
+        let vendor_code = field_str(record, "vendor_code").unwrap_or_else(|| external_id.clone());
         let contact_name = field_str(record, "contact_name");
         let contact_email = field_str(record, "contact_email");
         let contact_phone = field_str(record, "contact_phone");
@@ -1075,7 +1077,10 @@ async fn load_badge_events(
         let event_time = match field_timestamp(record, "event_time") {
             Some(ts) => ts,
             None => {
-                warn!(row = record.row_number, "badge_events: skipping row with unparseable event_time");
+                warn!(
+                    row = record.row_number,
+                    "badge_events: skipping row with unparseable event_time"
+                );
                 continue;
             }
         };
@@ -1134,19 +1139,24 @@ async fn load_shifts(
         let external_id = field_str(record, id_field)
             .or_else(|| field_str(record, "external_id"))
             .unwrap_or_else(|| record.row_number.to_string());
-        let name = field_str(record, "name")
-            .unwrap_or_else(|| format!("Shift {}", &external_id));
+        let name = field_str(record, "name").unwrap_or_else(|| format!("Shift {}", &external_id));
         let start_time = match field_timestamp(record, "start_time") {
             Some(ts) => ts,
             None => {
-                warn!(row = record.row_number, "shifts: skipping row missing start_time");
+                warn!(
+                    row = record.row_number,
+                    "shifts: skipping row missing start_time"
+                );
                 continue;
             }
         };
         let end_time = match field_timestamp(record, "end_time") {
             Some(ts) => ts,
             None => {
-                warn!(row = record.row_number, "shifts: skipping row missing end_time");
+                warn!(
+                    row = record.row_number,
+                    "shifts: skipping row missing end_time"
+                );
                 continue;
             }
         };
@@ -1155,7 +1165,9 @@ async fn load_shifts(
             .unwrap_or(30);
         let notes = field_str(record, "notes");
         let status = normalize_shift_status(
-            field_str(record, "status").as_deref().unwrap_or("scheduled"),
+            field_str(record, "status")
+                .as_deref()
+                .unwrap_or("scheduled"),
         );
 
         let crew_name = field_str(record, "crew_name");
@@ -1216,13 +1228,16 @@ async fn load_shift_assignments(
 
     let mut loaded: i64 = 0;
     for record in records {
-        let external_id = field_str(record, "external_id")
-            .unwrap_or_else(|| record.row_number.to_string());
+        let external_id =
+            field_str(record, "external_id").unwrap_or_else(|| record.row_number.to_string());
 
         let shift_external_id = match field_str(record, "shift_external_id") {
             Some(s) => s,
             None => {
-                warn!(row = record.row_number, "shift_assignments: missing shift_external_id");
+                warn!(
+                    row = record.row_number,
+                    "shift_assignments: missing shift_external_id"
+                );
                 continue;
             }
         };
@@ -1248,16 +1263,18 @@ async fn load_shift_assignments(
         let employee_id = match field_str(record, "employee_id") {
             Some(e) => e,
             None => {
-                warn!(row = record.row_number, "shift_assignments: missing employee_id");
+                warn!(
+                    row = record.row_number,
+                    "shift_assignments: missing employee_id"
+                );
                 continue;
             }
         };
-        let user_id: Option<Uuid> = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM users WHERE employee_id = $1",
-        )
-        .bind(&employee_id)
-        .fetch_optional(&mut **executor)
-        .await?;
+        let user_id: Option<Uuid> =
+            sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE employee_id = $1")
+                .bind(&employee_id)
+                .fetch_optional(&mut **executor)
+                .await?;
         let user_id = match user_id {
             Some(id) => id,
             None => {
@@ -1306,8 +1323,13 @@ async fn load_shift_log_entries(
     source_config: &JsonValue,
 ) -> Result<i64> {
     const KNOWN: &[&str] = &[
-        "external_id", "entry_type", "area", "author", "event_time",
-        "summary", "status",
+        "external_id",
+        "entry_type",
+        "area",
+        "author",
+        "event_time",
+        "summary",
+        "status",
     ];
     let source_system = source_config
         .get("source_system")
@@ -1317,12 +1339,15 @@ async fn load_shift_log_entries(
 
     let mut loaded: i64 = 0;
     for record in records {
-        let external_id = field_str(record, "external_id")
-            .unwrap_or_else(|| record.row_number.to_string());
+        let external_id =
+            field_str(record, "external_id").unwrap_or_else(|| record.row_number.to_string());
         let event_time = match field_timestamp(record, "event_time") {
             Some(ts) => ts,
             None => {
-                warn!(row = record.row_number, "shift_log_entries: skipping row missing event_time");
+                warn!(
+                    row = record.row_number,
+                    "shift_log_entries: skipping row missing event_time"
+                );
                 continue;
             }
         };

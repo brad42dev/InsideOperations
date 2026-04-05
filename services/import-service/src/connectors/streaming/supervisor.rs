@@ -218,12 +218,11 @@ pub async fn spawn_session_for_definition(
     let auth_config_raw: serde_json::Value = row.try_get("auth_config")?;
     let auth_config = crate::crypto::decrypt_sensitive_fields(&auth_config_raw, &master_key);
 
-    let pipeline_row = sqlx::query(
-        "SELECT field_mappings, target_table FROM import_definitions WHERE id = $1",
-    )
-    .bind(def_id)
-    .fetch_one(db)
-    .await?;
+    let pipeline_row =
+        sqlx::query("SELECT field_mappings, target_table FROM import_definitions WHERE id = $1")
+            .bind(def_id)
+            .fetch_one(db)
+            .await?;
 
     let field_mappings: serde_json::Value = pipeline_row.try_get("field_mappings")?;
     let target_table: String = pipeline_row

@@ -171,13 +171,34 @@ impl EtlConnector for UkgWfmConnector {
     /// Return a fixed schema describing the fields produced by extract().
     async fn discover_schema(&self, _cfg: &EtlConnectorConfig) -> Result<Vec<SchemaTable>> {
         let fields = vec![
-            SchemaField { name: "external_id".into(), data_type: "text".into() },
-            SchemaField { name: "name".into(), data_type: "text".into() },
-            SchemaField { name: "start_time".into(), data_type: "timestamptz".into() },
-            SchemaField { name: "end_time".into(), data_type: "timestamptz".into() },
-            SchemaField { name: "employee_id".into(), data_type: "text".into() },
-            SchemaField { name: "role_label".into(), data_type: "text".into() },
-            SchemaField { name: "shift_external_id".into(), data_type: "text".into() },
+            SchemaField {
+                name: "external_id".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "name".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "start_time".into(),
+                data_type: "timestamptz".into(),
+            },
+            SchemaField {
+                name: "end_time".into(),
+                data_type: "timestamptz".into(),
+            },
+            SchemaField {
+                name: "employee_id".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "role_label".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "shift_external_id".into(),
+                data_type: "text".into(),
+            },
         ];
         Ok(vec![SchemaTable {
             name: "shifts".into(),
@@ -244,10 +265,7 @@ impl EtlConnector for UkgWfmConnector {
             .danger_accept_invalid_certs(true)
             .build()?;
 
-        let mut req = client
-            .post(&schedule_url)
-            .bearer_auth(&token)
-            .json(&body);
+        let mut req = client.post(&schedule_url).bearer_auth(&token).json(&body);
 
         if let Some(ref key) = app_key {
             req = req.header("appkey", key.as_str());
@@ -261,9 +279,7 @@ impl EtlConnector for UkgWfmConnector {
                 .get("Retry-After")
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("60");
-            return Err(anyhow!(
-                "ukg_wfm: rate limited; retry after {retry}s"
-            ));
+            return Err(anyhow!("ukg_wfm: rate limited; retry after {retry}s"));
         }
 
         if !resp.status().is_success() {
@@ -318,10 +334,7 @@ impl EtlConnector for UkgWfmConnector {
                 .to_string();
 
             let mut fields = std::collections::HashMap::new();
-            fields.insert(
-                "external_id".into(),
-                JsonValue::String(external_id),
-            );
+            fields.insert("external_id".into(), JsonValue::String(external_id));
             fields.insert("name".into(), JsonValue::String(label));
             fields.insert(
                 "start_time".into(),

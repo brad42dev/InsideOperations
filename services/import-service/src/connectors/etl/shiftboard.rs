@@ -6,9 +6,9 @@
 use anyhow::{anyhow, Result};
 use base64::Engine as _;
 use hmac::{Hmac, Mac};
-use sha1::Sha1;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
+use sha1::Sha1;
 use tracing::{info, warn};
 
 use super::{EtlConnector, EtlConnectorConfig};
@@ -76,10 +76,7 @@ async fn jsonrpc_call(
     let resp = client.post(base_url).json(&body).send().await?;
 
     if !resp.status().is_success() {
-        return Err(anyhow!(
-            "shiftboard: HTTP {} from {method}",
-            resp.status()
-        ));
+        return Err(anyhow!("shiftboard: HTTP {} from {method}", resp.status()));
     }
 
     let rpc: JsonRpcResponse = resp.json().await?;
@@ -167,14 +164,38 @@ impl EtlConnector for ShiftboardJsonRpcConnector {
     /// Return the fixed schema produced by extract().
     async fn discover_schema(&self, _cfg: &EtlConnectorConfig) -> Result<Vec<SchemaTable>> {
         let fields = vec![
-            SchemaField { name: "external_id".into(), data_type: "text".into() },
-            SchemaField { name: "name".into(), data_type: "text".into() },
-            SchemaField { name: "start_time".into(), data_type: "timestamptz".into() },
-            SchemaField { name: "end_time".into(), data_type: "timestamptz".into() },
-            SchemaField { name: "employee_id".into(), data_type: "text".into() },
-            SchemaField { name: "role_label".into(), data_type: "text".into() },
-            SchemaField { name: "shift_external_id".into(), data_type: "text".into() },
-            SchemaField { name: "crew_name".into(), data_type: "text".into() },
+            SchemaField {
+                name: "external_id".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "name".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "start_time".into(),
+                data_type: "timestamptz".into(),
+            },
+            SchemaField {
+                name: "end_time".into(),
+                data_type: "timestamptz".into(),
+            },
+            SchemaField {
+                name: "employee_id".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "role_label".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "shift_external_id".into(),
+                data_type: "text".into(),
+            },
+            SchemaField {
+                name: "crew_name".into(),
+                data_type: "text".into(),
+            },
         ];
         Ok(vec![SchemaTable {
             name: "shifts".into(),
@@ -207,7 +228,11 @@ impl EtlConnector for ShiftboardJsonRpcConnector {
             });
 
         let use_delta = updated_since.is_some();
-        let method = if use_delta { "shift.listUpdated" } else { "shift.list" };
+        let method = if use_delta {
+            "shift.listUpdated"
+        } else {
+            "shift.list"
+        };
 
         let client = reqwest::Client::new();
         let mut records: Vec<SourceRecord> = Vec::new();
