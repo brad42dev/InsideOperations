@@ -1915,8 +1915,10 @@ function BadgeEventsTab() {
   const events: BadgeEvent[] = eventsQuery.data ?? [];
 
   const eventBadge = (eventType: string) => {
-    const [color, bg] =
-      EVENT_TYPE_COLORS[eventType] ?? ["#eab308", "rgba(234,179,8,0.12)"];
+    const [color, bg] = EVENT_TYPE_COLORS[eventType] ?? [
+      "#eab308",
+      "rgba(234,179,8,0.12)",
+    ];
     return (
       <span
         style={{

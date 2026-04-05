@@ -96,7 +96,11 @@ export function MaintenanceTicketsPanel({
   const ticketsQuery = useQuery({
     queryKey: ["import-tickets", sourceSystem, status, limit],
     queryFn: async () => {
-      const result = await importApi.listTickets({ source_system: sourceSystem, status, limit });
+      const result = await importApi.listTickets({
+        source_system: sourceSystem,
+        status,
+        limit,
+      });
       if (!result.success) throw new Error(result.error.message);
       return result.data;
     },
@@ -124,7 +128,11 @@ export function MaintenanceTicketsPanel({
         }}
       >
         <span
-          style={{ fontSize: 13, fontWeight: 600, color: "var(--io-text-primary)" }}
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "var(--io-text-primary)",
+          }}
         >
           {title}
         </span>
@@ -199,7 +207,13 @@ export function MaintenanceTicketsPanel({
                   {t.assigned_to}
                 </span>
               )}
-              <span style={{ fontSize: 11, color: "var(--io-text-muted)", marginLeft: "auto" }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--io-text-muted)",
+                  marginLeft: "auto",
+                }}
+              >
                 {relativeTime(t.created_at_source ?? t.created_at)}
               </span>
             </div>

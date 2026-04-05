@@ -511,7 +511,11 @@ export default function ShiftScheduleEditor() {
                   fontWeight: 500,
                 }}
               >
-                {isPending ? "Saving…" : isEdit ? "Save Changes" : "Create Shift"}
+                {isPending
+                  ? "Saving…"
+                  : isEdit
+                    ? "Save Changes"
+                    : "Create Shift"}
               </button>
             )}
           </div>

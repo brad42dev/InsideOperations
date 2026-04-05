@@ -389,8 +389,13 @@ export const importApi = {
 
   stopStreamSession(
     definitionId: string,
-  ): Promise<ApiResult<{ definition_id: string; was_running: boolean; message: string }>> {
-    return api.post(`${BASE}/definitions/${definitionId}/stream-session/stop`, {});
+  ): Promise<
+    ApiResult<{ definition_id: string; was_running: boolean; message: string }>
+  > {
+    return api.post(
+      `${BASE}/definitions/${definitionId}/stream-session/stop`,
+      {},
+    );
   },
 
   restartStreamSession(
