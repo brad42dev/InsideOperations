@@ -406,7 +406,10 @@ pub async fn update_sms_provider(
     let mut config: serde_json::Value = row.try_get("config").unwrap_or_default();
     if let Some(obj) = config.as_object_mut() {
         if obj.contains_key("auth_token") {
-            obj.insert("auth_token".to_string(), serde_json::Value::String("***".to_string()));
+            obj.insert(
+                "auth_token".to_string(),
+                serde_json::Value::String("***".to_string()),
+            );
         }
     }
 
@@ -441,13 +444,12 @@ pub async fn test_sms_provider(
         return Err(IoError::Forbidden("system:configure required".to_string()));
     }
 
-    let row = sqlx::query(
-        "SELECT id::text, provider_type, config FROM sms_providers WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| IoError::NotFound("SMS provider not found".to_string()))?;
+    let row =
+        sqlx::query("SELECT id::text, provider_type, config FROM sms_providers WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| IoError::NotFound("SMS provider not found".to_string()))?;
 
     let provider = crate::sms::SmsProvider {
         id: row.try_get("id").unwrap_or_default(),
@@ -460,13 +462,11 @@ pub async fn test_sms_provider(
     let ok = result.is_ok();
     let error_msg = result.err().map(|e| e.to_string());
 
-    sqlx::query(
-        "UPDATE sms_providers SET last_tested_at = now(), last_test_ok = $2 WHERE id = $1",
-    )
-    .bind(id)
-    .bind(ok)
-    .execute(&state.db)
-    .await?;
+    sqlx::query("UPDATE sms_providers SET last_tested_at = now(), last_test_ok = $2 WHERE id = $1")
+        .bind(id)
+        .bind(ok)
+        .execute(&state.db)
+        .await?;
 
     Ok(Json(ApiResponse::ok(serde_json::json!({
         "tested": true,

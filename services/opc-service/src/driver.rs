@@ -632,13 +632,10 @@ async fn run_source_once(
         let already_queued = db::has_pending_recovery_jobs(db, source.id)
             .await
             .unwrap_or(false);
-        let has_established_history = db::has_history_older_than(
-            db,
-            source.id,
-            chrono::Duration::hours(1),
-        )
-        .await
-        .unwrap_or(false);
+        let has_established_history =
+            db::has_history_older_than(db, source.id, chrono::Duration::hours(1))
+                .await
+                .unwrap_or(false);
         if !already_queued && has_established_history {
             let point_ids: Vec<Uuid> = node_map.values().copied().collect();
             let recover_from = match db::get_last_history_timestamp(db, &point_ids).await {

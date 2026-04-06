@@ -111,7 +111,13 @@ pub fn evaluate_expression(
 fn sanitize_identifier(s: &str) -> String {
     let mut out: String = s
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     if out.starts_with(|c: char| c.is_ascii_digit()) {
         out.insert(0, '_');
@@ -160,10 +166,7 @@ pub(crate) fn expr_node_to_rhai(
 
         "point_ref" => {
             let ref_type = node.get("ref_type").and_then(|v| v.as_str()).unwrap_or("");
-            let point_id = node
-                .get("point_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let point_id = node.get("point_id").and_then(|v| v.as_str()).unwrap_or("");
             let lookup_key = if ref_type == "current" || point_id.is_empty() {
                 "current_point"
             } else {
@@ -182,33 +185,34 @@ pub(crate) fn expr_node_to_rhai(
         }
 
         "unary" => {
-            let op = node
-                .get("op")
-                .and_then(|v| v.as_str())
-                .unwrap_or("negate");
+            let op = node.get("op").and_then(|v| v.as_str()).unwrap_or("negate");
             let operand = node
                 .get("operand")
                 .ok_or_else(|| "unary node missing 'operand'".to_string())?;
             let inner = expr_node_to_rhai(operand, point_values)?;
             match op {
                 "negate" | "-" => Ok(format!("(-({inner}))")),
-                "abs"          => Ok(format!("({inner} as f64).abs()")),
-                "square"       => Ok(format!("(({inner}) * ({inner}))")),
-                "cube"         => Ok(format!("(({inner}) * ({inner}) * ({inner}))")),
-                "not" | "!"    => Ok(format!("(!({inner}))")),
-                other          => Err(format!("Unknown unary op: '{other}'")),
+                "abs" => Ok(format!("({inner} as f64).abs()")),
+                "square" => Ok(format!("(({inner}) * ({inner}))")),
+                "cube" => Ok(format!("(({inner}) * ({inner}) * ({inner}))")),
+                "not" | "!" => Ok(format!("(!({inner}))")),
+                other => Err(format!("Unknown unary op: '{other}'")),
             }
         }
 
         "binary" => {
             let op = node.get("op").and_then(|v| v.as_str()).unwrap_or("+");
-            let left  = node.get("left").ok_or_else(|| "binary node missing 'left'".to_string())?;
-            let right = node.get("right").ok_or_else(|| "binary node missing 'right'".to_string())?;
+            let left = node
+                .get("left")
+                .ok_or_else(|| "binary node missing 'left'".to_string())?;
+            let right = node
+                .get("right")
+                .ok_or_else(|| "binary node missing 'right'".to_string())?;
             let l = expr_node_to_rhai(left, point_values)?;
             let r = expr_node_to_rhai(right, point_values)?;
             let rhai_op = match op {
                 "and" => "&&",
-                "or"  => "||",
+                "or" => "||",
                 other => other,
             };
             Ok(format!("(({l}) {rhai_op} ({r}))"))
@@ -247,14 +251,23 @@ pub(crate) fn expr_node_to_rhai(
             for a in args {
                 arg_strs.push(expr_node_to_rhai(a, point_values)?);
             }
-            Ok(format!("{}({})", sanitize_identifier(name), arg_strs.join(", ")))
+            Ok(format!(
+                "{}({})",
+                sanitize_identifier(name),
+                arg_strs.join(", ")
+            ))
         }
 
         "conditional" => {
-            let cond  = node.get("condition").ok_or_else(|| "conditional missing 'condition'".to_string())?;
-            let then  = node.get("then").ok_or_else(|| "conditional missing 'then'".to_string())?;
+            let cond = node
+                .get("condition")
+                .ok_or_else(|| "conditional missing 'condition'".to_string())?;
+            let then = node
+                .get("then")
+                .ok_or_else(|| "conditional missing 'then'".to_string())?;
             // Frontend field is "else_branch"
-            let els   = node.get("else_branch")
+            let els = node
+                .get("else_branch")
                 .or_else(|| node.get("else"))
                 .ok_or_else(|| "conditional missing 'else_branch'".to_string())?;
             let c = expr_node_to_rhai(cond, point_values)?;

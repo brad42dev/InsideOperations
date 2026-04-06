@@ -200,7 +200,10 @@ pub fn ast_to_rhai_string(node: &ExprNode) -> String {
                     .and_then(|p| p.get("precision"))
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0);
-                let arg = args.first().map(ast_to_rhai_string).unwrap_or_else(|| "0.0".to_string());
+                let arg = args
+                    .first()
+                    .map(ast_to_rhai_string)
+                    .unwrap_or_else(|| "0.0".to_string());
                 if precision <= 0 {
                     return format!("({arg} as f64).round()");
                 }
@@ -337,7 +340,8 @@ pub async fn evaluate_saved_expression_handler(
     let ast_value: serde_json::Value = match row.try_get("expression") {
         Ok(v) => v,
         Err(e) => {
-            return IoError::Internal(format!("failed to read expression column: {e}")).into_response();
+            return IoError::Internal(format!("failed to read expression column: {e}"))
+                .into_response();
         }
     };
 
@@ -424,7 +428,8 @@ pub async fn evaluate_batch_handler(
     let ast_value: serde_json::Value = match row.try_get("expression") {
         Ok(v) => v,
         Err(e) => {
-            return IoError::Internal(format!("failed to read expression column: {e}")).into_response()
+            return IoError::Internal(format!("failed to read expression column: {e}"))
+                .into_response()
         }
     };
 

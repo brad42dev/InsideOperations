@@ -1,8 +1,5 @@
 use crate::{
-    cache::ShadowCache,
-    expression_eval,
-    fanout::PendingMap,
-    registry::SubscriptionRegistry,
+    cache::ShadowCache, expression_eval, fanout::PendingMap, registry::SubscriptionRegistry,
 };
 use chrono::Utc;
 use dashmap::DashMap;
@@ -126,13 +123,7 @@ impl ExpressionRegistry {
                     self.last_evaluated_at.insert(expr_id, now);
 
                     // Store result in shadow cache under the expression UUID.
-                    cache.update(
-                        expr_id,
-                        result,
-                        "good".to_string(),
-                        ts,
-                        None,
-                    );
+                    cache.update(expr_id, result, "good".to_string(), ts, None);
 
                     // Fan out to subscribed clients.
                     let client_ids = sub_registry.get_clients_for_point(&expr_id);
