@@ -102,8 +102,6 @@ INSERT INTO permissions (name, description, module) VALUES
     ('email:manage_templates',      'Create, edit, delete email templates',                       'email'),
     ('email:send_test',             'Send test emails to verify provider configuration',          'email'),
     ('email:view_logs',             'View email delivery logs and queue status',                  'email'),
-    -- SMS (1)
-    ('sms:configure',               'Configure SMS providers (Twilio, etc.) and credentials',    'sms'),
     -- Auth (3)
     ('auth:configure',              'Configure authentication providers',                         'auth'),
     ('auth:manage_mfa',             'Configure MFA policies per role',                            'auth'),
